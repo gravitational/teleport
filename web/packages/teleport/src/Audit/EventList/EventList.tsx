@@ -31,6 +31,7 @@ export default function EventList(props: Props) {
     clusterId,
     events = [],
     search = '',
+    onSearchChange,
     fetchMore,
     fetchStatus,
     pageSize = 50,
@@ -91,7 +92,14 @@ export default function EventList(props: Props) {
   }, [state, events, search]);
 
   // paginate
-  const tableProps = { pageSize, data, fetchMore, fetchStatus };
+  const tableProps = {
+    pageSize,
+    data,
+    fetchMore,
+    fetchStatus,
+    search,
+    onSearchChange,
+  };
   const { detailsToShow, colSortDirs } = state;
   return (
     <React.Fragment>
@@ -146,6 +154,7 @@ type EventListState = {
 type Props = {
   clusterId: State['clusterId'];
   search: State['searchValue'];
+  onSearchChange: State['setSearchValue'];
   events: State['events'];
   fetchMore: State['fetchMore'];
   fetchStatus: State['fetchStatus'];

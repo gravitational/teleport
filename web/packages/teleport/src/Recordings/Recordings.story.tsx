@@ -36,12 +36,12 @@ export const Loaded = () => {
   return render(ctx);
 };
 
-export const Overflow = () => {
+export const LoadedFetchMore = () => {
   const ctx = new Context();
   ctx.recordingsService.fetchRecordings = () =>
     Promise.resolve({
-      recordings: [],
-      startKey: 'cause-overflow',
+      recordings: recordings.map(makeRecording),
+      startKey: 'some-key',
     });
 
   return render(ctx);

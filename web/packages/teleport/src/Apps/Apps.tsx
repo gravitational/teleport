@@ -23,7 +23,6 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import InputSearch from 'teleport/components/InputSearch';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import AppList from './AppList';
 import AddApp from './AddApp';
@@ -70,10 +69,11 @@ export function Apps(props: State) {
       )}
       {attempt.status === 'failed' && <Danger>{attempt.statusText} </Danger>}
       {hasApps && (
-        <Box>
-          <InputSearch mb={4} value={searchValue} onChange={setSearchValue} />
-          <AppList searchValue={searchValue} apps={apps} />
-        </Box>
+        <AppList
+          apps={apps}
+          search={searchValue}
+          onSearchChange={setSearchValue}
+        />
       )}
       {isEmpty && (
         <Empty

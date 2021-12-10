@@ -32,7 +32,14 @@ import { AuthType } from 'teleport/services/user';
 import ConnectDialog from '../ConnectDialog';
 
 function KubeList(props: Props) {
-  const { kubes = [], pageSize = 100, username, authType, searchValue } = props;
+  const {
+    kubes = [],
+    pageSize = 100,
+    username,
+    authType,
+    search,
+    onSearchChange,
+  } = props;
 
   const [sortDir, setSortDir] = useState<Record<string, string>>({
     name: SortTypes.DESC,
@@ -61,11 +68,16 @@ function KubeList(props: Props) {
     setSortDir({ [columnKey]: sortDir });
   }
 
-  const data = sortAndFilter(searchValue);
+  const data = sortAndFilter(search);
 
   return (
     <>
-      <StyledTable pageSize={pageSize} data={data}>
+      <StyledTable
+        pageSize={pageSize}
+        data={data}
+        search={search}
+        onSearchChange={onSearchChange}
+      >
         <Column
           columnKey="name"
           header={
@@ -147,7 +159,8 @@ type Props = {
   pageSize?: number;
   username: string;
   authType: AuthType;
-  searchValue: string;
+  search: string;
+  onSearchChange: React.Dispatch<React.SetStateAction<string>>;
 };
 
 export default KubeList;

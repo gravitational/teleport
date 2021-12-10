@@ -29,7 +29,8 @@ test('search filter works', () => {
       clusterId="test"
       authType="local"
       databases={databases}
-      searchValue={searchValue}
+      search={searchValue}
+      onSearchChange={() => null}
     />
   );
 

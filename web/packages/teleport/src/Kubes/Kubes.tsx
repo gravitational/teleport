@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Box, Indicator, ButtonPrimary, Flex, Text, Link } from 'design';
+import { Box, Indicator, ButtonPrimary, Text, Link } from 'design';
 import { Danger } from 'design/Alert';
 import KubeList from 'teleport/Kubes/KubeList';
 import {
@@ -24,7 +24,6 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
-import InputSearch from 'teleport/components/InputSearch';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import useKubes, { State } from './useKubes';
 
@@ -74,14 +73,12 @@ export function Kubes(props: State) {
       )}
       {hasKubes && (
         <>
-          <Flex flex="0 0 auto" mb={4}>
-            <InputSearch mr="3" onChange={setSearchValue} />
-          </Flex>
           <KubeList
             kubes={kubes}
             username={username}
             authType={authType}
-            searchValue={searchValue}
+            search={searchValue}
+            onSearchChange={setSearchValue}
           />
         </>
       )}

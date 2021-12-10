@@ -45,7 +45,7 @@ import { App } from 'teleport/services/apps';
 import AwsLaunchButton from './AwsLaunchButton';
 
 export default function AppList(props: Props) {
-  const { apps = [], pageSize = 100, searchValue } = props;
+  const { apps = [], pageSize = 100, search, onSearchChange } = props;
   const [sortDir, setSortDir] = useState<Record<string, string>>({
     name: SortTypes.DESC,
   });
@@ -71,10 +71,15 @@ export default function AppList(props: Props) {
     setSortDir({ [columnKey]: sortDir });
   }
 
-  const data = sortAndFilter(searchValue);
+  const data = sortAndFilter(search);
 
   return (
-    <StyledTable pageSize={pageSize} data={data}>
+    <StyledTable
+      pageSize={pageSize}
+      data={data}
+      search={search}
+      onSearchChange={onSearchChange}
+    >
       <Column header={<Cell />} cell={<AppIconCell />} />
       <Column
         columnKey="name"
@@ -154,9 +159,8 @@ function AppIconCell(props) {
 
 function LaunchButtonCell(props) {
   const { rowIndex, data } = props;
-  const { launchUrl, awsConsole, awsRoles, fqdn, clusterId, publicAddr } = data[
-    rowIndex
-  ];
+  const { launchUrl, awsConsole, awsRoles, fqdn, clusterId, publicAddr } =
+    data[rowIndex];
 
   const $btn = awsConsole ? (
     <AwsLaunchButton
@@ -218,7 +222,8 @@ function searchAndFilterCb(
 type Props = {
   apps: App[];
   pageSize?: number;
-  searchValue: string;
+  search: string;
+  onSearchChange: React.Dispatch<React.SetStateAction<string>>;
 };
 
 const StyledTable = styled(Table)`

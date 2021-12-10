@@ -39,7 +39,8 @@ function DatabaseList(props: Props) {
     username,
     clusterId,
     authType,
-    searchValue,
+    search,
+    onSearchChange,
   } = props;
 
   const [sortDir, setSortDir] = useState<Record<string, string>>({
@@ -72,11 +73,16 @@ function DatabaseList(props: Props) {
     setSortDir({ [columnKey]: sortDir });
   }
 
-  const data = sortAndFilter(searchValue);
+  const data = sortAndFilter(search);
 
   return (
     <>
-      <StyledTable pageSize={pageSize} data={data}>
+      <StyledTable
+        pageSize={pageSize}
+        data={data}
+        search={search}
+        onSearchChange={onSearchChange}
+      >
         <Column
           columnKey="name"
           header={
@@ -178,7 +184,8 @@ type Props = {
   username: string;
   clusterId: string;
   authType: AuthType;
-  searchValue: string;
+  search: string;
+  onSearchChange: React.Dispatch<React.SetStateAction<string>>;
 };
 
 export default DatabaseList;

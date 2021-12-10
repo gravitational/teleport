@@ -19,7 +19,6 @@ import { sortBy } from 'lodash';
 import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 import isMatch from 'design/utils/match';
-import { Flex } from 'design';
 import { Cluster } from 'teleport/services/clusters';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import {
@@ -35,7 +34,7 @@ import * as Labels from 'design/Label';
 import cfg from 'teleport/config';
 
 export default function ClustersList(props: Props) {
-  const { clusters, search = '', pageSize = 50, onSearchChange } = props;
+  const { clusters, search = '', onSearchChange, pageSize = 50 } = props;
   const [sorting, setSorting] = React.useState<Sorting>({
     clusterId: 'DESC',
   });
@@ -56,14 +55,12 @@ export default function ClustersList(props: Props) {
 
   return (
     <>
-      <Flex mb={4} alignItems="center" justifyContent="flex-start">
-        <InputSearch height="30px" mr="3" onChange={onSearchChange} />
-      </Flex>
       <StyledPanel
         borderTopRightRadius="3"
         borderTopLeftRadius="3"
         justifyContent="space-between"
       >
+        <InputSearch mr={3} value={search} onChange={onSearchChange} />
         <Pager {...paged} />
       </StyledPanel>
       <StyledTable data={paged.data}>

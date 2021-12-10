@@ -484,10 +484,6 @@ exports[`failed state 1`] = `
 `;
 
 exports[`loaded state 1`] = `
-.c4 {
-  box-sizing: border-box;
-}
-
 .c3 {
   line-height: 1.5;
   margin: 0;
@@ -646,8 +642,14 @@ exports[`loaded state 1`] = `
   margin: 0px;
 }
 
+.c6 {
+  box-sizing: border-box;
+  display: flex;
+}
+
 .c7 {
   box-sizing: border-box;
+  margin-right: 8px;
   display: flex;
   align-items: center;
 }
@@ -737,38 +739,6 @@ exports[`loaded state 1`] = `
   padding-bottom: 24px;
 }
 
-.c5 {
-  box-sizing: border-box;
-  font-size: 12px;
-  min-width: 200px;
-  outline: none;
-  border: none;
-  border-radius: 200px;
-  height: 32px;
-  transition: all .2s;
-  background: #222C59;
-  margin-bottom: 24px;
-  padding-left: 16px;
-  padding-right: 16px;
-  color: rgba(255,255,255,0.87);
-}
-
-.c5:hover {
-  background: #2C3A73;
-}
-
-.c5:focus,
-.c5:active {
-  background: #2C3A73;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
-  color: rgba(255,255,255,0.87);
-}
-
-.c5::placeholder {
-  color: rgba(255,255,255,0.24);
-  font-size: 12px;
-}
-
 .c12 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
@@ -850,6 +820,38 @@ exports[`loaded state 1`] = `
   border-bottom-right-radius: 8px;
 }
 
+.c5 {
+  box-sizing: border-box;
+  font-size: 12px;
+  min-width: 200px;
+  outline: none;
+  border: none;
+  border-radius: 200px;
+  height: 32px;
+  transition: all 0.2s;
+  background: #111B48;
+  margin-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+}
+
+.c5:hover {
+  background: #2C3A73;
+}
+
+.c5:focus,
+.c5:active {
+  background: #2C3A73;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(255,255,255,0.87);
+}
+
+.c5::placeholder {
+  color: rgba(255,255,255,0.24);
+  font-size: 12px;
+}
+
 .c9 {
   box-sizing: border-box;
   display: flex;
@@ -883,16 +885,17 @@ exports[`loaded state 1`] = `
   transition: all 0.3s;
 }
 
-.c6 {
-  padding: 8px 24px;
+.c4 {
+  padding: 12px 16px;
   display: flex;
   height: 24px;
   flex-shrink: 0;
   align-items: center;
-  justify-content: space-between;
+  justify-content: end;
   background: #222C59;
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
+  justify-content: space-between;
 }
 
 .c13 > tbody > tr > td {
@@ -921,18 +924,18 @@ exports[`loaded state 1`] = `
       </button>
     </div>
     <div
-      class="c4"
+      style="min-width: min-content;"
     >
-      <input
-        class="c5"
-        color="text.primary"
-        placeholder="SEARCH..."
-        value=""
-      />
-      <div
-        style="min-width: min-content;"
+      <nav
+        class="c4"
       >
-        <nav
+        <input
+          class="c5"
+          color="text.primary"
+          placeholder="SEARCH..."
+          value=""
+        />
+        <div
           class="c6"
         >
           <div
@@ -981,269 +984,281 @@ exports[`loaded state 1`] = `
               />
             </button>
           </div>
-        </nav>
-        <table
-          class="c12 c13"
-        >
-          <thead>
-            <tr>
-              <th />
-              <th>
-                <a>
-                  Name
-                  <span
-                    class="c10 c14 icon icon-chevron-down "
-                    color="light"
-                  />
-                </a>
-              </th>
-              <th>
-                <a>
-                  Description
-                  <span
-                    class="c10 c14 icon icon-chevrons-expand-vertical "
-                    color="light"
-                  />
-                </a>
-              </th>
-              <th>
-                <a>
-                  Address
-                  <span
-                    class="c10 c14 icon icon-chevrons-expand-vertical "
-                    color="light"
-                  />
-                </a>
-              </th>
-              <th>
-                Labels
-              </th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td
-                style="user-select: none;"
+        </div>
+      </nav>
+      <table
+        class="c12 c13"
+      >
+        <thead>
+          <tr>
+            <th />
+            <th>
+              <a>
+                Name
+                <span
+                  class="c10 c14 icon icon-chevron-down "
+                  color="light"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                Description
+                <span
+                  class="c10 c14 icon icon-chevrons-expand-vertical "
+                  color="light"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                Address
+                <span
+                  class="c10 c14 icon icon-chevrons-expand-vertical "
+                  color="light"
+                />
+              </a>
+            </th>
+            <th>
+              Labels
+            </th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c15"
+                height="32px"
+                width="32px"
               >
                 <div
-                  class="c15"
-                  height="32px"
-                  width="32px"
+                  class="c16"
+                  font-size="3"
                 >
-                  <div
-                    class="c16"
-                    font-size="3"
-                  >
-                    G
-                  </div>
+                  G
                 </div>
-              </td>
-              <td>
-                Grafana
-              </td>
-              <td>
-                This is a Grafana app
-              </td>
-              <td>
-                https://
-                grafana.teleport-proxy.com
-              </td>
-              <td>
-                <div
-                  class="c17"
-                  kind="secondary"
-                >
-                  env: idk
-                </div>
-                <div
-                  class="c17"
-                  kind="secondary"
-                >
-                  cluster: one
-                </div>
-              </td>
-              <td
-                align="right"
+              </div>
+            </td>
+            <td>
+              Grafana
+            </td>
+            <td>
+              This is a Grafana app
+            </td>
+            <td>
+              https://
+              grafana.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c17"
+                kind="secondary"
               >
-                <a
-                  class="c18"
-                  href="/web/launch/grafana.one/one/grafana.teleport-proxy.com"
-                  kind="border"
-                  rel="noreferrer"
-                  target="_blank"
-                  width="88px"
-                >
-                  LAUNCH
-                </a>
-              </td>
-            </tr>
-            <tr>
-              <td
-                style="user-select: none;"
+                env: dev
+              </div>
+              <div
+                class="c17"
+                kind="secondary"
               >
-                <div
-                  class="c19"
-                  height="32px"
-                  width="32px"
-                >
-                  <div
-                    class="c16"
-                    font-size="3"
-                  >
-                    J
-                  </div>
-                </div>
-              </td>
-              <td>
-                Jenkins
-              </td>
-              <td>
-                This is a Jenkins app
-              </td>
-              <td>
-                https://
-                jenkins.teleport-proxy.com
-              </td>
-              <td>
-                <div
-                  class="c17"
-                  kind="secondary"
-                >
-                  env: idk
-                </div>
-                <div
-                  class="c17"
-                  kind="secondary"
-                >
-                  cluster: one
-                </div>
-              </td>
-              <td
-                align="right"
+                cluster: one
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c18"
+                href="/web/launch/grafana.one/one/grafana.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
               >
-                <a
-                  class="c18"
-                  href="/web/launch/jenkins.one/one/jenkins.teleport-proxy.com"
-                  kind="border"
-                  rel="noreferrer"
-                  target="_blank"
-                  width="88px"
-                >
-                  LAUNCH
-                </a>
-              </td>
-            </tr>
-            <tr>
-              <td
-                style="user-select: none;"
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c19"
+                height="32px"
+                width="32px"
               >
                 <div
-                  class="c20"
-                  height="32px"
-                  width="32px"
+                  class="c16"
+                  font-size="3"
                 >
-                  <div
-                    class="c16"
-                    font-size="3"
-                  >
-                    M
-                  </div>
+                  J
                 </div>
-              </td>
-              <td>
-                Mattermost1
-              </td>
-              <td>
-                This is a Mattermost app
-              </td>
-              <td>
-                https://
-                mattermost.teleport-proxy.com
-              </td>
-              <td>
-                <div
-                  class="c17"
-                  kind="secondary"
-                >
-                  env: idk
-                </div>
-                <div
-                  class="c17"
-                  kind="secondary"
-                >
-                  cluster: one
-                </div>
-              </td>
-              <td
-                align="right"
+              </div>
+            </td>
+            <td>
+              Jenkins
+            </td>
+            <td>
+              This is a Jenkins app
+            </td>
+            <td>
+              https://
+              jenkins.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c17"
+                kind="secondary"
               >
-                <a
-                  class="c18"
-                  href="/web/launch/mattermost.one/one/mattermost.teleport-proxy.com"
-                  kind="border"
-                  rel="noreferrer"
-                  target="_blank"
-                  width="88px"
-                >
-                  LAUNCH
-                </a>
-              </td>
-            </tr>
-            <tr>
-              <td
-                style="user-select: none;"
+                env: prod
+              </div>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                cluster: one
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c18"
+                href="/web/launch/jenkins.one/one/jenkins.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c20"
+                height="32px"
+                width="32px"
               >
                 <div
-                  class="c21"
-                  height="32px"
-                  width="32px"
+                  class="c16"
+                  font-size="3"
                 >
-                  <span
-                    class="c10 c22 icon icon-amazonaws "
-                    color="light"
-                    font-size="6"
-                  />
+                  M
                 </div>
-              </td>
-              <td>
-                aws-console-1
-              </td>
-              <td>
-                This is an AWS Console app
-              </td>
-              <td>
-                https://
-                awsconsole-1.teleport-proxy.com
-              </td>
-              <td>
-                <div
-                  class="c17"
-                  kind="secondary"
-                >
-                  aws_account_id: joe123
-                </div>
-              </td>
-              <td
-                align="right"
+              </div>
+            </td>
+            <td>
+              Mattermost1
+            </td>
+            <td>
+              This is a Mattermost app
+            </td>
+            <td>
+              https://
+              mattermost.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c17"
+                kind="secondary"
               >
-                <button
-                  class="c18"
-                  kind="border"
-                  width="88px"
-                >
-                  LAUNCH
-                  <span
-                    class="c10 c23 icon icon-caret-down "
-                    color="text.secondary"
-                    font-size="2"
-                  />
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+                env: dev
+              </div>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                cluster: two
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c18"
+                href="/web/launch/mattermost.one/one/mattermost.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c21"
+                height="32px"
+                width="32px"
+              >
+                <span
+                  class="c10 c22 icon icon-amazonaws "
+                  color="light"
+                  font-size="6"
+                />
+              </div>
+            </td>
+            <td>
+              aws-console-1
+            </td>
+            <td>
+              This is an AWS Console app
+            </td>
+            <td>
+              https://
+              awsconsole-1.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                aws_account_id: A1234
+              </div>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                env: dev
+              </div>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                cluster: two
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c18"
+                kind="border"
+                width="88px"
+              >
+                LAUNCH
+                <span
+                  class="c10 c23 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </div>

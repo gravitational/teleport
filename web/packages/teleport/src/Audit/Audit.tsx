@@ -23,8 +23,7 @@ import {
 import EventList from './EventList';
 import RangePicker from 'teleport/components/EventRangePicker';
 import { Danger } from 'design/Alert';
-import { Flex, Indicator, Box } from 'design';
-import InputSearch from 'teleport/components/InputSearch';
+import { Indicator, Box } from 'design';
 import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useAuditEvents, { State } from './useAuditEvents';
@@ -61,14 +60,6 @@ export function Audit(props: State) {
           onChangeRange={setRange}
         />
       </FeatureHeader>
-      <Flex
-        mb={4}
-        alignItems="center"
-        flex="0 0 auto"
-        justifyContent="flex-start"
-      >
-        <InputSearch mr="3" onChange={setSearchValue} />
-      </Flex>
       {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
@@ -78,6 +69,7 @@ export function Audit(props: State) {
       {attempt.status === 'success' && (
         <EventList
           search={searchValue}
+          onSearchChange={setSearchValue}
           events={events}
           clusterId={clusterId}
           fetchMore={fetchMore}

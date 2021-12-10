@@ -29,9 +29,8 @@ export default function SelectFilter({
 }: Props) {
   const selectWrapperRef = useRef(null);
   const [showSelector, setShowSelector] = useState(false);
-  const [selectedFilters, setSelectedFilters] = useState<Option[]>(
-    appliedFilters
-  );
+  const [selectedFilters, setSelectedFilters] =
+    useState<Option[]>(appliedFilters);
 
   function clearFilters() {
     setSelectedFilters([]);
@@ -138,12 +137,8 @@ export default function SelectFilter({
 }
 
 const ControlComponent = props => {
-  const {
-    onFilterApply,
-    appliedFilters,
-    selectedFilters,
-    clearFilters,
-  } = props.selectProps.customProps;
+  const { onFilterApply, appliedFilters, selectedFilters, clearFilters } =
+    props.selectProps.customProps;
 
   const numFilters =
     selectedFilters.length > 0 ? ` (${selectedFilters.length})` : '';
@@ -225,7 +220,7 @@ const ActionButton = styled(ButtonBorder)`
 
 const AddButton = styled(ButtonBorder)`
   line-height: normal;
-  background-color: transparent;
+  background-color: ${props => props.theme.colors.primary.dark};
   font-weight: normal;
   border: 1px solid rgba(255, 255, 255, 0.24);
   color: #fff;
@@ -289,7 +284,7 @@ const StyledLabel = styled.div`
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 4px;
   color: ${({ theme }) => theme.colors.text.primary};
-  background-color: transparent;
+  background-color: ${props => props.theme.colors.primary.dark};
   font-weight: regular;
   font-size: 12px;
 

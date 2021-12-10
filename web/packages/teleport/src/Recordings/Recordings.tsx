@@ -23,8 +23,7 @@ import {
 import RecordingsList from './RecordingsList';
 import RangePicker from 'teleport/components/EventRangePicker';
 import { Danger } from 'design/Alert';
-import { Flex, Indicator, Box } from 'design';
-import InputSearch from 'teleport/components/InputSearch';
+import { Indicator, Box } from 'design';
 import useTeleport from 'teleport/useTeleport';
 import useRecordings, { State } from './useRecordings';
 
@@ -57,14 +56,6 @@ export function Recordings({
           onChangeRange={setRange}
         />
       </FeatureHeader>
-      <Flex
-        mb={4}
-        alignItems="center"
-        flex="0 0 auto"
-        justifyContent="flex-start"
-      >
-        <InputSearch mr="3" onChange={setSearchValue} />
-      </Flex>
       {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
@@ -73,7 +64,8 @@ export function Recordings({
       )}
       {attempt.status === 'success' && (
         <RecordingsList
-          searchValue={searchValue}
+          search={searchValue}
+          onSearchChange={setSearchValue}
           recordings={recordings}
           clusterId={clusterId}
           pageSize={50}

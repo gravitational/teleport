@@ -23,7 +23,6 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import QuickLaunch from 'teleport/components/QuickLaunch';
-import InputSearch from 'teleport/components/InputSearch';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import NodeList from 'teleport/components/NodeList';
 import useTeleport from 'teleport/useTeleport';
@@ -71,11 +70,16 @@ export function Nodes(props: State) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Servers</FeatureHeaderTitle>
-        <ButtonAdd
-          isLeafCluster={isLeafCluster}
-          canCreate={canCreate}
-          onClick={showAddNode}
-        />
+        <Flex alignItems="center">
+          {hasNodes && (
+            <QuickLaunch width="280px" onPress={onSshEnter} mr={3} />
+          )}
+          <ButtonAdd
+            isLeafCluster={isLeafCluster}
+            canCreate={canCreate}
+            onClick={showAddNode}
+          />
+        </Flex>
       </FeatureHeader>
       {attempt.status === 'failed' && <Danger>{attempt.statusText} </Danger>}
       {attempt.status === 'processing' && (
@@ -85,18 +89,10 @@ export function Nodes(props: State) {
       )}
       {hasNodes && (
         <>
-          <Flex
-            mb={4}
-            alignItems="center"
-            flex="0 0 auto"
-            justifyContent="space-between"
-          >
-            <InputSearch mr="3" onChange={setSearchValue} />
-            <QuickLaunch width="280px" onPress={onSshEnter} />
-          </Flex>
           <NodeList
             nodes={nodes}
-            searchValue={searchValue}
+            search={searchValue}
+            onSearchChange={setSearchValue}
             onLoginMenuOpen={getNodeLoginOptions}
             onLoginSelect={onLoginSelect}
           />

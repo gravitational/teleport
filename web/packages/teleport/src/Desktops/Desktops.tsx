@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Indicator, Box, Flex } from 'design';
+import { Indicator, Box } from 'design';
 import { Danger } from 'design/Alert';
 import useTeleport from 'teleport/useTeleport';
 import {
@@ -23,7 +23,6 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import InputSearch from 'teleport/components/InputSearch';
 import DesktopList from './DesktopList';
 import useDesktops, { State } from './useDesktops';
 
@@ -58,19 +57,12 @@ export function Desktops(props: State) {
       {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
       {attempt.status === 'success' && (
         <>
-          <Flex
-            mb={4}
-            alignItems="center"
-            flex="0 0 auto"
-            justifyContent="space-between"
-          >
-            <InputSearch mr={3} value={searchValue} onChange={setSearchValue} />
-          </Flex>
           <DesktopList
             desktops={desktops}
             username={username}
             clusterId={clusterId}
-            searchValue={searchValue}
+            search={searchValue}
+            onSearchChange={setSearchValue}
             onLoginMenuOpen={getWindowsLoginOptions}
             onLoginSelect={openRemoteDesktopTab}
           />

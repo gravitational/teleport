@@ -17,7 +17,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { sortBy } from 'lodash';
-import { Flex, Label } from 'design';
+import { Label } from 'design';
 import {
   Cell,
   Column,
@@ -28,7 +28,6 @@ import {
 import PagedTable from 'design/DataTable/Paged';
 import isMatch from 'design/utils/match';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-import InputSearch from 'teleport/components/InputSearch';
 import { User } from 'teleport/services/user';
 
 export default function UserList({
@@ -68,59 +67,54 @@ export default function UserList({
   }
 
   const data = sortAndFilter(searchValue);
-  const tableProps = { pageSize, data };
+  const tableProps = { pageSize, data, search: searchValue, onSearchChange };
 
   return (
-    <>
-      <Flex flex="0 0 auto" mb={4}>
-        <InputSearch onChange={onSearchChange} />
-      </Flex>
-      <StyledTable {...tableProps}>
-        <Column
-          columnKey="name"
-          cell={<TextCell />}
-          header={
-            <SortHeaderCell
-              sortDir={sort.key === 'name' ? sort.dir : null}
-              onSortChange={onSortChange}
-              title="Username"
-            />
-          }
-        />
-        <Column
-          columnKey="roles"
-          cell={<RolesCell />}
-          header={
-            <SortHeaderCell
-              sortDir={sort.key === 'roles' ? sort.dir : null}
-              onSortChange={onSortChange}
-              title="Roles"
-            />
-          }
-        />
-        <Column
-          columnKey="authType"
-          cell={<TextCell style={{ textTransform: 'capitalize' }} />}
-          header={
-            <SortHeaderCell
-              sortDir={sort.key === 'authType' ? sort.dir : null}
-              onSortChange={onSortChange}
-              title="Type"
-            />
-          }
-        />
-        <Column
-          header={<Cell />}
-          cell={
-            <ActionCell
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onResetPassword={onReset}
-            />
-          }
-        />
-      </StyledTable>
-    </>
+    <StyledTable {...tableProps}>
+      <Column
+        columnKey="name"
+        cell={<TextCell />}
+        header={
+          <SortHeaderCell
+            sortDir={sort.key === 'name' ? sort.dir : null}
+            onSortChange={onSortChange}
+            title="Username"
+          />
+        }
+      />
+      <Column
+        columnKey="roles"
+        cell={<RolesCell />}
+        header={
+          <SortHeaderCell
+            sortDir={sort.key === 'roles' ? sort.dir : null}
+            onSortChange={onSortChange}
+            title="Roles"
+          />
+        }
+      />
+      <Column
+        columnKey="authType"
+        cell={<TextCell style={{ textTransform: 'capitalize' }} />}
+        header={
+          <SortHeaderCell
+            sortDir={sort.key === 'authType' ? sort.dir : null}
+            onSortChange={onSortChange}
+            title="Type"
+          />
+        }
+      />
+      <Column
+        header={<Cell />}
+        cell={
+          <ActionCell
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onResetPassword={onReset}
+          />
+        }
+      />
+    </StyledTable>
   );
 }
 

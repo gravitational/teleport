@@ -20,21 +20,10 @@ import cfg from 'teleport/config';
 import { apps } from '../fixtures';
 import AppList from './AppList';
 
-test('search filter works', () => {
-  const searchValue = 'grafana';
-  const expectedToBeVisible = /grafana.teleport-proxy.com/i;
-  const notExpectedToBeVisible = /jenkins/i;
-
-  render(<AppList apps={apps} searchValue={searchValue} />);
-
-  expect(screen.queryByText(expectedToBeVisible)).toBeInTheDocument();
-  expect(screen.queryByText(notExpectedToBeVisible)).toBeNull();
-});
-
 test('correct launch url is generated for a selected role', () => {
   jest.spyOn(cfg, 'getAppLauncherRoute');
 
-  render(<AppList apps={apps} searchValue="aws" />);
+  render(<AppList apps={apps} search="aws" onSearchChange={() => null} />);
 
   const launchBtn = screen.queryByText(/launch/i);
 
@@ -59,7 +48,7 @@ test('correct launch url is generated for a selected role', () => {
     .closest('a')
     .getAttribute('href');
 
-  expect(launchUrl).toEqual(
+  expect(launchUrl).toBe(
     '/web/launch/awsconsole-1.com/one/awsconsole-1.teleport-proxy.com/arn:aws:iam::joe123:role%2FEC2ReadOnly'
   );
 });

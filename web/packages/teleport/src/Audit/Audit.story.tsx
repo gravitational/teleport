@@ -60,6 +60,7 @@ export const AllEvents = () => (
     clusterId="im-a-cluster"
     events={events}
     search=""
+    onSearchChange={() => null}
     fetchMore={() => null}
     fetchStatus={''}
     pageSize={100}

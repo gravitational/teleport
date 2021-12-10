@@ -77,7 +77,7 @@ function error({ hasError, theme }) {
 
 const StyledBox = styled(Flex)`
   align-items: center;
-  height: 30px;
+  height: 32px;
   border: 1px solid;
   border-radius: 4px;
   border-color: rgba(255, 255, 255, 0.24);
@@ -95,7 +95,7 @@ const StyledLabel = styled.div`
 
 const StyledInput = styled.input`
   appearance: none;
-  border:none;
+  border: none;
   border-radius: 4px;
   box-sizing: border-box;
   border-bottom-left-radius: unset;
@@ -113,7 +113,7 @@ const StyledInput = styled.input`
   }
 
   :read-only {
-    cursor: not-allowed
+    cursor: not-allowed;
   }
 
   ::placeholder {
@@ -122,9 +122,10 @@ const StyledInput = styled.input`
     font-size: ${props => props.theme.fontSizes[1]}px;
   }
 
-  &:hover, &:focus {
+  &:hover,
+  &:focus {
     background: ${props => props.theme.colors.primary.lighter};
   }
 
-  ${color} ${space} ${width} ${height} ;
+  ${color} ${space} ${width} ${height};
 `;

@@ -24,7 +24,7 @@ export const apps = [
     description: 'This is a Jenkins app',
     awsConsole: false,
     labels: [
-      { name: 'env', value: 'idk' },
+      { name: 'env', value: 'prod' },
       { name: 'cluster', value: 'one' },
     ],
     clusterId: 'one',
@@ -37,8 +37,8 @@ export const apps = [
     description: 'This is a Mattermost app',
     awsConsole: false,
     labels: [
-      { name: 'env', value: 'idk' },
-      { name: 'cluster', value: 'one' },
+      { name: 'env', value: 'dev' },
+      { name: 'cluster', value: 'two' },
     ],
     clusterId: 'one',
     fqdn: 'mattermost.one',
@@ -50,7 +50,7 @@ export const apps = [
     description: 'This is a Grafana app',
     awsConsole: false,
     labels: [
-      { name: 'env', value: 'idk' },
+      { name: 'env', value: 'dev' },
       { name: 'cluster', value: 'one' },
     ],
     clusterId: 'one',
@@ -60,7 +60,11 @@ export const apps = [
     name: 'aws-console-1',
     uri: 'https://console.aws.amazon.com/ec2/v2/home',
     publicAddr: 'awsconsole-1.teleport-proxy.com',
-    labels: [{ name: 'aws_account_id', value: 'joe123' }],
+    labels: [
+      { name: 'aws_account_id', value: 'A1234' },
+      { name: 'env', value: 'dev' },
+      { name: 'cluster', value: 'two' },
+    ],
     description: 'This is an AWS Console app',
     awsConsole: true,
     awsRoles: [

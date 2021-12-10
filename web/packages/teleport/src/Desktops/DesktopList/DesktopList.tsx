@@ -34,7 +34,8 @@ function DesktopList(props: Props) {
   const {
     desktops = [],
     pageSize = 100,
-    searchValue,
+    search,
+    onSearchChange,
     onLoginMenuOpen,
     onLoginSelect,
   } = props;
@@ -73,10 +74,15 @@ function DesktopList(props: Props) {
     onLoginSelect(username, desktopName);
   }
 
-  const data = sortAndFilter(searchValue);
+  const data = sortAndFilter(search);
 
   return (
-    <StyledTable pageSize={pageSize} data={data}>
+    <StyledTable
+      pageSize={pageSize}
+      data={data}
+      search={search}
+      onSearchChange={onSearchChange}
+    >
       <Column
         columnKey="addr"
         header={
@@ -117,15 +123,17 @@ const AddressCell = props => {
 };
 
 // TODO(isaiah): may be able to be abstracted out from here/NodeList.tsx
-const LoginCell: React.FC<Required<{
-  onSelect?: (
-    e: React.SyntheticEvent,
-    username: string,
-    desktopName: string
-  ) => void;
-  onOpen: (serverUuid: string) => LoginItem[];
-  [key: string]: any;
-}>> = props => {
+const LoginCell: React.FC<
+  Required<{
+    onSelect?: (
+      e: React.SyntheticEvent,
+      username: string,
+      desktopName: string
+    ) => void;
+    onOpen: (serverUuid: string) => LoginItem[];
+    [key: string]: any;
+  }>
+> = props => {
   const { rowIndex, data, onOpen, onSelect } = props;
   const { name } = data[rowIndex] as Desktop;
   const desktopName = name;
@@ -188,7 +196,8 @@ type Props = {
   pageSize?: number;
   username: string;
   clusterId: string;
-  searchValue: string;
+  search: string;
+  onSearchChange: React.Dispatch<React.SetStateAction<string>>;
   onLoginMenuOpen(desktopName: string): { login: string; url: string }[];
   onLoginSelect(username: string, desktopName: string): void;
 };

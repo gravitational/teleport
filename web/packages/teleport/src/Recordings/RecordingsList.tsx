@@ -29,7 +29,8 @@ export default function RecordingsList(props: Props) {
   const {
     recordings,
     clusterId,
-    searchValue,
+    search,
+    onSearchChange,
     pageSize,
     fetchMore,
     fetchStatus,
@@ -61,9 +62,16 @@ export default function RecordingsList(props: Props) {
     setSortDir({ [columnKey]: sortDir });
   }
 
-  const data = sortAndFilter(searchValue);
+  const data = sortAndFilter(search);
 
-  const tableProps = { pageSize, data, fetchMore, fetchStatus };
+  const tableProps = {
+    pageSize,
+    data,
+    fetchMore,
+    fetchStatus,
+    search,
+    onSearchChange,
+  };
 
   return (
     <PagedTable {...tableProps}>
@@ -160,7 +168,8 @@ const PlayCell = props => {
 
 type Props = {
   pageSize?: number;
-  searchValue: State['searchValue'];
+  search: State['searchValue'];
+  onSearchChange: State['setSearchValue'];
   recordings: State['recordings'];
   clusterId: State['clusterId'];
   fetchMore: State['fetchMore'];

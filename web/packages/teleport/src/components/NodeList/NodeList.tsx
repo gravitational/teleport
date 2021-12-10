@@ -33,7 +33,8 @@ import { Node } from 'teleport/services/nodes';
 function NodeList(props: Props) {
   const {
     nodes = [],
-    searchValue,
+    search,
+    onSearchChange,
     onLoginMenuOpen,
     onLoginSelect,
     pageSize = 100,
@@ -63,11 +64,16 @@ function NodeList(props: Props) {
     setSortDir({ [columnKey]: sortDir });
   }
 
-  const data = sortAndFilter(searchValue);
+  const data = sortAndFilter(search);
 
   return (
     <div>
-      <StyledTable pageSize={pageSize} data={data}>
+      <StyledTable
+        pageSize={pageSize}
+        data={data}
+        search={search}
+        onSearchChange={onSearchChange}
+      >
         <Column
           columnKey="hostname"
           header={
@@ -116,11 +122,17 @@ function searchAndFilterCb(
   }
 }
 
-const LoginCell: React.FC<Required<{
-  onSelect?: (e: React.SyntheticEvent, login: string, serverId: string) => void;
-  onOpen: (serverId: string) => LoginItem[];
-  [key: string]: any;
-}>> = props => {
+const LoginCell: React.FC<
+  Required<{
+    onSelect?: (
+      e: React.SyntheticEvent,
+      login: string,
+      serverId: string
+    ) => void;
+    onOpen: (serverId: string) => LoginItem[];
+    [key: string]: any;
+  }>
+> = props => {
   const { rowIndex, data, onOpen, onSelect } = props;
   const { id } = data[rowIndex] as Node;
   const serverId = id;
@@ -186,7 +198,8 @@ type Props = {
   onLoginMenuOpen(serverId: string): { login: string; url: string }[];
   onLoginSelect(e: React.SyntheticEvent, login: string, serverId: string): void;
   pageSize?: number;
-  searchValue: string;
+  search: string;
+  onSearchChange: React.Dispatch<React.SetStateAction<string>>;
 };
 
 export default NodeList;

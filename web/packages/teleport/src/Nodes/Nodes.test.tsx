@@ -29,7 +29,8 @@ test('search filter works', () => {
       onLoginMenuOpen={() => null}
       onLoginSelect={() => null}
       nodes={nodes}
-      searchValue={searchValue}
+      search={searchValue}
+      onSearchChange={() => null}
     />
   );
 

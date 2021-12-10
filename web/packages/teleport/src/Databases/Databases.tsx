@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Indicator, Box, Flex, Text, Link } from 'design';
+import { Indicator, Box, Text, Link } from 'design';
 import { Danger } from 'design/Alert';
 import useTeleport from 'teleport/useTeleport';
 import {
@@ -23,7 +23,6 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import InputSearch from 'teleport/components/InputSearch';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import DatabaseList from './DatabaseList';
 import useDatabases, { State } from './useDatabases';
@@ -74,20 +73,13 @@ export function Databases(props: State) {
       {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
       {hasDatabases && (
         <>
-          <Flex
-            mb={4}
-            alignItems="center"
-            flex="0 0 auto"
-            justifyContent="space-between"
-          >
-            <InputSearch mr={3} value={searchValue} onChange={setSearchValue} />
-          </Flex>
           <DatabaseList
             databases={databases}
             username={username}
             clusterId={clusterId}
             authType={authType}
-            searchValue={searchValue}
+            search={searchValue}
+            onSearchChange={setSearchValue}
           />
         </>
       )}

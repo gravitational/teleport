@@ -67,7 +67,7 @@ class InputSearch extends React.Component {
 
 function fromTheme(props) {
   return {
-    background: props.theme.colors.primary.light,
+    background: props.theme.colors.primary.dark,
 
     '&:hover': {
       background: props.theme.colors.primary.lighter,
@@ -92,7 +92,7 @@ const Input = styled.input`
   border: none;
   border-radius: 200px;
   height: 32px;
-  transition: all .2s;
+  transition: all 0.2s;
   ${fromTheme}
   ${space}
   ${color}

@@ -28,7 +28,8 @@ test('search filter works', () => {
       username="joe"
       authType="local"
       kubes={kubes}
-      searchValue={searchValue}
+      search={searchValue}
+      onSearchChange={() => null}
     />
   );
 
