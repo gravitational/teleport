@@ -22,10 +22,6 @@ import (
 )
 
 var (
-	triggerPullRequest = trigger{
-		Event: triggerRef{Include: []string{"pull_request"}},
-		Repo:  triggerRef{Include: []string{"gravitational/*"}},
-	}
 	triggerPush = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
 		Branch: triggerRef{Include: []string{"master", "branch/*"}},
@@ -46,19 +42,10 @@ var (
 		Name: "dockersock",
 		Temp: &volumeTemp{},
 	}
-	volumeDockerTmpfs = volume{
-		Name: "dockertmpfs",
-		Temp: &volumeTemp{},
-	}
 	volumeTmpfs = volume{
 		Name: "tmpfs",
 		Temp: &volumeTemp{Medium: "memory"},
 	}
-	volumeTmpIntegration = volume{
-		Name: "tmp-integration",
-		Temp: &volumeTemp{},
-	}
-
 	volumeRefTmpfs = volumeRef{
 		Name: "tmpfs",
 		Path: "/tmpfs",
@@ -66,14 +53,6 @@ var (
 	volumeRefDocker = volumeRef{
 		Name: "dockersock",
 		Path: "/var/run",
-	}
-	volumeRefDockerTmpfs = volumeRef{
-		Name: "dockertmpfs",
-		Path: "/var/lib/docker",
-	}
-	volumeRefTmpIntegration = volumeRef{
-		Name: "tmp-integration",
-		Path: "/tmp",
 	}
 )
 
