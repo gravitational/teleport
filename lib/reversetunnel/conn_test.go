@@ -62,7 +62,7 @@ func TestEmitConnNotTeleport(t *testing.T) {
 	require.True(t, conn.emitted)
 }
 
-func TestEmitConnNotTeleportSmallReads(t *testing.T) {
+func TestEmitConnTeleportSmallReads(t *testing.T) {
 	chunks := []string{"Te", "lepo", "rt stuff", " and things"}
 	server, client := net.Pipe()
 
@@ -81,5 +81,31 @@ func TestEmitConnNotTeleportSmallReads(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, len(chunk), n)
 	}
+
+	require.False(t, conn.emitted)
+
+}
+
+func TestEmitConnNotTeleportSmallReads(t *testing.T) {
+	chunks := []string{"no", "t Tele", "port"}
+	server, client := net.Pipe()
+
+	go func() {
+		for _, chunk := range chunks {
+			server.Write([]byte(chunk))
+		}
+	}()
+
+	emitter := mockEmitter{}
+	conn := newEmitConn(context.Background(), client, &emitter, "")
+	buffer := make([]byte, 64)
+
+	for _, chunk := range chunks {
+		n, err := conn.Read(buffer)
+		require.NoError(t, err)
+		require.Equal(t, len(chunk), n)
+	}
+
+	require.True(t, conn.emitted)
 
 }

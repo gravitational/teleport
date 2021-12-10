@@ -255,6 +255,13 @@ func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 	return nil
 }
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 const emitConnTargetPrefix = "Teleport"
 
 // emitConn is a wrapper for a net.Conn that emits an event for non-Teleport connections.
@@ -292,7 +299,8 @@ func (conn *emitConn) Read(p []byte) (int, error) {
 	conn.mu.Lock()
 	defer conn.mu.Unlock()
 
-	_, err = conn.buffer.Write(p[:len(emitConnTargetPrefix)-conn.buffer.Len()])
+	remaining := len(emitConnTargetPrefix) - conn.buffer.Len()
+	_, err = conn.buffer.Write(p[:min(n, remaining)])
 	if err != nil {
 		return n, err
 	}
