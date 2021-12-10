@@ -385,7 +385,7 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_User{
 			User: r,
 		}
-	case *types.RoleV4:
+	case *types.RoleV5:
 		downgraded, err := downgradeRole(ctx, r)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1540,7 +1540,7 @@ func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.Delet
 // if the client version is unknown or less than the minimum supported version
 // for V4 roles returns a shallow copy of the given role downgraded to V3. If
 // the passed in role is already V3, it is returned unmodified.
-func downgradeRole(ctx context.Context, role *types.RoleV4) (*types.RoleV4, error) {
+func downgradeRole(ctx context.Context, role *types.RoleV5) (*types.RoleV5, error) {
 	if role.Version == types.V3 {
 		// role is already V3, no need to downgrade
 		return role, nil
@@ -1569,7 +1569,7 @@ func downgradeRole(ctx context.Context, role *types.RoleV4) (*types.RoleV4, erro
 }
 
 // GetRole retrieves a role by name.
-func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV4, error) {
+func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV5, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1578,7 +1578,7 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleV4, ok := role.(*types.RoleV4)
+	roleV4, ok := role.(*types.RoleV5)
 	if !ok {
 		return nil, trace.Errorf("encountered unexpected role type")
 	}
@@ -1599,9 +1599,9 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rolesV4 []*types.RoleV4
+	var rolesV4 []*types.RoleV5
 	for _, r := range roles {
-		role, ok := r.(*types.RoleV4)
+		role, ok := r.(*types.RoleV5)
 		if !ok {
 			return nil, trace.BadParameter("unexpected type %T", r)
 		}
@@ -1617,7 +1617,7 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRo
 }
 
 // UpsertRole upserts a role.
-func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV4) (*empty.Empty, error) {
+func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV5) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

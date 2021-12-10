@@ -1222,7 +1222,7 @@ func TestKindClusterConfig(t *testing.T) {
 	})
 
 	t.Run("with KindClusterConfig privilege", func(t *testing.T) {
-		role, err := types.NewRole("test-role", types.RoleSpecV4{
+		role, err := types.NewRole("test-role", types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{
 					types.NewRule(types.KindClusterConfig, []string{types.VerbRead}),

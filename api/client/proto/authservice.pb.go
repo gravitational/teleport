@@ -310,7 +310,7 @@ type Event_User struct {
 	User *types.UserV2 `protobuf:"bytes,8,opt,name=User,proto3,oneof" json:"user,omitempty"`
 }
 type Event_Role struct {
-	Role *types.RoleV4 `protobuf:"bytes,9,opt,name=Role,proto3,oneof" json:"role,omitempty"`
+	Role *types.RoleV5 `protobuf:"bytes,9,opt,name=Role,proto3,oneof" json:"role,omitempty"`
 }
 type Event_Namespace struct {
 	Namespace *types.Namespace `protobuf:"bytes,10,opt,name=Namespace,proto3,oneof" json:"namespace,omitempty"`
@@ -461,7 +461,7 @@ func (m *Event) GetUser() *types.UserV2 {
 	return nil
 }
 
-func (m *Event) GetRole() *types.RoleV4 {
+func (m *Event) GetRole() *types.RoleV5 {
 	if x, ok := m.GetResource().(*Event_Role); ok {
 		return x.Role
 	}
@@ -4509,7 +4509,7 @@ func (m *GetRoleRequest) GetName() string {
 // GetRolesResponse is a response to querying for all roles.
 type GetRolesResponse struct {
 	// Roles is a list of roles.
-	Roles                []*types.RoleV4 `protobuf:"bytes,1,rep,name=Roles,proto3" json:"Roles,omitempty"`
+	Roles                []*types.RoleV5 `protobuf:"bytes,1,rep,name=Roles,proto3" json:"Roles,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
 	XXX_unrecognized     []byte          `json:"-"`
 	XXX_sizecache        int32           `json:"-"`
@@ -4548,7 +4548,7 @@ func (m *GetRolesResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_GetRolesResponse proto.InternalMessageInfo
 
-func (m *GetRolesResponse) GetRoles() []*types.RoleV4 {
+func (m *GetRolesResponse) GetRoles() []*types.RoleV5 {
 	if m != nil {
 		return m.Roles
 	}
@@ -14448,7 +14448,7 @@ var fileDescriptor_ce8bd90b12161215 = []byte{
 	0x93, 0x94, 0xfc, 0x82, 0xe0, 0x4b, 0x54, 0x72, 0xb0, 0x56, 0x2d, 0x9d, 0x0f, 0xca, 0xd7, 0x5b,
 	0x0c, 0xd4, 0xec, 0x3a, 0xa7, 0x3a, 0xcb, 0x55, 0x32, 0xe8, 0x53, 0x18, 0x7f, 0x1a, 0x60, 0xbf,
 	0x98, 0xa3, 0xe4, 0x66, 0x39, 0x39, 0x02, 0x3a, 0x58, 0x63, 0xf3, 0xdf, 0x0f, 0xb0, 0xaf, 0xe1,
-	0x53, 0x04, 0x82, 0x68, 0x7b, 0x1d, 0x5c, 0xcc, 0x6b, 0x88, 0x04, 0x74, 0xf0, 0x11, 0x43, 0xf4,
+	0x53, 0x04, 0x82, 0x68, 0x7b, 0x1d, 0x5c, 0xcc, 0x6b, 0x88, 0x04, 0x74, 0xf0, 0x31, 0x43, 0xf4,
 	0xbd, 0x8e, 0xde, 0x30, 0x45, 0x40, 0x75, 0xc8, 0x93, 0x96, 0x83, 0x9e, 0xd3, 0xc2, 0x45, 0xa0,
 	0xd8, 0x05, 0x8e, 0x2d, 0xe1, 0xd5, 0xa5, 0xf3, 0x41, 0x79, 0xbe, 0x2b, 0x3e, 0x35, 0x2a, 0x11,
 	0x36, 0xfa, 0x06, 0x26, 0x1b, 0xd8, 0x3f, 0xc3, 0x7e, 0x71, 0x9a, 0xd2, 0xb9, 0x2a, 0x26, 0x92,
@@ -14961,9 +14961,14 @@ var fileDescriptor_ce8bd90b12161215 = []byte{
 	0x65, 0xbf, 0x87, 0x47, 0x22, 0x1a, 0x1e, 0x55, 0x2d, 0x19, 0x82, 0x0b, 0x87, 0x50, 0xbd, 0x40,
 	0x6f, 0x77, 0x85, 0x3a, 0xd1, 0xe3, 0xe6, 0xa4, 0x1c, 0x0c, 0x09, 0xaa, 0x4b, 0xeb, 0x67, 0xb5,
 	0xf0, 0xd3, 0x7f, 0x59, 0xc9, 0xfc, 0xf4, 0xab, 0x95, 0xcc, 0x7f, 0xf8, 0xd5, 0x4a, 0xe6, 0x4f,
+<<<<<<< HEAD
 	0x7f, 0xb5, 0x92, 0x39, 0x9c, 0xa4, 0x84, 0xd6, 0xff, 0x6f, 0x00, 0x00, 0x00, 0xff, 0xff, 0xdf,
 	0x34, 0x5e, 0xe0, 0x85, 0x84, 0x00, 0x00,
 >>>>>>> 72f3778c2 (add grpc api that verifies u2f challenge stream)
+=======
+	0x7f, 0xb5, 0x92, 0x39, 0x9c, 0xa4, 0x84, 0xd6, 0xff, 0x6f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x35,
+	0x7a, 0x0c, 0x07, 0x85, 0x84, 0x00, 0x00,
+>>>>>>> c747a61f8 (roles v5)
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -15148,11 +15153,11 @@ type AuthServiceClient interface {
 	// service to authenticate with the database instance.
 	GenerateDatabaseCert(ctx context.Context, in *DatabaseCertRequest, opts ...grpc.CallOption) (*DatabaseCertResponse, error)
 	// GetRole retrieves a role described by the given request.
-	GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*types.RoleV4, error)
+	GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*types.RoleV5, error)
 	// GetRole retrieves all roles.
 	GetRoles(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetRolesResponse, error)
 	// UpsertRole upserts a role in a backend.
-	UpsertRole(ctx context.Context, in *types.RoleV4, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpsertRole(ctx context.Context, in *types.RoleV5, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteRole deletes an existing role in a backend described by the given request.
 	DeleteRole(ctx context.Context, in *DeleteRoleRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// AddMFADevice adds an MFA device for the user calling this RPC.
@@ -16210,8 +16215,8 @@ func (c *authServiceClient) GenerateDatabaseCert(ctx context.Context, in *Databa
 	return out, nil
 }
 
-func (c *authServiceClient) GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*types.RoleV4, error) {
-	out := new(types.RoleV4)
+func (c *authServiceClient) GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*types.RoleV5, error) {
+	out := new(types.RoleV5)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetRole", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -16228,7 +16233,7 @@ func (c *authServiceClient) GetRoles(ctx context.Context, in *empty.Empty, opts 
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertRole(ctx context.Context, in *types.RoleV4, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *authServiceClient) UpsertRole(ctx context.Context, in *types.RoleV5, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertRole", in, out, opts...)
 	if err != nil {
@@ -17214,11 +17219,11 @@ type AuthServiceServer interface {
 	// service to authenticate with the database instance.
 	GenerateDatabaseCert(context.Context, *DatabaseCertRequest) (*DatabaseCertResponse, error)
 	// GetRole retrieves a role described by the given request.
-	GetRole(context.Context, *GetRoleRequest) (*types.RoleV4, error)
+	GetRole(context.Context, *GetRoleRequest) (*types.RoleV5, error)
 	// GetRole retrieves all roles.
 	GetRoles(context.Context, *empty.Empty) (*GetRolesResponse, error)
 	// UpsertRole upserts a role in a backend.
-	UpsertRole(context.Context, *types.RoleV4) (*empty.Empty, error)
+	UpsertRole(context.Context, *types.RoleV5) (*empty.Empty, error)
 	// DeleteRole deletes an existing role in a backend described by the given request.
 	DeleteRole(context.Context, *DeleteRoleRequest) (*empty.Empty, error)
 	// AddMFADevice adds an MFA device for the user calling this RPC.
@@ -17679,13 +17684,13 @@ func (*UnimplementedAuthServiceServer) SignDatabaseCSR(ctx context.Context, req 
 func (*UnimplementedAuthServiceServer) GenerateDatabaseCert(ctx context.Context, req *DatabaseCertRequest) (*DatabaseCertResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GenerateDatabaseCert not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetRole(ctx context.Context, req *GetRoleRequest) (*types.RoleV4, error) {
+func (*UnimplementedAuthServiceServer) GetRole(ctx context.Context, req *GetRoleRequest) (*types.RoleV5, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRole not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetRoles(ctx context.Context, req *empty.Empty) (*GetRolesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRoles not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertRole(ctx context.Context, req *types.RoleV4) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertRole(ctx context.Context, req *types.RoleV5) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertRole not implemented")
 }
 func (*UnimplementedAuthServiceServer) DeleteRole(ctx context.Context, req *DeleteRoleRequest) (*empty.Empty, error) {
@@ -19364,7 +19369,7 @@ func _AuthService_GetRoles_Handler(srv interface{}, ctx context.Context, dec fun
 }
 
 func _AuthService_UpsertRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(types.RoleV4)
+	in := new(types.RoleV5)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -19376,7 +19381,7 @@ func _AuthService_UpsertRole_Handler(srv interface{}, ctx context.Context, dec f
 		FullMethod: "/proto.AuthService/UpsertRole",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).UpsertRole(ctx, req.(*types.RoleV4))
+		return srv.(AuthServiceServer).UpsertRole(ctx, req.(*types.RoleV5))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -33371,7 +33376,7 @@ func (m *Event) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			v := &types.RoleV4{}
+			v := &types.RoleV5{}
 			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -41739,7 +41744,7 @@ func (m *GetRolesResponse) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Roles = append(m.Roles, &types.RoleV4{})
+			m.Roles = append(m.Roles, &types.RoleV5{})
 			if err := m.Roles[len(m.Roles)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}

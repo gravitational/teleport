@@ -2247,7 +2247,7 @@ func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleV4, ok := role.(*types.RoleV4)
+	roleV4, ok := role.(*types.RoleV5)
 	if !ok {
 		return nil, trace.BadParameter("unrecognized role version")
 	}
@@ -2266,7 +2266,7 @@ func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Reques
 	}
 	out := make([]json.RawMessage, len(roles))
 	for i, role := range roles {
-		roleV4, ok := role.(*types.RoleV4)
+		roleV4, ok := role.(*types.RoleV5)
 		if !ok {
 			return nil, trace.BadParameter("unrecognized role version")
 		}

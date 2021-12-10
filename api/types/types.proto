@@ -1392,8 +1392,8 @@ message PluginDataUpdateParams {
     map<string, string> Expect = 5 [ (gogoproto.jsontag) = "expect,omitempty" ];
 }
 
-// RoleV4 represents role resource specification
-message RoleV4 {
+// RoleV5 represents role resource specification
+message RoleV5 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
@@ -1406,11 +1406,11 @@ message RoleV4 {
     // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a role specification
-    RoleSpecV4 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+    RoleSpecV5 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
-// RoleSpecV4 is role specification for RoleV4.
-message RoleSpecV4 {
+// RoleSpecV5 is role specification for RoleV5.
+message RoleSpecV5 {
     // Options is for OpenSSH options like agent forwarding.
     RoleOptions Options = 1
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "options,omitempty" ];
