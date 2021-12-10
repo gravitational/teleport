@@ -33,6 +33,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -420,6 +422,175 @@ func TestMakeClient(t *testing.T) {
 	agentKeys, err := tc.LocalAgent().Agent.List()
 	require.NoError(t, err)
 	require.Greater(t, len(agentKeys), 0)
+}
+
+func TestAccessRequestOnLeaf(t *testing.T) {
+	os.RemoveAll(profile.FullProfilePath(""))
+	t.Cleanup(func() {
+		os.RemoveAll(profile.FullProfilePath(""))
+	})
+
+	isInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(isInsecure)
+	})
+
+	requester, err := types.NewRole("requester", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"requester"})
+
+	rootAuth, rootProxy := makeTestServers(t, requester, connector)
+
+	rootAuthServer := rootAuth.GetAuthServer()
+	require.NotNil(t, rootAuthServer)
+
+	// adding `alice` to the bootstrap doesn't seem to assign the correct roles
+	err = rootAuthServer.CreateUser(rootAuth.ExitContext(), alice)
+	require.NoError(t, err)
+
+	rootProxyAddr, err := rootProxy.ProxyWebAddr()
+	require.NoError(t, err)
+	rootTunnelAddr, err := rootProxy.ProxyTunnelAddr()
+	require.NoError(t, err)
+
+	trustedCluster, err := types.NewTrustedCluster("localhost", types.TrustedClusterSpecV2{
+		Enabled:              true,
+		Roles:                []string{},
+		Token:                staticToken,
+		ProxyAddress:         rootProxyAddr.String(),
+		ReverseTunnelAddress: rootTunnelAddr.String(),
+		RoleMap: []types.RoleMapping{
+			{
+				Remote: "access",
+				Local:  []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	leafAuth, _ := makeTestServersWithName(t, "leafcluster")
+	tryCreateTrustedCluster(t, leafAuth.GetAuthServer(), trustedCluster)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", rootProxyAddr.String(),
+	}, cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, rootAuthServer, alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--proxy", rootProxyAddr.String(),
+		"leafcluster",
+	})
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--proxy", rootProxyAddr.String(),
+		"localhost",
+	})
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--proxy", rootProxyAddr.String(),
+		"leafcluster",
+	})
+	require.NoError(t, err)
+
+	errChan := make(chan error)
+	go func() {
+		errChan <- Run([]string{
+			"request",
+			"new",
+			"--insecure",
+			"--debug",
+			"--proxy", rootProxyAddr.String(),
+			"--roles=access",
+		})
+	}()
+
+	var request types.AccessRequest
+	for i := 0; i < 5; i++ {
+		log.Debugf("Waiting for access request %d", i)
+		requests, err := rootAuth.GetAuthServer().GetAccessRequests(rootAuth.ExitContext(), types.AccessRequestFilter{})
+		require.NoError(t, err)
+		require.LessOrEqual(t, len(requests), 1)
+		if len(requests) == 1 {
+			request = requests[0]
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	require.NotNil(t, request)
+
+	err = rootAuth.GetAuthServer().SetAccessRequestState(
+		rootAuth.ExitContext(),
+		types.AccessRequestUpdate{
+			RequestID: request.GetName(),
+			State:     types.RequestState_APPROVED,
+		},
+	)
+	require.NoError(t, err)
+
+	select {
+	case err := <-errChan:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Minute):
+		t.Fatal("access request wasn't resolved after 2 minutes")
+	}
+}
+
+// tryCreateTrustedCluster performs several attempts to create a trusted cluster,
+// retries on connection problems and access denied errors to let caches
+// propagate and services to start
+//
+// Duplicated in integration/integration_test.go
+func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
+	ctx := context.TODO()
+	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
+		_, err := authServer.UpsertTrustedCluster(ctx, trustedCluster)
+		if err == nil {
+			return
+		}
+		if trace.IsConnectionProblem(err) {
+			log.Debugf("Retrying on connection problem: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if trace.IsAccessDenied(err) {
+			log.Debugf("Retrying on access denied: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
+	}
+	require.FailNow(t, "Timeout creating trusted cluster")
 }
 
 func TestIdentityRead(t *testing.T) {
@@ -898,6 +1069,10 @@ func TestKubeConfigUpdate(t *testing.T) {
 }
 
 func makeTestServers(t *testing.T, bootstrap ...types.Resource) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
+	return makeTestServersWithName(t, "", bootstrap...)
+}
+
+func makeTestServersWithName(t *testing.T, name string, bootstrap ...types.Resource) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
 	var err error
 	// Set up a test auth server.
 	//
@@ -909,10 +1084,18 @@ func makeTestServers(t *testing.T, bootstrap ...types.Resource) (auth *service.T
 
 	cfg.AuthServers = []utils.NetAddr{randomLocalAddr}
 	cfg.Auth.Resources = bootstrap
+	if name != "" {
+		clusterName, err := services.NewClusterNameWithRandomID(
+			types.ClusterNameSpecV2{
+				ClusterName: name,
+			})
+		require.NoError(t, err)
+		cfg.Auth.ClusterName = clusterName
+	}
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
-			Roles:   []types.SystemRole{types.RoleProxy},
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleTrustedCluster},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,
 		}},
