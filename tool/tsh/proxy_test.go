@@ -52,7 +52,7 @@ func TestProxySSHDial(t *testing.T) {
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
-	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV4{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{"alice"},
 		},
