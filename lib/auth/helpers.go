@@ -675,6 +675,20 @@ func TestUser(username string) TestIdentity {
 	}
 }
 
+// TestUser returns a TestIdentity for a local user
+// with renewable credentials.
+func TestRenewableUser(username string) TestIdentity {
+	return TestIdentity{
+		I: LocalUser{
+			Username: username,
+			Identity: tlsca.Identity{
+				Username:  username,
+				Renewable: true,
+			},
+		},
+	}
+}
+
 // TestNop returns "Nop" - unauthenticated identity
 func TestNop() TestIdentity {
 	return TestIdentity{

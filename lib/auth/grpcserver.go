@@ -755,6 +755,52 @@ func (g *GRPCServer) GetResetPasswordToken(ctx context.Context, req *proto.GetRe
 	return r, nil
 }
 
+func (g *GRPCServer) CreateBotJoinToken(ctx context.Context, req *proto.CreateBotJoinTokenRequest) (*types.UserTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req == nil {
+		req = &proto.CreateBotJoinTokenRequest{}
+	}
+
+	token, err := auth.CreateBotJoinToken(ctx, CreateUserTokenRequest{
+		Name: req.Name,
+		TTL:  time.Duration(req.TTL),
+		Type: UserTokenTypeBot,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r, ok := token.(*types.UserTokenV3)
+	if !ok {
+		err = trace.BadParameter("unexpected UserToken type %T", token)
+		return nil, trace.Wrap(err)
+	}
+
+	return r, nil
+}
+
+func (g *GRPCServer) GenerateInitialRenewableUserCerts(ctx context.Context, req *proto.RenewableCertsRequest) (*proto.Certs, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req == nil {
+		req = &proto.RenewableCertsRequest{}
+	}
+
+	certs, err := auth.GenerateInitialRenewableUserCerts(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return certs, nil
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (g *GRPCServer) GetPluginData(ctx context.Context, filter *types.PluginDataFilter) (*proto.PluginDataSeq, error) {
 	// TODO(fspmarshall): Implement rate-limiting to prevent misbehaving plugins from
@@ -2092,7 +2138,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 	}
 
 	// Generate the cert.
-	certs, err := actx.generateUserCerts(ctx, req, certRequestMFAVerified(mfaDev.Id), certRequestClientIP(clientIP))
+	certs, err := actx.generateUserCerts(ctx, req, false, certRequestMFAVerified(mfaDev.Id), certRequestClientIP(clientIP))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

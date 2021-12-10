@@ -643,6 +643,9 @@ type certRequest struct {
 	// disallowReissue flags that a cert should not be allowed to issue future
 	// certificates.
 	disallowReissue bool
+	// renewable indicates that the certificate can be renewed,
+	// having its TTL increased
+	renewable bool
 }
 
 // check verifies the cert request is valid.
@@ -673,6 +676,10 @@ func certRequestMFAVerified(mfaID string) certRequestOption {
 
 func certRequestClientIP(ip string) certRequestOption {
 	return func(r *certRequest) { r.clientIP = ip }
+}
+
+func certRequestRenewable() certRequestOption {
+	return func(r *certRequest) { r.renewable = true }
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -997,6 +1004,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		AWSRoleARNs:     roleARNs,
 		ActiveRequests:  req.activeRequests.AccessRequests,
 		DisallowReissue: req.disallowReissue,
+		Renewable:       req.renewable,
 	}
 	subject, err := identity.Subject()
 	if err != nil {

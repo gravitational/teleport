@@ -1582,6 +1582,29 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 	})
 }
 
+// CreateBotJoinToken creates a bot join token.
+func (c *Client) CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
+	// Note: we reuse CreateUserTokenRequest as we are still fundamentally
+	// creating a user token, however the function call we want is still
+	// different.
+	return c.APIClient.CreateBotJoinToken(ctx, &proto.CreateBotJoinTokenRequest{
+		Name: req.Name,
+		TTL:  proto.Duration(req.TTL),
+	})
+}
+
+func (c *Client) GenerateInitialRenewableUserCerts(ctx context.Context, req proto.RenewableCertsRequest) (*proto.Certs, error) {
+	if len(req.Token) == 0 {
+		return nil, trace.BadParameter("missing token")
+	}
+
+	if len(req.PublicKey) == 0 {
+		return nil, trace.BadParameter("missing public key")
+	}
+
+	return c.APIClient.GenerateInitialRenewableUserCerts(ctx, &req)
+}
+
 // GetAppServers gets all application servers.
 func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	return c.APIClient.GetAppServers(ctx, namespace)
@@ -1788,6 +1811,10 @@ type IdentityService interface {
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 
+	// GenerateInitialRenewableUserCerts generates renewable certs for a non-interactive user
+	// using a previously issued single-use token.
+	GenerateInitialRenewableUserCerts(ctx context.Context, req proto.RenewableCertsRequest) (*proto.Certs, error)
+
 	// GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
 	// certificate for a single session
 	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
@@ -1802,6 +1829,9 @@ type IdentityService interface {
 
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
+
+	// CreateBotJoinToken creates a new bot join token.
+	CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
 	// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
 	// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
