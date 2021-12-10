@@ -25,7 +25,7 @@ steps:
       
 availableSecrets:
   secretManager:
-  - versionName: projects/771512790633/secrets/webassets-e-deployment-key/versions/1
+  - versionName: projects/771512790633/secrets/webassets-e-deployment-key/versions/2
     env: WEBASSETS_DEPLOYMENT_KEY
 
 timeout: 20m
