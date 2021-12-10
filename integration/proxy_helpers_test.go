@@ -281,7 +281,7 @@ func withLeafClusterPorts(ports *InstancePorts) proxySuiteOptionsFunc {
 }
 
 func newRole(t *testing.T, roleName string, username string) types.Role {
-	role, err := types.NewRole(roleName, types.RoleSpecV4{
+	role, err := types.NewRole(roleName, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
