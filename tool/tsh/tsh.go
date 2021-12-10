@@ -214,6 +214,9 @@ type CLIConf struct {
 	// X11Forwarding will set up X11 forwarding for the session ('ssh -X')
 	X11Forwarding bool
 
+	// X11ForwardingDisabled will disable X11 forwarding for the session ('ssh -x')
+	X11ForwardingDisabled bool
+
 	// X11Forwarding will set up trusted X11 forwarding for the session ('ssh -Y')
 	X11ForwardingTrusted bool
 
@@ -390,8 +393,9 @@ func Run(args []string, opts ...cliOption) error {
 	ssh.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
-	ssh.Flag("X", "Setup x11 forwarding in untrusted mode (secure) for this request").Short('X').BoolVar(&cf.X11Forwarding)
-	ssh.Flag("Y", "Setup x11 forwarding in trusted mode (insecure) for this request").Short('Y').Default("true").BoolVar(&cf.X11ForwardingTrusted)
+	ssh.Flag("x", "Disable x11 forwarding for this request").Short('x').BoolVar(&cf.X11ForwardingDisabled)
+	ssh.Flag("X", "Enable x11 forwarding for this request").Short('X').BoolVar(&cf.X11Forwarding)
+	ssh.Flag("Y", "Enables trusted x11 forwarding. This behaves the same as \"-X\" unless \"--oForwardX11Trusted=no\" is set").Short('Y').BoolVar(&cf.X11ForwardingTrusted)
 
 	// AWS.
 	aws := app.Command("aws", "Access AWS API.")
@@ -1986,9 +1990,18 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		c.ForwardAgent = client.ForwardAgentYes
 	}
 
+	// TODO(Joerger): Add tests for flag-option combos
 	// If X11 trusted/untrusted forwarding was specified on the command line enable it.
-	c.X11Forwarding = cf.X11Forwarding
-	c.X11ForwardingTrusted = cf.X11ForwardingTrusted
+	c.X11ForwardingEnabled = !cf.X11ForwardingDisabled && (cf.X11Forwarding || cf.X11ForwardingTrusted || options.ForwardX11)
+
+	// if x11 trusted option is true, it is prioritized over the flag
+	c.X11ForwardingTrusted = options.ForwardX11Trusted
+	if !options.ForwardX11Trusted {
+		c.X11ForwardingTrusted = cf.X11ForwardingTrusted
+	}
+
+	// copy x11 forwarding timeout option if set
+	c.X11ForwardingTimeout = options.ForwardX11Timeout
 
 	// If the caller does not want to check host keys, pass in a insecure host
 	// key checker.

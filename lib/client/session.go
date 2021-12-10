@@ -165,8 +165,8 @@ func (ns *NodeSession) NodeClient() *NodeClient {
 	return ns.nodeClient
 }
 
-func (ns *NodeSession) regularSession(callback func(s *ssh.Session) error) error {
-	session, err := ns.createServerSession()
+func (ns *NodeSession) regularSession(ctx context.Context, callback func(s *ssh.Session) error) error {
+	session, err := ns.createServerSession(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -178,24 +178,18 @@ func (ns *NodeSession) regularSession(callback func(s *ssh.Session) error) error
 
 type interactiveCallback func(serverSession *ssh.Session, shell io.ReadWriteCloser) error
 
-func (ns *NodeSession) enableX11Forwarding(sess *ssh.Session, trusted bool) error {
-	if err := x11.RequestX11Forwarding(context.TODO(), sess, ns.nodeClient.Client, trusted, false); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
+func (ns *NodeSession) createServerSession(ctx context.Context) (*ssh.Session, error) {
 	sess, err := ns.nodeClient.Client.NewSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// enable x11 forwarding for the session if the client requested it.
-	x11ForwardingRequested := ns.nodeClient.TC.Config.X11Forwarding || ns.nodeClient.TC.Config.X11ForwardingTrusted
-	if x11ForwardingRequested {
-		trustedForwarding := ns.nodeClient.TC.Config.X11ForwardingTrusted
-		if err := ns.enableX11Forwarding(sess, trustedForwarding); err != nil {
+	// request x11 forwarding for the session if the client requested it.
+	if ns.nodeClient.TC.Config.X11ForwardingEnabled {
+		if err := x11.RequestX11Forwarding(ctx, sess, ns.nodeClient.Client, false,
+			ns.nodeClient.TC.Config.X11ForwardingTrusted,
+			ns.nodeClient.TC.Config.X11ForwardingTimeout,
+		); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -256,14 +250,14 @@ func selectKeyAgent(tc *TeleportClient) agent.Agent {
 
 // interactiveSession creates an interactive session on the remote node, executes
 // the given callback on it, and waits for the session to end
-func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
+func (ns *NodeSession) interactiveSession(ctx context.Context, callback interactiveCallback) error {
 	// determine what kind of a terminal we need
 	termType := os.Getenv("TERM")
 	if termType == "" {
 		termType = teleport.SafeTerminalType
 	}
 	// create the server-side session:
-	sess, err := ns.createServerSession()
+	sess, err := ns.createServerSession(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -460,8 +454,8 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 }
 
 // runShell executes user's shell on the remote node under an interactive session
-func (ns *NodeSession) runShell(callback ShellCreatedCallback) error {
-	return ns.interactiveSession(func(s *ssh.Session, shell io.ReadWriteCloser) error {
+func (ns *NodeSession) runShell(ctx context.Context, callback ShellCreatedCallback) error {
+	return ns.interactiveSession(ctx, func(s *ssh.Session, shell io.ReadWriteCloser) error {
 		// start the shell on the server:
 		if err := s.Shell(); err != nil {
 			return trace.Wrap(err)
@@ -493,7 +487,7 @@ func (ns *NodeSession) runCommand(ctx context.Context, cmd []string, callback Sh
 	// keyboard based signals will be propogated to the TTY on the server which is
 	// where all signal handling will occur.
 	if interactive {
-		return ns.interactiveSession(func(s *ssh.Session, term io.ReadWriteCloser) error {
+		return ns.interactiveSession(ctx, func(s *ssh.Session, term io.ReadWriteCloser) error {
 			err := s.Start(strings.Join(cmd, " "))
 			if err != nil {
 				return trace.Wrap(err)
@@ -520,10 +514,10 @@ func (ns *NodeSession) runCommand(ctx context.Context, cmd []string, callback Sh
 	// Unfortunately at the moment the Go SSH library Teleport uses does not
 	// support sending SSH_MSG_DISCONNECT. Instead we close the SSH channel and
 	// SSH client, and try and exit as gracefully as possible.
-	return ns.regularSession(func(s *ssh.Session) error {
+	return ns.regularSession(ctx, func(s *ssh.Session) error {
 		var err error
 
-		runContext, cancel := context.WithCancel(context.Background())
+		runContext, cancel := context.WithCancel(ctx)
 		go func() {
 			defer cancel()
 			err = s.Run(strings.Join(cmd, " "))
