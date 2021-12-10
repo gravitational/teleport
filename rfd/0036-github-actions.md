@@ -30,7 +30,10 @@ For authentication, Github Actions provides a token to use in workflow, saved as
 
 It is important to keep the `GITHUB_TOKEN` scope as small as possible by only granting the token the least possible permissions we can to run workflows. 
 
-The max scope we have for all workflows in the Teleport repository are `pull-requests:write` and `actions:write`. 
+The max scope we have for all workflows in the Teleport repository are:
+- `pull-requests:write` 
+- `actions:write`
+- `contents:write`
 
 If additional permissions are needed in the future, here are some helpful resources to look through: 
 
@@ -53,10 +56,11 @@ See the [Bypassing Required Reviewers using Github Actions](https://medium.com/c
 
 ### User Obtains the Github Token
 
-Like previously mentioned, the maximum permissions on any given workflow are `pull-requests:write` and `actions:write`. If an attacker were to somehow obtain the Github token, the following is what they would have access to: 
+If an attacker were to somehow obtain the Github token, the following is what they would have access to: 
 
 - [Permissions](https://docs.github.com/en/rest/reference/permissions-required-for-github-apps#permission-on-actions) on Actions
 - [Permissions](https://docs.github.com/en/rest/reference/permissions-required-for-github-apps#permission-on-pull-requests) on Pull Requests
+- [Permissions](https://docs.github.com/en/rest/reference/permissions-required-for-github-apps#permission-on-contents) on Contents
 
 ### Attack Table  
 
@@ -67,7 +71,8 @@ Like previously mentioned, the maximum permissions on any given workflow are `pu
 | Delete logs of a workflow. | An attacker could delete a logs of a workflow run. The metadata for the run will still persist, including the status check. There doesn't seem to be a way to get a malicious commit in master this way. |
 | Re-run a workflow.  | An attacker could re-run a workflow though there wouldn't be any benefit to them even if code was changes. Workflow would just run against the new code and pass/fail accordingly. | 
 | Update an issue or a pull request. | An attacker could update the contents of a pull request or issue.  There doesn't seem to be a way to get a malicious commit in master this way. NOTE: Changing the contents of a pull request does not mean an attacker could push a commit to a pull request, hence changing the overall code (the token would need `contents:write`). Changing the contents of a pull request include, editing the title, description, or comments| 
-
+| Merge a commit or pull request | An attacker can merge a malicious commit or pull request. |
+| Get/Delete/Edit secrets | An attacker could steal, edit, or delete secrets. |
 
 ## Conclusion 
 
