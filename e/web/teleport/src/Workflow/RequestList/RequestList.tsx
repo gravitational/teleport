@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { sortBy } from 'lodash';
 import {
-  Flex,
   Text,
   Label,
   LabelState,
@@ -16,7 +15,6 @@ import {
 import { Cell, Column, SortHeaderCell, SortTypes } from 'design/DataTable';
 import PagedTable from 'design/DataTable/Paged';
 import isMatch from 'design/utils/match';
-import InputSearch from 'teleport/components/InputSearch';
 import useTeleportE from 'e-teleport/useTeleportE';
 import useRequestList, { State, Row } from './useRequestList';
 import cfg from 'e-teleport/config';
@@ -75,7 +73,12 @@ export function RequestList({ attempt, requests, assumeRole }: State) {
   }
 
   const data = requests ? sortAndFilter(searchValue) : [];
-  const tableProps = { pageSize: 20, data };
+  const tableProps = {
+    pageSize: 20,
+    data,
+    search: searchValue,
+    onSearchChange,
+  };
 
   return (
     <>
@@ -89,9 +92,6 @@ export function RequestList({ attempt, requests, assumeRole }: State) {
       )}
       {attempt.status === 'success' && (
         <>
-          <Flex flex="0 0 auto" mb={4} alignItems="center">
-            <InputSearch onChange={onSearchChange} />
-          </Flex>
           <StyledTable {...tableProps}>
             <Column
               columnKey="state"
