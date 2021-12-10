@@ -224,7 +224,6 @@ Events will be recorded as a structured object generated from the events protobu
 
 ```protobuf
 // TDPMessage events happen every time a TDP message is sent or received during a desktop session.
-// TODO reorder numbers once TODO's have been accounted for
 message TDPMessage {
     // Metadata is a common event metadata
     Metadata Metadata = 1
@@ -236,17 +235,8 @@ message TDPMessage {
     // Data is the TDP message as a raw byte array. It is not marshaled to JSON format.
     bytes Data = 3 [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "-" ];
 
-    // Bytes says how many bytes have been written into the session
-    // during "print" event
-    // TODO: do we need this?
-    int64 Bytes = 4 [ (gogoproto.jsontag) = "bytes" ];
-
     // DelayMilliseconds is the delay in milliseconds from the start of the session
-    int64 DelayMilliseconds = 5 [ (gogoproto.jsontag) = "ms" ];
-
-    // Offset is the offset in bytes in the session file
-    // TODO: do we need this?
-    int64 Offset = 6 [ (gogoproto.jsontag) = "offset" ];
+    int64 DelayMilliseconds = 4 [ (gogoproto.jsontag) = "ms" ];
 }
 
 ```
