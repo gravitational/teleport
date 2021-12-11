@@ -405,7 +405,8 @@ func TestTLSConfiguration(t *testing.T) {
 			defaults.ProtocolMySQL,
 			defaults.ProtocolMongoDB,
 		} {
-			t.Run(fmt.Sprintf("%s - %s", dbType, tt.name), func(t *testing.T) {
+			dbType := dbType
+			t.Run(fmt.Sprintf("%s-%s", dbType, tt.name), func(t *testing.T) {
 				t.Parallel()
 
 				ctx := context.Background()
@@ -419,6 +420,10 @@ func TestTLSConfiguration(t *testing.T) {
 				switch dbType {
 				case defaults.ProtocolPostgres:
 					testCtx := setupPostgres(ctx, t, cfg)
+					t.Cleanup(func() {
+						err := testCtx.Close()
+						require.NoError(t, err)
+					})
 
 					psql, err := testCtx.postgresClient(ctx, "bob", "postgres", "postgres", "postgres")
 					if tt.errMsg == "" {
@@ -432,6 +437,10 @@ func TestTLSConfiguration(t *testing.T) {
 					}
 				case defaults.ProtocolMySQL:
 					testCtx := setupMySQL(ctx, t, cfg)
+					t.Cleanup(func() {
+						err := testCtx.Close()
+						require.NoError(t, err)
+					})
 
 					mysqlConn, err := testCtx.mysqlClient("bob", "mysql", "admin")
 					if tt.errMsg == "" {
@@ -445,6 +454,10 @@ func TestTLSConfiguration(t *testing.T) {
 					}
 				case defaults.ProtocolMongoDB:
 					testCtx := setupMongo(ctx, t, cfg)
+					t.Cleanup(func() {
+						err := testCtx.Close()
+						require.NoError(t, err)
+					})
 
 					mongoConn, err := testCtx.mongoClient(ctx, "bob", "mongo", "admin")
 					if tt.errMsg == "" {
