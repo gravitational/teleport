@@ -398,6 +398,7 @@ func TestTLSConfiguration(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		// Run the same scenario for all supported databases.
 		for _, dbType := range []string{
 			defaults.ProtocolPostgres,
