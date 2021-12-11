@@ -290,7 +290,7 @@ func newEmitConn(ctx context.Context, conn net.Conn, emitter apievents.Emitter, 
 func (conn *emitConn) Read(p []byte) (int, error) {
 	conn.mu.RLock()
 	n, err := conn.Conn.Read(p)
-	if err != nil || conn.buffer.Len() == len(emitConnTargetPrefix) {
+	if err != nil || conn.buffer.Len() == len(emitConnTargetPrefix) || conn.serverID == "" {
 		conn.mu.RUnlock()
 		return n, err
 	}
