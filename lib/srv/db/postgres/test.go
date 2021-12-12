@@ -77,7 +77,7 @@ type TestServer struct {
 
 // NewTestServer returns a new instance of a test Postgres server.
 func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
-	address := ":0"
+	address := "localhost:0"
 	if config.Address != "" {
 		address = config.Address
 	}

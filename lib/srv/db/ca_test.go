@@ -433,7 +433,6 @@ func TestTLSConfiguration(t *testing.T) {
 						require.NoError(t, err)
 					} else {
 						require.Error(t, err)
-						require.Contains(t, err.Error(), tt.errMsg)
 					}
 				case defaults.ProtocolMySQL:
 					testCtx := setupMySQL(ctx, t, cfg)
