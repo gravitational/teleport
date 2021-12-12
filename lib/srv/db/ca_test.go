@@ -357,7 +357,7 @@ func TestTLSConfiguration(t *testing.T) {
 		{
 			name:       "incorrect server name",
 			serverName: "abc.example.test",
-			errMsg:     "certificate is valid for localhost, not abc",
+			errMsg:     "certificate is valid for localhost, not abc.example.test",
 		},
 		{
 			name:       "insecure ignores incorrect CN",
