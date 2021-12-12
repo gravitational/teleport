@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -44,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -156,8 +156,8 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 	return server, nil
 }
 
-// Serve starts accepting database connections from the provided listener.
-func (s *ProxyServer) Serve(listener net.Listener) error {
+// ServePostgres starts accepting Postgres connections from the provided listener.
+func (s *ProxyServer) ServePostgres(listener net.Listener) error {
 	s.log.Debug("Started database proxy.")
 	defer s.log.Debug("Database proxy exited.")
 	for {
@@ -170,20 +170,13 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 			}
 			return trace.Wrap(err)
 		}
-		// The multiplexed connection contains information about detected
-		// protocol so dispatch to the appropriate proxy.
-		proxy, err := s.dispatch(clientConn)
-		if err != nil {
-			s.log.WithError(err).Error("Failed to dispatch client connection.")
-			continue
-		}
 		// Let the appropriate proxy handle the connection and go back
 		// to listening.
 		go func() {
 			defer clientConn.Close()
-			err := proxy.HandleConnection(s.closeCtx, clientConn)
+			err := s.PostgresProxy().HandleConnection(s.closeCtx, clientConn)
 			if err != nil {
-				s.log.WithError(err).Warn("Failed to handle client connection.")
+				s.log.WithError(err).Warn("Failed to handle Postgres client connection.")
 			}
 		}()
 	}
@@ -268,21 +261,6 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// dispatch dispatches the connection to appropriate database proxy.
-func (s *ProxyServer) dispatch(clientConn net.Conn) (common.Proxy, error) {
-	muxConn, ok := clientConn.(*multiplexer.Conn)
-	if !ok {
-		return nil, trace.BadParameter("expected multiplexer connection, got %T", clientConn)
-	}
-	switch muxConn.Protocol() {
-	case multiplexer.ProtoPostgres:
-		s.log.Debugf("Accepted Postgres connection from %v.", muxConn.RemoteAddr())
-		return s.PostgresProxy(), nil
-	}
-	return nil, trace.BadParameter("unsupported database protocol %q",
-		muxConn.Protocol())
 }
 
 // PostgresProxy returns a new instance of the Postgres protocol aware proxy.

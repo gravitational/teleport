@@ -102,7 +102,7 @@ type Config struct {
 	AdvertiseIP string
 
 	// CachePolicy sets caching policy for nodes and proxies
-	// in case if they loose connection to auth servers
+	// in case if they lose connection to auth servers
 	CachePolicy CachePolicy
 
 	// Auth service configuration. Manages cluster state and configuration.
@@ -357,6 +357,9 @@ type ProxyConfig struct {
 
 	// MySQLAddr is address of MySQL proxy.
 	MySQLAddr utils.NetAddr
+
+	// PostgresAddr is address of Postgres proxy.
+	PostgresAddr utils.NetAddr
 
 	Limiter limiter.Config
 

@@ -665,6 +665,13 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.MySQLAddr = *addr
 	}
+	if fc.Proxy.PostgresAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.PostgresAddr, int(defaults.PostgresListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.PostgresAddr = *addr
+	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.
@@ -789,22 +796,14 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.TunnelPublicAddrs = addrs
 	}
 	if len(fc.Proxy.PostgresPublicAddr) != 0 {
-		// Postgres proxy is multiplexed on the web proxy port. If the port is
-		// not specified here explicitly, prefer defaults in the following
-		// order, depending on what's set:
-		//   1. Web proxy public port
-		//   2. Web proxy listen port
-		//   3. Web proxy default listen port
-		defaultPort := cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort)
-		if len(cfg.Proxy.PublicAddrs) != 0 {
-			defaultPort = cfg.Proxy.PublicAddrs[0].Port(defaults.HTTPListenPort)
-		}
+		defaultPort := getPostgresDefaultPort(cfg)
 		addrs, err := utils.AddrsFromStrings(fc.Proxy.PostgresPublicAddr, defaultPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.PostgresPublicAddrs = addrs
 	}
+
 	if len(fc.Proxy.MySQLPublicAddr) != 0 {
 		if fc.Proxy.MySQLAddr == "" {
 			return trace.BadParameter("mysql_listen_addr must be set when mysql_public_addr is set")
@@ -826,6 +825,24 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	applyDefaultProxyListenerAddresses(cfg)
 
 	return nil
+}
+
+func getPostgresDefaultPort(cfg *service.Config) int {
+	if !cfg.Proxy.PostgresAddr.IsEmpty() {
+		// If the proxy.PostgresAddr flag was provided return port
+		// from PostgresAddr address or default PostgresListenPort.
+		return cfg.Proxy.PostgresAddr.Port(defaults.PostgresListenPort)
+	}
+	// Postgres proxy is multiplexed on the web proxy port. If the proxy is
+	// not specified here explicitly, prefer defaults in the following
+	// order, depending on what's set:
+	//   1. Web proxy public port
+	//   2. Web proxy listen port
+	//   3. Web proxy default listen port
+	if len(cfg.Proxy.PublicAddrs) != 0 {
+		return cfg.Proxy.PublicAddrs[0].Port(defaults.HTTPListenPort)
+	}
+	return cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort)
 }
 
 func applyDefaultProxyListenerAddresses(cfg *service.Config) {

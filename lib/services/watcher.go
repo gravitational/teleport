@@ -110,7 +110,7 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 		cancel:                cancel,
 		retry:                 retry,
 		LoopC:                 make(chan struct{}),
-		ResetC:                make(chan struct{}),
+		ResetC:                make(chan struct{}, 1),
 		StaleC:                make(chan struct{}, 1),
 	}
 	go p.runWatchLoop()
