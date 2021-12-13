@@ -264,7 +264,7 @@ func min(a, b int) int {
 
 const emitConnTargetPrefix = "Teleport"
 
-// emitConn is a wrapper for a net.Conn that emits an event for non-Teleport connections.
+// emitConn is a wrapper for a net.Conn that emits an audit event for non-Teleport connections.
 type emitConn struct {
 	net.Conn
 	mu       *sync.RWMutex
@@ -290,6 +290,8 @@ func newEmitConn(ctx context.Context, conn net.Conn, emitter apievents.Emitter, 
 func (conn *emitConn) Read(p []byte) (int, error) {
 	conn.mu.RLock()
 	n, err := conn.Conn.Read(p)
+
+	// skip buffering if already could have emitted or will never emit
 	if err != nil || conn.buffer.Len() == len(emitConnTargetPrefix) || conn.serverID == "" {
 		conn.mu.RUnlock()
 		return n, err
