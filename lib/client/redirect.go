@@ -145,7 +145,7 @@ func (rd *Redirector) Start() error {
 	query.Set("secret_key", rd.key.String())
 	u.RawQuery = query.Encode()
 
-	out, err := rd.proxyClient.PostJSON(rd.context, rd.proxyClient.Endpoint("webapi", rd.Protocol, "login", "console"), SSOLoginConsoleReq{
+	out, err := rd.proxyClient.PostJSONWithFallback(rd.context, rd.proxyClient.Endpoint("webapi", rd.Protocol, "login", "console"), SSOLoginConsoleReq{
 		RedirectURL:       u.String(),
 		PublicKey:         rd.PubKey,
 		CertTTL:           rd.TTL,
@@ -153,7 +153,7 @@ func (rd *Redirector) Start() error {
 		Compatibility:     rd.Compatibility,
 		RouteToCluster:    rd.RouteToCluster,
 		KubernetesCluster: rd.KubernetesCluster,
-	})
+	}, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
