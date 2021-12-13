@@ -60,6 +60,9 @@ const (
 	// MySQLListenPort is the default listen port for MySQL proxy.
 	MySQLListenPort = 3036
 
+	// PostgresListenPort is the default listen port for PostgreSQL proxy.
+	PostgresListenPort = 5432
+
 	// MetricsListenPort is the default listen port for the metrics service.
 	MetricsListenPort = 3081
 
@@ -330,7 +333,7 @@ var (
 	NetworkBackoffDuration = time.Second * 30
 
 	// AuditBackoffTimeout is a time out before audit logger will
-	// start loosing events
+	// start losing events
 	AuditBackoffTimeout = 5 * time.Second
 
 	// NetworkRetryDuration is a standard retry on network requests
@@ -410,6 +413,18 @@ var (
 
 	// AsyncBufferSize is a default buffer size for async emitters
 	AsyncBufferSize = 1024
+
+	// ConnectionErrorMeasurementPeriod is the maximum age of a connection error
+	// to be considered when deciding to restart the process. The process will
+	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
+	// errors in the preceding `ConnectionErrorMeasurementPeriod`
+	ConnectionErrorMeasurementPeriod = 2 * time.Minute
+
+	// MaxConnectionErrorsBeforeRestart is the number or allowable network errors
+	// in the previous `ConnectionErrorMeasurementPeriod`. The process will
+	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
+	// errors in the preceding `ConnectionErrorMeasurementPeriod`
+	MaxConnectionErrorsBeforeRestart = 5
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

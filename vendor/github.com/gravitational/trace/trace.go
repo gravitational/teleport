@@ -200,7 +200,7 @@ type TraceErr struct {
 	// Err is the underlying error that TraceErr wraps
 	Err error `json:"error"`
 	// Traces is a slice of stack trace entries for the error
-	Traces `json:"traces,omitempty"`
+	Traces `json:"-"`
 	// Message is an optional message that can be wrapped with the original error.
 	//
 	// This field is obsolete, replaced by messages list below.

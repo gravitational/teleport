@@ -18,7 +18,10 @@ package ui
 
 import (
 	"sort"
+	"strconv"
+	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -207,28 +210,41 @@ type Desktop struct {
 	Labels []Label `json:"labels"`
 }
 
+// MakeDesktop converts a desktop from its API form to a type the UI can display.
+func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
+	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
+	stripRdpPort := func(addr string) string {
+		splitAddr := strings.Split(addr, ":")
+		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(teleport.StandardRDPPort) {
+			return splitAddr[0]
+		}
+		return addr
+	}
+	uiLabels := []Label{}
+
+	for name, value := range windowsDesktop.GetAllLabels() {
+		uiLabels = append(uiLabels, Label{
+			Name:  name,
+			Value: value,
+		})
+	}
+
+	sort.Sort(sortedLabels(uiLabels))
+
+	return Desktop{
+		OS:     constants.WindowsOS,
+		Name:   windowsDesktop.GetName(),
+		Addr:   stripRdpPort(windowsDesktop.GetAddr()),
+		Labels: uiLabels,
+	}
+}
+
 // MakeDesktops converts desktops from their API form to a type the UI can display.
 func MakeDesktops(windowsDesktops []types.WindowsDesktop) []Desktop {
 	uiDesktops := make([]Desktop, 0, len(windowsDesktops))
 
 	for _, windowsDesktop := range windowsDesktops {
-		uiLabels := []Label{}
-
-		for name, value := range windowsDesktop.GetAllLabels() {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: value,
-			})
-		}
-
-		sort.Sort(sortedLabels(uiLabels))
-
-		uiDesktops = append(uiDesktops, Desktop{
-			OS:     constants.WindowsOS,
-			Name:   windowsDesktop.GetName(),
-			Addr:   windowsDesktop.GetAddr(),
-			Labels: uiLabels,
-		})
+		uiDesktops = append(uiDesktops, MakeDesktop(windowsDesktop))
 	}
 
 	return uiDesktops

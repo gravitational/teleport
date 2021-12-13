@@ -47,6 +47,10 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 	}
 	if !h.Config.DisableServerSideEncryption {
 		input.ServerSideEncryption = aws.String(s3.ServerSideEncryptionAwsKms)
+
+		if h.Config.SSEKMSKey != "" {
+			input.SSEKMSKeyId = aws.String(h.Config.SSEKMSKey)
+		}
 	}
 
 	resp, err := h.client.CreateMultipartUploadWithContext(ctx, input)
@@ -75,6 +79,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 		Body:       partBody,
 		PartNumber: aws.Int64(partNumber),
 	}
+
 	resp, err := h.client.UploadPartWithContext(ctx, params)
 	if err != nil {
 		return nil, ConvertS3Error(err)
