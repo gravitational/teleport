@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.2.23
+
+This release of Teleport contains performance improvements.
+
+* Various performance improvements related to handling large numbers of concurrent nodes.
+
 ## 6.2.22
 
 This release of Teleport contains multiple security fixes.
