@@ -65,11 +65,17 @@ ssl-cert=/path/to/server.crt
 ssl-key=/path/to/server.key
 ```
 
-Additionally, MySQL database user accounts must be configured to require a valid client certificate:
+Additionally, MySQL database user accounts must be configured to require a
+valid client certificate. If you're creating a new user:
 
 ```sql
-CREATE USER 'alice'@'%' REQUIRE X509;
-ALTER USER 'alice'@'%' REQUIRE X509;
+CREATE USER 'alice'@'%' REQUIRE SUBJECT '/CN=alice';
+```
+
+If you're updating an existing user:
+
+```sql
+ALTER USER 'alice'@'%' REQUIRE SUBJECT '/CN=alice';
 ```
 
 By default the created user may not have access to anything and won't be able to connect so let's grant it some permissions:
