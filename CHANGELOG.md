@@ -1,5 +1,11 @@
 # Changelog
 
+## 8.0.5
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue with desktop access smart card authentication.
+
 ## 8.0.4
 
 This release of Teleport contains multiple security fixes.
