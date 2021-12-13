@@ -83,13 +83,11 @@ func (o *OptionFile) Upsert(profile profile.ConnectProfile) error {
 	if profile.Database != "" {
 		section.NewKey("database", profile.Database)
 	}
-	// TODO(JN): Enable it back after figuring out how to get the flag on connect.
-	//if profile.Insecure {
-	//	section.NewKey("ssl-mode", MySQLSSLModeVerifyCA)
-	//} else {
-	//	section.NewKey("ssl-mode", MySQLSSLModeVerifyIdentity)
-	//	//section.NewKey("ssl-verify-server-cert", "true")
-	//}
+	if profile.Insecure {
+		section.NewKey("ssl-mode", MySQLSSLModeVerifyCA)
+	} else {
+		section.NewKey("ssl-mode", MySQLSSLModeVerifyIdentity)
+	}
 	section.NewKey("ssl-ca", profile.CACertPath)
 	section.NewKey("ssl-cert", profile.CertPath)
 	section.NewKey("ssl-key", profile.KeyPath)
