@@ -122,6 +122,13 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 				_, err := s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
 				return trace.Wrap(err)
 			}
+			// If no second factor provided, check password. If user has 2nd
+			// factor enabled, the password was already checked when creating
+			// authentication challenge.
+			err := s.checkPasswordWOToken(userID, req.OldPassword)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			// Check that a user has no MFA devices registered.
 			devs, err := s.GetMFADevices(ctx, userID)
 			if err != nil && !trace.IsNotFound(err) {
