@@ -25,7 +25,7 @@ func checkDroneCLI() error {
 		return fmt.Errorf("can't find drone CLI in $PATH: %w; get it from https://docs.drone.io/cli/install/", err)
 	}
 	if os.Getenv("DRONE_SERVER") == "" || os.Getenv("DRONE_TOKEN") == "" {
-		return fmt.Errorf("$DRONE_SERVER and/or $DRONE_TOKEN env vars not set; get them at https://drone.gravitational.io/account")
+		return fmt.Errorf("$DRONE_SERVER and/or $DRONE_TOKEN env vars not set; get them at https://drone.teleport.dev/account")
 	}
 	return nil
 }

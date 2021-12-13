@@ -358,6 +358,9 @@ type ProxyConfig struct {
 	// MySQLAddr is address of MySQL proxy.
 	MySQLAddr utils.NetAddr
 
+	// PostgresAddr is address of Postgres proxy.
+	PostgresAddr utils.NetAddr
+
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
