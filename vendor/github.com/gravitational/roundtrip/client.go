@@ -47,7 +47,10 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+
+	"github.com/gravitational/trace"
 )
 
 // ClientParam specifies functional argument for client
@@ -246,6 +249,22 @@ func (c *Client) PostJSON(ctx context.Context, endpoint string, data interface{}
 		}
 		req = req.WithContext(ctx)
 		req.Header.Set("Content-Type", "application/json")
+
+		if headers, ok := os.LookupEnv("TELEPORT_WEBCLIENT_HEADERS"); ok {
+			for _, header := range strings.Split(headers, "\n") {
+				var parts = strings.SplitN(header, ":", 2)
+
+				if len(parts) != 2 {
+					return nil, trace.Errorf("TELEPORT_WEBCLIENT_HEADERS environment variable did not contain colon-separated header name and value")
+				}
+
+				var name = parts[0]
+				var value = strings.TrimLeft(parts[1], " ")
+
+				req.Header.Add(name, value)
+			}
+		}
+
 		c.addAuth(req)
 		tracer.Start(req)
 		return c.client.Do(req)

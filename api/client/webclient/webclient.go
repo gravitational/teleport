@@ -59,6 +59,23 @@ func newWebClient(insecure bool, pool *x509.CertPool) *http.Client {
 func doWithFallback(clt *http.Client, allowPlainHTTP bool, req *http.Request) (*http.Response, error) {
 	// first try https and see how that goes
 	req.URL.Scheme = "https"
+
+	// append any environment-provided headers to the request
+	if headers, ok := os.LookupEnv("TELEPORT_WEBCLIENT_HEADERS"); ok {
+		for _, header := range strings.Split(headers, "\n") {
+			var parts = strings.SplitN(header, ":", 2)
+
+			if len(parts) != 2 {
+				return nil, trace.Errorf("TELEPORT_WEBCLIENT_HEADERS environment variable did not contain colon-separated header name and value")
+			}
+
+			var name = parts[0]
+			var value = strings.TrimLeft(parts[1], " ")
+
+			req.Header.Add(name, value)
+		}
+	}
+
 	log.Debugf("Attempting %s %s%s", req.Method, req.URL.Host, req.URL.Path)
 	resp, err := clt.Do(req)
 
