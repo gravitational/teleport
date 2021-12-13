@@ -816,6 +816,34 @@ func (s *session) join(p *party) error {
 		return trace.Wrap(err)
 	}
 
+	sessionJoinEvent := &apievents.SessionJoin{
+		Metadata: apievents.Metadata{
+			Type:        events.SessionJoinEvent,
+			Code:        events.SessionJoinCode,
+			ClusterName: s.ctx.teleportCluster.name,
+		},
+		KubernetesClusterMetadata: apievents.KubernetesClusterMetadata{
+			KubernetesCluster: s.ctx.kubeCluster,
+			KubernetesUsers:   []string{},
+			KubernetesGroups:  []string{},
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: s.id.String(),
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         p.Ctx.User.GetName(),
+			Login:        "root",
+			Impersonator: p.Ctx.Identity.GetIdentity().Impersonator,
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: s.params.ByName("podName"),
+		},
+	}
+
+	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionJoinEvent); err != nil {
+		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
+	}
+
 	broadcastMessage(s.clients_stdout.WriteUnconditional, fmt.Sprintf("User %v joined the session.", p.Ctx.User.GetName()))
 
 	if s.tty {
@@ -912,6 +940,29 @@ func (s *session) leave(id uuid.UUID) error {
 	s.clients_stderr.W.W.(*srv.MultiWriter).DeleteWriter(stringId)
 
 	broadcastMessage(s.clients_stdout.WriteUnconditional, fmt.Sprintf("User %v left the session.", party.Ctx.User.GetName()))
+
+	sessionLeaveEvent := &apievents.SessionLeave{
+		Metadata: apievents.Metadata{
+			Type:        events.SessionJoinEvent,
+			Code:        events.SessionJoinCode,
+			ClusterName: s.ctx.teleportCluster.name,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: s.id.String(),
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         party.Ctx.User.GetName(),
+			Login:        "root",
+			Impersonator: party.Ctx.Identity.GetIdentity().Impersonator,
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: s.params.ByName("podName"),
+		},
+	}
+
+	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionLeaveEvent); err != nil {
+		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
+	}
 
 	err := s.trackerRemoveParticipant(party.Id.String())
 	if err != nil {
