@@ -506,7 +506,7 @@ func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
 	}
 }
 
-func getConnectCommand(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, opts ...ConnectCommandFunc) (*exec.Cmd, error) {
+func getConnectCommand(_ *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, opts ...ConnectCommandFunc) (*exec.Cmd, error) {
 	var options connectionCommandOpts
 	for _, opt := range opts {
 		opt(&options)
@@ -553,7 +553,7 @@ func getCockroachCommand(tc *client.TeleportClient, profile *client.ProfileStatu
 		postgres.GetConnString(dbprofile.New(tc, *db, *profile, host, port)))
 }
 
-func getMySQLCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) *exec.Cmd {
+func getMySQLCommonCmdOpts(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) []string {
 	args := []string{fmt.Sprintf("--defaults-group-suffix=_%v-%v", tc.SiteName, db.ServiceName)}
 	if db.Username != "" {
 		args = append(args, "--user", db.Username)
@@ -572,15 +572,49 @@ func getMySQLCommand(tc *client.TeleportClient, profile *client.ProfileStatus, d
 		}
 	}
 
-	// TODO(JN): Refactor the logic below. For now this is only proposal.
-	// Check if mariadb client is available. Prefer it over mysql client.
-	_, err := exec.LookPath(mariadbBin)
-	if err == nil {
-		// Found mariadb binary.
-		args = append(args, "--ssl-verify-server-cert")
-		return exec.Command(mariadbBin, args...)
+	return args
+}
+
+func getMariadbCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) *exec.Cmd {
+	args := getMySQLCommonCmdOpts(tc, profile, db, options)
+
+	args = append(args, "--ssl-verify-server-cert")
+
+	return exec.Command(mariadbBin, args...)
+}
+
+func getMySQLOracleCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) *exec.Cmd {
+	args := getMySQLCommonCmdOpts(tc, profile, db, options)
+
+	args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyIdentity))
+
+	return exec.Command(mysqlBin, args...)
+}
+
+func getMySQLCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) *exec.Cmd {
+	// Check if mariadb client is available. Prefer it over mysql client even if connecting to MySQL server.
+	if isMariadbBinAvailable() {
+		return getMariadbCommand(tc, profile, db, options)
 	}
 
+	// Check which flavor is installed. Otherwise, we don't know which ssl flag to use.
+	mySQLMariadbFlavor, err := isMySQLBinMariaDBFlavor()
+	if mySQLMariadbFlavor && err == nil {
+		return getMariadbCommand(tc, profile, db, options)
+	}
+
+	// Either we failed to check the flavor or binary comes from Oracle. Regardless return.
+	return getMySQLOracleCommand(tc, profile, db, options)
+}
+
+func isMariadbBinAvailable() bool {
+	_, err := exec.LookPath(mariadbBin)
+
+	return err == nil
+}
+
+// isMySQLBinMariaDBFlavor checks if mysql binary comes from Oracle or MariaDB
+func isMySQLBinMariaDBFlavor() (bool, error) {
 	// Check if mysql comes from Oracle or MariaDB
 	mysqlVer, err := exec.Command(mysqlBin, "--version").Output()
 	if err != nil {
@@ -588,8 +622,7 @@ func getMySQLCommand(tc *client.TeleportClient, profile *client.ProfileStatus, d
 		// Assume the Oracle's version and return the command. Nest time when
 		// why try to run it to open the DB connection the error will be
 		// presented to a user.
-		args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyIdentity))
-		return exec.Command(mysqlBin, args...)
+		return false, trace.Wrap(err)
 	}
 
 	// Check which flavor is installed. Otherwise, we don't know which ssl flag to use.
@@ -598,13 +631,7 @@ func getMySQLCommand(tc *client.TeleportClient, profile *client.ProfileStatus, d
 	// mysql  Ver 8.0.27-0ubuntu0.20.04.1 for Linux on x86_64 ((Ubuntu))
 	// MariaDB:
 	// mysql  Ver 15.1 Distrib 10.3.32-MariaDB, for debian-linux-gnu (x86_64) using readline 5.2
-	if strings.Contains(strings.ToLower(string(mysqlVer)), "mariadb") {
-		args = append(args, "--ssl-verify-server-cert")
-	} else {
-		args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyIdentity))
-	}
-
-	return exec.Command(mysqlBin, args...)
+	return strings.Contains(strings.ToLower(string(mysqlVer)), "mariadb"), nil
 }
 
 func getMongoCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
