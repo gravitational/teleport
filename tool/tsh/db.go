@@ -578,7 +578,12 @@ func getMySQLCommonCmdOpts(tc *client.TeleportClient, profile *client.ProfileSta
 func getMariadbCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) *exec.Cmd {
 	args := getMySQLCommonCmdOpts(tc, profile, db, options)
 
-	args = append(args, "--ssl-verify-server-cert")
+	// by default mariadb doesn't check "Common Name" on the certificate provided by the server.
+	// tsh db connect also doesn't use my.cnf file where this flag is specified for mysql cmd,
+	// so the flag below is only added on connect when --insecure flag is not provided.
+	if !tc.InsecureSkipVerify {
+		args = append(args, "--ssl-verify-server-cert")
+	}
 
 	return exec.Command(mariadbBin, args...)
 }
@@ -586,7 +591,10 @@ func getMariadbCommand(tc *client.TeleportClient, profile *client.ProfileStatus,
 func getMySQLOracleCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) *exec.Cmd {
 	args := getMySQLCommonCmdOpts(tc, profile, db, options)
 
-	args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyIdentity))
+	// override the ssl-mode from a config file is --insecure flag is provided to 'tsh db connect'.
+	if tc.InsecureSkipVerify {
+		args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyCA))
+	}
 
 	return exec.Command(mysqlBin, args...)
 }
