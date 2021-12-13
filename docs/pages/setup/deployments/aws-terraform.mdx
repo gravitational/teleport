@@ -467,7 +467,7 @@ $ ssh -i ${TF_VAR_key_name}.pem -o ProxyCommand="ssh -i ${TF_VAR_key_name}.pem -
 
 ```code
 # From EC2 host
-$ sudo tctl users add teleport-admin --roles=editor,access --roles=root
+$ sudo tctl users add teleport-admin --roles=editor,access --logins=root
 # Signup token has been created and is valid for 1 hours. Share this URL with the user:
 # https://teleport.example.com:443/web/newuser/6489ae886babf4232826076279bcb2fb
 
