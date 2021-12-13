@@ -248,13 +248,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		TLS:           tlsConfig,
 		AccessPoint:   accessPoint,
 		LimiterConfig: cfg.Kube.Limiter,
-		OnHeartbeat: func(err error) {
-			if err != nil {
-				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentKube})
-			} else {
-				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentKube})
-			}
-		},
+		OnHeartbeat:   process.onHeartbeat(teleport.ComponentKube),
 	})
 	if err != nil {
 		return trace.Wrap(err)

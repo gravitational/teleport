@@ -60,6 +60,9 @@ const (
 	// MySQLListenPort is the default listen port for MySQL proxy.
 	MySQLListenPort = 3036
 
+	// PostgresListenPort is the default listen port for PostgreSQL proxy.
+	PostgresListenPort = 5432
+
 	// MetricsListenPort is the default listen port for the metrics service.
 	MetricsListenPort = 3081
 
@@ -330,7 +333,7 @@ var (
 	NetworkBackoffDuration = time.Second * 30
 
 	// AuditBackoffTimeout is a time out before audit logger will
-	// start loosing events
+	// start losing events
 	AuditBackoffTimeout = 5 * time.Second
 
 	// NetworkRetryDuration is a standard retry on network requests

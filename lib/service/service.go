@@ -350,6 +350,17 @@ func (process *TeleportProcess) GetBackend() backend.Backend {
 	return process.backend
 }
 
+// onHeartbeat generates the default OnHeartbeat callback for the specified component.
+func (process *TeleportProcess) onHeartbeat(component string) func(err error) {
+	return func(err error) {
+		if err != nil {
+			process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: component})
+		} else {
+			process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
+		}
+	}
+}
+
 func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Identity, error) {
 	for i := range process.Config.Identities {
 		identity := process.Config.Identities[i]
@@ -1436,13 +1447,7 @@ func (process *TeleportProcess) initAuthService() error {
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
-		OnHeartbeat: func(err error) {
-			if err != nil {
-				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentAuth})
-			} else {
-				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth})
-			}
-		},
+		OnHeartbeat:     process.onHeartbeat(teleport.ComponentAuth),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1945,13 +1950,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetFIPS(cfg.FIPS),
 			regular.SetBPF(ebpf),
 			regular.SetRestrictedSessionManager(rm),
-			regular.SetOnHeartbeat(func(err error) {
-				if err != nil {
-					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentNode})
-				} else {
-					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode})
-				}
-			}),
+			regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentNode)),
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 			regular.SetLockWatcher(lockWatcher),
 		)
@@ -2585,6 +2584,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		}
 	}
 
+	useSeparatePostgresListener := !cfg.Proxy.PostgresAddr.IsEmpty()
 	if cfg.Proxy.Kube.Enabled && !cfg.Proxy.Kube.ListenAddr.IsEmpty() {
 		process.log.Debugf("Setup Proxy: turning on Kubernetes proxy.")
 		listener, err := process.importOrCreateListener(listenerProxyKube, cfg.Proxy.Kube.ListenAddr.Addr)
@@ -2618,7 +2618,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			Listener:            listener,
 			DisableTLS:          cfg.Proxy.DisableWebService,
 			DisableSSH:          cfg.Proxy.DisableReverseTunnel,
-			DisableDB:           cfg.Proxy.DisableDatabaseProxy,
+			DisablePostgres:     cfg.Proxy.DisableDatabaseProxy || useSeparatePostgresListener,
 			ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
 		})
 		if err != nil {
@@ -2626,7 +2626,9 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.web = listeners.mux.TLS()
-		listeners.db.postgres = listeners.mux.DB()
+		if err := process.setPostgresListener(cfg, &listeners); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		listeners.reverseTunnel = listeners.mux.SSH()
 		go listeners.mux.Serve()
 		return &listeners, nil
@@ -2641,7 +2643,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			Listener:            listener,
 			DisableTLS:          false,
 			DisableSSH:          true,
-			DisableDB:           cfg.Proxy.DisableDatabaseProxy,
+			DisablePostgres:     cfg.Proxy.DisableDatabaseProxy || useSeparatePostgresListener,
 			ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
 		})
 		if err != nil {
@@ -2649,7 +2651,9 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.web = listeners.mux.TLS()
-		listeners.db.postgres = listeners.mux.DB()
+		if err := process.setPostgresListener(cfg, &listeners); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if !cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
 			listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			if err != nil {
@@ -2685,7 +2689,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 					Listener:            listener,
 					DisableTLS:          false, // Web service is enabled or we wouldn't have gotten here.
 					DisableSSH:          true,  // Reverse tunnel is on a separate listener created above.
-					DisableDB:           false, // Database proxy is enabled or we wouldn't have gotten here.
+					DisablePostgres:     false, // Database proxy is enabled or we wouldn't have gotten here.
 					ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
 				})
 				if err != nil {
@@ -2694,7 +2698,9 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 					return nil, trace.Wrap(err)
 				}
 				listeners.web = listeners.mux.TLS()
-				listeners.db.postgres = listeners.mux.DB()
+				if err := process.setPostgresListener(cfg, &listeners); err != nil {
+					return nil, trace.Wrap(err)
+				}
 				go listeners.mux.Serve()
 			} else {
 				process.log.Debug("Setup Proxy: TLS is disabled, multiplexing is off.")
@@ -2711,6 +2717,29 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		}
 		return &listeners, nil
 	}
+}
+
+// setPostgresListener start Postgres proxy listener based on configuration settings. By default, Postgres service is
+// multiplexed on Teleport Proxy web port but if the postgres_listen_addr flag was provided, the
+// Postgres service runs on a separate port taken from it.
+func (process *TeleportProcess) setPostgresListener(cfg *Config, listeners *proxyListeners) error {
+	if cfg.Proxy.DisableDatabaseProxy {
+		return nil
+	}
+	if cfg.Proxy.PostgresAddr.IsEmpty() {
+		// Postgres service is multiplexed on Proxy Web port.
+		listeners.db.postgres = listeners.mux.DB()
+		return nil
+	}
+	// If cfg.Proxy.PostgresAddr address was provided start Postgres service on separate listener without
+	// multiplexing it on webPort.
+	process.log.Debugf("Setup Proxy: Postgres proxy address: %v.", cfg.Proxy.PostgresAddr.Addr)
+	listener, err := process.importOrCreateListener(listenerProxyPostgres, cfg.Proxy.PostgresAddr.Addr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	listeners.db.postgres = listener
+	return nil
 }
 
 func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
@@ -2860,7 +2889,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register web proxy server
 	var webServer *http.Server
-	var webHandler *web.RewritingHandler
+	var webHandler *web.WebAPIHandler
 	if !process.Config.Proxy.DisableWebService {
 		var fs http.FileSystem
 		if !process.Config.Proxy.DisableWebInterface {
@@ -2957,13 +2986,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetRotationGetter(process.getRotation),
 		regular.SetFIPS(cfg.FIPS),
-		regular.SetOnHeartbeat(func(err error) {
-			if err != nil {
-				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentProxy})
-			} else {
-				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentProxy})
-			}
-		}),
+		regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentProxy)),
 		regular.SetEmitter(streamEmitter),
 		regular.SetLockWatcher(lockWatcher),
 	)
@@ -3054,13 +3077,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,
 			AccessPoint:   accessPoint,
-			OnHeartbeat: func(err error) {
-				if err != nil {
-					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: component})
-				} else {
-					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
-				}
-			},
+			OnHeartbeat:   process.onHeartbeat(component),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3129,7 +3146,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if listeners.db.postgres != nil {
 			process.RegisterCriticalFunc("proxy.db.postgres", func() error {
 				log.Infof("Starting Postgres proxy server on %v.", cfg.Proxy.WebAddr.Addr)
-				if err := dbProxyServer.Serve(listeners.db.postgres); err != nil {
+				if err := dbProxyServer.ServePostgres(listeners.db.postgres); err != nil {
 					log.WithError(err).Warn("Postgres proxy server exited with error.")
 				}
 				return nil
@@ -3594,13 +3611,7 @@ func (process *TeleportProcess) initApps() {
 			GetRotation:      process.getRotation,
 			Apps:             applications,
 			ResourceMatchers: process.Config.Apps.ResourceMatchers,
-			OnHeartbeat: func(err error) {
-				if err != nil {
-					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentApp})
-				} else {
-					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentApp})
-				}
-			},
+			OnHeartbeat:      process.onHeartbeat(teleport.ComponentApp),
 		})
 		if err != nil {
 			return trace.Wrap(err)

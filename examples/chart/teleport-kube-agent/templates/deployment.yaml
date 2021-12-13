@@ -8,6 +8,11 @@
 {{- else }}
   {{- $_ := set . "teleportVersion" .Chart.Version }}
 {{- end }}
+{{- if .Values.replicaCount }}
+  {{- $_ := set . "replicaCount" .Values.replicaCount }}
+{{- else }}
+  {{- $_ := set . "replicaCount" .Values.highAvailability.replicaCount }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,7 +25,7 @@ metadata:
     {{- toYaml .Values.annotations.deployment | nindent 4 }}
   {{- end }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .replicaCount }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}
@@ -35,9 +40,37 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
-      {{- if .Values.affinity }}
+      {{- if or .Values.affinity (gt (int .replicaCount) 1) }}
       affinity:
-        {{- toYaml .Values.affinity | nindent 8 }}
+        {{- if .Values.affinity }}
+          {{- if .Values.highAvailability.requireAntiAffinity }}
+            {{- fail "Cannot use highAvailability.requireAntiAffinity when affinity is also set in chart values - unset one or the other" }}
+          {{- end }}
+          {{- toYaml .Values.affinity | nindent 8 }}
+        {{- else }}
+        podAntiAffinity:
+        {{- if .Values.highAvailability.requireAntiAffinity }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ .Release.Name }}
+            topologyKey: "kubernetes.io/hostname"
+        {{- else if gt (int .replicaCount) 1 }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
+        {{- end }}
+        {{- end }}
       {{- end }}
       {{- if .Values.tolerations }}
       tolerations:

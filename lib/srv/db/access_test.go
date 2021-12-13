@@ -617,7 +617,7 @@ func (c *testContext) startProxy() {
 	// Start TLS multiplexer.
 	go c.webListener.Serve()
 	// Start database proxy server.
-	go c.proxyServer.Serve(c.mux.DB())
+	go c.proxyServer.ServePostgres(c.mux.DB())
 	// Start MySQL proxy server.
 	go c.proxyServer.ServeMySQL(c.mysqlListener)
 	// Start database TLS proxy server.
@@ -1094,6 +1094,37 @@ func withCloudSQLPostgres(name, authToken string) withDatabaseOption {
 	}
 }
 
+func withAzurePostgres(name, authToken string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+			AuthToken:  authToken,
+		})
+		require.NoError(t, err)
+		go postgresServer.Serve()
+		t.Cleanup(func() { postgresServer.Close() })
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolPostgres,
+			URI:           net.JoinHostPort("localhost", postgresServer.Port()),
+			DynamicLabels: dynamicLabels,
+			Azure: types.Azure{
+				Name: name,
+			},
+			// Set CA cert, otherwise we will attempt to download RDS roots.
+			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+		})
+		require.NoError(t, err)
+		testCtx.postgres[name] = testPostgres{
+			db:       postgresServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
 func withSelfHostedMySQL(name string) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
@@ -1176,6 +1207,38 @@ func withCloudSQLMySQL(name, authUser, authToken string) withDatabaseOption {
 				InstanceID: "instance-1",
 			},
 			// Set CA cert to pass cert validation.
+			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+		})
+		require.NoError(t, err)
+		testCtx.mysql[name] = testMySQL{
+			db:       mysqlServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withAzureMySQL(name, authUser, authToken string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+			AuthUser:   authUser,
+			AuthToken:  authToken,
+		})
+		require.NoError(t, err)
+		go mysqlServer.Serve()
+		t.Cleanup(func() { mysqlServer.Close() })
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolMySQL,
+			URI:           net.JoinHostPort("localhost", mysqlServer.Port()),
+			DynamicLabels: dynamicLabels,
+			Azure: types.Azure{
+				Name: name,
+			},
+			// Set CA cert, otherwise we will attempt to download RDS roots.
 			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
 		})
 		require.NoError(t, err)

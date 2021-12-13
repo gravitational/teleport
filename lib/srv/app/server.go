@@ -22,6 +22,7 @@ package app
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"net/http"
 	"strconv"
@@ -544,13 +545,27 @@ func (s *Server) ForceHeartbeat() error {
 // HandleConnection takes a connection and wraps it in a listener so it can
 // be passed to http.Serve to process as a HTTP request.
 func (s *Server) HandleConnection(conn net.Conn) {
-	// Wrap the listener in a TLS authorizing listener.
-	listener := newListener(s.closeContext, conn)
-	tlsListener := tls.NewListener(listener, s.tlsConfig)
+	// Wrap conn in a CloserConn to detect when it is closed.
+	// Returning early will close conn before it has been serviced.
+	// httpServer will initiate the close call.
+	closerConn := utils.NewCloserConn(conn)
 
-	if err := s.httpServer.Serve(tlsListener); err != nil {
+	// Wrap a TLS authorizing conn in a single-use listener.
+	tlsConn := tls.Server(closerConn, s.tlsConfig)
+	listener := newListener(s.closeContext, tlsConn)
+
+	// Serve will return as soon as tlsConn is running in its own goroutine
+	err := s.httpServer.Serve(listener)
+	if err != nil && !errors.Is(err, errListenerConnServed) {
+		// okay to ignore errListenerConnServed; it is a signal that our
+		// single-use listener has passed the connection to http.Serve
+		// and conn is being served. See listener.Accept for details.
 		s.log.Warnf("Failed to handle connection: %v.", err)
+		return
 	}
+
+	// Wait for connection to close.
+	closerConn.Wait()
 }
 
 // ServeHTTP will forward the *http.Request to the target application.
