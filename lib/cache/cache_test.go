@@ -124,16 +124,42 @@ func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) 
 	return pack
 }
 
+type packCfg struct {
+	memoryBackend bool
+}
+
+type packOption func(cfg *packCfg)
+
+func memoryBackend(bool) packOption {
+	return func(cfg *packCfg) {
+		cfg.memoryBackend = true
+	}
+}
+
 // newPackWithoutCache returns a new test pack without creating cache
-func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, error) {
+func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn, opts ...packOption) (*testPack, error) {
 	ctx := context.Background()
+	var cfg packCfg
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	p := &testPack{
 		dataDir: dir,
 	}
-	bk, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:             p.dataDir,
-		PollStreamPeriod: 200 * time.Millisecond,
-	})
+	var bk backend.Backend
+	var err error
+	if cfg.memoryBackend {
+		bk, err = memory.New(memory.Config{
+			Context: ctx,
+			Mirror:  true,
+		})
+	} else {
+		bk, err = lite.NewWithConfig(ctx, lite.Config{
+			Path:             p.dataDir,
+			PollStreamPeriod: 200 * time.Millisecond,
+		})
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -175,9 +201,9 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 }
 
 // newPack returns a new test pack or fails the test on error
-func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
+func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) (*testPack, error) {
 	ctx := context.Background()
-	p, err := newPackWithoutCache(dir, setupConfig)
+	p, err := newPackWithoutCache(dir, setupConfig, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -586,6 +612,105 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 func (s *CacheSuite) TestInitStrategy(c *check.C) {
 	for i := 0; i < utils.GetIterations(); i++ {
 		s.initStrategy(c)
+	}
+}
+
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/cache
+cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
+BenchmarkGetMaxNodes-16     	       1	1029199093 ns/op
+*/
+func BenchmarkGetMaxNodes(b *testing.B) {
+	benchGetNodes(b, backend.DefaultRangeLimit)
+}
+
+func benchGetNodes(b *testing.B, nodeCount int) {
+	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	require.NoError(b, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	for i := 0; i < nodeCount; i++ {
+		func() {
+			server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+			_, err := p.presenceS.UpsertNode(ctx, server)
+			require.NoError(b, err)
+			timeout := time.NewTimer(time.Millisecond * 200)
+			defer timeout.Stop()
+			select {
+			case event := <-p.eventsC:
+				require.Equal(b, EventProcessed, event.Type)
+			case <-timeout.C:
+				b.Fatalf("timeout waiting for event, iteration=%d", i)
+			}
+		}()
+	}
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(b, err)
+		require.Len(b, nodes, nodeCount)
+	}
+}
+
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/cache
+cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
+BenchmarkListMaxNodes-16    	       1	1136071399 ns/op
+*/
+func BenchmarkListMaxNodes(b *testing.B) {
+	benchListNodes(b, backend.DefaultRangeLimit, apidefaults.DefaultChunkSize)
+}
+
+func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
+	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	require.NoError(b, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	for i := 0; i < nodeCount; i++ {
+		func() {
+			server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+			_, err := p.presenceS.UpsertNode(ctx, server)
+			require.NoError(b, err)
+			timeout := time.NewTimer(time.Millisecond * 200)
+			defer timeout.Stop()
+			select {
+			case event := <-p.eventsC:
+				require.Equal(b, EventProcessed, event.Type)
+			case <-timeout.C:
+				b.Fatalf("timeout waiting for event, iteration=%d", i)
+			}
+		}()
+	}
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		var nodes []types.Server
+		req := proto.ListNodesRequest{
+			Namespace: apidefaults.Namespace,
+			Limit:     int32(pageSize),
+		}
+		for {
+			page, nextKey, err := p.cache.ListNodes(ctx, req)
+			require.NoError(b, err)
+			nodes = append(nodes, page...)
+			require.True(b, len(page) == pageSize || nextKey == "")
+			if nextKey == "" {
+				break
+			}
+			req.StartKey = nextKey
+		}
+		require.Len(b, nodes, nodeCount)
 	}
 }
 

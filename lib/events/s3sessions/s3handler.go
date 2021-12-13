@@ -77,6 +77,8 @@ type Config struct {
 	Session *awssession.Session
 	// Credentials if supplied are used in tests
 	Credentials *credentials.Credentials
+	// SSEKMSKey specifies the optional custom CMK used for KMS SSE.
+	SSEKMSKey string
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -107,6 +109,9 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 			return trace.BadParameter("failed to parse URI %q flag %q - %q is not a valid canned ACL", in.String(), teleport.ACL, acl)
 		}
 		s.ACL = acl
+  }
+	if val := in.Query().Get(teleport.SSEKMSKey); val != "" {
+		s.SSEKMSKey = val
 	}
 	s.Region = region
 	s.Bucket = in.Host
@@ -201,6 +206,10 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 	}
 	if !h.Config.DisableServerSideEncryption {
 		uploadInput.ServerSideEncryption = aws.String(s3.ServerSideEncryptionAwsKms)
+
+		if h.Config.SSEKMSKey != "" {
+			uploadInput.SSEKMSKeyId = aws.String(h.Config.SSEKMSKey)
+		}
 	}
 	if h.Config.ACL != "" {
 		uploadInput.ACL = aws.String(h.Config.ACL)
@@ -230,6 +239,7 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.
 		Key:       aws.String(h.path(sessionID)),
 		VersionId: aws.String(versionID),
 	})
+
 	if err != nil {
 		return ConvertS3Error(err)
 	}

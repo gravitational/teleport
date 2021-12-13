@@ -2,351 +2,6 @@
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tests.go:84
-################################################
-
-kind: pipeline
-type: kubernetes
-name: test
-environment:
-  GID: "1000"
-  RUNTIME: go1.17.2
-  UID: "1000"
-trigger:
-  event:
-    include:
-    - pull_request
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /go
-clone:
-  disable: true
-steps:
-- name: Check out code
-  image: docker:git
-  commands:
-  - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport /tmpfs/go/cache
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - git init && git remote add origin ${DRONE_REMOTE_URL}
-  - |
-    # handle pull requests
-    if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
-      git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-      git checkout ${DRONE_COMMIT_BRANCH}
-      git fetch origin ${DRONE_COMMIT_REF}:
-      git merge ${DRONE_COMMIT}
-    # handle tags
-    elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-      git fetch origin +refs/tags/${DRONE_TAG}:
-      git checkout -qf FETCH_HEAD
-    # handle pushes/other events
-    else
-      if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
-        git fetch origin
-        git checkout -qf ${DRONE_COMMIT_SHA}
-      else
-        git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-        git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
-      fi
-    fi
-  - git submodule update --init webassets || true
-  - |
-    if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
-      apk add --no-cache curl jq
-      export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/${DRONE_REPO_NAME}/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
-      echo "---> Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
-      # if the source repo for the PR matches DRONE_REPO, then this is not a PR raised from a fork
-      if [ "$${PR_REPO}" = "${DRONE_REPO}" ] || [ "${DRONE_REPO}" = "gravitational/teleport-private" ]; then
-        mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-        ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-        git submodule update --init e
-        # do a recursive submodule checkout to get both webassets and webassets/e
-        # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-        git submodule update --init --recursive webassets || true
-        rm -f /root/.ssh/id_rsa
-      fi
-    fi
-  environment:
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-- name: Wait for docker
-  image: docker
-  commands:
-  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  volumes:
-  - name: dockersock
-    path: /var/run
-- name: Build buildbox
-  image: docker
-  commands:
-  - apk add --no-cache make
-  - chown -R $UID:$GID /tmpfs/go
-  - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - make -C build.assets buildbox
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: dockersock
-    path: /var/run
-- name: Run linter
-  image: docker
-  commands:
-  - apk add --no-cache make
-  - chown -R $UID:$GID /tmpfs/go
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - make -C build.assets lint
-  environment:
-    GOCACHE: /tmpfs/go/cache
-    GOPATH: /tmpfs/go
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: dockersock
-    path: /var/run
-- name: Optionally skip tests
-  image: docker:git
-  commands:
-  - |
-    cd /tmpfs/go/src/github.com/gravitational/teleport
-    echo -e "\n---> git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}\n"
-    git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
-    git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.mdx$' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
-    export CHANGE_COUNT=$(cat /tmp/.change_count.txt | tr -d '\n')
-    echo -e "\n---> Non-docs changes detected: $$CHANGE_COUNT"
-    if [ $$CHANGE_COUNT -gt 0 ]; then
-      echo "---> Teleport tests will run normally"
-    else
-      echo "---> Skipping Teleport tests and exiting early"
-      exit 78
-    fi
-    echo ""
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-- name: Run unit and chaos tests
-  image: docker
-  commands:
-  - apk add --no-cache make
-  - chown -R $UID:$GID /tmpfs/go
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - make -C build.assets test
-  environment:
-    GOCACHE: /tmpfs/go/cache
-    GOPATH: /tmpfs/go
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: dockersock
-    path: /var/run
-- name: Run root-only integration tests
-  image: docker
-  commands:
-  - apk add --no-cache make
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - make -C build.assets integration-root
-  environment:
-    GOCACHE: /tmpfs/go/cache
-    GOPATH: /tmpfs/go
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: tmp-integration
-    path: /tmp
-  - name: dockersock
-    path: /var/run
-- name: Run integration tests
-  image: docker
-  commands:
-  - apk add --no-cache make
-  - echo "$INTEGRATION_CI_KUBECONFIG" > "$KUBECONFIG"
-  - chown -R $UID:$GID /tmpfs/go
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - make -C build.assets integration
-  - rm -f "$KUBECONFIG"
-  environment:
-    GOCACHE: /tmpfs/go/cache
-    GOPATH: /tmpfs/go
-    INTEGRATION_CI_KUBECONFIG:
-      from_secret: INTEGRATION_CI_KUBECONFIG
-    KUBECONFIG: /tmpfs/go/kubeconfig.ci
-    TEST_KUBE: "true"
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: tmp-integration
-    path: /tmp
-  - name: dockersock
-    path: /var/run
-services:
-- name: Start Docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: dockertmpfs
-    path: /var/lib/docker
-  - name: tmp-integration
-    path: /tmp
-  - name: dockersock
-    path: /var/run
-volumes:
-- name: tmpfs
-  temp:
-    medium: memory
-- name: tmp-integration
-  temp: {}
-- name: dockertmpfs
-  temp: {}
-- name: dockersock
-  temp: {}
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/tests.go:226
-################################################
-
-kind: pipeline
-type: kubernetes
-name: test-docs
-trigger:
-  event:
-    include:
-    - pull_request
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /go
-clone:
-  disable: true
-steps:
-- name: Check out code
-  image: docker:git
-  commands:
-  - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport /tmpfs/go/cache
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - git init && git remote add origin ${DRONE_REMOTE_URL}
-  - |
-    # handle pull requests
-    if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
-      git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-      git checkout ${DRONE_COMMIT_BRANCH}
-      git fetch origin ${DRONE_COMMIT_REF}:
-      git merge ${DRONE_COMMIT}
-    # handle tags
-    elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-      git fetch origin +refs/tags/${DRONE_TAG}:
-      git checkout -qf FETCH_HEAD
-    # handle pushes/other events
-    else
-      if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
-        git fetch origin
-        git checkout -qf ${DRONE_COMMIT_SHA}
-      else
-        git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-        git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
-      fi
-    fi
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-- name: Wait for docker
-  image: docker
-  commands:
-  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  volumes:
-  - name: dockersock
-    path: /var/run
-- name: Run docs tests
-  image: docker:git
-  commands:
-  - apk add --no-cache make
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - chown -R $UID:$GID /tmpfs/go
-  - git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print
-    $6}' | grep -E '^docs' | { grep -v ^$ || true; } > /tmp/docs-changes.txt
-  - |
-    if [ $(cat /tmp/docs-changes.txt | wc -l) -gt 0 ]; then
-      echo "---> Changes to docs detected"
-      cat /tmp/docs-changes.txt
-      echo "---> Checking for trailing whitespace"
-      make docs-test-whitespace
-      echo "---> Checking for dead links"
-      make -C build.assets test-docs
-    else
-      echo "---> No changes to docs detected, not running tests"
-    fi
-  environment:
-    GID: "1000"
-    GOCACHE: /tmpfs/go/cache
-    UID: "1000"
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: dockersock
-    path: /var/run
-services:
-- name: Start Docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: dockertmpfs
-    path: /var/lib/docker
-  - name: dockersock
-    path: /var/run
-volumes:
-- name: tmpfs
-  temp:
-    medium: memory
-- name: dockertmpfs
-  temp: {}
-- name: dockersock
-  temp: {}
-
----
-kind: pipeline
-type: kubernetes
-name: update-docs-webhook
-
-trigger:
-  event:
-    include:
-      - push
-    exclude:
-      - pull_request
-  branch:
-    include:
-      - master
-      - branch/*
-  repo:
-    include:
-      - gravitational/teleport
-
-clone:
-  disable: true
-
-steps:
-  - name: Trigger docs deployment
-    image: plugins/webhook
-    settings:
-      urls:
-        from_secret: DOCS_DEPLOY_HOOK
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
 # Generated at dronegen/push.go:104
 ################################################
 
@@ -831,8 +486,8 @@ steps:
   - set -u
   - export PATH=/Users/build/.cargo/bin:$PATH
   - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
-  - export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile
-    | cut -d= -f2)
+  - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-rust-version)
   - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
   - export RUST_HOME=$CARGO_HOME
   - rustup toolchain install $RUST_VERSION
@@ -841,8 +496,8 @@ steps:
 - name: Build Mac artifacts
   commands:
   - set -u
-  - export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile
-    | cut -d= -f2)
+  - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-rust-version)
   - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
   - export RUST_HOME=$CARGO_HOME
   - export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH
@@ -861,8 +516,8 @@ steps:
   - export PATH=/Users/build/.cargo/bin:$PATH
   - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
   - export RUST_HOME=$CARGO_HOME
-  - export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile
-    | cut -d= -f2)
+  - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-rust-version)
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - rustup override unset
   - rustup toolchain uninstall $RUST_VERSION
@@ -1126,19 +781,19 @@ steps:
       # increment these variables when a new major/minor version is released to bump the automatic builds
       # this only needs to be done on the master branch, as that's the branch that the Drone cron is configured for
       # build major version images which are just teleport:x
-      CURRENT_VERSION_ROOT: v7
-      PREVIOUS_VERSION_ONE_ROOT: v6
-      PREVIOUS_VERSION_TWO_ROOT: v5
+      CURRENT_VERSION_ROOT: v8
+      PREVIOUS_VERSION_ONE_ROOT: v7
+      PREVIOUS_VERSION_TWO_ROOT: v6
     commands:
       - apk --update --no-cache add curl
       - mkdir -p /go/build && cd /go/build
-      # CURRENT_VERSION (7)
+      # CURRENT_VERSION (8)
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $CURRENT_VERSION_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/CURRENT_VERSION_TAG.txt
       - echo "$(cat /go/build/CURRENT_VERSION_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/CURRENT_VERSION_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_ONE (6)
+      # PREVIOUS_VERSION_ONE (7)
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $PREVIOUS_VERSION_ONE_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/PREVIOUS_VERSION_ONE_TAG.txt
       - echo "$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_TWO (5)
+      # PREVIOUS_VERSION_TWO (6)
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $PREVIOUS_VERSION_TWO_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/PREVIOUS_VERSION_TWO_TAG.txt
       - echo "$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
       # list versions
@@ -1363,7 +1018,220 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:221
+# Generated at dronegen/tag.go:233
+################################################
+
+kind: pipeline
+type: kubernetes
+name: build-linux-amd64-centos7
+environment:
+  RUNTIME: go1.17.2
+trigger:
+  event:
+    include:
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -p /go/src/github.com/gravitational/teleport
+  - cd /go/src/github.com/gravitational/teleport
+  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa
+    && chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - git submodule update --init --recursive webassets || true
+  - rm -f /root/.ssh/id_rsa
+  - mkdir -p /go/cache /go/artifacts
+  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
+    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Build artifacts
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - cd /go/src/github.com/gravitational/teleport
+  - make -C build.assets release-amd64-centos7
+  environment:
+    ARCH: amd64
+    GID: "1000"
+    GOCACHE: /go/cache
+    GOPATH: /go
+    OS: linux
+    UID: "1000"
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Copy artifacts
+  image: docker
+  commands:
+  - cd /go/src/github.com/gravitational/teleport
+  - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
+    \;
+  - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
+    \;
+  - export VERSION=$(cat /go/.version.txt)
+  - mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
+  - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
+  - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
+    done && ls -l
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
+services:
+- name: Start Docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/tag.go:233
+################################################
+
+kind: pipeline
+type: kubernetes
+name: build-linux-amd64-centos7-fips
+environment:
+  RUNTIME: go1.17.2
+trigger:
+  event:
+    include:
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -p /go/src/github.com/gravitational/teleport
+  - cd /go/src/github.com/gravitational/teleport
+  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa
+    && chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - git submodule update --init --recursive webassets || true
+  - rm -f /root/.ssh/id_rsa
+  - mkdir -p /go/cache /go/artifacts
+  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
+    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Build artifacts
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - cd /go/src/github.com/gravitational/teleport
+  - export VERSION=$(cat /go/.version.txt)
+  - make -C build.assets release-amd64-centos7-fips
+  environment:
+    ARCH: amd64
+    FIPS: "yes"
+    GID: "1000"
+    GOCACHE: /go/cache
+    GOPATH: /go
+    OS: linux
+    UID: "1000"
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Copy artifacts
+  image: docker
+  commands:
+  - cd /go/src/github.com/gravitational/teleport
+  - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
+    \;
+  - export VERSION=$(cat /go/.version.txt)
+  - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos7-fips-bin.tar.gz
+  - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
+    done && ls -l
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
+services:
+- name: Start Docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/tag.go:233
 ################################################
 
 kind: pipeline
@@ -1467,7 +1335,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:221
+# Generated at dronegen/tag.go:233
 ################################################
 
 kind: pipeline
@@ -1571,7 +1439,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:221
+# Generated at dronegen/tag.go:233
 ################################################
 
 kind: pipeline
@@ -1678,7 +1546,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:363
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -1810,7 +1678,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:363
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -1939,7 +1807,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:363
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -2057,7 +1925,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:363
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -2172,7 +2040,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:221
+# Generated at dronegen/tag.go:233
 ################################################
 
 kind: pipeline
@@ -2276,7 +2144,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:363
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -2408,7 +2276,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:363
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -2584,11 +2452,32 @@ steps:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64
+- name: Install Go Toolchain
+  commands:
+  - set -u
+  - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - curl --silent -O https://dl.google.com/go/$RUNTIME.darwin-amd64.tar.gz
+  - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
+  - rm -rf $RUNTIME.darwin-amd64.tar.gz
+  environment:
+    RUNTIME: go1.17.2
+- name: Install Rust Toolchain
+  commands:
+  - set -u
+  - export PATH=/Users/build/.cargo/bin:$PATH
+  - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-rust-version)
+  - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export RUST_HOME=$CARGO_HOME
+  - rustup toolchain install $RUST_VERSION
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Build Mac release artifacts
   commands:
   - set -u
-  - export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile
-    | cut -d= -f2)
+  - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-rust-version)
   - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
   - export RUST_HOME=$CARGO_HOME
   - export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH
@@ -2625,6 +2514,24 @@ steps:
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64
+- name: Clean up toolchains (post)
+  commands:
+  - set -u
+  - export PATH=/Users/build/.cargo/bin:$PATH
+  - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export RUST_HOME=$CARGO_HOME
+  - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-rust-version)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - rustup override unset
+  - rustup toolchain uninstall $RUST_VERSION
+  - rm -rf ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64
+  when:
+    status:
+    - success
+    - failure
 - name: Clean up exec runner storage (post)
   commands:
   - set -u
@@ -2911,7 +2818,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:221
+# Generated at dronegen/tag.go:233
 ################################################
 
 kind: pipeline
@@ -3015,7 +2922,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:221
+# Generated at dronegen/tag.go:233
 ################################################
 
 kind: pipeline
@@ -3119,7 +3026,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:363
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -3237,7 +3144,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:363
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -3355,7 +3262,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:363
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -3487,7 +3394,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:363
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -3619,7 +3526,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:221
+# Generated at dronegen/tag.go:233
 ################################################
 
 kind: pipeline
@@ -4286,6 +4193,49 @@ steps:
         make change-amis-to-public-ent
         make change-amis-to-public-ent-fips
 
+  # Download all previously packaged charts. This is needed to rebuild the
+  # index and re-publish the repository.
+  - name: "Helm: Download chart repository"
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+    commands:
+      - mkdir -p /go/chart
+      - aws s3 sync s3://$AWS_S3_BUCKET/ /go/chart
+
+  - name: "Helm: Package chart repository"
+    image: alpine/helm:latest
+    commands:
+      - cd /go/chart
+      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-cluster
+      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-kube-agent
+      # copy index.html to root of the S3 bucket.
+      - cp /go/src/github.com/gravitational/teleport/examples/chart/index.html /go/chart
+      # this will index all previous versions of the charts downloaded from the S3 bucket,
+      # plus the just-packaged charts listed above
+      - helm repo index /go/chart
+      - ls /go/chart
+
+  - name: "Helm: Publish chart repository to S3"
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
+      access_key:
+        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+      region: us-east-2
+      acl: public-read
+      source: /go/chart/*
+      target: /
+      strip_prefix: /go/chart
+
   # NOTE: all mandatory steps for a release promotion need to go BEFORE this
   # step, as there is a chance that everything afterwards will be skipped.
   #
@@ -4461,6 +4411,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: e60dc8b2dfa64a222ba26968ddb786c484693cc1061b03b6221eaa0bede46307
+hmac: 5049d1a961c95216d5131cd9ff35e3f234d74ada94a26dd57dcd8ee36598aeee
 
 ...
