@@ -149,14 +149,14 @@ func NewDatabaseFromRDSCluster(cluster *rds.DBCluster) (types.Database, error) {
 	})
 }
 
-// NewDatabaseFromRDSClusterReader creates a database resource from an RDS cluster reader endpoint (Aurora).
-func NewDatabaseFromRDSClusterReader(cluster *rds.DBCluster) (types.Database, error) {
+// NewDatabaseFromRDSClusterReaderEndpoint creates a database resource from an RDS cluster reader endpoint (Aurora).
+func NewDatabaseFromRDSClusterReaderEndpoint(cluster *rds.DBCluster) (types.Database, error) {
 	metadata, err := MetadataFromRDSCluster(cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return types.NewDatabaseV3(types.Metadata{
-		Name:        rdsCustomDatabaseName(cluster, string(RDSEndpointTypeReader)),
+		Name:        fmt.Sprintf("%v-%v", aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeReader)),
 		Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeReader)),
 		Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeReader),
 	}, types.DatabaseSpecV3{
@@ -164,8 +164,9 @@ func NewDatabaseFromRDSClusterReader(cluster *rds.DBCluster) (types.Database, er
 		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ReaderEndpoint), aws.Int64Value(cluster.Port)),
 		AWS:      *metadata,
 
-		// overwrite server name with the primary endpoint as the rds instances
-		// may not have up-to-date certs that contains reader/custom endpoints
+		// overwrite server name with the primary endpoint name as the rds
+		// instances may not have up-to-date certs that contains reader/custom
+		// endpoints
 		TLS: types.DatabaseTLS{
 			ServerName: aws.StringValue(cluster.Endpoint),
 		},
@@ -186,7 +187,7 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 		}
 
 		database, err := types.NewDatabaseV3(types.Metadata{
-			Name:        rdsCustomDatabaseName(cluster, endpointName),
+			Name:        fmt.Sprintf("%v-%v-%v", aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeCustom), endpointName),
 			Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeCustom)),
 			Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeCustom),
 		}, types.DatabaseSpecV3{
@@ -194,8 +195,9 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 			URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint), aws.Int64Value(cluster.Port)),
 			AWS:      *metadata,
 
-			// overwrite server name with the primary endpoint as the rds instances
-			// may not have up-to-date certs that contains reader/custom endpoints
+			// overwrite server name with the primary endpoint name as the rds
+			// instances may not have up-to-date certs that contains reader/custom
+			// endpoints
 			TLS: types.DatabaseTLS{
 				ServerName: aws.StringValue(cluster.Endpoint),
 			},
@@ -262,10 +264,10 @@ func parseRDSCustomEndpoint(endpoint string) (name string, err error) {
 	// RDS custom endpoint format:
 	// <endpointName>.cluster-custom-<customerDnsIdentifier>.<dnsSuffix>
 	//
-	// Note that endpoint name can only contain letters, numbers, and hyphens. So it'safe to to split on ".".
+	// Note that endpoint name can only contain letters, numbers, and hyphens, so it's safe to to split on ".".
 	parts := strings.Split(endpoint, ".")
 	if !strings.HasSuffix(endpoint, rdsEndpointSuffix) || len(parts) != 6 {
-		return "", trace.BadParameter("failed to parse %v as RDS custo endpoint", endpoint)
+		return "", trace.BadParameter("failed to parse %v as RDS custom endpoint", endpoint)
 	}
 	return parts[0], nil
 }
@@ -303,11 +305,6 @@ func tagsToLabels(tags []*rds.Tag) map[string]string {
 	return labels
 }
 
-// rdsCustomDatabaseName generates database names for RDS cluster reader and custom endpoints
-func rdsCustomDatabaseName(cluster *rds.DBCluster, endpointName string) string {
-	return fmt.Sprintf("%s-%s", aws.StringValue(cluster.DBClusterIdentifier), endpointName)
-}
-
 const (
 	// labelAccountID is the label key containing AWS account ID.
 	labelAccountID = "account-id"
@@ -317,7 +314,7 @@ const (
 	labelEngine = "engine"
 	// labelEngineVersion is the label key containing RDS database engine version.
 	labelEngineVersion = "engine-version"
-	// labelEndpointType is the label key containing endpoint type.
+	// labelEndpointType is the label key containing the RDS endpoint type.
 	labelEndpointType = "endpoint-type"
 )
 
@@ -348,8 +345,8 @@ const (
 	// RDSEndpointTypeReader is the endpoint that load-balances connections across the Aurora Replicas that are
 	// available in a RDS cluster.
 	RDSEndpointTypeReader RDSEndpointType = "reader"
-	// RDSEndpointTypeCustom is a custom endpoint associated with the cluster.
+	// RDSEndpointTypeCustom is the endpoint that specifieds one of the custom endpoints associated with the RDS cluster.
 	RDSEndpointTypeCustom RDSEndpointType = "custom"
-	// RDSEndpointTypeInstance is the endpoint that the address of the DB instance.
+	// RDSEndpointTypeInstance is the endpoint of a RDS DB instance.
 	RDSEndpointTypeInstance RDSEndpointType = "instance"
 )

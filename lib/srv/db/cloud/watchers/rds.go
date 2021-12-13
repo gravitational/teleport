@@ -142,6 +142,7 @@ func (f *rdsFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, e
 	}
 	databases := make(types.Databases, 0, len(clusters))
 	for _, cluster := range clusters {
+		// add a database from primary endpoint
 		database, err := services.NewDatabaseFromRDSCluster(cluster)
 		if err != nil {
 			f.log.Infof("Could not convert RDS cluster %q to database resource: %v.",
@@ -150,9 +151,9 @@ func (f *rdsFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, e
 			databases = append(databases, database)
 		}
 
-		// add reader, if available
+		// add a database from reader endpoint
 		if cluster.ReaderEndpoint != nil {
-			database, err := services.NewDatabaseFromRDSClusterReader(cluster)
+			database, err := services.NewDatabaseFromRDSClusterReaderEndpoint(cluster)
 			if err != nil {
 				f.log.Infof("Could not convert RDS cluster %q reader endpoint to database resource: %v.",
 					aws.StringValue(cluster.DBClusterIdentifier), err)
@@ -161,7 +162,7 @@ func (f *rdsFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, e
 			}
 		}
 
-		// add custom endpoints
+		// add databases from custom endpoints
 		if len(cluster.CustomEndpoints) > 0 {
 			customEndpointDatabases, err := services.NewDatabasesFromRDSClusterCustomEndpoints(cluster)
 			if err != nil {

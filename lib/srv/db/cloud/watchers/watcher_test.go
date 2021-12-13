@@ -136,7 +136,7 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 	primaryDatabase, err := services.NewDatabaseFromRDSCluster(cluster)
 	require.NoError(t, err)
 
-	readerDatabase, err := services.NewDatabaseFromRDSClusterReader(cluster)
+	readerDatabase, err := services.NewDatabaseFromRDSClusterReaderEndpoint(cluster)
 	require.NoError(t, err)
 
 	customDatabases, err := services.NewDatabasesFromRDSClusterCustomEndpoints(cluster)

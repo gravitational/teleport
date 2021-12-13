@@ -158,8 +158,8 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 		ReaderEndpoint:                   aws.String("reader.host"),
 		Port:                             aws.Int64(3306),
 		CustomEndpoints: []*string{
-			aws.String("custom1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
-			aws.String("custom2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
+			aws.String("myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
+			aws.String("myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
 		},
 		TagList: []*rds.Tag{{
 			Key:   aws.String("key"),
@@ -223,7 +223,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		actual, err := NewDatabaseFromRDSClusterReader(cluster)
+		actual, err := NewDatabaseFromRDSClusterReaderEndpoint(cluster)
 		require.NoError(t, err)
 		require.Equal(t, expected, actual)
 	})
@@ -239,13 +239,13 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			"key":              "val",
 		}
 
-		expectedCustom1, err := types.NewDatabaseV3(types.Metadata{
-			Name:        "cluster-1-custom1",
+		expectedMyEndpoint1, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "cluster-1-custom-myendpoint1",
 			Description: "Aurora cluster in us-east-1 (custom endpoint)",
 			Labels:      expectedLabels,
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolMySQL,
-			URI:      "custom1.cluster-custom-example.us-east-1.rds.amazonaws.com:3306",
+			URI:      "myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com:3306",
 			AWS:      expectedAWS,
 			TLS: types.DatabaseTLS{
 				ServerName: "localhost",
@@ -253,13 +253,13 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		expectedCustom2, err := types.NewDatabaseV3(types.Metadata{
-			Name:        "cluster-1-custom2",
+		expectedMyEndpoint2, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "cluster-1-custom-myendpoint2",
 			Description: "Aurora cluster in us-east-1 (custom endpoint)",
 			Labels:      expectedLabels,
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolMySQL,
-			URI:      "custom2.cluster-custom-example.us-east-1.rds.amazonaws.com:3306",
+			URI:      "myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com:3306",
 			AWS:      expectedAWS,
 			TLS: types.DatabaseTLS{
 				ServerName: "localhost",
@@ -269,7 +269,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 
 		databases, err := NewDatabasesFromRDSClusterCustomEndpoints(cluster)
 		require.NoError(t, err)
-		require.Equal(t, []types.Database{expectedCustom1, expectedCustom2}, databases)
+		require.Equal(t, types.Databases{expectedMyEndpoint1, expectedMyEndpoint2}, databases)
 	})
 }
 
