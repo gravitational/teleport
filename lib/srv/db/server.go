@@ -657,6 +657,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 
+	// TODO(jakule): ClientIP should be required starting from 10.0.
 	clientIP := sessionCtx.Identity.ClientIP
 	if clientIP != "" {
 		s.log.Debugf("Real client IP %s", clientIP)
