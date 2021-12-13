@@ -812,6 +812,28 @@ func TestPostgresPublicAddr(t *testing.T) {
 			},
 			out: []string{net.JoinHostPort("postgres.example.com", strconv.Itoa(defaults.HTTPListenPort))},
 		},
+		{
+			desc: "when PostgresAddr is provided with port, the explicitly provided port should be use",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					WebAddr:            "0.0.0.0:8080",
+					PostgresAddr:       "0.0.0.0:12345",
+					PostgresPublicAddr: []string{"postgres.example.com"},
+				},
+			},
+			out: []string{"postgres.example.com:12345"},
+		},
+		{
+			desc: "when PostgresAddr is provided without port, defaults PostgresPort should be used",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					WebAddr:            "0.0.0.0:8080",
+					PostgresAddr:       "0.0.0.0",
+					PostgresPublicAddr: []string{"postgres.example.com"},
+				},
+			},
+			out: []string{net.JoinHostPort("postgres.example.com", strconv.Itoa(defaults.PostgresListenPort))},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {

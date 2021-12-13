@@ -1,6 +1,8 @@
 ARG RUNTIME
 FROM quay.io/gravitational/teleport-buildbox:$RUNTIME
 
+USER root
+
 RUN apt-get -y update && \
     apt-get -y install gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu && \
     apt-get -y autoclean && apt-get -y clean

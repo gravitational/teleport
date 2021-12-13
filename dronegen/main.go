@@ -30,7 +30,6 @@ func main() {
 	}
 	var pipelines []pipeline
 
-	pipelines = append(pipelines, testPipelines()...)
 	pipelines = append(pipelines, pushPipelines()...)
 	pipelines = append(pipelines, tagPipelines()...)
 	pipelines = append(pipelines, cronPipelines()...)
