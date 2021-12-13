@@ -2608,6 +2608,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 
 			tlsConfig.GetConfigForClient = func(*tls.ClientHelloInfo) (*tls.Config, error) {
+				var err error
 				tlsClone := tlsConfig.Clone()
 
 				// Set client auth to "verify client cert if given" to support
