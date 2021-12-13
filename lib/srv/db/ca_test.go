@@ -433,6 +433,10 @@ func TestTLSConfiguration(t *testing.T) {
 						require.NoError(t, err)
 					} else {
 						require.Error(t, err)
+						// skip error message validation here. Postgres driver by default tried to connect to
+						// a database on localhost using IPv4 and IPv6. Docker doesn't enable IPv6 support
+						// by default and that fails the check (on our CI and every default Docker installation )
+						// as error is different "connection refused" that expected x509 related.
 					}
 				case defaults.ProtocolMySQL:
 					testCtx := setupMySQL(ctx, t, cfg)
@@ -466,8 +470,8 @@ func TestTLSConfiguration(t *testing.T) {
 						require.NoError(t, err)
 					} else {
 						require.Error(t, err)
-						// Do not verify Mongo error message. Sometimes it's different
-						// and normalizing them doesn't provide a lot of value to the user.
+						// Do not verify Mongo error message. On authentication error Mongo re-tries and
+						// returns timeout instead of x509 related error.
 					}
 				default:
 					t.Fatalf("unrecognized database: %s", dbType)
