@@ -109,7 +109,7 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 			return trace.BadParameter("failed to parse URI %q flag %q - %q is not a valid canned ACL", in.String(), teleport.ACL, acl)
 		}
 		s.ACL = acl
-  }
+	}
 	if val := in.Query().Get(teleport.SSEKMSKey); val != "" {
 		s.SSEKMSKey = val
 	}
