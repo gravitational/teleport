@@ -17,6 +17,10 @@ steps:
     id: unit-test
     env:
       - TELEPORT_ETCD_TEST="yes"
+        # Some unit tests are not well isolated and will use the current $HOME
+        # to store tsh profile data. GCB protects the real builder homedir, so 
+        # we tell the tests to use somewhere else that we know we can write to.
+      - HOME="/tmp/.home"
     volumes: 
       - name: bcc-headers
         path: /usr/include/bcc
@@ -24,8 +28,6 @@ steps:
     args: 
       - -c
       - |
-        sha256sum /usr/include/bcc/*.h;
-
         # launch the etcd emulator and wait for it to start 
         (make run-etcd &); sleep 1; 
 
