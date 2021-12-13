@@ -654,7 +654,8 @@ func (m *TLSMode) CheckAndSetDefaults() error {
 	case VerifyFull, VerifyCA, Insecure:
 		// Correct value, do nothing.
 	default:
-		return trace.BadParameter("%q is not a correct TLSMode value", *m)
+		return trace.BadParameter("provided incorrect TLSMode value. Correct values are: %q %q %q",
+			VerifyFull, VerifyCA, Insecure)
 	}
 
 	return nil
