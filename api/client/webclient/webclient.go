@@ -46,6 +46,8 @@ func newWebClient(insecure bool, pool *x509.CertPool) *http.Client {
 				RootCAs:            pool,
 				InsecureSkipVerify: insecure,
 			},
+
+			Proxy: http.ProxyFromEnvironment,
 		},
 	}
 }
@@ -67,10 +69,15 @@ func doWithFallback(clt *http.Client, allowPlainHTTP bool, req *http.Request) (*
 		return resp, nil
 	}
 
+	var proxy *url.URL
+	if proxy, err = http.ProxyFromEnvironment(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// If we're not allowed to try plain HTTP, bail out with whatever error we have.
 	// Note that we're only allowed to try plain HTTP on the loopback address, even
 	// if the caller says its OK
-	if !(allowPlainHTTP && utils.IsLoopback(req.URL.Host)) {
+	if !(allowPlainHTTP && (utils.IsLoopback(req.URL.Host) || utils.IsLoopback(proxy.Host))) {
 		return nil, trace.Wrap(err)
 	}
 

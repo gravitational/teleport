@@ -24,7 +24,6 @@ import (
 	"net/url"
 
 	"github.com/gravitational/teleport"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -41,6 +40,7 @@ func NewInsecureWebClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: tlsConfig,
+			Proxy:           http.ProxyFromEnvironment,
 		},
 	}
 }
@@ -54,6 +54,7 @@ func newClientWithPool(pool *x509.CertPool) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: tlsConfig,
+			Proxy:           http.ProxyFromEnvironment,
 		},
 	}
 }
@@ -101,7 +102,7 @@ func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, v
 	// If we're not allowed to try plain HTTP, bail out with whatever error we have.
 	// Note that we're only allowed to try plain HTTP on the loopback address, even
 	// if the caller says its OK
-	if !(allowHTTPFallback && apiutils.IsLoopback(u.Host)) {
+	if !(allowHTTPFallback) {
 		return nil, trace.Wrap(httpsErr)
 	}
 
