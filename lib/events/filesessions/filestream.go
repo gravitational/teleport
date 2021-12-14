@@ -142,7 +142,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		partPath := h.partPath(upload, part.Number)
 		file, err := os.Open(partPath)
 		if err != nil {
-			return trace.ConvertSystemError(err)
+			return trace.Wrap(err, "failed to open part file for upload")
 		}
 		files = append(files, file)
 		readers = append(readers, file)

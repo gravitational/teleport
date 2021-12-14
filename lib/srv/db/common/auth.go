@@ -33,6 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
 	"github.com/aws/aws-sdk-go/service/redshift"
@@ -55,6 +57,8 @@ type Auth interface {
 	GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
 	GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (string, error)
+	// GetAzureAccessToken generates Azure database access token.
+	GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetTLSConfig builds the client TLS configuration for the session.
 	GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error)
 	// GetAuthPreference returns the cluster authentication config.
@@ -264,6 +268,25 @@ Make sure Teleport db service has "Cloud SQL Admin" GCP IAM role, or
 	return nil
 }
 
+// GetAzureAccessToken generates Azure database access token.
+func (a *dbAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (string, error) {
+	a.cfg.Log.Debugf("Generating Azure access token for %s.", sessionCtx)
+	cred, err := a.cfg.Clients.GetAzureCredential()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{
+			// Access token scope for connecting to Postgres/MySQL database.
+			"https://ossrdbms-aad.database.windows.net/.default",
+		},
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return token.Token, nil
+}
+
 // GetTLSConfig builds the client TLS configuration for the session.
 //
 // For RDS/Aurora, the config must contain RDS root certificate as a trusted
@@ -321,7 +344,7 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 	}
 	// RDS/Aurora/Redshift and Cloud SQL auth is done with an auth token so
 	// don't generate a client certificate and exit here.
-	if sessionCtx.Database.IsRDS() || sessionCtx.Database.IsRedshift() || sessionCtx.Database.IsCloudSQL() {
+	if sessionCtx.Database.IsRDS() || sessionCtx.Database.IsRedshift() || sessionCtx.Database.IsCloudSQL() || sessionCtx.Database.IsAzure() {
 		return tlsConfig, nil
 	}
 	// Otherwise, when connecting to an onprem database, generate a client

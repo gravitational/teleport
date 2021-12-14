@@ -28,6 +28,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -112,18 +114,21 @@ func sshProxy(cf *CLIConf, tc *libclient.TeleportClient, targetHost, targetPort 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	keysDir := profile.FullProfilePath(tc.Config.KeysDir)
+	knownHostsPath := keypaths.KnownHostsPath(keysDir)
 
 	sshHost, sshPort := tc.SSHProxyHostPort()
 	args := []string{
-		"-p",
-		strconv.Itoa(sshPort),
+		"-A",
+		"-o", fmt.Sprintf("UserKnownHostsFile=%s", knownHostsPath),
+		"-p", strconv.Itoa(sshPort),
 		sshHost,
 		"-s",
 		fmt.Sprintf("proxy:%s:%s@%s", targetHost, targetPort, tc.SiteName),
 	}
 
-	if cf.NodeLogin != "" {
-		args = append([]string{"-l", cf.NodeLogin}, args...)
+	if tc.HostLogin != "" {
+		args = append([]string{"-l", tc.HostLogin}, args...)
 	}
 
 	child := exec.Command(sshPath, args...)
@@ -165,7 +170,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		lp.Close()
 	}()
 
-	profile, err := libclient.StatusCurrent("", cf.Proxy)
+	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -174,7 +179,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		"database": database.ServiceName,
 		"address":  listener.Addr().String(),
 		"ca":       profile.CACertPath(),
-		"cert":     profile.DatabaseCertPath(database.ServiceName),
+		"cert":     profile.DatabaseCertPathForCluster(cf.SiteName, database.ServiceName),
 		"key":      profile.KeyPath(),
 	})
 	if err != nil {

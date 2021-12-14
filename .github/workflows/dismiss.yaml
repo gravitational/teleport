@@ -1,23 +1,26 @@
-# This workflow will run every 30 minutes and dismiss stale workflow runs on open pull requests. 
-# Stale workflow runs on pull requests are runs that are no longer up-to-date due to a new 
-# pull_request_target or pull_request_review event occurring. 
+# This workflow will run every 30 minutes and dismiss stale workflow runs on
+# open pull requests. Stale workflow runs on pull requests are runs that are
+# no longer up-to-date due to a new pull_request_target or pull_request_review
+# event occurring. 
 #
-# This workflow is specifically in place to dismiss stale runs for external contributors because 
-# the `Check` workflow token does not have write access to actions when a pull_request_review event 
-# triggers it from a fork. Stale workflow runs need to be removed by this workflow otherwise they 
-# will persist on the pull request's requirements record and not reflect the 
-# the correct state of the checks.
+# This workflow is specifically in place to dismiss stale runs for external
+# contributors because the `Check` workflow token does not have write access
+# to actions when a pull_request_review event triggers it from a fork. Stale
+# workflow runs need to be removed by this workflow otherwise they will persist
+# on the pull request's requirements record and not reflect the correct state
+# of the checks.
 name: Dismiss Stale Workflows Runs
 on:
   schedule:
     # Runs every 30 minutes
-    - cron:  '0,30 * * * *' 
+    - cron: '0,30 * * * *'
+
 # Limit the permissions on the GitHub token for this workflow to the subset
 # that is required. In this case, the dismiss workflow needs to read reviews and
 # delete workflow runs so it needs write access to "actions" and read to
 # "pull-requests", nothing else.
-permissions: 
-  actions: write 
+permissions:
+  actions: write
   pull-requests: read
   checks: none
   contents: none
@@ -27,17 +30,18 @@ permissions:
   repository-projects: none
   security-events: none
   statuses: none
-jobs: 
+
+jobs:
   dismiss-stale-runs:
     name: Dismiss Stale Workflow Runs
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout master branch 
+      - name: Checkout master branch
         uses: actions/checkout@v2
         with:
-          ref: master 
+          ref: master
       - name: Installing the latest version of Go.
         uses: actions/setup-go@v2
-        # Run "dismiss-runs" subcommand on bot.
+        # Run "dismiss" subcommand on bot.
       - name: Dismiss
-        run: cd .github/workflows/ci && go run cmd/main.go --token=${{ secrets.GITHUB_TOKEN }} dismiss-runs
+        run: cd .github/workflows/robot && go run main.go -workflow=dismiss -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"

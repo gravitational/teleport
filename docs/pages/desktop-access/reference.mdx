@@ -50,10 +50,15 @@ windows_desktop_service:
     password_file: /var/lib/ldap-pass
   # (optional) settings for enabling automatic desktop discovery via LDAP
   discovery:
-    # currently supported values:
-    # '*' to search from the root of the domain
-    # ''  to disable desktop discovery
+    # The wildcard '*' character tells Teleport to discover all the hosts in
+    # the Active Directory Domain. To refine the search, specify a custom DN.
+    # To disable automatic discovery, leave this field blank.
     base_dn: '*'
+    # (optional) LDAP filters for further customizing the LDAP search.
+    # See https://ldap.com/ldap-filters for details on LDAP filter syntax.
+    filters:
+    - '(location=Oakland)'
+    - '(!(primaryGroupID=516))' # exclude domain controllers
   # Rules for applying labels to Windows hosts based on regular expressions
   # matched against the host name. If multiple rules match, the desktop will
   # get the union of all matching labels.
@@ -89,14 +94,14 @@ spec:
     # See above for how labels are applied to desktops.
     windows_desktop_labels:
       environment: ["dev", "stage"]
-    
+
     # Windows user accounts this role can connect as.
     windows_desktop_logins: ["Administrator", "{{internal.windows_logins}}"]
 ```
 
 It is possible to use wildcards (`"*"`) to match all desktop labels.
 
-Like with SSH access, the `windows_desktop_logins` field supports the special `{{internal.windows_logins}}` variable 
+Like with SSH access, the `windows_desktop_logins` field supports the special `{{internal.windows_logins}}` variable
 for local users which will map to any logins that are supplied when the user is created with
 `tctl users add alice --windows-logins=Administrator,DBUser`.
 

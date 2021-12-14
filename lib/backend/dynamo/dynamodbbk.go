@@ -385,13 +385,16 @@ func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []b
 	var result getResult
 	// this code is being extra careful here not to introduce endless loop
 	// by some unfortunate series of events
-	for i := 0; i < backend.DefaultLargeLimit/100; i++ {
+	for i := 0; i < backend.DefaultRangeLimit/100; i++ {
 		re, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), limit, result.lastEvaluatedKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		result.records = append(result.records, re.records...)
 		if len(result.records) >= limit || len(re.lastEvaluatedKey) == 0 {
+			if len(result.records) == backend.DefaultRangeLimit {
+				b.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
+			}
 			result.lastEvaluatedKey = nil
 			return &result, nil
 		}
@@ -411,7 +414,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) erro
 	// keep fetching and deleting until no records left,
 	// keep the very large limit, just in case if someone else
 	// keeps adding records
-	for i := 0; i < backend.DefaultLargeLimit/100; i++ {
+	for i := 0; i < backend.DefaultRangeLimit/100; i++ {
 		result, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), 100, nil)
 		if err != nil {
 			return trace.Wrap(err)
