@@ -595,6 +595,14 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
 		tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
 		tconf.Proxy.MySQLAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMySQL())
+		if i.Postgres != nil {
+			// Postgres proxy port was configured on a separate listener.
+			tconf.Proxy.PostgresAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortPostgres())
+		}
+		if i.Mongo != nil {
+			// Mongo proxy port was configured on a separate listener.
+			tconf.Proxy.MongoAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMongo())
+		}
 	}
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
 	tconf.Auth.StorageConfig = backend.Config{
