@@ -85,14 +85,22 @@ proxy_service:
   # MySQL proxy is listening on a separate port and needs to be enabled
   # on the proxy server.
   mysql_listen_addr: "0.0.0.0:3036"
+  # Postgres proxy listening address. If provided, proxy will use a separate listener
+  # instead of multiplexing Postgres protocol on web_listener_addr.
+  # postgres_listen_addr: "0.0.0.0:5432"
+  # Mongo proxy listening address. If provided, proxy will use a separate listener
+  # instead of multiplexing Mongo protocol on web_listener_addr.
+  # mongo_listen_addr: "0.0.0.0:27017"
   # By default database clients will be connecting to the Proxy over this
   # hostname. To override public address for specific database protocols
   # use postgres_public_addr and mysql_public_addr.
   public_addr: "teleport.example.com:3080"
-  # Address advertised to PostgreSQL clients. If not set, public_addr is used.
-  postgres_public_addr: "postgres.teleport.example.com:443"
   # Address advertised to MySQL clients. If not set, public_addr is used.
   mysql_public_addr: "mysql.teleport.example.com:3306"
+  # Address advertised to PostgreSQL clients. If not set, public_addr is used.
+  postgres_public_addr: "postgres.teleport.example.com:443"
+  # Address advertised to Mongo clients. If not set, public_addr is used.
+  mongo_public_addr: "mongo.teleport.example.com:443"
 ```
 
 ## Database resource
