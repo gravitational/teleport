@@ -81,7 +81,7 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		*d = Duration(0)
 		return nil
 	}
-	out, err := time.ParseDuration(stringVar)
+	out, err := parseDuration(stringVar)
 	if err != nil {
 		return trace.BadParameter(err.Error())
 	}
@@ -150,7 +150,6 @@ func leadingFraction(s string) (x int64, scale float64, rem string) {
 	}
 	return x, scale, s[i:]
 }
-
 
 var unitMap = map[string]int64{
 	"ns": int64(time.Nanosecond),
