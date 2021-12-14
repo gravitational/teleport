@@ -1907,6 +1907,8 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 // tryCreateTrustedCluster performs several attempts to create a trusted cluster,
 // retries on connection problems and access denied errors to let caches
 // propagate and services to start
+//
+// Duplicated in tool/tsh/tsh_test.go
 func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
