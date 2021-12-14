@@ -85,7 +85,7 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err != nil {
 		return trace.BadParameter(err.Error())
 	}
-	*d = Duration(out)
+	*d = out
 	return nil
 }
 
