@@ -14,36 +14,45 @@
  * limitations under the License.
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
 import { components } from 'react-select';
 import { Flex, Text, ButtonBorder, ButtonIcon, Box } from 'design';
 import { Close, Add } from 'design/Icon';
-import Select, { Option } from 'shared/components/Select';
+import Select, { Option as BaseOption } from 'shared/components/Select';
+import { makeLabelTag } from 'teleport/components/formatters';
+import { Filter } from 'teleport/types';
 
-export default function SelectFilter({
+export default function SelectFilters({
   applyFilters,
   appliedFilters,
   filters,
   mb = 3,
 }: Props) {
   const selectWrapperRef = useRef(null);
+  const options = useMemo(() => makeOptions(filters), [filters]);
   const [showSelector, setShowSelector] = useState(false);
-  const [selectedFilters, setSelectedFilters] =
-    useState<Option[]>(appliedFilters);
+  const [selectedOptions, setSelectedOptions] = useState<Option[]>(() =>
+    makeOptions(appliedFilters)
+  );
 
-  function clearFilters() {
-    setSelectedFilters([]);
+  function clearOptions() {
+    setSelectedOptions([]);
   }
 
-  function deleteLabel(label: string) {
-    const updatedFilters = appliedFilters.filter(o => o.label !== label);
+  function deleteFilter(filter: Filter) {
+    const updatedFilters = selectedOptions
+      .filter(
+        o => o.filter.name !== filter.name && o.filter.value !== filter.value
+      )
+      .map(o => o.filter);
+
     applyFilters(updatedFilters);
   }
 
   function onFilterApply() {
     setShowSelector(false);
-    applyFilters(selectedFilters);
+    applyFilters(selectedOptions.map(o => o.filter));
   }
 
   function handleKeyDown(e: KeyboardEvent) {
@@ -53,10 +62,9 @@ export default function SelectFilter({
   }
 
   useEffect(() => {
-    setSelectedFilters(appliedFilters);
-  }, [appliedFilters]);
+    const appliedOptions = makeOptions(appliedFilters);
+    setSelectedOptions(appliedOptions);
 
-  useEffect(() => {
     function handleOnClick(e) {
       // Ignore event for clicking near buttons.
       if (e.target.closest('button')) {
@@ -65,20 +73,26 @@ export default function SelectFilter({
 
       // If event is not from inside the select wrapper, close the selector.
       // Clicking outside is considered "canceled", so we also reset the
-      // selected filters back to original.
+      // selected options back to original.
       if (!selectWrapperRef.current?.contains(e.target)) {
         setShowSelector(false);
-        setSelectedFilters(appliedFilters);
+        setSelectedOptions(appliedOptions);
       }
     }
 
     window.addEventListener('click', handleOnClick);
     return () => window.removeEventListener('click', handleOnClick);
-  }, []);
+  }, [appliedFilters]);
 
-  const $labels = appliedFilters.map((o, key) => (
-    <Label key={key} name={o.label} onClick={() => deleteLabel(o.label)} />
-  ));
+  const $labels = appliedFilters.map((f, key) => {
+    let labelTxt = f.value;
+    switch (f.kind) {
+      case 'label':
+        labelTxt = makeLabelTag({ name: f.name, value: f.value });
+    }
+
+    return <Label key={key} name={labelTxt} onClick={() => deleteFilter(f)} />;
+  });
 
   return (
     <Flex flexWrap="wrap" mb={mb}>
@@ -106,15 +120,15 @@ export default function SelectFilter({
               <Select
                 autoFocus
                 placeholder="Search..."
-                value={selectedFilters}
-                options={filters}
+                value={selectedOptions}
+                options={options}
                 isSearchable={true}
                 isClearable={false}
                 isMulti={true}
                 menuIsOpen={true}
                 hideSelectedOptions={false}
                 controlShouldRenderValue={false}
-                onChange={(o: Option[]) => setSelectedFilters(o)}
+                onChange={(o: Option[]) => setSelectedOptions(o)}
                 onKeyDown={handleKeyDown}
                 components={{
                   Option: OptionComponent,
@@ -123,8 +137,8 @@ export default function SelectFilter({
                 customProps={{
                   onFilterApply,
                   appliedFilters,
-                  selectedFilters,
-                  clearFilters,
+                  selectedOptions,
+                  clearOptions,
                 }}
               />
             </StyledSelect>
@@ -136,12 +150,22 @@ export default function SelectFilter({
   );
 }
 
+function makeOptions(filters: Filter[] = []): Option[] {
+  return filters.map(filter => {
+    switch (filter.kind) {
+      case 'label':
+        const tag = makeLabelTag({ name: filter.name, value: filter.value });
+        return { label: tag, value: tag, filter };
+    }
+  });
+}
+
 const ControlComponent = props => {
-  const { onFilterApply, appliedFilters, selectedFilters, clearFilters } =
+  const { onFilterApply, appliedFilters, selectedOptions, clearOptions } =
     props.selectProps.customProps;
 
   const numFilters =
-    selectedFilters.length > 0 ? ` (${selectedFilters.length})` : '';
+    selectedOptions.length > 0 ? ` (${selectedOptions.length})` : '';
 
   return (
     <Flex alignItems="center">
@@ -151,15 +175,15 @@ const ControlComponent = props => {
           px={2}
           mr={2}
           onClick={onFilterApply}
-          disabled={appliedFilters.length === 0 && selectedFilters.length === 0}
+          disabled={appliedFilters.length === 0 && selectedOptions.length === 0}
           width="90px"
         >
           Apply{numFilters}
         </ActionButton>
         <ActionButton
           px={2}
-          onClick={clearFilters}
-          disabled={selectedFilters.length === 0}
+          onClick={clearOptions}
+          disabled={selectedOptions.length === 0}
         >
           Clear
         </ActionButton>
@@ -311,18 +335,23 @@ const StyledLabel = styled.div`
   }
 `;
 
+type Option = BaseOption & {
+  // filter preservers the original data.
+  filter: Filter;
+};
+
 export type Props = {
   // filters is a list of all available filters.
-  filters: Option[];
+  filters: Filter[];
   // appliedFilters are a list of filters that have been
   // applied to a list of data. Used to render labels list and
   // to update selected items for the select dropdown list on:
   //  - first render (labels from query params if any)
   //  - when labels are clicked from table
-  appliedFilters: Option[];
+  appliedFilters: Filter[];
   // applyFilters applies the filters to the list of data and
   // updates appliedFilters.
-  applyFilters(newFilters: Option[]): void;
+  applyFilters(newFilters: Filter[]): void;
   // mb is margin-bottom and is applied to the select button.
   mb?: number;
 };

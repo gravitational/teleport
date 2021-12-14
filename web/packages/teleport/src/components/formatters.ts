@@ -14,15 +14,8 @@
  * limitations under the License.
  */
 
-export type Resource<T extends Kind> = {
-  id: string;
-  kind: T;
-  name: string;
-  // content is config in yaml format.
-  content: string;
-};
+import { Label } from 'teleport/types';
 
-export type KindRole = 'role';
-export type KindTrustedCluster = 'trusted_cluster';
-export type KindAuthConnectors = 'github' | 'saml' | 'oidc';
-export type Kind = KindRole | KindTrustedCluster | KindAuthConnectors;
+export function makeLabelTag(label: Label) {
+  return `${label.name}: ${label.value}`;
+}

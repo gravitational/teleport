@@ -48,41 +48,36 @@ const history = {
     window.location.reload();
   },
 
-  goBack(number: number) {
-    this.original().goBack(number);
-  },
-
   goToLogin(rememberLocation = false) {
     let url = cfg.routes.login;
     if (rememberLocation) {
-      let redirectUrl = _inst.createHref(_inst.location);
-      redirectUrl = this.ensureKnownRoute(redirectUrl);
-      redirectUrl = this.ensureBaseUrl(redirectUrl);
-      url = `${url}?redirect_uri=${redirectUrl}`;
+      const { search, pathname } = _inst.location;
+      const knownRoute = this.ensureKnownRoute(pathname);
+      const knownRedirect = this.ensureBaseUrl(knownRoute);
+      const query = search ? encodeURIComponent(search) : '';
+
+      url = `${url}?redirect_uri=${knownRedirect}${query}`;
     }
 
     this._pageRefresh(url);
-  },
-
-  createRedirect(location /* location || string */) {
-    let route = _inst.createHref(location);
-    let knownRoute = this.ensureKnownRoute(route);
-    return this.ensureBaseUrl(knownRoute);
   },
 
   getRedirectParam() {
     return getUrlParameter('redirect_uri', this.original().location.search);
   },
 
-  ensureKnownRoute(url = '') {
-    url = this._canPush(url) ? url : cfg.routes.root;
-    return url;
+  ensureKnownRoute(route = '') {
+    return this._canPush(route) ? route : cfg.routes.root;
   },
 
   ensureBaseUrl(url: string) {
     url = url || '';
     if (url.indexOf(cfg.baseUrl) !== 0) {
-      url = withBaseUrl(url);
+      if (url.startsWith('/')) {
+        url = `${cfg.baseUrl}${url}`;
+      } else {
+        url = `${cfg.baseUrl}/${url}`;
+      }
     }
 
     return url;
@@ -97,27 +92,22 @@ const history = {
   },
 
   _canPush(route: string) {
-    route = route || '';
-    let routes = this.getRoutes();
-    if (route.indexOf(cfg.baseUrl) === 0) {
-      route = route.replace(cfg.baseUrl, '');
-    }
+    const knownRoutes = this.getRoutes();
+    const { pathname } = new URL(this.ensureBaseUrl(route));
 
-    return routes.some(match(route));
+    const match = (known: string) =>
+      // only match against pathname
+      matchPath(pathname, {
+        path: known,
+        exact: true,
+      });
+
+    return knownRoutes.some(match);
   },
 
   _pageRefresh(route: string) {
     window.location.href = this.ensureBaseUrl(route);
   },
-};
-
-const withBaseUrl = (url: string) => cfg.baseUrl + url;
-
-const match = (url: string) => (route: string) => {
-  return matchPath(url, {
-    path: route,
-    exact: true,
-  });
 };
 
 export default history;
