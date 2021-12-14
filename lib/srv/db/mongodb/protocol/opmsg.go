@@ -29,11 +29,19 @@ import (
 // MessageOpMsg represents parsed OP_MSG wire message.
 //
 // https://docs.mongodb.com/master/reference/mongodb-wire-protocol/#op-msg
+//
+// OP_MSG {
+//     MsgHeader header;          // standard message header
+//     uint32 flagBits;           // message flags
+//     Sections[] sections;       // data sections
+//     optional<uint32> checksum; // optional CRC-32C checksum
+// }
 type MessageOpMsg struct {
-	Header   MessageHeader
-	Flags    wiremessage.MsgFlag
-	Sections []Section
-	Checksum uint32
+	Header                   MessageHeader
+	Flags                    wiremessage.MsgFlag
+	BodySection              SectionBody
+	DocumentSequenceSections []SectionDocumentSequence
+	Checksum                 uint32
 	// bytes is the full wire message bytes (incl. header) read from the connection.
 	bytes []byte
 }
@@ -41,10 +49,8 @@ type MessageOpMsg struct {
 // MakeOpMsg is a shorthand to create OP_MSG message from a single document.
 func MakeOpMsg(document bsoncore.Document) *MessageOpMsg {
 	return &MessageOpMsg{
-		Sections: []Section{
-			&SectionBody{
-				Document: document,
-			},
+		BodySection: SectionBody{
+			Document: document,
 		},
 	}
 }
@@ -59,47 +65,47 @@ func (m *MessageOpMsg) GetBytes() []byte {
 	return m.bytes
 }
 
-// GetDocuments returns all documents from all sections present in the message.
-func (m *MessageOpMsg) GetDocuments() (result []bsoncore.Document) {
-	for _, section := range m.Sections {
-		switch s := section.(type) {
-		case *SectionBody:
-			result = append(result, s.Document)
-		case *SectionDocumentSequence:
-			result = append(result, s.Documents...)
+// GetDatabase returns the message's database.
+func (m *MessageOpMsg) GetDatabase() (string, error) {
+	// Database name must be present in the body section of client messages:
+	// https://github.com/mongodb/specifications/blob/9946950/source/message/OP_MSG.rst#global-command-arguments
+	// Do a sanity check to make sure there's exactly one "$db" key.
+	elements, err := m.BodySection.Document.Elements()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	var dbElements []bsoncore.Element
+	for _, element := range elements {
+		if element.Key() == "$db" {
+			dbElements = append(dbElements, element)
 		}
 	}
-	return result
+	if len(dbElements) != 1 {
+		return "", trace.BadParameter("malformed OP_MSG: expected single $db key: %s", elements)
+	}
+	val, err := dbElements[0].ValueErr()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	str, ok := val.StringValueOK()
+	if !ok {
+		return "", trace.BadParameter("malformed OP_MSG: non-string $db value: %s", elements)
+	}
+	if len(str) == 0 {
+		return "", trace.BadParameter("malformed OP_MSG: empty $db value: %s", elements)
+	}
+	return str, nil
 }
 
-// GetDocumentsAsStrings is a convenience method to return all message bson
-// documents converted to their string representations.
-func (m *MessageOpMsg) GetDocumentsAsStrings() (documents []string) {
-	for _, document := range m.GetDocuments() {
-		documents = append(documents, document.String())
+// GetCommand returns the message's command.
+func (m *MessageOpMsg) GetCommand() (string, error) {
+	// Command is the first element of the body document e.g.
+	// { "authenticate": 1, "mechanism": ... }
+	cmd, err := m.BodySection.Document.IndexErr(0)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
-	return documents
-}
-
-// GetDocument returns the message's document.
-//
-// It expects the message to have exactly one document and returns error otherwise.
-func (m *MessageOpMsg) GetDocument() (bsoncore.Document, error) {
-	documents := m.GetDocuments()
-	if len(documents) != 1 {
-		return nil, trace.BadParameter("expected 1 document, got: %v", documents)
-	}
-	return documents[0], nil
-}
-
-// GetDatabase returns name of the database for the query, or an empty string.
-func (m *MessageOpMsg) GetDatabase() string {
-	for _, document := range m.GetDocuments() {
-		if value, ok := document.Lookup("$db").StringValueOK(); ok && value != "" {
-			return value
-		}
-	}
-	return ""
+	return cmd.Key(), nil
 }
 
 // MoreToCome is whether sender will send another message right after this one.
@@ -119,8 +125,8 @@ func (m *MessageOpMsg) String() string {
 	if m.Flags&wiremessage.ExhaustAllowed == wiremessage.ExhaustAllowed {
 		flags = append(flags, "ExhaustAllowed")
 	}
-	return fmt.Sprintf("OpMsg(Flags=%v, Documents=%v)",
-		strings.Join(flags, ","), m.GetDocumentsAsStrings())
+	return fmt.Sprintf("OpMsg(Body=%s, Documents=%s, Flags=%v)",
+		m.BodySection, m.DocumentSequenceSections, strings.Join(flags, ","))
 }
 
 // Section represents a single OP_MSG wire message section.
@@ -153,6 +159,11 @@ func (s *SectionBody) ToWire() (dst []byte) {
 	return dst
 }
 
+// String returns the section's string representation.
+func (s SectionBody) String() string {
+	return s.Document.String()
+}
+
 // SectionDocumentSequence represents OP_MSG Document Sequence section that
 // contains multiple bson documents.
 //
@@ -165,6 +176,15 @@ type SectionDocumentSequence struct {
 // GetType returns this section type.
 func (s *SectionDocumentSequence) GetType() wiremessage.SectionType {
 	return wiremessage.DocumentSequence
+}
+
+// String returns the section's string representation.
+func (s SectionDocumentSequence) String() string {
+	docs := make([]string, 0, len(s.Documents))
+	for _, doc := range s.Documents {
+		docs = append(docs, doc.String())
+	}
+	return strings.Join(docs, ", ")
 }
 
 // ToWire encodes this section to wire protocol message bytes.
@@ -190,55 +210,67 @@ func (s *SectionDocumentSequence) ToWire() (dst []byte) {
 func readOpMsg(header MessageHeader, payload []byte) (*MessageOpMsg, error) {
 	flags, rem, ok := wiremessage.ReadMsgFlags(payload)
 	if !ok {
-		return nil, trace.BadParameter("failed to read OP_MSG flags %v", payload)
+		return nil, trace.BadParameter("malformed OP_MSG: missing flags %v", payload)
 	}
-	var sections []Section
-	var checksum uint32
+	var (
+		bodySection              *SectionBody
+		documentSequenceSections []SectionDocumentSequence
+		checksum                 uint32
+	)
 	for len(rem) > 0 {
 		// Checksum is the optional last part of the message.
 		if flags&wiremessage.ChecksumPresent == wiremessage.ChecksumPresent && len(rem) == 4 {
 			checksum, _, ok = wiremessage.ReadMsgChecksum(rem)
 			if !ok {
-				return nil, trace.BadParameter("failed to read OP_MSG checksum %v", payload)
+				return nil, trace.BadParameter("malformed OP_MSG: missing checksum %v", payload)
 			}
 			break
 		}
 		var sectionType wiremessage.SectionType
 		sectionType, rem, ok = wiremessage.ReadMsgSectionType(rem)
 		if !ok {
-			return nil, trace.BadParameter("failed to read OP_MSG section type %v", payload)
+			return nil, trace.BadParameter("malformed OP_MSG: missing section type %v", payload)
 		}
 		switch sectionType {
 		// https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#kind-0--body
 		case wiremessage.SingleDocument:
+			// Valid OP_MSG must have exactly one body section:
+			// https://github.com/mongodb/specifications/blob/9946950/source/message/OP_MSG.rst#sections
+			if bodySection != nil {
+				return nil, trace.BadParameter("malformed OP_MSG: expected exactly 1 body section %v", payload)
+			}
 			var doc bsoncore.Document
 			doc, rem, ok = wiremessage.ReadMsgSectionSingleDocument(rem)
 			if !ok {
-				return nil, trace.BadParameter("failed to read OP_MSG body section %v", payload)
+				return nil, trace.BadParameter("malformed OP_MSG: missing body section %v", payload)
 			}
-			sections = append(sections, &SectionBody{
+			bodySection = &SectionBody{
 				Document: doc,
-			})
+			}
 		// https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#kind-1--document-sequence
 		case wiremessage.DocumentSequence:
 			var id string
 			var docs []bsoncore.Document
 			id, docs, rem, ok = wiremessage.ReadMsgSectionDocumentSequence(rem)
 			if !ok {
-				return nil, trace.BadParameter("failed to read OP_MSG document sequence section %v", payload)
+				return nil, trace.BadParameter("malformed OP_MSG: missing document sequence section %v", payload)
 			}
-			sections = append(sections, &SectionDocumentSequence{
+			documentSequenceSections = append(documentSequenceSections, SectionDocumentSequence{
 				Identifier: id,
 				Documents:  docs,
 			})
 		}
 	}
+	if bodySection == nil {
+		return nil, trace.BadParameter("malformed OP_MSG: missing body section %v", payload)
+	}
 	return &MessageOpMsg{
-		Header:   header,
-		Flags:    flags,
-		Sections: sections,
-		Checksum: checksum,
-		bytes:    append(header.bytes[:], payload...),
+		Header:                   header,
+		Flags:                    flags,
+		BodySection:              *bodySection,
+		DocumentSequenceSections: documentSequenceSections,
+		Checksum:                 checksum,
+		bytes:                    append(header.bytes[:], payload...),
 	}, nil
 }
 
@@ -249,7 +281,8 @@ func (m *MessageOpMsg) ToWire(responseTo int32) (dst []byte) {
 	var idx int32
 	idx, dst = wiremessage.AppendHeaderStart(dst, m.Header.RequestID, responseTo, wiremessage.OpMsg)
 	dst = wiremessage.AppendMsgFlags(dst, m.Flags)
-	for _, section := range m.Sections {
+	dst = append(dst, m.BodySection.ToWire()...)
+	for _, section := range m.DocumentSequenceSections {
 		dst = append(dst, section.ToWire()...)
 	}
 	if m.Flags&wiremessage.ChecksumPresent == wiremessage.ChecksumPresent {
