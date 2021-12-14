@@ -44,4 +44,4 @@ jobs:
         uses: actions/setup-go@v2
         # Run "dismiss" subcommand on bot.
       - name: Dismiss
-        run: cd .github/workflows/robot && go run main.go -workflow=dismiss -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"
+        run: cd .github/workflows/robot && go run main.go -workflow=dismiss -token="${{ secrets.GITHUB_TOKEN }}"
