@@ -35,38 +35,44 @@ module.exports = function modifyIndexHtmlMiddleware(compiler) {
         'content-security-policy': '',
       });
 
-      // body is a Buffer with the current response;
-      const str = body.toString();
+      // bodyText is the text of the server response
+      const bodyText = body.toString();
 
-      // do not modify Bandwagon index.html
-      if (req.path.endsWith('/complete/')) {
-        return body;
-      }
-
-      let htmlToSend = compiler.readLocalIndexHtml();
-
-      // insert bearer and csrf tokens
-      htmlToSend = replaceToken(
-        new RegExp(/<meta name="grv_csrf_token" .*\>/),
-        str,
-        htmlToSend
-      );
-      htmlToSend = replaceToken(
-        new RegExp(/<meta name="grv_bearer_token" .*\>/),
-        str,
-        htmlToSend
-      );
-      return htmlToSend;
+      let html = compiler.readLocalIndexHtml();
+      html = injectCsrf(bodyText, html);
+      html = injectBearer(bodyText, html);
+      return html;
     }
   );
 };
 
-function replaceToken(regex, takeFrom, insertTo) {
-  var value = takeFrom.match(regex);
+function injectCsrf(source, target) {
+  var value = source.match(
+    new RegExp(/<meta name="grv_csrf_token" content="[a-zA-Z0-9_.-=]*"\/>/)
+  );
   if (value) {
-    return insertTo.replace(regex, value[0]);
+    return target.replace(
+      new RegExp(/<meta name="grv_csrf_token" content="{{ \.XCSRF }}"( )?\/>/),
+      value[0]
+    );
   }
-  return insertTo;
+
+  return target;
+}
+
+function injectBearer(source, target) {
+  var value = source.match(
+    new RegExp(/<meta name="grv_bearer_token" content="[a-zA-Z0-9_.-=]*"\/>/)
+  );
+  if (value) {
+    return target.replace(
+      new RegExp(
+        /<meta name="grv_bearer_token" content="{{ \.Session }}"( )?\/>/
+      ),
+      value[0]
+    );
+  }
+  return target;
 }
 
 //
@@ -88,7 +94,7 @@ function modifyResponse(checkCallback, modifyCallback) {
 
     var _writeHead = res.writeHead;
 
-    res.writeHead = function() {
+    res.writeHead = function () {
       // writeHead supports (statusCode, headers) as well as (statusCode,
       // statusMessage, headers)
       var headers = arguments.length > 2 ? arguments[2] : arguments[1];
