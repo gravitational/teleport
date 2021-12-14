@@ -433,8 +433,7 @@ func (p *transport) directDial(servers []string, serverID string) (net.Conn, err
 	for _, addr := range servers {
 		conn, err := net.Dial("tcp", addr)
 		if err == nil {
-			conn = newEmitConn(p.closeContext, conn, p.emitter, strings.Split(serverID, ".")[0])
-			return conn, nil
+			return newEmitConn(p.closeContext, conn, p.emitter, strings.Split(serverID, ".")[0]), nil
 		}
 
 		errors = append(errors, err)

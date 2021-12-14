@@ -645,13 +645,10 @@ func (m *SessionReject) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SessionReject proto.InternalMessageInfo
 
-// SessionConnect is emitted when any ssh connection is made
+// SessionConnect is emitted when a non-Teleport connection is made over net.Dial.
 type SessionConnect struct {
-	// Metadata is a common event metadata
-	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
-	// ServerMetadata is a common server metadata
-	ServerMetadata `protobuf:"bytes,2,opt,name=Server,proto3,embedded=Server" json:""`
-	// ConnectionMetadata holds information about the connection
+	Metadata             `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	ServerMetadata       `protobuf:"bytes,2,opt,name=Server,proto3,embedded=Server" json:""`
 	ConnectionMetadata   `protobuf:"bytes,3,opt,name=Connection,proto3,embedded=Connection" json:""`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

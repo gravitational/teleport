@@ -252,17 +252,14 @@ message SessionReject {
     int64 Maximum = 6 [ (gogoproto.jsontag) = "max" ];
 }
 
-// SessionConnect is emitted when any ssh connection is made
+// SessionConnect is emitted when a non-Teleport connection is made over net.Dial.
 message SessionConnect {
-    // Metadata is a common event metadata
     Metadata Metadata = 1
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
-    // ServerMetadata is a common server metadata
     ServerMetadata Server = 2
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
-    // ConnectionMetadata holds information about the connection
     ConnectionMetadata Connection = 3
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }

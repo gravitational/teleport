@@ -262,12 +262,10 @@ func min(a, b int) int {
 	return b
 }
 
-const emitConnTargetPrefix = "Teleport"
-
 // emitConn is a wrapper for a net.Conn that emits an audit event for non-Teleport connections.
 type emitConn struct {
 	net.Conn
-	mu       *sync.RWMutex
+	mu       sync.RWMutex
 	buffer   bytes.Buffer
 	emitter  apievents.Emitter
 	ctx      context.Context
@@ -278,20 +276,20 @@ type emitConn struct {
 func newEmitConn(ctx context.Context, conn net.Conn, emitter apievents.Emitter, serverID string) *emitConn {
 	return &emitConn{
 		Conn:     conn,
-		mu:       &sync.RWMutex{},
-		buffer:   bytes.Buffer{},
 		emitter:  emitter,
 		ctx:      ctx,
 		serverID: serverID,
-		emitted:  false,
 	}
 }
 
 func (conn *emitConn) Read(p []byte) (int, error) {
+	// First bytes of a Teleport connection.
+	const emitConnTargetPrefix = "Teleport"
+
 	conn.mu.RLock()
 	n, err := conn.Conn.Read(p)
 
-	// skip buffering if already could have emitted or will never emit
+	// Skip buffering if already could have emitted or will never emit.
 	if err != nil || conn.buffer.Len() == len(emitConnTargetPrefix) || conn.serverID == "" {
 		conn.mu.RUnlock()
 		return n, err
@@ -307,6 +305,7 @@ func (conn *emitConn) Read(p []byte) (int, error) {
 		return n, err
 	}
 
+	// Only emit when we don't see "Teleport" in the first few bytes.
 	if conn.buffer.Len() == len(emitConnTargetPrefix) && !bytes.HasPrefix(conn.buffer.Bytes(), []byte(emitConnTargetPrefix)) {
 		event := &apievents.SessionConnect{
 			Metadata: apievents.Metadata{
