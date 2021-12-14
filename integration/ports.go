@@ -99,6 +99,18 @@ func separatePostgresPortSetup() *InstancePorts {
 	}
 }
 
+func separateMongoPortSetup() *InstancePorts {
+	return &InstancePorts{
+		Web:           newInstancePort(),
+		SSH:           newInstancePort(),
+		Auth:          newInstancePort(),
+		SSHProxy:      newInstancePort(),
+		ReverseTunnel: newInstancePort(),
+		MySQL:         newInstancePort(),
+		Mongo:         newInstancePort(),
+	}
+}
+
 type InstancePorts struct {
 	Host string
 	Web  *InstancePort
@@ -110,6 +122,7 @@ type InstancePorts struct {
 	ReverseTunnel *InstancePort
 	MySQL         *InstancePort
 	Postgres      *InstancePort
+	Mongo         *InstancePort
 
 	isSinglePortSetup bool
 }
@@ -121,6 +134,7 @@ func (i *InstancePorts) GetPortProxy() string         { return i.SSHProxy.String
 func (i *InstancePorts) GetPortWeb() string           { return i.Web.String() }
 func (i *InstancePorts) GetPortMySQL() string         { return i.MySQL.String() }
 func (i *InstancePorts) GetPortPostgres() string      { return i.Postgres.String() }
+func (i *InstancePorts) GetPortMongo() string         { return i.Mongo.String() }
 func (i *InstancePorts) GetPortReverseTunnel() string { return i.ReverseTunnel.String() }
 
 func (i *InstancePorts) GetSSHAddr() string {

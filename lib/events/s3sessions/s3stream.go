@@ -52,6 +52,9 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 			input.SSEKMSKeyId = aws.String(h.Config.SSEKMSKey)
 		}
 	}
+	if h.Config.ACL != "" {
+		input.ACL = aws.String(h.Config.ACL)
+	}
 
 	resp, err := h.client.CreateMultipartUploadWithContext(ctx, input)
 	if err != nil {

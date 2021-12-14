@@ -671,6 +671,13 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.PostgresAddr = *addr
 	}
+	if fc.Proxy.MongoAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MongoAddr, int(defaults.MongoListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.MongoAddr = *addr
+	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.
@@ -813,6 +820,17 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.MySQLPublicAddrs = addrs
+	}
+
+	if len(fc.Proxy.MongoPublicAddr) != 0 {
+		if fc.Proxy.MongoAddr == "" {
+			return trace.BadParameter("mongo_listen_addr must be set when mongo_public_addr is set")
+		}
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.MongoPublicAddr, defaults.MongoListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.MongoPublicAddrs = addrs
 	}
 
 	acme, err := fc.Proxy.ACME.Parse()
