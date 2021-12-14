@@ -128,7 +128,7 @@ func memoryBackend(bool) packOption {
 }
 
 // newPackWithoutCache returns a new test pack without creating cache
-func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn, opts ...packOption) (*testPack, error) {
+func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	ctx := context.Background()
 	var cfg packCfg
 	for _, opt := range opts {
@@ -194,7 +194,7 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn, opts ...packOpt
 // newPack returns a new test pack or fails the test on error
 func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) (*testPack, error) {
 	ctx := context.Background()
-	p, err := newPackWithoutCache(dir, setupConfig, opts...)
+	p, err := newPackWithoutCache(dir, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
