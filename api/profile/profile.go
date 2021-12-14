@@ -65,6 +65,9 @@ type Profile struct {
 	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
 	MySQLProxyAddr string `yaml:"mysql_proxy_addr,omitempty"`
 
+	// MongoProxyAddr is the host:port the Mongo proxy can be accessed at.
+	MongoProxyAddr string `yaml:"mongo_proxy_addr,omitempty"`
+
 	// Username is the Teleport username for the client.
 	Username string `yaml:"user,omitempty"`
 

@@ -145,6 +145,8 @@ type PullRequest struct {
 	// UnsafeHead is the name of the branch this PR is created from. It is marked
 	// unsafe as it can be attacker controlled.
 	UnsafeHead string
+	// Fork determines if the pull request is from a fork.
+	Fork bool
 }
 
 func (c *client) ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]PullRequest, error) {
@@ -171,6 +173,7 @@ func (c *client) ListPullRequests(ctx context.Context, organization string, repo
 				Author:     pr.GetUser().GetLogin(),
 				Repository: repository,
 				UnsafeHead: pr.GetHead().GetRef(),
+				Fork:       pr.GetHead().GetRepo().GetFork(),
 			})
 		}
 		if resp.NextPage == 0 {
