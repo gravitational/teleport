@@ -43,16 +43,11 @@ type kubeCreds struct {
 	kubeClient *kubernetes.Clientset
 }
 
-var skipSelfPermissionCheck bool
-
-// TestOnlySkipSelfPermissionCheck sets whether or not to skip checking k8s
-// impersonation permissions granted to this instance.
-//
-// Used in CI integration tests, where we intentionally scope down permissions
-// from what a normal prod instance should have.
-func TestOnlySkipSelfPermissionCheck(skip bool) {
-	skipSelfPermissionCheck = skip
-}
+// ImpersonationPermissionsChecker describes a function that can be used to check
+// for the required impersonation permissions on a Kubernetes cluster. Return nil
+// to indicate success.
+type ImpersonationPermissionsChecker func(ctx context.Context, clusterName string,
+	sarClient authztypes.SelfSubjectAccessReviewInterface) error
 
 // getKubeCreds fetches the kubernetes API credentials.
 //
@@ -74,7 +69,7 @@ func TestOnlySkipSelfPermissionCheck(skip bool) {
 //   - if loading from kubeconfig, all contexts are returned
 //   - if no credentials are loaded, returns an error
 //   - permission self-test failures cause an error to be returned
-func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, kubeClusterName, kubeconfigPath string, serviceType KubeServiceType) (map[string]*kubeCreds, error) {
+func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, kubeClusterName, kubeconfigPath string, serviceType KubeServiceType, checkImpersonation ImpersonationPermissionsChecker) (map[string]*kubeCreds, error) {
 	log.
 		WithField("kubeconfigPath", kubeconfigPath).
 		WithField("kubeClusterName", kubeClusterName).
@@ -121,57 +116,62 @@ func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, ku
 	res := make(map[string]*kubeCreds, len(cfg.Contexts))
 	// Convert kubeconfig contexts into kubeCreds.
 	for cluster, clientCfg := range cfg.Contexts {
-		log := log.WithField("cluster", cluster)
-		log.Debug("Checking Kubernetes impersonation permissions.")
-		client, err := kubernetes.NewForConfig(clientCfg)
+		clusterCreds, err := extractKubeCreds(ctx, cluster, clientCfg, serviceType, kubeconfigPath, log, checkImpersonation)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to generate Kubernetes client for cluster %q", cluster)
+			log.WithError(err).Warnf("failed to load credentials for cluster %q.", cluster)
+			continue
 		}
-		// For each loaded cluster, check impersonation permissions. This
-		// failure is only critical for newKubeService.
-		if err := checkImpersonationPermissions(ctx, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
-			// kubernetes_service must have valid RBAC permissions, otherwise
-			// it's pointless.
-			// proxy_service can run without them (e.g. a root proxy).
-			if serviceType == KubeService {
-				return nil, trace.Wrap(err)
-			}
-			log.WithError(err).Warning("Failed to test the necessary Kubernetes permissions. This teleport instance will still handle Kubernetes requests towards other Kubernetes clusters")
+		res[cluster] = clusterCreds
+	}
+	return res, nil
+}
+
+func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Config, serviceType KubeServiceType, kubeconfigPath string, log logrus.FieldLogger, checkPermissions ImpersonationPermissionsChecker) (*kubeCreds, error) {
+	log = log.WithField("cluster", cluster)
+
+	log.Debug("Checking Kubernetes impersonation permissions.")
+	client, err := kubernetes.NewForConfig(clientCfg)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate Kubernetes client for cluster %q", cluster)
+	}
+
+	// For each loaded cluster, check impersonation permissions. This
+	// check only logs when permissions are not configured, but does not fail startup.
+	if err := checkPermissions(ctx, cluster, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
+		log.WithError(err).Warning("Failed to test the necessary Kubernetes permissions. The target Kubernetes cluster may be down or have misconfigured RBAC. This teleport instance will still handle Kubernetes requests towards this Kubernetes cluster.")
+		if serviceType != KubeService && kubeconfigPath != "" {
 			// We used to recommend users to set a dummy kubeconfig on root
 			// proxies to get kubernetes support working for leaf clusters:
 			// https://community.goteleport.com/t/enabling-teleport-to-act-as-a-kubernetes-proxy-for-trusted-leaf-clusters/418
 			//
 			// Since this is no longer necessary, recommend them to clean up
 			// via logs.
-			if kubeconfigPath != "" {
-				log.Info("If this is a proxy and you provided a dummy kubeconfig_path, you can remove it from teleport.yaml to get rid of this warning")
-			}
-		} else {
-			log.Debug("Have all necessary Kubernetes impersonation permissions.")
+			log.Info("If this is a proxy and you provided a dummy kubeconfig_file, you can remove it from teleport.yaml to get rid of this warning")
 		}
-
-		targetAddr, err := parseKubeHost(clientCfg.Host)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsConfig, err := rest.TLSConfigFor(clientCfg)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to generate TLS config from kubeconfig: %v", err)
-		}
-		transportConfig, err := clientCfg.TransportConfig()
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to generate transport config from kubeconfig: %v", err)
-		}
-
-		log.Debug("Initialized Kubernetes credentials")
-		res[cluster] = &kubeCreds{
-			tlsConfig:       tlsConfig,
-			transportConfig: transportConfig,
-			targetAddr:      targetAddr,
-			kubeClient:      client,
-		}
+	} else {
+		log.Debug("Have all necessary Kubernetes impersonation permissions.")
 	}
-	return res, nil
+
+	targetAddr, err := parseKubeHost(clientCfg.Host)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConfig, err := rest.TLSConfigFor(clientCfg)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate TLS config from kubeconfig: %v", err)
+	}
+	transportConfig, err := clientCfg.TransportConfig()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate transport config from kubeconfig: %v", err)
+	}
+
+	log.Debug("Initialized Kubernetes credentials")
+	return &kubeCreds{
+		tlsConfig:       tlsConfig,
+		transportConfig: transportConfig,
+		targetAddr:      targetAddr,
+		kubeClient:      client,
+	}, nil
 }
 
 // parseKubeHost parses and formats kubernetes hostname
@@ -196,11 +196,7 @@ func (c *kubeCreds) wrapTransport(rt http.RoundTripper) (http.RoundTripper, erro
 	return transport.HTTPWrappersForConfig(c.transportConfig, rt)
 }
 
-func checkImpersonationPermissions(ctx context.Context, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
-	if skipSelfPermissionCheck {
-		return nil
-	}
-
+func checkImpersonationPermissions(ctx context.Context, cluster string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
 	for _, resource := range []string{"users", "groups", "serviceaccounts"} {
 		resp, err := sarClient.Create(ctx, &authzapi.SelfSubjectAccessReview{
 			Spec: authzapi.SelfSubjectAccessReviewSpec{

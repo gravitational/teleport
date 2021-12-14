@@ -164,7 +164,14 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 
 	var certTime <-chan time.Time
 	if !w.DisconnectExpiredCert.IsZero() {
-		t := w.Clock.NewTicker(w.DisconnectExpiredCert.Sub(w.Clock.Now().UTC()))
+		discTime := w.DisconnectExpiredCert.Sub(w.Clock.Now().UTC())
+		if discTime <= 0 {
+			// Client cert is already expired.
+			// Disconnect the client immediately.
+			w.disconnectClientOnExpiredCert()
+			return
+		}
+		t := w.Clock.NewTicker(discTime)
 		defer t.Stop()
 		certTime = t.Chan()
 	}
@@ -178,14 +185,7 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 		select {
 		// Expired certificate.
 		case <-certTime:
-			reason := fmt.Sprintf("client certificate expired at %v", w.Clock.Now().UTC())
-			if err := w.emitDisconnectEvent(reason); err != nil {
-				w.Entry.WithError(err).Warn("Failed to emit audit event.")
-			}
-			w.Entry.Debugf("Disconnecting client: %v", reason)
-			if err := w.Conn.Close(); err != nil {
-				w.Entry.WithError(err).Error("Failed to close connection.")
-			}
+			w.disconnectClientOnExpiredCert()
 			return
 
 		// Idle timeout.
@@ -251,6 +251,17 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 			w.Entry.Debugf("Releasing associated resources - context has been closed.")
 			return
 		}
+	}
+}
+
+func (w *Monitor) disconnectClientOnExpiredCert() {
+	reason := fmt.Sprintf("client certificate expired at %v", w.Clock.Now().UTC())
+	if err := w.emitDisconnectEvent(reason); err != nil {
+		w.Entry.WithError(err).Warn("Failed to emit audit event.")
+	}
+	w.Entry.Debugf("Disconnecting client: %v", reason)
+	if err := w.Conn.Close(); err != nil {
+		w.Entry.WithError(err).Error("Failed to close connection.")
 	}
 }
 

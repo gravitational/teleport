@@ -57,7 +57,7 @@ Teleport OpenSSH supports:
 
 ## Set up OpenSSH recording proxy mode
 
-The first step is install and setup Teleport, we recommend starting with our [Getting Started Guide](../../getting-started.mdx) and [Admin Manual](../../admin-guide.mdx).
+The first step is install and setup Teleport, we recommend starting with our [Getting Started Guide](../../getting-started.mdx) and [Admin Manual](../../setup/admin.mdx).
 
 (!docs/pages/includes/permission-warning.mdx!)
 
@@ -233,8 +233,8 @@ clients to find the SSH agent.
   type="warning"
   title="Warning"
 >
-  At this time, automatic OpenSSH client configuration is only supported on
-  Linux and macOS.
+  Automatic OpenSSH client configuration is supported on Linux and macOS as of
+  Teleport 7.0 and on Windows as of Teleport 7.2.
 </Admonition>
 
 `tsh` can automatically generate the necessary OpenSSH client configuration to
@@ -256,7 +256,7 @@ principal listed in your Teleport profile:
 $ ssh user@node1.root.example.com
 ```
 
-If any [trusted clusters](../../trustedclusters.mdx) exist, they are also configured:
+If any [trusted clusters](../../setup/admin/trustedclusters.mdx) exist, they are also configured:
 ```code
 $ ssh user@node2.leaf.example.com
 ```
@@ -274,7 +274,7 @@ $ ssh -p 4022 user@node3.leaf.example.com
   If you switch between multiple Teleport proxy servers, you'll need to re-run 
   `tsh config` for each to generate the cluster-specific configuration.
 
-  Similarly, if [trusted clusters](../../trustedclusters.mdx) are added or
+  Similarly, if [trusted clusters](../../setup/admin/trustedclusters.mdx) are added or
   removed, be sure to re-run the above command and replace the previous
   configuration.
 </Admonition>
@@ -300,7 +300,7 @@ certificate authorities for each cluster individually.
   type="tip"
   title="OpenSSH and Trusted Clusters"
 >
-  If you use [recording proxy mode](../../architecture/proxy.mdx) and [trusted clusters](../../trustedclusters.mdx),
+  If you use [recording proxy mode](../../architecture/proxy.mdx) and [trusted clusters](../../setup/admin/trustedclusters.mdx),
   you need to set up the certificate authority from
   the *root* cluster to match **all** nodes, even those that belong to *leaf*
   clusters. For example, if your node naming scheme is `*.root.example.com`,

@@ -16,11 +16,6 @@ This section will cover:
 - Docker version v(=docker.version=).
 
 ```code
-$ terraform version
-# Terraform v(=terraform.version=)
-```
-
-```code
 $ tctl version
 # Teleport v(=teleport.version=) go(teleport.golang)
 #
@@ -44,14 +39,14 @@ and forwards them to fluentd.
   <TabItem label="Linux">
   ```code
   $ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ tar -zxvf teleport-event-handler-v(=teleport.version=)-linux-amd64-bin.tar.gz -C .
+  $ tar -zxvf teleport-event-handler-v(=teleport.version=)-linux-amd64-bin.tar.gz
   ```
   </TabItem>
 
   <TabItem label="MacOS">
   ```code
   $ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.version=)-darwin-amd64-bin.tar.gz
-  $ tar -zxvf terraform-provider-teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz -C .
+  $ tar -zxvf teleport-event-handler-v(=teleport.version=)-linux-amd64-bin.tar.gz
   ```
   </TabItem>
 </Tabs>
@@ -184,9 +179,17 @@ spec:
 $ tctl create teleport-event-handler-impersonator.yaml
 ```
 
-Assign this role to the current user. Re-login to assume the new role and try
-to issue certificate for terraform user again.
+Assign this role to the current user by running the below command, subsituing the user as appropriate:
+```code
+$ tctl get users/<USER> > out.yaml
+```
 
+Now edit `out.yaml` with your favourite editor, adding `teleport-event-handler-impersonator` to the list of existing roles and update via `tctl` again:
+```
+$ tctl create -f out.yaml
+```
+
+Re-login to assume the new role and try to issue certificate for the teleport-event-handle user again.
 </Admonition>
 
 

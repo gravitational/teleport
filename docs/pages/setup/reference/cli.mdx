@@ -28,7 +28,7 @@ the following services.
 | [App](../../application-access/introduction.mdx) | `app` | Runs a daemon on a node which provides access to applications using an SSH reverse tunnel. |
 | [Kube](../../kubernetes-access/introduction.mdx) | `kube` | Runs the Teleport node as a kubernetes access server. |
 | [DB](../../database-access/reference.mdx) | `db` | Indicates that the Teleport node should be run as a database access server. |
-| [Trusted Cluster](../../trustedclusters.mdx) | `trusted_cluster` | The node will support a leaf cluster used to connect to another Teleport cluster. |
+| [Trusted Cluster](../../setup/admin/trustedclusters.mdx) | `trusted_cluster` | The node will support a leaf cluster used to connect to another Teleport cluster. |
 
 ### teleport start
 
@@ -48,7 +48,7 @@ the following services.
 | `--nodename` | `hostname` command on the machine | **string** | assigns an alternative name for the node which can be used by clients to login. By default it's equal to the value returned by |
 | `-c, --config` | `/etc/teleport.yaml` | **string** `.yaml` filepath | starts services with config specified in the YAML file, overrides CLI flags if set |
 | `--bootstrap` | none | **string** `.yaml` filepath | bootstrap configured YAML resources {/* TODO link how to configure this file */} |
-| `--labels` | none | **string** comma-separated list | assigns a set of labels to a node, for example env=dev,app=web. See the explanation of labeling mechanism in the [Labeling Nodes](../../admin-guide.mdx#labeling-nodes-and-applications) section. |
+| `--labels` | none | **string** comma-separated list | assigns a set of labels to a node, for example env=dev,app=web. See the explanation of labeling mechanism in the [Labeling Nodes](../admin/labels.mdx) section. |
 | `--insecure` | none | none | disable certificate validation on Proxy Service, validation still occurs on Auth Service. |
 | `--fips` | none | none | start Teleport in FedRAMP/FIPS 140-2 mode. |
 | `--diag-addr` | none | none | Enable diagnostic endpoints |
@@ -144,7 +144,7 @@ information about the cluster.
 | `-i, --identity` | none | **string** filepath | Identity file |
 | `--cert-format` | `file` | `file` or `openssh` | SSH certificate format |
 | `--insecure` | none | none | Do not verify server's certificate and host name. Use only in test environments |
-| `--auth` | `local` | any defined [authentication connector](../../admin-guide.mdx#authentication) | Specify the type of authentication connector to use. |
+| `--auth` | `local` | any defined [authentication connector](./authentication.mdx) | Specify the type of authentication connector to use. |
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
 | `-J, --jumphost` | none | A jump host | SSH jumphost |
@@ -462,7 +462,7 @@ $ tsh login [<flags>] [<cluster>]
 
 #### Arguments
 
-- `<cluster>` - the name of the cluster,  see [Trusted Cluster](../../trustedclusters.mdx#introduction) for more information.
+- `<cluster>` - the name of the cluster,  see [Trusted Cluster](../../setup/admin/trustedclusters.mdx#introduction) for more information.
 
 #### Flags
 
@@ -474,6 +474,8 @@ $ tsh login [<flags>] [<cluster>]
 | `--browser` | none | `none` | Set to 'none' to suppress opening system default browser for `tsh login` commands |
 | `--request-roles` | none | | Request one or more extra roles |
 | `--request-reason` | none | | Reason for requesting additional roles |
+| `--request-nowait` | none | | Finish without waiting for request resolution |
+| `--request-id` | none | | Login with the roles requested in the given request |
 | `--no-use-local-ssh-agent` | | | Do not load generated SSH certificates into the local ssh-agent (specified via `$SSH_AUTH_SOCK`). Useful when using `gpg-agent` or Yubikeys. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment variable to `false` (default `true`) |
 
 #### [Global Flags](#tsh-global-flags)

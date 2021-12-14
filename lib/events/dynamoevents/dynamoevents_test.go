@@ -88,7 +88,7 @@ func (s *DynamoeventsSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *DynamoeventsSuite) SetUpTest(c *check.C) {
-	err := s.log.deleteAllItems()
+	err := s.log.deleteAllItems(context.Background())
 	c.Assert(err, check.IsNil)
 }
 
@@ -149,7 +149,7 @@ func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 
 	// In addition to the normal CRUD test above, we also check that we can retrieve all items from a large table
 	// at once.
-	err := s.log.deleteAllItems()
+	err := s.log.deleteAllItems(context.Background())
 	c.Assert(err, check.IsNil)
 
 	const eventCount int = 4000
@@ -182,14 +182,14 @@ func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 
 // TestIndexExists tests functionality of the `Log.indexExists` function.
 func (s *DynamoeventsSuite) TestIndexExists(c *check.C) {
-	hasIndex, err := s.log.indexExists(s.log.Tablename, indexTimeSearchV2)
+	hasIndex, err := s.log.indexExists(context.Background(), s.log.Tablename, indexTimeSearchV2)
 	c.Assert(err, check.IsNil)
 	c.Assert(hasIndex, check.Equals, true)
 }
 
 func (s *DynamoeventsSuite) TearDownSuite(c *check.C) {
 	if s.log != nil {
-		if err := s.log.deleteTable(s.log.Tablename, true); err != nil {
+		if err := s.log.deleteTable(context.Background(), s.log.Tablename, true); err != nil {
 			c.Fatalf("Failed to delete table: %#v", trace.DebugReport(err))
 		}
 	}

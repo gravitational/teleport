@@ -179,7 +179,7 @@ func TestLockWatcher(t *testing.T) {
 		t.Fatalf("Unexpected event: %v.", event)
 	case <-sub.Done():
 		t.Fatal("Lock watcher subscription has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
+	case <-time.After(time.Second):
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 
@@ -226,10 +226,87 @@ func TestLockWatcher(t *testing.T) {
 		t.Fatalf("Unexpected event: %v.", event)
 	case <-sub.Done():
 		t.Fatal("Lock watcher subscription has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
+	case <-time.After(time.Second):
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 	expectLockInForce(t, lock2, w.CheckLockInForce(constants.LockingModeBestEffort, target2))
+}
+
+func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            clock,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Access
+		types.Events
+	}
+
+	access := local.NewAccessService(bk)
+	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:   "test",
+			RetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				Access: access,
+				Events: local.NewEventsService(bk, nil),
+			},
+			Clock: clock,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+	select {
+	case <-w.LoopC:
+	case <-time.After(15 * time.Second):
+		t.Fatal("Timeout waiting for LockWatcher loop.")
+	}
+
+	// Subscribe to lock watcher updates with an empty target.
+	target := types.LockTarget{Node: "node"}
+	sub, err := w.Subscribe(ctx, target, types.LockTarget{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sub.Close()) })
+
+	// Add a lock matching one of the subscription targets.
+	lock, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: target,
+	})
+	require.NoError(t, err)
+	require.NoError(t, access.UpsertLock(ctx, lock))
+	select {
+	case event := <-sub.Events():
+		require.Equal(t, types.OpPut, event.Type)
+		receivedLock, ok := event.Resource.(types.Lock)
+		require.True(t, ok)
+		require.Empty(t, resourceDiff(receivedLock, lock))
+	case <-sub.Done():
+		t.Fatal("Lock watcher subscription has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+
+	// Add a lock matching *none* of the subscription targets.
+	target2 := types.LockTarget{User: "user"}
+	lock2, err := types.NewLock("test-lock2", types.LockSpecV2{
+		Target: target2,
+	})
+	require.NoError(t, err)
+	require.NoError(t, access.UpsertLock(ctx, lock2))
+	select {
+	case event := <-sub.Events():
+		t.Fatalf("Unexpected event: %v.", event)
+	case <-sub.Done():
+		t.Fatal("Lock watcher subscription has unexpectedly exited.")
+	case <-time.After(time.Second):
+	}
 }
 
 func TestLockWatcherStale(t *testing.T) {

@@ -273,7 +273,7 @@ func TestProxySSHConfig(t *testing.T) {
 		[]ssh.Signer{hostSigner},
 		sshutils.AuthMethods{
 			PublicKey: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-				certChecker := utils.CertChecker{
+				certChecker := apisshutils.CertChecker{
 					CertChecker: ssh.CertChecker{
 						IsUserAuthority: func(cert ssh.PublicKey) bool {
 							// Makes sure that user presented key signed by or with trusted authority.
@@ -436,7 +436,7 @@ func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
-	ca, err := tlsca.FromKeys(cert, privateKey)
+	ca, err := tlsca.FromCertAndSigner(cert, rsaKey.(*rsa.PrivateKey))
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}

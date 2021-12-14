@@ -18,6 +18,7 @@ limitations under the License.
 package identityfile_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -46,10 +47,17 @@ func TestIdentityFileBasics(t *testing.T) {
 	err := identityfile.Write(writeIDFile, path)
 	require.NoError(t, err)
 
-	// Read identity file
-	readIDFile, err := identityfile.Read(path)
+	// Read identity file from file
+	readIDFile, err := identityfile.ReadFile(path)
+	require.NoError(t, err)
+
+	// Read identity file from string
+	s, err := os.ReadFile(path)
+	require.NoError(t, err)
+	fromStringIDFile, err := identityfile.FromString(string(s))
 	require.NoError(t, err)
 
 	// Check that read and write values are equal
 	require.Equal(t, writeIDFile, readIDFile)
+	require.Equal(t, writeIDFile, fromStringIDFile)
 }

@@ -37,12 +37,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -58,6 +60,13 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
+// Rate describes a rate ratio, i.e. the number of "events" that happen over
+// some unit time period
+type Rate struct {
+	Amount int
+	Time   time.Duration
+}
+
 // Config structure is used to initialize _all_ services Teleport can run.
 // Some settings are global (like DataDir) while others are grouped into
 // sections, like AuthConfig
@@ -71,6 +80,9 @@ type Config struct {
 
 	// Token is used to register this Teleport instance with the auth server
 	Token string
+
+	// JoinMethod is the method the instance will use to join the auth server
+	JoinMethod JoinMethod
 
 	// AuthServers is a list of auth servers, proxies and peer auth servers to
 	// connect to. Yes, this is not just auth servers, the field name is
@@ -107,6 +119,9 @@ type Config struct {
 
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
+
+	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
+	KeyStore keystore.Config
 
 	// HostUUID is a unique UUID of this host (it will be known via this UUID within
 	// a teleport cluster). It's automatically generated on 1st start
@@ -193,8 +208,8 @@ type Config struct {
 	// ShutdownTimeout is set to override default shutdown timeout.
 	ShutdownTimeout time.Duration
 
-	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
-	CAPin string
+	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
+	CAPins []string
 
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
@@ -213,6 +228,15 @@ type Config struct {
 
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
+
+	// RotationConnectionInterval is the interval between connection
+	// attempts as used by the rotation state service
+	RotationConnectionInterval time.Duration
+
+	// RestartThreshold describes the number of connection failures per
+	// unit time that the node can sustain before restarting itself, as
+	// measured by the rotation state service.
+	RestartThreshold Rate
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -266,23 +290,6 @@ type CachePolicy struct {
 	Type string
 	// Enabled enables or disables caching
 	Enabled bool
-	// TTL sets maximum TTL for the cached values
-	// without explicit TTL set
-	TTL time.Duration
-	// NeverExpires means that cache values without TTL
-	// set by the auth server won't expire
-	NeverExpires bool
-	// RecentTTL is the recently accessed items cache TTL
-	RecentTTL *time.Duration
-}
-
-// GetRecentTTL either returns TTL that was set,
-// or default recent TTL value
-func (c *CachePolicy) GetRecentTTL() time.Duration {
-	if c.RecentTTL == nil {
-		return defaults.RecentCacheTTL
-	}
-	return *c.RecentTTL
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -303,19 +310,7 @@ func (c CachePolicy) String() string {
 	if !c.Enabled {
 		return "no cache policy"
 	}
-	recentCachePolicy := ""
-	if c.GetRecentTTL() == 0 {
-		recentCachePolicy = "will not cache frequently accessed items"
-	} else {
-		recentCachePolicy = fmt.Sprintf("will cache frequently accessed items for %v", c.GetRecentTTL())
-	}
-	if c.NeverExpires {
-		return fmt.Sprintf("%v cache that will not expire in case if connection to database is lost, %v", c.Type, recentCachePolicy)
-	}
-	if c.TTL == 0 {
-		return fmt.Sprintf("%v cache that will expire after connection to database is lost after %v, %v", c.Type, defaults.CacheTTL, recentCachePolicy)
-	}
-	return fmt.Sprintf("%v cache that will expire after connection to database is lost after %v, %v", c.Type, c.TTL, recentCachePolicy)
+	return fmt.Sprintf("%v cache will store frequently accessed items", c.Type)
 }
 
 // ProxyConfig specifies configuration for proxy service
@@ -512,6 +507,9 @@ type AuthConfig struct {
 
 	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
 	PublicAddrs []utils.NetAddr
+
+	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
+	KeyStore keystore.Config
 }
 
 // SSHConfig configures SSH server node role
@@ -572,6 +570,10 @@ type KubeConfig struct {
 
 	// Limiter limits the connection and request rates.
 	Limiter limiter.Config
+
+	// CheckImpersonationPermissions is an optional override to the default
+	// impersonation permissions check, for use in testing.
+	CheckImpersonationPermissions proxy.ImpersonationPermissionsChecker
 }
 
 // DatabasesConfig configures the database proxy service.
@@ -897,6 +899,12 @@ func ApplyDefaults(cfg *Config) {
 
 	// Databases proxy service is disabled by default.
 	cfg.Databases.Enabled = false
+
+	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
+	cfg.RestartThreshold = Rate{
+		Amount: defaults.MaxConnectionErrorsBeforeRestart,
+		Time:   defaults.ConnectionErrorMeasurementPeriod,
+	}
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2
@@ -919,3 +927,14 @@ func ApplyFIPSDefaults(cfg *Config) {
 	// entire cluster is FedRAMP/FIPS 140-2 compliant.
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 }
+
+// JoinMethod is the method the instance will use to join the auth server.
+type JoinMethod int
+
+const (
+	// JoinMethodToken means the instance will use a basic token.
+	JoinMethodToken JoinMethod = iota
+	// JoinMethodEC2 means the instance will use Simplified Node Joining and send an
+	// EC2 Instance Identity Document.
+	JoinMethodEC2
+)

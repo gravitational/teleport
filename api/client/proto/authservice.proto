@@ -323,6 +323,8 @@ message Features {
     bool AdvancedAccessWorkflows = 7 [ (gogoproto.jsontag) = "advanced_access_workflows" ];
     // Cloud enables some cloud-related features
     bool Cloud = 8 [ (gogoproto.jsontag) = "cloud" ];
+    // HSM enables PKCS#11 HSM support
+    bool HSM = 9 [ (gogoproto.jsontag) = "hsm" ];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -904,6 +906,8 @@ message ListNodesRequest {
     // StartKey is used to start listing nodes from a specific spot. This should
     // be set to the previous NextKey value if using pagination, or left empty.
     string StartKey = 3;
+    // Labels is a label-based matcher if non-empty.
+    map<string, string> Labels = 4;
 }
 
 message ListNodesResponse {

@@ -175,7 +175,7 @@ You can review the logs of the Teleport service with `journalctl -fu teleport` a
 with `sudo systemctl status teleport`.
 
 You can use `netstat -lptne` to review the port that Teleport is
-listening on  on [TCP/IP ports](../admin-guide.mdx#ports). On *auth.example.com*, it should
+listening on  on [TCP/IP ports](../setup/reference/networking.mdx#ports). On *auth.example.com*, it should
 look something like this:
 
 ```bsh
@@ -377,7 +377,7 @@ configuring SSO providers:
 - [Okta](sso/okta.mdx)
 - [Active Directory](sso/adfs.mdx)
 - [One Login](sso/one-login.mdx)
-- [Github](../admin-guide.mdx#github-oauth-20)
+- [Github](../setup/admin/github-sso.mdx)
 
 Any SAML-compliant provider can be configured with Teleport by following the
 same steps.  There are Teleport Enterprise customers who are using Oracle IDM,

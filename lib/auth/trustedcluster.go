@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -262,7 +263,7 @@ func (a *Server) establishTrust(trustedCluster types.TrustedCluster) ([]types.Ce
 	}
 
 	// log the local certificate authorities that we are sending
-	log.Debugf("Sending validate request; token=%v, CAs=%v", validateRequest.Token, validateRequest.CAs)
+	log.Debugf("Sending validate request; token=%s, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
 
 	// send the request to the remote auth server via the proxy
 	validateResponse, err := a.sendValidateRequestToProxy(trustedCluster.GetProxyAddress(), &validateRequest)
@@ -400,7 +401,14 @@ func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) er
 		if remoteCluster.GetConnectionStatus() != teleport.RemoteClusterStatusOffline {
 			remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 			if err := a.UpdateRemoteCluster(ctx, remoteCluster); err != nil {
-				return trace.Wrap(err)
+				// if the cluster was concurrently updated, ignore the update.  either
+				// the update was consistent with our view of the world, in which case
+				// retrying would be pointless, or the update was not consistent, in which
+				// case we should prioritize presenting our view in an internally-consistent
+				// manner rather than competing with another task.
+				if !trace.IsCompareFailed(err) {
+					return trace.Wrap(err)
+				}
 			}
 		}
 		return nil
@@ -420,7 +428,14 @@ func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) er
 	}
 	if prevConnectionStatus != remoteCluster.GetConnectionStatus() || !prevLastHeartbeat.Equal(remoteCluster.GetLastHeartbeat()) {
 		if err := a.UpdateRemoteCluster(ctx, remoteCluster); err != nil {
-			return trace.Wrap(err)
+			// if the cluster was concurrently updated, ignore the update.  either
+			// the update was consistent with our view of the world, in which case
+			// retrying would be pointless, or the update was not consistent, in which
+			// case we should prioritize presenting our view in an internally-consistent
+			// manner rather than competing with another task.
+			if !trace.IsCompareFailed(err) {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
@@ -450,7 +465,7 @@ func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterR
 		}
 	}()
 
-	log.Debugf("Received validate request: token=%v, CAs=%v", validateRequest.Token, validateRequest.CAs)
+	log.Debugf("Received validate request: token=%s, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
 
 	domainName, err := a.GetDomainName()
 	if err != nil {

@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2018-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -350,6 +350,15 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		if process.Config.Token == "" {
 			return nil, trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 		}
+
+		var ec2IdentityDocument []byte
+		if process.Config.JoinMethod == JoinMethodEC2 {
+			ec2IdentityDocument, err = getEC2IdentityDocument()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
 		process.log.Infof("Joining the cluster with a secure token.")
 		const reason = "first-time-connect"
 		keyPair, err := process.generateKeyPair(role, reason)
@@ -368,10 +377,11 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			PublicTLSKey:         keyPair.PublicTLSKey,
 			PublicSSHKey:         keyPair.PublicSSHKey,
 			CipherSuites:         process.Config.CipherSuites,
-			CAPin:                process.Config.CAPin,
+			CAPins:               process.Config.CAPins,
 			CAPath:               filepath.Join(defaults.DataDir, defaults.CACertFile),
 			GetHostCredentials:   client.HostCredentials,
 			Clock:                process.Clock,
+			EC2IdentityDocument:  ec2IdentityDocument,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -433,26 +443,43 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	select {
 	case <-eventC:
 		process.log.Infof("The new service has started successfully. Starting syncing rotation status with period %v.", process.Config.PollingPeriod)
-	case <-process.ExitContext().Done():
+	case <-process.GracefulExitContext().Done():
 		return nil
 	}
 
 	periodic := interval.New(interval.Config{
-		Duration:      defaults.HighResPollingPeriod,
-		FirstDuration: utils.HalfJitter(defaults.HighResPollingPeriod),
+		Duration:      process.Config.RotationConnectionInterval,
+		FirstDuration: utils.HalfJitter(process.Config.RotationConnectionInterval),
 		Jitter:        utils.NewSeventhJitter(),
 	})
 	defer periodic.Stop()
+
+	errors := utils.NewTimedCounter(process.Clock, process.Config.RestartThreshold.Time)
 
 	for {
 		err := process.syncRotationStateCycle()
 		if err == nil {
 			return nil
 		}
-		process.log.Warningf("Sync rotation state cycle failed: %v, going to retry after ~%v.", err, defaults.HighResPollingPeriod)
+		process.log.WithError(err).Warning("Sync rotation state cycle failed")
+
+		// If we have had a *lot* of failures very recently, then it's likely that our
+		// route to the auth server is gone. If we're using a tunnel then it's possible
+		// that the proxy has been reconfigured and the tunnel address has moved.
+		count := errors.Increment()
+		process.log.Warnf("%d connection errors in last %v.", count, process.Config.RestartThreshold.Time)
+		if count > process.Config.RestartThreshold.Amount {
+			// signal quit
+			process.log.Error("Connection error threshold exceeded. Asking for a graceful restart.")
+			process.BroadcastEvent(Event{Name: TeleportReloadEvent})
+			return nil
+		}
+
+		process.log.Warningf("Retrying in ~%v", process.Config.RotationConnectionInterval)
+
 		select {
 		case <-periodic.Next():
-		case <-process.ExitContext().Done():
+		case <-process.GracefulExitContext().Done():
 			return nil
 		}
 	}
@@ -461,7 +488,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 // syncRotationCycle executes a rotation cycle that returns:
 //
 // * nil whenever rotation state leads to teleport reload event
-// * error whenever rotation sycle has to be restarted
+// * error whenever rotation cycle has to be restarted
 //
 // the function accepts extra delay timer extraDelay in case if parent
 // function needs a
@@ -532,7 +559,7 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 			if status.needsReload {
 				return nil
 			}
-		case <-process.ExitContext().Done():
+		case <-process.GracefulExitContext().Done():
 			return nil
 		}
 	}
@@ -831,7 +858,11 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 
 	logger = process.log.WithField("proxy-addr", proxyAddr)
 	logger.Debug("Attempting to connect to Auth Server through tunnel.")
-	tunnelClient, err := process.newClientThroughTunnel(proxyAddr, tlsConfig, identity.SSHClientConfig())
+	sshClientConfig, err := identity.SSHClientConfig(process.Config.FIPS)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tunnelClient, err := process.newClientThroughTunnel(proxyAddr, tlsConfig, sshClientConfig)
 	if err != nil {
 		directErrLogger.Debug("Failed to connect to Auth Server directly.")
 		logger.WithError(err).Debug("Failed to connect to Auth Server through tunnel.")

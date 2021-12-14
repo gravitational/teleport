@@ -194,7 +194,7 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 		go func() {
 			defer clientConn.Close()
 			err := s.mysqlProxy().HandleConnection(s.closeCtx, clientConn)
-			if err != nil {
+			if err != nil && !utils.IsOKNetworkError(err) {
 				s.log.WithError(err).Error("Failed to handle MySQL client connection.")
 			}
 		}()

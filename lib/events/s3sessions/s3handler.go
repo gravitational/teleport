@@ -124,7 +124,7 @@ func (s *Config) CheckAndSetDefaults() error {
 }
 
 // NewHandler returns new S3 uploader
-func NewHandler(cfg Config) (*Handler, error) {
+func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -140,7 +140,7 @@ func NewHandler(cfg Config) (*Handler, error) {
 	}
 	start := time.Now()
 	h.Infof("Setting up bucket %q, sessions path %q in region %q.", h.Bucket, h.Path, h.Region)
-	if err := h.ensureBucket(); err != nil {
+	if err := h.ensureBucket(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	h.WithFields(log.Fields{"duration": time.Since(start)}).Infof("Setup bucket %q completed.", h.Bucket)
@@ -190,7 +190,7 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.
 	// Get the oldest version of this object. This has to be done because S3
 	// allows overwriting objects in a bucket. To prevent corruption of recording
 	// data, get all versions and always return the first.
-	versionID, err := h.getOldestVersion(h.Bucket, h.path(sessionID))
+	versionID, err := h.getOldestVersion(ctx, h.Bucket, h.path(sessionID))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -221,11 +221,11 @@ type versionID struct {
 }
 
 // getOldestVersion returns the oldest version of the object.
-func (h *Handler) getOldestVersion(bucket string, prefix string) (string, error) {
+func (h *Handler) getOldestVersion(ctx context.Context, bucket string, prefix string) (string, error) {
 	var versions []versionID
 
 	// Get all versions of this object.
-	err := h.client.ListObjectVersionsPages(&s3.ListObjectVersionsInput{
+	err := h.client.ListObjectVersionsPagesWithContext(ctx, &s3.ListObjectVersionsInput{
 		Bucket: aws.String(bucket),
 		Prefix: aws.String(prefix),
 	}, func(page *s3.ListObjectVersionsOutput, lastPage bool) bool {
@@ -254,16 +254,16 @@ func (h *Handler) getOldestVersion(bucket string, prefix string) (string, error)
 }
 
 // delete bucket deletes bucket and all it's contents and is used in tests
-func (h *Handler) deleteBucket() error {
+func (h *Handler) deleteBucket(ctx context.Context) error {
 	// first, list and delete all the objects in the bucket
-	out, err := h.client.ListObjectVersions(&s3.ListObjectVersionsInput{
+	out, err := h.client.ListObjectVersionsWithContext(ctx, &s3.ListObjectVersionsInput{
 		Bucket: aws.String(h.Bucket),
 	})
 	if err != nil {
 		return ConvertS3Error(err)
 	}
 	for _, ver := range out.Versions {
-		_, err := h.client.DeleteObject(&s3.DeleteObjectInput{
+		_, err := h.client.DeleteObjectWithContext(ctx, &s3.DeleteObjectInput{
 			Bucket:    aws.String(h.Bucket),
 			Key:       ver.Key,
 			VersionId: ver.VersionId,
@@ -272,7 +272,7 @@ func (h *Handler) deleteBucket() error {
 			return ConvertS3Error(err)
 		}
 	}
-	_, err = h.client.DeleteBucket(&s3.DeleteBucketInput{
+	_, err = h.client.DeleteBucketWithContext(ctx, &s3.DeleteBucketInput{
 		Bucket: aws.String(h.Bucket),
 	})
 	return ConvertS3Error(err)
@@ -290,8 +290,8 @@ func (h *Handler) fromPath(path string) session.ID {
 }
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it
-func (h *Handler) ensureBucket() error {
-	_, err := h.client.HeadBucket(&s3.HeadBucketInput{
+func (h *Handler) ensureBucket(ctx context.Context) error {
+	_, err := h.client.HeadBucketWithContext(ctx, &s3.HeadBucketInput{
 		Bucket: aws.String(h.Bucket),
 	})
 	err = ConvertS3Error(err)
@@ -307,7 +307,7 @@ func (h *Handler) ensureBucket() error {
 		Bucket: aws.String(h.Bucket),
 		ACL:    aws.String("private"),
 	}
-	_, err = h.client.CreateBucket(input)
+	_, err = h.client.CreateBucketWithContext(ctx, input)
 	err = ConvertS3Error(err, fmt.Sprintf("bucket %v already exists", aws.String(h.Bucket)))
 	if err != nil {
 		if !trace.IsAlreadyExists(err) {
@@ -324,7 +324,7 @@ func (h *Handler) ensureBucket() error {
 			Status: aws.String("Enabled"),
 		},
 	}
-	_, err = h.client.PutBucketVersioning(ver)
+	_, err = h.client.PutBucketVersioningWithContext(ctx, ver)
 	err = ConvertS3Error(err, fmt.Sprintf("failed to set versioning state for bucket %q", h.Bucket))
 	if err != nil {
 		return trace.Wrap(err)
@@ -332,7 +332,7 @@ func (h *Handler) ensureBucket() error {
 
 	// Turn on server-side encryption for the bucket.
 	if !h.DisableServerSideEncryption {
-		_, err = h.client.PutBucketEncryption(&s3.PutBucketEncryptionInput{
+		_, err = h.client.PutBucketEncryptionWithContext(ctx, &s3.PutBucketEncryptionInput{
 			Bucket: aws.String(h.Bucket),
 			ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
 				Rules: []*s3.ServerSideEncryptionRule{{

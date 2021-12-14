@@ -37,6 +37,22 @@ func GetCheckers(ca types.CertAuthority) ([]ssh.PublicKey, error) {
 	return out, nil
 }
 
+// GetSigners returns SSH signers for the provided authority.
+func GetSigners(ca types.CertAuthority) ([]ssh.Signer, error) {
+	var signers []ssh.Signer
+	for _, kp := range ca.GetActiveKeys().SSH {
+		if len(kp.PrivateKey) == 0 {
+			continue
+		}
+		signer, err := ssh.ParsePrivateKey(kp.PrivateKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		signers = append(signers, signer)
+	}
+	return signers, nil
+}
+
 // ValidateSigners returns a list of signers that could be used to sign keys.
 func ValidateSigners(ca types.CertAuthority) error {
 	keys := ca.GetActiveKeys().SSH
@@ -46,8 +62,11 @@ func ValidateSigners(ca types.CertAuthority) error {
 		if len(kp.PrivateKey) == 0 {
 			continue
 		}
-		if _, err := ssh.ParsePrivateKey(kp.PrivateKey); err != nil {
-			return trace.Wrap(err)
+		// TODO(nic): validate PKCS11 signers
+		if kp.PrivateKeyType == types.PrivateKeyType_RAW {
+			if _, err := ssh.ParsePrivateKey(kp.PrivateKey); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 	return nil

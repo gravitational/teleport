@@ -1,5 +1,201 @@
 # Changelog
 
+## 7.3.8
+
+This release of Teleport contains multiple security fixes.
+
+### Security fixes
+
+As part of a routine security audit of Teleport, several security
+vulnerabilities and miscellaneous issues were discovered. Below are the issues
+found, their impact, and the components of Teleport they affect.
+
+#### Insufficient authorization check in self-hosted MySQL database access
+
+Teleport MySQL proxy engine did not handle internal MySQL protocol command that
+allows to reauthenticate the active connection.
+
+This could allow an attacker with a valid client certificate for a particular
+database user to reauthenticate as a different MySQL user created using
+`require x509` clause.
+
+#### Insufficient authorization check in MongoDB database access
+
+Teleport MongoDB proxy engine did not implement processing for all possible
+MongoDB wire protocol messages.
+
+This could allow an attacker with a valid client certificate to connect to the
+database in a way that would prevent Teleport from enforcing authorization
+check on the database names.
+
+#### Authorization bypass in application access
+
+When proxying a websocket connection, Teleport did not check for a successful
+connection upgrade response from the target application.
+
+In scenarios where Teleport proxy is located behind a load balancer, this could
+result in the load balancer reusing the cached authenticated connection for
+future unauthenticated requests.
+
+#### Missing password confirmation on password change
+
+Teleport did not check the old password if the cluster had "optional" second
+factor and user had no registered MFA devices.
+
+This could allow an attacker with access to user's authenticated browser
+session to change their password.
+
+#### Actions
+
+For all Teleport users, we recommend upgrading auth servers.
+
+For Database Access users we recommend upgrading database agents that handle
+connections to self-hosted MySQL servers and MongoDB clusters.
+
+For Application Access users we recommend upgrading application agents.
+
+Upgrades should follow the normal Teleport upgrade procedure:
+https://goteleport.com/teleport/docs/admin-guide/#upgrading-teleport.
+
+## 7.3.6
+
+This release of Teleport contains a security fix.
+
+* Mitigated [CVE-2021-43565](https://groups.google.com/g/golang-announce/c/2AR1sKiM-Qs) by updating golang.org/x/crypto. [#9204](https://github.com/gravitational/teleport/pull/9204)
+
+## 7.3.5
+
+This release of Teleport contains a fix.
+
+* Fixed issue in Database Access that could cause MySQL listeners to crash. [#9163](https://github.com/gravitational/teleport/pull/9163)
+
+## 7.3.4
+
+This release of Teleport contains a fix.
+
+* Fixed an issue that could cause search engine crawlers to break signup and login pages.
+
+## 7.3.3
+
+This release of Teleport contains performance improvements, fixes, and a feature.
+
+* Improved cache and label-based operations performance. [#8670](https://github.com/gravitational/teleport/pull/8670)
+* Added support for custom `routing_strategy` configuration. [#8567](https://github.com/gravitational/teleport/pull/8567)
+* Fixed an issue with "Simplified EC2 Join" for some regions. [#8704](https://github.com/gravitational/teleport/pull/8704)
+* Fixed a regression in web terminal. [#8797](https://github.com/gravitational/teleport/pull/8797)
+
+## 7.3.2
+
+This release of Teleport contains a feature and a fix.
+
+* Fixed issue that could cause `kubectl exec` to fail. [#8601](https://github.com/gravitational/teleport/pull/8601)
+* Added email notification plugin, see [Teleport Plugins 7.3.1](https://github.com/gravitational/teleport-plugins/releases/tag/v7.3.0) for more details.
+
+## 7.3.0
+
+This release of Teleport contains a feature and a fix.
+
+* Added ability for nodes to join cluster without needing to share secret tokens on AWS. See [Node Joining in AWS](https://goteleport.com/docs/setup/guides/joining-nodes-aws/) guide for more details. [#8250](https://github.com/gravitational/teleport/pull/8250) [#7292](https://github.com/gravitational/teleport/pull/7292)
+* Fixed an issue that could cause intermittent connectivity issues for Kubernetes Access. [#8362](https://github.com/gravitational/teleport/pull/8362)
+
+## 7.2.1
+
+This release of Teleport contains bug fixes, features, and improvements.
+
+* Added network and resource utilization information to `tctl top`. [#8338](https://github.com/gravitational/teleport/pull/8338)
+* Fixed issue that prevented OIDC integration with Ping. [#8308](https://github.com/gravitational/teleport/pull/8308)
+* Added ability for agents to connect over HTTP with `--insecure` flag. [#7835](https://github.com/gravitational/teleport/pull/7835)
+* Updated CLI SSO login flow to use Javascript redirect instead of a 302 redirect to support users with high number of claims.  [#8293](https://github.com/gravitational/teleport/pull/8293)
+
+## 7.2.0
+
+This release of Teleport contains bug fixes and features.
+
+* Added support for Hardware Security Modules (HSMs). [#7981](https://github.com/gravitational/teleport/pull/7981)
+* Added `tsh ssh` support for Windows. [#8306](https://github.com/gravitational/teleport/pull/8306) [#8221](https://github.com/gravitational/teleport/pull/8221) [#8295](https://github.com/gravitational/teleport/pull/8295)
+* Fixed regressions in graceful restart behavior of Teleport. [#8083](https://github.com/gravitational/teleport/pull/8083)
+* Fixed an issue with forwarding requests to EventSource apps via application access. [#8385](https://github.com/gravitational/teleport/pull/8385)
+
+## 7.1.3
+
+This release of Teleport contains bug fixes, improvements, and multiple features.
+
+* Fixed performance and stability issues for DynamoDB clusters. [#8279](https://github.com/gravitational/teleport/pull/8279)
+* Fixed issue that could cause Teleport to panic when disconnecting expired certificates. [#8288](https://github.com/gravitational/teleport/pull/8288)
+* Fixed issue that could cause Teleport to fail to start if unable to connect to Kubernetes cluster. [#7523](https://github.com/gravitational/teleport/pull/7523)
+* Fixed issue that prevented the Web UI from loading in Safari. [#7929](https://github.com/gravitational/teleport/pull/7929)
+* Improved performance for Google Firestore users. [#8181](https://github.com/gravitational/teleport/pull/8181) [#8241](https://github.com/gravitational/teleport/pull/8241)
+* Added support for profile specific `kubeconfig` file. [#7840](https://github.com/gravitational/teleport/pull/7840)
+* Added support to Terraform Plugin to load loading identity from environment variables instead of disk. [#8061](https://github.com/gravitational/teleport/pull/8061) [teleport-plugins#299](https://github.com/gravitational/teleport-plugins/pull/299)
+
+## 7.1.2
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed an issue with `teleport configure` generating empty hostname for web proxy address. [#8245](https://github.com/gravitational/teleport/pull/8245)
+* Fixed an issue with interactive sessions always exiting with code 0. [#8252](https://github.com/gravitational/teleport/pull/8252)
+* Fixed an issue with AWS console access silently filtering out IAM roles with paths. [#8225](https://github.com/gravitational/teleport/pull/8225)
+* Fixed an issue with `fsGroup` not being set in teleport-kube-agent chart when using persistent storage. [#8085](https://github.com/gravitational/teleport/pull/8085)
+* Fixed an issue with Kubernetes service not respecting `public_addr` setting. [#8258](https://github.com/gravitational/teleport/pull/8258)
+
+## 7.1.1
+
+This release of Teleport contains multiple bug fixes and security fixes.
+
+* Fixed an issue with starting Teleport with `--bootstrap` flag. [#8128](https://github.com/gravitational/teleport/pull/8128)
+* Added support for non-blocking access requests via `--request-nowait` flag. [#7979](https://github.com/gravitational/teleport/pull/7979)
+* Added support for a profile specific kubeconfig file. [#8048](https://github.com/gravitational/teleport/pull/8048)
+
+### Security fixes
+
+As part of a routine security audit of Teleport, several security vulnerabilities
+and miscellaneous issues were discovered. Below are the issues found, their
+impact, and the components of Teleport they affect.
+
+#### Server Access
+
+An attacker with privileged network position could forge SSH host certificates
+that Teleport would incorrectly validate in specific code paths. The specific
+paths of concern are:
+
+* Using `tsh` with an identity file (commonly used for service accounts). This
+  could lead to potentially leaking of sensitive commands the service account
+  runs or in the case of proxy recording mode, the attacker could also gain
+  control of the SSH agent being used.
+
+* Teleport agents could incorrectly connect to an attacker controlled cluster.
+  Note, this would not give the attacker access or control of resources (like
+  SSH, Kubernetes, Applications, or Database servers) because Teleport agents
+  will still reject all connections without a valid x509 or SSH user
+  certificate.
+
+#### Database Access
+
+When connecting to a Postgres database, an attacker could craft a database name
+or a username in a way that would have allowed them control over the resulting
+connection string.
+
+An attacker could have probed connections to other reachable database servers
+and alter connection parameters such as disable TLS or connect to a database
+authenticated by a password.
+
+#### All
+
+During an internal security exercise our engineers have discovered a
+vulnerability in Teleport build infrastructure that could have been potentially
+used to alter build artifacts. We have found no evidence of any exploitation. In
+an effort to be open and transparent with our customers, we encourage all
+customers to upgrade to the latest patch release.
+
+#### Actions
+
+For all users, we recommend upgrading all components of their Teleport cluster.
+If upgrading all components is not possible, we recommend upgrading `tsh` and
+Teleport agents (including trusted cluster proxies) that use reverse tunnels.
+
+Upgrades should follow the normal Teleport upgrade procedure:
+https://goteleport.com/teleport/docs/admin-guide/#upgrading-teleport.
+
 ## 7.1.0
 
 This release of Teleport contains a feature and bug fix.

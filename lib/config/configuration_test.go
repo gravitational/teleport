@@ -133,6 +133,8 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, "INFO", fc.Logger.Severity)
 		require.Equal(t, fc.Auth.ClusterName, ClusterName("cookie.localhost"))
 		require.Equal(t, fc.Auth.LicenseFile, "/tmp/license.pem")
+		require.Equal(t, fc.Proxy.PublicAddr, apiutils.Strings{"cookie.localhost:443"})
+		require.Equal(t, fc.Proxy.WebAddr, "0.0.0.0:443")
 
 		require.False(t, lib.IsInsecureDevMode())
 	})
@@ -234,6 +236,7 @@ func TestConfigReading(t *testing.T) {
 				Type: "bolt",
 			},
 			DataDir: "/path/to/data",
+			CAPin:   apiutils.Strings([]string{"rsa256:123", "rsa256:456"}),
 		},
 		Auth: Auth{
 			Service: Service{
@@ -245,6 +248,7 @@ func TestConfigReading(t *testing.T) {
 			DisconnectExpiredCert: types.NewBoolOption(true),
 			ClientIdleTimeout:     types.Duration(17 * time.Second),
 			WebIdleTimeout:        types.Duration(19 * time.Second),
+			RoutingStrategy:       types.RoutingStrategy_MOST_RECENT,
 		},
 		SSH: SSH{
 			Service: Service{
@@ -574,6 +578,12 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			LockingMode:           constants.LockingModeBestEffort,
 		},
 	}))
+
+	require.Equal(t, "/usr/local/lib/example/path.so", cfg.Auth.KeyStore.Path)
+	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
+	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
+	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
+	require.Empty(t, cfg.CAPins)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -750,12 +760,11 @@ func TestParseCachePolicy(t *testing.T) {
 		out *service.CachePolicy
 		err error
 	}{
-		{in: &CachePolicy{EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true, NeverExpires: true, Type: lite.GetName()}},
-		{in: &CachePolicy{EnabledFlag: "yes", TTL: "10h"}, out: &service.CachePolicy{Enabled: true, NeverExpires: false, TTL: 10 * time.Hour, Type: lite.GetName()}},
-		{in: &CachePolicy{Type: memory.GetName(), EnabledFlag: "false", TTL: "10h"}, out: &service.CachePolicy{Enabled: false, NeverExpires: false, TTL: 10 * time.Hour, Type: memory.GetName()}},
-		{in: &CachePolicy{Type: memory.GetName(), EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true, NeverExpires: true, Type: memory.GetName()}},
+		{in: &CachePolicy{EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true, Type: lite.GetName()}},
+		{in: &CachePolicy{EnabledFlag: "yes", TTL: "10h"}, out: &service.CachePolicy{Enabled: true, Type: lite.GetName()}},
+		{in: &CachePolicy{Type: memory.GetName(), EnabledFlag: "false", TTL: "10h"}, out: &service.CachePolicy{Enabled: false, Type: memory.GetName()}},
+		{in: &CachePolicy{Type: memory.GetName(), EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true, Type: memory.GetName()}},
 		{in: &CachePolicy{EnabledFlag: "no"}, out: &service.CachePolicy{Type: lite.GetName(), Enabled: false}},
-		{in: &CachePolicy{EnabledFlag: "false", TTL: "zap"}, err: trace.BadParameter("bad format")},
 		{in: &CachePolicy{Type: "memsql"}, err: trace.BadParameter("unsupported backend")},
 	}
 	for i, tc := range tcs {
@@ -848,13 +857,12 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 		},
 		ClientIdleTimeout:     types.Duration(17 * time.Second),
 		DisconnectExpiredCert: types.NewBoolOption(true),
+		RoutingStrategy:       types.RoutingStrategy_MOST_RECENT,
 	}, cmp.AllowUnexported(Service{})))
 
 	policy, err := conf.CachePolicy.Parse()
 	require.NoError(t, err)
 	require.True(t, policy.Enabled)
-	require.False(t, policy.NeverExpires)
-	require.Equal(t, policy.TTL, 20*time.Hour)
 }
 
 var (
@@ -905,6 +913,7 @@ func makeConfigFixture() string {
 	conf.Logger.Severity = "INFO"
 	conf.Logger.Format = LogFormat{Output: "text"}
 	conf.Storage.Type = "bolt"
+	conf.CAPin = []string{"rsa256:123", "rsa256:456"}
 
 	// auth service:
 	conf.Auth.EnabledFlag = "Yeah"
@@ -913,6 +922,7 @@ func makeConfigFixture() string {
 	conf.Auth.ClientIdleTimeout = types.NewDuration(17 * time.Second)
 	conf.Auth.WebIdleTimeout = types.NewDuration(19 * time.Second)
 	conf.Auth.DisconnectExpiredCert = types.NewBoolOption(true)
+	conf.Auth.RoutingStrategy = types.RoutingStrategy_MOST_RECENT
 
 	// ssh service:
 	conf.SSH.EnabledFlag = "true"
