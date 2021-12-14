@@ -1,5 +1,13 @@
 # Changelog
 
+## 8.0.6
+
+This release of Teleport contains a feature and bug fixes.
+
+* Added ability to run Postgres and MongoDB proxy on separate listener. [#8323](https://github.com/gravitational/teleport/pull/8323)
+* Fixed an issue that could cause search engine crawlers to break signup and login pages.
+* Fixed issue that would cause `tsh login` to hang indefinitely. [#9193](https://github.com/gravitational/teleport/pull/9193)
+
 ## 8.0.5
 
 This release of Teleport contains a bug fix.
