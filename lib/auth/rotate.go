@@ -300,7 +300,7 @@ func (a *Server) autoRotateCertAuthorities() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
+	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.JWTSigner} {
 		ca, err := a.Trust.GetCertAuthority(types.CertAuthID{
 			Type:       caType,
 			DomainName: clusterName.GetClusterName(),
