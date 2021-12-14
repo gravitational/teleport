@@ -209,3 +209,94 @@ func decodePEM(pemPath string) (certs []pem.Block, keys []pem.Block, err error) 
 	}
 	return certs, keys, nil
 }
+
+type fakeExecer struct {
+	foundBinary bool
+	execOutput  []byte
+}
+
+func (f fakeExecer) RunCommand(_ string, _ ...string) ([]byte, error) {
+	return f.execOutput, nil
+}
+
+func (f fakeExecer) LookPath(_ string) (string, error) {
+	if f.foundBinary {
+		return "", nil
+	}
+	return "", trace.NotFound("not found")
+}
+
+func Test_cliCommandBuilder_getConnectCommand(t *testing.T) {
+	conf := &CLIConf{
+		HomePath: t.TempDir(),
+		Proxy:    "proxy",
+		UserHost: "localhost",
+		SiteName: "db.example.com",
+	}
+
+	tc, err := makeClient(conf, true)
+	require.NoError(t, err)
+
+	profile := &client.ProfileStatus{}
+
+	database := &tlsca.RouteToDatabase{
+		Protocol:    defaults.ProtocolMySQL,
+		Database:    "mydb",
+		Username:    "myUser",
+		ServiceName: "mysql",
+	}
+
+	tests := []struct {
+		name    string
+		execer  *fakeExecer
+		cmd     []string
+		wantErr bool
+	}{
+		{
+			name: "mariadb",
+			execer: &fakeExecer{
+				foundBinary: true,
+			},
+			cmd: []string{"mariadb",
+				"--user", "myUser",
+				"--database", "mydb",
+				"--port", "12345",
+				"--host", "localhost",
+				"--protocol", "TCP",
+				"--ssl-verify-server-cert"},
+			wantErr: false,
+		},
+		{
+			name: "mysql - oracle",
+			execer: &fakeExecer{
+				foundBinary: false,
+				execOutput:  []byte("Ver 8.0.27-0ubuntu0.20.04.1 for Linux on x86_64 ((Ubuntu))"),
+			},
+			cmd: []string{"mysql",
+				"--user", "myUser",
+				"--database", "mydb",
+				"--port", "12345",
+				"--host", "localhost",
+				"--protocol", "TCP",
+				"--defaults-group-suffix=_db.example.com-mysql"},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			c := newCmdBuilder(tc, profile, database, WithLocalProxy("localhost", 12345, ""))
+			c.exe = tt.execer
+			got, err := c.getConnectCommand()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getConnectCommand() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			require.Equal(t, tt.cmd, got.Args)
+		})
+	}
+}
