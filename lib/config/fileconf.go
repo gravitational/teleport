@@ -1121,6 +1121,12 @@ type Proxy struct {
 	// PostgresPublicAddr is the hostport the proxy advertises for Postgres
 	// client connections.
 	PostgresPublicAddr apiutils.Strings `yaml:"postgres_public_addr,omitempty"`
+
+	// MongoAddr is Mongo proxy listen address.
+	MongoAddr string `yaml:"mongo_listen_addr,omitempty"`
+	// MongoPublicAddr is the hostport the proxy advertises for Mongo
+	// client connections.
+	MongoPublicAddr apiutils.Strings `yaml:"mongo_public_addr,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates

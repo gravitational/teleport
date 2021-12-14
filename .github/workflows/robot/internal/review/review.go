@@ -263,6 +263,11 @@ func (r *Assignments) checkCodeReviews(author string, reviews map[string]*github
 
 	setA, setB := getReviewerSets(author, team, r.c.CodeReviewers, r.c.CodeReviewersOmit)
 
+	// PRs can be approved if you either have multiple code owners that approve
+	// or code owner and code reviewer.
+	if checkN(setA, reviews) >= 2 {
+		return nil
+	}
 	if check(setA, reviews) && check(setB, reviews) {
 		return nil
 	}
