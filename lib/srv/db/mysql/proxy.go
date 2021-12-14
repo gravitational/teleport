@@ -57,12 +57,23 @@ type Proxy struct {
 // HandleConnection accepts connection from a MySQL client, authenticates
 // it and proxies it to an appropriate database service.
 func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err error) {
+	clientIP, err := utils.ClientIPFromConn(clientConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Apply connection limiting.
+	if err := p.Limiter.AcquireConnection(clientIP); err != nil {
+		return trace.LimitExceeded("client %v exceeded connection limit", clientIP)
+	}
+	defer p.Limiter.ReleaseConnection(clientIP)
+
 	// Wrap the client connection in the connection that can detect the protocol
 	// by peeking into the first few bytes. This is needed to be able to detect
 	// proxy protocol which otherwise would interfere with MySQL protocol.
 	conn := multiplexer.NewConn(clientConn)
 	server := p.makeServer(conn)
-	// If any error happens, make sure to send it back to the client so it
+	// If any error happens, make sure to send it back to the client, so it
 	// has a chance to close the connection from its side.
 	defer func() {
 		if r := recover(); r != nil {
@@ -85,16 +96,6 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clientIP, err := utils.ClientIPFromConn(clientConn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Apply rate limiting.
-	if err := p.Limiter.AcquireConnection(clientIP); err != nil {
-		return trace.LimitExceeded("client %v exceeded connection limit", clientIP)
-	}
-	defer p.Limiter.ReleaseConnection(clientIP)
 
 	serviceConn, authContext, err := p.Service.Connect(ctx, common.ConnectParams{
 		User:     server.GetUser(),

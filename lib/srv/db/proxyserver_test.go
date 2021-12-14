@@ -22,7 +22,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/jackc/pgconn"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,13 +29,17 @@ func TestProxyConnectionLimiting(t *testing.T) {
 	const (
 		user            = "bob"
 		role            = "admin"
-		dbName          = "postgres"
+		postgresDbName  = "postgres"
 		dbUser          = user
 		connLimitNumber = 3 // Arbitrary number
 	)
 
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+	testCtx := setupTestContext(ctx, t,
+		withSelfHostedPostgres("postgres"),
+		withSelfHostedMySQL("mysql"))
+	// TODO(jakule): Mongo seems to create some internal connections. I didn't find a way to predict
+	// how many connection will be created and decided to skip it for now. Otherwise, the whole test may be flaky.
 
 	connLimit, err := limiter.NewConnectionsLimiter(limiter.Config{MaxConnections: connLimitNumber})
 	require.NoError(t, err)
@@ -49,48 +52,74 @@ func TestProxyConnectionLimiting(t *testing.T) {
 	// Create user/role with the requested permissions.
 	testCtx.createUserAndRole(ctx, t, user, role, []string{types.Wildcard}, []string{types.Wildcard})
 
-	// Keep and release all connections at the end.
-	conns := make([]*pgconn.PgConn, 0)
-	defer func() {
-		for _, conn := range conns {
-			err := conn.Close(ctx)
-			require.NoError(t, err)
-		}
-	}()
+	tests := []struct {
+		name    string
+		connect func() (func(context.Context) error, error)
+	}{
+		{
+			"postgres",
+			func() (func(context.Context) error, error) {
+				pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, postgresDbName)
+				return pgConn.Close, err
+			},
+		},
+		{
+			"mysql",
+			func() (func(context.Context) error, error) {
+				mysqlClient, err := testCtx.mysqlClient(user, "mysql", dbUser)
+				return func(_ context.Context) error {
+					return mysqlClient.Close()
+				}, err
+			},
+		},
+	}
 
-	t.Run("limit can be hit", func(t *testing.T) {
-		for i := 0; i < connLimitNumber; i++ {
-			// Try to connect to the database.
-			pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
-			require.NoError(t, err)
+	for _, tt := range tests {
+		tt := tt
 
-			conns = append(conns, pgConn)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			// Keep close functions to all connections. Call and release all active connection at the end of test.
+			connsClosers := make([]func(context.Context) error, 0)
+			t.Cleanup(func() {
+				for _, connClose := range connsClosers {
+					err := connClose(ctx)
+					require.NoError(t, err)
+				}
+			})
 
-		// This connection should go over the limit.
-		_, err = testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "exceeded connection limit")
-	})
+			t.Run("limit can be hit", func(t *testing.T) {
+				for i := 0; i < connLimitNumber; i++ {
+					// Try to connect to the database.
+					pgConn, err := tt.connect()
+					require.NoError(t, err)
 
-	// When a connection is released a new can be established
-	t.Run("reconnect one", func(t *testing.T) {
-		// Get one open connection.
-		oneConn := conns[len(conns)-1]
-		conns = conns[:len(conns)-1]
+					connsClosers = append(connsClosers, pgConn)
+				}
 
-		// Close it, this should decrease the connection limit.
-		err = oneConn.Close(ctx)
-		require.NoError(t, err)
+				// This connection should go over the limit.
+				_, err = tt.connect()
+				require.Error(t, err)
+			})
 
-		// Create a new connection. We do not expect an error here as we have just closed one.
-		pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
-		require.NoError(t, err)
-		conns = append(conns, pgConn)
+			// When a connection is released a new can be established
+			t.Run("reconnect one", func(t *testing.T) {
+				// Get one open connection.
+				oneConn := connsClosers[len(connsClosers)-1]
+				connsClosers = connsClosers[:len(connsClosers)-1]
 
-		// Here the limit should be reached again.
-		_, err = testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "exceeded connection limit")
-	})
+				// Close it, this should decrease the connection limit.
+				err = oneConn(ctx)
+				require.NoError(t, err)
+
+				// Create a new connection. We do not expect an error here as we have just closed one.
+				pgConn, err := tt.connect()
+				require.NoError(t, err)
+				connsClosers = append(connsClosers, pgConn)
+
+				// Here the limit should be reached again.
+				_, err = tt.connect()
+				require.Error(t, err)
+			})
+		})
+	}
 }

@@ -229,6 +229,17 @@ func (s *ProxyServer) ServeTLS(listener net.Listener) error {
 }
 
 func (s *ProxyServer) handleConnection(conn net.Conn) error {
+	clientIP, err := utils.ClientIPFromConn(conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Apply connection limiting.
+	if err := s.cfg.Limiter.AcquireConnection(clientIP); err != nil {
+		return trace.LimitExceeded("client %v exceeded connection limit", clientIP)
+	}
+	defer s.cfg.Limiter.ReleaseConnection(clientIP)
+
 	s.log.Debugf("Accepted TLS database connection from %v.", conn.RemoteAddr())
 	tlsConn, ok := conn.(*tls.Conn)
 	if !ok {
@@ -238,16 +249,6 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clientIP, err := utils.ClientIPFromConn(conn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Apply rate limiting.
-	if err := s.cfg.Limiter.AcquireConnection(clientIP); err != nil {
-		return trace.LimitExceeded("client %v exceeded connection limit", clientIP)
-	}
-	defer s.cfg.Limiter.ReleaseConnection(clientIP)
 
 	serviceConn, authContext, err := s.Connect(ctx, common.ConnectParams{
 		ClientIP: clientIP,

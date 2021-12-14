@@ -52,6 +52,17 @@ type Proxy struct {
 // HandleConnection accepts connection from a Postgres client, authenticates
 // it and proxies it to an appropriate database service.
 func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err error) {
+	clientIP, err := utils.ClientIPFromConn(clientConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Apply connection limiting.
+	if err := p.Limiter.AcquireConnection(clientIP); err != nil {
+		return trace.LimitExceeded("client %v exceeded connection limit", clientIP)
+	}
+	defer p.Limiter.ReleaseConnection(clientIP)
+
 	startupMessage, tlsConn, backend, err := p.handleStartup(ctx, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -67,16 +78,17 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clientIP, err := utils.ClientIPFromConn(clientConn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	// Apply rate limiting.
-	if err := p.Limiter.AcquireConnection(clientIP); err != nil {
-		return trace.LimitExceeded("client %v exceeded connection limit", clientIP)
-	}
-	defer p.Limiter.ReleaseConnection(clientIP)
+	//clientIP, err := utils.ClientIPFromConn(clientConn)
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+	//
+	//// Apply rate limiting.
+	//if err := p.Limiter.AcquireConnection(clientIP); err != nil {
+	//	return trace.LimitExceeded("client %v exceeded connection limit", clientIP)
+	//}
+	//defer p.Limiter.ReleaseConnection(clientIP)
 
 	serviceConn, authContext, err := p.Service.Connect(ctx, common.ConnectParams{
 		ClientIP: clientIP,
