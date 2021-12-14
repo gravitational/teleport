@@ -34,11 +34,9 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -145,8 +143,8 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 	return server, nil
 }
 
-// Serve starts accepting database connections from the provided listener.
-func (s *ProxyServer) Serve(listener net.Listener) error {
+// ServePostgres starts accepting Postgres connections from the provided listener.
+func (s *ProxyServer) ServePostgres(listener net.Listener) error {
 	s.log.Debug("Started database proxy.")
 	defer s.log.Debug("Database proxy exited.")
 	for {
@@ -159,20 +157,13 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 			}
 			return trace.Wrap(err)
 		}
-		// The multiplexed connection contains information about detected
-		// protocol so dispatch to the appropriate proxy.
-		proxy, err := s.dispatch(clientConn)
-		if err != nil {
-			s.log.WithError(err).Error("Failed to dispatch client connection.")
-			continue
-		}
 		// Let the appropriate proxy handle the connection and go back
 		// to listening.
 		go func() {
 			defer clientConn.Close()
-			err := proxy.HandleConnection(s.closeCtx, clientConn)
+			err := s.PostgresProxy().HandleConnection(s.closeCtx, clientConn)
 			if err != nil {
-				s.log.WithError(err).Warn("Failed to handle client connection.")
+				s.log.WithError(err).Warn("Failed to handle Postgres client connection.")
 			}
 		}()
 	}
@@ -197,6 +188,33 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 			err := s.MySQLProxy().HandleConnection(s.closeCtx, clientConn)
 			if err != nil && !utils.IsOKNetworkError(err) {
 				s.log.WithError(err).Error("Failed to handle MySQL client connection.")
+			}
+		}()
+	}
+}
+
+// ServeMongo starts accepting Mongo client connections.
+func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) error {
+	s.log.Debug("Started Mongo proxy.")
+	defer s.log.Debug("Mongo proxy exited.")
+	for {
+		clientConn, err := listener.Accept()
+		if err != nil {
+			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+		go func() {
+			defer clientConn.Close()
+			tlsConn := tls.Server(clientConn, tlsConfig)
+			if err := tlsConn.Handshake(); err != nil {
+				s.log.WithError(err).Error("Mongo TLS handshake failed.")
+				return
+			}
+			err := s.handleConnection(tlsConn)
+			if err != nil {
+				s.log.WithError(err).Error("Failed to handle Mongo client connection.")
 			}
 		}()
 	}
@@ -246,22 +264,7 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	return nil
 }
 
-// dispatch dispatches the connection to appropriate database proxy.
-func (s *ProxyServer) dispatch(clientConn net.Conn) (common.Proxy, error) {
-	muxConn, ok := clientConn.(*multiplexer.Conn)
-	if !ok {
-		return nil, trace.BadParameter("expected multiplexer connection, got %T", clientConn)
-	}
-	switch muxConn.Protocol() {
-	case multiplexer.ProtoPostgres:
-		s.log.Debugf("Accepted Postgres connection from %v.", muxConn.RemoteAddr())
-		return s.PostgresProxy(), nil
-	}
-	return nil, trace.BadParameter("unsupported database protocol %q",
-		muxConn.Protocol())
-}
-
-// postgresProxy returns a new instance of the Postgres protocol aware proxy.
+// PostgresProxy returns a new instance of the Postgres protocol aware proxy.
 func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 	return &postgres.Proxy{
 		TLSConfig:  s.cfg.TLSConfig,
@@ -271,7 +274,7 @@ func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 	}
 }
 
-// mysqlProxy returns a new instance of the MySQL protocol aware proxy.
+// MySQLProxy returns a new instance of the MySQL protocol aware proxy.
 func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 	return &mysql.Proxy{
 		TLSConfig:  s.cfg.TLSConfig,

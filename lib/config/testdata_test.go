@@ -159,6 +159,8 @@ proxy_service:
   postgres_public_addr: postgres.example:5432
   mysql_listen_addr: webhost:3336
   mysql_public_addr: mysql.example:3306
+  mongo_listen_addr: webhost:27017
+  mongo_public_addr: mongo.example:27017
 `
 
 // NoServicesConfigString is a configuration file with no services enabled
