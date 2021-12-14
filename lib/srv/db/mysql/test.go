@@ -198,6 +198,24 @@ type testHandler struct {
 func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
 	h.log.Debugf("Received query %q.", query)
 	atomic.AddUint32(&h.queryCount, 1)
+	// When getting a "show tables" query, construct the response in a way
+	// which previously caused server packets parsing logic to fail.
+	if query == "show tables" {
+		resultSet, err := mysql.BuildSimpleTextResultset(
+			[]string{"Tables_in_test"},
+			[][]interface{}{
+				// In raw bytes, this table name starts with 0x11 which used to
+				// cause server packet parsing issues since it clashed with
+				// COM_CHANGE_USER packet type.
+				{"metadata_md_table"},
+			})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &mysql.Result{
+			Resultset: resultSet,
+		}, nil
+	}
 	return TestQueryResponse, nil
 }
 
