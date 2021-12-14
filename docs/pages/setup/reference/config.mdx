@@ -571,7 +571,7 @@ proxy_service:
     postgres_public_addr: "postgres.teleport.example.com:443"
 
     # Address advertised to Mongo clients. If not set, public_addr is used.
-    mongo_public_addr: "mongo.teleport.example.com:3306"
+    mongo_public_addr: "mongo.teleport.example.com:443"
 
     # Get an automatic certificate from Letsencrypt.org using ACME via TLS_ALPN-01 challenge.
     # When using ACME, the cluster name must match the 'public_addr' of Teleport and
