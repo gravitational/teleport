@@ -251,7 +251,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	}
 	switch cf.Format {
 	case dbFormatCommand:
-		cmd, err := getConnectCommand(cf, tc, profile, database)
+		cmd, err := newCmdBuilder(tc, profile, database).getConnectCommand()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -333,7 +333,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 		host := "localhost"
 		opts = append(opts, WithLocalProxy(host, addr.Port(0), profile.CACertPath()))
 	}
-	cmd, err := getConnectCommand(cf, tc, profile, database, opts...)
+	cmd, err := newCmdBuilder(tc, profile, database, opts...).getConnectCommand()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -548,7 +548,33 @@ func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
 	}
 }
 
-func getConnectCommand(_ *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, opts ...ConnectCommandFunc) (*exec.Cmd, error) {
+type execer interface {
+	RunCommand(name string, arg ...string) ([]byte, error)
+	LookPath(file string) (string, error)
+}
+
+type systemExecer struct{}
+
+func (s systemExecer) RunCommand(name string, arg ...string) ([]byte, error) {
+	return exec.Command(name, arg...).Output()
+}
+
+func (s systemExecer) LookPath(file string) (string, error) {
+	return exec.LookPath(file)
+}
+
+type cliCommandBuilder struct {
+	tc      *client.TeleportClient
+	profile *client.ProfileStatus
+	db      *tlsca.RouteToDatabase
+	host    string
+	port    int
+	options connectionCommandOpts
+
+	exe execer
+}
+
+func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, opts ...ConnectCommandFunc) *cliCommandBuilder {
 	var options connectionCommandOpts
 	for _, opt := range opts {
 		opt(&options)
@@ -561,21 +587,34 @@ func getConnectCommand(_ *CLIConf, tc *client.TeleportClient, profile *client.Pr
 		port = options.localProxyPort
 	}
 
-	switch db.Protocol {
+	return &cliCommandBuilder{
+		tc:      tc,
+		profile: profile,
+		db:      db,
+		host:    host,
+		port:    port,
+		options: options,
+
+		exe: &systemExecer{},
+	}
+}
+
+func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
+	switch c.db.Protocol {
 	case defaults.ProtocolPostgres:
-		return getPostgresCommand(tc, profile, db, host, port, options), nil
+		return getPostgresCommand(c.tc, c.profile, c.db, c.host, c.port, c.options), nil
 
 	case defaults.ProtocolCockroachDB:
-		return getCockroachCommand(tc, profile, db, host, port, options), nil
+		return getCockroachCommand(c.tc, c.profile, c.db, c.host, c.port, c.options), nil
 
 	case defaults.ProtocolMySQL:
-		return getMySQLCommand(tc, profile, db, options), nil
+		return c.getMySQLCommand(), nil
 
 	case defaults.ProtocolMongoDB:
-		return getMongoCommand(tc, profile, db, host, port, options), nil
+		return getMongoCommand(c.tc, c.profile, c.db, c.host, c.port, c.options), nil
 	}
 
-	return nil, trace.BadParameter("unsupported database protocol: %v", db)
+	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
 }
 
 func getPostgresCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
@@ -595,21 +634,21 @@ func getCockroachCommand(tc *client.TeleportClient, profile *client.ProfileStatu
 		postgres.GetConnString(dbprofile.New(tc, *db, *profile, host, port)))
 }
 
-func getMySQLCommonCmdOpts(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) []string {
-	args := []string{fmt.Sprintf("--defaults-group-suffix=_%v-%v", tc.SiteName, db.ServiceName)}
-	if db.Username != "" {
-		args = append(args, "--user", db.Username)
+func (c *cliCommandBuilder) getMySQLCommonCmdOpts() []string {
+	args := []string{}
+	if c.db.Username != "" {
+		args = append(args, "--user", c.db.Username)
 	}
-	if db.Database != "" {
-		args = append(args, "--database", db.Database)
+	if c.db.Database != "" {
+		args = append(args, "--database", c.db.Database)
 	}
 
-	if options.localProxyPort != 0 {
-		args = append(args, "--port", strconv.Itoa(options.localProxyPort))
-		args = append(args, "--host", options.localProxyHost)
+	if c.options.localProxyPort != 0 {
+		args = append(args, "--port", strconv.Itoa(c.options.localProxyPort))
+		args = append(args, "--host", c.options.localProxyHost)
 		// MySQL CLI treats localhost as a special value and tries to use Unix Domain Socket for connection
 		// To enforce TCP connection protocol needs to be explicitly specified.
-		if options.localProxyHost == "localhost" {
+		if c.options.localProxyHost == "localhost" {
 			args = append(args, "--protocol", "TCP")
 		}
 	}
@@ -617,56 +656,57 @@ func getMySQLCommonCmdOpts(tc *client.TeleportClient, profile *client.ProfileSta
 	return args
 }
 
-func getMariadbCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) *exec.Cmd {
-	args := getMySQLCommonCmdOpts(tc, profile, db, options)
+func (c *cliCommandBuilder) getMariadbCommand() *exec.Cmd {
+	args := c.getMySQLCommonCmdOpts()
 
 	// by default mariadb doesn't check "Common Name" on the certificate provided by the server.
 	// tsh db connect also doesn't use my.cnf file where this flag is specified for mysql cmd,
 	// so the flag below is only added on connect when --insecure flag is not provided.
-	if !tc.InsecureSkipVerify {
+	if !c.tc.InsecureSkipVerify {
 		args = append(args, "--ssl-verify-server-cert")
 	}
 
 	return exec.Command(mariadbBin, args...)
 }
 
-func getMySQLOracleCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) *exec.Cmd {
-	args := getMySQLCommonCmdOpts(tc, profile, db, options)
+func (c *cliCommandBuilder) getMySQLOracleCommand() *exec.Cmd {
+	args := c.getMySQLCommonCmdOpts()
+
+	args = append(args, fmt.Sprintf("--defaults-group-suffix=_%v-%v", c.tc.SiteName, c.db.ServiceName))
 
 	// override the ssl-mode from a config file is --insecure flag is provided to 'tsh db connect'.
-	if tc.InsecureSkipVerify {
+	if c.tc.InsecureSkipVerify {
 		args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyCA))
 	}
 
 	return exec.Command(mysqlBin, args...)
 }
 
-func getMySQLCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) *exec.Cmd {
+func (c *cliCommandBuilder) getMySQLCommand() *exec.Cmd {
 	// Check if mariadb client is available. Prefer it over mysql client even if connecting to MySQL server.
-	if isMariadbBinAvailable() {
-		return getMariadbCommand(tc, profile, db, options)
+	if c.isMariadbBinAvailable() {
+		return c.getMariadbCommand()
 	}
 
 	// Check which flavor is installed. Otherwise, we don't know which ssl flag to use.
-	mySQLMariadbFlavor, err := isMySQLBinMariaDBFlavor()
+	mySQLMariadbFlavor, err := c.isMySQLBinMariaDBFlavor()
 	if mySQLMariadbFlavor && err == nil {
-		return getMariadbCommand(tc, profile, db, options)
+		return c.getMariadbCommand()
 	}
 
 	// Either we failed to check the flavor or binary comes from Oracle. Regardless return.
-	return getMySQLOracleCommand(tc, profile, db, options)
+	return c.getMySQLOracleCommand()
 }
 
-func isMariadbBinAvailable() bool {
-	_, err := exec.LookPath(mariadbBin)
-
+func (c *cliCommandBuilder) isMariadbBinAvailable() bool {
+	_, err := c.exe.LookPath(mariadbBin)
 	return err == nil
 }
 
 // isMySQLBinMariaDBFlavor checks if mysql binary comes from Oracle or MariaDB
-func isMySQLBinMariaDBFlavor() (bool, error) {
+func (c *cliCommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	// Check if mysql comes from Oracle or MariaDB
-	mysqlVer, err := exec.Command(mysqlBin, "--version").Output()
+	mysqlVer, err := c.exe.RunCommand(mysqlBin, "--version")
 	if err != nil {
 		// Looks like incorrect mysql installation or mysql binary is missing.
 		// Assume the Oracle's version and return the command. Nest time when
