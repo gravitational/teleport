@@ -27,6 +27,9 @@ import (
 
 // ReplyError sends error wire message to the client.
 func ReplyError(clientConn net.Conn, replyTo Message, clientErr error) (err error) {
+	if msgCompressed, ok := replyTo.(*MessageOpCompressed); ok {
+		replyTo = msgCompressed.GetOriginal()
+	}
 	var errMessage Message
 	switch replyTo.(type) {
 	case *MessageOpMsg: // When client request is OP_MSG, reply should be OP_MSG as well.
