@@ -5,7 +5,14 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
-ENV DEBIAN_FRONTEND="noninteractive"
+COPY locale.gen /etc/locale.gen
+COPY profile /etc/profile
+
+ENV LANGUAGE="en_US.UTF-8" \
+    LANG="en_US.UTF-8" \
+    LC_ALL="en_US.UTF-8" \
+    LC_CTYPE="en_US.UTF-8" \
+    DEBIAN_FRONTEND="noninteractive"
 
 # Install packages.
 RUN apt-get update -y --fix-missing && \
@@ -15,7 +22,13 @@ RUN apt-get update -y --fix-missing && \
         build-essential \
         ca-certificates \
         unzip \
-        git
+        clang-10 \
+        clang-format-10 \
+        locales \
+        git && \
+    dpkg-reconfigure locales && \
+    apt-get -y clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install Go.
 ARG RUNTIME
