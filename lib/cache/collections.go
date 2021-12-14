@@ -800,6 +800,11 @@ func (c *certAuthority) erase(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 	}
+	if err := c.trustCache.DeleteAllCertAuthorities(types.DatabaseCA); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
 	if err := c.trustCache.DeleteAllCertAuthorities(types.JWTSigner); err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -819,6 +824,11 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 		return nil, trace.Wrap(err)
 	}
 
+	applyDatabaseCAs, err := c.fetchCertAuthorities(types.DatabaseCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	applyJWTSigners, err := c.fetchCertAuthorities(types.JWTSigner)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -829,6 +839,9 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 			return trace.Wrap(err)
 		}
 		if err := applyUserCAs(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := applyDatabaseCAs(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 		return trace.Wrap(applyJWTSigners(ctx))

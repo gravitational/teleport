@@ -79,6 +79,12 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 	}
 	authorities = append(authorities, userCAs...)
 
+	databaseCAs, err := client.GetCertAuthorities(types.DatabaseCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authorities = append(authorities, databaseCAs...)
+
 	jwtKeys, err := client.GetCertAuthorities(types.JWTSigner, false)
 	if err != nil {
 		return trace.Wrap(err)
