@@ -149,6 +149,11 @@ func newSession(client *NodeClient,
 		defer ns.closeWait.Done()
 
 		<-ns.closer.C
+		if isFIPS() {
+			if err := ns.terminal.Clear(); err != nil {
+				log.Warnf("Failed to clear screen: %v.", err)
+			}
+		}
 		ns.terminal.Close()
 	}()
 

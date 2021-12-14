@@ -74,7 +74,20 @@ import (
 const (
 	// ssoLoginConsoleErr is a generic error message to hide revealing sso login failure msgs.
 	ssoLoginConsoleErr = "Failed to login. Please check Teleport's log for more details."
+	metaRedirectHTML   = `
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Teleport Redirection Service</title>
+		<meta http-equiv="cache-control" content="no-cache"/>
+		<meta http-equiv="refresh" content="0;URL='{{.}}'" />
+	</head>
+	<body></body>
+</html>
+`
 )
+
+var metaRedirectTemplate = template.Must(template.New("meta-redirect").Parse(metaRedirectHTML))
 
 // Handler is HTTP web proxy handler
 type Handler struct {
@@ -149,7 +162,7 @@ type Config struct {
 	FIPS bool
 
 	// AccessPoint holds a cache to the Auth Server.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.ProxyAccessPoint
 
 	// Emitter is event emitter
 	Emitter events.StreamEmitter
@@ -176,8 +189,7 @@ type Config struct {
 	ProxySettings proxySettingsGetter
 }
 
-type RewritingHandler struct {
-	http.Handler
+type WebAPIHandler struct {
 	handler *Handler
 
 	// appHandler is a http.Handler to forward requests to applications.
@@ -186,7 +198,7 @@ type RewritingHandler struct {
 
 // Check if this request should be forwarded to an application handler to
 // be handled by the UI and handle the request appropriately.
-func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *WebAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// If the request is either to the fragment authentication endpoint or if the
 	// request is already authenticated (has a session cookie), forward to
 	// application handlers. If the request is unauthenticated and requesting a
@@ -200,15 +212,15 @@ func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Serve the Web UI.
-	h.Handler.ServeHTTP(w, r)
+	h.handler.ServeHTTP(w, r)
 }
 
-func (h *RewritingHandler) Close() error {
+func (h *WebAPIHandler) Close() error {
 	return h.handler.Close()
 }
 
 // NewHandler returns a new instance of web proxy handler
-func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
+func NewHandler(cfg Config, opts ...HandlerOption) (*WebAPIHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
 	h := &Handler{
 		cfg:             cfg,
@@ -300,26 +312,26 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
 
 	// get nodes
-	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.WithClusterAuth(h.siteNodesGet))
+	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.siteNodesGet))
 
 	// Get applications.
 	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.clusterAppsGet))
 
 	// active sessions handlers
-	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionsGet))      // get active list of sessions
-	h.POST("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionGenerate)) // create active session metadata
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))  // get active session metadata
+	h.GET("/webapi/sites/:site/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
+	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionsGet))      // get active list of sessions
+	h.POST("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionGenerate)) // create active session metadata
+	h.GET("/webapi/sites/:site/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))  // get active session metadata
 
 	// Audit events handlers.
-	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                               // search site events
-	h.GET("/webapi/sites/:site/sessions/search", h.WithClusterAuth(h.clusterSearchSessionEvents))                      // search site session events
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
+	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
+	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
+	h.GET("/webapi/sites/:site/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet))         // get recorded session's timing information (from events)
+	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.siteSessionStreamGet)                            // get recorded session's bytes (from events)
 
 	// scp file transfer
-	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
-	h.POST("/webapi/sites/:site/namespaces/:namespace/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
+	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
+	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
@@ -332,17 +344,17 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", h.WithRedirect(h.oidcLoginWeb))
-	h.GET("/webapi/oidc/callback", h.WithRedirect(h.oidcCallback))
+	h.GET("/webapi/oidc/callback", h.WithMetaRedirect(h.oidcCallback))
 	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
 
 	// SAML 2.0 handlers
 	h.POST("/webapi/saml/acs", h.WithRedirect(h.samlACS))
-	h.GET("/webapi/saml/sso", h.WithRedirect(h.samlSSO))
+	h.GET("/webapi/saml/sso", h.WithMetaRedirect(h.samlSSO))
 	h.POST("/webapi/saml/login/console", httplib.MakeHandler(h.samlSSOConsole))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
-	h.GET("/webapi/github/callback", h.WithRedirect(h.githubCallback))
+	h.GET("/webapi/github/callback", h.WithMetaRedirect(h.githubCallback))
 	h.POST("/webapi/github/login/console", httplib.MakeHandler(h.githubLoginConsole))
 
 	// U2F related APIs
@@ -397,7 +409,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// Desktop access endpoints.
 	h.GET("/webapi/sites/:site/desktops", h.WithClusterAuth(h.getDesktopsHandle))
-	h.GET("/webapi/sites/:site/desktop/:desktopUUID/connect", h.WithClusterAuth(h.handleDesktopAccessWebsocket))
+	h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
+	// GET //webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
+	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.desktopConnectHandle))
 
 	// if Web UI is enabled, check the assets dir:
 	var indexPage *template.Template
@@ -504,13 +518,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &RewritingHandler{
-		Handler: httplib.RewritePaths(h,
-			httplib.Rewrite("/webapi/sites/([^/]+)/sessions/(.*)", "/webapi/sites/$1/namespaces/default/sessions/$2"),
-			httplib.Rewrite("/webapi/sites/([^/]+)/sessions", "/webapi/sites/$1/namespaces/default/sessions"),
-			httplib.Rewrite("/webapi/sites/([^/]+)/nodes", "/webapi/sites/$1/namespaces/default/nodes"),
-			httplib.Rewrite("/webapi/sites/([^/]+)/connect", "/webapi/sites/$1/namespaces/default/connect"),
-		),
+	return &WebAPIHandler{
 		handler:    h,
 		appHandler: appHandler,
 	}, nil
@@ -1540,7 +1548,14 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return res.RecoveryCodes, nil
+	if res.GetRecovery() == nil {
+		return &ui.RecoveryCodes{}, nil
+	}
+
+	return &ui.RecoveryCodes{
+		Codes:   res.Recovery.Codes,
+		Created: &res.Recovery.Created,
+	}, nil
 }
 
 // createResetPasswordToken allows a UI user to reset a user's password.
@@ -1786,18 +1801,13 @@ GET /v1/webapi/sites/:site/namespaces/:namespace/nodes
 
 */
 func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of nodes.
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := clt.GetNodes(r.Context(), namespace)
+	servers, err := clt.GetNodes(r.Context(), apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1826,11 +1836,6 @@ func (h *Handler) siteNodeConnect(
 	ctx *SessionContext,
 	site reversetunnel.RemoteSite) (interface{}, error) {
 
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-
 	q := r.URL.Query()
 	params := q.Get("params")
 	if params == "" {
@@ -1857,7 +1862,7 @@ func (h *Handler) siteNodeConnect(
 	}
 
 	req.KeepAliveInterval = netConfig.GetKeepAliveInterval()
-	req.Namespace = namespace
+	req.Namespace = apidefaults.Namespace
 	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()
 
@@ -1895,16 +1900,12 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-
 	var req *siteSessionGenerateReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	namespace := apidefaults.Namespace
 	if req.Session.ServerID != "" {
 		servers, err := clt.GetNodes(r.Context(), namespace)
 		if err != nil {
@@ -1945,12 +1946,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-
-	sessions, err := clt.GetSessions(namespace)
+	sessions, err := clt.GetSessions(apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1991,12 +1987,7 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-
-	sess, err := clt.GetSession(namespace, *sessionID)
+	sess, err := clt.GetSession(apidefaults.Namespace, *sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2247,14 +2238,9 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	if max > maxStreamBytes {
 		max = maxStreamBytes
 	}
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		onError(trace.BadParameter("invalid namespace %q", namespace))
-		return
-	}
 
 	// call the site API to get the chunk:
-	bytes, err := clt.GetSessionChunk(namespace, *sid, offset, max)
+	bytes, err := clt.GetSessionChunk(apidefaults.Namespace, *sid, offset, max)
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
@@ -2310,11 +2296,8 @@ func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 	if err != nil {
 		afterN = 0
 	}
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	e, err := clt.GetSessionEvents(namespace, *sessionID, afterN, true)
+
+	e, err := clt.GetSessionEvents(apidefaults.Namespace, *sessionID, afterN, true)
 	if err != nil {
 		h.log.WithError(err).Debugf("Unable to find events for session %v.", sessionID)
 		if trace.IsNotFound(err) {
@@ -2483,6 +2466,11 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)
 
+func isValidRedirectURL(redirectURL string) bool {
+	u, err := url.ParseRequestURI(redirectURL)
+	return err == nil && (!u.IsAbs() || (u.Scheme == "http" || u.Scheme == "https"))
+}
+
 // WithRedirect is a handler that redirects to the path specified in the returned value.
 func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -2490,7 +2478,29 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 		httplib.SetNoCacheHeaders(w.Header())
 
 		redirectURL := fn(w, r, p)
+		if !isValidRedirectURL(redirectURL) {
+			redirectURL = client.LoginFailedRedirectURL
+		}
 		http.Redirect(w, r, redirectURL, http.StatusFound)
+	}
+}
+
+// WithMetaRedirect is a handler that redirects to the path specified
+// using HTML rather than HTTP. This is needed for redirects that can
+// have a header size larger than 8kb, which some middlewares will drop.
+// See https://github.com/gravitational/teleport/issues/7467.
+func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		httplib.SetNoCacheHeaders(w.Header())
+		app.SetRedirectPageHeaders(w.Header(), "")
+		redirectURL := fn(w, r, p)
+		if !isValidRedirectURL(redirectURL) {
+			redirectURL = client.LoginFailedRedirectURL
+		}
+		err := metaRedirectTemplate.Execute(w, redirectURL)
+		if err != nil {
+			h.log.WithError(err).Warn("Failed to execute template.")
+		}
 	}
 }
 

@@ -75,11 +75,17 @@ const (
 )
 
 // SetTestTimeouts affects global timeouts inside Teleport, making connections
-// work faster but consuming more CPU (useful for integration testing)
+// work faster but consuming more CPU (useful for integration testing).
+// NOTE: This function modifies global values for timeouts, etc. If your tests
+// call this function, they MUST NOT BE RUN IN PARALLEL, as they may stomp on
+// other tests.
 func SetTestTimeouts(t time.Duration) {
-	apidefaults.KeepAliveInterval = t
+	// TODO(tcsc): Remove this altogether and replace with per-test timeout
+	//             config (as per #8913)
+
+	apidefaults.SetTestTimeouts(t, t)
+
 	defaults.ResyncInterval = t
-	apidefaults.ServerKeepAliveTTL = t
 	defaults.SessionRefreshPeriod = t
 	defaults.HeartbeatCheckPeriod = t
 	defaults.CachePollPeriod = t
@@ -589,6 +595,14 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
 		tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
 		tconf.Proxy.MySQLAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMySQL())
+		if i.Postgres != nil {
+			// Postgres proxy port was configured on a separate listener.
+			tconf.Proxy.PostgresAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortPostgres())
+		}
+		if i.Mongo != nil {
+			// Mongo proxy port was configured on a separate listener.
+			tconf.Proxy.MongoAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMongo())
+		}
 	}
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
 	tconf.Auth.StorageConfig = backend.Config{

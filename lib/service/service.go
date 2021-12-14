@@ -52,6 +52,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -347,6 +348,17 @@ func (process *TeleportProcess) GetAuditLog() events.IAuditLog {
 // GetBackend returns the process' backend
 func (process *TeleportProcess) GetBackend() backend.Backend {
 	return process.backend
+}
+
+// onHeartbeat generates the default OnHeartbeat callback for the specified component.
+func (process *TeleportProcess) onHeartbeat(component string) func(err error) {
+	return func(err error) {
+		if err != nil {
+			process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: component})
+		} else {
+			process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
+		}
+	}
 }
 
 func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Identity, error) {
@@ -813,6 +825,14 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.WindowsDesktop.Enabled {
+		// FedRAMP/FIPS is not supported for Desktop Access. Desktop Access uses
+		// Rust for the underlying RDP protocol implementation which in turn uses
+		// OpenSSL. Return an error if the user attempts to start Desktop Access in
+		// FedRAMP/FIPS mode for now until we can swap out OpenSSL for BoringCrypto.
+		if cfg.FIPS {
+			return nil, trace.BadParameter("FedRAMP/FIPS 140-2 compliant configuration for Desktop Access not supported in Teleport %v", teleport.Version)
+		}
+
 		process.initWindowsDesktopService()
 		serviceStarted = true
 	} else {
@@ -1423,17 +1443,11 @@ func (process *TeleportProcess) initAuthService() error {
 			srv.SetExpiry(process.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 			return &srv, nil
 		},
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
-		OnHeartbeat: func(err error) {
-			if err != nil {
-				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentAuth})
-			} else {
-				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth})
-			}
-		},
+		OnHeartbeat:     process.onHeartbeat(teleport.ComponentAuth),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1598,41 +1612,137 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	}))
 }
 
-// newLocalCacheForProxy returns new instance of access point configured for a local proxy.
-func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
-	return process.newLocalCache(clt, cache.ForProxy, cacheName)
+// newLocalCacheForNode returns new instance of access point configured for a local proxy.
+func (process *TeleportProcess) newLocalCacheForNode(clt auth.ClientI, cacheName []string) (auth.NodeAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForNode, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewNodeWrapper(clt, cache), nil
 }
 
-// newLocalCacheForRemoteProxy returns new instance of access point configured
-// for a remote proxy.
-func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
-	return process.newLocalCache(clt, cache.ForRemoteProxy, cacheName)
+// newLocalCacheForKubernetes returns new instance of access point configured for a kubernetes service.
+func (process *TeleportProcess) newLocalCacheForKubernetes(clt auth.ClientI, cacheName []string) (auth.KubernetesAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForKubernetes, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewKubernetesWrapper(clt, cache), nil
+}
+
+// newLocalCacheForDatabase returns new instance of access point configured for a database service.
+func (process *TeleportProcess) newLocalCacheForDatabase(clt auth.ClientI, cacheName []string) (auth.DatabaseAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForDatabases, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewDatabaseWrapper(clt, cache), nil
+}
+
+// newLocalCacheForProxy returns new instance of access point configured for a local proxy.
+func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.ProxyAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForProxy, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewProxyWrapper(clt, cache), nil
+}
+
+// newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
+func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForRemoteProxy, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewRemoteProxyWrapper(clt, cache), nil
 }
 
 // DELETE IN: 8.0.0
 //
 // newLocalCacheForOldRemoteProxy returns new instance of access point
 // configured for an old remote proxy.
-func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
-	return process.newLocalCache(clt, cache.ForOldRemoteProxy, cacheName)
-}
-
-// newLocalCache returns new instance of access point
-func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (auth.AccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
 	}
-	cache, err := process.newAccessCache(accessCacheConfig{
+
+	cache, err := process.newLocalCache(clt, cache.ForOldRemoteProxy, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewRemoteProxyWrapper(clt, cache), nil
+}
+
+// newLocalCacheForApps returns new instance of access point configured for a remote proxy.
+func (process *TeleportProcess) newLocalCacheForApps(clt auth.ClientI, cacheName []string) (auth.AppsAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForApps, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewAppsWrapper(clt, cache), nil
+}
+
+// newLocalCacheForApps returns new instance of access point configured for a windows desktop service.
+func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI, cacheName []string) (auth.WindowsDesktopAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForWindowsDesktop, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewWindowsDesktopWrapper(clt, cache), nil
+}
+
+// newLocalCache returns new instance of access point
+func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
+	return process.newAccessCache(accessCacheConfig{
 		inMemory:  process.Config.CachePolicy.Type == memory.GetName(),
 		services:  clt,
 		setup:     setupConfig,
 		cacheName: cacheName,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return auth.NewWrapper(clt, cache), nil
 }
 
 func (process *TeleportProcess) getRotation(role types.SystemRole) (*types.Rotation, error) {
@@ -1709,7 +1819,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		authClient, err := process.newLocalCache(conn.Client, cache.ForNode, []string{teleport.ComponentNode})
+		authClient, err := process.newLocalCacheForNode(conn.Client, []string{teleport.ComponentNode})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1840,13 +1950,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetFIPS(cfg.FIPS),
 			regular.SetBPF(ebpf),
 			regular.SetRestrictedSessionManager(rm),
-			regular.SetOnHeartbeat(func(err error) {
-				if err != nil {
-					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentNode})
-				} else {
-					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode})
-				}
-			}),
+			regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentNode)),
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 			regular.SetLockWatcher(lockWatcher),
 		)
@@ -1976,7 +2080,7 @@ func (process *TeleportProcess) registerWithAuthServer(role types.SystemRole, ev
 	})
 }
 
-func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint, auditLog events.IAuditLog) error {
+func (process *TeleportProcess) initUploaderService(streamer events.Streamer, auditLog events.IAuditLog) error {
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentAuditLog, process.id),
 	})
@@ -2047,7 +2151,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 	// Delete this comment once the uploader above is phased out.
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
 		ScanDir:  filepath.Join(streamingDir...),
-		Streamer: accessPoint,
+		Streamer: streamer,
 		AuditLog: auditLog,
 		EventsC:  process.Config.UploadEventsC,
 	})
@@ -2422,6 +2526,8 @@ type dbListeners struct {
 	postgres net.Listener
 	// mysql serves MySQL clients.
 	mysql net.Listener
+	// mongo serves Mongo clients.
+	mongo net.Listener
 	// tls serves database clients that use plain TLS handshake.
 	tls net.Listener
 }
@@ -2441,6 +2547,9 @@ func (l *dbListeners) Close() {
 	}
 	if l.tls != nil {
 		l.tls.Close()
+	}
+	if l.mongo != nil {
+		l.mongo.Close()
 	}
 }
 
@@ -2480,6 +2589,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		}
 	}
 
+	useSeparatePostgresListener := !cfg.Proxy.PostgresAddr.IsEmpty()
 	if cfg.Proxy.Kube.Enabled && !cfg.Proxy.Kube.ListenAddr.IsEmpty() {
 		process.log.Debugf("Setup Proxy: turning on Kubernetes proxy.")
 		listener, err := process.importOrCreateListener(listenerProxyKube, cfg.Proxy.Kube.ListenAddr.Addr)
@@ -2498,6 +2608,15 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		listeners.db.mysql = listener
 	}
 
+	if !cfg.Proxy.MongoAddr.IsEmpty() && !cfg.Proxy.DisableDatabaseProxy {
+		process.log.Debugf("Setup Proxy: Mongo proxy address: %v.", cfg.Proxy.MongoAddr.Addr)
+		listener, err := process.importOrCreateListener(listenerProxyMongo, cfg.Proxy.MongoAddr.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		listeners.db.mongo = listener
+	}
+
 	switch {
 	case cfg.Proxy.DisableWebService && cfg.Proxy.DisableReverseTunnel:
 		process.log.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy are disabled.")
@@ -2513,7 +2632,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			Listener:            listener,
 			DisableTLS:          cfg.Proxy.DisableWebService,
 			DisableSSH:          cfg.Proxy.DisableReverseTunnel,
-			DisableDB:           cfg.Proxy.DisableDatabaseProxy,
+			DisablePostgres:     cfg.Proxy.DisableDatabaseProxy || useSeparatePostgresListener,
 			ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
 		})
 		if err != nil {
@@ -2521,7 +2640,9 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.web = listeners.mux.TLS()
-		listeners.db.postgres = listeners.mux.DB()
+		if err := process.setPostgresListener(cfg, &listeners); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		listeners.reverseTunnel = listeners.mux.SSH()
 		go listeners.mux.Serve()
 		return &listeners, nil
@@ -2536,7 +2657,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			Listener:            listener,
 			DisableTLS:          false,
 			DisableSSH:          true,
-			DisableDB:           cfg.Proxy.DisableDatabaseProxy,
+			DisablePostgres:     cfg.Proxy.DisableDatabaseProxy || useSeparatePostgresListener,
 			ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
 		})
 		if err != nil {
@@ -2544,7 +2665,9 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.web = listeners.mux.TLS()
-		listeners.db.postgres = listeners.mux.DB()
+		if err := process.setPostgresListener(cfg, &listeners); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if !cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
 			listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			if err != nil {
@@ -2580,7 +2703,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 					Listener:            listener,
 					DisableTLS:          false, // Web service is enabled or we wouldn't have gotten here.
 					DisableSSH:          true,  // Reverse tunnel is on a separate listener created above.
-					DisableDB:           false, // Database proxy is enabled or we wouldn't have gotten here.
+					DisablePostgres:     false, // Database proxy is enabled or we wouldn't have gotten here.
 					ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
 				})
 				if err != nil {
@@ -2589,7 +2712,9 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 					return nil, trace.Wrap(err)
 				}
 				listeners.web = listeners.mux.TLS()
-				listeners.db.postgres = listeners.mux.DB()
+				if err := process.setPostgresListener(cfg, &listeners); err != nil {
+					return nil, trace.Wrap(err)
+				}
 				go listeners.mux.Serve()
 			} else {
 				process.log.Debug("Setup Proxy: TLS is disabled, multiplexing is off.")
@@ -2606,6 +2731,29 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		}
 		return &listeners, nil
 	}
+}
+
+// setPostgresListener start Postgres proxy listener based on configuration settings. By default, Postgres service is
+// multiplexed on Teleport Proxy web port but if the postgres_listen_addr flag was provided, the
+// Postgres service runs on a separate port taken from it.
+func (process *TeleportProcess) setPostgresListener(cfg *Config, listeners *proxyListeners) error {
+	if cfg.Proxy.DisableDatabaseProxy {
+		return nil
+	}
+	if cfg.Proxy.PostgresAddr.IsEmpty() {
+		// Postgres service is multiplexed on Proxy Web port.
+		listeners.db.postgres = listeners.mux.DB()
+		return nil
+	}
+	// If cfg.Proxy.PostgresAddr address was provided start Postgres service on separate listener without
+	// multiplexing it on webPort.
+	process.log.Debugf("Setup Proxy: Postgres proxy address: %v.", cfg.Proxy.PostgresAddr.Addr)
+	listener, err := process.importOrCreateListener(listenerProxyPostgres, cfg.Proxy.PostgresAddr.Addr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	listeners.db.postgres = listener
+	return nil
 }
 
 func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
@@ -2755,7 +2903,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register web proxy server
 	var webServer *http.Server
-	var webHandler *web.RewritingHandler
+	var webHandler *web.WebAPIHandler
 	if !process.Config.Proxy.DisableWebService {
 		var fs http.FileSystem
 		if !process.Config.Proxy.DisableWebInterface {
@@ -2844,7 +2992,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		"",
 		process.proxyPublicAddr(),
 		regular.SetLimiter(proxyLimiter),
-		regular.SetProxyMode(tsrv),
+		regular.SetProxyMode(tsrv, accessPoint),
 		regular.SetSessionServer(conn.Client),
 		regular.SetCiphers(cfg.Ciphers),
 		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
@@ -2852,13 +3000,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetRotationGetter(process.getRotation),
 		regular.SetFIPS(cfg.FIPS),
-		regular.SetOnHeartbeat(func(err error) {
-			if err != nil {
-				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentProxy})
-			} else {
-				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentProxy})
-			}
-		}),
+		regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentProxy)),
 		regular.SetEmitter(streamEmitter),
 		regular.SetLockWatcher(lockWatcher),
 	)
@@ -2876,6 +3018,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return nil
 	})
 
+	clusterNetworkConfig, err := accessPoint.GetClusterNetworkingConfig(process.ExitContext())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create and register reverse tunnel AgentPool.
 	rcWatcher, err := reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
 		HostUUID:            conn.ServerIdentity.ID.HostUUID,
@@ -2883,7 +3030,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		AccessPoint:         accessPoint,
 		HostSigner:          conn.ServerIdentity.KeySigner,
 		LocalCluster:        conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-		KubeDialAddr:        utils.DialAddrFromListenAddr(cfg.Proxy.Kube.ListenAddr),
+		KubeDialAddr:        utils.DialAddrFromListenAddr(kubeDialAddr(cfg.Proxy, clusterNetworkConfig.GetProxyListenerMode())),
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
 	})
@@ -2944,13 +3091,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,
 			AccessPoint:   accessPoint,
-			OnHeartbeat: func(err error) {
-				if err != nil {
-					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: component})
-				} else {
-					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
-				}
-			},
+			OnHeartbeat:   process.onHeartbeat(component),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3019,7 +3160,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if listeners.db.postgres != nil {
 			process.RegisterCriticalFunc("proxy.db.postgres", func() error {
 				log.Infof("Starting Postgres proxy server on %v.", cfg.Proxy.WebAddr.Addr)
-				if err := dbProxyServer.Serve(listeners.db.postgres); err != nil {
+				if err := dbProxyServer.ServePostgres(listeners.db.postgres); err != nil {
 					log.WithError(err).Warn("Postgres proxy server exited with error.")
 				}
 				return nil
@@ -3039,6 +3180,16 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				log.Infof("Starting Database TLS proxy server on %v.", cfg.Proxy.WebAddr.Addr)
 				if err := dbProxyServer.ServeTLS(listeners.db.tls); err != nil {
 					log.WithError(err).Warn("Database TLS proxy server exited with error.")
+				}
+				return nil
+			})
+		}
+
+		if listeners.db.mongo != nil {
+			process.RegisterCriticalFunc("proxy.db.mongo", func() error {
+				log.Infof("Starting Database Mongo proxy server on %v.", cfg.Proxy.MongoAddr.Addr)
+				if err := dbProxyServer.ServeMongo(listeners.db.mongo, tlsConfigWeb.Clone()); err != nil {
+					log.WithError(err).Warn("Database Mongo proxy server exited with error.")
 				}
 				return nil
 			})
@@ -3139,7 +3290,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	return nil
 }
 
-func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnel.Server, accessPoint auth.AccessPoint, clusterName string) (*tls.Config, error) {
+// kubeDialAddr returns Proxy Kube service address used for dialing local kube service
+// by remote trusted cluster.
+// If the proxy is running with Multiplex mode the WebPort is returned
+// where connections are forwarded to kube service by ALPN SNI router.
+func kubeDialAddr(config ProxyConfig, mode types.ProxyListenerMode) utils.NetAddr {
+	if mode == types.ProxyListenerMode_Multiplex {
+		return config.WebAddr
+	}
+	return config.Kube.ListenAddr
+}
+
+func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnel.Server, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
 	cfg := process.Config
 	var tlsConfig *tls.Config
 	acmeCfg := process.Config.Proxy.ACME
@@ -3172,6 +3334,12 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		}
 		tlsConfig = m.TLSConfig()
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
+
+		// If ACME protocol was enabled add all known TLS Routing protocols.
+		// Go 1.17 introduced strict ALPN https://golang.org/doc/go1.17#ALPN If a client protocol is not recognized
+		// the TLS handshake will fail.
+		supportedProtocols := alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)
+		tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, supportedProtocols...))
 	}
 
 	for _, pair := range process.Config.Proxy.KeyPairs {
@@ -3337,7 +3505,7 @@ func (process *TeleportProcess) initApps() {
 		}
 		// Create a caching client to the Auth Server. It is to reduce load on
 		// the Auth Server.
-		accessPoint, err := process.newLocalCache(conn.Client, cache.ForApps, []string{component})
+		accessPoint, err := process.newLocalCacheForApps(conn.Client, []string{component})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3467,13 +3635,7 @@ func (process *TeleportProcess) initApps() {
 			GetRotation:      process.getRotation,
 			Apps:             applications,
 			ResourceMatchers: process.Config.Apps.ResourceMatchers,
-			OnHeartbeat: func(err error) {
-				if err != nil {
-					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentApp})
-				} else {
-					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentApp})
-				}
-			},
+			OnHeartbeat:      process.onHeartbeat(teleport.ComponentApp),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3796,7 +3958,7 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // getPublicAddr waits for a proxy to be registered with Teleport.
-func getPublicAddr(authClient auth.AccessPoint, a App) (string, error) {
+func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
@@ -3816,7 +3978,7 @@ func getPublicAddr(authClient auth.AccessPoint, a App) (string, error) {
 }
 
 // findPublicAddr tries to resolve the public address of the proxy of this cluster.
-func findPublicAddr(authClient auth.AccessPoint, a App) (string, error) {
+func findPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 	// If the application has a public address already set, use it.
 	if a.PublicAddr != "" {
 		return a.PublicAddr, nil

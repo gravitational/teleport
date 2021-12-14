@@ -452,7 +452,7 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 }
 
 // CreateAccountRecoveryCodes implements AuthService.CreateAccountRecoveryCodes.
-func (s *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error) {
+func (s *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
 	const unableToCreateCodesMsg = "unable to create new recovery codes, please contact your system administrator"
 
 	if err := s.isAccountRecoveryAllowed(ctx); err != nil {
@@ -474,7 +474,7 @@ func (s *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	codes, err := s.generateAndUpsertRecoveryCodes(ctx, token.GetUser())
+	newRecovery, err := s.generateAndUpsertRecoveryCodes(ctx, token.GetUser())
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
@@ -487,9 +487,7 @@ func (s *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 		}
 	}
 
-	return &proto.CreateAccountRecoveryCodesResponse{
-		RecoveryCodes: codes,
-	}, nil
+	return newRecovery, nil
 }
 
 // GetAccountRecoveryToken implements AuthService.GetAccountRecoveryToken.
@@ -508,7 +506,7 @@ func (s *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 }
 
 // GetAccountRecoveryCodes implements AuthService.GetAccountRecoveryCodes.
-func (s *Server) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+func (s *Server) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
 	username, err := GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -519,10 +517,12 @@ func (s *Server) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAcco
 		return nil, trace.Wrap(err)
 	}
 
-	return rc, nil
+	return &proto.RecoveryCodes{
+		Created: rc.Spec.Created,
+	}, nil
 }
 
-func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username string) ([]string, error) {
+func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username string) (*proto.RecoveryCodes, error) {
 	codes, err := generateRecoveryCodes()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -559,7 +559,10 @@ func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 		log.WithError(err).WithFields(logrus.Fields{"user": username}).Warn("Failed to emit recovery tokens generate event.")
 	}
 
-	return codes, nil
+	return &proto.RecoveryCodes{
+		Codes:   codes,
+		Created: rc.Spec.Created,
+	}, nil
 }
 
 // isAccountRecoveryAllowed gets cluster auth configuration and check if cloud, local auth

@@ -184,7 +184,6 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
-		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		// Node only needs to "know" about default
 		// namespace events to avoid matching too much
@@ -282,7 +281,7 @@ func ForWindowsDesktop(cfg Config) Config {
 // for cache
 type SetupConfigFn func(c Config) Config
 
-// Cache implements auth.AccessPoint interface and remembers
+// Cache implements auth.Cache interface and remembers
 // the previously returned upstream value for each API call.
 //
 // This which can be used if the upstream AccessPoint goes offline
@@ -351,7 +350,7 @@ type Cache struct {
 	webSessionCache      types.WebSessionInterface
 	webTokenCache        types.WebTokenInterface
 	windowsDesktopsCache services.WindowsDesktops
-	eventsFanout         *services.Fanout
+	eventsFanout         *services.FanoutSet
 
 	// closed indicates that the cache has been closed
 	closed *atomic.Bool
@@ -625,7 +624,7 @@ func New(config Config) (*Cache, error) {
 		webSessionCache:      local.NewIdentityService(wrapper).WebSessions(),
 		webTokenCache:        local.NewIdentityService(wrapper).WebTokens(),
 		windowsDesktopsCache: local.NewWindowsDesktopService(wrapper),
-		eventsFanout:         services.NewFanout(),
+		eventsFanout:         services.NewFanoutSet(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
@@ -774,7 +773,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 // 1. Every client is connected to the database fan-out
 // system. This system creates a buffered channel for every
 // client and tracks the channel overflow. Thanks to channels every client gets its
-// own unique iterator over the event stream. If client looses connection
+// own unique iterator over the event stream. If client loses connection
 // or fails to keep up with the stream, the server will terminate
 // the channel and client will have to re-initialize.
 //
@@ -1197,7 +1196,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	return rg.clusterConfig.GetClusterName(opts...)
 }
 
-// GetRoles is a part of auth.AccessPoint implementation
+// GetRoles is a part of auth.Cache implementation
 func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1207,7 +1206,7 @@ func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return rg.access.GetRoles(ctx)
 }
 
-// GetRole is a part of auth.AccessPoint implementation
+// GetRole is a part of auth.Cache implementation
 func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1237,7 +1236,7 @@ func (c *Cache) GetNamespace(name string) (*types.Namespace, error) {
 	return rg.presence.GetNamespace(name)
 }
 
-// GetNamespaces is a part of auth.AccessPoint implementation
+// GetNamespaces is a part of auth.Cache implementation
 func (c *Cache) GetNamespaces() ([]types.Namespace, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1263,7 +1262,7 @@ type getNodesCacheKey struct {
 
 var _ map[getNodesCacheKey]struct{} // compile-time hashability check
 
-// GetNodes is a part of auth.AccessPoint implementation
+// GetNodes is a part of auth.Cache implementation
 func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1272,19 +1271,10 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 	defer rg.Release()
 
 	if !rg.IsCacheRead() {
-		ta := func(_ []types.Server) {} // compile-time type assertion
-		ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
-			ta(nodes)
-			return nodes, err
-		})
-		if err != nil || ni == nil {
+		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace, opts...)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedNodes := ni.([]types.Server)
-		ta(cachedNodes)
 		nodes := make([]types.Server, 0, len(cachedNodes))
 		for _, node := range cachedNodes {
 			nodes = append(nodes, node.DeepCopy())
@@ -1295,17 +1285,50 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 	return rg.presence.GetNodes(ctx, namespace, opts...)
 }
 
-// ListNodes is a part of auth.AccessPoint implementation
+// getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
+// must be cloned to avoid concurrent modification.
+func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+	ta := func(_ []types.Server) {} // compile-time type assertion
+	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func() (interface{}, error) {
+		// use cache's close context instead of request context in order to ensure
+		// that we don't cache a context cancellation error.
+		nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
+		ta(nodes)
+		return nodes, err
+	})
+	if err != nil || ni == nil {
+		return nil, trace.Wrap(err)
+	}
+	cachedNodes, ok := ni.([]types.Server)
+	if !ok {
+		return nil, trace.Errorf("TTL-cache returned unexpexted type %T (this is a bug!).", ni)
+	}
+	ta(cachedNodes)
+	return cachedNodes, nil
+}
+
+// ListNodes is a part of auth.Cache implementation
 func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
-	// NOTE: we "fake" the ListNodes API here in order to take advantage of TTL-based caching of
-	// the GetNodes endpoint, since performing TTL-based caching on a paginated endpoint is nightmarish.
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if rg.IsCacheRead() {
+		// cache is healthy, delegate to the standard ListNodes implementation
+		return rg.presence.ListNodes(ctx, req)
+	}
+
+	// Cache is not healthy.  We need to take advantage of TTL-based caching.  Rather than caching individual page
+	// calls (very messy), we rely on caching the result of the GetNodes endpoint, and then "faking" pagination.
 
 	limit := int(req.Limit)
 	if limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive limit value")
 	}
 
-	nodes, err := c.GetNodes(ctx, req.Namespace)
+	cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, req.Namespace)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -1313,25 +1336,25 @@ func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]ty
 	// trim nodes that precede start key
 	if req.StartKey != "" {
 		pageStart := 0
-		for i, node := range nodes {
+		for i, node := range cachedNodes {
 			if node.GetName() < req.StartKey {
 				pageStart = i + 1
 			} else {
 				break
 			}
 		}
-		nodes = nodes[pageStart:]
+		cachedNodes = cachedNodes[pageStart:]
 	}
 
 	// iterate and filter nodes, halting when we reach page limit
 	var filtered []types.Server
-	for _, node := range nodes {
+	for _, node := range cachedNodes {
 		if len(filtered) == limit {
 			break
 		}
 
 		if node.MatchAgainst(req.Labels) {
-			filtered = append(filtered, node)
+			filtered = append(filtered, node.DeepCopy())
 		}
 	}
 
@@ -1353,7 +1376,7 @@ func (c *Cache) GetAuthServers() ([]types.Server, error) {
 	return rg.presence.GetAuthServers()
 }
 
-// GetReverseTunnels is a part of auth.AccessPoint implementation
+// GetReverseTunnels is a part of auth.Cache implementation
 func (c *Cache) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1363,7 +1386,7 @@ func (c *Cache) GetReverseTunnels(opts ...services.MarshalOption) ([]types.Rever
 	return rg.presence.GetReverseTunnels(opts...)
 }
 
-// GetProxies is a part of auth.AccessPoint implementation
+// GetProxies is a part of auth.Cache implementation
 func (c *Cache) GetProxies() ([]types.Server, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1431,7 +1454,7 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 	return rg.presence.GetRemoteCluster(clusterName)
 }
 
-// GetUser is a part of auth.AccessPoint implementation.
+// GetUser is a part of auth.Cache implementation.
 func (c *Cache) GetUser(name string, withSecrets bool) (user types.User, err error) {
 	if withSecrets { // cache never tracks user secrets
 		return c.Config.Users.GetUser(name, withSecrets)
@@ -1455,7 +1478,7 @@ func (c *Cache) GetUser(name string, withSecrets bool) (user types.User, err err
 	return user, trace.Wrap(err)
 }
 
-// GetUsers is a part of auth.AccessPoint implementation
+// GetUsers is a part of auth.Cache implementation
 func (c *Cache) GetUsers(withSecrets bool) (users []types.User, err error) {
 	if withSecrets { // cache never tracks user secrets
 		return c.Users.GetUsers(withSecrets)
@@ -1468,9 +1491,7 @@ func (c *Cache) GetUsers(withSecrets bool) (users []types.User, err error) {
 	return rg.users.GetUsers(withSecrets)
 }
 
-// GetTunnelConnections is a part of auth.AccessPoint implementation
-// GetTunnelConnections are not using recent cache as they are designed
-// to be called periodically and always return fresh data
+// GetTunnelConnections is a part of auth.Cache implementation
 func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1480,9 +1501,7 @@ func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.Marsha
 	return rg.presence.GetTunnelConnections(clusterName, opts...)
 }
 
-// GetAllTunnelConnections is a part of auth.AccessPoint implementation
-// GetAllTunnelConnections are not using recent cache, as they are designed
-// to be called periodically and always return fresh data
+// GetAllTunnelConnections is a part of auth.Cache implementation
 func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []types.TunnelConnection, err error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1492,7 +1511,7 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 	return rg.presence.GetAllTunnelConnections(opts...)
 }
 
-// GetKubeServices is a part of auth.AccessPoint implementation
+// GetKubeServices is a part of auth.Cache implementation
 func (c *Cache) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	rg, err := c.read()
 	if err != nil {

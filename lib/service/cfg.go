@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -61,6 +62,13 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
+// Rate describes a rate ratio, i.e. the number of "events" that happen over
+// some unit time period
+type Rate struct {
+	Amount int
+	Time   time.Duration
+}
+
 // Config structure is used to initialize _all_ services Teleport can run.
 // Some settings are global (like DataDir) while others are grouped into
 // sections, like AuthConfig
@@ -94,7 +102,7 @@ type Config struct {
 	AdvertiseIP string
 
 	// CachePolicy sets caching policy for nodes and proxies
-	// in case if they loose connection to auth servers
+	// in case if they lose connection to auth servers
 	CachePolicy CachePolicy
 
 	// Auth service configuration. Manages cluster state and configuration.
@@ -230,6 +238,15 @@ type Config struct {
 
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
+
+	// RotationConnectionInterval is the interval between connection
+	// attempts as used by the rotation state service
+	RotationConnectionInterval time.Duration
+
+	// RestartThreshold describes the number of connection failures per
+	// unit time that the node can sustain before restarting itself, as
+	// measured by the rotation state service.
+	RestartThreshold Rate
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -341,6 +358,12 @@ type ProxyConfig struct {
 	// MySQLAddr is address of MySQL proxy.
 	MySQLAddr utils.NetAddr
 
+	// PostgresAddr is address of Postgres proxy.
+	PostgresAddr utils.NetAddr
+
+	// MongoAddr is address of Mongo proxy.
+	MongoAddr utils.NetAddr
+
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
@@ -365,6 +388,10 @@ type ProxyConfig struct {
 	// MySQLPublicAddrs is a list of the public addresses the proxy
 	// advertises for MySQL clients.
 	MySQLPublicAddrs []utils.NetAddr
+
+	// MongoPublicAddrs is a list of the public addresses the proxy
+	// advertises for Mongo clients.
+	MongoPublicAddrs []utils.NetAddr
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
@@ -877,6 +904,10 @@ type LDAPConfig struct {
 	Username string
 	// Password for LDAP authentication.
 	Password string
+	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
+	InsecureSkipVerify bool
+	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
+	CA *x509.Certificate
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -1016,6 +1047,12 @@ func ApplyDefaults(cfg *Config) {
 	// Windows desktop service is disabled by default.
 	cfg.WindowsDesktop.Enabled = false
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
+
+	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
+	cfg.RestartThreshold = Rate{
+		Amount: defaults.MaxConnectionErrorsBeforeRestart,
+		Time:   defaults.ConnectionErrorMeasurementPeriod,
+	}
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

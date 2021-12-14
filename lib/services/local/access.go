@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"strings"
 	"time"
@@ -55,7 +56,11 @@ func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
 		role, err := services.UnmarshalRole(item.Value,
 			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			// Try to get the role name for the error, it allows admins to take action
+			// against the "bad" role.
+			h := &types.ResourceHeader{}
+			_ = json.Unmarshal(item.Value, h)
+			return nil, trace.WrapWithMessage(err, "role %q", h.GetName())
 		}
 		out = append(out, role)
 	}
@@ -65,6 +70,11 @@ func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // CreateRole creates a role on the backend.
 func (s *AccessService) CreateRole(role types.Role) error {
+	err := services.ValidateRoleName(role)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	value, err := services.MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
@@ -85,6 +95,11 @@ func (s *AccessService) CreateRole(role types.Role) error {
 
 // UpsertRole updates parameters about role
 func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) error {
+	err := services.ValidateRoleName(role)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	value, err := services.MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
