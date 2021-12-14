@@ -361,6 +361,9 @@ type ProxyConfig struct {
 	// PostgresAddr is address of Postgres proxy.
 	PostgresAddr utils.NetAddr
 
+	// MongoAddr is address of Mongo proxy.
+	MongoAddr utils.NetAddr
+
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
@@ -385,6 +388,10 @@ type ProxyConfig struct {
 	// MySQLPublicAddrs is a list of the public addresses the proxy
 	// advertises for MySQL clients.
 	MySQLPublicAddrs []utils.NetAddr
+
+	// MongoPublicAddrs is a list of the public addresses the proxy
+	// advertises for Mongo clients.
+	MongoPublicAddrs []utils.NetAddr
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
