@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -300,6 +301,30 @@ func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 	c.Assert(err, IsNil)
 }
 
+// TestChangePasswordWithOptional2ndFactor verifies old password is checked
+// when 2nd factor is "optional" and user has no devices configured.
+func (s *PasswordSuite) TestChangePasswordWithOptional2ndFactor(c *C) {
+	var (
+		user = "alice"
+		pass = []byte("abc123")
+	)
+
+	_, err := s.prepareForPasswordChange(user, pass, constants.SecondFactorOptional)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.a.ChangePassword(services.ChangePasswordReq{
+		User:        user,
+		OldPassword: []byte("invalid"),
+		NewPassword: []byte("newpass"),
+	}), NotNil)
+
+	c.Assert(s.a.ChangePassword(services.ChangePasswordReq{
+		User:        user,
+		OldPassword: pass,
+		NewPassword: []byte("newpass"),
+	}), IsNil)
+}
+
 func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
@@ -422,6 +447,10 @@ func (s *PasswordSuite) prepareForPasswordChange(user string, pass []byte, secon
 	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: secondFactorType,
+		U2F: &types.U2F{
+			AppID:  "test",
+			Facets: []string{"test"},
+		},
 	})
 	if err != nil {
 		return req, err
