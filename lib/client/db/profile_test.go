@@ -112,7 +112,7 @@ func TestAddProfile(t *testing.T) {
 				Host:       test.profileHostOut,
 				Port:       test.profilePortOut,
 				CACertPath: ps.CACertPath(),
-				CertPath:   ps.DatabaseCertPath(db.ServiceName),
+				CertPath:   ps.DatabaseCertPathForCluster(tc.SiteName, db.ServiceName),
 				KeyPath:    ps.KeyPath(),
 			}, actual)
 		})
