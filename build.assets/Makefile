@@ -234,7 +234,7 @@ buildbox-arm-fips: buildbox-fips
 .PHONY: grpc
 grpc: devbox
 	docker run \
-		$(DOCKERFLAGS) -t $(DEVBOX) \
+		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(DEVBOX) \
 		make -C /go/src/github.com/gravitational/teleport devbox-grpc
 
 #
