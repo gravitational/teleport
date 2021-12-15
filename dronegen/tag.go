@@ -275,8 +275,8 @@ func tagPipeline(b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCreateReleaseAssetCommands(b),
 			Environment: map[string]value{
-				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT"},
-				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY"},
+				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
+				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
 			},
 		},
 	}
@@ -463,8 +463,8 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCreateReleaseAssetCommands(b),
 			Environment: map[string]value{
-				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT"},
-				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY"},
+				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
+				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
 			},
 		},
 	}

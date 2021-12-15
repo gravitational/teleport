@@ -1136,9 +1136,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -1271,9 +1271,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -1404,9 +1404,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -1537,9 +1537,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -1673,9 +1673,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -1829,9 +1829,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -1987,9 +1987,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -2139,9 +2139,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -2283,9 +2283,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -2416,9 +2416,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -2572,9 +2572,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -2724,9 +2724,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -2887,9 +2887,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
     WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Clean up toolchains (post)
   commands:
@@ -3071,9 +3071,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
 - name: Clean up exec runner storage (post)
   commands:
@@ -3237,9 +3237,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
 - name: Clean up exec runner storage (post)
   commands:
@@ -3368,9 +3368,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -3501,9 +3501,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -3648,9 +3648,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -3795,9 +3795,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -3951,9 +3951,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -4112,9 +4112,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -4253,9 +4253,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT
+      from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
-      from_secret: RELEASES_KEY
+      from_secret: RELEASES_KEY_STAGING
 services:
 - name: Start Docker
   image: docker:dind
@@ -5053,6 +5053,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: bea2f18b1ce9424c74ff229e19fec18879d817b782b5e02dd55cb72abb9d074e
+hmac: ee188cdfa21dbd046ecac0c51cf6bc421d500c63238034f8b15b1106ff732c55
 
 ...
