@@ -24,6 +24,74 @@ With Moderated Sessions you can:
 
 ## Getting Started
 
+In this guide we'll be using Moderated Sessions to required participants for a Kubernetes session.
+This guide assumes an already running Teleport cluster with a connected Kubernetes cluster named `minikube`.
+
+### Step 1/4: Create the prod-access role
+
+```sh
+cat > prod-access.yaml <<EOF
+kind: role
+metadata:
+  name: prod-access
+spec:
+  allow:
+    kubernetes_groups:
+      - system:masters
+    require_session_join:
+      - name: Audtor oversight
+        filter: 'contains(user.roles, "auditor")'
+        kinds: ['k8s']
+        modes: ['moderator']
+EOF
+
+tctl create -f prod-access.yaml
+```
+
+### Step 2/4: Create the auditor role
+
+```sh
+cat > auditor.yaml <<EOF
+kind: role
+metadata:
+  name: auditor
+spec:
+  allow:
+    join_sessions:
+    - kinds:
+      - k8s
+      modes:
+      - moderator
+      name: Auditor
+      roles:
+      - member
+EOF
+
+tctl create -f auditor.yaml
+```
+
+### Step 3/4: Add users
+
+```sh
+tctl users add adam --roles=prod-access
+tctl users add bob --roles=auditor
+```
+
+### Step 4/4: Try it out
+
+```sh
+# adam
+
+tsh kube login minikube
+tsh kube exec -st nginx /bin/bash
+```
+
+```sh
+# bob
+
+tsh kube join $SESSION_ID
+```
+
 ## Participant Modes
 
 A participant joining a session will always have one of three modes:
@@ -65,7 +133,7 @@ spec:
   allow:
     require_session_join:
       - name: Audtor oversight
-        filter: 'contains(observer.roles, "auditor")'
+        filter: 'contains(user.roles, "auditor")'
         kinds: ['k8s', 'ssh']
         modes: ['moderator']
 ```
