@@ -314,9 +314,13 @@ $ kubectl --namespace teleport get all
 
 ## Step 6/7. Set up DNS
 
-You'll need to set up two DNS `A` records: `teleport.example.com` for the web UI, and `*.teleport.example.com`
-for web apps using [application access](../../../application-access/introduction.mdx). In our example, both records are
-aliases to an ELB.
+You'll need to set up a DNS `A` record for `teleport.example.com`. In our example, this record is an alias to an ELB.
+
+<Details opened={false} title="Using Application Access?">
+Teleport assigns a subdomain to each application you have configured for Application Access (e.g., `grafana.teleport.example.com`), so you will also need to create a DNS A record with a wildcard subdomain (e.g., `*.tele.example.com`). This way, Let's Encrypt can issue a wildcard certificate, enabling clients to verify your Teleport hosts regardless of the application they are accessing.
+
+[Learn more about Teleport Application Access](../../../application-access/getting-started.mdx)
+</Details>
 
 Here's how to do this in a hosted zone with AWS Route 53:
 
@@ -345,18 +349,6 @@ $ jq -n --arg dns "${MYDNS?}" --arg elb "${MYELB?}" --arg elbz "${MYELB_ZONE?}" 
             "Action": "CREATE",
             "ResourceRecordSet": {
               "Name": $dns,
-              "Type": "A",
-              "AliasTarget": {
-                "HostedZoneId": $elbz,
-                "DNSName": ("dualstack." + $elb),
-                "EvaluateTargetHealth": false
-              }
-            }
-          },
-          {
-            "Action": "CREATE",
-            "ResourceRecordSet": {
-              "Name": ("*." + $dns),
               "Type": "A",
               "AliasTarget": {
                 "HostedZoneId": $elbz,

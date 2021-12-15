@@ -358,8 +358,13 @@ $ kubectl --namespace teleport get all
 
 ## Step 6/7. Set up DNS
 
-You'll need to set up two DNS `A` records: `teleport.example.com` for the web UI, and `*.teleport.example.com`
-for web apps using [application access](../../../application-access/introduction.mdx).
+You'll need to set up a DNS `A` record for `teleport.example.com`.
+
+<Details opened={false} title="Using Application Access?">
+Teleport assigns a subdomain to each application you have configured for Application Access (e.g., `grafana.teleport.example.com`), so you will also need to create a DNS A record with a wildcard subdomain (e.g., `*.tele.example.com`). This way, Let's Encrypt can issue a wildcard certificate, enabling clients to verify your Teleport hosts regardless of the application they are accessing.
+
+[Learn more about Teleport Application Access](../../../application-access/getting-started.mdx)
+</Details>
 
 Here's how to do this using Google Cloud DNS:
 
@@ -374,7 +379,6 @@ $ MYDNS="teleport.example.com"
 
 $ gcloud dns record-sets transaction start --zone="${MYZONE?}"
 $ gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
-$ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
 $ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
 $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
 ```

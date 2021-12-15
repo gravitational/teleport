@@ -54,6 +54,10 @@ applications. When setting up Teleport, the minimum requirement is a certificate
 for the proxy and a wildcard certificate for its sub-domain. This is where
 everyone will log into Teleport.
 
+<Admonition type="note" title="Why do I need a wildcard certificate?">
+Teleport assigns a subdomain to each application you have configured for Application Access (e.g., `grafana.teleport.example.com`), so the wildcard certificate enables clients to verify your Teleport hosts regardless of application.
+</Admonition>
+
 In our example:
 
 - `teleport.example.com` will host the Access Plane.

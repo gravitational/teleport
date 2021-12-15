@@ -44,8 +44,9 @@ This reference details available values for the `teleport-cluster` chart.
 
   (!docs/pages/kubernetes-access/helm/includes/kubernetes-externaladdress.mdx!)
 
-  You will need to manually add DNS records pointing `teleport.example.com` and `*.teleport.example.com` to either the IP or hostname
-  of the Kubernetes load balancer.
+  You will need to manually add a DNS A record pointing `teleport.example.com` to either the IP or hostname of the Kubernetes load balancer.
+
+  If you are using Teleport Application Access, you will also need to add a DNS A record for `*.teleport.example.com`. This is because Teleport assigns a subdomain to each application you have configured for Application Access (e.g., `grafana.teleport.example.com`), so the wildcard enables clients to verify your Teleport hosts regardless of application.
 
   If you are not using ACME certificates, you may also need to accept insecure warnings in your browser to view the page successfully.
 </Admonition>
