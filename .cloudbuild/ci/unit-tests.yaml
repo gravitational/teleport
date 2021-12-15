@@ -1,4 +1,39 @@
+timeout: 15m
+options:
+  machineType: 'E2_HIGHCPU_32'
+  
+  volumes:
+    # A place to put shared state between build steps so that we don't pollute
+    # the workspace
+    - name: state
+      path: '/state'
+
+  env: 
+    # Path to a marker file, whose presence indicates that we should skip tests.
+    - SKIP_TESTS=/state/skip     
+
 steps:
+  # GCB does a shallow checkout for a build, but if we want to check our changes
+  # against other branches we'll need to fetch the repo history. This takes less 
+  # than 30s at the time of writing, so it is probably not worth tweaking.
+  - name: gcr.io/cloud-builders/git
+    id: fetch-history
+    args: ['fetch', '--unshallow']
+
+  # Check if the PR only has docs changes. If so we will set a marker file 
+  # meaning that we can skip the other tests in this target
+  - name: golang:1.17.5
+    id: check-tests
+    dir: /workspace/.cloudbuild/scripts
+    entrypoint: go
+    args: [run, ./can-skip, -w=/workspace, -s=$$SKIP_TESTS, -t=$_BASE_BRANCH, -c=HEAD]
+
+  # Do a null action to fetch the buildbox image to the build machine. This 
+  # just simplifies looking at the build output 
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
+    id: fetch-buildbox-image
+
+  # Run the unit tests if the skipfile has not been created
   - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
     id: unit-test
     env:
@@ -6,9 +41,8 @@ steps:
     entrypoint: '/bin/bash'
     args: 
       - '-c'
-      - '(make run-etcd &); sleep 1; make test'
+      - |
+        if [ ! -f $$SKIP_TESTS ]; then 
+          (make run-etcd &); sleep 1; make test
+        fi
     timeout: 15m
-timeout: 15m
-options:
-  machineType: 'E2_HIGHCPU_32'
-  
