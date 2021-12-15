@@ -215,8 +215,13 @@ func RunCommand() (io.Writer, int, error) {
 		pamEnvironment = pamContext.Environment()
 	}
 
+	localUser, err := user.Lookup(c.Login)
+	if err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
 	// Build the actual command that will launch the shell.
-	cmd, err := buildCommand(&c, tty, pty, pamEnvironment)
+	cmd, err := buildCommand(&c, localUser, tty, pty, pamEnvironment)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -359,14 +364,10 @@ func RunAndExit(commandType string) {
 
 // buildCommand constructs a command that will execute the users shell. This
 // function is run by Teleport while it's re-executing.
-func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
+func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
 
-	// Lookup the UID and GID for the user.
-	localUser, err := user.Lookup(c.Login)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// Get UID and GID.
 	uid, err := strconv.Atoi(localUser.Uid)
 	if err != nil {
 		return nil, trace.Wrap(err)
