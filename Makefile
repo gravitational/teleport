@@ -754,16 +754,20 @@ devbox-grpc:
 		authservice.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
-	  --gogofast_out=plugins=grpc:.\
-    *.proto
+		--gogofast_out=plugins=grpc:. \
+		ping.proto
 
 	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
-	  --gogofast_out=plugins=grpc:.\
-    *.proto
+		--gogofast_out=plugins=grpc:. \
+		envelope.proto
 
 	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
-	  --gogofast_out=plugins=grpc:.\
-    types.proto
+		--gogofast_out=plugins=grpc:. \
+		types.proto
+
+	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc:. \
+		slice.proto
 
 .PHONY: goinstall
 goinstall:
