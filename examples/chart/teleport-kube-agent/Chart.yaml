@@ -1,7 +1,7 @@
 name: teleport-kube-agent
 apiVersion: v2
-version: "8.0.0-alpha.1"
-appVersion: "8.0.0-alpha.1"
+version: "8.0.0-alpha.2"
+appVersion: "8.0.0-alpha.2"
 description: Teleport provides a secure SSH and Kubernetes remote access solution that doesn't get in the way.
 icon: https://goteleport.com/images/logos/logo-teleport-square.svg
 keywords:
