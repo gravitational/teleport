@@ -34,7 +34,7 @@ func (e *mockEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 
 func TestEmitConnTeleport(t *testing.T) {
 	server, client := net.Pipe()
-	const msg = "Teleport stuff"
+	const msg = "Teleport-Proxy stuff"
 
 	go server.Write([]byte(msg))
 
@@ -49,7 +49,7 @@ func TestEmitConnTeleport(t *testing.T) {
 
 func TestEmitConnNotTeleport(t *testing.T) {
 	server, client := net.Pipe()
-	const msg = "something other than Teleport"
+	const msg = "something other than Teleport-Proxy"
 
 	go server.Write([]byte(msg))
 
@@ -63,7 +63,7 @@ func TestEmitConnNotTeleport(t *testing.T) {
 }
 
 func TestEmitConnTeleportSmallReads(t *testing.T) {
-	chunks := []string{"Te", "lepo", "rt stuff", " and things"}
+	chunks := []string{"Te", "lepo", "rt-Pro", "xy stuff", " and things"}
 	server, client := net.Pipe()
 
 	go func() {
@@ -87,7 +87,7 @@ func TestEmitConnTeleportSmallReads(t *testing.T) {
 }
 
 func TestEmitConnNotTeleportSmallReads(t *testing.T) {
-	chunks := []string{"no", "t Tele", "port"}
+	chunks := []string{"no", "t Tele", "port", "-Proxy"}
 	server, client := net.Pipe()
 
 	go func() {
