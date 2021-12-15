@@ -725,13 +725,31 @@ grpc:
 devbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
-	find lib/ -iname *.proto | xargs $(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
-	find api/ -iname *.proto | xargs $(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
+	$(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}' \
+		api/client/proto/authservice.proto \
+		api/types/events/events.proto \
+		api/types/types.proto \
+		api/types/webauthn/webauthn.proto \
+		api/types/wrappers/wrappers.proto \
+		lib/datalog/types.proto \
+		lib/events/slice.proto \
+		lib/multiplexer/test/ping.proto \
+		lib/web/envelope.proto
+
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/client/proto \
+		--gogofast_out=plugins=grpc:api/client/proto \
+		authservice.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/events \
 		--gogofast_out=plugins=grpc:api/types/events \
 		events.proto
+
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types \
+		--gogofast_out=plugins=grpc:api/types \
+		types.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/webauthn \
@@ -743,15 +761,13 @@ devbox-grpc:
 		--gogofast_out=plugins=grpc:api/types/wrappers \
 		wrappers.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/types \
-		--gogofast_out=plugins=grpc:api/types \
+	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc:. \
 		types.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/client/proto \
-		--gogofast_out=plugins=grpc:api/client/proto \
-		authservice.proto
+	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc:. \
+		slice.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc:. \
@@ -760,14 +776,6 @@ devbox-grpc:
 	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc:. \
 		envelope.proto
-
-	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc:. \
-		types.proto
-
-	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc:. \
-		slice.proto
 
 .PHONY: goinstall
 goinstall:
