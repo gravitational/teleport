@@ -80,7 +80,7 @@ implementation. It is _fully compatible with OpenSSH_,
 | [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news. |
 | [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback, or idea on our forum. |
 | [Slack](https://goteleport.com/slack) | Need help with your setup? Ping us in our Slack channel. |
-| [Cloud-hosted](https://goteleport.com/pricing) | We offer Teleport Pro and Enterprise with a Cloud-hosted option. For teams that require easy and secure access to their computing environments. |
+| [Cloud-hosted](https://goteleport.com/pricing) | We offer Enterprise with a Cloud-hosted option. For teams that require easy and secure access to their computing environments. |
 
 
 ## Installing and Running
@@ -286,8 +286,8 @@ We offer a few different options for support. First of all, we try to provide cl
 ## Is Teleport Secure and Production Ready?
 
 Teleport is used by leading companies to enable engineers to quickly access any
-computing resource anywhere. Teleport has completed several security audits from the nationally recognized technology security companies. [Some](https://goteleport.com/resources/audits/teleport-cloud-security-audit-2021/) of
-[them](https://goteleport.com/resources/audits/teleport-security-audit-2020/) have been made public. We are comfortable with the use of Teleport from a security perspective.
+computing resource anywhere. Teleport has completed several security audits from the nationally recognized technology security companies. We make some our audits public, view our latest [audit reports.](https://goteleport.com/resources/audits/).
+We are comfortable with the use of Teleport from a security perspective.
 
 You can see the list of companies who use Teleport in production on the Teleport
 [product page](https://goteleport.com/case-study/).
