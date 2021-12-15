@@ -193,6 +193,33 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 	}
 }
 
+// ServeMongo starts accepting Mongo client connections.
+func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) error {
+	s.log.Debug("Started Mongo proxy.")
+	defer s.log.Debug("Mongo proxy exited.")
+	for {
+		clientConn, err := listener.Accept()
+		if err != nil {
+			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+		go func() {
+			defer clientConn.Close()
+			tlsConn := tls.Server(clientConn, tlsConfig)
+			if err := tlsConn.Handshake(); err != nil {
+				s.log.WithError(err).Error("Mongo TLS handshake failed.")
+				return
+			}
+			err := s.handleConnection(tlsConn)
+			if err != nil {
+				s.log.WithError(err).Error("Failed to handle Mongo client connection.")
+			}
+		}()
+	}
+}
+
 // ServeTLS starts accepting database connections that use plain TLS connection.
 func (s *ProxyServer) ServeTLS(listener net.Listener) error {
 	s.log.Debug("Started database TLS proxy.")

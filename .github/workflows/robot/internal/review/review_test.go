@@ -340,6 +340,7 @@ func TestCheckInternal(t *testing.T) {
 				"1": Reviewer{Team: "Core", Owner: true},
 				"2": Reviewer{Team: "Core", Owner: true},
 				"3": Reviewer{Team: "Core", Owner: true},
+				"9": Reviewer{Team: "Core", Owner: true},
 				"4": Reviewer{Team: "Core", Owner: false},
 				"5": Reviewer{Team: "Core", Owner: false},
 				"6": Reviewer{Team: "Core", Owner: false},
@@ -500,6 +501,17 @@ func TestCheckInternal(t *testing.T) {
 			reviews: map[string]*github.Review{
 				"3": &github.Review{Author: "3", State: approved},
 				"4": &github.Review{Author: "4", State: approved},
+			},
+			docs:   false,
+			code:   true,
+			result: true,
+		},
+		{
+			desc:   "code-only-internal-two-code-owner-approval-success",
+			author: "4",
+			reviews: map[string]*github.Review{
+				"3": &github.Review{Author: "3", State: approved},
+				"9": &github.Review{Author: "9", State: approved},
 			},
 			docs:   false,
 			code:   true,
