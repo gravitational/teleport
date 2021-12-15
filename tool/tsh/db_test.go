@@ -211,8 +211,8 @@ func decodePEM(pemPath string) (certs []pem.Block, keys []pem.Block, err error) 
 }
 
 type fakeExecer struct {
-	foundBinary bool
-	execOutput  []byte
+	foundMariaDB bool
+	execOutput   []byte
 }
 
 func (f fakeExecer) RunCommand(_ string, _ ...string) ([]byte, error) {
@@ -220,7 +220,7 @@ func (f fakeExecer) RunCommand(_ string, _ ...string) ([]byte, error) {
 }
 
 func (f fakeExecer) LookPath(_ string) (string, error) {
-	if f.foundBinary {
+	if f.foundMariaDB {
 		return "", nil
 	}
 	return "", trace.NotFound("not found")
@@ -255,7 +255,7 @@ func Test_cliCommandBuilder_getConnectCommand(t *testing.T) {
 		{
 			name: "mariadb",
 			execer: &fakeExecer{
-				foundBinary: true,
+				foundMariaDB: true,
 			},
 			cmd: []string{"mariadb",
 				"--user", "myUser",
@@ -267,10 +267,10 @@ func Test_cliCommandBuilder_getConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "mysql - oracle",
+			name: "mysql by mariadb",
 			execer: &fakeExecer{
-				foundBinary: false,
-				execOutput:  []byte("Ver 8.0.27-0ubuntu0.20.04.1 for Linux on x86_64 ((Ubuntu))"),
+				foundMariaDB: false,
+				execOutput:   []byte("mysql  Ver 15.1 Distrib 10.3.32-MariaDB, for debian-linux-gnu (x86_64) using readline 5.2"),
 			},
 			cmd: []string{"mysql",
 				"--user", "myUser",
@@ -278,7 +278,22 @@ func Test_cliCommandBuilder_getConnectCommand(t *testing.T) {
 				"--port", "12345",
 				"--host", "localhost",
 				"--protocol", "TCP",
-				"--defaults-group-suffix=_db.example.com-mysql"},
+				"--ssl-verify-server-cert"},
+			wantErr: false,
+		},
+		{
+			name: "mysql by oracle",
+			execer: &fakeExecer{
+				foundMariaDB: false,
+				execOutput:   []byte("Ver 8.0.27-0ubuntu0.20.04.1 for Linux on x86_64 ((Ubuntu))"),
+			},
+			cmd: []string{"mysql",
+				"--defaults-group-suffix=_db.example.com-mysql",
+				"--user", "myUser",
+				"--database", "mydb",
+				"--port", "12345",
+				"--host", "localhost",
+				"--protocol", "TCP"},
 			wantErr: false,
 		},
 	}
