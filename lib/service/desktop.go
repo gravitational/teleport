@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -79,7 +78,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	cfg := process.Config
 
 	// Create a caching auth client.
-	accessPoint, err := process.newLocalCache(conn.Client, cache.ForWindowsDesktop, []string{teleport.ComponentWindowsDesktop})
+	accessPoint, err := process.newLocalCacheForWindowsDesktop(conn.Client, []string{teleport.ComponentWindowsDesktop})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -219,16 +218,11 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			HostUUID:    cfg.HostUUID,
 			PublicAddr:  publicAddr,
 			StaticHosts: cfg.WindowsDesktop.Hosts,
-			OnHeartbeat: func(err error) {
-				if err != nil {
-					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentWindowsDesktop})
-				} else {
-					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentWindowsDesktop})
-				}
-			},
+			OnHeartbeat: process.onHeartbeat(teleport.ComponentWindowsDesktop),
 		},
-		LDAPConfig:      desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
-		DiscoveryBaseDN: cfg.WindowsDesktop.Discovery.BaseDN,
+		LDAPConfig:           desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		DiscoveryBaseDN:      cfg.WindowsDesktop.Discovery.BaseDN,
+		DiscoveryLDAPFilters: cfg.WindowsDesktop.Discovery.Filters,
 	})
 	if err != nil {
 		return trace.Wrap(err)

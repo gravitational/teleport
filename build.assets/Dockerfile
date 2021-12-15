@@ -68,36 +68,6 @@ ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
-# Install Rust
-#
-# Rust installation based on official rust image Dockerfile here:
-#   https://github.com/rust-lang/docker-rust/blob/master/1.56.0/bullseye/Dockerfile
-#
-# The original Rust docker image uses a script to install `rustup`, and from
-# there rustc and associated tools.
-#
-# Rather than execute an arbitrary `rustup` installation script, we are cherry-
-# picking the appropriate files off the official docker image and then installing
-# the extra tooling/targets we need.
-
- ENV RUSTUP_HOME=/usr/local/rustup \
-     CARGO_HOME=/usr/local/cargo \
-     PATH=/usr/local/cargo/bin:$PATH \
-     RUST_VERSION=1.56.0
-
- COPY --from=rust:1.56.0 /usr/local/rustup /usr/local/rustup
- COPY --from=rust:1.56.0 /usr/local/cargo /usr/local/cargo
- RUN set -eux \
-     rustup component add rustfmt clippy; \
-     chmod -R a+w $RUSTUP_HOME $CARGO_HOME; \
-     rustup --version; \
-     cargo --version; \
-     rustup target add i686-unknown-linux-gnu; \
-     rustup target add arm-unknown-linux-gnueabihf; \
-     rustup target add aarch64-unknown-linux-gnu; \
-     rustup target list | grep installed; \
-     rustc --version;
-
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
      cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
@@ -149,13 +119,16 @@ ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 
 RUN (curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
+     chmod -R a+r /usr/local/include/google/protobuf && \
      rm /tmp/${PROTOC_TARBALL})
-RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && go install golang.org/x/tools/cmd/goimports@latest && \
+RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && \
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
      git reset --hard ${GOGO_PROTO_TAG} && \
      make install)
 
-ENV PROTO_INCLUDE "/usr/local/include":"${GOPATH}/src":"${GOPATH}/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf":"${GOPATH}/src/github.com/gravitational/teleport/lib/services"
+# Note: protoc reads the proto files from /vendor/.../teleport/api/vX rather than
+# /api because protoc does not understand go modules, and reads vX as a directory.
+ENV PROTO_INCLUDE "/usr/local/include":"/go/src/github.com/gravitational/teleport/vendor":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
 
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
@@ -163,5 +136,29 @@ RUN make -C /opt/pam_teleport install
 
 ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
+# Install Rust
+ARG RUST_VERSION
+ENV RUSTUP_HOME=/usr/local/rustup \
+     CARGO_HOME=/usr/local/cargo \
+     PATH=/usr/local/cargo/bin:$PATH \
+     RUST_VERSION=$RUST_VERSION
+
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+
+# Install Rust using the ci user, as that is the user that
+# will run builds using the Rust toolchains we install here.
+USER ci
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version && \
+    rustup component add --toolchain $RUST_VERSION-x86_64-unknown-linux-gnu rustfmt clippy && \
+    rustup target add i686-unknown-linux-gnu && \
+    rustup target add arm-unknown-linux-gnueabihf && \
+    rustup target add aarch64-unknown-linux-gnu && \
+    cargo install cbindgen
+
+USER root
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

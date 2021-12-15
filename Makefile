@@ -257,7 +257,7 @@ ifeq ("$(with_rdpclient)", "yes")
 rdpclient:
 	cargo build --manifest-path=lib/srv/desktop/rdp/rdpclient/Cargo.toml --release $(CARGO_TARGET)
 	cargo install cbindgen
-	cbindgen --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
+	cbindgen --quiet --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
 else
 .PHONY: rdpclient
 rdpclient:
@@ -452,9 +452,9 @@ test-go: FLAGS ?= '-race'
 test-go: PACKAGES := $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
-	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| go run build.assets/render-tests/main.go
-	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
+	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| go run build.assets/render-tests/main.go
 
 #
@@ -466,7 +466,7 @@ test-go-root: ensure-webassets bpf-bytecode roletester rdpclient
 test-go-root: FLAGS ?= '-race'
 test-go-root: PACKAGES := $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
-	$(CGOFLAG) go test -p 4 -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Runs API Go tests. These have to be run separately as the package name is different.
 #
@@ -475,7 +475,7 @@ test-api:
 test-api: FLAGS ?= '-race'
 test-api: PACKAGES := $(shell cd api && go list ./...)
 test-api: $(VERSRC)
-	$(CGOFLAG) go test -p 4 -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
@@ -487,6 +487,10 @@ test-sh:
 	fi; \
 	find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
 
+
+.PHONY: run-etcd
+run-etcd:
+	examples/etcd/start-etcd.sh
 #
 # Integration tests. Need a TTY to work.
 # Any tests which need to run as root must be skipped during regular integration testing.
@@ -496,7 +500,7 @@ integration: FLAGS ?= -v -race
 integration: PACKAGES := $(shell go list ./... | grep integration)
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -p 4 -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -timeout 30m -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS)
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -507,15 +511,21 @@ INTEGRATION_ROOT_REGEX := ^TestRoot
 integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES := $(shell go list ./... | grep integration)
 integration-root:
-	$(CGOFLAG) go test -p 4 -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
 
 #
-# Lint the Go code.
+# Lint the source code.
 # By default lint scans the entire repo. Pass GO_LINT_FLAGS='--new' to only scan local
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go lint-license
+lint: lint-sh lint-helm lint-api lint-go lint-license lint-rdp
+
+.PHONY: lint-rdp
+lint-rdp:
+	cd lib/srv/desktop/rdp/rdpclient \
+		&& cargo clippy --locked --all-targets -- -D warnings \
+		&& cargo fmt -- --check
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
@@ -584,7 +594,6 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore '**/*.html' \
 		-ignore '**/*.js' \
 		-ignore '**/*.py' \
-		-ignore '**/*.rs' \
 		-ignore '**/*.sh' \
 		-ignore '**/*.tf' \
 		-ignore '**/*.yaml' \
@@ -597,7 +606,8 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'vendor/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
-		-ignore 'ignoreme'
+		-ignore 'ignoreme' \
+		-ignore lib/srv/desktop/rdp/rdpclient/target
 
 .PHONY: lint-license
 lint-license: $(ADDLICENSE)
@@ -617,6 +627,24 @@ version: $(VERSRC)
 # This rule triggers re-generation of version files specified if Makefile changes.
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
+	# Update api module path, but don't fail on error.
+	$(MAKE) update-api-module-path || true
+
+# This rule updates the api module path to be in sync with the current api release version.
+# e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
+#
+# It will immediately fail if:
+#  1. A suffix is present in the version - e.g. "v7.0.0-alpha"
+#  2. The major version suffix in the api module path hasn't changed. e.g:
+#    - v7.0.0 -> v7.1.0 - both use version suffix "/v7" - github.com/gravitational/teleport/api/v7
+#    - v0.0.0 -> v1.0.0 - both have no version suffix - github.com/gravitational/teleport/api
+#
+# Note: any build flags needed to compile go files (such as build tags) should be provided below.
+.PHONY: update-api-module-path
+update-api-module-path:
+	go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
+	$(MAKE) update-vendor
+	$(MAKE) grpc
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
@@ -676,7 +704,7 @@ remove-temp-files:
 docker:
 	make -C build.assets build
 
-# Dockerized build: useful for making Linux binaries on OSX
+# Dockerized build: useful for making Linux binaries on macOS
 .PHONY:docker-binaries
 docker-binaries: clean
 	make -C build.assets build-binaries
@@ -686,12 +714,13 @@ docker-binaries: clean
 enter:
 	make -C build.assets enter
 
-# grpc generates GRPC stubs from service definitions
+# grpc generates GRPC stubs from service definitions.
+# This target runs in the buildbox container.
 .PHONY: grpc
 grpc:
-	make -C build.assets grpc
+	$(MAKE) -C build.assets grpc
 
-# buildbox-grpc generates GRPC stubs inside buildbox
+# buildbox-grpc generates GRPC stubs
 .PHONY: buildbox-grpc
 buildbox-grpc:
 # standard GRPC output
@@ -883,6 +912,7 @@ init-submodules-e: init-webapps-submodules-e
 	git submodule init e
 	git submodule update
 
+# Update go.mod and vendor files.
 .PHONY: update-vendor
 update-vendor:
 	# update modules in api/
@@ -890,10 +920,22 @@ update-vendor:
 	# update modules in root directory
 	go mod tidy
 	go mod vendor
-	# delete the vendored api package. In its place
-	# create a symlink to the the original api package
-	rm -r vendor/github.com/gravitational/teleport/api
-	cd vendor/github.com/gravitational/teleport && ln -s ../../../../api api
+	$(MAKE) vendor-api
+
+# When teleport vendors its dependencies, Go also vendors the local api sub module. To get
+# around this issue, we replace the vendored api package with a symlink to the
+# local module. The symlink should be in vendor/.../api or vendor/.../api/vX if X >= 2.
+.PHONY: vendor-api
+vendor-api: API_VENDOR_PATH := vendor/$(shell head -1 api/go.mod | awk '{print $$2;}')
+vendor-api:
+	rm -rf vendor/github.com/gravitational/teleport/api
+	mkdir -p $(shell dirname $(API_VENDOR_PATH))
+	# make a relative link to the true api dir (without using `ln -r` for non-linux OS compatibility)
+	if [ -d $(shell dirname $(API_VENDOR_PATH))/../../../../../api/ ]; then \
+		ln -s ../../../../../api $(API_VENDOR_PATH); \
+	else \
+		ln -s ../../../../api $(API_VENDOR_PATH); \
+	fi;
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.

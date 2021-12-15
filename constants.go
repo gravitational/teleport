@@ -349,6 +349,12 @@ const (
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption = "disablesse"
 
+	// ACL is the canned ACL to send to S3
+	ACL = "acl"
+
+	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
+	SSEKMSKey = "sse_kms_key"
+
 	// SchemeFile is a local disk file storage
 	SchemeFile = "file"
 
@@ -739,3 +745,6 @@ const UserSingleUseCertTTL = time.Minute
 // StandardHTTPSPort is the default port used for the https URI scheme,
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
+
+// StandardRDPPort is the default port used for RDP.
+const StandardRDPPort = 3389

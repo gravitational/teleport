@@ -88,12 +88,14 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr
 	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
 	resp, err := webclient.Find(ctx, t.ProxyAddr, lib.IsInsecureDevMode(), nil)
 	if err != nil {
-		t.Log.WithError(err).Errorf("Failed to ping web proxy %q addr.", t.ProxyAddr)
+		// If TLS Routing is disabled the address is the proxy reverse tunnel
+		// address thus the ping call will always fail.
+		t.Log.Debugf("Failed to ping web proxy %q addr: %v", t.ProxyAddr, err)
 	} else if resp.Proxy.TLSRoutingEnabled {
 		opts = append(opts, proxy.WithALPNDialer())
 	}
 
-	dialer := proxy.DialerFromEnvironment(addr, opts...)
+	dialer := proxy.DialerFromEnvironment(t.ProxyAddr, opts...)
 	sconn, err := dialer.Dial("tcp", t.ProxyAddr, t.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -131,7 +133,7 @@ type transport struct {
 	component    string
 	log          logrus.FieldLogger
 	closeContext context.Context
-	authClient   auth.AccessPoint
+	authClient   auth.ProxyAccessPoint
 	channel      ssh.Channel
 	requestCh    <-chan *ssh.Request
 

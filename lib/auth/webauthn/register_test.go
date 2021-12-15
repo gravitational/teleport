@@ -19,6 +19,7 @@ import (
 	"encoding/pem"
 	"testing"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -50,6 +51,9 @@ func TestRegistrationFlow_BeginFinish(t *testing.T) {
 	require.NotNil(t, credentialCreation)
 	require.NotEmpty(t, credentialCreation.Response.Challenge)
 	require.Equal(t, webRegistration.Webauthn.RPID, credentialCreation.Response.RelyingParty.ID)
+	// Are we using the correct authenticator selection settings?
+	require.Equal(t, false, *credentialCreation.Response.AuthenticatorSelection.RequireResidentKey)
+	require.Equal(t, protocol.VerificationDiscouraged, credentialCreation.Response.AuthenticatorSelection.UserVerification)
 	// Did we record the SessionData in storage?
 	require.NotEmpty(t, identity.SessionData)
 

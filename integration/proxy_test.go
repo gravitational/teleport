@@ -20,10 +20,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -35,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -96,7 +99,7 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnRoot
 				}),
 				withLeafClusterConfig(leafClusterStandardConfig(t), func(config *service.Config) {
-					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnRoot
+					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnLeaf
 				}),
 				withRootClusterPorts(tc.mainClusterPortSetup),
 				withLeafClusterPorts(tc.secondClusterPortSetup),
@@ -210,8 +213,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	// set the http_proxy environment variable
 	u, err := url.Parse(ts.URL)
 	require.NoError(t, err)
-	os.Setenv("http_proxy", u.Host)
-	defer os.Setenv("http_proxy", "")
+	t.Setenv("http_proxy", u.Host)
 
 	username := mustGetCurrentUser(t).Username
 
@@ -274,6 +276,67 @@ func TestALPNSNIProxyKube(t *testing.T) {
 		kubeGroups:          kubeRoleSpec.Allow.KubeUsers,
 		customTLSServerName: localK8SNI,
 		targetAddress:       suite.root.Config.Proxy.WebAddr,
+	})
+	require.NoError(t, err)
+
+	resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
+	require.NoError(t, err)
+	require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+}
+
+// TestALPNSNIProxyKubeV2Leaf tests remove cluster kubernetes configuration where root and leaf proxies
+// are using V2 configuration with Multiplex proxy listener.
+func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	const (
+		localK8SNI = "kube.teleport.cluster.local"
+		k8User     = "alice@example.com"
+		k8RoleName = "kubemaster"
+	)
+
+	kubeAPIMockSvr := startKubeAPIMock(t)
+	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvr.URL, localK8SNI))
+
+	username := mustGetCurrentUser(t).Username
+	kubeRoleSpec := types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			KubeGroups: []string{testImpersonationGroup},
+			KubeUsers:  []string{k8User},
+		},
+	}
+	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
+	require.NoError(t, err)
+
+	suite := newProxySuite(t,
+		withRootClusterConfig(rootClusterStandardConfig(t), func(config *service.Config) {
+			config.Proxy.Kube.Enabled = true
+			config.Version = defaults.TeleportConfigVersionV2
+		}),
+		withLeafClusterConfig(leafClusterStandardConfig(t), func(config *service.Config) {
+			config.Version = defaults.TeleportConfigVersionV2
+			config.Proxy.Kube.Enabled = true
+
+			config.Kube.Enabled = true
+			config.Kube.KubeconfigPath = kubeConfigPath
+			config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt())))
+		}),
+		withRootClusterRoles(kubeRole),
+		withLeafClusterRoles(kubeRole),
+		withRootAndLeafTrustedClusterReset(),
+		withTrustedCluster(),
+	)
+
+	k8Client, _, err := kubeProxyClient(kubeProxyConfig{
+		t:                   suite.root,
+		username:            kubeRoleSpec.Allow.Logins[0],
+		kubeUsers:           kubeRoleSpec.Allow.KubeGroups,
+		kubeGroups:          kubeRoleSpec.Allow.KubeUsers,
+		customTLSServerName: localK8SNI,
+		targetAddress:       suite.root.Config.Proxy.WebAddr,
+		routeToCluster:      suite.leaf.Secrets.SiteName,
 	})
 	require.NoError(t, err)
 
@@ -577,4 +640,73 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 	err = tc.SSH(ctx, cmd, false)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output.String())
+}
+
+// TestALPNProxyHTTPProxyNoProxyDial tests if a node joining to root cluster
+// takes into account http_proxy and no_proxy env variables.
+func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	rc := NewInstance(InstanceConfig{
+		ClusterName: "root.example.com",
+		HostID:      uuid.New(),
+		NodeName:    Loopback,
+		log:         testlog.FailureOnly(t),
+		Ports:       singleProxyPortSetup(),
+	})
+	username := mustGetCurrentUser(t).Username
+	rc.AddUser(username, []string{username})
+
+	rcConf := service.MakeDefaultConfig()
+	rcConf.DataDir = t.TempDir()
+	rcConf.Auth.Enabled = true
+	rcConf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Proxy.Enabled = true
+	rcConf.Proxy.DisableWebInterface = true
+	rcConf.SSH.Enabled = false
+
+	err := rc.CreateEx(t, nil, rcConf)
+	require.NoError(t, err)
+
+	err = rc.Start()
+	require.NoError(t, err)
+	defer rc.StopAll()
+
+	// Create and start http_proxy server.
+	ps := &proxyServer{}
+	ts := httptest.NewServer(ps)
+	defer ts.Close()
+
+	u, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+
+	t.Setenv("http_proxy", u.Host)
+	t.Setenv("no_proxy", "127.0.0.1")
+
+	rcProxyAddr := net.JoinHostPort(Loopback, rc.GetPortWeb())
+
+	// Start the node, due to no_proxy=127.0.0.1 env variable the connection established
+	// to the proxy should not go through the http_proxy server.
+	_, err = rc.StartNode(makeNodeConfig("first-root-node", rcProxyAddr))
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*30))
+	defer cancel()
+
+	err = waitForNodeCount(ctx, rc, "root.example.com", 1)
+	require.NoError(t, err)
+
+	require.Zero(t, ps.Count())
+
+	// Unset the no_proxy=127.0.0.1 env variable. After that a new node
+	// should take into account the http_proxy address and connection should go through the http_proxy.
+	require.NoError(t, os.Unsetenv("no_proxy"))
+	_, err = rc.StartNode(makeNodeConfig("second-root-node", rcProxyAddr))
+	require.NoError(t, err)
+	err = waitForNodeCount(ctx, rc, "root.example.com", 2)
+	require.NoError(t, err)
+
+	require.NotZero(t, ps.Count())
 }

@@ -107,35 +107,113 @@ func TestMain(m *testing.M) {
 	os.Exit(res)
 }
 
-func TestConfig(t *testing.T) {
-	t.Run("SampleConfig", func(t *testing.T) {
-		// generate sample config and write it into a temp file:
-		sfc, err := MakeSampleFileConfig(SampleFlags{
-			ClusterName: "cookie.localhost",
-			ACMEEnabled: true,
-			ACMEEmail:   "alice@example.com",
-			LicensePath: "/tmp/license.pem",
+func TestSampleConfig(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		input                  SampleFlags
+		expectError            bool
+		expectClusterName      ClusterName
+		expectLicenseFile      string
+		expectProxyPublicAddrs apiutils.Strings
+		expectProxyWebAddr     string
+		expectProxyKeyPairs    []KeyPair
+	}{
+		{
+			name: "ACMEEnabled",
+			input: SampleFlags{
+				ClusterName: "cookie.localhost",
+				ACMEEnabled: true,
+				ACMEEmail:   "alice@example.com",
+				LicensePath: "/tmp/license.pem",
+			},
+			expectClusterName:      ClusterName("cookie.localhost"),
+			expectLicenseFile:      "/tmp/license.pem",
+			expectProxyPublicAddrs: apiutils.Strings{"cookie.localhost:443"},
+			expectProxyWebAddr:     "0.0.0.0:443",
+		},
+		{
+			name: "public and web addr",
+			input: SampleFlags{
+				PublicAddr: "tele.example.com:4422",
+			},
+			expectProxyPublicAddrs: apiutils.Strings{"tele.example.com:4422"},
+			expectProxyWebAddr:     "0.0.0.0:4422",
+		},
+		{
+			name: "public and web addr with default port",
+			input: SampleFlags{
+				PublicAddr: "tele.example.com",
+			},
+			expectProxyPublicAddrs: apiutils.Strings{"tele.example.com:443"},
+			expectProxyWebAddr:     "0.0.0.0:443",
+		},
+		{
+			name: "key file missing",
+			input: SampleFlags{
+				CertFile: "/var/lib/teleport/fullchain.pem",
+			},
+			expectError: true,
+		},
+		{
+			name: "load x509 key pair failed",
+			input: SampleFlags{
+				KeyFile:  "/var/lib/teleport/key.pem",
+				CertFile: "/var/lib/teleport/fullchain.pem",
+			},
+			expectError: true,
+		},
+		{
+			name: "cluster name missing",
+			input: SampleFlags{
+				ACMEEnabled: true,
+			},
+			expectError: true,
+		},
+		{
+			name: "ACMEEnabled conflict with key file",
+			input: SampleFlags{
+				ClusterName: "cookie.localhost",
+				ACMEEnabled: true,
+				KeyFile:     "/var/lib/teleport/privkey.pem",
+				CertFile:    "/var/lib/teleport/fullchain.pem",
+			},
+			expectError: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			sfc, err := MakeSampleFileConfig(testCase.input)
+
+			if testCase.expectError {
+				require.Error(t, err)
+				require.Nil(t, sfc)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, sfc)
+
+			fn := filepath.Join(t.TempDir(), "default-config.yaml")
+			err = os.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
+			require.NoError(t, err)
+
+			// make sure it could be parsed:
+			fc, err := ReadFromFile(fn)
+			require.NoError(t, err)
+
+			// validate a couple of values:
+			require.Equal(t, fc.Global.DataDir, defaults.DataDir)
+			require.Equal(t, fc.Logger.Severity, "INFO")
+			require.Equal(t, testCase.expectClusterName, fc.Auth.ClusterName)
+			require.Equal(t, testCase.expectLicenseFile, fc.Auth.LicenseFile)
+			require.Equal(t, testCase.expectProxyWebAddr, fc.Proxy.WebAddr)
+			require.ElementsMatch(t, testCase.expectProxyPublicAddrs, fc.Proxy.PublicAddr)
+			require.ElementsMatch(t, testCase.expectProxyKeyPairs, fc.Proxy.KeyPairs)
+
+			require.False(t, lib.IsInsecureDevMode())
 		})
-		require.NoError(t, err)
-		require.NotNil(t, sfc)
-		fn := filepath.Join(t.TempDir(), "default-config.yaml")
-		err = os.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
-		require.NoError(t, err)
-
-		// make sure it could be parsed:
-		fc, err := ReadFromFile(fn)
-		require.NoError(t, err)
-
-		// validate a couple of values:
-		require.Equal(t, defaults.DataDir, fc.Global.DataDir)
-		require.Equal(t, "INFO", fc.Logger.Severity)
-		require.Equal(t, fc.Auth.ClusterName, ClusterName("cookie.localhost"))
-		require.Equal(t, fc.Auth.LicenseFile, "/tmp/license.pem")
-		require.Equal(t, fc.Proxy.PublicAddr, apiutils.Strings{"cookie.localhost:443"})
-		require.Equal(t, fc.Proxy.WebAddr, "0.0.0.0:443")
-
-		require.False(t, lib.IsInsecureDevMode())
-	})
+	}
 }
 
 // TestBooleanParsing tests that boolean options
@@ -601,10 +679,13 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "tcp://webhost:3080", cfg.Proxy.WebAddr.FullAddress())
 	require.Equal(t, "tcp://tunnelhost:1001", cfg.Proxy.ReverseTunnelListenAddr.FullAddress())
 	require.Equal(t, "tcp://webhost:3336", cfg.Proxy.MySQLAddr.FullAddress())
+	require.Equal(t, "tcp://webhost:27017", cfg.Proxy.MongoAddr.FullAddress())
 	require.Len(t, cfg.Proxy.PostgresPublicAddrs, 1)
 	require.Equal(t, "tcp://postgres.example:5432", cfg.Proxy.PostgresPublicAddrs[0].FullAddress())
 	require.Len(t, cfg.Proxy.MySQLPublicAddrs, 1)
 	require.Equal(t, "tcp://mysql.example:3306", cfg.Proxy.MySQLPublicAddrs[0].FullAddress())
+	require.Len(t, cfg.Proxy.MongoPublicAddrs, 1)
+	require.Equal(t, "tcp://mongo.example:27017", cfg.Proxy.MongoPublicAddrs[0].FullAddress())
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 
@@ -733,6 +814,28 @@ func TestPostgresPublicAddr(t *testing.T) {
 				},
 			},
 			out: []string{net.JoinHostPort("postgres.example.com", strconv.Itoa(defaults.HTTPListenPort))},
+		},
+		{
+			desc: "when PostgresAddr is provided with port, the explicitly provided port should be use",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					WebAddr:            "0.0.0.0:8080",
+					PostgresAddr:       "0.0.0.0:12345",
+					PostgresPublicAddr: []string{"postgres.example.com"},
+				},
+			},
+			out: []string{"postgres.example.com:12345"},
+		},
+		{
+			desc: "when PostgresAddr is provided without port, defaults PostgresPort should be used",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					WebAddr:            "0.0.0.0:8080",
+					PostgresAddr:       "0.0.0.0",
+					PostgresPublicAddr: []string{"postgres.example.com"},
+				},
+			},
+			out: []string{net.JoinHostPort("postgres.example.com", strconv.Itoa(defaults.PostgresListenPort))},
 		},
 	}
 	for _, test := range tests {

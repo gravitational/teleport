@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 	"crypto/subtle"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -436,8 +437,27 @@ func (a *LocalKeyAgent) defaultHostPromptFunc(host string, key ssh.PublicKey, wr
 // AddKey activates a new signed session key by adding it into the keystore and also
 // by loading it into the SSH agent.
 func (a *LocalKeyAgent) AddKey(key *Key) (*agent.AddedKey, error) {
+	if err := a.addKey(key); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Load key into the teleport agent and system agent.
+	return a.LoadKey(*key)
+}
+
+// AddDatabaseKey activates a new signed database key by adding it into the keystore.
+// key must contain at least one db cert. ssh cert is not required.
+func (a *LocalKeyAgent) AddDatabaseKey(key *Key) error {
+	if len(key.DBTLSCerts) == 0 {
+		return trace.BadParameter("key must contains at least one database access certificate")
+	}
+	return a.addKey(key)
+}
+
+// addKey activates a new signed session key by adding it into the keystore.
+func (a *LocalKeyAgent) addKey(key *Key) error {
 	if key == nil {
-		return nil, trace.BadParameter("key is nil")
+		return trace.BadParameter("key is nil")
 	}
 	if key.ProxyHost == "" {
 		key.ProxyHost = a.proxyHost
@@ -452,23 +472,22 @@ func (a *LocalKeyAgent) AddKey(key *Key) (*agent.AddedKey, error) {
 	storedKey, err := a.keyStore.GetKey(key.KeyIndex)
 	if err != nil {
 		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	} else {
 		if subtle.ConstantTimeCompare(storedKey.Priv, key.Priv) == 0 {
 			a.log.Debugf("Deleting obsolete stored key with index %+v.", storedKey.KeyIndex)
 			if err := a.keyStore.DeleteKey(storedKey.KeyIndex); err != nil {
-				return nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 		}
 	}
 
 	// Save the new key to the keystore (usually into ~/.tsh).
 	if err := a.keyStore.AddKey(key); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	// Load key into the teleport agent and system agent.
-	return a.LoadKey(*key)
+	return nil
 }
 
 // DeleteKey removes the key with all its certs from the key store
@@ -553,4 +572,19 @@ func (a *LocalKeyAgent) certsForCluster(clusterName string) ([]ssh.Signer, error
 		return nil, trace.NotFound("no auth method available")
 	}
 	return certs, nil
+}
+
+// ClientCertPool returns x509.CertPool containing trusted CA.
+func (a *LocalKeyAgent) ClientCertPool(cluster string) (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	key, err := a.GetKey(cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, caPEM := range key.TLSCAs() {
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, trace.BadParameter("failed to parse TLS CA certificate")
+		}
+	}
+	return pool, nil
 }

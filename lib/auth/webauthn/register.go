@@ -167,6 +167,9 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string) (*CredentialC
 		return nil, trace.Wrap(err)
 	}
 
+	// Copy AuthenticatorSelection settings manually, the framework doesn't do it.
+	credentialCreation.Response.AuthenticatorSelection = web.Config.AuthenticatorSelection
+
 	// TODO(codingllama): Send U2F App ID back in creation requests too. Useful to
 	//  detect duplicate devices.
 

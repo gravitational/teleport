@@ -285,6 +285,7 @@ type connectParams struct {
 	sshConfig *ssh.ClientConfig
 }
 
+// authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	dialer := NewDirectDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
@@ -294,6 +295,7 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
+// tunnelConnect connects to the Teleport Auth Server through the proxy's reverse tunnel.
 func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
@@ -306,6 +308,7 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
+// proxyConnect connects to the Teleport Auth Server through the proxy.
 func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
@@ -318,6 +321,8 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
+// dialerConnect connects to the Teleport Auth Server through a custom dialer.
+// The dialer must provide the address in a custom ContextDialerFunc function.
 func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.dialer == nil {
 		if params.cfg.Dialer == nil {
@@ -326,15 +331,15 @@ func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
 		params.dialer = params.cfg.Dialer
 	}
 	clt := newClient(params.cfg, params.dialer, params.tlsConfig)
+	// Since the client uses a custom dialer to connect to the server and SNI
+	// is used for the TLS handshake, the address dialed here is arbitrary.
 	if err := clt.dialGRPC(ctx, constants.APIDomain); err != nil {
 		return nil, trace.Wrap(err, "failed to connect using pre-defined dialer")
 	}
 	return clt, nil
 }
 
-// dialGRPC dials a connection between server and client. If withBlock is true,
-// the dial will block until the connection is up, rather than returning
-// immediately and connecting to the server in the background.
+// dialGRPC dials a connection between server and client.
 func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialContext, cancel := context.WithTimeout(ctx, c.c.DialTimeout)
 	defer cancel()
@@ -416,7 +421,8 @@ type Config struct {
 	// Credentials are a list of credentials to use when attempting
 	// to connect to the server.
 	Credentials []Credentials
-	// Dialer is a custom dialer used to dial a server. If set, Dialer
+	// Dialer is a custom dialer used to dial a server. The Dialer should
+	// have custom logic to provide an address to the dialer. If set, Dialer
 	// takes precedence over all other connection options.
 	Dialer ContextDialer
 	// DialOpts define options for dialing the client connection.
@@ -448,7 +454,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.KeepAlivePeriod == 0 {
-		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
+		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL()
 	}
 	if c.KeepAliveCount == 0 {
 		c.KeepAliveCount = defaults.KeepAliveCountMax
@@ -822,12 +828,52 @@ func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 
 // GetApplicationServers returns all registered application servers.
 func (c *Client) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	resources, err := c.GetResources(ctx, namespace, types.KindAppServer)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			servers, err := c.getApplicationServersFallback(ctx, namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return servers, nil
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	servers := make([]types.AppServer, len(resources))
+	for i, resource := range resources {
+		appServer, ok := resource.(types.AppServer)
+		if !ok {
+			return nil, trace.BadParameter("expected AppServer resource, got %T", resource)
+		}
+
+		servers[i] = appServer
+	}
+
+	// In addition, we need to fetch legacy application servers.
+	//
+	// DELETE IN 9.0.
+	legacyServers, err := c.getAppServersFallback(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return append(servers, legacyServers...), nil
+}
+
+// getAppServersFallback fetches app servers using deprecated API call
+// `GetApplicationServers`.
+//
+// DELETE IN 10.0
+func (c *Client) getApplicationServersFallback(ctx context.Context, namespace string) ([]types.AppServer, error) {
 	resp, err := c.grpc.GetApplicationServers(ctx, &proto.GetApplicationServersRequest{
 		Namespace: namespace,
 	}, c.callOpts...)
 	if err != nil {
 		if trace.IsNotImplemented(trail.FromGRPC(err)) {
-			servers, err := c.getApplicationServersFallback(ctx, namespace)
+			servers, err := c.getAppServersFallback(ctx, namespace)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -839,14 +885,15 @@ func (c *Client) GetApplicationServers(ctx context.Context, namespace string) ([
 	for _, server := range resp.GetServers() {
 		servers = append(servers, server)
 	}
+
 	return servers, nil
 }
 
-// getApplicationServersFallback fetches app servers using legacy API call
-// from clusters that haven't been upgraded yet.
+// getAppServersFallback fetches app servers using legacy API call
+// `GetAppServers`.
 //
 // DELETE IN 9.0.
-func (c *Client) getApplicationServersFallback(ctx context.Context, namespace string) ([]types.AppServer, error) {
+func (c *Client) getAppServersFallback(ctx context.Context, namespace string) ([]types.AppServer, error) {
 	legacyServers, err := c.GetAppServers(ctx, namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1040,6 +1087,38 @@ func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
 
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
+	resources, err := c.GetResources(ctx, namespace, types.KindDatabaseServer)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			servers, err := c.getDatabaseServersFallback(ctx, namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return servers, nil
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	servers := make([]types.DatabaseServer, len(resources))
+	for i, resource := range resources {
+		databaseServer, ok := resource.(types.DatabaseServer)
+		if !ok {
+			return nil, trace.BadParameter("expected DatabaseServer resource, got %T", resource)
+		}
+
+		servers[i] = databaseServer
+	}
+
+	return servers, nil
+}
+
+// getDatabaseServersFallback fetches database servers using legacy API call
+// `GetDatabaseServers`.
+//
+// DELETE IN 10.0.
+func (c *Client) getDatabaseServersFallback(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
 	resp, err := c.grpc.GetDatabaseServers(ctx, &proto.GetDatabaseServersRequest{
 		Namespace: namespace,
 	}, c.callOpts...)
@@ -1050,6 +1129,7 @@ func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]ty
 	for _, server := range resp.GetServers() {
 		servers = append(servers, server)
 	}
+
 	return servers, nil
 }
 
@@ -1699,11 +1779,6 @@ func (c *Client) ResetClusterNetworkingConfig(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
-// DeleteClusterNetworkingConfig not implemented: can only be called locally.
-func (c *Client) DeleteClusterNetworkingConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // GetSessionRecordingConfig gets session recording configuration.
 func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	resp, err := c.grpc.GetSessionRecordingConfig(ctx, &empty.Empty{}, c.callOpts...)
@@ -1727,11 +1802,6 @@ func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.
 func (c *Client) ResetSessionRecordingConfig(ctx context.Context) error {
 	_, err := c.grpc.ResetSessionRecordingConfig(ctx, &empty.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)
-}
-
-// DeleteSessionRecordingConfig not implemented: can only be called locally.
-func (c *Client) DeleteSessionRecordingConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // GetAuthPreference gets cluster auth preference.
@@ -1759,11 +1829,6 @@ func (c *Client) ResetAuthPreference(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
-// DeleteAuthPreference not implemented: can only be called locally.
-func (c *Client) DeleteAuthPreference(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // GetClusterAuditConfig gets cluster audit configuration.
 func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
 	resp, err := c.grpc.GetClusterAuditConfig(ctx, &empty.Empty{}, c.callOpts...)
@@ -1771,16 +1836,6 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 		return nil, trail.FromGRPC(err)
 	}
 	return resp, nil
-}
-
-// SetClusterAuditConfig not implemented: can only be called locally.
-func (c *Client) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteClusterAuditConfig not implemented: can only be called locally.
-func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // GetLock gets a lock by name.
@@ -1832,11 +1887,6 @@ func (c *Client) DeleteLock(ctx context.Context, name string) error {
 	}
 	_, err := c.grpc.DeleteLock(ctx, &proto.DeleteLockRequest{Name: name}, c.callOpts...)
 	return trail.FromGRPC(err)
-}
-
-// DeleteAllLocks not implemented: can only be called locally.
-func (c *Client) DeleteAllLocks(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
@@ -2153,7 +2203,7 @@ func (c *Client) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 }
 
 // CreateAccountRecoveryCodes creates new set of recovery codes for a user, replacing and invalidating any previously owned codes.
-func (c *Client) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error) {
+func (c *Client) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
 	res, err := c.grpc.CreateAccountRecoveryCodes(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
@@ -2166,7 +2216,7 @@ func (c *Client) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 }
 
 // GetAccountRecoveryCodes returns the user in context their recovery codes resource without any secrets.
-func (c *Client) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+func (c *Client) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
 	res, err := c.grpc.GetAccountRecoveryCodes(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
@@ -2193,4 +2243,75 @@ func (c *Client) CreateRegisterChallenge(ctx context.Context, in *proto.CreateRe
 func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
 	resp, err := c.grpc.GenerateCertAuthorityCRL(ctx, req)
 	return resp, trail.FromGRPC(err)
+}
+
+// ListResources returns a paginated list of nodes that the user has access to.
+// `nextKey` is used as `startKey` in another call to ListResources to retrieve
+// the next page. If you want to list all resources pages, check the
+// `GetResources` function.
+// It will return a `trace.LimitExceeded` error if the page exceeds gRPC max
+// message size.
+func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.Resource, nextKey string, err error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	resp, err := c.grpc.ListResources(ctx, &req, c.callOpts...)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	resources = make([]types.Resource, len(resp.GetResources()))
+	for i, respResource := range resp.GetResources() {
+		switch req.ResourceType {
+		case types.KindDatabaseServer:
+			resources[i] = respResource.GetDatabaseServer()
+		case types.KindAppServer:
+			resources[i] = respResource.GetAppServer()
+		default:
+			return nil, "", trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+		}
+	}
+
+	return resources, resp.NextKey, nil
+}
+
+// GetResources retrieves all pages from ListResourcesPage and return all
+// resources.
+func (c *Client) GetResources(ctx context.Context, namespace, resourceType string) ([]types.Resource, error) {
+	var (
+		resources []types.Resource
+		startKey  string
+		chunkSize = int32(defaults.DefaultChunkSize)
+	)
+
+	for {
+		listResources, nextKey, err := c.ListResources(ctx, proto.ListResourcesRequest{
+			Namespace:    namespace,
+			ResourceType: resourceType,
+			StartKey:     startKey,
+			Limit:        chunkSize,
+		})
+		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				chunkSize = chunkSize / 2
+				if chunkSize == 0 {
+					return nil, trace.Wrap(trail.FromGRPC(err), "resource is too large to retrieve")
+				}
+
+				continue
+			}
+
+			return nil, trail.FromGRPC(err)
+		}
+
+		startKey = nextKey
+		resources = append(resources, listResources...)
+		if startKey == "" || len(listResources) == 0 {
+			break
+		}
+
+	}
+
+	return resources, nil
 }

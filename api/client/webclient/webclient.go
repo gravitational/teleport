@@ -254,12 +254,18 @@ type SSHProxySettings struct {
 
 // DBProxySettings contains database access specific proxy settings.
 type DBProxySettings struct {
+	// PostgresListenAddr is Postgres proxy listen address.
+	PostgresListenAddr string `json:"postgres_listen_addr,omitempty"`
 	// PostgresPublicAddr is advertised to Postgres clients.
 	PostgresPublicAddr string `json:"postgres_public_addr,omitempty"`
 	// MySQLListenAddr is MySQL proxy listen address.
 	MySQLListenAddr string `json:"mysql_listen_addr,omitempty"`
 	// MySQLPublicAddr is advertised to MySQL clients.
 	MySQLPublicAddr string `json:"mysql_public_addr,omitempty"`
+	// MongoListenAddr is Mongo proxy listen address.
+	MongoListenAddr string `json:"mongo_listen_addr,omitempty"`
+	// MongoPublicAddr is advertised to Mongo clients.
+	MongoPublicAddr string `json:"mongo_public_addr,omitempty"`
 }
 
 // AuthenticationSettings contains information about server authentication
@@ -328,12 +334,16 @@ type GithubSettings struct {
 }
 
 // The tunnel addr is retrieved in the following preference order:
-//  1. Reverse Tunnel Public Address.
-//  2. If proxy support ALPN listener where all services are exposed on single port return proxy address.
+//  1. If proxy support ALPN listener where all services are exposed on single port return ProxyPublicAddr/ProxyAddr.
+//  2. Reverse Tunnel Public Address.
 //  3. SSH Proxy Public Address Host + Tunnel Port.
 //  4. HTTP Proxy Public Address Host + Tunnel Port.
 //  5. Proxy Address Host + Tunnel Port.
 func tunnelAddr(proxyAddr string, settings ProxySettings) (string, error) {
+	if settings.TLSRoutingEnabled {
+		return tunnelAddrForTLSRouting(proxyAddr, settings)
+	}
+
 	// If a tunnel public address is set, nothing else has to be done, return it.
 	sshSettings := settings.SSH
 	if sshSettings.TunnelPublicAddr != "" {
@@ -344,12 +354,6 @@ func tunnelAddr(proxyAddr string, settings ProxySettings) (string, error) {
 	tunnelPort := strconv.Itoa(defaults.SSHProxyTunnelListenPort)
 	if sshSettings.TunnelListenAddr != "" {
 		if port, err := extractPort(sshSettings.TunnelListenAddr); err == nil {
-			tunnelPort = port
-		}
-	}
-
-	if settings.TLSRoutingEnabled && proxyAddr != "" {
-		if port, err := extractPort(proxyAddr); err == nil {
 			tunnelPort = port
 		}
 	}
@@ -374,6 +378,39 @@ func tunnelAddr(proxyAddr string, settings ProxySettings) (string, error) {
 		return "", trace.Wrap(err, "failed to parse the given proxy address")
 	}
 	return net.JoinHostPort(host, tunnelPort), nil
+}
+
+// tunnelAddrForTLSRouting returns reverse tunnel proxy address for proxy supporting TLS Routing.
+func tunnelAddrForTLSRouting(proxyAddr string, settings ProxySettings) (string, error) {
+	if settings.SSH.PublicAddr != "" {
+		// Check if PublicAddr contains a port number.
+		if _, err := extractPort(settings.SSH.PublicAddr); err == nil {
+			return extractHostPort(settings.SSH.PublicAddr)
+		}
+		// Get port number from proxyAddr or use default one.
+		port := strconv.Itoa(defaults.ProxyWebListenPort)
+		if webPort, err := extractPort(proxyAddr); err == nil {
+			port = webPort
+		}
+
+		if host, err := extractHost(settings.SSH.PublicAddr); err == nil {
+			return net.JoinHostPort(host, port), nil
+		}
+	}
+
+	// Got proxyAddr with a port number for instance: proxy.example.com:3080
+	if _, err := extractPort(proxyAddr); err == nil {
+		return proxyAddr, nil
+	}
+	host, err := extractHost(proxyAddr)
+	if err != nil {
+		return "", trace.Wrap(err, "failed to parse the given proxy address")
+	}
+
+	// Got proxy address without a port like: proxy.example.com
+	// If proxyAddr doesn't contain any port it means that HTTPS port should be used because during Find call
+	// The destination URL is constructed by the fmt.Sprintf("https://%s/webapi/find", proxyAddr) function.
+	return net.JoinHostPort(host, strconv.Itoa(defaults.StandardHTTPSPort)), nil
 }
 
 // extractHostPort takes addresses like "tcp://host:port/path" and returns "host:port".

@@ -152,6 +152,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	user := sessionCtx.DatabaseUser
 	var password string
 	switch {
 	case sessionCtx.Database.IsRDS():
@@ -183,10 +184,18 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case sessionCtx.Database.IsAzure():
+		password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Azure requires database login to be <user>@<server-name> e.g.
+		// alice@mysql-server-name.
+		user = fmt.Sprintf("%v@%v", user, sessionCtx.Database.GetAzure().Name)
 	}
 	// TODO(r0mant): Set CLIENT_INTERACTIVE flag on the client?
 	conn, err := client.Connect(sessionCtx.Database.GetURI(),
-		sessionCtx.DatabaseUser,
+		user,
 		password,
 		sessionCtx.DatabaseName,
 		func(conn *client.Conn) {
@@ -236,6 +245,17 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		switch pkt := packet.(type) {
 		case *protocol.Query:
 			e.Audit.OnQuery(e.Context, sessionCtx, common.Query{Query: pkt.Query()})
+		case *protocol.ChangeUser:
+			// MySQL protocol includes COM_CHANGE_USER command that allows to
+			// re-authenticate connection as a different user. It is not
+			// supported by mysql shell and most drivers but some drivers do
+			// provide it.
+			//
+			// We do not want to allow changing the connection user and instead
+			// force users to go through normal reconnect flow so log the
+			// attempt and close the client connection.
+			log.Warnf("Rejecting attempt to change user to %q for session %v.", pkt.User(), sessionCtx)
+			return
 		case *protocol.Quit:
 			return
 		}

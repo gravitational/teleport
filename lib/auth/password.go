@@ -66,9 +66,9 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 	recoveryAllowed := s.isAccountRecoveryAllowed(ctx) == nil
 	createRecoveryCodes := hasEmail && hasMFA && recoveryAllowed
 
-	var recoveryCodes []string
+	var newRecovery *proto.RecoveryCodes
 	if createRecoveryCodes {
-		recoveryCodes, err = s.generateAndUpsertRecoveryCodes(ctx, user.GetName())
+		newRecovery, err = s.generateAndUpsertRecoveryCodes(ctx, user.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -85,8 +85,8 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 	}
 
 	return &proto.ChangeUserAuthenticationResponse{
-		WebSession:    sess,
-		RecoveryCodes: recoveryCodes,
+		WebSession: sess,
+		Recovery:   newRecovery,
 	}, nil
 }
 
@@ -298,7 +298,7 @@ func (s *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *type
 		return trace.AccessDenied("failed to validate TOTP code: %v", err)
 	}
 	if !valid {
-		return trace.AccessDenied("TOTP code not valid")
+		return trace.AccessDenied("invalid one time token, please check if the token has expired and try again")
 	}
 	// if we have a valid token, update the previously used token
 	if err := s.UpsertUsedTOTPToken(user, otpToken); err != nil {

@@ -56,6 +56,11 @@ func TestConnString(t *testing.T) {
 			out:  "postgres://alice@localhost:5432?sslrootcert=/tmp/ca&sslcert=/tmp/cert&sslkey=/tmp/key&sslmode=verify-full",
 		},
 		{
+			name: "user with special characters",
+			user: "postgres@google-project-id.iam",
+			out:  "postgres://postgres%40google-project-id.iam@localhost:5432?sslrootcert=/tmp/ca&sslcert=/tmp/cert&sslkey=/tmp/key&sslmode=verify-full",
+		},
+		{
 			name:     "database set",
 			database: "test",
 			out:      "postgres://localhost:5432/test?sslrootcert=/tmp/ca&sslcert=/tmp/cert&sslkey=/tmp/key&sslmode=verify-full",

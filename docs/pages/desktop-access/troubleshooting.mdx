@@ -51,7 +51,7 @@ authentication was not trusted"** (or similar).
 This means that the host does not trust the Teleport CA.
 
 First, make sure that you [import the Teleport CA into Group
-Policy](./getting-started.mdx#import-teleport-ca). Note that if the
+Policy](./getting-started.mdx#create-another-gpo-and-import-the-teleport-ca). Note that if the
 Teleport CA was rotated since the last import, you will have to fetch the
 new CA using `tctl auth export --type=windows >user-ca.cer`
 
@@ -94,7 +94,7 @@ For desktops that are automatically discovered via LDAP, Teleport makes DNS
 queries against the LDAP server in order to resolve the hostname to an IP
 address.
 
-Ensure that your firewalls allow inbound DNS traffic on port 53 from the
+Ensure that your firewalls allow inbound DNS traffic on port `53` from the
 instance(s) running Teleport's Windows Desktop Service to the LDAP server
 (Active Directory Domain Controller).
 
@@ -149,18 +149,28 @@ that runs `windows_desktop_service`.
 
 ### Cannot Initialize LDAP over TLS
 
-Teleport fails to start with an error similar to:
+Teleport fails to connect to LDAP on startup. You may see errors similar to:
 
 ```text
 LDAP Result Code 52 "Unavailable": 00000000: LdapErr: DSID-0C090F78, comment: Error initializing SSL/TLS, data 0, v2580\x00
 ```
 
-**Solution:** Install Active Directory Certificate Services
+or
 
-This means that you do not have Active Directory Certificate Services (AD CS)
-installed in your domain. AD CS provides the certificate for TLS connections to
-LDAP and Teleport refuses to authenticate to LDAP over an insecure connection.
+```text
+connecting to LDAP server: unable to read LDAP response packet: read tcp 172.18.0.5:35970->;172.18.0.4:636: read: connection reset by peer
+```
 
-You must [install AD
-CS](https://docs.microsoft.com/en-us/windows-server/networking/core-network-guide/cncg/server-certs/install-the-certification-authority)
-on one of the Domain Controllers and reboot it.
+**Solution:**  Enable LDAPS
+
+This means you do not have an LDAP certificate installed on your LDAP servers,
+or you are trying to make an insecure connection on port `389`. Teleport requires
+secure LDAPS connections, which are typically on port `636`. First, confirm that
+you are connecting to the correct LDAPS port. If that doesn't resolve your
+issue, you can
+[instal Active Directory Certificate Services](https://docs.microsoft.com/en-us/windows-server/networking/core-network-guide/cncg/server-certs/install-the-certification-authority)
+(AD CS) or
+[import](https://docs.microsoft.com/en-us/troubleshoot/windows-server/identity/enable-ldap-over-ssl-3rd-certification-authority)
+your own third party certificate. Note that Active Directory is
+[extremely picky](https://docs.microsoft.com/en-us/troubleshoot/windows-server/identity/enable-ldap-over-ssl-3rd-certification-authority#requirements-for-an-ldaps-certificate)
+so take care to generate your certificates correctly.
