@@ -115,8 +115,9 @@ func New(c *Config) (*Assignments, error) {
 
 // IsInternal returns if the author of a PR is internal.
 func (r *Assignments) IsInternal(author string) bool {
-	_, ok := r.c.CodeReviewers[author]
-	return ok
+	_, code := r.c.CodeReviewers[author]
+	_, docs := r.c.DocsReviewers[author]
+	return code || docs
 }
 
 // Get will return a list of code reviewers a given author.
@@ -189,6 +190,8 @@ func (r *Assignments) getCodeReviewerSets(author string) ([]string, []string) {
 
 // CheckExternal requires two admins have approved.
 func (r *Assignments) CheckExternal(author string, reviews map[string]*github.Review) error {
+	log.Printf("Check: Found external author %v.", author)
+
 	reviewers := r.getAdminReviewers(author)
 
 	if checkN(reviewers, reviews) > 1 {
@@ -201,6 +204,8 @@ func (r *Assignments) CheckExternal(author string, reviews map[string]*github.Re
 // docs and if each set of code reviews have approved. Admin approvals bypass
 // all checks.
 func (r *Assignments) CheckInternal(author string, reviews map[string]*github.Review, docs bool, code bool) error {
+	log.Printf("Check: Found internal author %v.", author)
+
 	// Skip checks if admins have approved.
 	if check(r.getAdminReviewers(author), reviews) {
 		return nil

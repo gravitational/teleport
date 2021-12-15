@@ -18,6 +18,7 @@ package protocol
 
 import (
 	"fmt"
+	"strings"
 
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
@@ -54,10 +55,27 @@ func (m *MessageOpQuery) GetBytes() []byte {
 	return m.bytes
 }
 
+// GetDatabase returns the command's database.
+func (m *MessageOpQuery) GetDatabase() (string, error) {
+	// Full collection name has "<db>.<collection>" format.
+	return strings.Split(m.FullCollectionName, ".")[0], nil
+}
+
+// GetCommand returns the message's command.
+func (m *MessageOpQuery) GetCommand() (string, error) {
+	// Command is the first element of the query document e.g.
+	// { "authenticate": 1, "mechanism": ... }
+	cmd, err := m.Query.IndexErr(0)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return cmd.Key(), nil
+}
+
 // String returns the message string representation.
 func (m *MessageOpQuery) String() string {
-	return fmt.Sprintf("OpQuery(Flags=%v, FullCollectionName=%v, NumberToSkip=%v, NumberToReturn=%v, Query=%v, ReturnFieldsSelector=%v)",
-		m.Flags.String(), m.FullCollectionName, m.NumberToSkip, m.NumberToReturn, m.Query.String(), m.ReturnFieldsSelector.String())
+	return fmt.Sprintf("OpQuery(FullCollectionName=%v, Query=%v, ReturnFieldsSelector=%v, NumberToSkip=%v, NumberToReturn=%v, Flags=%v)",
+		m.FullCollectionName, m.Query.String(), m.ReturnFieldsSelector.String(), m.NumberToSkip, m.NumberToReturn, m.Flags.String())
 }
 
 // MoreToCome is whether sender will send another message right after this one.
@@ -71,29 +89,29 @@ func (m *MessageOpQuery) MoreToCome(_ Message) bool {
 func readOpQuery(header MessageHeader, payload []byte) (*MessageOpQuery, error) {
 	flags, rem, ok := wiremessage.ReadQueryFlags(payload)
 	if !ok {
-		return nil, trace.BadParameter("failed to read OP_QUERY flags %v", payload)
+		return nil, trace.BadParameter("malformed OP_QUERY: missing flags %v", payload)
 	}
 	fullCollectionName, rem, ok := wiremessage.ReadQueryFullCollectionName(rem)
 	if !ok {
-		return nil, trace.BadParameter("failed to read OP_QUERY fullCollectionName %v", payload)
+		return nil, trace.BadParameter("malformed OP_QUERY: missing full collection name %v", payload)
 	}
 	numberToSkip, rem, ok := wiremessage.ReadQueryNumberToSkip(rem)
 	if !ok {
-		return nil, trace.BadParameter("failed to read OP_QUERY numberToSkip %v", payload)
+		return nil, trace.BadParameter("malformed OP_QUERY: missing number to skip %v", payload)
 	}
 	numberToReturn, rem, ok := wiremessage.ReadQueryNumberToReturn(rem)
 	if !ok {
-		return nil, trace.BadParameter("failed to read OP_QUERY numberToReturn %v", payload)
+		return nil, trace.BadParameter("malformed OP_QUERY: missing number to return %v", payload)
 	}
 	query, rem, ok := wiremessage.ReadQueryQuery(rem)
 	if !ok {
-		return nil, trace.BadParameter("failed to read OP_QUERY query %v", payload)
+		return nil, trace.BadParameter("malformed OP_QUERY: missing query %v", payload)
 	}
 	var returnFieldsSelector bsoncore.Document
 	if len(rem) > 0 {
 		returnFieldsSelector, _, ok = wiremessage.ReadQueryReturnFieldsSelector(rem)
 		if !ok {
-			return nil, trace.BadParameter("failed to read OP_QUERY returnFieldsSelector %v", payload)
+			return nil, trace.BadParameter("malformed OP_QUERY: missing return field selector %v", payload)
 		}
 	}
 	return &MessageOpQuery{
