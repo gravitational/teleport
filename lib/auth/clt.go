@@ -120,7 +120,7 @@ type HTTPClient struct {
 // NewHTTPClient creates a new HTTP client with TLS authentication and the given dialer.
 func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.ClientParam) (*HTTPClient, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	dialer := cfg.Dialer
