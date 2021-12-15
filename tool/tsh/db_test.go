@@ -210,9 +210,10 @@ func decodePEM(pemPath string) (certs []pem.Block, keys []pem.Block, err error) 
 	return certs, keys, nil
 }
 
+// fakeExec implements execer interface for mocking purposes.
 type fakeExec struct {
-	foundMariaDB bool
-	execOutput   []byte
+	foundBinary bool
+	execOutput  []byte
 }
 
 func (f fakeExec) RunCommand(_ string, _ ...string) ([]byte, error) {
@@ -220,7 +221,7 @@ func (f fakeExec) RunCommand(_ string, _ ...string) ([]byte, error) {
 }
 
 func (f fakeExec) LookPath(_ string) (string, error) {
-	if f.foundMariaDB {
+	if f.foundBinary {
 		return "", nil
 	}
 	return "", trace.NotFound("not found")
@@ -243,23 +244,51 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 		Dir:      "/tmp",
 	}
 
-	database := &tlsca.RouteToDatabase{
-		Protocol:    defaults.ProtocolMySQL,
-		Database:    "mydb",
-		Username:    "myUser",
-		ServiceName: "mysql",
-	}
-
 	tests := []struct {
-		name    string
-		execer  *fakeExec
-		cmd     []string
-		wantErr bool
+		name       string
+		dbProtocol string
+		execer     *fakeExec
+		cmd        []string
+		wantErr    bool
 	}{
 		{
-			name: "mariadb",
+			name:       "postgres",
+			dbProtocol: defaults.ProtocolPostgres,
+			cmd: []string{"psql",
+				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/certs.pem&" +
+					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
+					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full"},
+			wantErr: false,
+		},
+		{
+			name:       "cockroach",
+			dbProtocol: defaults.ProtocolCockroachDB,
 			execer: &fakeExec{
-				foundMariaDB: true,
+				foundBinary: true,
+			},
+			cmd: []string{"cockroach", "sql", "--url",
+				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/certs.pem&" +
+					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
+					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full"},
+			wantErr: false,
+		},
+		{
+			name:       "cockroach psql fallback",
+			dbProtocol: defaults.ProtocolCockroachDB,
+			execer: &fakeExec{
+				foundBinary: false,
+			},
+			cmd: []string{"psql",
+				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/certs.pem&" +
+					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
+					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full"},
+			wantErr: false,
+		},
+		{
+			name:       "mariadb",
+			dbProtocol: defaults.ProtocolMySQL,
+			execer: &fakeExec{
+				foundBinary: true,
 			},
 			cmd: []string{"mariadb",
 				"--user", "myUser",
@@ -274,10 +303,11 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "mysql by mariadb",
+			name:       "mysql by mariadb",
+			dbProtocol: defaults.ProtocolMySQL,
 			execer: &fakeExec{
-				foundMariaDB: false,
-				execOutput:   []byte("mysql  Ver 15.1 Distrib 10.3.32-MariaDB, for debian-linux-gnu (x86_64) using readline 5.2"),
+				foundBinary: false,
+				execOutput:  []byte("mysql  Ver 15.1 Distrib 10.3.32-MariaDB, for debian-linux-gnu (x86_64) using readline 5.2"),
 			},
 			cmd: []string{"mysql",
 				"--user", "myUser",
@@ -292,10 +322,11 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "mysql by oracle",
+			name:       "mysql by oracle",
+			dbProtocol: defaults.ProtocolMySQL,
 			execer: &fakeExec{
-				foundMariaDB: false,
-				execOutput:   []byte("Ver 8.0.27-0ubuntu0.20.04.1 for Linux on x86_64 ((Ubuntu))"),
+				foundBinary: false,
+				execOutput:  []byte("Ver 8.0.27-0ubuntu0.20.04.1 for Linux on x86_64 ((Ubuntu))"),
 			},
 			cmd: []string{"mysql",
 				"--defaults-group-suffix=_db.example.com-mysql",
@@ -306,12 +337,30 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 				"--protocol", "TCP"},
 			wantErr: false,
 		},
+		{
+			name:       "mongodb",
+			dbProtocol: defaults.ProtocolMongoDB,
+			cmd: []string{"mongo",
+				"--host", "localhost",
+				"--port", "12345",
+				"--ssl",
+				"--sslPEMKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
+				"mydb"},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			database := &tlsca.RouteToDatabase{
+				Protocol:    tt.dbProtocol,
+				Database:    "mydb",
+				Username:    "myUser",
+				ServiceName: "mysql",
+			}
 
 			c := newCmdBuilder(tc, profile, database, WithLocalProxy("localhost", 12345, ""))
 			c.exe = tt.execer
