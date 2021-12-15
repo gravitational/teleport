@@ -138,7 +138,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	}
 	// Print after-connect message.
 	if !quiet {
-		fmt.Println(formatDatabaseConnnectMessage(cf.SiteName, db))
+		fmt.Println(formatDatabaseConnectMessage(cf.SiteName, db))
 		return nil
 	}
 	return nil
@@ -548,17 +548,25 @@ func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
 	}
 }
 
+// execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
+// This interface exists only to enable mocking.
 type execer interface {
+	// RunCommand runs a system command.
 	RunCommand(name string, arg ...string) ([]byte, error)
+	// LookPath returns a full path to a binary if this one is found in system PATH,
+	// error otherwise.
 	LookPath(file string) (string, error)
 }
 
+// systemExecer implements execer interface by using Go exec module.
 type systemExecer struct{}
 
+// RunCommand is a wrapper for exec.Command(...).Output()
 func (s systemExecer) RunCommand(name string, arg ...string) ([]byte, error) {
 	return exec.Command(name, arg...).Output()
 }
 
+// LookPath is a wrapper for exec.LookPath(...)
 func (s systemExecer) LookPath(file string) (string, error) {
 	return exec.LookPath(file)
 }
@@ -574,7 +582,9 @@ type cliCommandBuilder struct {
 	exe execer
 }
 
-func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, opts ...ConnectCommandFunc) *cliCommandBuilder {
+func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
+	db *tlsca.RouteToDatabase, opts ...ConnectCommandFunc,
+) *cliCommandBuilder {
 	var options connectionCommandOpts
 	for _, opt := range opts {
 		opt(&options)
@@ -602,36 +612,36 @@ func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus, db 
 func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
 	switch c.db.Protocol {
 	case defaults.ProtocolPostgres:
-		return getPostgresCommand(c.tc, c.profile, c.db, c.host, c.port, c.options), nil
+		return c.getPostgresCommand(), nil
 
 	case defaults.ProtocolCockroachDB:
-		return getCockroachCommand(c.tc, c.profile, c.db, c.host, c.port, c.options), nil
+		return c.getCockroachCommand(), nil
 
 	case defaults.ProtocolMySQL:
 		return c.getMySQLCommand(), nil
 
 	case defaults.ProtocolMongoDB:
-		return getMongoCommand(c.tc, c.profile, c.db, c.host, c.port, c.options), nil
+		return c.getMongoCommand(), nil
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
 }
 
-func getPostgresCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
+func (c *cliCommandBuilder) getPostgresCommand() *exec.Cmd {
 	return exec.Command(postgresBin,
-		postgres.GetConnString(dbprofile.New(tc, *db, *profile, host, port)))
+		postgres.GetConnString(dbprofile.New(c.tc, *c.db, *c.profile, c.host, c.port)))
 }
 
-func getCockroachCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
+func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
 	// If cockroach CLI client is not available, fallback to psql.
-	if _, err := exec.LookPath(cockroachBin); err != nil {
+	if _, err := c.exe.LookPath(cockroachBin); err != nil {
 		log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
 			cockroachBin, postgresBin, err)
 		return exec.Command(postgresBin,
-			postgres.GetConnString(dbprofile.New(tc, *db, *profile, host, port)))
+			postgres.GetConnString(dbprofile.New(c.tc, *c.db, *c.profile, c.host, c.port)))
 	}
 	return exec.Command(cockroachBin, "sql", "--url",
-		postgres.GetConnString(dbprofile.New(tc, *db, *profile, host, port)))
+		postgres.GetConnString(dbprofile.New(c.tc, *c.db, *c.profile, c.host, c.port)))
 }
 
 func (c *cliCommandBuilder) getMySQLCommonCmdOpts() []string {
@@ -690,6 +700,8 @@ func (c *cliCommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 	return exec.Command(mysqlBin, args...)
 }
 
+// getMySQLCommand returns mariadb command if the binary is on the path. Otherwise,
+// mysql command is returned. Both mysql versions (MariaDB and Oracle) are supported.
 func (c *cliCommandBuilder) getMySQLCommand() *exec.Cmd {
 	// Check if mariadb client is available. Prefer it over mysql client even if connecting to MySQL server.
 	if c.isMariadbBinAvailable() {
@@ -698,22 +710,26 @@ func (c *cliCommandBuilder) getMySQLCommand() *exec.Cmd {
 	}
 
 	// Check which flavor is installed. Otherwise, we don't know which ssl flag to use.
+	// Yes, at the moment of writing they both have the same name and accept different parameters.
 	mySQLMariadbFlavor, err := c.isMySQLBinMariaDBFlavor()
 	if mySQLMariadbFlavor && err == nil {
 		args := c.getMariadbArgs()
 		return exec.Command(mysqlBin, args...)
 	}
 
-	// Either we failed to check the flavor or binary comes from Oracle. Regardless return.
+	// Either we failed to check the flavor or binary comes from Oracle. Regardless return mysql command.
+	// This will generate "not found mysql" command.
 	return c.getMySQLOracleCommand()
 }
 
+// isMariadbBinAvailable returns true if "mariadb" binary is found in the system PATH.
 func (c *cliCommandBuilder) isMariadbBinAvailable() bool {
 	_, err := c.exe.LookPath(mariadbBin)
 	return err == nil
 }
 
-// isMySQLBinMariaDBFlavor checks if mysql binary comes from Oracle or MariaDB
+// isMySQLBinMariaDBFlavor checks if mysql binary comes from Oracle or MariaDB.
+// true is returned when binary comes from MariaDB, false when from Oracle.
 func (c *cliCommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	// Check if mysql comes from Oracle or MariaDB
 	mysqlVer, err := c.exe.RunCommand(mysqlBin, "--version")
@@ -734,21 +750,21 @@ func (c *cliCommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	return strings.Contains(strings.ToLower(string(mysqlVer)), "mariadb"), nil
 }
 
-func getMongoCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
+func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
 	args := []string{
-		"--host", host,
-		"--port", strconv.Itoa(port),
+		"--host", c.host,
+		"--port", strconv.Itoa(c.port),
 		"--ssl",
-		"--sslPEMKeyFile", profile.DatabaseCertPathForCluster(tc.SiteName, db.ServiceName),
+		"--sslPEMKeyFile", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
 	}
 
-	if options.caPath != "" {
+	if c.options.caPath != "" {
 		// caPath is set only if mongo connects to the Teleport Proxy via ALPN SNI Local Proxy
 		// and connection is terminated by proxy identity certificate.
-		args = append(args, []string{"--sslCAFile", options.caPath}...)
+		args = append(args, []string{"--sslCAFile", c.options.caPath}...)
 	}
-	if db.Database != "" {
-		args = append(args, db.Database)
+	if c.db.Database != "" {
+		args = append(args, c.db.Database)
 	}
 	return exec.Command(mongoBin, args...)
 }
@@ -767,7 +783,7 @@ func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) s
 	return fmt.Sprintf("tsh db config --cluster=%v --format=cmd %v", clusterFlag, db.ServiceName)
 }
 
-func formatDatabaseConnnectMessage(clusterFlag string, db tlsca.RouteToDatabase) string {
+func formatDatabaseConnectMessage(clusterFlag string, db tlsca.RouteToDatabase) string {
 	connectCommand := formatConnectCommand(clusterFlag, db)
 	configCommand := formatDatabaseConfigCommand(clusterFlag, db)
 
