@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -66,15 +67,28 @@ type NodeSession struct {
 
 	// closer is used to simultaneously close all goroutines created by
 	// this session. It's also used to wait for everyone to close
-	closer *utils.CloseBroadcaster
-
-	ExitMsg string
-
+	closer                *utils.CloseBroadcaster
 	enableEscapeSequences bool
+
+	// mu serialises access to `exitMsg`
+	mu      sync.Mutex
+	exitMsg string
+}
+
+func (ns *NodeSession) SetExitMsg(msg string) {
+	ns.mu.Lock()
+	defer ns.mu.Unlock()
+	ns.exitMsg = msg
+}
+
+func (ns *NodeSession) ExitMsg() string {
+	ns.mu.Lock()
+	defer ns.mu.Unlock()
+	return ns.exitMsg
 }
 
 // newSession creates a new Teleport session with the given remote node
-// if 'joinSessin' is given, the session will join the existing session
+// if 'joinSession' is given, the session will join the existing session
 // of another user
 func newSession(client *NodeClient,
 	joinSession *session.Session,
@@ -596,7 +610,7 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 			if n > 0 {
 				_, err = shell.Write(buf[:n])
 				if err != nil {
-					ns.ExitMsg = err.Error()
+					ns.SetExitMsg(err.Error())
 					return
 				}
 			}

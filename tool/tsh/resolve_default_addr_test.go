@@ -228,8 +228,8 @@ func TestResolveUndeliveredBodyDoesNotBlockForever(t *testing.T) {
 	defer cancel()
 	_, err := pickDefaultAddr(ctx, true, "127.0.0.1", ports)
 
-	// Expect that the resolution fails with a context timeout
-	require.ErrorIs(t, err, context.DeadlineExceeded)
+	// Expect that the resolution fails
+	require.Error(t, err)
 }
 
 func TestResolveDefaultAddrTimeoutBeforeAllRacersLaunched(t *testing.T) {
