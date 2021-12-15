@@ -112,7 +112,7 @@ type LinearConfig struct {
 	// Jitter is an optional jitter function to be applied
 	// to the delay.  Note that supplying a jitter means that
 	// successive calls to Duration may return different results.
-	Jitter Jitter
+	Jitter Jitter `json:"-"`
 	// AutoReset, if greater than zero, causes the linear retry to automatically
 	// reset after Max * AutoReset has elapsed since the last call to Incr.
 	AutoReset int64
