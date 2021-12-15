@@ -69,3 +69,16 @@ func (req *HostCertsRequest) CheckAndSetDefaults() error {
 
 	return req.Role.Check()
 }
+
+// CheckAndSetDefaults checks and sets default values.
+func (req *ListResourcesRequest) CheckAndSetDefaults() error {
+	if req.Namespace == "" {
+		return trace.BadParameter("missing parameter namespace")
+	}
+
+	if req.Limit <= 0 {
+		return trace.BadParameter("nonpositive parameter limit")
+	}
+
+	return nil
+}
