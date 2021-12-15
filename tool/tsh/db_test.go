@@ -326,23 +326,23 @@ func decodePEM(pemPath string) (certs []pem.Block, keys []pem.Block, err error) 
 	return certs, keys, nil
 }
 
-type fakeExecer struct {
+type fakeExec struct {
 	foundMariaDB bool
 	execOutput   []byte
 }
 
-func (f fakeExecer) RunCommand(_ string, _ ...string) ([]byte, error) {
+func (f fakeExec) RunCommand(_ string, _ ...string) ([]byte, error) {
 	return f.execOutput, nil
 }
 
-func (f fakeExecer) LookPath(_ string) (string, error) {
+func (f fakeExec) LookPath(_ string) (string, error) {
 	if f.foundMariaDB {
 		return "", nil
 	}
 	return "", trace.NotFound("not found")
 }
 
-func Test_cliCommandBuilder_getConnectCommand(t *testing.T) {
+func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 	conf := &CLIConf{
 		HomePath: t.TempDir(),
 		Proxy:    "proxy",
@@ -353,7 +353,11 @@ func Test_cliCommandBuilder_getConnectCommand(t *testing.T) {
 	tc, err := makeClient(conf, true)
 	require.NoError(t, err)
 
-	profile := &client.ProfileStatus{}
+	profile := &client.ProfileStatus{
+		Name:     "example.com",
+		Username: "bob",
+		Dir:      "/tmp",
+	}
 
 	database := &tlsca.RouteToDatabase{
 		Protocol:    defaults.ProtocolMySQL,
@@ -364,13 +368,13 @@ func Test_cliCommandBuilder_getConnectCommand(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		execer  *fakeExecer
+		execer  *fakeExec
 		cmd     []string
 		wantErr bool
 	}{
 		{
 			name: "mariadb",
-			execer: &fakeExecer{
+			execer: &fakeExec{
 				foundMariaDB: true,
 			},
 			cmd: []string{"mariadb",
@@ -379,12 +383,15 @@ func Test_cliCommandBuilder_getConnectCommand(t *testing.T) {
 				"--port", "12345",
 				"--host", "localhost",
 				"--protocol", "TCP",
+				"--ssl-key", "/tmp/keys/example.com/bob",
+				"--ssl-ca", "/tmp/keys/example.com/certs.pem",
+				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--ssl-verify-server-cert"},
 			wantErr: false,
 		},
 		{
 			name: "mysql by mariadb",
-			execer: &fakeExecer{
+			execer: &fakeExec{
 				foundMariaDB: false,
 				execOutput:   []byte("mysql  Ver 15.1 Distrib 10.3.32-MariaDB, for debian-linux-gnu (x86_64) using readline 5.2"),
 			},
@@ -394,12 +401,15 @@ func Test_cliCommandBuilder_getConnectCommand(t *testing.T) {
 				"--port", "12345",
 				"--host", "localhost",
 				"--protocol", "TCP",
+				"--ssl-key", "/tmp/keys/example.com/bob",
+				"--ssl-ca", "/tmp/keys/example.com/certs.pem",
+				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--ssl-verify-server-cert"},
 			wantErr: false,
 		},
 		{
 			name: "mysql by oracle",
-			execer: &fakeExecer{
+			execer: &fakeExec{
 				foundMariaDB: false,
 				execOutput:   []byte("Ver 8.0.27-0ubuntu0.20.04.1 for Linux on x86_64 ((Ubuntu))"),
 			},
