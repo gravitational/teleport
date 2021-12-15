@@ -23,6 +23,107 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestIsInternal checks if docs and code reviewers show up as internal.
+func TestIsInternal(t *testing.T) {
+	tests := []struct {
+		desc        string
+		assignments *Assignments
+		author      string
+		expect      bool
+	}{
+		{
+			desc: "code-is-internal",
+			assignments: &Assignments{
+				c: &Config{
+					// Code.
+					CodeReviewers: map[string]Reviewer{
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: false},
+						"4": Reviewer{Team: "Core", Owner: false},
+					},
+					CodeReviewersOmit: map[string]bool{},
+					// Docs.
+					DocsReviewers: map[string]Reviewer{
+						"5": Reviewer{Team: "Core", Owner: true},
+						"6": Reviewer{Team: "Core", Owner: true},
+					},
+					DocsReviewersOmit: map[string]bool{},
+					// Admins.
+					Admins: []string{
+						"1",
+						"2",
+					},
+				},
+			},
+			author: "1",
+			expect: true,
+		},
+		{
+			desc: "docs-is-internal",
+			assignments: &Assignments{
+				c: &Config{
+					// Code.
+					CodeReviewers: map[string]Reviewer{
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: false},
+						"4": Reviewer{Team: "Core", Owner: false},
+					},
+					CodeReviewersOmit: map[string]bool{},
+					// Docs.
+					DocsReviewers: map[string]Reviewer{
+						"5": Reviewer{Team: "Core", Owner: true},
+						"6": Reviewer{Team: "Core", Owner: true},
+					},
+					DocsReviewersOmit: map[string]bool{},
+					// Admins.
+					Admins: []string{
+						"1",
+						"2",
+					},
+				},
+			},
+			author: "5",
+			expect: true,
+		},
+		{
+			desc: "other-is-not-internal",
+			assignments: &Assignments{
+				c: &Config{
+					// Code.
+					CodeReviewers: map[string]Reviewer{
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: false},
+						"4": Reviewer{Team: "Core", Owner: false},
+					},
+					CodeReviewersOmit: map[string]bool{},
+					// Docs.
+					DocsReviewers: map[string]Reviewer{
+						"5": Reviewer{Team: "Core", Owner: true},
+						"6": Reviewer{Team: "Core", Owner: true},
+					},
+					DocsReviewersOmit: map[string]bool{},
+					// Admins.
+					Admins: []string{
+						"1",
+						"2",
+					},
+				},
+			},
+			author: "7",
+			expect: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			expect := test.assignments.IsInternal(test.author)
+			require.Equal(t, expect, test.expect)
+		})
+	}
+}
+
 // TestGetCodeReviewers checks internal code review assignments.
 func TestGetCodeReviewers(t *testing.T) {
 	tests := []struct {
