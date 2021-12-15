@@ -123,9 +123,7 @@ func (w *Watcher) fetchAndSend() {
 		}
 		result = append(result, databases...)
 	}
-	if result.Len() == 0 {
-		return
-	}
+
 	select {
 	case w.databasesC <- result:
 	case <-w.ctx.Done():
