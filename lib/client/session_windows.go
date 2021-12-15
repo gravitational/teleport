@@ -32,7 +32,15 @@ import (
 // on Windows does not support "SetWinsize". Because tsh on Windows does not
 // support "tsh ssh" this code will never be called.
 type NodeSession struct {
-	ExitMsg string
+	exitMsg string
+}
+
+func (ns *NodeSession) SetExitMsg(msg string) {
+	ns.exitMsg = msg
+}
+
+func (ns *NodeSession) ExitMsg() string {
+	return ns.exitMsg
 }
 
 func newSession(
