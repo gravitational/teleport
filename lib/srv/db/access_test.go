@@ -337,6 +337,26 @@ func TestAccessMySQLChangeUser(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestAccessMySQLServerPacket verifies some edge-cases related to reading
+// wire packets sent by the MySQL server.
+func TestAccessMySQLServerPacket(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with access permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"alice"}, []string{types.Wildcard})
+
+	// Connect to the database as this user.
+	mysqlConn, err := testCtx.mysqlClient("alice", "mysql", "alice")
+	require.NoError(t, err)
+
+	// Execute "show tables" command which will make the test server to reply
+	// in a way that previously would cause our packet parsing logic to fail.
+	_, err = mysqlConn.Execute("show tables")
+	require.NoError(t, err)
+}
+
 // TestAccessMongoDB verifies access scenarios to a MongoDB database based
 // on the configured RBAC rules.
 func TestAccessMongoDB(t *testing.T) {
