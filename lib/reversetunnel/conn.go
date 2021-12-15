@@ -17,7 +17,6 @@ limitations under the License.
 package reversetunnel
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -28,9 +27,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -253,77 +250,4 @@ func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 	}
 
 	return nil
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// emitConn is a wrapper for a net.Conn that emits an audit event for non-Teleport connections.
-type emitConn struct {
-	net.Conn
-	mu       sync.RWMutex
-	buffer   bytes.Buffer
-	emitter  apievents.Emitter
-	ctx      context.Context
-	serverID string
-	emitted  bool
-}
-
-func newEmitConn(ctx context.Context, conn net.Conn, emitter apievents.Emitter, serverID string) *emitConn {
-	return &emitConn{
-		Conn:     conn,
-		emitter:  emitter,
-		ctx:      ctx,
-		serverID: serverID,
-	}
-}
-
-func (conn *emitConn) Read(p []byte) (int, error) {
-	// First bytes of a Teleport connection.
-	const emitConnTargetPrefix = "Teleport"
-
-	conn.mu.RLock()
-	n, err := conn.Conn.Read(p)
-
-	// Skip buffering if already could have emitted or will never emit.
-	if err != nil || conn.buffer.Len() == len(emitConnTargetPrefix) || conn.serverID == "" {
-		conn.mu.RUnlock()
-		return n, err
-	}
-	conn.mu.RUnlock()
-
-	conn.mu.Lock()
-	defer conn.mu.Unlock()
-
-	remaining := len(emitConnTargetPrefix) - conn.buffer.Len()
-	_, err = conn.buffer.Write(p[:min(n, remaining)])
-	if err != nil {
-		return n, err
-	}
-
-	// Only emit when we don't see "Teleport" in the first few bytes.
-	if conn.buffer.Len() == len(emitConnTargetPrefix) && !bytes.HasPrefix(conn.buffer.Bytes(), []byte(emitConnTargetPrefix)) {
-		event := &apievents.SessionConnect{
-			Metadata: apievents.Metadata{
-				Type: events.SessionConnectEvent,
-				Code: events.SessionConnectCode,
-			},
-			ServerMetadata: apievents.ServerMetadata{
-				ServerID:   conn.serverID,
-				ServerAddr: conn.LocalAddr().String(),
-			},
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				LocalAddr:  conn.LocalAddr().String(),
-				RemoteAddr: conn.RemoteAddr().String(),
-			},
-		}
-		conn.emitted = true
-		go conn.emitter.EmitAuditEvent(conn.ctx, event)
-	}
-
-	return n, err
 }
