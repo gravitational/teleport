@@ -273,7 +273,7 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 		close(serverErrCh)
 	}()
 	for {
-		packet, err := protocol.ParsePacket(serverConn)
+		packet, _, err := protocol.ReadPacket(serverConn)
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				log.Debug("Server connection closed.")
@@ -283,7 +283,7 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 			serverErrCh <- err
 			return
 		}
-		_, err = protocol.WritePacket(packet.Bytes(), clientConn)
+		_, err = protocol.WritePacket(packet, clientConn)
 		if err != nil {
 			log.WithError(err).Error("Failed to write client packet.")
 			serverErrCh <- err
