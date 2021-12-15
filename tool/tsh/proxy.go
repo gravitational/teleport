@@ -170,7 +170,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		lp.Close()
 	}()
 
-	profile, err := libclient.StatusCurrent("", cf.Proxy)
+	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -179,7 +179,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		"database": database.ServiceName,
 		"address":  listener.Addr().String(),
 		"ca":       profile.CACertPath(),
-		"cert":     profile.DatabaseCertPath(database.ServiceName),
+		"cert":     profile.DatabaseCertPathForCluster(cf.SiteName, database.ServiceName),
 		"key":      profile.KeyPath(),
 	})
 	if err != nil {

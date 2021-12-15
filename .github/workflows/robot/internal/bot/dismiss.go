@@ -32,7 +32,7 @@ import (
 //
 // This is needed because GitHub appends each "Check" workflow run to the status
 // of a PR instead of replacing the "Check" status of the previous run.
-func (b *Bot) Dimiss(ctx context.Context) error {
+func (b *Bot) Dismiss(ctx context.Context) error {
 	pulls, err := b.c.GitHub.ListPullRequests(ctx,
 		b.c.Environment.Organization,
 		b.c.Environment.Repository,
@@ -42,11 +42,17 @@ func (b *Bot) Dimiss(ctx context.Context) error {
 	}
 
 	for _, pull := range pulls {
-		// HEAD could be controlled by an attacker, however, all this would allow is
-		// the attacker to dismiss a workflow run.
-		if err := b.dismiss(ctx, b.c.Environment.Organization, b.c.Environment.Repository, pull.UnsafeHead); err != nil {
-			log.Printf("Failed to dismiss workflow: %v %v %v: %v.", b.c.Environment.Organization, b.c.Environment.Repository, pull.UnsafeHead, err)
-			continue
+		// Only dismiss stale runs from forks (external) as the workflow that triggers
+		// this method is intended for. Dismissing runs for internal contributors
+		// (non-fork) here could result in a race condition as runs are deleted upon
+		// trigger separately during the `Check` workflow.
+		if pull.Fork {
+			// HEAD could be controlled by an attacker, however, all this would allow is
+			// the attacker to dismiss a workflow run.
+			if err := b.dismiss(ctx, b.c.Environment.Organization, b.c.Environment.Repository, pull.UnsafeHead); err != nil {
+				log.Printf("Failed to dismiss workflow: %v %v %v: %v.", b.c.Environment.Organization, b.c.Environment.Repository, pull.UnsafeHead, err)
+				continue
+			}
 		}
 	}
 

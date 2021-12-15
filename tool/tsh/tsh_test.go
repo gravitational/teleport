@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -113,10 +114,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 func TestFailedLogin(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
 
@@ -137,7 +135,7 @@ func TestFailedLogin(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = client.SSOLoginFunc(ssoLogin)
 		return nil
 	}))
@@ -145,10 +143,7 @@ func TestFailedLogin(t *testing.T) {
 }
 
 func TestOIDCLogin(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	tmpHomePath := t.TempDir()
 
 	modules.SetModules(&cliModules{})
 
@@ -224,7 +219,7 @@ func TestOIDCLogin(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--user", "alice", // explicitly use wrong name
-	}, cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.SiteName = "localhost"
 		return nil
@@ -243,10 +238,7 @@ func TestOIDCLogin(t *testing.T) {
 // TestLoginIdentityOut makes sure that "tsh login --out <ident>" command
 // writes identity credentials to the specified path.
 func TestLoginIdentityOut(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
 
@@ -271,7 +263,7 @@ func TestLoginIdentityOut(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--out", identPath,
-	}, cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	}))
@@ -282,10 +274,7 @@ func TestLoginIdentityOut(t *testing.T) {
 }
 
 func TestRelogin(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
 
@@ -307,7 +296,7 @@ func TestRelogin(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	}))
@@ -319,10 +308,10 @@ func TestRelogin(t *testing.T) {
 		"--debug",
 		"--proxy", proxyAddr.String(),
 		"localhost",
-	})
+	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
-	err = Run([]string{"logout"})
+	err = Run([]string{"logout"}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	err = Run([]string{
@@ -332,7 +321,7 @@ func TestRelogin(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"localhost",
-	}, cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	}))
@@ -340,12 +329,8 @@ func TestRelogin(t *testing.T) {
 }
 
 func TestMakeClient(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
-
 	var conf CLIConf
+	conf.HomePath = t.TempDir()
 
 	// empty config won't work:
 	tc, err := makeClient(&conf, true)
@@ -447,6 +432,169 @@ func TestMakeClient(t *testing.T) {
 	agentKeys, err := tc.LocalAgent().Agent.List()
 	require.NoError(t, err)
 	require.Greater(t, len(agentKeys), 0)
+}
+
+func TestAccessRequestOnLeaf(t *testing.T) {
+	tmpHomePath := t.TempDir()
+
+	isInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(isInsecure)
+	})
+
+	requester, err := types.NewRole("requester", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"requester"})
+
+	rootAuth, rootProxy := makeTestServers(t,
+		withBootstrap(requester, connector, alice),
+	)
+
+	rootAuthServer := rootAuth.GetAuthServer()
+	require.NotNil(t, rootAuthServer)
+	rootProxyAddr, err := rootProxy.ProxyWebAddr()
+	require.NoError(t, err)
+	rootTunnelAddr, err := rootProxy.ProxyTunnelAddr()
+	require.NoError(t, err)
+
+	trustedCluster, err := types.NewTrustedCluster("localhost", types.TrustedClusterSpecV2{
+		Enabled:              true,
+		Roles:                []string{},
+		Token:                staticToken,
+		ProxyAddress:         rootProxyAddr.String(),
+		ReverseTunnelAddress: rootTunnelAddr.String(),
+		RoleMap: []types.RoleMapping{
+			{
+				Remote: "access",
+				Local:  []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	leafAuth, _ := makeTestServers(t, withClusterName(t, "leafcluster"))
+	tryCreateTrustedCluster(t, leafAuth.GetAuthServer(), trustedCluster)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", rootProxyAddr.String(),
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, rootAuthServer, alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--proxy", rootProxyAddr.String(),
+		"leafcluster",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--proxy", rootProxyAddr.String(),
+		"localhost",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--proxy", rootProxyAddr.String(),
+		"leafcluster",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	errChan := make(chan error)
+	go func() {
+		errChan <- Run([]string{
+			"request",
+			"new",
+			"--insecure",
+			"--debug",
+			"--proxy", rootProxyAddr.String(),
+			"--roles=access",
+		}, setHomePath(tmpHomePath))
+	}()
+
+	var request types.AccessRequest
+	for i := 0; i < 5; i++ {
+		log.Debugf("Waiting for access request %d", i)
+		requests, err := rootAuth.GetAuthServer().GetAccessRequests(rootAuth.ExitContext(), types.AccessRequestFilter{})
+		require.NoError(t, err)
+		require.LessOrEqual(t, len(requests), 1)
+		if len(requests) == 1 {
+			request = requests[0]
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	require.NotNil(t, request)
+
+	err = rootAuth.GetAuthServer().SetAccessRequestState(
+		rootAuth.ExitContext(),
+		types.AccessRequestUpdate{
+			RequestID: request.GetName(),
+			State:     types.RequestState_APPROVED,
+		},
+	)
+	require.NoError(t, err)
+
+	select {
+	case err := <-errChan:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Minute):
+		t.Fatal("access request wasn't resolved after 2 minutes")
+	}
+}
+
+// tryCreateTrustedCluster performs several attempts to create a trusted cluster,
+// retries on connection problems and access denied errors to let caches
+// propagate and services to start
+//
+// Duplicated in integration/integration_test.go
+func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
+	ctx := context.TODO()
+	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
+		_, err := authServer.UpsertTrustedCluster(ctx, trustedCluster)
+		if err == nil {
+			return
+		}
+		if trace.IsConnectionProblem(err) {
+			log.Debugf("Retrying on connection problem: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if trace.IsAccessDenied(err) {
+			log.Debugf("Retrying on access denied: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
+	}
+	require.FailNow(t, "Timeout creating trusted cluster")
 }
 
 func TestIdentityRead(t *testing.T) {
@@ -616,11 +764,11 @@ func TestOptions(t *testing.T) {
 }
 
 func TestFormatConnectCommand(t *testing.T) {
-	cluster := "root"
 	tests := []struct {
-		comment string
-		db      tlsca.RouteToDatabase
-		command string
+		clusterFlag string
+		comment     string
+		db          tlsca.RouteToDatabase
+		command     string
 	}{
 		{
 			comment: "no default user/database are specified",
@@ -658,10 +806,20 @@ func TestFormatConnectCommand(t *testing.T) {
 			},
 			command: `tsh db connect test`,
 		},
+		{
+			comment:     "extra cluster flag",
+			clusterFlag: "leaf",
+			db: tlsca.RouteToDatabase{
+				ServiceName: "test",
+				Protocol:    defaults.ProtocolPostgres,
+				Database:    "postgres",
+			},
+			command: `tsh db connect --cluster=leaf --db-user=<user> test`,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.comment, func(t *testing.T) {
-			require.Equal(t, test.command, formatConnectCommand(cluster, test.db))
+			require.Equal(t, test.command, formatConnectCommand(test.clusterFlag, test.db))
 		})
 	}
 }
@@ -949,6 +1107,17 @@ func withAuthConfig(fn func(cfg *service.AuthConfig)) testServerOptFunc {
 	}
 }
 
+func withClusterName(t *testing.T, n string) testServerOptFunc {
+	return withAuthConfig(func(cfg *service.AuthConfig) {
+		clusterName, err := services.NewClusterNameWithRandomID(
+			types.ClusterNameSpecV2{
+				ClusterName: n,
+			})
+		require.NoError(t, err)
+		cfg.ClusterName = clusterName
+	})
+}
+
 func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
 	var options testServersOpts
 	for _, opt := range opts {
@@ -969,7 +1138,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
-			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase},
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,
 		}},
@@ -1078,5 +1247,12 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 			TLSCert:     tlsCert,
 			HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
 		}, nil
+	}
+}
+
+func setHomePath(path string) cliOption {
+	return func(cf *CLIConf) error {
+		cf.HomePath = path
+		return nil
 	}
 }

@@ -11,7 +11,7 @@ on:
   pull_request_review:
     type: [submitted, edited, dismissed]
   pull_request_target:
-    types: [assigned, opened, reopened, ready_for_review, synchronize]
+    types: [opened, ready_for_review, synchronize]
 
 # Limit the permissions on the GitHub token for this workflow to the subset
 # that is required. In this case, the check workflow needs to invalidate
@@ -32,6 +32,7 @@ permissions:
 jobs:
   check-reviews:
     name: Checking reviewers
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
       # Checkout master branch of Teleport repository. This is to prevent an
