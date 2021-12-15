@@ -58,6 +58,11 @@ run-scaling-test:
 pods:
 	@make -C k8s pods
 
+# get cluster credentials
+.PHONY: get-creds
+get-creds:
+	@make -C cluster get-creds
+
 # collect heap and goroutine profiles
 .PHONY: collect-profiles
 collect-profiles:
