@@ -424,7 +424,7 @@ func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []s
 	}
 
 	// Ensure that the user has a home directory.
-	homeDir := "/"
+	homeDir := string(os.PathSeparator)
 	if utils.IsDir(localUser.HomeDir) {
 		homeDir = localUser.HomeDir
 	}
