@@ -357,6 +357,14 @@ func RunAndExit(commandType string) {
 	os.Exit(code)
 }
 
+// getHome gets the path to user's home directory if it exists, or the root directory if it doesn't.
+func getHome(user *user.User) string {
+	if utils.IsDir(user.HomeDir) {
+		return user.HomeDir
+	}
+	return "/"
+}
+
 // buildCommand constructs a command that will execute the users shell. This
 // function is run by Teleport while it's re-executing.
 func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
@@ -427,7 +435,7 @@ func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []s
 	cmd.Env = []string{
 		"LANG=en_US.UTF-8",
 		getDefaultEnvPath(localUser.Uid, defaultLoginDefsPath),
-		"HOME=" + localUser.HomeDir,
+		"HOME=" + getHome(localUser),
 		"USER=" + c.Login,
 		"SHELL=" + shellPath,
 	}
@@ -450,7 +458,7 @@ func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []s
 	cmd.Env = append(cmd.Env, pamEnvironment...)
 
 	// Set the home directory for the user.
-	cmd.Dir = localUser.HomeDir
+	cmd.Dir = getHome(localUser)
 
 	// If a terminal was requested, connect std{in,out,err} to the TTY and set
 	// the controlling TTY. Otherwise, connect std{in,out,err} to
