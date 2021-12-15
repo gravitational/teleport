@@ -357,14 +357,6 @@ func RunAndExit(commandType string) {
 	os.Exit(code)
 }
 
-// getHome gets the path to user's home directory if it exists, or the root directory if it doesn't.
-func getHome(user *user.User) string {
-	if utils.IsDir(user.HomeDir) {
-		return user.HomeDir
-	}
-	return "/"
-}
-
 // buildCommand constructs a command that will execute the users shell. This
 // function is run by Teleport while it's re-executing.
 func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
