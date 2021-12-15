@@ -431,11 +431,17 @@ func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []s
 		cmd.Args = []string{shellPath, "-c", c.Command}
 	}
 
+	// Ensure that the user has a home directory.
+	homeDir := "/"
+	if utils.IsDir(localUser.HomeDir) {
+		homeDir = localUser.HomeDir
+	}
+
 	// Create default environment for user.
 	cmd.Env = []string{
 		"LANG=en_US.UTF-8",
 		getDefaultEnvPath(localUser.Uid, defaultLoginDefsPath),
-		"HOME=" + getHome(localUser),
+		"HOME=" + homeDir,
 		"USER=" + c.Login,
 		"SHELL=" + shellPath,
 	}
@@ -458,7 +464,7 @@ func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []s
 	cmd.Env = append(cmd.Env, pamEnvironment...)
 
 	// Set the home directory for the user.
-	cmd.Dir = getHome(localUser)
+	cmd.Dir = homeDir
 
 	// If a terminal was requested, connect std{in,out,err} to the TTY and set
 	// the controlling TTY. Otherwise, connect std{in,out,err} to
