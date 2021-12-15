@@ -656,7 +656,7 @@ func (c *cliCommandBuilder) getMySQLCommonCmdOpts() []string {
 	return args
 }
 
-func (c *cliCommandBuilder) getMariadbCommand() *exec.Cmd {
+func (c *cliCommandBuilder) getMariadbArgs() []string {
 	args := c.getMySQLCommonCmdOpts()
 
 	// by default mariadb doesn't check "Common Name" on the certificate provided by the server.
@@ -666,13 +666,15 @@ func (c *cliCommandBuilder) getMariadbCommand() *exec.Cmd {
 		args = append(args, "--ssl-verify-server-cert")
 	}
 
-	return exec.Command(mariadbBin, args...)
+	return args
 }
 
 func (c *cliCommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 	args := c.getMySQLCommonCmdOpts()
 
-	args = append(args, fmt.Sprintf("--defaults-group-suffix=_%v-%v", c.tc.SiteName, c.db.ServiceName))
+	// defaults-group-suffix must be first.
+	groupSuffix := []string{fmt.Sprintf("--defaults-group-suffix=_%v-%v", c.tc.SiteName, c.db.ServiceName)}
+	args = append(groupSuffix, args...)
 
 	// override the ssl-mode from a config file is --insecure flag is provided to 'tsh db connect'.
 	if c.tc.InsecureSkipVerify {
@@ -685,13 +687,15 @@ func (c *cliCommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 func (c *cliCommandBuilder) getMySQLCommand() *exec.Cmd {
 	// Check if mariadb client is available. Prefer it over mysql client even if connecting to MySQL server.
 	if c.isMariadbBinAvailable() {
-		return c.getMariadbCommand()
+		args := c.getMariadbArgs()
+		return exec.Command(mariadbBin, args...)
 	}
 
 	// Check which flavor is installed. Otherwise, we don't know which ssl flag to use.
 	mySQLMariadbFlavor, err := c.isMySQLBinMariaDBFlavor()
 	if mySQLMariadbFlavor && err == nil {
-		return c.getMariadbCommand()
+		args := c.getMariadbArgs()
+		return exec.Command(mysqlBin, args...)
 	}
 
 	// Either we failed to check the flavor or binary comes from Oracle. Regardless return.
