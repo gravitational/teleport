@@ -1715,3 +1715,14 @@ func (c *Cache) GetWindowsDesktop(ctx context.Context, name string) (types.Windo
 	defer rg.Release()
 	return rg.windowsDesktops.GetWindowsDesktop(ctx, name)
 }
+
+// ListResources is a part of auth.Cache implementation
+func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.Resource, nextKey string, err error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	defer rg.Release()
+	return rg.presence.ListResources(ctx, req)
+}
