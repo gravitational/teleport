@@ -267,8 +267,17 @@ func RangeEnd(key []byte) []byte {
 }
 
 // NextPaginationKey returns the next pagination key.
+// For resources that have the HostID in their keys, the next key will also
+// have the HostID part.
 func NextPaginationKey(r types.Resource) string {
-	return string(nextKey([]byte(r.GetName())))
+	switch resourceWithType := r.(type) {
+	case types.DatabaseServer:
+		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
+	case types.AppServer:
+		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
+	default:
+		return string(nextKey([]byte(r.GetName())))
+	}
 }
 
 // MaskKeyName masks the given key name.
