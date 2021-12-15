@@ -119,10 +119,12 @@ func (w *Watcher) fetchAndSend() {
 	for _, fetcher := range w.fetchers {
 		databases, err := fetcher.Get(w.ctx)
 		if err != nil {
-			w.log.WithError(err).Errorf("%s failed.", fetcher)
-			return
+			w.log.WithError(err).Warnf("%s failed.", fetcher)
 		}
 		result = append(result, databases...)
+	}
+	if result.Len() == 0 {
+		return
 	}
 	select {
 	case w.databasesC <- result:

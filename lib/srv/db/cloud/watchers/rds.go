@@ -79,14 +79,9 @@ func newRDSFetcher(config rdsFetcherConfig) (Fetcher, error) {
 
 // Get returns RDS and Aurora databases matching the watcher's selectors.
 func (f *rdsFetcher) Get(ctx context.Context) (types.Databases, error) {
-	rdsDatabases, err := f.getRDSDatabases(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	auroraDatabases, err := f.getAuroraDatabases(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	rdsDatabases, rdsErr := f.getRDSDatabases(ctx)
+	auroraDatabases, auroraErr := f.getAuroraDatabases(ctx)
+
 	var result types.Databases
 	for _, database := range append(rdsDatabases, auroraDatabases...) {
 		match, _, err := services.MatchLabels(f.cfg.Labels, database.GetAllLabels())
@@ -98,7 +93,7 @@ func (f *rdsFetcher) Get(ctx context.Context) (types.Databases, error) {
 			f.log.Debugf("%v doesn't match selector.", database)
 		}
 	}
-	return result, nil
+	return result, trace.NewAggregate(rdsErr, auroraErr)
 }
 
 // getRDSDatabases returns a list of database resources representing RDS instances.

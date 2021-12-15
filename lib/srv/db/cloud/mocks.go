@@ -243,6 +243,14 @@ func (m *RDSMockUnauth) ModifyDBClusterWithContext(ctx aws.Context, input *rds.M
 	return nil, trace.AccessDenied("unauthorized")
 }
 
+func (m *RDSMockUnauth) DescribeDBInstancesPagesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, fn func(*rds.DescribeDBInstancesOutput, bool) bool, options ...request.Option) error {
+	return trace.AccessDenied("unauthorized")
+}
+
+func (m *RDSMockUnauth) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
+	return trace.AccessDenied("unauthorized")
+}
+
 // RedshiftMockUnauth is a mock Redshift client that returns access denied to each call.
 type RedshiftMockUnauth struct {
 	redshiftiface.RedshiftAPI

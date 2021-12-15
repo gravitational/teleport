@@ -51,7 +51,7 @@ func TestWatcher(t *testing.T) {
 		AWSMatchers: []services.AWSMatcher{
 			{
 				Types:   []string{services.AWSMatcherRDS},
-				Regions: []string{"us-east-1"},
+				Regions: []string{"us-east-1", "ca-central-1"},
 				Tags:    types.Labels{"env": []string{"prod"}},
 			},
 			{
@@ -62,6 +62,7 @@ func TestWatcher(t *testing.T) {
 		},
 		Clients: &common.TestCloudClients{
 			RDSPerRegion: map[string]rdsiface.RDSAPI{
+				"ca-central-1": &cloud.RDSMockUnauth{},
 				"us-east-1": &cloud.RDSMock{
 					DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstance3},
 					DBClusters:  []*rds.DBCluster{auroraCluster1},
