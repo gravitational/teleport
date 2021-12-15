@@ -1931,10 +1931,11 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.S
 	if err = nodeSession.runShell(tc.OnShellCreated); err != nil {
 		return trace.Wrap(err)
 	}
-	if nodeSession.ExitMsg == "" {
+
+	if exitMsg := nodeSession.ExitMsg(); exitMsg == "" {
 		fmt.Fprintln(tc.Stderr, "the connection was closed on the remote side on ", time.Now().Format(time.RFC822))
 	} else {
-		fmt.Fprintln(tc.Stderr, nodeSession.ExitMsg)
+		fmt.Fprintln(tc.Stderr, exitMsg)
 	}
 	return nil
 }

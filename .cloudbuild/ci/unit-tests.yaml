@@ -1,0 +1,44 @@
+steps:
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:teleport6.2-v0.1.0
+    id: configure BCC headers
+    volumes: 
+      - name: bcc-headers
+        path: /usr/include/bcc
+    entrypoint: /bin/bash
+    args: 
+      - -c
+      - cp -R /workspace/build.assets/bcc/* /usr/include/bcc
+        
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:teleport6.2-v0.1.0
+    id: reconfigure-for-nonroot-user
+    args: [chown, -R, ci:ci, /workspace]  
+
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-nonroot:teleport6.2-v0.1.0
+    id: unit-test
+    env:
+      - TELEPORT_ETCD_TEST="yes"
+        # Some unit tests are not well isolated and will use the current $HOME
+        # to store tsh profile data. GCB protects the real builder homedir, so 
+        # we tell the tests to use somewhere else that we know we can write to.
+      - HOME="/tmp/.home"
+    volumes: 
+      - name: bcc-headers
+        path: /usr/include/bcc
+    entrypoint: /bin/bash
+    args: 
+      - -c
+      - |
+        # launch the etcd emulator and wait for it to start 
+        (make run-etcd &); sleep 1; 
+
+        # Actually run tests
+        make test
+    timeout: 15m
+
+timeout: 15m
+options:
+  env: 
+    - GOCACHE=/workspace/.gocache-ci
+    - GOMODCACHE=/workspace/.gomodcache-ci
+  machineType: 'E2_HIGHCPU_32'
+  
