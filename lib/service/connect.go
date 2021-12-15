@@ -19,7 +19,6 @@ package service
 import (
 	"crypto/tls"
 	"path/filepath"
-	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -46,11 +45,11 @@ import (
 // service until succeeds or process gets shut down
 func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*Connector, error) {
 	retry, err := utils.NewLinear(utils.LinearConfig{
-		First:  utils.HalfJitter(defaults.HighResPollingPeriod),
-		Step:   process.Config.RetryPeriod,
-		Max:    3 * time.Minute,
+		First:  utils.HalfJitter(process.Config.MaxRetryPeriod / 10),
+		Step:   process.Config.MaxRetryPeriod / 5,
+		Max:    process.Config.MaxRetryPeriod,
 		Clock:  process.Clock,
-		Jitter: utils.NewSeventhJitter(),
+		Jitter: utils.NewHalfJitter(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

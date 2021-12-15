@@ -512,8 +512,8 @@ type Config struct {
 	WindowsDesktops services.WindowsDesktops
 	// Backend is a backend for local cache
 	Backend backend.Backend
-	// RetryPeriod is a period between cache retries on failures
-	RetryPeriod time.Duration
+	// MaxRetryPeriod is the maximum period between cache retries on failures
+	MaxRetryPeriod time.Duration
 	// WatcherInitTimeout is the maximum acceptable delay for an
 	// OpInit after a watcher has been started (default=1m).
 	WatcherInitTimeout time.Duration
@@ -552,8 +552,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
-	if c.RetryPeriod == 0 {
-		c.RetryPeriod = time.Minute
+	if c.MaxRetryPeriod == 0 {
+		c.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	}
 	if c.WatcherInitTimeout == 0 {
 		c.WatcherInitTimeout = time.Minute
@@ -663,10 +663,10 @@ func New(config Config) (*Cache, error) {
 	}
 
 	retry, err := utils.NewLinear(utils.LinearConfig{
-		First:  utils.HalfJitter(defaults.HighResPollingPeriod),
-		Step:   cs.Config.RetryPeriod / 2,
-		Max:    cs.Config.RetryPeriod * 2,
-		Jitter: utils.NewSeventhJitter(),
+		First:  utils.HalfJitter(cs.MaxRetryPeriod / 10),
+		Step:   cs.MaxRetryPeriod / 5,
+		Max:    cs.MaxRetryPeriod,
+		Jitter: utils.NewHalfJitter(),
 		Clock:  cs.Clock,
 	})
 	if err != nil {

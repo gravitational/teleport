@@ -52,8 +52,8 @@ type ResourceWatcherConfig struct {
 	Component string
 	// Log is a logger.
 	Log logrus.FieldLogger
-	// RetryPeriod is a retry period on failed watchers.
-	RetryPeriod time.Duration
+	// MaxRetryPeriod is the maximum retry period on failed watchers.
+	MaxRetryPeriod time.Duration
 	// RefetchPeriod is a period after which to explicitly refetch the resources.
 	// It is to protect against unexpected cache syncing issues.
 	RefetchPeriod time.Duration
@@ -74,8 +74,8 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 	if cfg.Log == nil {
 		cfg.Log = logrus.StandardLogger()
 	}
-	if cfg.RetryPeriod == 0 {
-		cfg.RetryPeriod = time.Minute
+	if cfg.MaxRetryPeriod == 0 {
+		cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	}
 	if cfg.RefetchPeriod == 0 {
 		cfg.RefetchPeriod = defaults.LowResPollingPeriod
@@ -94,10 +94,10 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 // incl. cfg.CheckAndSetDefaults.
 func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg ResourceWatcherConfig) (*resourceWatcher, error) {
 	retry, err := utils.NewLinear(utils.LinearConfig{
-		First:  utils.HalfJitter(defaults.HighResPollingPeriod),
-		Step:   cfg.RetryPeriod / 2,
-		Max:    cfg.RetryPeriod * 2,
-		Jitter: utils.NewSeventhJitter(),
+		First:  utils.HalfJitter(cfg.MaxRetryPeriod / 10),
+		Step:   cfg.MaxRetryPeriod / 5,
+		Max:    cfg.MaxRetryPeriod,
+		Jitter: utils.NewHalfJitter(),
 		Clock:  cfg.Clock,
 	})
 	if err != nil {

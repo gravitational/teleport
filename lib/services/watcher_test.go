@@ -62,30 +62,32 @@ func TestResourceWatcher_Backoff(t *testing.T) {
 
 	w, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   "test",
-			Clock:       clock,
-			RetryPeriod: time.Minute,
-			Client:      &errorWatcher{},
+			Component:      "test",
+			Clock:          clock,
+			MaxRetryPeriod: defaults.MaxWatcherBackoff,
+			Client:         &errorWatcher{},
 		},
 		ProxyGetter: &nopProxyGetter{},
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
 
-	retries := make([]time.Duration, 5)
+	step := w.MaxRetryPeriod / 5.0
 	for i := 0; i < 5; i++ {
 		// wait for watcher to reload
 		select {
 		case duration := <-w.ResetC:
-			retries[i] = duration
+			stepMin := step * time.Duration(i) / 2
+			stepMax := step * time.Duration(i+1)
+
+			require.GreaterOrEqual(t, duration, stepMin)
+			require.LessOrEqual(t, duration, stepMax)
 			// add some extra to the duration to ensure the retry occurs
 			clock.Advance(duration * 2)
 		case <-time.After(15 * time.Second):
 			t.Fatalf("timeout waiting for reset")
 		}
 	}
-
-	require.IsIncreasing(t, retries)
 }
 
 func TestProxyWatcher(t *testing.T) {
@@ -106,8 +108,8 @@ func TestProxyWatcher(t *testing.T) {
 	presence := local.NewPresenceService(bk)
 	w, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   "test",
-			RetryPeriod: 200 * time.Millisecond,
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Presence: presence,
 				Events:   local.NewEventsService(bk),
@@ -199,8 +201,8 @@ func TestLockWatcher(t *testing.T) {
 	access := local.NewAccessService(bk)
 	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   "test",
-			RetryPeriod: 200 * time.Millisecond,
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Access: access,
 				Events: local.NewEventsService(bk),
@@ -304,8 +306,8 @@ func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
 	access := local.NewAccessService(bk)
 	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   "test",
-			RetryPeriod: 200 * time.Millisecond,
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Access: access,
 				Events: local.NewEventsService(bk),
@@ -382,8 +384,8 @@ func TestLockWatcherStale(t *testing.T) {
 	events := &withUnreliability{Events: local.NewEventsService(bk)}
 	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   "test",
-			RetryPeriod: 200 * time.Millisecond,
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Access: access,
 				Events: events,
@@ -525,8 +527,8 @@ func TestDatabaseWatcher(t *testing.T) {
 	databasesService := local.NewDatabasesService(bk)
 	w, err := services.NewDatabaseWatcher(ctx, services.DatabaseWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   "test",
-			RetryPeriod: 200 * time.Millisecond,
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Databases: databasesService,
 				Events:    local.NewEventsService(bk),
@@ -622,8 +624,8 @@ func TestAppWatcher(t *testing.T) {
 	appService := local.NewAppService(bk)
 	w, err := services.NewAppWatcher(ctx, services.AppWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   "test",
-			RetryPeriod: 200 * time.Millisecond,
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Apps:   appService,
 				Events: local.NewEventsService(bk),

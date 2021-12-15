@@ -557,12 +557,16 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 		require.Nil(t, c)
 	}()
 
-	retries := make([]time.Duration, 5)
+	step := cfg.MaxRetryPeriod / 5.0
 	for i := 0; i < 5; i++ {
 		// wait for connection to fail
 		select {
 		case duration := <-process.connectFailureC:
-			retries[i] = duration
+			stepMin := step * time.Duration(i) / 2
+			stepMax := step * time.Duration(i+1)
+
+			require.GreaterOrEqual(t, duration, stepMin)
+			require.LessOrEqual(t, duration, stepMax)
 			// add some extra to the duration to ensure the retry occurs
 			clock.Advance(duration * 2)
 		case <-time.After(30 * time.Second):
@@ -570,7 +574,6 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 		}
 	}
 
-	require.IsIncreasing(t, retries)
 	supervisor, ok := process.Supervisor.(*LocalSupervisor)
 	require.True(t, ok)
 	supervisor.signalExit()

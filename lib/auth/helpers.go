@@ -327,10 +327,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	srv.LockWatcher, err = services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   teleport.ComponentAuth,
-			Client:      srv.AuthServer,
-			Clock:       cfg.Clock,
-			RetryPeriod: defaults.HighResPollingPeriod,
+			Component:      teleport.ComponentAuth,
+			Client:         srv.AuthServer,
+			Clock:          cfg.Clock,
+			MaxRetryPeriod: defaults.HighResPollingPeriod,
 		},
 	})
 	if err != nil {

@@ -217,7 +217,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
-		RetryPeriod:     200 * time.Millisecond,
+		MaxRetryPeriod:  200 * time.Millisecond,
 		EventsC:         p.eventsC,
 	}))
 	if err != nil {
@@ -432,7 +432,7 @@ func TestCompletenessInit(t *testing.T) {
 			Apps:            p.apps,
 			Databases:       p.databases,
 			WindowsDesktops: p.windowsDesktops,
-			RetryPeriod:     200 * time.Millisecond,
+			MaxRetryPeriod:  200 * time.Millisecond,
 			EventsC:         p.eventsC,
 		}))
 		require.NoError(t, err)
@@ -490,7 +490,7 @@ func TestCompletenessReset(t *testing.T) {
 		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
-		RetryPeriod:     200 * time.Millisecond,
+		MaxRetryPeriod:  200 * time.Millisecond,
 		EventsC:         p.eventsC,
 	}))
 	require.NoError(t, err)
@@ -553,7 +553,7 @@ func TestTombstones(t *testing.T) {
 		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
-		RetryPeriod:     200 * time.Millisecond,
+		MaxRetryPeriod:  200 * time.Millisecond,
 		EventsC:         p.eventsC,
 	}))
 	require.NoError(t, err)
@@ -588,7 +588,7 @@ func TestTombstones(t *testing.T) {
 		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
-		RetryPeriod:     200 * time.Millisecond,
+		MaxRetryPeriod:  200 * time.Millisecond,
 		EventsC:         p.eventsC,
 	}))
 	require.NoError(t, err)
@@ -738,7 +738,7 @@ func TestListNodesTTLVariant(t *testing.T) {
 		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
-		RetryPeriod:     200 * time.Millisecond,
+		MaxRetryPeriod:  200 * time.Millisecond,
 		EventsC:         p.eventsC,
 		neverOK:         true, // ensure reads are never healthy
 	}))
@@ -807,7 +807,7 @@ func initStrategy(t *testing.T) {
 		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
-		RetryPeriod:     200 * time.Millisecond,
+		MaxRetryPeriod:  200 * time.Millisecond,
 		EventsC:         p.eventsC,
 	}))
 	require.NoError(t, err)
@@ -2166,7 +2166,7 @@ func TestDatabases(t *testing.T) {
 func TestCache_Backoff(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	p := newTestPack(t, func(c Config) Config {
-		c.RetryPeriod = time.Minute
+		c.MaxRetryPeriod = defaults.MaxWatcherBackoff
 		c.Clock = clock
 		return ForNode(c)
 	})
@@ -2178,15 +2178,21 @@ func TestCache_Backoff(t *testing.T) {
 	p.eventsS.closeWatchers()
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 
-	retries := make([]time.Duration, 4)
-	for i := 0; i < 4; i++ {
+	step := p.cache.Config.MaxRetryPeriod / 5.0
+	for i := 0; i < 5; i++ {
 		// wait for cache to reload
 		select {
 		case event := <-p.eventsC:
 			require.Equal(t, Reloading, event.Type)
 			duration, err := time.ParseDuration(event.Event.Resource.GetKind())
 			require.NoError(t, err)
-			retries[i] = duration
+
+			stepMin := step * time.Duration(i) / 2
+			stepMax := step * time.Duration(i+1)
+
+			require.GreaterOrEqual(t, duration, stepMin)
+			require.LessOrEqual(t, duration, stepMax)
+
 			// add some extra to the duration to ensure the retry occurs
 			clock.Advance(duration * 2)
 		case <-time.After(time.Second):
@@ -2201,8 +2207,6 @@ func TestCache_Backoff(t *testing.T) {
 			t.Fatalf("timeout waiting for event")
 		}
 	}
-
-	require.IsIncreasing(t, retries)
 }
 
 type proxyEvents struct {
