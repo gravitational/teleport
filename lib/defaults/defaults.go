@@ -60,6 +60,12 @@ const (
 	// MySQLListenPort is the default listen port for MySQL proxy.
 	MySQLListenPort = 3036
 
+	// PostgresListenPort is the default listen port for PostgreSQL proxy.
+	PostgresListenPort = 5432
+
+	// MongoListenPort is the default listen port for Mongo proxy.
+	MongoListenPort = 27017
+
 	// MetricsListenPort is the default listen port for the metrics service.
 	MetricsListenPort = 3081
 

@@ -354,6 +354,70 @@ func TestDatabaseAccessUnspecifiedHostname(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestDatabaseAccessPostgresSeparateListener tests postgres proxy listener running on separate port.
+func TestDatabaseAccessPostgresSeparateListener(t *testing.T) {
+	pack := setupDatabaseTest(t,
+		withPortSetupDatabaseTest(separatePostgresPortSetup),
+	)
+
+	// Connect to the database service in root cluster.
+	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortPostgres()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.postgresService.Name,
+			Protocol:    pack.root.postgresService.Protocol,
+			Username:    "postgres",
+			Database:    "test",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+	require.Equal(t, uint32(1), pack.root.postgres.QueryCount())
+	require.Equal(t, uint32(0), pack.leaf.postgres.QueryCount())
+
+	// Disconnect.
+	err = client.Close(context.Background())
+	require.NoError(t, err)
+}
+
+// TestDatabaseAccessMongoSeparateListener tests mongo proxy listener running on separate port.
+func TestDatabaseAccessMongoSeparateListener(t *testing.T) {
+	pack := setupDatabaseTest(t,
+		withPortSetupDatabaseTest(separateMongoPortSetup),
+	)
+
+	// Connect to the database service in root cluster.
+	client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortMongo()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.mongoService.Name,
+			Protocol:    pack.root.mongoService.Protocol,
+			Username:    "admin",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+	require.NoError(t, err)
+
+	// Disconnect.
+	err = client.Disconnect(context.Background())
+	require.NoError(t, err)
+}
+
 func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
 	max := time.Second
 	timeout := time.After(max)

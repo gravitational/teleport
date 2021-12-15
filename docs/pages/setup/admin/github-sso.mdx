@@ -96,13 +96,8 @@ Configure Teleport Auth Service Github for authentication:
     name: cluster-auth-preference
   spec:
     type: github
-    u2f:
-      app_id: 'https://example.teleport.sh'
-      facets:
-      - 'https://example.teleport.sh:443'
-      - 'https://example.teleport.sh'
-      - 'example.teleport.sh:443'
-      - 'example.teleport.sh'
+    webauthn:
+      rp_id: 'example.teleport.sh'
   version: v2
   ```
 
