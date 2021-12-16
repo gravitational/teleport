@@ -27,6 +27,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -185,11 +186,17 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*ssh.Session, e
 	}
 
 	// request x11 forwarding for the session if the client requested it.
+	var x11Err error
 	if ns.nodeClient.TC.Config.X11ForwardingEnabled {
-		if err := x11.RequestX11Forwarding(ctx, sess, ns.nodeClient.Client, false,
-			ns.nodeClient.TC.Config.X11ForwardingTrusted,
-			ns.nodeClient.TC.Config.X11ForwardingTimeout,
-		); err != nil {
+		if x11Err = ns.enableX11Forwarding(ctx, sess); x11Err != nil {
+			log.WithError(x11Err).Info("Failed to enable x11 forwarding for this session")
+		}
+	}
+
+	// If not x11 forwarding is not requested or if x11 forwading fails,
+	// we must reject x11 forwarding attempts from the server.
+	if !ns.nodeClient.TC.Config.X11ForwardingEnabled || x11Err != nil {
+		if err := ns.disableX11Forwarding(ctx); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -230,6 +237,154 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*ssh.Session, e
 	}
 
 	return sess, nil
+}
+
+// enableX11Forwarding enables X11Forwarding for the given server session.
+func (ns *NodeSession) enableX11Forwarding(ctx context.Context, sess *ssh.Session) error {
+	display := os.Getenv(x11.DisplayEnv)
+	if display == "" {
+		log.Debug("X11 forwarding requested but $DISPLAY not set")
+		return trace.BadParameter("$DISPLAY not set")
+	}
+
+	// Validate the client given display to prevent code injection
+	for _, c := range display {
+		if !(unicode.IsLetter(c) || unicode.IsNumber(c) || c == ':' || c == '/' || c == '.' || c == '-' || c == '_') {
+			return trace.BadParameter("display contains invalid character %q", c)
+		}
+	}
+
+	// Retrieve xauth data from local XAuthority. The fake cookie will
+	// be used to authenticate the server without sharing client information,
+	// and the real cookie will be used to get authenticated by the client's
+	// local X Display.
+	authProto, realCookie, fakeCookie, err := ns.getXAuthData(ctx, display)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Start listening for new x11 channel requests before requesting x11.
+	x11.ServeX11ChannelRequests(ctx, ns.nodeClient.Client, func(ctx context.Context, nch ssh.NewChannel) {
+		var req x11.X11ChannelRequestPayload
+		if err := ssh.Unmarshal(nch.ExtraData(), &req); err != nil {
+			nch.Reject(ssh.Prohibited, "invalid payload")
+			log.Debug("rejected x11 channel request with invalid payload")
+			return
+		}
+
+		log.Debugf("received x11 channel request from %s:%d", req.OriginatorAddress, req.OriginatorPort)
+
+		sch, sin, err := nch.Accept()
+		if err != nil {
+			log.WithError(err).Debug("failed to accept x11 channel request")
+			return
+		}
+		defer sch.Close()
+
+		// setup child context which will be canceled when io forwarding completes.
+		ctx, cancel := context.WithCancel(ctx)
+
+		go func() {
+			defer cancel()
+			err = x11.ForwardToXDisplay(sch, display, authProto, fakeCookie, realCookie)
+			if trace.IsAccessDenied(err) {
+				log.Error("X11 connection rejected because of wrong authentication.")
+			} else if err != nil {
+				log.WithError(err).Debug("failed to begin x11 forwarding to the client's display")
+			}
+		}()
+
+		for {
+			select {
+			case req, ok := <-sin:
+				if !ok {
+					// channel closed, stop processing
+					sin = nil
+					continue
+				}
+				switch req.Type {
+				case sshutils.WindowChangeRequest:
+					if _, err := x11.ForwardRequest(sch, req); err != nil {
+						log.Errorf("x11 channel fwd failed: %v", err)
+						return
+					}
+				default:
+					log.Errorf("Unsupported x11 channel request type: %s", req.Type)
+					if req.WantReply {
+						req.Reply(false, nil)
+					}
+					continue
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	})
+
+	if err := x11.RequestX11Forwarding(sess, display, authProto, fakeCookie, false); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(err)
+}
+
+// getXAuthData retrieves an auth protocol, cookie, and spoofed copy of the cookie from
+// the client's local XAuthority. The real cookie will be used to connect the given display,
+// and the fake cookie will be used to authenticate x11 channel requests from the server.
+func (ns *NodeSession) getXAuthData(ctx context.Context, display string) (string, string, string, error) {
+	var xauthEntry *x11.XAuthEntry
+	var err error
+
+	if ns.nodeClient.TC.X11ForwardingTrusted {
+		log.Debug("obtaining xauth cookie for x11 forwarding")
+		xauthEntry, err = x11.GetXauthEntry(ctx, display)
+		if trace.IsNotFound(err) {
+			log.Debug("failed to find a valid xauth cookie")
+		} else if err != nil {
+			return "", "", "", trace.Wrap(err)
+		}
+	}
+
+	// If we failed to obtain an xauth entry above, or the client requested
+	// untrusted x11 forwarding, create a new xauth entry for the given display.
+	if xauthEntry == nil {
+		log.Debug("generating xauth cookie for x11 forwarding")
+		xauthEntry, err = x11.CreateXauthEntry(ctx, display, ns.nodeClient.TC.X11ForwardingTrusted, ns.nodeClient.TC.X11ForwardingTimeout)
+		if err != nil {
+			return "", "", "", trace.Wrap(err)
+		}
+	}
+
+	// The client's xauth cookie should never be sent to the server,
+	// so instead we create a spoof of the cookie to authenticate the server.
+	// During forwarding, the fake cookie will be replaced with the real
+	// cookie in order to connect to the client's local X display.
+	fakeCookie, err := xauthEntry.SpoofCookie()
+	if err != nil {
+		return "", "", "", trace.Wrap(err)
+	}
+
+	return xauthEntry.Proto, xauthEntry.Cookie, fakeCookie, nil
+}
+
+// disableX11Forwarding disables X11Forwarding for this node session.
+func (ns *NodeSession) disableX11Forwarding(ctx context.Context) error {
+	nchs := ns.nodeClient.Client.HandleChannelOpen(sshutils.X11ChannelRequest)
+	if nchs == nil {
+		return trace.AlreadyExists("x11 forwarding channel already open")
+	}
+
+	// According to RFC 4254, client "implementations MUST reject any X11 channel
+	// open requests if they have not requested X11 forwarding. Following openssh's
+	// example, we treat such a request as a break in attempt and warn the user.
+	go func() {
+		for nch := range nchs {
+			log.Warn("server tried x11 forwarding without client requesting it, this is likely a break-in attempt by a malicious user")
+			nch.Reject(ssh.Prohibited, "")
+		}
+	}()
+
+	return nil
 }
 
 // selectKeyAgent picks the appropriate key agent for forwarding to the

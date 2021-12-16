@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 
 	"golang.org/x/crypto/ssh"
 
@@ -1500,6 +1501,7 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 	event := &apievents.X11Forward{
 		Metadata: apievents.Metadata{
 			Type: events.X11ForwardEvent,
+			Code: events.X11ForwardCode,
 		},
 		UserMetadata: apievents.UserMetadata{
 			Login:        ctx.Identity.Login,
@@ -1510,6 +1512,9 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 			LocalAddr:  ctx.ServerConn.LocalAddr().String(),
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
+		Status: apievents.Status{
+			Success: true,
+		},
 	}
 
 	defer func() {
@@ -1517,17 +1522,19 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 			event.Metadata.Code = events.X11ForwardFailureCode
 			event.Status.Success = false
 			event.Status.Error = err.Error()
-		} else {
-			event.Metadata.Code = events.X11ForwardCode
-			event.Status.Success = true
 		}
 		if err := s.EmitAuditEvent(s.ctx, event); err != nil {
-			log.WithError(err).Warn("Failed to emit X11 forward event.")
+			log.WithError(err).Warn("Failed to emit X11-forward event.")
 		}
 	}()
 
+	if _, ok := ctx.GetEnv(x11.DisplayEnv); ok {
+		err := trace.AlreadyExists("X11 display is already set for this session")
+		return trace.Wrap(err)
+	}
+
 	// Check if the user's RBAC role allows X11 forwarding.
-	if err := s.authHandlers.CheckAgentForward(ctx); err != nil {
+	if err := s.authHandlers.CheckX11Forward(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1536,12 +1543,52 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 		return trace.Wrap(err)
 	}
 
-	display, err := x11.StartXServerListener(s.ctx, ctx.ServerConn, x11Req)
+	l, display, err := x11.OpenNewXServerListener(x11Req.ScreenNumber)
 	if err != nil {
-		log.WithError(err).Warn("Failed to start X11 server listener")
 		return trace.Wrap(err)
 	}
 
+	// Create a new xauth entry for the received auth protocol and cookie.
+	// This way any forwarded XServer connections will be populated with
+	// the auth data expected by the client.
+	if err := x11.UpdateXAuthEntry(ctx.CancelContext(), display, x11Req.AuthProtocol, x11Req.AuthCookie); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// The XServer listener should be closed once the
+	// client's server connection closes.
+	go func() {
+		ctx.ServerConn.Wait()
+		l.Close()
+	}()
+
+	// serve any x11 server listener connections, which may be initiated
+	// from the client's session.
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err == syscall.EINVAL {
+				// listener is closed
+				return
+			} else if err != nil {
+				continue
+			}
+
+			go func() {
+				defer conn.Close()
+				if err := x11.ForwardToX11Channel(conn, ctx.ServerConn); err != nil {
+					log.WithError(err).Debug("Failed to start x11 forwarding for the incoming XServer connection")
+				}
+			}()
+
+			if x11Req.SingleConnection {
+				return
+			}
+		}
+	}()
+
+	// Set $DISPLAY on the server session so that XServer
+	// requests are sent to the X11 server listener.
 	ctx.SetEnv(x11.DisplayEnv, display)
 	return nil
 }

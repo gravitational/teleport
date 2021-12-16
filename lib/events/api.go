@@ -252,6 +252,11 @@ const (
 	X11ForwardSuccess = "success"
 	X11ForwardErr     = "error"
 
+	// X11 forwarding channel open event
+	X11ForwardChannelEvent   = "x11-forward-channel"
+	X11ForwardChannelSuccess = "success"
+	X11ForwardChannelErr     = "error"
+
 	// Port forwarding event
 	PortForwardEvent   = "port"
 	PortForwardAddr    = "addr"

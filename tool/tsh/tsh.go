@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -1993,6 +1994,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	// TODO(Joerger): Add tests for flag-option combos
 	// If X11 trusted/untrusted forwarding was specified on the command line enable it.
 	c.X11ForwardingEnabled = !cf.X11ForwardingDisabled && (cf.X11Forwarding || cf.X11ForwardingTrusted || options.ForwardX11)
+	if c.X11ForwardingEnabled && os.Getenv(x11.DisplayEnv) == "" {
+		log.Debug("X11 forwarding requested but $DISPLAY not set")
+		c.X11ForwardingEnabled = false
+	}
 
 	// if x11 trusted option is true, it is prioritized over the flag
 	c.X11ForwardingTrusted = options.ForwardX11Trusted
