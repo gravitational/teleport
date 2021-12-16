@@ -436,6 +436,7 @@ docs-test-whitespace:
 	fi
 
 
+ifeq (${DISABLE_TEST_TARGETS},)
 #
 # Runs all Go/shell tests, called by CI/CD.
 #
@@ -512,6 +513,7 @@ integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES := $(shell go list ./... | grep integration)
 integration-root:
 	$(CGOFLAG) go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
+endif
 
 #
 # Lint the source code.
