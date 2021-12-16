@@ -70,6 +70,10 @@ type NodeSession struct {
 	closer                *utils.CloseBroadcaster
 	enableEscapeSequences bool
 
+	// closeWait is used to wait for cleanup-related goroutines created by
+	// this session to close.
+	closeWait *sync.WaitGroup
+
 	// mu serialises access to `exitMsg`
 	mu      sync.Mutex
 	exitMsg string
@@ -122,6 +126,7 @@ func newSession(client *NodeClient,
 		stderr:                stderr,
 		namespace:             client.Namespace,
 		closer:                utils.NewCloseBroadcaster(),
+		closeWait:             &sync.WaitGroup{},
 		enableEscapeSequences: enableEscapeSequences,
 	}
 	// if we're joining an existing session, we need to assume that session's
@@ -154,6 +159,24 @@ func newSession(client *NodeClient,
 		ns.id = session.ID(sid)
 	}
 	ns.env[sshutils.SessionEnvVar] = string(ns.id)
+
+	// Close the Terminal when finished.
+	ns.closeWait.Add(1)
+	go func() {
+		defer ns.closeWait.Done()
+
+		<-ns.closer.C
+		if isFIPS() {
+			// \x1b[3J - clears scrollback (it is needed at least for the Mac terminal) -
+			// https://newbedev.com/how-do-i-reset-the-scrollback-in-the-terminal-via-a-shell-command
+			// \x1b\x63 - clears current screen - same as '\0033\0143' from https://superuser.com/a/123007
+			const resetPattern = "\x1b[3J\x1b\x63\n"
+			if _, err := ns.stdout.Write([]byte(resetPattern)); err != nil {
+				log.Warnf("Failed to clear screen: %v.", err)
+			}
+		}
+	}()
+
 	return ns, nil
 }
 
@@ -279,6 +302,7 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 	}
 	// wait for the session to end
 	<-ns.closer.C
+	ns.closeWait.Wait()
 	return nil
 }
 
@@ -621,6 +645,9 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 func (ns *NodeSession) Close() error {
 	if ns.closer != nil {
 		ns.closer.Close()
+	}
+	if ns.closeWait != nil {
+		ns.closeWait.Wait()
 	}
 	return nil
 }
