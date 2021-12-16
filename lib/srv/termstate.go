@@ -20,32 +20,37 @@ import (
 	"strings"
 )
 
-type termState int
+type TermState int
 
 const (
-	termStateShell termState = 1
-	termStateApp   termState = 2
+	TermStateShell TermState = 1
+	TermStateApp   TermState = 2
 )
 
 type TermStateManager struct {
-	state    termState
+	state    TermState
 	lastline []byte
+	onChange func(TermState)
 }
 
-func NewTermStateManager(command string) *TermStateManager {
-	var state termState
+func NewTermStateManager(command string, onChange func(TermState)) *TermStateManager {
+	var state TermState
 	isRecognizedShell := strings.HasSuffix(command, "sh") ||
 		strings.HasSuffix(command, "bash") ||
 		strings.HasSuffix(command, "zsh") ||
 		strings.HasSuffix(command, "fish")
 
 	if isRecognizedShell {
-		state = termStateShell
+		state = TermStateShell
 	} else {
-		state = termStateApp
+		state = TermStateApp
 	}
 
-	return &TermStateManager{state: state, lastline: nil}
+	return &TermStateManager{
+		state:    state,
+		lastline: nil,
+		onChange: onChange,
+	}
 }
 
 var shellPatterns = []*regexp.Regexp{
@@ -57,6 +62,13 @@ var shellPatterns = []*regexp.Regexp{
 }
 
 func (g *TermStateManager) Update(data []byte) {
+	startState := g.state
+	defer func() {
+		if g.state != startState && g.onChange != nil {
+			g.onChange(g.state)
+		}
+	}()
+
 	lastRet := findLast(data, '\n')
 	if lastRet == math.MaxInt {
 		g.lastline = append(g.lastline, data...)
@@ -68,16 +80,16 @@ func (g *TermStateManager) Update(data []byte) {
 		target := string(g.lastline)
 		for _, pattern := range shellPatterns {
 			if pattern.MatchString(target) {
-				g.state = termStateShell
+				g.state = TermStateShell
 				return
 			}
 		}
 	}
 
-	g.state = termStateApp
+	g.state = TermStateApp
 }
 
-func (g *TermStateManager) State() termState {
+func (g *TermStateManager) State() TermState {
 	return g.state
 }
 
