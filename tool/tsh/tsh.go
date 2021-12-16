@@ -258,6 +258,9 @@ type CLIConf struct {
 	AWSRole string
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
 	AWSCommandArgs []string
+
+	Reason  string
+	Invited string
 }
 
 // Stdout returns the stdout writer.
@@ -438,6 +441,8 @@ func Run(args []string, opts ...cliOption) error {
 	// join
 	join := app.Command("join", "Join the active SSH session")
 	join.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
+	join.Flag("reason", "The purpose of the session.").StringVar(&cf.Reason)
+	join.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringVar(&cf.Invited)
 	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
 	// play
 	play := app.Command("play", "Replay the recorded SSH session")
