@@ -60,6 +60,9 @@ type NodeCommand struct {
 	predicateExpr  string
 	labels         string
 
+	// ls output format -- text or json
+	lsFormat string
+
 	// CLI subcommands (clauses)
 	nodeAdd  *kingpin.CmdClause
 	nodeList *kingpin.CmdClause
@@ -80,6 +83,7 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, config *service.Confi
 
 	c.nodeList = nodes.Command("ls", "List all active SSH nodes within the cluster")
 	c.nodeList.Flag("namespace", "Namespace of the nodes").Default(apidefaults.Namespace).StringVar(&c.namespace)
+	c.nodeList.Flag("format", "Output format, 'text', or 'yaml'").Default("text").StringVar(&c.lsFormat)
 	c.nodeList.Alias(ListNodesHelp)
 	c.nodeList.Arg("labels", labelHelp).StringVar(&c.labels)
 	c.nodeList.Flag("search", searchHelp).StringVar(&c.searchKeywords)
@@ -236,8 +240,17 @@ func (c *NodeCommand) ListActive(clt auth.ClientI) error {
 	}
 
 	coll := &serverCollection{servers: nodes}
-	if err := coll.writeText(os.Stdout); err != nil {
-		return trace.Wrap(err)
+	switch c.lsFormat {
+	case "text":
+		if err := coll.writeText(os.Stdout); err != nil {
+			return trace.Wrap(err)
+		}
+	case "yaml":
+		if err := coll.writeYaml(os.Stdout); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.Errorf("Invalid format %s, only text and yaml are supported", c.lsFormat)
 	}
 	return nil
 }
