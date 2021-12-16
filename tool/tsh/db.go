@@ -590,7 +590,14 @@ func getMongoCommand(tc *client.TeleportClient, profile *client.ProfileStatus, d
 	if db.Database != "" {
 		args = append(args, db.Database)
 	}
-	return exec.Command(mongoBin, args...)
+
+	// look for `mongosh`, fall back to `mongo` if not found.
+	clientPath, err := exec.LookPath(mongoshBin)
+	if err != nil {
+		return exec.Command(mongoBin, args...)
+	}
+
+	return exec.Command(clientPath, args...)
 }
 
 func formatDatabaseListCommand(clusterFlag string) string {
@@ -642,6 +649,8 @@ const (
 	cockroachBin = "cockroach"
 	// mysqlBin is the MySQL client binary name.
 	mysqlBin = "mysql"
-	// mongoBin is the Mongo client binary name.
+	// mongoshBin is the Mongo Shell client binary name.
+	mongoshBin = "mongosh"
+	// mongoBin is the (legacy) Mongo client binary name.
 	mongoBin = "mongo"
 )
