@@ -3109,7 +3109,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		connLimiter, err := limiter.NewConnectionsLimiter(process.Config.Databases.Limiter)
+		connLimiter, err := limiter.NewLimiter(process.Config.Databases.Limiter)
 		if err != nil {
 			return trace.Wrap(err)
 		}
