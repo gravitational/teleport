@@ -751,3 +751,27 @@ func (c *tokenCollection) writeText(w io.Writer) error {
 	}
 	return nil
 }
+
+type kubeServerCollection struct {
+	servers []types.Server
+}
+
+func (c *kubeServerCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Cluster", "Labels", "Version"})
+	for _, server := range c.servers {
+		kubes := server.GetKubernetesClusters()
+		for _, kube := range kubes {
+			t.AddRow([]string{
+				kube.Name,
+				types.LabelsAsString(kube.StaticLabels, kube.DynamicLabels),
+				server.GetTeleportVersion(),
+			})
+		}
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func (c *kubeServerCollection) writeYAML(w io.Writer) error {
+	return utils.WriteYAML(w, c.servers)
+}
