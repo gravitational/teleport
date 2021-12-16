@@ -190,6 +190,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		nodeDir,
 		"",
 		utils.NetAddr{},
+		nil,
 		serverOptions...)
 	require.NoError(t, err)
 	require.NoError(t, auth.CreateUploaderDir(nodeDir))
@@ -1003,6 +1004,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
+		nil,
 		SetUUID(proxyID),
 		SetProxyMode(reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
@@ -1075,6 +1077,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
+		nil,
 		SetShell("/bin/sh"),
 		SetLabels(
 			map[string]string{"label1": "value1"},
@@ -1195,6 +1198,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
+		nil,
 		SetProxyMode(reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
@@ -1318,6 +1322,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
+		nil,
 		SetProxyMode(reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
@@ -1449,6 +1454,7 @@ func TestLimiter(t *testing.T) {
 		nodeStateDir,
 		"",
 		utils.NetAddr{},
+		nil,
 		SetLimiter(limiter),
 		SetShell("/bin/sh"),
 		SetSessionServer(nodeClient),

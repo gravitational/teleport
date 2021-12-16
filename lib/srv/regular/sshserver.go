@@ -559,6 +559,7 @@ func New(addr utils.NetAddr,
 	dataDir string,
 	advertiseAddr string,
 	proxyPublicAddr utils.NetAddr,
+	auth auth.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
 	err := utils.RegisterPrometheusCollectors(userSessionLimitHitCount)
@@ -627,7 +628,7 @@ func New(addr utils.NetAddr,
 		trace.ComponentFields: logrus.Fields{},
 	})
 
-	s.reg, err = srv.NewSessionRegistry(s)
+	s.reg, err = srv.NewSessionRegistry(s, auth)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
