@@ -640,6 +640,12 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		stateUpdate:  broadcast.NewBroadcaster(1),
 		scx:          ctx,
 	}
+
+	err = sess.trackerCreate(ctx.Identity.TeleportUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return sess, nil
 }
 
@@ -675,6 +681,9 @@ func (s *session) Close() error {
 		go func() {
 			s.out.BroadcastMessage("Closing session...")
 			s.log.Infof("Closing session %v.", s.id)
+			err := s.trackerUpdateState(types.SessionState_SessionStateTerminated)
+			s.log.WithError(err).Errorf("Failed to update tracker state.")
+
 			if s.term != nil {
 				s.term.Close()
 			}
@@ -717,6 +726,9 @@ func (s *session) monitorAccess() error {
 				state = types.SessionState_SessionStatePending
 				go s.waitOnAccess()
 			}
+
+			err = s.trackerUpdateState(state)
+			s.log.WithError(err).Errorf("Failed to update tracker state.")
 
 			if state != s.state {
 				s.state = state
@@ -1381,6 +1393,11 @@ func (s *session) addParty(p *party) error {
 	// Adds participant to in-memory map of party members.
 	s.addPartyMember(p)
 
+	err := s.trackerAddParticipant(p)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Write last chunk (so the newly joined parties won't stare at a blank
 	// screen).
 	if _, err := p.Write(s.out.W.W.W.(*MultiWriter).GetRecentWrites()); err != nil {
@@ -1403,6 +1420,11 @@ func (s *session) addParty(p *party) error {
 			s.log.Errorf("Party member %v left session %v due an error: %v", p.id, s.id, err)
 		}
 		s.log.Infof("Party member %v left session %v.", p.id, s.id)
+
+		err = s.trackerRemoveParticipant(p.user)
+		if err != nil {
+			s.log.Errorf("Failed to remove participant %v from session tracker %v: %v", p.id, s.id, err)
+		}
 	}()
 	return nil
 }
@@ -1616,11 +1638,11 @@ func (s *session) trackerGet() (types.Session, error) {
 	return sess, nil
 }
 
-func (s *session) trackerCreate(p *party) error {
+func (s *session) trackerCreate(teleportUser string) error {
 	s.log.Debug("Creating tracker")
 	initator := &types.Participant{
-		ID:         p.user,
-		User:       p.user,
+		ID:         teleportUser,
+		User:       teleportUser,
 		LastActive: time.Now().UTC(),
 	}
 
