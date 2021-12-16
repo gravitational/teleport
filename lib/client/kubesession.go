@@ -149,7 +149,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 			return nil, trace.Wrap(err)
 		}
 
-		auth, err := proxy.ConnectToRootCluster(ctx, false)
+		auth, err := proxy.ConnectToCluster(ctx, meta.GetClustername(), false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
