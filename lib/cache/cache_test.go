@@ -2194,8 +2194,8 @@ func TestCache_Backoff(t *testing.T) {
 			require.LessOrEqual(t, duration, stepMax)
 
 			// add some extra to the duration to ensure the retry occurs
-			clock.Advance(duration * 2)
-		case <-time.After(time.Second):
+			clock.Advance(duration * 3)
+		case <-time.After(time.Minute):
 			t.Fatalf("timeout waiting for event")
 		}
 
@@ -2203,7 +2203,7 @@ func TestCache_Backoff(t *testing.T) {
 		select {
 		case event := <-p.eventsC:
 			require.Equal(t, WatcherFailed, event.Type)
-		case <-time.After(time.Second):
+		case <-time.After(30 * time.Second):
 			t.Fatalf("timeout waiting for event")
 		}
 	}
