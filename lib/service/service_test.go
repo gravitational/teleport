@@ -568,8 +568,8 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 			require.GreaterOrEqual(t, duration, stepMin)
 			require.LessOrEqual(t, duration, stepMax)
 			// add some extra to the duration to ensure the retry occurs
-			clock.Advance(duration * 2)
-		case <-time.After(30 * time.Second):
+			clock.Advance(duration * 3)
+		case <-time.After(time.Minute):
 			t.Fatalf("timeout waiting for failure")
 		}
 	}
