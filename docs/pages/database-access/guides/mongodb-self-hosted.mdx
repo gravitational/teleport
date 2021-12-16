@@ -89,7 +89,7 @@ MongoDB treats the entire `Subject` line of the client certificate as a username
 When connecting to a MongoDB server, say as a user `alice`, Teleport will sign
 an ephemeral certificate with `CN=alice` subject.
 
-To create this user in the database, connect to it using `mongo` shell and run
+To create this user in the database, connect to it using `mongosh` or `mongo` shell and run
 the following command:
 
 ```js
@@ -225,7 +225,7 @@ $ tsh db connect example-mongo
 ```
 
 <Admonition type="note" title="Note">
-  The `mongo` command-line client should be available in PATH in order to be
+  The `mongosh` command-line client should be available in PATH in order to be
   able to connect.
 </Admonition>
 
