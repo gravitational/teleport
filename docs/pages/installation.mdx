@@ -158,6 +158,8 @@ supported under Windows 10 1607+ as of Teleport v7.2. We support running
     # <checksum> <filename>
     # CertUtil: -hashfile command completed successfully.
     # Verify that the checksums match
+    # Unpack the zip archive
+    $ Expand-Archive -LiteralPath teleport-v(=teleport.version=)-windows-amd64-bin.zip tsh
     # Move `tsh` to your %PATH%
     ```
   </TabItem>
