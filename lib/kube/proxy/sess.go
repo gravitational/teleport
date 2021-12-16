@@ -258,11 +258,11 @@ type session struct {
 
 	log *log.Entry
 
-	clients_stdin *kubeutils.BreakReader
+	clients_stdin *srv.BreakReader
 
 	clients_stdout *srv.TermManager
 
-	clients_stderr *kubeutils.SwitchWriter
+	clients_stderr *srv.SwitchWriter
 
 	terminalSizeQueue *multiResizeQueue
 
@@ -307,7 +307,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	accessEvaluator := auth.NewSessionAccessEvaluator(roles, types.KubernetesSessionKind)
 
 	cmd := req.URL.Query()["command"][0]
-	stdout := srv.NewTermManager(cmd, kubeutils.NewSwitchWriter(utils.NewTrackingWriter(srv.NewMultiWriter())))
+	stdout := srv.NewTermManager(cmd, srv.NewSwitchWriter(utils.NewTrackingWriter(srv.NewMultiWriter())))
 
 	err = stdout.BroadcastMessage(fmt.Sprintf("Creating session with ID: %v...", id.String()))
 	if err != nil {
@@ -324,9 +324,9 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		parties:           make(map[uuid.UUID]*party),
 		partiesHistorical: make(map[uuid.UUID]*party),
 		log:               log,
-		clients_stdin:     kubeutils.NewBreakReader(utils.NewTrackingReader(kubeutils.NewMultiReader())),
+		clients_stdin:     srv.NewBreakReader(utils.NewTrackingReader(srv.NewMultiReader())),
 		clients_stdout:    stdout,
-		clients_stderr:    kubeutils.NewSwitchWriter(utils.NewTrackingWriter(srv.NewMultiWriter())),
+		clients_stderr:    srv.NewSwitchWriter(utils.NewTrackingWriter(srv.NewMultiWriter())),
 		state:             types.SessionState_SessionStatePending,
 		stateUpdate:       broadcast.NewBroadcaster(1),
 		accessEvaluator:   accessEvaluator,
@@ -410,7 +410,7 @@ func (s *session) launch() error {
 	defer func() {
 		err := s.Close()
 		if err != nil {
-			log.WithError(err).Errorf("Failed to close session: %v", s.id)
+			s.log.WithError(err).Errorf("Failed to close session: %v", s.id)
 		}
 	}()
 
@@ -799,8 +799,8 @@ func (s *session) join(p *party) error {
 		}
 
 		modes := s.accessEvaluator.CanJoin(accessContext)
-		if !auth.SliceContainsMode(modes, p.Mode) && p.Ctx.User.GetName() == s.ctx.User.GetName() {
-			return trace.AccessDenied("insufficient permissions to join sessions")
+		if !auth.SliceContainsMode(modes, p.Mode) {
+			return trace.AccessDenied("insufficient permissions to join session")
 		}
 	}
 
@@ -850,7 +850,7 @@ func (s *session) join(p *party) error {
 
 	if s.tty && p.Ctx.User.GetName() == s.ctx.User.GetName() {
 		s.log.Debug("party is host, adding stdin stream")
-		s.clients_stdin.R.R.(*kubeutils.MultiReader).AddReader(stringId, p.Client.stdinStream())
+		s.clients_stdin.R.R.(*srv.MultiReader).AddReader(stringId, p.Client.stdinStream())
 	}
 
 	s.log.Debug("replaying recent writes to stdout")
@@ -932,7 +932,7 @@ func (s *session) leave(id uuid.UUID) error {
 
 	delete(s.parties, id)
 	s.terminalSizeQueue.remove(stringId)
-	s.clients_stdin.R.R.(*kubeutils.MultiReader).RemoveReader(stringId)
+	s.clients_stdin.R.R.(*srv.MultiReader).RemoveReader(stringId)
 	s.clients_stdout.W.W.W.(*srv.MultiWriter).DeleteWriter(stringId)
 	s.clients_stderr.W.W.(*srv.MultiWriter).DeleteWriter(stringId)
 

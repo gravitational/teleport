@@ -20,7 +20,6 @@ import (
 	"strings"
 	"sync"
 
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -35,12 +34,12 @@ const (
 type TermManager struct {
 	state    termState
 	lastline []byte
-	W        *kubeutils.SwitchWriter
+	W        *SwitchWriter
 	messages []string
 	mu       sync.Mutex
 }
 
-func NewTermManager(command string, w *kubeutils.SwitchWriter) *TermManager {
+func NewTermManager(command string, w *SwitchWriter) *TermManager {
 	var state termState
 	isRecognizedShell := strings.HasSuffix(command, "sh") ||
 		strings.HasSuffix(command, "bash") ||
@@ -84,7 +83,7 @@ func (g *TermManager) Write(p []byte) (int, error) {
 
 func (g *TermManager) flushMessages() error {
 	for _, message := range g.messages {
-		err := utils.WriteAll(g.W.Write, []byte(message))
+		err := utils.WriteAll(g.W.WriteUnconditional, []byte(message))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -100,7 +99,7 @@ func (g *TermManager) BroadcastMessage(message string) error {
 
 	if g.state == TermStateShell {
 		data := []byte("\n\rTeleport > " + message + "\n\r")
-		err := utils.WriteAll(g.W.Write, data)
+		err := utils.WriteAll(g.W.WriteUnconditional, data)
 		return trace.Wrap(err)
 	}
 

@@ -28,6 +28,8 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -75,6 +77,9 @@ type SessionRegistry struct {
 
 	// srv refers to the upon which this session registry is created.
 	srv Server
+
+	// TODO(joel): initialize this
+	auth auth.ClientI
 }
 
 func NewSessionRegistry(srv Server) (*SessionRegistry, error) {
@@ -187,7 +192,8 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *Ser
 		ctx.Infof("Joining existing session %v.", session.id)
 
 		// Update the in-memory data structure that a party member has joined.
-		_, err := session.join(ch, req, ctx)
+		// TODO(joel): mode switching here
+		_, err := session.join(ch, req, ctx, types.SessionPeerMode)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -502,9 +508,6 @@ type session struct {
 	// parent session container
 	registry *SessionRegistry
 
-	// this writer is used to broadcast terminal I/O to different clients
-	writer *MultiWriter
-
 	// parties is the set of current connected clients/users. This map may grow
 	// and shrink as members join and leave the session.
 	parties map[rsession.ID]*party
@@ -513,6 +516,10 @@ type session struct {
 	// never removed from this map as it's used to report the full list of
 	// participants at the end of a session.
 	participants map[rsession.ID]*party
+
+	out      *TermManager
+	in       *BreakReader
+	inWriter io.Writer
 
 	term Terminal
 
@@ -550,6 +557,10 @@ type session struct {
 	checkAccess chan struct{}
 
 	stateUpdate broadcast.Broadcaster
+
+	initiator string
+
+	scx *ServerContext
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -618,7 +629,6 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		registry:     r,
 		parties:      make(map[rsession.ID]*party),
 		participants: make(map[rsession.ID]*party),
-		writer:       NewMultiWriter(),
 		login:        ctx.Identity.Login,
 		closeC:       make(chan bool),
 		lingerTTL:    defaults.SessionIdlePeriod,
@@ -628,6 +638,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		access:       auth.NewSessionAccessEvaluator(initiator, types.SSHSessionKind),
 		checkAccess:  make(chan struct{}),
 		stateUpdate:  broadcast.NewBroadcaster(1),
+		scx:          ctx,
 	}
 	return sess, nil
 }
@@ -662,6 +673,7 @@ func (s *session) Close() error {
 		// (session writer) will try to close this session, causing a deadlock
 		// because of closeOnce
 		go func() {
+			s.out.BroadcastMessage("Closing session...")
 			s.log.Infof("Closing session %v.", s.id)
 			if s.term != nil {
 				s.term.Close()
@@ -692,16 +704,20 @@ func (s *session) monitorAccess() error {
 			permitted, err := s.checkIfStart()
 			if err != nil {
 				s.log.Errorf("Failed to check if session %v can be started: %v.", s.id, err)
+				if err != nil {
+					s.log.WithError(err).Errorf("Failed to close session: %v", s.id)
+				}
 			}
 
+			s.mu.Lock()
 			var state types.SessionState
 			if permitted {
 				state = types.SessionState_SessionStateRunning
 			} else {
 				state = types.SessionState_SessionStatePending
+				go s.waitOnAccess()
 			}
 
-			s.mu.Lock()
 			if state != s.state {
 				s.state = state
 				s.stateUpdate.Submit(state)
@@ -714,31 +730,36 @@ func (s *session) monitorAccess() error {
 	}
 }
 
-func termWrite(w *MultiWriter, s string) error {
-	_, err := w.Write([]byte(s))
-	return trace.Wrap(err)
-}
-
-func (s *session) waitForAccess() error {
-	if err := termWrite(s.writer, "This session requires additional participants. Waiting for others to join..."); err != nil {
-		return trace.Wrap(err)
-	}
+func (s *session) waitOnAccess() error {
+	s.out.W.Off()
+	s.in.Off()
+	s.out.BroadcastMessage("Session paused, Waiting for required participants...")
 
 	ch := make(chan interface{})
 	s.stateUpdate.Register(ch)
 	defer s.stateUpdate.Unregister(ch)
 
+outer:
 	for {
 		state, ok := <-ch
 		if !ok {
 			return trace.ConnectionProblem(nil, "session state update channel closed")
 		}
 
-		if state == types.SessionState_SessionStateRunning {
-			break
+		actualState := state.(types.SessionState)
+		switch actualState {
+		case types.SessionState_SessionStatePending:
+			continue
+		case types.SessionState_SessionStateTerminated:
+			return nil
+		case types.SessionState_SessionStateRunning:
+			break outer
 		}
 	}
 
+	s.out.BroadcastMessage("Resuming session...")
+	s.out.W.On()
+	s.in.On()
 	return nil
 }
 
@@ -777,10 +798,13 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			return trace.Wrap(err)
 		}
 	}
-	s.writer.AddWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder), true)
-
-	go s.monitorAccess()
-	if err := termWrite(s.writer, "Creating session with uuid "+string(s.id)+"..."); err != nil {
+	s.out = NewTermManager("/bin/bash", NewSwitchWriter(utils.NewTrackingWriter(NewMultiWriter())))
+	inReader, inWriter := io.Pipe()
+	s.inWriter = inWriter
+	s.in = NewBreakReader(utils.NewTrackingReader(inReader))
+	s.out.W.W.W.(*MultiWriter).AddWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder), true)
+	err = s.out.BroadcastMessage(fmt.Sprintf("Creating session with ID: %v...", s.id))
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -789,12 +813,10 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		return trace.Wrap(err)
 	}
 
-	if !canStart {
-		if err := s.waitForAccess(); err != nil {
-			return trace.Wrap(err)
-		}
+	go s.monitorAccess()
 
-		if err := termWrite(s.writer, "Starting session..."); err != nil {
+	if !canStart {
+		if err := s.waitOnAccess(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -900,7 +922,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	go func() {
 		defer s.term.AddParty(-1)
 
-		_, err := io.Copy(s.writer, s.term.PTY())
+		_, err := io.Copy(s.out, s.term.PTY())
 		s.log.Debugf("Copying from PTY to writer completed with error %v.", err)
 
 		// once everything has been copied, notify the goroutine below. if this code
@@ -909,6 +931,13 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		// node, when the remote side closes the channel (which is what s.term.PTY()
 		// returns) io.Copy will return.
 		doneCh <- true
+	}()
+
+	s.term.AddParty(1)
+	go func() {
+		defer s.term.AddParty(-1)
+		_, err := io.Copy(s.term.PTY(), s.in)
+		s.log.Debugf("Copying from reader to PTY completed with error %v.", err)
 	}()
 
 	// wait for exec.Cmd (or receipt of "exit-status" for a forwarding node),
@@ -1212,7 +1241,8 @@ func (s *session) removeParty(p *party) error {
 	// Removes participant from in-memory map of party members.
 	s.removePartyMember(p)
 
-	s.writer.DeleteWriter(string(p.id))
+	s.out.W.W.W.(*MultiWriter).DeleteWriter(string(p.id))
+	s.out.BroadcastMessage(fmt.Sprintf("User %v left the session.", p.user))
 	s.checkAccess <- struct{}{}
 	return nil
 }
@@ -1353,21 +1383,22 @@ func (s *session) addParty(p *party) error {
 
 	// Write last chunk (so the newly joined parties won't stare at a blank
 	// screen).
-	if _, err := p.Write(s.writer.GetRecentWrites()); err != nil {
+	if _, err := p.Write(s.out.W.W.W.(*MultiWriter).GetRecentWrites()); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Register this party as one of the session writers (output will go to it).
-	s.writer.AddWriter(string(p.id), p, true)
+	s.out.W.W.W.(*MultiWriter).AddWriter(string(p.id), p, true)
 	p.ctx.AddCloser(p)
 	s.term.AddParty(1)
 
+	s.out.BroadcastMessage(fmt.Sprintf("User %v joined the session.", p.user))
 	s.log.Infof("New party %v joined session: %v", p.String(), s.id)
 
 	// This goroutine keeps pumping party's input into the session.
 	go func() {
 		defer s.term.AddParty(-1)
-		_, err := io.Copy(s.term.PTY(), p)
+		_, err := io.Copy(s.inWriter, p)
 		if err != nil {
 			s.log.Errorf("Party member %v left session %v due an error: %v", p.id, s.id, err)
 		}
@@ -1376,7 +1407,19 @@ func (s *session) addParty(p *party) error {
 	return nil
 }
 
-func (s *session) join(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) (*party, error) {
+func (s *session) join(ch ssh.Channel, req *ssh.Request, ctx *ServerContext, mode types.SessionParticipantMode) (*party, error) {
+	if ctx.Identity.TeleportUser != s.initiator {
+		roles := []types.Role(ctx.Identity.RoleSet)
+		accessContext := auth.SessionAccessContext{
+			Roles: roles,
+		}
+
+		modes := s.access.CanJoin(accessContext)
+		if !auth.SliceContainsMode(modes, mode) {
+			return nil, trace.AccessDenied("insufficient permissions to join sessions")
+		}
+	}
+
 	p := newParty(s, ch, ctx)
 	if err := s.addParty(p); err != nil {
 		return nil, trace.Wrap(err)
@@ -1562,4 +1605,86 @@ func (p *party) Close() (err error) {
 		close(p.termSizeC)
 	})
 	return err
+}
+
+func (s *session) trackerGet() (types.Session, error) {
+	sess, err := s.registry.auth.GetSessionTracker(s.serverCtx, s.id.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sess, nil
+}
+
+func (s *session) trackerCreate(p *party) error {
+	s.log.Debug("Creating tracker")
+	initator := &types.Participant{
+		ID:         p.user,
+		User:       p.user,
+		LastActive: time.Now().UTC(),
+	}
+
+	req := &proto.CreateSessionRequest{
+		ID:          s.id.String(),
+		Namespace:   apidefaults.Namespace,
+		Type:        string(types.KubernetesSessionKind),
+		Hostname:    s.registry.srv.GetInfo().GetHostname(),
+		Address:     s.scx.ServerConn.LocalAddr().String(),
+		ClusterName: s.scx.ClusterName,
+		Login:       "root",
+		Initiator:   initator,
+		Expires:     time.Now().UTC().Add(time.Hour * 24),
+		HostUser:    initator.User,
+	}
+
+	_, err := s.registry.auth.CreateSessionTracker(s.serverCtx, req)
+	return trace.Wrap(err)
+}
+
+func (s *session) trackerAddParticipant(participant *party) error {
+	s.log.Debugf("Tracking participant: %v", participant.user)
+	req := &proto.UpdateSessionRequest{
+		SessionID: s.id.String(),
+		Update: &proto.UpdateSessionRequest_AddParticipant{
+			AddParticipant: &proto.AddParticipant{
+				Participant: &types.Participant{
+					ID:         participant.user,
+					User:       participant.user,
+					LastActive: time.Now().UTC(),
+				},
+			},
+		},
+	}
+
+	err := s.registry.auth.UpdateSessionTracker(s.serverCtx, req)
+	return trace.Wrap(err)
+}
+
+func (s *session) trackerRemoveParticipant(participantID string) error {
+	s.log.Debugf("Not tracking participant: %v", participantID)
+	req := &proto.UpdateSessionRequest{
+		SessionID: s.id.String(),
+		Update: &proto.UpdateSessionRequest_RemoveParticipant{
+			RemoveParticipant: &proto.RemoveParticipant{
+				ParticipantID: participantID,
+			},
+		},
+	}
+
+	err := s.registry.auth.UpdateSessionTracker(s.serverCtx, req)
+	return trace.Wrap(err)
+}
+
+func (s *session) trackerUpdateState(state types.SessionState) error {
+	req := &proto.UpdateSessionRequest{
+		SessionID: s.id.String(),
+		Update: &proto.UpdateSessionRequest_UpdateState{
+			UpdateState: &proto.UpdateState{
+				State: state,
+			},
+		},
+	}
+
+	err := s.registry.auth.UpdateSessionTracker(s.serverCtx, req)
+	return trace.Wrap(err)
 }
