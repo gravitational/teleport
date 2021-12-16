@@ -256,12 +256,14 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 
 func (w *Monitor) disconnectClientOnExpiredCert() {
 	reason := fmt.Sprintf("client certificate expired at %v", w.Clock.Now().UTC())
-	if err := w.emitDisconnectEvent(reason); err != nil {
-		w.Entry.WithError(err).Warn("Failed to emit audit event.")
-	}
+
 	w.Entry.Debugf("Disconnecting client: %v", reason)
 	if err := w.Conn.Close(); err != nil {
 		w.Entry.WithError(err).Error("Failed to close connection.")
+	}
+
+	if err := w.emitDisconnectEvent(reason); err != nil {
+		w.Entry.WithError(err).Warn("Failed to emit audit event.")
 	}
 }
 

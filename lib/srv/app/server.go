@@ -215,7 +215,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		Component:       teleport.ComponentApp,
 		Announcer:       c.AccessPoint,
 		GetServerInfo:   s.GetServerInfo,
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/2),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
