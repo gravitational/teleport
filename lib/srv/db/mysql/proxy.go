@@ -51,23 +51,12 @@ type Proxy struct {
 	// Log is used for logging.
 	Log logrus.FieldLogger
 	// Limiter limits the number of active connections per client IP.
-	Limiter *limiter.ConnectionsLimiter
+	Limiter *limiter.Limiter
 }
 
 // HandleConnection accepts connection from a MySQL client, authenticates
 // it and proxies it to an appropriate database service.
 func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err error) {
-	clientIP, err := utils.ClientIPFromConn(clientConn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Apply connection limiting.
-	if err := p.Limiter.AcquireConnection(clientIP); err != nil {
-		return trace.LimitExceeded("client %v exceeded connection limit", clientIP)
-	}
-	defer p.Limiter.ReleaseConnection(clientIP)
-
 	// Wrap the client connection in the connection that can detect the protocol
 	// by peeking into the first few bytes. This is needed to be able to detect
 	// proxy protocol which otherwise would interfere with MySQL protocol.
@@ -96,6 +85,17 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	clientIP, err := utils.ClientIPFromConn(clientConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Apply connection and rate limiting.
+	releaseConn, err := p.Limiter.RegisterRequestAndConnection(clientIP)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer releaseConn()
 
 	serviceConn, authContext, err := p.Service.Connect(ctx, common.ConnectParams{
 		User:     server.GetUser(),

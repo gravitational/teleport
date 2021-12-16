@@ -75,8 +75,8 @@ type ProxyServerConfig struct {
 	Tunnel reversetunnel.Server
 	// TLSConfig is the proxy server TLS configuration.
 	TLSConfig *tls.Config
-	// Limiter is the connection limiter.
-	Limiter *limiter.ConnectionsLimiter
+	// Limiter is the connection/rate limiter.
+	Limiter *limiter.Limiter
 	// Emitter is used to emit audit events.
 	Emitter events.Emitter
 	// Clock to override clock in tests.
@@ -125,8 +125,8 @@ func (c *ProxyServerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing LockWatcher")
 	}
 	if c.Limiter == nil {
-		// Empty config means no limit.
-		connLimiter, err := limiter.NewConnectionsLimiter(limiter.Config{})
+		// Empty config means no connection limit and ... .
+		connLimiter, err := limiter.NewLimiter(limiter.Config{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -229,17 +229,6 @@ func (s *ProxyServer) ServeTLS(listener net.Listener) error {
 }
 
 func (s *ProxyServer) handleConnection(conn net.Conn) error {
-	clientIP, err := utils.ClientIPFromConn(conn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Apply connection limiting.
-	if err := s.cfg.Limiter.AcquireConnection(clientIP); err != nil {
-		return trace.LimitExceeded("client %v exceeded connection limit", clientIP)
-	}
-	defer s.cfg.Limiter.ReleaseConnection(clientIP)
-
 	s.log.Debugf("Accepted TLS database connection from %v.", conn.RemoteAddr())
 	tlsConn, ok := conn.(*tls.Conn)
 	if !ok {
@@ -249,6 +238,18 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	clientIP, err := utils.ClientIPFromConn(conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Apply connection and rate limiting.
+	release, err := s.cfg.Limiter.RegisterRequestAndConnection(clientIP)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer release()
 
 	serviceConn, authContext, err := s.Connect(ctx, common.ConnectParams{
 		ClientIP: clientIP,

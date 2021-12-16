@@ -163,7 +163,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	connLimiter, err := limiter.NewConnectionsLimiter(process.Config.Databases.Limiter)
+	connLimiter, err := limiter.NewLimiter(process.Config.Databases.Limiter)
 	if err != nil {
 		return trace.Wrap(err)
 	}

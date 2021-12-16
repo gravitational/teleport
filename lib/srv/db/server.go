@@ -62,8 +62,8 @@ type Config struct {
 	NewAudit NewAuditFn
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
-	// Limiter limits the number of active connections per client IP.
-	Limiter *limiter.ConnectionsLimiter
+	// Limiter limits the number of connections per client IP.
+	Limiter *limiter.Limiter
 	// Authorizer is used to authorize requests coming from proxy.
 	Authorizer auth.Authorizer
 	// GetRotation returns the certificate rotation state.
@@ -174,7 +174,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.Limiter == nil {
 		// Use default limiter if nothing is provided. Connection limiting will be disabled.
-		c.Limiter, err = limiter.NewConnectionsLimiter(limiter.Config{})
+		c.Limiter, err = limiter.NewLimiter(limiter.Config{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -651,23 +651,10 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	}
 }
 
-func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
+func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) error {
 	sessionCtx, err := s.authorize(ctx)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	// TODO(jakule): ClientIP should be required starting from 10.0.
-	clientIP := sessionCtx.Identity.ClientIP
-	if clientIP != "" {
-		s.log.Debugf("Real client IP %s", clientIP)
-
-		if err := s.cfg.Limiter.AcquireConnection(clientIP); err != nil {
-			return trace.LimitExceeded("client %v exceeded connection limit", clientIP)
-		}
-		defer s.cfg.Limiter.ReleaseConnection(clientIP)
-	} else {
-		s.log.Debug("ClientIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
 	}
 
 	streamWriter, err := s.newStreamWriter(sessionCtx)
@@ -677,7 +664,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 	defer func() {
 		// Closing the stream writer is needed to flush all recorded data
 		// and trigger upload. Do it in a goroutine since depending on
-		// session size it can take a while and we don't want to block
+		// session size it can take a while, and we don't want to block
 		// the client.
 		go func() {
 			// Use the server closing context to make sure that upload
@@ -692,11 +679,10 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	// Wrap a client connection into monitor that auto-terminates
 	// idle connection and connection with expired cert.
-	conn, err = monitorConn(ctx, monitorConnConfig{
-		conn:         conn,
+	clientConn, err = monitorConn(ctx, monitorConnConfig{
+		conn:         clientConn,
 		lockWatcher:  s.cfg.LockWatcher,
 		lockTargets:  sessionCtx.LockTargets,
 		identity:     sessionCtx.Identity,
@@ -713,7 +699,36 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 
-	err = engine.HandleConnection(ctx, sessionCtx, conn)
+	if err := engine.InitializeConnection(clientConn); err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			s.log.Warnf("Recovered while handling DB connection from %v: %v.", clientConn.RemoteAddr(), r)
+			err = trace.BadParameter("failed to handle client connection")
+		}
+		if err != nil {
+			engine.SendError(err)
+		}
+	}()
+
+	// TODO(jakule): ClientIP should be required starting from 10.0.
+	clientIP := sessionCtx.Identity.ClientIP
+	if clientIP != "" {
+		s.log.Debugf("Real client IP %s", clientIP)
+
+		var release func()
+		release, err = s.cfg.Limiter.RegisterRequestAndConnection(clientIP)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer release()
+	} else {
+		s.log.Debug("ClientIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
+	}
+
+	err = engine.HandleConnection(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -731,11 +746,12 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 	switch sessionCtx.Database.GetProtocol() {
 	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		return &postgres.Engine{
-			Auth:    s.cfg.Auth,
-			Audit:   audit,
-			Context: s.closeContext,
-			Clock:   s.cfg.Clock,
-			Log:     sessionCtx.Log,
+			Auth:       s.cfg.Auth,
+			Audit:      audit,
+			Context:    s.closeContext,
+			Clock:      s.cfg.Clock,
+			Log:        sessionCtx.Log,
+			SessionCtx: sessionCtx, //TODO(jakule)
 		}, nil
 	case defaults.ProtocolMySQL:
 		return &mysql.Engine{

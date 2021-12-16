@@ -52,6 +52,31 @@ type Engine struct {
 	Clock clockwork.Clock
 	// Log is used for logging.
 	Log logrus.FieldLogger
+	// client is a client connection.
+	client *pgproto3.Backend
+	//TODO(jakule): This probably shouldn't be a part of this struct. Move it somewhere.
+	SessionCtx *common.Session
+}
+
+func (e *Engine) InitializeConnection(clientConn net.Conn) error {
+	e.client = pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
+
+	// The proxy is supposed to pass a startup message it received from
+	// the psql client over to us, so wait for it and extract database
+	// and username from it.
+	err := e.handleStartup(e.client, e.SessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// SendError sends an error to connected client in a Postgres understandable format.
+func (e *Engine) SendError(err error) {
+	if err := e.client.Send(toErrorResponse(err)); err != nil && !utils.IsOKNetworkError(err) {
+		e.Log.WithError(err).Error("Failed to send error to client.")
+	}
 }
 
 // toErrorResponse converts the provided error to a Postgres wire protocol
@@ -78,25 +103,10 @@ func toErrorResponse(err error) *pgproto3.ErrorResponse {
 // It handles all necessary startup actions, authorization and acts as a
 // middleman between the proxy and the database intercepting and interpreting
 // all messages i.e. doing protocol parsing.
-func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session, clientConn net.Conn) (err error) {
-	client := pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
-	defer func() {
-		if err != nil {
-			if err := client.Send(toErrorResponse(err)); err != nil && !utils.IsOKNetworkError(err) {
-				e.Log.WithError(err).Error("Failed to send error to client.")
-			}
-		}
-	}()
-	// The proxy is supposed to pass a startup message it received from
-	// the psql client over to us, so wait for it and extract database
-	// and username from it.
-	err = e.handleStartup(client, sessionCtx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	// Now we know which database/username the user is connecting to, so
 	// perform an authorization check.
-	err = e.checkAccess(ctx, sessionCtx)
+	err := e.checkAccess(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -106,8 +116,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 	// Upon successful connect, indicate to the Postgres client that startup
-	// has been completed and it can start sending queries.
-	err = e.makeClientReady(client, hijackedConn)
+	// has been completed, and it can start sending queries.
+	err = e.makeClientReady(e.client, hijackedConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -131,8 +141,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	// the client (psql or other Postgres client) and the server (database).
 	clientErrCh := make(chan error, 1)
 	serverErrCh := make(chan error, 1)
-	go e.receiveFromClient(client, server, clientErrCh, sessionCtx)
-	go e.receiveFromServer(server, client, serverConn, serverErrCh, sessionCtx)
+	go e.receiveFromClient(e.client, server, clientErrCh, sessionCtx)
+	go e.receiveFromServer(server, e.client, serverConn, serverErrCh, sessionCtx)
 	select {
 	case err := <-clientErrCh:
 		e.Log.WithError(err).Debug("Client done.")

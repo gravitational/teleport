@@ -841,7 +841,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		},
 	}
 	// Empty config means no limit.
-	connLimiter, err := limiter.NewConnectionsLimiter(limiter.Config{})
+	connLimiter, err := limiter.NewLimiter(limiter.Config{})
 	require.NoError(t, err)
 
 	// Create test audit events emitter.
@@ -942,7 +942,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		Hostname:         constants.APIDomain,
 		HostID:           p.HostID,
 		TLSConfig:        tlsConfig,
-		Limiter:          connLimiter.ConnectionsLimiter,
+		Limiter:          connLimiter,
 		Auth:             testAuth,
 		Databases:        p.Databases,
 		ResourceMatchers: p.ResourceMatchers,
