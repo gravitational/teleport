@@ -799,7 +799,7 @@ message ClusterAuditConfigSpecV2 {
     double WriteTargetValue = 13 [ (gogoproto.jsontag) = "write_target_value,omitempty" ];
     // RetentionPeriod is the retention period for audit events.
     int64 RetentionPeriod = 14 [
-        (gogoproto.jsontag) = "retention_period",
+        (gogoproto.jsontag) = "audit_retention_period",
         (gogoproto.casttype) = "Duration",
         (gogoproto.nullable) = true
     ];
