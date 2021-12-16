@@ -1091,7 +1091,7 @@ func readCACert(database *Database) ([]byte, error) {
 	if database.TLS.CACertFile != "" {
 		caBytes, err = os.ReadFile(database.TLS.CACertFile)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.ConvertSystemError(err)
 		}
 	}
 
@@ -1100,14 +1100,14 @@ func readCACert(database *Database) ([]byte, error) {
 	if database.CACertFile != "" {
 		if database.TLS.CACertFile != "" {
 			// New and old fields are set. Ignore the old field.
-			log.Warn("Ignoring deprecated ca_cert_file; using tls.ca_cert_file.")
+			log.Warnf("Ignoring deprecated ca_cert_file in %s configuration; using tls.ca_cert_file.", database.Name)
 		} else {
 			// Only old field is set, inform about deprecation.
-			log.Warn("ca_cert_file is deprecated, please use tls.ca_cert_file instead.")
+			log.Warnf("ca_cert_file is deprecated, please use tls.ca_cert_file instead for %s.", database.Name)
 
 			caBytes, err = os.ReadFile(database.CACertFile)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, trace.ConvertSystemError(err)
 			}
 		}
 	}

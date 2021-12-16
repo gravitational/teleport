@@ -388,7 +388,6 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	// attempt fails. Reset the fallbacks to avoid retries, otherwise
 	// it's impossible to debug TLS connection errors.
 	config.Fallbacks = nil
-
 	// Set startup parameters that the client sent us.
 	config.RuntimeParams = sessionCtx.StartupParameters
 	// AWS RDS/Aurora and GCP Cloud SQL use IAM authentication so request an

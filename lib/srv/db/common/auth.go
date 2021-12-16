@@ -329,7 +329,7 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 	// connecting to RDS/Aurora which require AWS CA or when was provided in config file.
 	tlsConfig, err := appendCAToRoot(tlsConfig, sessionCtx)
 	if err != nil {
-		return tlsConfig, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// You connect to Cloud SQL instances by IP and the certificate presented
@@ -369,7 +369,7 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 
 	// RDS/Aurora/Redshift and Cloud SQL auth is done with an auth token so
 	// don't generate a client certificate and exit here.
-	if isCloudDB(sessionCtx) {
+	if sessionCtx.Database.IsCloudHosted() {
 		return tlsConfig, nil
 	}
 
@@ -398,7 +398,7 @@ func getTLSConfigInsecure() *tls.Config {
 func (a *dbAuth) getTLSConfigVerifyCA(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
 	tlsConfig, err := a.getTLSConfigVerifyFull(ctx, sessionCtx)
 	if err != nil {
-		return tlsConfig, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Base on https://github.com/golang/go/blob/master/src/crypto/tls/example_test.go#L193-L208
@@ -436,12 +436,6 @@ func appendCAToRoot(tlsConfig *tls.Config, sessionCtx *Session) (*tls.Config, er
 		}
 	}
 	return tlsConfig, nil
-}
-
-// isCloudDB returns true if database type is AWS RDS/Aurora/Redshift, Azure or Cloud SQL.
-func isCloudDB(sessionCtx *Session) bool {
-	return sessionCtx.Database.IsRDS() || sessionCtx.Database.IsRedshift() ||
-		sessionCtx.Database.IsCloudSQL() || sessionCtx.Database.IsAzure()
 }
 
 // verifyConnectionFunc returns a certificate validation function. serverName if empty will skip the hostname validation.

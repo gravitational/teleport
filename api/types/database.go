@@ -85,6 +85,8 @@ type Database interface {
 	IsCloudSQL() bool
 	// IsAzure returns true if this is an Azure database.
 	IsAzure() bool
+	// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
+	IsCloudHosted() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
 }
@@ -275,7 +277,7 @@ func (d *DatabaseV3) GetAzure() Azure {
 	return d.Spec.Azure
 }
 
-// IsRDS returns true if this is a AWS RDS/Aurora instance.
+// IsRDS returns true if this is an AWS RDS/Aurora instance.
 func (d *DatabaseV3) IsRDS() bool {
 	return d.GetType() == DatabaseTypeRDS
 }
@@ -293,6 +295,11 @@ func (d *DatabaseV3) IsCloudSQL() bool {
 // IsAzure returns true if this is Azure hosted database.
 func (d *DatabaseV3) IsAzure() bool {
 	return d.GetType() == DatabaseTypeAzure
+}
+
+// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
+func (d *DatabaseV3) IsCloudHosted() bool {
+	return d.IsRDS() || d.IsRedshift() || d.IsCloudSQL() || d.IsAzure()
 }
 
 // GetType returns the database type.

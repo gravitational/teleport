@@ -639,11 +639,14 @@ type TLSMode string
 const (
 	// VerifyFull is the strictest. Verifies certificate and server name.
 	VerifyFull TLSMode = "verify-full"
-	// VerifyCA checks the certificate, but is skips the server name verification.
+	// VerifyCA checks the certificate, but skips the server name verification.
 	VerifyCA TLSMode = "verify-ca"
 	// Insecure accepts any certificate.
 	Insecure TLSMode = "insecure"
 )
+
+// AllTLSModes keeps all possible database TLS modes for easy access.
+var AllTLSModes = []TLSMode{VerifyFull, VerifyCA, Insecure}
 
 // CheckAndSetDefaults check if TLSMode holds a correct value. If the value is not set
 // VerifyFull is set as a default. BadParameter error is returned if value set is incorrect.
@@ -654,8 +657,7 @@ func (m *TLSMode) CheckAndSetDefaults() error {
 	case VerifyFull, VerifyCA, Insecure:
 		// Correct value, do nothing.
 	default:
-		return trace.BadParameter("provided incorrect TLSMode value. Correct values are: %q %q %q",
-			VerifyFull, VerifyCA, Insecure)
+		return trace.BadParameter("provided incorrect TLSMode value. Correct values are: %v", AllTLSModes)
 	}
 
 	return nil
