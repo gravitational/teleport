@@ -668,16 +668,13 @@ func (c *cliCommandBuilder) getMySQLCommonCmdOpts() []string {
 
 func (c *cliCommandBuilder) getMariadbArgs() []string {
 	args := c.getMySQLCommonCmdOpts()
-
-	sslCertPath := c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName) //TODO(JN)
+	sslCertPath := c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName)
 
 	args = append(args, []string{"--ssl-key", c.profile.KeyPath()}...)
 	args = append(args, []string{"--ssl-ca", c.profile.CACertPath()}...)
 	args = append(args, []string{"--ssl-cert", sslCertPath}...)
 
-	// by default mariadb doesn't check "Common Name" on the certificate provided by the server.
-	// tsh db connect also doesn't use my.cnf file where this flag is specified for mysql cmd,
-	// so the flag below is only added on connect when --insecure flag is not provided.
+	// Flag below verifies "Common Name" check on the certificate provided by the server.
 	if !c.tc.InsecureSkipVerify {
 		args = append(args, "--ssl-verify-server-cert")
 	}
