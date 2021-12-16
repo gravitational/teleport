@@ -311,6 +311,75 @@ func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 	}
 }
 
+func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
+	sess := ctx.getSession()
+	if sess == nil {
+		s.log.Debug("Unable to update window size, no session found in context.")
+		return nil
+	}
+
+	err := sess.Close()
+	if err != nil {
+		s.log.Errorf("Unable to close session: %v", sess.id)
+	}
+
+	s.removeSession(sess)
+
+	start, end := sess.startTime, time.Now().UTC()
+
+	// Emit a session.end event for this (interactive) session.
+	sessionEndEvent := &apievents.SessionEnd{
+		Metadata: apievents.Metadata{
+			Type:        events.SessionEndEvent,
+			Code:        events.SessionEndCode,
+			ClusterName: ctx.ClusterName,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerID:        ctx.srv.HostUUID(),
+			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
+			ServerNamespace: s.srv.GetNamespace(),
+			ServerHostname:  s.srv.GetInfo().GetHostname(),
+			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: string(sess.id),
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: ctx.Identity.TeleportUser,
+		},
+		EnhancedRecording: sess.hasEnhancedRecording,
+		Participants:      sess.exportParticipants(),
+		Interactive:       true,
+		StartTime:         start,
+		EndTime:           end,
+		SessionRecording:  ctx.SessionRecordingConfig.GetMode(),
+	}
+	if err := sess.recorder.EmitAuditEvent(s.srv.Context(), sessionEndEvent); err != nil {
+		s.log.WithError(err).Warn("Failed to emit session end event.")
+	}
+
+	// close recorder to free up associated resources and flush data
+	if err := sess.recorder.Close(s.srv.Context()); err != nil {
+		s.log.WithError(err).Warn("Failed to close recorder.")
+	}
+
+	if err := sess.Close(); err != nil {
+		s.log.Errorf("Unable to close session %v: %v", sess.id, err)
+	}
+
+	// Remove the session from the backend.
+	if s.srv.GetSessionServer() != nil {
+		err := s.srv.GetSessionServer().DeleteSession(s.srv.GetNamespace(), sess.id)
+		if err != nil {
+			s.log.Errorf("Failed to remove active session: %v: %v. "+
+				"Access to backend may be degraded, check connectivity to backend.",
+				sess.id, err)
+		}
+	}
+
+	return nil
+}
+
 // leaveSession removes the given party from this session.
 func (s *SessionRegistry) leaveSession(party *party) error {
 	sess := party.s

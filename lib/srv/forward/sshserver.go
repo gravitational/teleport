@@ -905,6 +905,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		return s.termHandlers.HandleShell(ch, req, scx)
 	case sshutils.WindowChangeRequest:
 		return s.termHandlers.HandleWinChange(ch, req, scx)
+	case teleport.ForceTerminateRequest:
+		return s.termHandlers.HandleForceTerminate(ch, req, scx)
 	case sshutils.EnvRequest:
 		return s.handleEnv(ch, req, scx)
 	case sshutils.SubsystemRequest:

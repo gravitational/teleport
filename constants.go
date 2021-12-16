@@ -620,6 +620,8 @@ const (
 	// VersionRequest is sent by clients to server requesting the Teleport
 	// version they are running.
 	VersionRequest = "x-teleport-version"
+
+	ForceTerminateRequest = "x-teleport-force-terminate"
 )
 
 const (
