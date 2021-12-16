@@ -1591,6 +1591,32 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	return playSession(sessionEvents, stream)
 }
 
+func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessionID string) ([]events.EventFields, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter(auth.MissingNamespaceError)
+	}
+	sid, err := session.ParseID(sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
+	}
+	// connect to the auth server (site) who made the recording
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	events, err := site.GetSessionEvents(namespace, *sid, 0, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return events, nil
+}
+
 // PlayFile plays the recorded session from a tar file
 func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	var sessionEvents []events.EventFields
