@@ -383,8 +383,8 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 				fmt.Sprintf("roles=%s", strings.Join(req.GetRoles(), ",")),
 				req.GetCreationTime().Format(time.RFC822),
 				req.GetState().String(),
-				req.GetRequestReason(),
-				req.GetResolveReason(),
+				quoteOrDefault(req.GetRequestReason(), ""),
+				quoteOrDefault(req.GetResolveReason(), ""),
 			})
 		}
 		_, err := table.AsBuffer().WriteTo(os.Stdout)
@@ -407,8 +407,8 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 			table.AddRow([]string{"Metadata: ", fmt.Sprintf("roles=%s", strings.Join(req.GetRoles(), ","))})
 			table.AddRow([]string{"Created At (UTC): ", req.GetCreationTime().Format(time.RFC822)})
 			table.AddRow([]string{"Status: ", req.GetState().String()})
-			table.AddRow([]string{"Request Reason: ", req.GetRequestReason()})
-			table.AddRow([]string{"Resolve Reason: ", req.GetResolveReason()})
+			table.AddRow([]string{"Request Reason: ", quoteOrDefault(req.GetRequestReason(), "[none]")})
+			table.AddRow([]string{"Resolve Reason: ", quoteOrDefault(req.GetResolveReason(), "[none]")})
 
 			_, err := table.AsBuffer().WriteTo(os.Stdout)
 			if err != nil {
@@ -431,4 +431,11 @@ func printJSON(in interface{}, desc string) error {
 	}
 	fmt.Printf("%s\n", out)
 	return nil
+}
+
+func quoteOrDefault(s, d string) string {
+	if s == "" {
+		return d
+	}
+	return fmt.Sprintf("%q", s)
 }
