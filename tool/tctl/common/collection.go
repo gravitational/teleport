@@ -459,11 +459,11 @@ func (a *appServerCollection) resources() (r []types.Resource) {
 }
 
 func (a *appServerCollection) writeText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"Application", "Host", "Public Address", "URI", "Labels"})
+	t := asciitable.MakeTable([]string{"Host", "Name", "Public Address", "URI", "Labels", "Version"})
 	for _, server := range a.servers {
 		app := server.GetApp()
 		t.AddRow([]string{
-			app.GetName(), server.GetHostname(), app.GetPublicAddr(), app.GetURI(), app.LabelsString(),
+			server.GetHostname(), app.GetName(), app.GetPublicAddr(), app.GetURI(), app.LabelsString(), server.GetTeleportVersion(),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
