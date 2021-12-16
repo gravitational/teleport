@@ -112,7 +112,7 @@ func TestMonitorStaleLocks(t *testing.T) {
 
 	select {
 	case <-asrv.LockWatcher.LoopC:
-	case <-time.After(2 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for LockWatcher loop check.")
 	}
 	select {
@@ -131,12 +131,12 @@ func TestMonitorStaleLocks(t *testing.T) {
 	// wait for reset
 	select {
 	case <-asrv.LockWatcher.ResetC:
-	case <-time.After(2 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for LockWatcher reset.")
 	}
 	select {
 	case <-conn.closedC:
-	case <-time.After(2 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for connection close.")
 	}
 	require.Equal(t, services.StrictLockingModeAccessDenied.Error(), emitter.LastEvent().(*apievents.ClientDisconnect).Reason)

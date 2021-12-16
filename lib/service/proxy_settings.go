@@ -81,6 +81,10 @@ func (p *proxySettings) buildProxySettings(proxyListenerMode types.ProxyListener
 		proxySettings.DB.PostgresListenAddr = p.cfg.Proxy.PostgresAddr.String()
 	}
 
+	if !p.cfg.Proxy.MongoAddr.IsEmpty() {
+		proxySettings.DB.MongoListenAddr = p.cfg.Proxy.MongoAddr.String()
+	}
+
 	if p.cfg.Proxy.Kube.Enabled {
 		proxySettings.Kube.ListenAddr = p.cfg.Proxy.Kube.ListenAddr.String()
 	}
@@ -116,6 +120,9 @@ func (p *proxySettings) setProxyPublicAddressesSettings(settings *webclient.Prox
 	}
 	if len(p.cfg.Proxy.MySQLPublicAddrs) > 0 {
 		settings.DB.MySQLPublicAddr = p.cfg.Proxy.MySQLPublicAddrs[0].String()
+	}
+	if len(p.cfg.Proxy.MongoPublicAddrs) > 0 {
+		settings.DB.MongoPublicAddr = p.cfg.Proxy.MongoPublicAddrs[0].String()
 	}
 	settings.DB.PostgresPublicAddr = p.getPostgresPublicAddr()
 }

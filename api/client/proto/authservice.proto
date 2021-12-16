@@ -449,12 +449,14 @@ message CompleteStream {}
 message FlushAndCloseStream {}
 
 // GetApplicationServersRequest is a request to fetch all registered apps.
+// DELETE IN 10.0.
 message GetApplicationServersRequest {
     // Namespace is the app servers namespace.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
 }
 
 // GetApplicationServersResponse contains all registered app servers.
+// DELETE IN 10.0.
 message GetApplicationServersResponse {
     // Servers is a list of proxied applications.
     repeated types.AppServerV3 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
@@ -631,6 +633,7 @@ message DeleteKubeServiceRequest {
 message DeleteAllKubeServicesRequest {}
 
 // GetDatabaseServersRequest is a request to return all registered database servers.
+// DELETE IN 10.0.
 message GetDatabaseServersRequest {
     // Namespace is the database server namespace.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
@@ -639,6 +642,7 @@ message GetDatabaseServersRequest {
 }
 
 // GetDatabaseServersResponse contains all registered database servers.
+// DELETE IN 10.0.
 message GetDatabaseServersResponse {
     // Servers is a list of database proxy servers.
     repeated types.DatabaseServerV3 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
@@ -1359,6 +1363,42 @@ message CreateRegisterChallengeRequest {
     DeviceType DeviceType = 2 [ (gogoproto.jsontag) = "device_type" ];
 }
 
+// PaginatedResource represents one of the supported resources.
+message PaginatedResource {
+    // Resource is the resource itself.
+    oneof resource {
+        // DatabaseServer represents a DatabaseServer resource.
+        types.DatabaseServerV3 DatabaseServer = 1;
+        // ApplicationServer represents a AppServer resource.
+        types.AppServerV3 AppServer = 2;
+    }
+}
+
+// ListResourcesRequest defines a request to retrieve resources paginated. Only
+// one type of resource can be retrieved per request.
+message ListResourcesRequest {
+    // ResourceType is the resource that is going to be retrieved.
+    string ResourceType = 1 [ (gogoproto.jsontag) = "resource_type,omitempty" ];
+    // Namespace is the namespace of resources.
+    string Namespace = 2 [ (gogoproto.jsontag) = "namespace,omitempty" ];
+    // Limit is the maximum amount of resources to retrieve.
+    int32 Limit = 3 [ (gogoproto.jsontag) = "limit,omitempty" ];
+    // StartKey is used to start listing resources from a specific spot. It
+    // should be set to the previous NextKey value if using pagination, or
+    // left empty.
+    string StartKey = 4 [ (gogoproto.jsontag) = "start_key,omitempty" ];
+}
+
+// ListResourceResponse response of ListResources.
+message ListResourcesResponse {
+    // Resources is a list of resource.
+    repeated PaginatedResource Resources = 1 [ (gogoproto.jsontag) = "resources,omitempty" ];
+    // NextKey is the next Key to use as StartKey in a ListResourcesRequest to
+    // continue retrieving pages of resource. If NextKey is empty, there are no
+    // more pages.
+    string NextKey = 2 [ (gogoproto.jsontag) = "next_key,omitempty" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -1452,7 +1492,11 @@ service AuthService {
     rpc CreateAuditStream(stream AuditStreamRequest) returns (stream events.StreamStatus);
 
     // GetApplicationServers gets all application servers.
-    rpc GetApplicationServers(GetApplicationServersRequest) returns (GetApplicationServersResponse);
+    // DELETE IN 10.0. Deprecated, use ListResources.
+    rpc GetApplicationServers(GetApplicationServersRequest)
+        returns (GetApplicationServersResponse) {
+        option deprecated = true;
+    };
     // UpsertApplicationServer adds an application server.
     rpc UpsertApplicationServer(UpsertApplicationServerRequest) returns (types.KeepAlive);
     // DeleteApplicationServer removes an application server.
@@ -1532,7 +1576,10 @@ service AuthService {
     rpc DeleteAllKubeServices(DeleteAllKubeServicesRequest) returns (google.protobuf.Empty);
 
     // GetDatabaseServers returns all registered database proxy servers.
-    rpc GetDatabaseServers(GetDatabaseServersRequest) returns (GetDatabaseServersResponse);
+    // DELETE IN 10.0. Deprecated, use ListResources.
+    rpc GetDatabaseServers(GetDatabaseServersRequest) returns (GetDatabaseServersResponse) {
+        option deprecated = true;
+    };
     // UpsertDatabaseServer registers a new database proxy server.
     rpc UpsertDatabaseServer(UpsertDatabaseServerRequest) returns (types.KeepAlive);
     // DeleteDatabaseServer removes the specified database proxy server.
@@ -1807,4 +1854,7 @@ service AuthService {
     // re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and
     // is used to gain access to privileged actions eg: deleting/adding a MFA device.
     rpc CreatePrivilegeToken(CreatePrivilegeTokenRequest) returns (types.UserTokenV3);
+
+    // ListResources retrieves a paginated list of resources.
+    rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
 }

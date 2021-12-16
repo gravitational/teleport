@@ -262,6 +262,10 @@ type DBProxySettings struct {
 	MySQLListenAddr string `json:"mysql_listen_addr,omitempty"`
 	// MySQLPublicAddr is advertised to MySQL clients.
 	MySQLPublicAddr string `json:"mysql_public_addr,omitempty"`
+	// MongoListenAddr is Mongo proxy listen address.
+	MongoListenAddr string `json:"mongo_listen_addr,omitempty"`
+	// MongoPublicAddr is advertised to Mongo clients.
+	MongoPublicAddr string `json:"mongo_public_addr,omitempty"`
 }
 
 // AuthenticationSettings contains information about server authentication
