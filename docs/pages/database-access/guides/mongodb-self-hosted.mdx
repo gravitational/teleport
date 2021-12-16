@@ -225,8 +225,8 @@ $ tsh db connect example-mongo
 ```
 
 <Admonition type="note" title="Note">
-  The `mongosh` command-line client should be available in PATH in order to be
-  able to connect.
+  Either the `mongosh` or `mongo` command-line clients should be available in PATH in order to be
+  able to connect. The `mongosh` is tried first with `mongo` being the fallback option.
 </Admonition>
 
 To log out of the database and remove credentials:
