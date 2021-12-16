@@ -18,27 +18,35 @@ import (
 	"math"
 	"regexp"
 	"strings"
+	"sync"
+
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
-type TermState int
+type termState int
 
 const (
-	TermStateShell TermState = 1
-	TermStateApp   TermState = 2
+	TermStateShell termState = 1
+	TermStateApp   termState = 2
 )
 
-type TermStateManager struct {
-	state    TermState
+type TermManager struct {
+	state    termState
 	lastline []byte
-	onChange func(TermState)
+	W        *kubeutils.SwitchWriter
+	messages []string
+	mu       sync.Mutex
 }
 
-func NewTermStateManager(command string, onChange func(TermState)) *TermStateManager {
-	var state TermState
+func NewTermManager(command string, w *kubeutils.SwitchWriter) *TermManager {
+	var state termState
 	isRecognizedShell := strings.HasSuffix(command, "sh") ||
 		strings.HasSuffix(command, "bash") ||
 		strings.HasSuffix(command, "zsh") ||
-		strings.HasSuffix(command, "fish")
+		strings.HasSuffix(command, "fish") ||
+		len(command) == 0
 
 	if isRecognizedShell {
 		state = TermStateShell
@@ -46,11 +54,57 @@ func NewTermStateManager(command string, onChange func(TermState)) *TermStateMan
 		state = TermStateApp
 	}
 
-	return &TermStateManager{
+	return &TermManager{
 		state:    state,
 		lastline: nil,
-		onChange: onChange,
+		W:        w,
 	}
+}
+
+func (g *TermManager) Write(p []byte) (int, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	count, err := g.W.Write(p)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	preState := g.state
+	g.update(p[:count])
+	if preState == TermStateApp && g.state == TermStateShell {
+		err := g.flushMessages()
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+	}
+
+	return count, nil
+}
+
+func (g *TermManager) flushMessages() error {
+	for _, message := range g.messages {
+		err := utils.WriteAll(g.W.Write, []byte(message))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	g.messages = nil
+	return nil
+}
+
+func (g *TermManager) BroadcastMessage(message string) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.state == TermStateShell {
+		err := utils.WriteAll(g.W.Write, []byte(message))
+		return trace.Wrap(err)
+	}
+
+	g.messages = append(g.messages, message)
+	return nil
 }
 
 var shellPatterns = []*regexp.Regexp{
@@ -61,14 +115,7 @@ var shellPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`^.+@.+:\/#`),
 }
 
-func (g *TermStateManager) Update(data []byte) {
-	startState := g.state
-	defer func() {
-		if g.state != startState && g.onChange != nil {
-			g.onChange(g.state)
-		}
-	}()
-
+func (g *TermManager) update(data []byte) {
 	lastRet := findLast(data, '\n')
 	if lastRet == math.MaxInt {
 		g.lastline = append(g.lastline, data...)
@@ -76,8 +123,13 @@ func (g *TermStateManager) Update(data []byte) {
 		g.lastline = data[lastRet:]
 	}
 
+	target := string(g.lastline)
+	if strings.HasPrefix("Teleport > ", string(g.lastline)) {
+		g.state = TermStateShell
+		return
+	}
+
 	if len(g.lastline) > 0 {
-		target := string(g.lastline)
 		for _, pattern := range shellPatterns {
 			if pattern.MatchString(target) {
 				g.state = TermStateShell
@@ -87,10 +139,6 @@ func (g *TermStateManager) Update(data []byte) {
 	}
 
 	g.state = TermStateApp
-}
-
-func (g *TermStateManager) State() TermState {
-	return g.state
 }
 
 func findLast(haystack []byte, needle byte) int {
