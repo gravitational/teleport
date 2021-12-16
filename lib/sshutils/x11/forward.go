@@ -18,20 +18,32 @@ import (
 )
 
 const (
-	// x11Host is the host name for local XServers.
-	x11Host = "localhost"
-	// x11BasePort is the base port used for opening display ports.
-	x11BasePort = 6000
-	// x11MinDisplayNumber is the first display number allowed.
-	x11MinDisplayNumber = 10
-	// x11MaxDisplays is the number of displays which the
-	// server will support concurrent x11 forwarding for.
-	x11MaxDisplays = 1000
-
+	// DefaultDisplayOffset is the default display offset when
+	// searchinf for an X11 Server reverse tunnel port.
+	DefaultDisplayOffset = 10
 	// DisplayEnv is an environment variable used to determine what
 	// local display should be connected to during x11 forwarding.
 	DisplayEnv = "DISPLAY"
+
+	// x11BasePort is the base port used when searching
+	// for an open XServer tunnel.
+	x11BasePort = 6000
+	// x11MaxDisplays is the number of displays which the
+	// server will support concurrent x11 forwarding for.
+	x11MaxDisplays = 1000
 )
+
+// ServerConfig is a server configuration for x11 forwarding
+type ServerConfig struct {
+	// Enabled controls whether x11 forwarding requests can be granted by the server.
+	Enabled bool `yaml:"enabled"`
+	// DisplayOffset tells the server what display to start searching from
+	// for an open X11 Server reverse tunnel port (6000 + offset).
+	DisplayOffset int `yaml:"display_offset,omitempty"`
+	// UseLocalhost controls whether the server's localhost will be used
+	// to create a fake X11 server when forwarding. ... TODO
+	UseLocalhost bool `yaml:"use_localhost,omitempty"`
+}
 
 // ForwardRequestPayload according to http://www.ietf.org/rfc/rfc4254.txt
 type ForwardRequestPayload struct {
@@ -113,12 +125,20 @@ func ServeX11ChannelRequests(ctx context.Context, clt *ssh.Client, handler x11Ch
 
 // OpenNewXServerListener opens a new local XServer listener with first unused display
 // number between 10 and 1010. The XServer listener's corresponding X display will be returned.
-func OpenNewXServerListener(screen uint32) (l net.Listener, display string, err error) {
-	for display := x11MinDisplayNumber; display < x11MinDisplayNumber+x11MaxDisplays; display++ {
+func OpenNewXServerListener(displayOffset int, useLocalhost bool, screen uint32) (l net.Listener, display string, err error) {
+	host := "localhost"
+	if !useLocalhost {
+		var err error
+		if host, err = os.Hostname(); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	for display := displayOffset; display < displayOffset+x11MaxDisplays; display++ {
 		port := strconv.Itoa(x11BasePort + display)
-		l, err := net.Listen("tcp", net.JoinHostPort(x11Host, port))
+		l, err := net.Listen("tcp", net.JoinHostPort(host, port))
 		if err == nil {
-			display := fmt.Sprintf("%s:%d.%d", x11Host, display, screen)
+			display := fmt.Sprintf("%s:%d.%d", host, display, screen)
 			return l, display, nil
 		}
 	}

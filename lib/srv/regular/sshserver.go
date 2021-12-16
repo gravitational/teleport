@@ -20,6 +20,7 @@ package regular
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -183,6 +184,9 @@ type Server struct {
 	// allowTCPForwarding indicates whether the ssh server is allowed to offer
 	// TCP port forwarding.
 	allowTCPForwarding bool
+
+	// x11 is the x11 forwarding configuration for the server
+	x11 *x11.ServerConfig
 
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
@@ -549,6 +553,14 @@ func SetAllowTCPForwarding(allow bool) ServerOption {
 func SetLockWatcher(lockWatcher *services.LockWatcher) ServerOption {
 	return func(s *Server) error {
 		s.lockWatcher = lockWatcher
+		return nil
+	}
+}
+
+// SetX11ForwardingConfig sets the server's x11 forwarding configuration
+func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
+	return func(s *Server) error {
+		s.x11 = xc
 		return nil
 	}
 }
@@ -1522,15 +1534,24 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 			event.Metadata.Code = events.X11ForwardFailureCode
 			event.Status.Success = false
 			event.Status.Error = err.Error()
+
+			// failed X11 requests are ok from a protocol perspective so don't
+			// return the error, just log error and send generic error to client.
+			log.Errorf("Request for x11 forwarding denied: %s", err)
+			s.replyError(ch, req, errors.New("x11 forwarding request failed"))
+			err = nil
 		}
 		if err := s.EmitAuditEvent(s.ctx, event); err != nil {
-			log.WithError(err).Warn("Failed to emit X11-forward event.")
+			log.WithError(err).Warn("Failed to emit x11-forward event.")
 		}
 	}()
 
+	if !s.x11.Enabled {
+		return trace.AccessDenied("x11 forwarding is not enabled")
+	}
+
 	if _, ok := ctx.GetEnv(x11.DisplayEnv); ok {
-		err := trace.AlreadyExists("X11 display is already set for this session")
-		return trace.Wrap(err)
+		return trace.AlreadyExists("x11 display is already set for this session")
 	}
 
 	// Check if the user's RBAC role allows X11 forwarding.
@@ -1543,7 +1564,7 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 		return trace.Wrap(err)
 	}
 
-	l, display, err := x11.OpenNewXServerListener(x11Req.ScreenNumber)
+	l, display, err := x11.OpenNewXServerListener(s.x11.DisplayOffset, s.x11.UseLocalhost, x11Req.ScreenNumber)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -44,6 +44,7 @@ import (
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -822,6 +823,9 @@ type SSH struct {
 	// Don't read this value directly: call the AllowTCPForwarding method
 	// instead.
 	MaybeAllowTCPForwarding *bool `yaml:"port_forwarding,omitempty"`
+
+	// X11 is used to configure X11 forwarding settings
+	X11 *X11 `yaml:"x11,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -921,6 +925,46 @@ func (r *RestrictedSession) Parse() (*restricted.Config, error) {
 	return &restricted.Config{
 		Enabled:          enabled,
 		EventsBufferSize: r.EventsBufferSize,
+	}, nil
+}
+
+// X11 is a configuration for x11 forwarding
+type X11 struct {
+	// Enabled controls whether x11 forwarding requests can be granted.
+	Enabled string `yaml:"enabled"`
+	// DisplayOffset tells the server what display to start searching from
+	// for an open X11 Server reverse tunnel port (6000 + offset).
+	DisplayOffset *uint `yaml:"display_offset,omitempty"`
+	// UseLocalhost controls whether the server's localhost will be used
+	// to create a fake X11 server when forwarding.
+	UseLocalhost *string `yaml:"use_localhost,omitempty"`
+}
+
+// Parse will parse the enhanced session recording configuration.
+func (x *X11) Parse() (*x11.ServerConfig, error) {
+	enabled, err := apiutils.ParseBool(x.Enabled)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Follow openssh defaults for x11UseLocalHost and x11DisplayOffset if not set
+	displayOffset := x11.DefaultDisplayOffset
+	useLocalhost := true
+
+	if x.DisplayOffset != nil {
+		displayOffset = int(*x.DisplayOffset)
+	}
+	if x.UseLocalhost != nil {
+		useLocalhost, err = apiutils.ParseBool(*x.UseLocalhost)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return &x11.ServerConfig{
+		Enabled:       enabled,
+		UseLocalhost:  useLocalhost,
+		DisplayOffset: displayOffset,
 	}, nil
 }
 

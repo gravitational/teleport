@@ -138,7 +138,7 @@ func parseUintOption(val string) (interface{}, error) {
 	if err != nil {
 		return Options{}, trace.BadParameter("invalid int option value: %s", val)
 	}
-	return valUint, nil
+	return uint(valUint), nil
 }
 
 func parseAgentForwardingMode(val string) (interface{}, error) {
