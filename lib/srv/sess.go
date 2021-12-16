@@ -48,6 +48,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const PresenceVerifyInterval = time.Second * 15
+const PresenceMaxDifference = time.Minute
+
 const (
 	// number of the most recent session writes (what's been written
 	// in a terminal) to be instanly replayed to the newly joining
@@ -853,6 +856,29 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		return trace.Wrap(err)
 	}
 
+	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
+	if ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "" {
+		go func() {
+			ticker := time.NewTicker(PresenceVerifyInterval)
+		outer:
+			for {
+				select {
+				case <-ticker.C:
+					err := s.checkPresence()
+					if err != nil {
+						s.log.WithError(err).Error("Failed to check presence, closing session as a security measure")
+						err := s.Close()
+						if err != nil {
+							s.log.WithError(err).Error("Failed to close session")
+						}
+					}
+				case <-s.closeC:
+					break outer
+				}
+			}
+		}()
+	}
+
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
 	sessionContext := &bpf.SessionContext{
@@ -1351,6 +1377,35 @@ func (s *session) heartbeat(ctx *ServerContext) {
 			return
 		}
 	}
+}
+
+func (s *session) checkPresence() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	sess, err := s.trackerGet()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, participant := range sess.GetParticipants() {
+		if participant.ID == s.initiator {
+			continue
+		}
+
+		if time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
+			s.log.Warn("Participant %v is not active, kicking.", participant.ID)
+			party := s.parties[rsession.ID(participant.ID)]
+			if party != nil {
+				err := party.Close()
+				if err != nil {
+					s.log.WithError(err).Warn("Failed to kick participant %v for inactivity.", participant.ID)
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (s *session) checkIfStart() (bool, error) {
