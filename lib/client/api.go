@@ -2016,6 +2016,12 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
 func (tc *TeleportClient) runShell(nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin *session.Session) error {
+	env := make(map[string]string)
+	env[teleport.SSHJoinModeEnv] = string(mode)
+	for key, value := range tc.Env {
+		env[key] = value
+	}
+
 	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)

@@ -194,7 +194,8 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *Ser
 		ctx.Infof("Joining existing session %v.", session.id)
 
 		// Update the in-memory data structure that a party member has joined.
-		_, err := session.join(ch, req, ctx, types.SessionPeerMode)
+		mode := types.SessionParticipantMode(ctx.env[teleport.SSHJoinModeEnv])
+		_, err := session.join(ch, req, ctx, mode)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -919,7 +920,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		ctx.Errorf("Unable to run shell command: %v.", err)
 		return trace.ConvertSystemError(err)
 	}
-	if err := s.addParty(p); err != nil {
+	if err := s.addParty(p, types.SessionPeerMode); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1505,7 +1506,7 @@ func (s *session) addPartyMember(p *party) {
 }
 
 // addParty is called when a new party joins the session.
-func (s *session) addParty(p *party) error {
+func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	if s.login != p.login {
 		return trace.AccessDenied(
 			"can't switch users from %v to %v for session %v",
@@ -1534,20 +1535,23 @@ func (s *session) addParty(p *party) error {
 	s.out.BroadcastMessage(fmt.Sprintf("User %v joined the session.", p.user))
 	s.log.Infof("New party %v joined session: %v", p.String(), s.id)
 
-	// This goroutine keeps pumping party's input into the session.
-	go func() {
-		defer s.term.AddParty(-1)
-		_, err := io.Copy(s.inWriter, p)
-		if err != nil {
-			s.log.Errorf("Party member %v left session %v due an error: %v", p.id, s.id, err)
-		}
-		s.log.Infof("Party member %v left session %v.", p.id, s.id)
+	if mode == types.SessionPeerMode {
+		// This goroutine keeps pumping party's input into the session.
+		go func() {
+			defer s.term.AddParty(-1)
+			_, err := io.Copy(s.inWriter, p)
+			if err != nil {
+				s.log.Errorf("Party member %v left session %v due an error: %v", p.id, s.id, err)
+			}
+			s.log.Infof("Party member %v left session %v.", p.id, s.id)
 
-		err = s.trackerRemoveParticipant(p.user)
-		if err != nil {
-			s.log.Errorf("Failed to remove participant %v from session tracker %v: %v", p.id, s.id, err)
-		}
-	}()
+			err = s.trackerRemoveParticipant(p.user)
+			if err != nil {
+				s.log.Errorf("Failed to remove participant %v from session tracker %v: %v", p.id, s.id, err)
+			}
+		}()
+	}
+
 	return nil
 }
 
@@ -1565,7 +1569,7 @@ func (s *session) join(ch ssh.Channel, req *ssh.Request, ctx *ServerContext, mod
 	}
 
 	p := newParty(s, ch, ctx)
-	if err := s.addParty(p); err != nil {
+	if err := s.addParty(p, mode); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
