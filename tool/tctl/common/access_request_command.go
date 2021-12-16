@@ -433,7 +433,7 @@ func printJSON(in interface{}, desc string) error {
 	return nil
 }
 
-func quoteOrDefault(s string, d string) string {
+func quoteOrDefault(s, d string) string {
 	if s == "" {
 		return d
 	}
