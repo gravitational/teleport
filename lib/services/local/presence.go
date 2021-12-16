@@ -44,6 +44,10 @@ type PresenceService struct {
 	backend.Backend
 }
 
+// backendItemToResourceFunc defines a function that unmarshals a
+// `backend.Item` into the implementation of `types.Resource`.
+type backendItemToResourceFunc func(item backend.Item) (types.Resource, error)
+
 // NewPresenceService returns new presence service instance
 func NewPresenceService(b backend.Backend) *PresenceService {
 	return &PresenceService{
@@ -1478,6 +1482,74 @@ func (s *PresenceService) DeleteWindowsDesktopService(ctx context.Context, name 
 func (s *PresenceService) DeleteAllWindowsDesktopServices(ctx context.Context) error {
 	startKey := backend.Key(windowsDesktopServicesPrefix)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+}
+
+// ListResources returns a paginated list of resources.
+func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.Resource, string, error) {
+	limit := int(req.Limit)
+
+	var keyPrefix []string
+	var unmarshalItemFunc backendItemToResourceFunc
+
+	switch req.ResourceType {
+	case types.KindDatabaseServer:
+		keyPrefix = []string{dbServersPrefix, req.Namespace}
+		unmarshalItemFunc = backendItemToDatabaseServer
+	case types.KindAppServer:
+		keyPrefix = []string{appServersPrefix, req.Namespace}
+		unmarshalItemFunc = backendItemToApplicationServer
+	default:
+		return nil, "", trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
+	}
+
+	rangeStart := backend.Key(append(keyPrefix, req.StartKey)...)
+	rangeEnd := backend.RangeEnd(backend.Key(keyPrefix...))
+
+	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	var resources []types.Resource
+	for _, item := range result.Items {
+		if len(resources) == limit {
+			break
+		}
+
+		resource, err := unmarshalItemFunc(item)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		resources = append(resources, resource)
+	}
+
+	var nextKey string
+	if len(resources) == limit {
+		nextKey = backend.NextPaginationKey(resources[len(resources)-1])
+	}
+
+	return resources, nextKey, nil
+}
+
+// backendItemToDatabaseServer unmarshals `backend.Item` into a
+// `types.DatabaseServer`, returning it as a `types.Resource`.
+func backendItemToDatabaseServer(item backend.Item) (types.Resource, error) {
+	return services.UnmarshalDatabaseServer(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+	)
+}
+
+// backendItemToApplicationServer unmarshals `backend.Item` into a
+// `types.AppServer`, returning it as a `types.Resource`.
+func backendItemToApplicationServer(item backend.Item) (types.Resource, error) {
+	return services.UnmarshalAppServer(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+	)
 }
 
 const (
