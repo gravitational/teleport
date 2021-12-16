@@ -260,7 +260,7 @@ type session struct {
 
 	clients_stdin *kubeutils.BreakReader
 
-	clients_stdout *kubeutils.SwitchWriter
+	clients_stdout *srv.TermManager
 
 	clients_stderr *kubeutils.SwitchWriter
 
@@ -306,8 +306,10 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 
 	accessEvaluator := auth.NewSessionAccessEvaluator(roles, types.KubernetesSessionKind)
 
-	stdout := kubeutils.NewSwitchWriter(utils.NewTrackingWriter(srv.NewMultiWriter()))
-	err = broadcastMessage(stdout.WriteUnconditional, fmt.Sprintf("Creating session with ID: %v...", id.String()))
+	cmd := req.URL.Query()["command"][0]
+	stdout := srv.NewTermManager(cmd, kubeutils.NewSwitchWriter(utils.NewTrackingWriter(srv.NewMultiWriter())))
+
+	err = stdout.BroadcastMessage(fmt.Sprintf("Creating session with ID: %v...", id.String()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -347,16 +349,11 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	return s, nil
 }
 
-func broadcastMessage(w func(p []byte) (int, error), text string) error {
-	data := []byte("\n\rTeleport > " + text + "\n\r")
-	return trace.Wrap(utils.WriteAll(w, data))
-}
-
 func (s *session) waitOnAccess() {
 	s.clients_stdin.Off()
-	s.clients_stdout.Off()
+	s.clients_stdout.W.Off()
 	s.clients_stderr.Off()
-	broadcastMessage(s.clients_stdout.WriteUnconditional, "Session paused, Waiting for required participants...")
+	s.clients_stdout.BroadcastMessage("Session paused, Waiting for required participants...")
 
 	c := make(chan interface{})
 	s.stateUpdate.Register(c)
@@ -376,9 +373,9 @@ outer:
 		}
 	}
 
-	broadcastMessage(s.clients_stdout.WriteUnconditional, "Resuming session...")
+	s.clients_stdout.BroadcastMessage("Resuming session...")
 	s.clients_stdin.On()
-	s.clients_stdout.On()
+	s.clients_stdout.W.On()
 	s.clients_stderr.On()
 }
 
@@ -422,7 +419,7 @@ func (s *session) launch() error {
 		case <-time.After(time.Until(s.expires)):
 			s.mu.Lock()
 			defer s.mu.Unlock()
-			broadcastMessage(s.clients_stdout.WriteUnconditional, "Session expired, closing...")
+			s.clients_stdout.BroadcastMessage("Session expired, closing...")
 
 			err := s.Close()
 			if err != nil {
@@ -458,7 +455,7 @@ func (s *session) launch() error {
 	s.log.Debugf("Launching session: %v", s.id)
 	s.mu.Lock()
 
-	broadcastMessage(s.clients_stdout.WriteUnconditional, "Launching session...")
+	s.clients_stdout.BroadcastMessage("Launching session...")
 	q := s.req.URL.Query()
 	request := remoteCommandRequest{
 		podNamespace:       s.params.ByName("podNamespace"),
@@ -503,7 +500,7 @@ func (s *session) launch() error {
 		}
 	}
 
-	s.clients_stdout.W.W.(*srv.MultiWriter).OnError = onWriterError
+	s.clients_stdout.W.W.W.(*srv.MultiWriter).OnError = onWriterError
 	s.clients_stderr.W.W.(*srv.MultiWriter).OnError = onWriterError
 
 	if !s.sess.noAuditEvents && s.tty {
@@ -586,7 +583,7 @@ func (s *session) launch() error {
 			return trace.Wrap(err)
 		}
 
-		s.clients_stdout.W.W.(*srv.MultiWriter).AddWriter("recorder", kubeutils.WriterCloserWrapper{Writer: recorder}, false)
+		s.clients_stdout.W.W.W.(*srv.MultiWriter).AddWriter("recorder", kubeutils.WriterCloserWrapper{Writer: recorder}, false)
 		s.clients_stderr.W.W.(*srv.MultiWriter).AddWriter("recorder", kubeutils.WriterCloserWrapper{Writer: recorder}, false)
 	} else if !s.sess.noAuditEvents {
 		s.emitter = s.forwarder.cfg.StreamEmitter
@@ -677,7 +674,7 @@ func (s *session) launch() error {
 				// Bytes transmitted from user to pod.
 				BytesTransmitted: s.clients_stdin.R.Count(),
 				// Bytes received from pod by user.
-				BytesReceived: s.clients_stdout.W.Count() + s.clients_stderr.W.Count(),
+				BytesReceived: s.clients_stdout.W.W.Count() + s.clients_stderr.W.Count(),
 			}
 
 			if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionDataEvent); err != nil {
@@ -844,7 +841,7 @@ func (s *session) join(p *party) error {
 		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
 	}
 
-	broadcastMessage(s.clients_stdout.WriteUnconditional, fmt.Sprintf("User %v joined the session.", p.Ctx.User.GetName()))
+	s.clients_stdout.BroadcastMessage(fmt.Sprintf("User %v joined the session.", p.Ctx.User.GetName()))
 
 	if s.tty {
 		s.log.Debug("adding resize stream")
@@ -857,7 +854,7 @@ func (s *session) join(p *party) error {
 	}
 
 	s.log.Debug("replaying recent writes to stdout")
-	recentWrites := s.clients_stdout.W.W.(*srv.MultiWriter).GetRecentWrites()
+	recentWrites := s.clients_stdout.W.W.W.(*srv.MultiWriter).GetRecentWrites()
 	err = utils.WriteAll(p.Client.stdoutStream().Write, recentWrites)
 	if err != nil {
 		return trace.Wrap(err)
@@ -865,7 +862,7 @@ func (s *session) join(p *party) error {
 
 	s.log.Debug("adding stdout stream")
 	stdout := kubeutils.WriterCloserWrapper{Writer: p.Client.stdoutStream()}
-	s.clients_stdout.W.W.(*srv.MultiWriter).AddWriter(stringId, stdout, false)
+	s.clients_stdout.W.W.W.(*srv.MultiWriter).AddWriter(stringId, stdout, false)
 
 	s.log.Debug("adding stderr stream")
 	stderr := kubeutils.WriterCloserWrapper{Writer: p.Client.stderrStream()}
@@ -915,7 +912,7 @@ func (s *session) join(p *party) error {
 	}
 
 	if !canStart {
-		broadcastMessage(s.clients_stdout.WriteUnconditional, "Waiting for required participants...")
+		s.clients_stdout.BroadcastMessage("Waiting for required participants...")
 	}
 
 	return nil
@@ -936,10 +933,10 @@ func (s *session) leave(id uuid.UUID) error {
 	delete(s.parties, id)
 	s.terminalSizeQueue.remove(stringId)
 	s.clients_stdin.R.R.(*kubeutils.MultiReader).RemoveReader(stringId)
-	s.clients_stdout.W.W.(*srv.MultiWriter).DeleteWriter(stringId)
+	s.clients_stdout.W.W.W.(*srv.MultiWriter).DeleteWriter(stringId)
 	s.clients_stderr.W.W.(*srv.MultiWriter).DeleteWriter(stringId)
 
-	broadcastMessage(s.clients_stdout.WriteUnconditional, fmt.Sprintf("User %v left the session.", party.Ctx.User.GetName()))
+	s.clients_stdout.BroadcastMessage(fmt.Sprintf("User %v left the session.", party.Ctx.User.GetName()))
 
 	sessionLeaveEvent := &apievents.SessionLeave{
 		Metadata: apievents.Metadata{
@@ -1043,7 +1040,7 @@ func (s *session) Close() error {
 	defer s.mu.Unlock()
 
 	s.closeOnce.Do(func() {
-		broadcastMessage(s.clients_stdout.WriteUnconditional, "Closing session...")
+		s.clients_stdout.BroadcastMessage("Closing session...")
 
 		s.state = types.SessionState_SessionStateTerminated
 		s.clients_stdin.Close()

@@ -99,7 +99,8 @@ func (g *TermManager) BroadcastMessage(message string) error {
 	defer g.mu.Unlock()
 
 	if g.state == TermStateShell {
-		err := utils.WriteAll(g.W.Write, []byte(message))
+		data := []byte("\n\rTeleport > " + message + "\n\r")
+		err := utils.WriteAll(g.W.Write, data)
 		return trace.Wrap(err)
 	}
 
