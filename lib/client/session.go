@@ -32,6 +32,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/escape"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -238,7 +239,7 @@ func selectKeyAgent(tc *TeleportClient) agent.Agent {
 
 // interactiveSession creates an interactive session on the remote node, executes
 // the given callback on it, and waits for the session to end
-func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
+func (ns *NodeSession) interactiveSession(mode types.SessionParticipantMode, callback interactiveCallback) error {
 	// determine what kind of a terminal we need
 	termType := os.Getenv("TERM")
 	if termType == "" {
@@ -273,7 +274,7 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 
 	// start piping input into the remote shell and pipe the output from
 	// the remote shell into stdout:
-	ns.pipeInOut(remoteTerm)
+	ns.pipeInOut(remoteTerm, mode, sess)
 
 	// wait for the session to end
 	<-ns.closer.C
@@ -442,8 +443,8 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 }
 
 // runShell executes user's shell on the remote node under an interactive session
-func (ns *NodeSession) runShell(callback ShellCreatedCallback) error {
-	return ns.interactiveSession(func(s *ssh.Session, shell io.ReadWriteCloser) error {
+func (ns *NodeSession) runShell(mode types.SessionParticipantMode, callback ShellCreatedCallback) error {
+	return ns.interactiveSession(mode, func(s *ssh.Session, shell io.ReadWriteCloser) error {
 		// start the shell on the server:
 		if err := s.Shell(); err != nil {
 			return trace.Wrap(err)
@@ -461,7 +462,7 @@ func (ns *NodeSession) runShell(callback ShellCreatedCallback) error {
 
 // runCommand executes a "exec" request either in interactive mode (with a
 // TTY attached) or non-intractive mode (no TTY).
-func (ns *NodeSession) runCommand(ctx context.Context, cmd []string, callback ShellCreatedCallback, interactive bool) error {
+func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionParticipantMode, cmd []string, callback ShellCreatedCallback, interactive bool) error {
 	// If stdin is not a terminal, refuse to allocate terminal on the server and
 	// fallback to non-interactive mode
 	if interactive && !ns.terminal.IsAttached() {
@@ -475,7 +476,7 @@ func (ns *NodeSession) runCommand(ctx context.Context, cmd []string, callback Sh
 	// keyboard based signals will be propogated to the TTY on the server which is
 	// where all signal handling will occur.
 	if interactive {
-		return ns.interactiveSession(func(s *ssh.Session, term io.ReadWriteCloser) error {
+		return ns.interactiveSession(mode, func(s *ssh.Session, term io.ReadWriteCloser) error {
 			err := s.Start(strings.Join(cmd, " "))
 			if err != nil {
 				return trace.Wrap(err)
@@ -584,7 +585,7 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 
 // pipeInOut launches two goroutines: one to pipe the local input into the remote shell,
 // and another to pipe the output of the remote shell into the local output
-func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
+func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, mode types.SessionParticipantMode, sess *ssh.Session) {
 	// copy from the remote shell to the local output
 	go func() {
 		defer ns.closer.Close()
@@ -593,41 +594,77 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 			log.Errorf(err.Error())
 		}
 	}()
-	// copy from the local input to the remote shell:
-	go func() {
-		defer ns.closer.Close()
-		buf := make([]byte, 128)
 
-		stdin := ns.terminal.Stdin()
-		if ns.terminal.IsAttached() && ns.enableEscapeSequences {
-			stdin = escape.NewReader(stdin, ns.terminal.Stderr(), func(err error) {
-				switch err {
-				case escape.ErrDisconnect:
-					fmt.Fprintf(ns.terminal.Stderr(), "\r\n%v\r\n", err)
-				case escape.ErrTooMuchBufferedData:
-					fmt.Fprintf(ns.terminal.Stderr(), "\r\nerror: %v\r\nremote peer may be unreachable, check your connectivity\r\n", trace.Wrap(err))
-				default:
-					fmt.Fprintf(ns.terminal.Stderr(), "\r\nerror: %v\r\n", trace.Wrap(err))
+	switch mode {
+	case types.SessionObserverMode:
+		fallthrough
+	case types.SessionModeratorMode:
+		go func() {
+			defer ns.closer.Close()
+
+			for {
+				buf := make([]byte, 1)
+				_, err := ns.terminal.Stdin().Read(buf)
+				if err == io.EOF {
+					break
 				}
-				ns.closer.Close()
-			})
-		}
-		for {
-			n, err := stdin.Read(buf)
-			if err != nil {
-				fmt.Fprintf(ns.terminal.Stderr(), "\r\n%v\r\n", trace.Wrap(err))
-				return
+
+				// Ctrl-C
+				if buf[0] == '\x03' {
+					fmt.Print("\n\rLeft session\n\r")
+					break
+				}
+
+				// Ctrl-T
+				if buf[0] == 't' && mode == types.SessionModeratorMode {
+					fmt.Print("\n\rForcefully terminated session\n\r")
+					_, err := sess.SendRequest(teleport.ForceTerminateRequest, true, nil)
+					if err != nil {
+						fmt.Printf("\n\rerror while sending force termination request: %v\n\r", err.Error())
+					}
+
+					break
+				}
+			}
+		}()
+	case types.SessionPeerMode:
+		// copy from the local input to the remote shell:
+		go func() {
+			defer ns.closer.Close()
+			buf := make([]byte, 128)
+
+			stdin := ns.terminal.Stdin()
+			if ns.terminal.IsAttached() && ns.enableEscapeSequences {
+				stdin = escape.NewReader(stdin, ns.terminal.Stderr(), func(err error) {
+					switch err {
+					case escape.ErrDisconnect:
+						fmt.Fprintf(ns.terminal.Stderr(), "\r\n%v\r\n", err)
+					case escape.ErrTooMuchBufferedData:
+						fmt.Fprintf(ns.terminal.Stderr(), "\r\nerror: %v\r\nremote peer may be unreachable, check your connectivity\r\n", trace.Wrap(err))
+					default:
+						fmt.Fprintf(ns.terminal.Stderr(), "\r\nerror: %v\r\n", trace.Wrap(err))
+					}
+					ns.closer.Close()
+				})
 			}
 
-			if n > 0 {
-				_, err = shell.Write(buf[:n])
+			for {
+				n, err := stdin.Read(buf)
 				if err != nil {
-					ns.ExitMsg = err.Error()
+					fmt.Fprintf(ns.terminal.Stderr(), "\r\n%v\r\n", trace.Wrap(err))
 					return
 				}
+
+				if n > 0 {
+					_, err = shell.Write(buf[:n])
+					if err != nil {
+						ns.ExitMsg = err.Error()
+						return
+					}
+				}
 			}
-		}
-	}()
+		}()
+	}
 }
 
 func (ns *NodeSession) Close() error {

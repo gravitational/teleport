@@ -1435,7 +1435,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	if len(nodeAddrs) > 1 {
 		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
 	}
-	return tc.runShell(nodeClient, nil)
+	return tc.runShell(nodeClient, types.SessionPeerMode, nil)
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) {
@@ -1464,7 +1464,7 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 }
 
 // Join connects to the existing/active SSH session
-func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID session.ID, input io.Reader) (err error) {
+func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipantMode, namespace string, sessionID session.ID, input io.Reader) (err error) {
 	if namespace == "" {
 		return trace.BadParameter(auth.MissingNamespaceError)
 	}
@@ -1545,7 +1545,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	tc.startPortForwarding(ctx, nc)
 
 	// running shell with a given session means "join" it:
-	return tc.runShell(nc, session)
+	return tc.runShell(nc, mode, session)
 }
 
 // Play replays the recorded session
@@ -1993,7 +1993,7 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 		return trace.Wrap(err)
 	}
 	defer nodeSession.Close()
-	if err := nodeSession.runCommand(ctx, command, tc.OnShellCreated, tc.Config.Interactive); err != nil {
+	if err := nodeSession.runCommand(ctx, types.SessionPeerMode, command, tc.OnShellCreated, tc.Config.Interactive); err != nil {
 		originErr := trace.Unwrap(err)
 		exitErr, ok := originErr.(*ssh.ExitError)
 		if ok {
@@ -2015,12 +2015,12 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session) error {
+func (tc *TeleportClient) runShell(nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin *session.Session) error {
 	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = nodeSession.runShell(tc.OnShellCreated); err != nil {
+	if err = nodeSession.runShell(mode, tc.OnShellCreated); err != nil {
 		switch e := trace.Unwrap(err).(type) {
 		case *ssh.ExitError:
 			tc.ExitStatus = e.ExitStatus()
