@@ -632,6 +632,8 @@ type session struct {
 	initiator string
 
 	scx *ServerContext
+
+	presenceEnabled bool
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -696,20 +698,21 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.Component(teleport.ComponentSession, r.srv.Component()),
 		}),
-		id:           id,
-		registry:     r,
-		parties:      make(map[rsession.ID]*party),
-		participants: make(map[rsession.ID]*party),
-		login:        ctx.Identity.Login,
-		closeC:       make(chan bool),
-		lingerTTL:    defaults.SessionIdlePeriod,
-		startTime:    startTime,
-		serverCtx:    ctx.srv.Context(),
-		state:        types.SessionState_SessionStatePending,
-		access:       auth.NewSessionAccessEvaluator(initiator, types.SSHSessionKind),
-		checkAccess:  make(chan struct{}),
-		stateUpdate:  broadcast.NewBroadcaster(1),
-		scx:          ctx,
+		id:              id,
+		registry:        r,
+		parties:         make(map[rsession.ID]*party),
+		participants:    make(map[rsession.ID]*party),
+		login:           ctx.Identity.Login,
+		closeC:          make(chan bool),
+		lingerTTL:       defaults.SessionIdlePeriod,
+		startTime:       startTime,
+		serverCtx:       ctx.srv.Context(),
+		state:           types.SessionState_SessionStatePending,
+		access:          auth.NewSessionAccessEvaluator(initiator, types.SSHSessionKind),
+		checkAccess:     make(chan struct{}),
+		stateUpdate:     broadcast.NewBroadcaster(1),
+		scx:             ctx,
+		presenceEnabled: ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "",
 	}
 
 	err = sess.trackerCreate(ctx.Identity.TeleportUser)
@@ -925,7 +928,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	}
 
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
-	if ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "" {
+	if s.presenceEnabled {
 		go func() {
 			ticker := time.NewTicker(PresenceVerifyInterval)
 		outer:
@@ -1461,7 +1464,7 @@ func (s *session) checkPresence() error {
 			continue
 		}
 
-		if time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
+		if participant.Mode == string(types.SessionModeratorMode) && time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
 			s.log.Warn("Participant %v is not active, kicking.", participant.ID)
 			party := s.parties[rsession.ID(participant.ID)]
 			if party != nil {
@@ -1566,6 +1569,10 @@ func (s *session) join(ch ssh.Channel, req *ssh.Request, ctx *ServerContext, mod
 		if !auth.SliceContainsMode(modes, mode) {
 			return nil, trace.AccessDenied("insufficient permissions to join sessions")
 		}
+	}
+
+	if s.presenceEnabled {
+		ch.SendRequest(teleport.MFAPresenceRequest, false, nil)
 	}
 
 	p := newParty(s, ch, ctx)
@@ -1697,6 +1704,7 @@ type party struct {
 	termSizeC  chan []byte
 	lastActive time.Time
 	closeOnce  sync.Once
+	mode       types.SessionParticipantMode
 }
 
 func newParty(s *session, ch ssh.Channel, ctx *ServerContext) *party {
@@ -1811,6 +1819,7 @@ func (s *session) trackerAddParticipant(participant *party) error {
 				Participant: &types.Participant{
 					ID:         participant.user,
 					User:       participant.user,
+					Mode:       string(participant.mode),
 					LastActive: time.Now().UTC(),
 				},
 			},

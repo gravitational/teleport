@@ -2811,8 +2811,11 @@ message Participant {
     // User is the canonical name of the Teleport user controlling this participant.
     string User = 2 [ (gogoproto.jsontag) = "user,omitempty" ];
 
+    // Mode is the participant mode.
+    string Mode = 3 [ (gogoproto.jsontag) = "mode,omitempty" ];
+
     // LastActive is the last time this party was active in the session.
-    google.protobuf.Timestamp LastActive = 3 [
+    google.protobuf.Timestamp LastActive = 4 [
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "last_active,omitempty"

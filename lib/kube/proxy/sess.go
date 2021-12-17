@@ -393,7 +393,7 @@ func (s *session) checkPresence() error {
 			continue
 		}
 
-		if time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
+		if participant.Mode == string(types.SessionModeratorMode) && time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
 			s.log.Warn("Participant %v is not active, kicking.", participant.ID)
 			realId, _ := uuid.Parse(participant.ID)
 			err := s.leave(realId)
@@ -1126,6 +1126,7 @@ func (s *session) trackerAddParticipant(participant *party) error {
 				Participant: &types.Participant{
 					ID:         participant.Id.String(),
 					User:       participant.Ctx.User.GetName(),
+					Mode:       string(participant.Mode),
 					LastActive: time.Now().UTC(),
 				},
 			},

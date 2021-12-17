@@ -624,6 +624,8 @@ const (
 	ForceTerminateRequest = "x-teleport-force-terminate"
 
 	SSHJoinModeEnv = "x-teleport-join-mode"
+
+	MFAPresenceRequest = "x-teleport-mfa-presence"
 )
 
 const (

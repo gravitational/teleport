@@ -70,6 +70,7 @@ type NodeClient struct {
 	Client    *ssh.Client
 	Proxy     *ProxyClient
 	TC        *TeleportClient
+	OnMFA     func()
 }
 
 func (proxy *ProxyClient) GetActiveSessions(ctx context.Context) ([]types.Session, error) {
@@ -1165,6 +1166,13 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 			}
 
 			switch r.Type {
+			case teleport.MFAPresenceRequest:
+				if c.OnMFA == nil {
+					log.Warnf("Received MFA presence request, but no callback was provided.")
+					continue
+				}
+
+				c.OnMFA()
 			case teleport.SessionEvent:
 				// Parse event and create events.EventFields that can be consumed directly
 				// by caller.

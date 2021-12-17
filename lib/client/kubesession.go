@@ -139,7 +139,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 
 	s := &KubeSession{stream, term, close, closeWait, meta}
 
-	if stream.MFARequired {
+	if stream.MFARequired && mode == types.SessionModeratorMode {
 		proxy, err := tc.ConnectToProxy(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
