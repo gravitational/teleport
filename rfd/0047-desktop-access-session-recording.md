@@ -154,13 +154,19 @@ For expediency's sake, we can build a v0 implementation of playback that where t
 }
 ```
 
-and sends that entire object back to the browser for playback. This would allow us to create a relatively simple "video player" with play, pause, and seek. Seek will be a implemented by replaying the session from the beginning up to the sought after time (this may cause some disconcerting visual transitions). For bandwidth/memory's sake, we will limit the playback's total size to TODO MB.
+and sends that entire object back to the browser for playback. This would allow us to create a relatively simple "video player" with play, pause, and seek.
+
+Seek will be a implemented by replaying the session from the beginning up to the sought after time, ignoring the timing data and just playing each frame as fast as possible (this may cause some disconcerting visual transitions). This is necessary because we are not getting a stream of full screen png's for each message; typically we are just getting 64x64 pixel sections of the screen that has changed. Therefore, we can't just skip to a time within the stream and display what the screen looks like -- we need to play the entire session back up to that point in order to have the correct final image. For bandwidth/memory's sake, we can limit the playback's total size to TODO MB.
+
+We could attempt to eliminate the playback size limit with a system that grabs the recording in bite-sized chunks and plays it up to near the end of the chunk before downloading the next one (and ultimately discarding the previous chunk). Such a system would still be a major bandwidth hog in the case that the user uses the seek feature to skip towards the end of the video. In that case, we'd need to re-download the entire recording again from the beginning in order to play back the full session up to the selected time to get the correct final screen at that point (the same problem and solution as described above, but now with network calls added).
 
 ##### v1
 
-Streaming video files is a non-trivial problem, fortunately for us it is a problem that has largely been solved. We can take advantage of this prior art by converting our
+Streaming video files is a non-trivial problem, fortunately for us it is a problem that has largely been solved by others. We can take advantage of prior art by converting our stream of png's to an mp4 when the user requests playback, and then serving that mp4. The [HTML5 <video> tag](https://www.w3schools.com/tags/tag_video.asp) supports mp4 streaming out of the box, so we'll be able to stream session recordings of any size without needing to worry about much of the underlying complexity. We could alternatively use [WebM](https://www.webmproject.org/) instead of mp4, however it is a relatively newer format targeted at the web, and [isn't supported](https://www.webmproject.org/users/) by some popular non-browser-based video clients such as QuickTime Player. By going with mp4, we kill two birds with one stone by simplifying web-based streaming for ourselves, and putting the session playback into a universally supported format that users can export and playback in any video player of their choosing.
 
-##### v2
+The primary challenge of this approach is the conversion from our stream of 64x64 pixel pngs to an mp4. According to [Wikipedia](https://en.wikipedia.org/wiki/MPEG-4_Part_14#Data_streams), the widely supported codecs for video streams are MPEG-H Part 2 (H.265/HEVC), MPEG-4 Part 10 (H.264/AVC) and MPEG-4 Part 2. [FFmpeg](https://ffmpeg.org/ffmpeg.html) is generally considered to be the Sourcer's Stone for such tasks, though including it with Teleport is a major addition (current FFmpeg binary for linux is 81M, Teleport itself is 109M) and adds significant complexity to our build process. We may be able to cut FFmpeg down to size by compiling only the parts we need; this will require significant R&D.
+
+UX-wise, this approach would mean that users might need to wait for a while while the conversion takes place after requesting a session playback. In a future iteration, we could attempt to implement mp4 conversion while recordings are in progress in order to eliminate the wait period.
 
 ### Security
 
