@@ -1913,6 +1913,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-amd64
+- build-linux-amd64-centos7
 steps:
 - name: Check out code
   image: docker:git
@@ -2050,6 +2051,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-amd64-fips
+- build-linux-amd64-centos7-fips
 steps:
 - name: Check out code
   image: docker:git
@@ -4768,6 +4770,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 54574d5a4a5cbcefc5ec73bb6656587a74d94baf32ad6258a2c49282b4ae262d
+hmac: 05efa9670573ed25b706cbcebed49a450ab769afe4b24ccca6b26f429ef90bfe
 
 ...
