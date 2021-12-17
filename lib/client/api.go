@@ -199,6 +199,9 @@ type Config struct {
 	// PostgresProxyAddr is the host:port the Postgres proxy can be accessed at.
 	PostgresProxyAddr string
 
+	// MongoProxyAddr is the host:port the Mongo proxy can be accessed at.
+	MongoProxyAddr string
+
 	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
 	MySQLProxyAddr string
 
@@ -800,6 +803,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.SSHProxyAddr = cp.SSHProxyAddr
 	c.PostgresProxyAddr = cp.PostgresProxyAddr
 	c.MySQLProxyAddr = cp.MySQLProxyAddr
+	c.MongoProxyAddr = cp.MongoProxyAddr
 	c.TLSRoutingEnabled = cp.TLSRoutingEnabled
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
@@ -831,6 +835,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.KubeProxyAddr = c.KubeProxyAddr
 	cp.PostgresProxyAddr = c.PostgresProxyAddr
 	cp.MySQLProxyAddr = c.MySQLProxyAddr
+	cp.MongoProxyAddr = c.MongoProxyAddr
 	cp.ForwardedPorts = c.LocalForwardPorts.String()
 	cp.SiteName = c.SiteName
 	cp.TLSRoutingEnabled = c.TLSRoutingEnabled
@@ -996,6 +1001,17 @@ func (c *Config) PostgresProxyHostPort() (string, int) {
 	return c.WebProxyHostPort()
 }
 
+// MongoProxyHostPort returns the host and port of Mongo proxy.
+func (c *Config) MongoProxyHostPort() (string, int) {
+	if c.MongoProxyAddr != "" {
+		addr, err := utils.ParseAddr(c.MongoProxyAddr)
+		if err == nil {
+			return addr.Host(), addr.Port(defaults.MongoListenPort)
+		}
+	}
+	return c.WebProxyHostPort()
+}
+
 // MySQLProxyHostPort returns the host and port of MySQL proxy.
 func (c *Config) MySQLProxyHostPort() (string, int) {
 	if c.MySQLProxyAddr != "" {
@@ -1016,7 +1032,7 @@ func (c *Config) DatabaseProxyHostPort(db tlsca.RouteToDatabase) (string, int) {
 	case defaults.ProtocolMySQL:
 		return c.MySQLProxyHostPort()
 	case defaults.ProtocolMongoDB:
-		return c.WebProxyHostPort()
+		return c.MongoProxyHostPort()
 	}
 	return c.WebProxyHostPort()
 }
@@ -1573,6 +1589,32 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	}
 
 	return playSession(sessionEvents, stream)
+}
+
+func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessionID string) ([]events.EventFields, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter(auth.MissingNamespaceError)
+	}
+	sid, err := session.ParseID(sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
+	}
+	// connect to the auth server (site) who made the recording
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	events, err := site.GetSessionEvents(namespace, *sid, 0, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return events, nil
 }
 
 // PlayFile plays the recorded session from a tar file
@@ -2661,6 +2703,24 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 	default:
 		webProxyHost, webProxyPort := tc.WebProxyHostPort()
 		tc.PostgresProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(webProxyPort))
+	}
+
+	// Read Mongo proxy settings.
+	switch {
+	case proxySettings.DB.MongoPublicAddr != "":
+		addr, err := utils.ParseAddr(proxySettings.DB.MongoPublicAddr)
+		if err != nil {
+			return trace.BadParameter("failed to parse Mongo public address received from server: %q, contact your administrator for help",
+				proxySettings.DB.MongoPublicAddr)
+		}
+		tc.MongoProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(tc.WebProxyPort())))
+	case proxySettings.DB.MongoListenAddr != "":
+		addr, err := utils.ParseAddr(proxySettings.DB.MongoListenAddr)
+		if err != nil {
+			return trace.BadParameter("failed to parse Mongo listen address received from server: %q, contact your administrator for help",
+				proxySettings.DB.MongoListenAddr)
+		}
+		tc.MongoProxyAddr = net.JoinHostPort(tc.WebProxyHost(), strconv.Itoa(addr.Port(defaults.MongoListenPort)))
 	}
 
 	// Read MySQL proxy settings if enabled on the server.

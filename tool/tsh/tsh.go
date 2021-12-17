@@ -726,9 +726,31 @@ func onPlay(cf *CLIConf) error {
 			}
 		}
 	default:
-		err := exportFile(cf.SessionID, cf.Format)
-		if err != nil {
-			return trace.Wrap(err)
+		switch {
+		case path.Ext(cf.SessionID) == ".tar":
+			err := exportFile(cf.SessionID, cf.Format)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		default:
+			tc, err := makeClient(cf, true)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			events, err := tc.GetSessionEvents(context.TODO(), cf.Namespace, cf.SessionID)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			for _, event := range events {
+				// when playing from a file, id is not included, this
+				// makes the outputs otherwise identical
+				delete(event, "id")
+				e, err := utils.FastMarshal(event)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				fmt.Println(string(e))
+			}
 		}
 	}
 	return nil
@@ -2093,6 +2115,9 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 
 	fmt.Printf("%vProfile URL:        %v\n", prefix, p.ProxyURL.String())
 	fmt.Printf("  Logged in as:       %v\n", p.Username)
+	if len(p.ActiveRequests.AccessRequests) != 0 {
+		fmt.Printf("  Active requests:    %v\n", strings.Join(p.ActiveRequests.AccessRequests, ", "))
+	}
 	if p.Cluster != "" {
 		fmt.Printf("  Cluster:            %v\n", p.Cluster)
 	}

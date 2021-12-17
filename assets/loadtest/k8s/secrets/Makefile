@@ -13,6 +13,16 @@ all: grafana-pass influx-pass influx-token join-tokens env
 
 .PHONY: env
 env:
+	@if [ -z ${PROXY_HOST} ]; then \
+		echo "PROXY_HOST is not set, cannot apply cluster."; \
+		exit 1; \
+	fi
+
+	@if [ -z ${GRAFANA_HOST} ]; then \
+		echo "GRAFANA_IP is not set, cannot apply cluster."; \
+		exit 1; \
+	fi
+
 	@echo PROXY_IP=$(shell make -C ../../network get-proxy-ip) > secrets.env
 	@echo PROXY_HOST=${PROXY_HOST} >> secrets.env
 	@echo GRAFANA_IP=$(shell make -C ../../network get-grafana-ip) >> secrets.env

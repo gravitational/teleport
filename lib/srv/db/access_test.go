@@ -49,9 +49,12 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/siddontang/go-mysql/client"
+	mysqllib "github.com/siddontang/go-mysql/mysql"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
 )
 
 func TestMain(m *testing.M) {
@@ -297,12 +300,67 @@ func TestMySQLBadHandshake(t *testing.T) {
 	}
 }
 
+// TestAccessMySQLChangeUser verifies that COM_CHANGE_USER command is rejected.
+func TestAccessMySQLChangeUser(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"alice"}, []string{types.Wildcard})
+
+	// Connect to the database as this user.
+	mysqlConn, err := testCtx.mysqlClient("alice", "mysql", "alice")
+	require.NoError(t, err)
+
+	// Send COM_CHANGE_USER command. The driver doesn't support it natively so
+	// assemble the raw packet and send it which should be enough to test the
+	// rejection logic.
+	packet := []byte{
+		0x05,                     // Payload length.
+		0x00,                     // Payload length cont'd.
+		0x00,                     // Payload length cont'd.
+		0x00,                     // Sequence number.
+		mysqllib.COM_CHANGE_USER, // Command type.
+		'b',                      // Null-terminated string with new user name.
+		'o',
+		'b',
+		0x00,
+		// There would've been other fields in "real" packet but these will
+		// do for the test to detect the command.
+	}
+	err = mysqlConn.WritePacket(packet)
+	require.NoError(t, err)
+
+	// Connection should've been closed so any attempt to use it should fail.
+	_, err = mysqlConn.Execute("select 1")
+	require.Error(t, err)
+}
+
+// TestAccessMySQLServerPacket verifies some edge-cases related to reading
+// wire packets sent by the MySQL server.
+func TestAccessMySQLServerPacket(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with access permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"alice"}, []string{types.Wildcard})
+
+	// Connect to the database as this user.
+	mysqlConn, err := testCtx.mysqlClient("alice", "mysql", "alice")
+	require.NoError(t, err)
+
+	// Execute "show tables" command which will make the test server to reply
+	// in a way that previously would cause our packet parsing logic to fail.
+	_, err = mysqlConn.Execute("show tables")
+	require.NoError(t, err)
+}
+
 // TestAccessMongoDB verifies access scenarios to a MongoDB database based
 // on the configured RBAC rules.
 func TestAccessMongoDB(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo"))
-	go testCtx.startHandlingConnections()
 
 	tests := []struct {
 		desc         string
@@ -360,7 +418,7 @@ func TestAccessMongoDB(t *testing.T) {
 			queryErr:     "",
 		},
 		{
-			desc:         "access allowed to specific user/database",
+			desc:         "access allowed to specific user and database",
 			user:         "alice",
 			role:         "admin",
 			allowDbNames: []string{"admin"},
@@ -371,7 +429,7 @@ func TestAccessMongoDB(t *testing.T) {
 			queryErr:     "",
 		},
 		{
-			desc:         "access denied to specific user/database",
+			desc:         "access denied to specific user and database",
 			user:         "alice",
 			role:         "admin",
 			allowDbNames: []string{"admin"},
@@ -383,35 +441,76 @@ func TestAccessMongoDB(t *testing.T) {
 		},
 	}
 
+	// Each scenario is executed multiple times with different server/client
+	// options to test things like legacy MongoDB servers and clients that
+	// use compression.
+	serverOpts := []struct {
+		name string
+		opts []mongodb.TestServerOption
+	}{
+		{
+			name: "new server",
+			opts: []mongodb.TestServerOption{},
+		},
+		{
+			name: "old server",
+			opts: []mongodb.TestServerOption{
+				mongodb.TestServerWireVersion(wiremessage.OpmsgWireVersion - 1),
+			},
+		},
+	}
+
+	clientOpts := []struct {
+		name string
+		opts *options.ClientOptions
+	}{
+		{
+			name: "client without compression",
+			opts: options.Client(),
+		},
+		{
+			name: "client with compression",
+			opts: options.Client().SetCompressors([]string{"zlib"}),
+		},
+	}
+
+	// Execute each scenario on both modern and legacy Mongo servers
+	// to make sure legacy messages are also subject to RBAC.
 	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			// Create user/role with the requested permissions.
-			testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
+		for _, serverOpt := range serverOpts {
+			for _, clientOpt := range clientOpts {
+				t.Run(fmt.Sprintf("%v/%v/%v", serverOpt.name, clientOpt.name, test.desc), func(t *testing.T) {
+					testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo", serverOpt.opts...))
+					go testCtx.startHandlingConnections()
 
-			// Try to connect to the database as this user.
-			client, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser)
-			if test.connectErr != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), test.connectErr)
-				return
+					// Create user/role with the requested permissions.
+					testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
+
+					// Try to connect to the database as this user.
+					client, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)
+					defer func() {
+						if client != nil {
+							client.Disconnect(ctx)
+						}
+					}()
+					if test.connectErr != "" {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), test.connectErr)
+						return
+					}
+					require.NoError(t, err)
+
+					// Execute a "find" command. Collection name doesn't matter currently.
+					_, err = client.Database(test.dbName).Collection("test").Find(ctx, bson.M{})
+					if test.queryErr != "" {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), test.queryErr)
+						return
+					}
+					require.NoError(t, err)
+				})
 			}
-
-			require.NoError(t, err)
-
-			// Execute a "find" command. Collection name doesn't matter currently.
-			_, err = client.Database(test.dbName).Collection("test").Find(ctx, bson.M{})
-			if test.queryErr != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), test.queryErr)
-				return
-			}
-
-			require.NoError(t, err)
-
-			// Disconnect.
-			err = client.Disconnect(ctx)
-			require.NoError(t, err)
-		})
+		}
 	}
 }
 
@@ -683,12 +782,12 @@ func (c *testContext) mysqlClientWithAddr(address, teleportUser, dbService, dbUs
 
 // mongoClient connects to test MongoDB through database access as a
 // specified Teleport user and database account.
-func (c *testContext) mongoClient(ctx context.Context, teleportUser, dbService, dbUser string) (*mongo.Client, error) {
-	return c.mongoClientWithAddr(ctx, c.webListener.Addr().String(), teleportUser, dbService, dbUser)
+func (c *testContext) mongoClient(ctx context.Context, teleportUser, dbService, dbUser string, opts ...*options.ClientOptions) (*mongo.Client, error) {
+	return c.mongoClientWithAddr(ctx, c.webListener.Addr().String(), teleportUser, dbService, dbUser, opts...)
 }
 
 // mongoClientWithAddr is like mongoClient but allows to override connection address.
-func (c *testContext) mongoClientWithAddr(ctx context.Context, address, teleportUser, dbService, dbUser string) (*mongo.Client, error) {
+func (c *testContext) mongoClientWithAddr(ctx context.Context, address, teleportUser, dbService, dbUser string, opts ...*options.ClientOptions) (*mongo.Client, error) {
 	return mongodb.MakeTestClient(ctx, common.TestClientConfig{
 		AuthClient: c.authClient,
 		AuthServer: c.authServer,
@@ -700,7 +799,7 @@ func (c *testContext) mongoClientWithAddr(ctx context.Context, address, teleport
 			Protocol:    defaults.ProtocolMongoDB,
 			Username:    dbUser,
 		},
-	})
+	}, opts...)
 }
 
 // createUserAndRole creates Teleport user and role with specified names
@@ -1250,12 +1349,12 @@ func withAzureMySQL(name, authUser, authToken string) withDatabaseOption {
 	}
 }
 
-func withSelfHostedMongo(name string) withDatabaseOption {
+func withSelfHostedMongo(name string, opts ...mongodb.TestServerOption) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
-		})
+		}, opts...)
 		require.NoError(t, err)
 		go mongoServer.Serve()
 		t.Cleanup(func() { mongoServer.Close() })

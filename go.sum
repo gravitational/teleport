@@ -389,8 +389,8 @@ github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a h1:PN5vAN1ZA
 github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a/go.mod h1:jaxS7X2ouXfNd2Pxpybd01qNQK15UmkixKj4vtpp7f8=
 github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621 h1:ivU//THqy3/TMz7Bx6VbLbcVebBJLSOpvfcASbLlT1s=
 github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621/go.mod h1:IIxugQsS57BiOTe+8zDv3sfnvM2BQ3smcF1xJdj3Has=
-github.com/gravitational/oxy v0.0.0-20210316180922-c73d80d27348 h1:QFHxHmxOeQT+MwFjNHkTVI7mkgPIabTMqkmHG5SiP2Y=
-github.com/gravitational/oxy v0.0.0-20210316180922-c73d80d27348/go.mod h1:ESOxlf8BB2yG3zJ0SfZe9U6wpYu3YF3znxIICg73FYA=
+github.com/gravitational/oxy v0.0.0-20211213172937-a1ba0900a4c9 h1:7NyppZS8QFt28nn2QjDI44vDTJs0kTRdUS7po/AxWOY=
+github.com/gravitational/oxy v0.0.0-20211213172937-a1ba0900a4c9/go.mod h1:ESOxlf8BB2yG3zJ0SfZe9U6wpYu3YF3znxIICg73FYA=
 github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf h1:MQ4e8XcxvZTeuOmRl7yE519vcWc2h/lyvYzsvt41cdY=
 github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf/go.mod h1:SlYgWuQ5SjCEi6WLHjHCa1yvBfUnHcTbrrZtXPKa29o=
 github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c h1:UwN3jo2EfZSGDchLVqH/EJ2A5GWvKROx3NJNUI6/plg=
