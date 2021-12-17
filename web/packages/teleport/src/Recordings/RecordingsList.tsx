@@ -149,7 +149,7 @@ const PlayCell = props => {
     );
   }
 
-  const url = cfg.getPlayerRoute({ clusterId, sid });
+  const url = cfg.getSessionAuditPlayerRoute({ clusterId, sid });
   return (
     <Table.Cell align="right">
       <ButtonBorder

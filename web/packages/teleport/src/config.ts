@@ -65,7 +65,9 @@ const cfg = {
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
-    player: '/web/cluster/:clusterId/player/:sid',
+    player: '/web/cluster/:clusterId/session/:sid',
+    sessionAuditPlayer: '/web/cluster/:clusterId/session/:sid/player',
+    sessionAuditCmds: '/web/cluster/:clusterId/session/:sid/commands',
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
     loginErrorLegacy: '/web/msg/error/login_failed',
@@ -275,6 +277,14 @@ const cfg = {
 
   getPlayerRoute(params: UrlPlayerParams) {
     return generatePath(cfg.routes.player, { ...params });
+  },
+
+  getSessionAuditPlayerRoute(params: UrlPlayerParams) {
+    return generatePath(cfg.routes.sessionAuditPlayer, { ...params });
+  },
+
+  getSessionAuditCmdsRoute(params: UrlPlayerParams) {
+    return generatePath(cfg.routes.sessionAuditCmds, { ...params });
   },
 
   getUserContextUrl() {
