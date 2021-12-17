@@ -101,20 +101,11 @@ message DesktopRecordingEvent {
     Metadata Metadata = 1
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
-    // ChunkIndex is a monotonicaly incremented index for ordering events
-    int64 ChunkIndex = 2 [ (gogoproto.jsontag) = "ci" ];
-
     // Message is the encoded TDP message. It is not marshaled to JSON format
-    bytes Message = 3 [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "-" ];
-
-    // Bytes says how many bytes have been written into the session
-    int64 Bytes = 4 [ (gogoproto.jsontag) = "bytes" ];
+    bytes Message = 2 [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "-" ];
 
     // DelayMilliseconds is the delay in milliseconds from the start of the session
-    int64 DelayMilliseconds = 5 [ (gogoproto.jsontag) = "ms" ];
-
-    // Offset is the offset in bytes in the session file
-    int64 Offset = 6 [ (gogoproto.jsontag) = "offset" ];
+    int64 DelayMilliseconds = 3 [ (gogoproto.jsontag) = "ms" ];
 }
 ```
 
@@ -149,7 +140,27 @@ udpated:
 
 #### Playback
 
-TODO(zmb3)
+##### v0
+
+For expediency's sake, we can build a v0 implementation of playback that where the proxy simply deserializes the entire proto-encoded stream of `DesktopRecordingEvent`s, places them into a json object with the format:
+
+```json
+// Object is {<DelayMilliseconds>: <Message>}
+{
+  0: [2, 0, 0, 1, ...],
+  7: [2, 0, 0, 1, ...],
+  12: [2, 0, 0, 1, ...],
+  ...
+}
+```
+
+and sends that entire object back to the browser for playback. This would allow us to create a relatively simple "video player" with play, pause, and seek. Seek will be a implemented by replaying the session from the beginning up to the sought after time (this may cause some disconcerting visual transitions). For bandwidth/memory's sake, we will limit the playback's total size to TODO MB.
+
+##### v1
+
+Streaming video files is a non-trivial problem, fortunately for us it is a problem that has largely been solved. We can take advantage of this prior art by converting our
+
+##### v2
 
 ### Security
 
@@ -187,5 +198,6 @@ TODO(isaiah): investigate whether we can scale a recording down client-side
 during playback
 
 TODO(isaiah): any additional interface changes?
+
 - icon do distinguish SSH vs desktop session?
 - filter to show only SSH or only desktops in the list?
