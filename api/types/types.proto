@@ -1573,6 +1573,10 @@ message RoleOptions {
         (gogoproto.jsontag) = "desktop_clipboard",
         (gogoproto.customtype) = "BoolOption"
     ];
+
+    // CertExtensions specifies the key/values
+    repeated CertExtension CertExtensions = 17
+        [ (gogoproto.jsontag) = "cert_extensions,omitempty" ];
 }
 
 message RecordSession {
@@ -1583,6 +1587,34 @@ message RecordSession {
         (gogoproto.jsontag) = "desktop",
         (gogoproto.customtype) = "BoolOption"
     ];
+}
+
+// CertExtensionMode specifies the type of extension to use in the cert.
+enum CertExtensionMode {
+    // EXTENSION represents a cert extension that may or may not be
+    // honored by the server.
+    EXTENSION = 0;
+}
+
+// CertExtensionType represents the certificate type the extension is for.
+// Currently only ssh is supported.
+enum CertExtensionType {
+    // SSH is used when extending an ssh certificate
+    SSH = 0;
+}
+
+// CertExtension represents a key/value for a certificate extension
+message CertExtension {
+    // Type represents the certificate type being extended, only ssh
+    // is supported at this time.
+    CertExtensionType Type = 1 [ (gogoproto.jsontag) = "type" ];
+    // Mode is the type of extension to be used -- currently
+    // critical-option is not supported
+    CertExtensionMode Mode = 2 [ (gogoproto.jsontag) = "mode" ];
+    // Name specifies the key to be used in the cert extension.
+    string Name = 3 [ (gogoproto.jsontag) = "name" ];
+    // Value specifies the valueg to be used in the cert extension.
+    string Value = 4 [ (gogoproto.jsontag) = "value" ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
