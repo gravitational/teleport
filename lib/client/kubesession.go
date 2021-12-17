@@ -150,7 +150,12 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 			return nil, trace.Wrap(err)
 		}
 
-		subCtx := ctx
+		subCtx, cancel := context.WithCancel(ctx)
+		go func() {
+			<-close.C
+			cancel()
+		}()
+
 		go runPresenceTask(subCtx, s.term.Stdout(), auth, tc, s.meta.GetID())
 	}
 

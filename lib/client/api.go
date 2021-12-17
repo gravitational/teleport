@@ -1435,7 +1435,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	if len(nodeAddrs) > 1 {
 		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
 	}
-	return tc.runShell(nodeClient, types.SessionPeerMode, nil)
+	return tc.runShell(nodeClient, types.SessionPeerMode, nil, func(io.Writer) {})
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) {
@@ -1544,8 +1544,16 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	// Start forwarding ports if configured.
 	tc.startPortForwarding(ctx, nc)
 
+	presenceCtx, presenceCancel := context.WithCancel(ctx)
+
+	startMFA := func(out io.Writer) {
+		runPresenceTask(presenceCtx, out, site, tc, string(session.ID))
+	}
+
 	// running shell with a given session means "join" it:
-	return tc.runShell(nc, mode, session)
+	err = tc.runShell(nc, mode, session, startMFA)
+	presenceCancel()
+	return trace.Wrap(err)
 }
 
 // Play replays the recorded session
@@ -2015,7 +2023,7 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin *session.Session) error {
+func (tc *TeleportClient) runShell(nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin *session.Session, beforeStart func(io.Writer)) error {
 	env := make(map[string]string)
 	env[teleport.SSHJoinModeEnv] = string(mode)
 	for key, value := range tc.Env {
@@ -2026,7 +2034,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, mode types.SessionPar
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = nodeSession.runShell(mode, tc.OnShellCreated); err != nil {
+	if err = nodeSession.runShell(mode, tc.OnShellCreated, beforeStart); err != nil {
 		switch e := trace.Unwrap(err).(type) {
 		case *ssh.ExitError:
 			tc.ExitStatus = e.ExitStatus()
@@ -3368,12 +3376,12 @@ func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {
 	return databases, nil
 }
 
-func (tc *TeleportClient) GetActiveSessions(ctx context.Context, cluster string) ([]types.Session, error) {
+func (tc *TeleportClient) GetActiveSessions(ctx context.Context) ([]types.Session, error) {
 	proxy, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	defer proxy.Close()
-	return proxy.GetActiveSessions(ctx, cluster)
+	return proxy.GetActiveSessions(ctx)
 }

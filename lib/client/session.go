@@ -443,8 +443,9 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 }
 
 // runShell executes user's shell on the remote node under an interactive session
-func (ns *NodeSession) runShell(mode types.SessionParticipantMode, callback ShellCreatedCallback) error {
+func (ns *NodeSession) runShell(mode types.SessionParticipantMode, callback ShellCreatedCallback, beforeStart func(io.Writer)) error {
 	return ns.interactiveSession(mode, func(s *ssh.Session, shell io.ReadWriteCloser) error {
+		beforeStart(shell)
 		// start the shell on the server:
 		if err := s.Shell(); err != nil {
 			return trace.Wrap(err)

@@ -88,7 +88,7 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 }
 
 func (c *kubeJoinCommand) getSessionMeta(ctx context.Context, tc *client.TeleportClient) (types.Session, error) {
-	sessions, err := tc.GetActiveSessions(ctx, c.siteName)
+	sessions, err := tc.GetActiveSessions(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,6 +103,7 @@ func (c *kubeJoinCommand) getSessionMeta(ctx context.Context, tc *client.Telepor
 }
 
 func (c *kubeJoinCommand) run(cf *CLIConf) error {
+	cf.SiteName = c.siteName
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -260,7 +261,7 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	sessions, err := tc.GetActiveSessions(cf.Context, "")
+	sessions, err := tc.GetActiveSessions(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}

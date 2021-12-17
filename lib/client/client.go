@@ -72,22 +72,11 @@ type NodeClient struct {
 	TC        *TeleportClient
 }
 
-func (proxy *ProxyClient) GetActiveSessions(ctx context.Context, cluster string) ([]types.Session, error) {
-	var auth auth.ClientI
-	var err error
-
-	if cluster == "" {
-		auth, err = proxy.ConnectToCurrentCluster(ctx, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		auth, err = proxy.ConnectToCluster(ctx, cluster, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+func (proxy *ProxyClient) GetActiveSessions(ctx context.Context) ([]types.Session, error) {
+	auth, err := proxy.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
 	sessions, err := auth.GetActiveSessionTrackers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
