@@ -201,7 +201,7 @@ if [[ "${CENTOS_VERSION}" == "centos7" ]]; then
     OPTIONAL_RUNTIME_SECTION="-centos7"
 fi
 if [[ "${RUNTIME}" == "fips" ]]; then
-    OPTIONAL_RUNTIME_SECTION="-fips"
+    OPTIONAL_RUNTIME_SECTION+="-fips"
 fi
 
 
