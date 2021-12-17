@@ -58,11 +58,11 @@ Teleport services listen on several ports. This table shows the default port num
 
 | Port | Service | Description |
 | - | - | - |
-| 3022 | Node | SSH port. This is Teleport's equivalent of port `#22` for SSH. |
-| 3023 | Proxy | SSH port clients connect to. A proxy will forward this connection to port `#3022` on the destination node. |
-| 3024 | Proxy | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. |
-| 3025 | Auth | SSH port used by the Auth Service to serve its API to other nodes in a cluster. |
-| 3080 | Proxy | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI. |
-| 3026 | Kubernetes | HTTPS Kubernetes proxy `proxy_service.kube_listen_addr` |
-| 3027 | Kubernetes | Kubernetes Service `kubernetes_service.listen_addr` |
-| 3036 | MySQL | MySQL port `proxy_service.mysql_addr` |
+| 3022 | Node | SSH port. This is Teleport's equivalent of port `22` for SSH. `ssh_service.listen_addr` |
+| 3023 | Proxy | SSH port clients connect to. A proxy will forward this connection to port `3022` on the destination node. `proxy_service.listen_addr` |
+| 3024 | Proxy | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. Teleport instances configured in IOT mode hold open connections to this port. `proxy_service.tunnel_listen_addr` |
+| 3025 | Auth | TLS/HTTPS/GRPC port used by the Auth Service to serve its API to other nodes in a cluster. `auth_service.listen_addr` |
+| 3080 | Proxy | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI. `proxy_service.web_listen_addr` |
+| 3026 | Proxy | HTTPS Kubernetes proxy that clients connect to. `proxy_service.kube_listen_addr` |
+| 3027 | Kubernetes | Kubernetes Service that the proxy server connects to. `kubernetes_service.listen_addr` |
+| 3036 | Proxy | MySQL port clients connect to. `proxy_service.mysql_addr` |
