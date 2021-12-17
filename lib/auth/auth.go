@@ -1733,6 +1733,7 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 		return nil, trace.Wrap(err)
 	}
 
+	accessRequests := identity.ActiveRequests
 	if req.AccessRequestID != "" {
 		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(req.User, req.AccessRequestID)
 		if err != nil {
@@ -1741,6 +1742,7 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 
 		roles = append(roles, newRoles...)
 		roles = apiutils.Deduplicate(roles)
+		accessRequests = apiutils.Deduplicate(append(accessRequests, req.AccessRequestID))
 
 		// Let session expire with the shortest expiry time.
 		if expiresAt.After(requestExpiry) {
@@ -1770,14 +1772,16 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 		// Set default roles and expiration.
 		expiresAt = prevSession.GetLoginTime().UTC().Add(sessionTTL)
 		roles = user.GetRoles()
+		accessRequests = nil
 	}
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:       req.User,
-		Roles:      roles,
-		Traits:     traits,
-		SessionTTL: sessionTTL,
+		User:           req.User,
+		Roles:          roles,
+		Traits:         traits,
+		SessionTTL:     sessionTTL,
+		AccessRequests: accessRequests,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2308,11 +2312,12 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
 	}
 	certs, err := a.generateUserCert(certRequest{
-		user:      user,
-		ttl:       sessionTTL,
-		publicKey: pub,
-		checker:   checker,
-		traits:    req.Traits,
+		user:           user,
+		ttl:            sessionTTL,
+		publicKey:      pub,
+		checker:        checker,
+		traits:         req.Traits,
+		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
