@@ -1491,6 +1491,204 @@ func TestCheckRuleAccess(t *testing.T) {
 	}
 }
 
+func TestCheckAccessToAnyResource(t *testing.T) {
+	// Examples from https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions.
+	ownSessions, err := types.NewRole("own-sessions", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+					Where:     "contains(session.participants, user.metadata.name)",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	ownSSHSessions, err := types.NewRole("own-ssh-sessions", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSSHSession},
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+		},
+		Deny: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSSHSession},
+					Verbs:     []string{types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+					Where:     "!contains(ssh_session.participants, user.metadata.name)",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Simple, all-or-nothing roles.
+	readAllSessions, err := types.NewRole("all-sessions", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	allowSSHSessions, err := types.NewRole("all-ssh-sessions", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSSHSession},
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	denySSHSessions, err := types.NewRole("deny-ssh-sessions", types.RoleSpecV4{
+		Deny: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSSHSession},
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	type checkAccessParams struct {
+		ctx       Context
+		namespace string
+		resource  string
+		verbs     []string
+	}
+
+	tests := []struct {
+		name   string
+		roles  RoleSet
+		params *checkAccessParams
+		// wantRuleAccess fully evaluates where conditions, used to determine access
+		// to specific resources.
+		wantRuleAccess bool
+		// wantResourceAccess doesn't evaluate where conditions, used to determine
+		// access to a category of resources.
+		wantResourceAccess bool
+	}{
+		{
+			name:  "global session list/read allowed",
+			roles: RoleSet{readAllSessions},
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
+			},
+			wantRuleAccess:     true,
+			wantResourceAccess: true,
+		},
+		{
+			name:  "own session list/read allowed",
+			roles: RoleSet{ownSessions}, // allowed despite "where" clause in allow rules
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
+			},
+			wantRuleAccess:     false, // where condition needs specific resource
+			wantResourceAccess: true,
+		},
+		{
+			name:  "session list/read denied",
+			roles: RoleSet{allowSSHSessions, denySSHSessions}, // none mention "session"
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
+			},
+		},
+		{
+			name: "session write denied",
+			roles: RoleSet{
+				readAllSessions,                   // readonly
+				allowSSHSessions, denySSHSessions, // none mention "session"
+			},
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbUpdate, types.VerbDelete},
+			},
+		},
+		{
+			name:  "global SSH session list/read allowed",
+			roles: RoleSet{allowSSHSessions},
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
+			},
+			wantRuleAccess:     true,
+			wantResourceAccess: true,
+		},
+		{
+			name:  "own SSH session list/read allowed",
+			roles: RoleSet{ownSSHSessions}, // allowed despite "where" clause in deny rules
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
+			},
+			wantRuleAccess:     false, // where condition needs specific resource
+			wantResourceAccess: true,
+		},
+		{
+			name: "SSH session list/read denied",
+			roles: RoleSet{
+				allowSSHSessions, ownSSHSessions,
+				denySSHSessions, // unconditional deny, takes precedence
+			},
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+			},
+		},
+		{
+			name: "SSH session list/read denied - different role ordering",
+			roles: RoleSet{
+				allowSSHSessions,
+				denySSHSessions, // unconditional deny, takes precedence
+				ownSSHSessions,
+			},
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			params := test.params
+			const silent = true
+			for _, verb := range params.verbs {
+				err := test.roles.CheckAccessToRule(&params.ctx, params.namespace, params.resource, verb, silent)
+				if gotAccess, wantAccess := err == nil, test.wantRuleAccess; gotAccess != wantAccess {
+					t.Errorf("CheckAccessToRule(verb=%q) returned err = %v=q, wantAccess = %v", verb, err, wantAccess)
+				}
+
+				err = test.roles.CheckAccessToAnyResource(&params.ctx, params.namespace, params.resource, verb, silent)
+				if gotAccess, wantAccess := err == nil, test.wantResourceAccess; gotAccess != wantAccess {
+					t.Errorf("CheckAccessToAnyResource(verb=%q) returned err = %q, wantAccess = %v", verb, err, wantAccess)
+				}
+			}
+		})
+	}
+}
+
 func TestCheckRuleSorting(t *testing.T) {
 	testCases := []struct {
 		name  string

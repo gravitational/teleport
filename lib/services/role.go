@@ -1799,6 +1799,35 @@ func (set RoleSet) String() string {
 	return fmt.Sprintf("roles %v", strings.Join(roleNames, ","))
 }
 
+// CheckAccessToAnyResource is used to determine if access is possible for an
+// entire category of resources.
+// Rules with a Where clause are handled differently by the method:
+// - "allow" rules have their "where" clause always match, as it's assumed that
+//   there could be a resource that matches it.
+// - "deny" rules have their "where" clause always fail, as it's assumed that
+//   there could be a resource that passes it.
+// Do not use this method to check for access for specific resources, instead
+// use CheckAccessToRule.
+func (set RoleSet) CheckAccessToAnyResource(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+	return set.checkAccessToRuleImpl(checkAccessParams{
+		ctx:        ctx,
+		namespace:  namespace,
+		resource:   resource,
+		verb:       verb,
+		allowWhere: boolParser(true),  // always matches
+		denyWhere:  boolParser(false), // never matches
+		silent:     silent,
+	})
+}
+
+type boolParser bool
+
+func (p boolParser) Parse(string) (interface{}, error) {
+	return predicate.BoolPredicate(func() bool {
+		return bool(p)
+	}), nil
+}
+
 // CheckAccessToRule checks if the RoleSet provides access in the given
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
@@ -1807,35 +1836,58 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	actionsParser, err := NewActionsParser(ctx)
+
+	return set.checkAccessToRuleImpl(checkAccessParams{
+		ctx:        ctx,
+		namespace:  namespace,
+		resource:   resource,
+		verb:       verb,
+		allowWhere: whereParser,
+		denyWhere:  whereParser,
+		silent:     silent,
+	})
+}
+
+type checkAccessParams struct {
+	ctx                   RuleContext
+	namespace             string
+	resource              string
+	verb                  string
+	allowWhere, denyWhere predicate.Parser
+	silent                bool
+}
+
+func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) error {
+	actionsParser, err := NewActionsParser(p.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
-		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Deny), types.ProcessNamespace(namespace))
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Deny), types.ProcessNamespace(p.namespace))
 		if matchNamespace {
-			matched, err := MakeRuleSet(role.GetRules(types.Deny)).Match(whereParser, actionsParser, resource, verb)
+			matched, err := MakeRuleSet(role.GetRules(types.Deny)).Match(p.denyWhere, actionsParser, p.resource, p.verb)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			if matched {
-				if !silent {
+				if !p.silent {
 					log.WithFields(log.Fields{
 						trace.Component: teleport.ComponentRBAC,
 					}).Infof("Access to %v %v in namespace %v denied to %v: deny rule matched.",
-						verb, resource, namespace, role.GetName())
+						p.verb, p.resource, p.namespace, role.GetName())
 				}
-				return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+				return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
 			}
 		}
 	}
 
 	// check allow: if rule matches, grant access to resource
 	for _, role := range set {
-		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Allow), types.ProcessNamespace(namespace))
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Allow), types.ProcessNamespace(p.namespace))
 		if matchNamespace {
-			match, err := MakeRuleSet(role.GetRules(types.Allow)).Match(whereParser, actionsParser, resource, verb)
+			match, err := MakeRuleSet(role.GetRules(types.Allow)).Match(p.allowWhere, actionsParser, p.resource, p.verb)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1845,13 +1897,13 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 		}
 	}
 
-	if !silent {
+	if !p.silent {
 		log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentRBAC,
 		}).Infof("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
-			verb, resource, namespace, set)
+			p.verb, p.resource, p.namespace, set)
 	}
-	return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+	return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
 }
 
 // ExtractConditionForIdentifier returns a restrictive filter expression
