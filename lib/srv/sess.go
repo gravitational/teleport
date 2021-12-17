@@ -756,7 +756,9 @@ func (s *session) Close() error {
 			s.out.BroadcastMessage("Closing session...")
 			s.log.Infof("Closing session %v.", s.id)
 			err := s.trackerUpdateState(types.SessionState_SessionStateTerminated)
-			s.log.WithError(err).Errorf("Failed to update tracker state.")
+			if err != nil {
+				s.log.WithError(err).Errorf("Failed to update tracker state.")
+			}
 
 			if s.term != nil {
 				s.term.Close()
@@ -802,7 +804,9 @@ func (s *session) monitorAccess() error {
 			}
 
 			err = s.trackerUpdateState(state)
-			s.log.WithError(err).Errorf("Failed to update tracker state.")
+			if err != nil {
+				s.log.WithError(err).Errorf("Failed to update tracker state.")
+			}
 
 			if state != s.state {
 				s.state = state
