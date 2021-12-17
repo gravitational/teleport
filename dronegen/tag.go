@@ -336,7 +336,7 @@ for file in $(find . -type f ! -iname '*.sha256'); do
   # (e.g. tarballs from which OS packages are made)
   [ -f "$file.sha256" ] || continue
 
-  product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
+  product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
   shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
   status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
   [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt && exit 1)
