@@ -16,12 +16,12 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { Player } from './SshPlayer';
 import TtyPlayer from 'teleport/lib/term/ttyPlayer';
 import TtyPlayerEventProvider from 'teleport/lib/term/ttyPlayerEventProvider';
+import { PlayerNext } from './PlayerNext';
 
 export default {
-  title: 'Teleport/PlayerNext/SshPlayer',
+  title: 'Teleport/PlayerNext',
 };
 
 export const Vim = () => {
@@ -67,7 +67,7 @@ function useMockedEvents(loader) {
 function renderMocked(mocked) {
   return (
     <Box>
-      {mocked && <Player tty={mocked.tty} bpfEvents={mocked.auditEvents} />}
+      {mocked && <PlayerNext tty={mocked.tty} bpfEvents={mocked.auditEvents} />}
     </Box>
   );
 }

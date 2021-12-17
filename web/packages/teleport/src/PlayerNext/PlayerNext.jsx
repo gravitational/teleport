@@ -17,11 +17,9 @@ limitations under the License.
 import { useParams } from 'react-router';
 import React from 'react';
 import styled from 'styled-components';
-import { withState } from 'shared/hooks';
 import SplitPane from 'shared/components/SplitPane';
 import { Danger } from 'design/Alert';
 import { Indicator, Flex, Text, Box } from 'design';
-import cfg from 'teleport/config';
 import TtyPlayer, {
   StatusEnum as TtyStatusEnum,
 } from 'teleport/lib/term/ttyPlayer';
@@ -31,7 +29,10 @@ import Xterm from 'teleport/Player/Xterm';
 import BpfPlayer from './BpfPlayer';
 import SwitchMode, { ModeEnum } from './SwitchMode';
 
-export function Player(props) {
+/**
+ * PlayerNext is the prototype of the eBPF player
+ */
+export function PlayerNext(props) {
   const { url, bpfEvents = [] } = props;
   const tty = React.useMemo(() => {
     return props.tty || new TtyPlayer(new EventProvider({ url }));
@@ -108,15 +109,6 @@ export function Player(props) {
     </StyledPlayer>
   );
 }
-
-export default withState(() => {
-  const { sid, clusterId } = useParams();
-  const url = cfg.getTerminalSessionUrl({ clusterId, sid });
-  return {
-    url,
-    sid,
-  };
-})(Player);
 
 const ToolBar = styled(Flex)`
   border-bottom: 1px solid ${({ theme }) => theme.colors.primary.main};
