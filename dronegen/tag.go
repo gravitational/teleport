@@ -288,10 +288,12 @@ func tagDownloadArtifactCommands(b buildType) []string {
 	if artifactOSS {
 		commands = append(commands,
 			fmt.Sprintf(`aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-%s-bin.tar.gz /go/artifacts/`, artifactType),
+			fmt.Sprintf(`aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-%s-centos7-bin.tar.gz /go/artifacts/`, artifactType),
 		)
 	}
 	commands = append(commands,
 		fmt.Sprintf(`aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-%s-bin.tar.gz /go/artifacts/`, artifactType),
+		fmt.Sprintf(`aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-%s-centos7-bin.tar.gz /go/artifacts/`, artifactType),
 	)
 	return commands
 }
@@ -334,11 +336,13 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 	}
 
 	makeCommand := fmt.Sprintf("make %s", packageType)
+	makeCommandCentOS7 := fmt.Sprintf(`make %s RPM_FLAGS="-c centos7"`, packageType)
 	if b.fips {
 		dependentPipeline += "-fips"
 		environment["FIPS"] = value{raw: "yes"}
 		environment["RUNTIME"] = value{raw: "fips"}
 		makeCommand = fmt.Sprintf("make -C e %s", packageType)
+		makeCommandCentOS7 = fmt.Sprintf(`make -C e %s RPM_FLAGS="-c centos7"`, packageType)
 	} else {
 		environment["OSS_TARBALL_PATH"] = value{raw: "/go/artifacts"}
 	}
@@ -356,6 +360,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			`echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR`,
 			`chown -R root:root $GNUPG_DIR`,
 			makeCommand,
+			makeCommandCentOS7,
 			`rm -rf $GNUPG_DIR`,
 		)
 		// RPM builds require tmpfs to hold the key material in memory.
