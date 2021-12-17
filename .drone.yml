@@ -4593,28 +4593,28 @@ steps:
       target: /
       strip_prefix: /go/chart
 
-  # NOTE: all mandatory steps for a release promotion need to go BEFORE this
-  # step, as there is a chance that everything afterwards will be skipped.
-  #
-  # this step exits early and skips all remanining steps in the pipeline if the
-  # tag looks like a pre-release, to avoid publishing RPMs for pre-release builds.
-  - name: Determine whether RPM/DEB packages should be published to repos
-    image: docker
-    commands:
-      - |
-        if [ "${DRONE_REPO}" != "gravitational/teleport" ]; then
-          echo "---> Not publishing ${DRONE_REPO} packages to repos"
-          exit 78
-        fi
-        # length will be 0 after filtering if this is a pre-release, >0 otherwise
-        FILTERED_TAG_LENGTH=$(echo ${DRONE_TAG} | egrep -v '(alpha|beta|dev|rc)' | wc -c)
-        if [ $$FILTERED_TAG_LENGTH -eq 0 ]; then
-          echo "---> ${DRONE_TAG} looks like a pre-release, not publishing packages to repos"
-          # exit pipeline early with success status
-          exit 78
-        else
-          echo "---> Publishing packages to repos for ${DRONE_TAG}"
-        fi
+  ## NOTE: all mandatory steps for a release promotion need to go BEFORE this
+  ## step, as there is a chance that everything afterwards will be skipped.
+  ##
+  ## this step exits early and skips all remanining steps in the pipeline if the
+  ## tag looks like a pre-release, to avoid publishing RPMs for pre-release builds.
+  #- name: Determine whether RPM/DEB packages should be published to repos
+  #  image: docker
+  #  commands:
+  #    - |
+  #      if [ "${DRONE_REPO}" != "gravitational/teleport" ]; then
+  #        echo "---> Not publishing ${DRONE_REPO} packages to repos"
+  #        exit 78
+  #      fi
+  #      # length will be 0 after filtering if this is a pre-release, >0 otherwise
+  #      FILTERED_TAG_LENGTH=$(echo ${DRONE_TAG} | egrep -v '(alpha|beta|dev|rc)' | wc -c)
+  #      if [ $$FILTERED_TAG_LENGTH -eq 0 ]; then
+  #        echo "---> ${DRONE_TAG} looks like a pre-release, not publishing packages to repos"
+  #        # exit pipeline early with success status
+  #        exit 78
+  #      else
+  #        echo "---> Publishing packages to repos for ${DRONE_TAG}"
+  #      fi
 
   - name: "RPM: Download RPM repository"
     image: amazon/aws-cli
@@ -4641,6 +4641,7 @@ steps:
     # to do this. This should never make it into master or branch/v9.
     - cp -a /go/artifacts/*centos7*.rpm /rpmrepo/teleport/${DRONE_TAG##v}/
     - ls -lah /rpmrepo/teleport/${DRONE_TAG##v}/
+    - ls -lah /go/artifacts/
 
   ## we do this using a CentOS 7 container to make sure that the repo files are
   ## compatible with older versions, also there's no createrepo package in alpine main
@@ -4778,6 +4779,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 856e5a83c919f3a8bda85f33f3180d79f42652d8ea1ab3585834b513ae98951d
+hmac: 674ff17da932cd290eee0a6fb672d94ca0ef6662a24065739887694611e45a8b
 
 ...
