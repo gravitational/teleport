@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -29,7 +28,6 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -40,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
-	"github.com/gravitational/teleport/lib/utils"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -173,19 +170,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	session, err := client.NewKubeSession(cf.Context, tc, meta, k, tc.KubeProxyAddr, kubeStatus.tlsServerName, types.SessionParticipantMode(c.mode), func(term io.Writer, challenge *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-		utils.WriteAll(term.Write, []byte("\r\nTeleport > Please tap your MFA key within 15 seconds\r\n"))
-		challenge.TOTP = nil
-
-		response, err := client.PromptMFAChallenge(cf.Context, tc.Config.WebProxyAddr, challenge, "", true)
-		if err != nil {
-			utils.WriteAll(term.Write, []byte(fmt.Sprintf("\r\nTeleport > Failed to confirm presence: %v\r\n", err)))
-			return nil, trace.Wrap(err)
-		}
-
-		utils.WriteAll(term.Write, []byte("\r\nTeleport > Received MFA presence confirmation\r\n"))
-		return response, nil
-	})
+	session, err := client.NewKubeSession(cf.Context, tc, meta, k, tc.KubeProxyAddr, kubeStatus.tlsServerName, types.SessionParticipantMode(c.mode))
 	if err != nil {
 		return trace.Wrap(err)
 	}

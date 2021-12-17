@@ -25,9 +25,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/utils"
@@ -45,9 +43,7 @@ type KubeSession struct {
 	meta      types.Session
 }
 
-type MFASolver = func(io.Writer, *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
-
-func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session, key *Key, kubeAddr string, tlsServer string, mode types.SessionParticipantMode, solveChallenge MFASolver) (*KubeSession, error) {
+func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session, key *Key, kubeAddr string, tlsServer string, mode types.SessionParticipantMode) (*KubeSession, error) {
 	close := utils.NewCloseBroadcaster()
 	closeWait := &sync.WaitGroup{}
 	joinEndpoint := "wss://" + kubeAddr + "/api/v1/teleport/join/" + meta.GetID()
@@ -154,69 +150,12 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 			return nil, trace.Wrap(err)
 		}
 
-		go s.handleMFA(ctx, auth, solveChallenge)
+		subCtx := ctx
+		go runPresenceTask(subCtx, s.term.Stdout(), auth, tc, s.meta.GetID())
 	}
 
 	s.pipeInOut()
 	return s, nil
-}
-
-func (s *KubeSession) handleMFA(ctx context.Context, auth auth.ClientI, solver MFASolver) error {
-	err := utils.WriteAll(s.term.Stdout().Write, []byte("\r\nTeleport > MFA presence enabled\r\n"))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	ticker := time.NewTicker(mfaChallengeInterval)
-	stream, err := auth.MaintainSessionPresence(ctx)
-	if err != nil {
-		utils.WriteAll(s.term.Stdout().Write, []byte(fmt.Sprintf("\r\nstream error: %v\r\n", err)))
-		return trace.Wrap(err)
-	}
-
-outer:
-	for {
-		select {
-		case <-ticker.C:
-			req := &proto.PresenceMFAChallengeSend{
-				Request: &proto.PresenceMFAChallengeSend_ChallengeRequest{
-					ChallengeRequest: &proto.PresenceMFAChallengeRequest{SessionID: s.meta.GetID()},
-				},
-			}
-
-			err = stream.Send(req)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			challenge, err := stream.Recv()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			solution, err := solver(s.term.Stdout(), challenge)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			req = &proto.PresenceMFAChallengeSend{
-				Request: &proto.PresenceMFAChallengeSend_ChallengeResponse{
-					ChallengeResponse: solution,
-				},
-			}
-
-			err = stream.Send(req)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		case <-s.close.C:
-			break outer
-		case <-ctx.Done():
-			break outer
-		}
-	}
-
-	return nil
 }
 
 func (s *KubeSession) pipeInOut() {
