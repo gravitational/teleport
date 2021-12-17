@@ -731,6 +731,29 @@ func (c *windowsDesktopCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
+func (c *windowsDesktopCollection) writeYaml(w io.Writer) error {
+	return utils.WriteYAML(w, c.desktops)
+}
+
+type windowsDesktopAndService struct {
+	desktop types.WindowsDesktop
+	service types.WindowsDesktopService
+}
+
+type windowsDesktopAndServiceCollection struct {
+	desktops []windowsDesktopAndService
+}
+
+func (c *windowsDesktopAndServiceCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Host", "Public Address", "AD Domain", "Labels", "Version"})
+	for _, d := range c.desktops {
+		t.AddRow([]string{d.service.GetHostname(), d.desktop.GetAddr(),
+			d.desktop.GetDomain(), d.desktop.LabelsString(), d.service.GetTeleportVersion()})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type tokenCollection struct {
 	tokens []types.ProvisionToken
 }
