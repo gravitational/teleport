@@ -1,4 +1,5 @@
 ---
+#---
 #################################################
 ## Generated using dronegen, do not edit by hand!
 ## Use 'make dronegen' to update.
@@ -1358,7 +1359,7 @@
 #        <{{ build.link }}|Visit Drone build page ↗>
 #    when:
 #      status: [failure]
-
+#
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
@@ -1780,7 +1781,7 @@ volumes:
 - name: dockersock
   temp: {}
 
----
+#---
 #################################################
 ## Generated using dronegen, do not edit by hand!
 ## Use 'make dronegen' to update.
@@ -4760,6 +4761,6 @@ volumes:
 #      name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: ed08a50c6ee393117373a1813c591449245e57c1e6c0c84b6f220ab04acc29fd
+hmac: 1c6ebb0a878ae79399a5e627724ecdb6b780a103394aaae1c12c51748327e6d9
 
 ...
