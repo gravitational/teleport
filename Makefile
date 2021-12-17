@@ -696,14 +696,15 @@ docker-binaries: clean
 enter:
 	make -C build.assets enter
 
-# grpc generates GRPC stubs from service definitions
+# grpc generates GRPC stubs from service definitions.
+# This target runs in the devbox container.
 .PHONY: grpc
 grpc:
 	make -C build.assets grpc
 
-# buildbox-grpc generates GRPC stubs inside buildbox
-.PHONY: buildbox-grpc
-buildbox-grpc:
+# devbox-grpc generates GRPC stubs
+.PHONY: devbox-grpc
+devbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
 	find lib/ -iname *.proto | xargs $(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
