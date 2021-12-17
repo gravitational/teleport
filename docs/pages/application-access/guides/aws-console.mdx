@@ -119,7 +119,7 @@ Next, create a Role using this IAM policy to allow Teleport to assume IAM roles:
 You can make the policy more strict by providing specific IAM role resource
 ARNs in the Resource field instead of using a wildcard.
   
-If using the Telport agent deployed in EKS, you cannot use Helm chart
+If using the Teleport agent deployed in EKS, you cannot use Helm chart
 annotations to specify the IAM permissions; you must associate the policy with
 the cluster role for the worker nodes.  Otherwise, you will receive
 "400 Bad Request" errors from AWS.
