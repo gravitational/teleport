@@ -330,6 +330,7 @@ func tagCreateReleaseAssetCommands(b buildType) []string {
 		`trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT`,
 		`CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"`,
 		`which curl || apk add --no-cache curl`,
+		`apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"`,
 		fmt.Sprintf(`cd "$WORKSPACE_DIR/go/artifacts"
 for file in $(find . -type f ! -iname '*.sha256'); do
   # Skip files that are not results of this build

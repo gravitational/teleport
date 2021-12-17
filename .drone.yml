@@ -1121,6 +1121,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -1260,6 +1261,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -1397,6 +1399,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -1534,6 +1537,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -1674,6 +1678,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -1711,7 +1716,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -1834,6 +1839,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -1876,7 +1882,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -1996,6 +2002,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -2038,7 +2045,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -2152,6 +2159,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -2189,7 +2197,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -2300,6 +2308,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -2437,6 +2446,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -2474,7 +2484,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -2597,6 +2607,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -2639,7 +2650,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -2753,6 +2764,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -2920,6 +2932,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3108,6 +3121,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3278,6 +3292,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3413,6 +3428,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3550,6 +3566,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3587,7 +3604,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -3701,6 +3718,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3738,7 +3756,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -3852,6 +3870,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3889,7 +3908,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -4012,6 +4031,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -4054,7 +4074,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -4177,6 +4197,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -4322,6 +4343,7 @@ steps:
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
+  - apk add file && file "$WORKSPACE_DIR/releases.crt" && file "$WORKSPACE_DIR/releases.key"
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -5141,6 +5163,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 77d4c47e2118711351c6676df4b04b20318f582da1618d63e64cb8c5efdd2eab
+hmac: f1ef98719c1fb81d5cc732a8b27b2ebd90ad5bc91a6853f8ce41c2e28cb718d3
 
 ...
