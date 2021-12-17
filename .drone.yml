@@ -10,10 +10,7 @@ type: kubernetes
 name: test
 environment:
   GID: "1000"
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
   UID: "1000"
 trigger:
   event:
@@ -358,10 +355,7 @@ type: kubernetes
 name: push-build-linux-amd64
 environment:
   GID: "1000"
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
   UID: "1000"
 trigger:
   event:
@@ -463,10 +457,7 @@ type: kubernetes
 name: push-build-linux-386
 environment:
   GID: "1000"
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
   UID: "1000"
 trigger:
   event:
@@ -568,10 +559,7 @@ type: kubernetes
 name: push-build-linux-amd64-fips
 environment:
   GID: "1000"
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
   UID: "1000"
 trigger:
   event:
@@ -677,10 +665,7 @@ type: kubernetes
 name: push-build-windows-amd64
 environment:
   GID: "1000"
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
   UID: "1000"
 trigger:
   event:
@@ -840,10 +825,7 @@ steps:
   - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: |-
-      make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-      go1.17.3
-      make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+    RUNTIME: go1.17.3
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -927,10 +909,7 @@ type: kubernetes
 name: push-build-linux-arm
 environment:
   GID: "1000"
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
   UID: "1000"
 trigger:
   event:
@@ -1032,10 +1011,7 @@ type: kubernetes
 name: push-build-linux-arm64
 environment:
   GID: "1000"
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
   UID: "1000"
 trigger:
   event:
@@ -1394,10 +1370,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7
 environment:
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
 trigger:
   event:
     include:
@@ -1504,10 +1477,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
 trigger:
   event:
     include:
@@ -1613,10 +1583,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64
 environment:
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
 trigger:
   event:
     include:
@@ -1720,10 +1687,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips
 environment:
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
 trigger:
   event:
     include:
@@ -1827,10 +1791,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos6
 environment:
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
 trigger:
   event:
     include:
@@ -1930,7 +1891,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:380
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -1987,9 +1948,9 @@ steps:
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz
     /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
-    /go/artifacts/
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz
+    /go/artifacts/
+  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
     /go/artifacts/
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
     /go/artifacts/
@@ -2067,7 +2028,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:380
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -2124,7 +2085,7 @@ steps:
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
     /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-centos7-bin.tar.gz
+  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-centos7-fips-bin.tar.gz
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -2199,7 +2160,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:380
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -2256,11 +2217,7 @@ steps:
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz
     /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
-    /go/artifacts/
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz
-    /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -2321,7 +2278,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:380
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -2377,8 +2334,6 @@ steps:
   - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
-    /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-centos7-bin.tar.gz
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -2445,10 +2400,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-386
 environment:
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
 trigger:
   event:
     include:
@@ -2545,7 +2497,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:380
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -2602,11 +2554,7 @@ steps:
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz
     /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-centos7-bin.tar.gz
-    /go/artifacts/
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-386-bin.tar.gz
-    /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-386-centos7-bin.tar.gz
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -2626,7 +2574,6 @@ steps:
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
   - chown -R root:root $GNUPG_DIR
   - make rpm
-  - make rpm RPM_FLAGS="-c centos7"
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: "386"
@@ -2682,7 +2629,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:380
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -2739,11 +2686,7 @@ steps:
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz
     /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-centos7-bin.tar.gz
-    /go/artifacts/
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-386-bin.tar.gz
-    /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-386-centos7-bin.tar.gz
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -2870,10 +2813,7 @@ steps:
   - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: |-
-      make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-      go1.17.3
-      make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+    RUNTIME: go1.17.3
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -3238,10 +3178,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm
 environment:
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
 trigger:
   event:
     include:
@@ -3345,10 +3282,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm64
 environment:
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
 trigger:
   event:
     include:
@@ -3445,7 +3379,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:380
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -3502,11 +3436,7 @@ steps:
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm64-bin.tar.gz
     /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm64-centos7-bin.tar.gz
-    /go/artifacts/
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-arm64-bin.tar.gz
-    /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-arm64-centos7-bin.tar.gz
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -3567,7 +3497,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:380
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -3624,11 +3554,7 @@ steps:
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm-bin.tar.gz
     /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm-centos7-bin.tar.gz
-    /go/artifacts/
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-arm-bin.tar.gz
-    /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-arm-centos7-bin.tar.gz
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -3689,7 +3615,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:380
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -3746,11 +3672,7 @@ steps:
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm64-bin.tar.gz
     /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm64-centos7-bin.tar.gz
-    /go/artifacts/
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-arm64-bin.tar.gz
-    /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-arm64-centos7-bin.tar.gz
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -3770,7 +3692,6 @@ steps:
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
   - chown -R root:root $GNUPG_DIR
   - make rpm
-  - make rpm RPM_FLAGS="-c centos7"
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: arm64
@@ -3826,7 +3747,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:380
+# Generated at dronegen/tag.go:375
 ################################################
 
 kind: pipeline
@@ -3883,11 +3804,7 @@ steps:
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm-bin.tar.gz
     /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm-centos7-bin.tar.gz
-    /go/artifacts/
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-arm-bin.tar.gz
-    /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-arm-centos7-bin.tar.gz
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -3907,7 +3824,6 @@ steps:
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
   - chown -R root:root $GNUPG_DIR
   - make rpm
-  - make rpm RPM_FLAGS="-c centos7"
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: arm
@@ -3970,10 +3886,7 @@ kind: pipeline
 type: kubernetes
 name: build-windows-amd64
 environment:
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
 trigger:
   event:
     include:
@@ -4400,10 +4313,7 @@ type: kubernetes
 name: build-buildboxes
 environment:
   GID: "1000"
-  RUNTIME: |-
-    make[1]: Entering directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
-    go1.17.3
-    make[1]: Leaving directory '/home/rjones/go/src/github.com/gravitational/teleport/build.assets'
+  RUNTIME: go1.17.3
   UID: "1000"
 trigger:
   event:
@@ -4858,6 +4768,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 4ddd6a74ba51a78844b1b9c24f875fc3e87e9262af5992ecb52c8b39852d31c7
+hmac: 54574d5a4a5cbcefc5ec73bb6656587a74d94baf32ad6258a2c49282b4ae262d
 
 ...
