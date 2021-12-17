@@ -327,7 +327,7 @@ func tagCreateReleaseAssetCommands(b buildType) []string {
 		fmt.Sprintf(`RELEASES_HOST='%v'`, releasesHost),
 		`echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"`,
 		`echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"`,
-		`trap "rm -f /releases.crt /releases.key" EXIT`,
+		`trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT`,
 		`CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"`,
 		`which curl || apk add --no-cache curl`,
 		fmt.Sprintf(`cd "$WORKSPACE_DIR/go/artifacts"
