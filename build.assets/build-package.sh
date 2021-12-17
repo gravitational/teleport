@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-usage() { echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] <-a [amd64/x86_64]|[386/i386]|arm|arm64> <-r fips> <-s tarball source dir> <-m tsh>" 1>&2; exit 1; }
-while getopts ":t:v:p:a:r:s:m:" o; do
+usage() { echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] <-c centos7> <-a [amd64/x86_64]|[386/i386]|arm|arm64> <-r fips> <-s tarball source dir> <-m tsh>" 1>&2; exit 1; }
+while getopts ":t:v:p:a:r:s:m:c:" o; do
     case "${o}" in
         t)
             t=${OPTARG}
@@ -30,6 +30,9 @@ while getopts ":t:v:p:a:r:s:m:" o; do
             m=${OPTARG}
             if [[ ${m} != "tsh" ]]; then usage; fi
             ;;
+        c)
+            c=${OPTARG}
+            ;;
         *)
             usage
             ;;
@@ -47,6 +50,7 @@ PACKAGE_TYPE=${p}
 ARCH=${a}
 RUNTIME=${r}
 BUILD_MODE=${m}
+CENTOS_VERSION=${c}
 TARBALL_DIRECTORY=/tmp/teleport-tarballs
 DOWNLOAD_IF_NEEDED=true
 GNUPG_DIR=${GNUPG_DIR:-/tmp/gnupg}
@@ -192,10 +196,14 @@ elif [[ "${ARCH}" == "arm64" ]]; then
     TEXT_ARCH="ARMv8/ARM64"
 fi
 
-# set optional runtime section for filename
-if [[ "${RUNTIME}" == "fips" ]]; then
-    OPTIONAL_RUNTIME_SECTION="-fips"
+# Set optional runtime section for tarball filename.
+if [[ "${CENTOS_VERSION}" == "centos7" ]]; then
+    OPTIONAL_RUNTIME_SECTION="-centos7"
 fi
+if [[ "${RUNTIME}" == "fips" ]]; then
+    OPTIONAL_RUNTIME_SECTION+="-fips"
+fi
+
 
 # set variables appropriately depending on type of package being built
 if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
