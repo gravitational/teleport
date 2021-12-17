@@ -967,11 +967,12 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 			Username:    req.dbUser,
 			Database:    req.dbName,
 		},
-		DatabaseNames: dbNames,
-		DatabaseUsers: dbUsers,
-		MFAVerified:   req.mfaVerified,
-		ClientIP:      req.clientIP,
-		AWSRoleARNs:   roleARNs,
+		DatabaseNames:  dbNames,
+		DatabaseUsers:  dbUsers,
+		MFAVerified:    req.mfaVerified,
+		ClientIP:       req.clientIP,
+		AWSRoleARNs:    roleARNs,
+		ActiveRequests: req.activeRequests.AccessRequests,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
