@@ -1118,7 +1118,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -1257,7 +1257,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -1394,7 +1394,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -1531,7 +1531,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -1671,7 +1671,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -1831,7 +1831,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -1993,7 +1993,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -2149,7 +2149,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -2297,7 +2297,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -2434,7 +2434,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -2594,7 +2594,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -2750,7 +2750,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -2917,7 +2917,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -3105,7 +3105,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -3275,7 +3275,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -3410,7 +3410,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -3547,7 +3547,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -3698,7 +3698,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -3849,7 +3849,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -4009,7 +4009,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -4174,7 +4174,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -4319,7 +4319,7 @@ steps:
   - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f /releases.crt /releases.key" EXIT
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
   - CREDENTIALS="--cert '$WORKSPACE_DIR/releases.crt' --key '$WORKSPACE_DIR/releases.key'"
   - which curl || apk add --no-cache curl
   - |-
@@ -5141,6 +5141,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 37896ddcc4ede919afc464ebb266e96dd9848a8f2888d480ddd1ebf6f629c566
+hmac: 77d4c47e2118711351c6676df4b04b20318f582da1618d63e64cb8c5efdd2eab
 
 ...
