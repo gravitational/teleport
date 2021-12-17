@@ -480,6 +480,7 @@ steps:
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-centos7-bin.tar.gz /go/artifacts/
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-centos7-bin.tar.gz /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -498,6 +499,7 @@ steps:
   - mkdir -m0700 $GNUPG_DIR
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
   - chown -R root:root $GNUPG_DIR
+  - ls /go/artifacts
   - make rpm
   - make rpm RPM_FLAGS="-c centos7"
   - rm -rf $GNUPG_DIR
