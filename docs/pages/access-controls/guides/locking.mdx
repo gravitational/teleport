@@ -41,12 +41,38 @@ A lock can target the following objects or attributes:
 
 ## Step 1/2. Create a lock
 
-To create a new lock, one can run the `tctl lock` command:
+You can create a new lock with `tctl lock` command. Specify the lock target
+with one of the following options:
 
-```code
-$ tctl lock --user=foo@example.com --message="Suspicious activity." --ttl=10h
-# Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
-```
+<Tabs>
+  <TabItem label="Username">
+  ```code
+  $ tctl lock --user=foo@example.com --message="Suspicious activity." --ttl=10h
+  # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
+  <TabItem label="Role">
+  All users with assigned roles matching the target role will be locked.
+  ```code
+  $ tctl lock --role=contractor --message="All contractor access is disabled for 10h." --ttl=10h
+  # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
+  <TabItem label="Multi-factor device">
+  All connections initated with per-session MFA matching the device ID will be locked.
+  ```code
+  $ tctl lock --mfa-device=d6c06a18-e147-4232-9dfe-6f83a28d5850 --message="All contractor access is disabled for 10h." --ttl=10h
+  # Created a lock with name "d6c06a18-e147-4232-9dfe-6f83a28d5850".
+  ```
+  </TabItem>
+  <TabItem label="Node">
+  All connections initated with per-session MFA matching the device ID will be locked.
+  ```code
+  $ tctl lock --node=363256df-f78a-4d99-803c-bae19da9ede4 --message="The node is under investigation." --ttl=10h
+  # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
+</Tabs>
 
 <Details
   title="Troubleshooting: failed to create a lock?"
