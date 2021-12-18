@@ -38,6 +38,13 @@ BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -buildmode=exe
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 endif
 
+# RPM_FLAGS is a hack for Teleport 8. It allows passing in flags to
+# build-package.sh to create CentOS 7 RPMs.
+#
+# In Teleport 9 we will switch the buildbox to CentOS 7 and no longer need to
+# do this. This should never make it into master or branch/v9.
+RPM_FLAGS ?=
+
 ifeq ("$(OS)","linux")
 # ARM builds need to specify the correct C compiler
 ifeq ("$(ARCH)","arm")
@@ -840,8 +847,8 @@ rpm:
 	chmod +x $(BUILDDIR)/build-package.sh
 	cp -a ./build.assets/rpm $(BUILDDIR)/
 	cp -a ./build.assets/rpm-sign $(BUILDDIR)/
-	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e rpm; fi
+	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) $(RPM_FLAGS) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+	if [ -f e/Makefile ]; then $(MAKE) -C e rpm RPM_FLAGS="$(RPM_FLAGS)"; fi
 
 # build unsigned .rpm (for testing)
 .PHONY: rpm-unsigned
@@ -913,8 +920,3 @@ update-webassets: WEBAPPS_BRANCH ?= 'master'
 update-webassets: TELEPORT_BRANCH ?= 'master'
 update-webassets:
 	build.assets/webapps/update-teleport-webassets.sh -w $(WEBAPPS_BRANCH) -t $(TELEPORT_BRANCH)
-
-# dronegen generates .drone.yml config
-.PHONY: dronegen
-dronegen:
-	go run ./dronegen
