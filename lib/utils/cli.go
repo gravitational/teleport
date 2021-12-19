@@ -83,7 +83,8 @@ func InitLoggerForTests() {
 	logger := log.StandardLogger()
 	logger.ReplaceHooks(make(log.LevelHooks))
 	logger.SetFormatter(&trace.TextFormatter{})
-	logger.SetLevel(log.DebugLevel)
+	//logger.SetLevel(log.DebugLevel)
+	logger.SetLevel(log.InfoLevel)
 	logger.SetOutput(os.Stderr)
 	if testing.Verbose() {
 		return
