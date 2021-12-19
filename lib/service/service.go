@@ -2635,20 +2635,23 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		listeners.mux, err = multiplexer.New(multiplexer.Config{
 			EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			Listener:            listener,
-			DisableTLS:          cfg.Proxy.DisableWebService,
-			DisableSSH:          cfg.Proxy.DisableReverseTunnel,
-			DisablePostgres:     cfg.Proxy.DisableDatabaseProxy || useSeparatePostgresListener,
 			ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
 		})
 		if err != nil {
 			listener.Close()
 			return nil, trace.Wrap(err)
 		}
-		listeners.web = listeners.mux.TLS()
-		if err := process.setPostgresListener(cfg, &listeners); err != nil {
-			return nil, trace.Wrap(err)
+		if !cfg.Proxy.DisableWebService {
+			listeners.web = listeners.mux.TLS()
 		}
-		listeners.reverseTunnel = listeners.mux.SSH()
+		if !cfg.Proxy.DisableDatabaseProxy && !useSeparatePostgresListener {
+			if err := process.setPostgresListener(cfg, &listeners); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		if !cfg.Proxy.DisableReverseTunnel {
+			listeners.reverseTunnel = listeners.mux.SSH()
+		}
 		go listeners.mux.Serve()
 		return &listeners, nil
 	case cfg.Proxy.EnableProxyProtocol && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
@@ -2660,9 +2663,6 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		listeners.mux, err = multiplexer.New(multiplexer.Config{
 			EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			Listener:            listener,
-			DisableTLS:          false,
-			DisableSSH:          true,
-			DisablePostgres:     cfg.Proxy.DisableDatabaseProxy || useSeparatePostgresListener,
 			ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
 		})
 		if err != nil {
@@ -2670,8 +2670,10 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.web = listeners.mux.TLS()
-		if err := process.setPostgresListener(cfg, &listeners); err != nil {
-			return nil, trace.Wrap(err)
+		if !cfg.Proxy.DisableDatabaseProxy && !useSeparatePostgresListener {
+			if err := process.setPostgresListener(cfg, &listeners); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 		if !cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
 			listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
@@ -2706,9 +2708,6 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 				listeners.mux, err = multiplexer.New(multiplexer.Config{
 					EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 					Listener:            listener,
-					DisableTLS:          false, // Web service is enabled or we wouldn't have gotten here.
-					DisableSSH:          true,  // Reverse tunnel is on a separate listener created above.
-					DisablePostgres:     false, // Database proxy is enabled or we wouldn't have gotten here.
 					ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
 				})
 				if err != nil {

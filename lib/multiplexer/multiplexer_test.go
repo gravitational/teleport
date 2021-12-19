@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -317,7 +318,6 @@ func TestMux(t *testing.T) {
 		mux, err := New(Config{
 			Listener:            listener,
 			EnableProxyProtocol: true,
-			DisableSSH:          true,
 		})
 		require.Nil(t, err)
 		go mux.Serve()
@@ -370,14 +370,13 @@ func TestMux(t *testing.T) {
 		mux, err := New(Config{
 			Listener:            listener,
 			EnableProxyProtocol: true,
-			DisableTLS:          true,
 		})
 		require.Nil(t, err)
 		go mux.Serve()
 		defer mux.Close()
 
 		backend1 := &httptest.Server{
-			Listener: mux.TLS(),
+			Listener: &noopListener{addr: listener.Addr()},
 			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "backend 1")
 			}),
@@ -655,6 +654,18 @@ func TestMux(t *testing.T) {
 	})
 }
 
+func TestProtocolString(t *testing.T) {
+	// []string{"", "Unknown", "TLS", "SSH", "Proxy", "HTTP", "Postgres", ""}
+	expect := make([]string, len(protocolStrings)+2)
+	copy(expect[1:], protocolStrings)
+	for i := range expect {
+		got := Protocol(i - 1).String()
+		if expect[i] != got {
+			t.Errorf("expected '%s' got '%s'", expect[i], got)
+		}
+	}
+}
+
 // server is used to implement test.PingerServer
 type server struct {
 }
@@ -695,4 +706,20 @@ func pass(need string) sshutils.PasswordFunc {
 		}
 		return nil, fmt.Errorf("passwords don't match")
 	}
+}
+
+type noopListener struct {
+	addr net.Addr
+}
+
+func (noopListener) Accept() (net.Conn, error) {
+	return nil, errors.New("noop")
+}
+
+func (noopListener) Close() error {
+	return nil
+}
+
+func (l noopListener) Addr() net.Addr {
+	return l.addr
 }
