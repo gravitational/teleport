@@ -97,7 +97,8 @@ func NewLoggerForTests() *log.Logger {
 	logger := log.New()
 	logger.ReplaceHooks(make(log.LevelHooks))
 	logger.SetFormatter(&trace.TextFormatter{})
-	logger.SetLevel(log.DebugLevel)
+	//logger.SetLevel(log.DebugLevel)
+	logger.SetLevel(log.InfoLevel)
 	logger.SetOutput(os.Stderr)
 	return logger
 }
