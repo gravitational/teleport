@@ -93,8 +93,8 @@ func NewSessionStream(conn *websocket.Conn, handshake interface{}) (*SessionStre
 		}
 
 		s.MFARequired = msg.ServerHandshake.MFARequired
-
-		dataClientHandshake, err := utils.FastMarshal(clientHandshake)
+		handshakeMsg := metaMessage{ClientHandshake: &clientHandshake}
+		dataClientHandshake, err := utils.FastMarshal(handshakeMsg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -103,7 +103,8 @@ func NewSessionStream(conn *websocket.Conn, handshake interface{}) (*SessionStre
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		dataServerHandshake, err := utils.FastMarshal(serverHandshake)
+		handshakeMsg := metaMessage{ServerHandshake: &serverHandshake}
+		dataServerHandshake, err := utils.FastMarshal(handshakeMsg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
