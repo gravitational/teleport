@@ -66,11 +66,12 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		return nil, trace.Wrap(err)
 	}
 	certs, err := s.generateUserCert(certRequest{
-		user:      user,
-		publicKey: publicKey,
-		checker:   checker,
-		ttl:       ttl,
-		traits:    traits,
+		user:           user,
+		publicKey:      publicKey,
+		checker:        checker,
+		ttl:            ttl,
+		traits:         traits,
+		activeRequests: services.RequestIDs{AccessRequests: identity.ActiveRequests},
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
