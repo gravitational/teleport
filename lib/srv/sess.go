@@ -195,6 +195,10 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *Ser
 
 		// Update the in-memory data structure that a party member has joined.
 		mode := types.SessionParticipantMode(ctx.env[teleport.SSHJoinModeEnv])
+		if mode == "" {
+			mode = types.SessionPeerMode
+		}
+
 		_, err := session.join(ch, req, ctx, mode)
 		if err != nil {
 			return trace.Wrap(err)
@@ -617,8 +621,6 @@ type session struct {
 
 	access auth.SessionAccessEvaluator
 
-	checkAccess chan struct{}
-
 	stateUpdate broadcast.Broadcaster
 
 	initiator string
@@ -630,6 +632,8 @@ type session struct {
 	done chan bool
 
 	terminated bool
+
+	started bool
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -705,7 +709,6 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		serverCtx:       ctx.srv.Context(),
 		state:           types.SessionState_SessionStatePending,
 		access:          auth.NewSessionAccessEvaluator(initiator, types.SSHSessionKind),
-		checkAccess:     make(chan struct{}),
 		stateUpdate:     broadcast.NewBroadcaster(1),
 		scx:             ctx,
 		presenceEnabled: ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "",
@@ -785,48 +788,13 @@ func (s *session) isLingering() bool {
 	return len(s.parties) == 0 && !s.terminated
 }
 
-func (s *session) monitorAccess() error {
-	for {
-		select {
-		case <-s.checkAccess:
-			permitted, err := s.checkIfStart()
-			if err != nil {
-				s.log.Errorf("Failed to check if session %v can be started: %v.", s.id, err)
-				if err != nil {
-					s.log.WithError(err).Errorf("Failed to close session: %v", s.id)
-				}
-			}
-
-			s.mu.Lock()
-			var state types.SessionState
-			if permitted {
-				state = types.SessionState_SessionStateRunning
-			} else {
-				state = types.SessionState_SessionStatePending
-				go s.waitOnAccess()
-			}
-
-			err = s.trackerUpdateState(state)
-			if err != nil {
-				s.log.WithError(err).Errorf("Failed to update tracker state.")
-			}
-
-			if state != s.state {
-				s.state = state
-				s.stateUpdate.Submit(state)
-			}
-			s.mu.Unlock()
-			return nil
-		case <-s.closeC:
-			return nil
-		}
-	}
-}
-
 func (s *session) waitOnAccess() error {
 	s.out.W.Off()
 	s.in.Off()
-	s.out.BroadcastMessage("Session paused, Waiting for required participants...")
+	err := s.out.BroadcastMessage("Session paused, Waiting for required participants...")
+	if err != nil {
+		log.WithError(err).Errorf("Failed to broadcast message.")
+	}
 
 	ch := make(chan interface{})
 	s.stateUpdate.Register(ch)
@@ -856,83 +824,9 @@ outer:
 	return nil
 }
 
-// : transition to pending on participant leave
-// startInteractive starts a new interactive process (or a shell) in the
-// current session.
-func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
-	var err error
-
-	// create a new "party" (connected client)
-	p := newParty(s, ch, ctx)
-
-	// Nodes discard events in cases when proxies are already recording them.
-	if s.registry.srv.Component() == teleport.ComponentNode &&
-		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
-		s.recorder = &events.DiscardStream{}
-	} else {
-		streamer, err := s.newStreamer(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.recorder, err = events.NewAuditWriter(events.AuditWriterConfig{
-			// Audit stream is using server context, not session context,
-			// to make sure that session is uploaded even after it is closed
-			Context:      ctx.srv.Context(),
-			Streamer:     streamer,
-			Clock:        ctx.srv.GetClock(),
-			SessionID:    s.id,
-			Namespace:    ctx.srv.GetNamespace(),
-			ServerID:     ctx.srv.HostUUID(),
-			RecordOutput: ctx.SessionRecordingConfig.GetMode() != types.RecordOff,
-			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
-			ClusterName:  ctx.ClusterName,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	s.out = NewTermManager("/bin/bash", NewSwitchWriter(utils.NewTrackingWriter(NewMultiWriter())))
-	inReader, inWriter := io.Pipe()
-	s.inWriter = inWriter
-	s.in = NewBreakReader(utils.NewTrackingReader(inReader))
-	s.out.W.W.W.(*MultiWriter).AddWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder), true)
-	err = s.out.BroadcastMessage(fmt.Sprintf("Creating session with ID: %v...", s.id))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	canStart, err := s.checkIfStart()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	go s.monitorAccess()
-
-	if !canStart {
-		if err := s.waitOnAccess(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	// allocate a terminal or take the one previously allocated via a
-	// seaprate "allocate TTY" SSH request
-	if ctx.GetTerm() != nil {
-		s.term = ctx.GetTerm()
-		ctx.SetTerm(nil)
-	} else {
-		if s.term, err = NewTerminal(ctx); err != nil {
-			ctx.Infof("Unable to allocate new terminal: %v", err)
-			return trace.Wrap(err)
-		}
-	}
-
-	if err := s.term.Run(); err != nil {
-		ctx.Errorf("Unable to run shell command: %v.", err)
-		return trace.ConvertSystemError(err)
-	}
-	if err := s.addParty(p, types.SessionPeerMode); err != nil {
-		return trace.Wrap(err)
-	}
+func (s *session) launch(ctx *ServerContext) error {
+	s.out.BroadcastMessage("Launching session...")
+	s.stateUpdate.Submit(types.SessionState_SessionStateRunning)
 
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
 	if s.presenceEnabled {
@@ -1024,10 +918,6 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		s.log.WithError(err).Warn("Failed to emit session start event.")
 	}
 
-	// Start a heartbeat that marks this session as active with current members
-	// of party in the backend.
-	go s.heartbeat(ctx)
-
 	doneCh := make(chan bool, 1)
 	s.done = doneCh
 
@@ -1109,6 +999,79 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			s.log.Debugf("Failed killing the shell: %v", err)
 		}
 	}()
+
+	return nil
+}
+
+// startInteractive starts a new interactive process (or a shell) in the
+// current session.
+func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
+	var err error
+
+	// create a new "party" (connected client)
+	p := newParty(s, ch, ctx)
+
+	// Nodes discard events in cases when proxies are already recording them.
+	if s.registry.srv.Component() == teleport.ComponentNode &&
+		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+		s.recorder = &events.DiscardStream{}
+	} else {
+		streamer, err := s.newStreamer(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.recorder, err = events.NewAuditWriter(events.AuditWriterConfig{
+			// Audit stream is using server context, not session context,
+			// to make sure that session is uploaded even after it is closed
+			Context:      ctx.srv.Context(),
+			Streamer:     streamer,
+			Clock:        ctx.srv.GetClock(),
+			SessionID:    s.id,
+			Namespace:    ctx.srv.GetNamespace(),
+			ServerID:     ctx.srv.HostUUID(),
+			RecordOutput: ctx.SessionRecordingConfig.GetMode() != types.RecordOff,
+			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
+			ClusterName:  ctx.ClusterName,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	s.out = NewTermManager("/bin/bash", NewSwitchWriter(utils.NewTrackingWriter(NewMultiWriter())))
+	inReader, inWriter := io.Pipe()
+	s.inWriter = inWriter
+	s.in = NewBreakReader(utils.NewTrackingReader(inReader))
+	s.out.W.W.W.(*MultiWriter).AddWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder), true)
+	err = s.out.BroadcastMessage(fmt.Sprintf("Creating session with ID: %v...", s.id))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// allocate a terminal or take the one previously allocated via a
+	// seaprate "allocate TTY" SSH request
+	if ctx.GetTerm() != nil {
+		s.term = ctx.GetTerm()
+		ctx.SetTerm(nil)
+	} else {
+		if s.term, err = NewTerminal(ctx); err != nil {
+			ctx.Infof("Unable to allocate new terminal: %v", err)
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := s.addParty(p, types.SessionPeerMode); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.term.Run(); err != nil {
+		ctx.Errorf("Unable to run shell command: %v.", err)
+		return trace.ConvertSystemError(err)
+	}
+
+	// Start a heartbeat that marks this session as active with current members
+	// of party in the backend.
+	go s.heartbeat(ctx)
+
 	return nil
 }
 
@@ -1358,9 +1321,19 @@ func (s *session) removeParty(p *party) error {
 	// Removes participant from in-memory map of party members.
 	s.removePartyMember(p)
 
+	canRun, err := s.checkIfStart()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !canRun {
+		s.state = types.SessionState_SessionStatePending
+		s.stateUpdate.Submit(types.SessionState_SessionStatePending)
+		go s.waitOnAccess()
+	}
+
 	s.out.W.W.W.(*MultiWriter).DeleteWriter(string(p.id))
 	s.out.BroadcastMessage(fmt.Sprintf("User %v left the session.", p.user))
-	s.checkAccess <- struct{}{}
 	return nil
 }
 
@@ -1563,6 +1536,22 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 		}()
 	}
 
+	if s.state == types.SessionState_SessionStatePending {
+		canStart, err := s.checkIfStart()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if canStart {
+			go func() {
+				err := s.launch(s.scx)
+				if err != nil {
+					s.log.Errorf("Failed to launch session %v: %v", s.id, err)
+				}
+			}()
+		}
+	}
+
 	return nil
 }
 
@@ -1577,24 +1566,18 @@ func (s *session) join(ch ssh.Channel, req *ssh.Request, ctx *ServerContext, mod
 		if !auth.SliceContainsMode(modes, mode) {
 			return nil, trace.AccessDenied("insufficient permissions to join sessions")
 		}
-	}
 
-	if s.presenceEnabled {
-		_, err := ch.SendRequest(teleport.MFAPresenceRequest, false, nil)
-		if err != nil {
-			return nil, trace.WrapWithMessage(err, "failed to send MFA presence request")
+		if s.presenceEnabled {
+			_, err := ch.SendRequest(teleport.MFAPresenceRequest, false, nil)
+			if err != nil {
+				return nil, trace.WrapWithMessage(err, "failed to send MFA presence request")
+			}
 		}
 	}
 
 	p := newParty(s, ch, ctx)
 	if err := s.addParty(p, mode); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.state == types.SessionState_SessionStatePending {
-		s.checkAccess <- struct{}{}
 	}
 
 	return p, nil

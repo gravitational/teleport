@@ -339,6 +339,7 @@ func (a *ServerWithRoles) GetSessions(namespace string) ([]session.Session, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return sessions, nil
 	if cond == nil {
 		return sessions, nil
 	}
@@ -914,7 +915,7 @@ func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.List
 	page = make([]types.Server, 0, limit)
 	nextKey, err = a.authServer.IterateNodePages(ctx, req, func(nextPage []types.Server) (bool, error) {
 		// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
-		filteredPage, err := a.filterNodes(nextPage)
+		filteredPage := nextPage
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
