@@ -28,14 +28,14 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// Start starts the etcd serve using the Makefile `run-etcd` task and waits for it to start.
+// Start starts the etcd server using the Makefile `run-etcd` task and waits for it to start.
 func Start(ctx context.Context, workspace string, uid, gid int) error {
 	cmd := exec.CommandContext(ctx, "make", "run-etcd")
 	cmd.Dir = workspace
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	// make etcd run under the supplied nonroot account
+	// make etcd run under the supplied account
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Credential: &syscall.Credential{
 			Uid: uint32(uid),

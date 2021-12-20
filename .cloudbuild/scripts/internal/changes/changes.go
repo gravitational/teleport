@@ -54,9 +54,15 @@ func Analyze(workspaceDir string, targetBranch string, commitSHA string) (Change
 	report := Changes{}
 
 	for _, change := range changes {
-		if isDocChange(change) {
+		path := getChangePath(change)
+		switch {
+		case path == "":
+			continue
+
+		case isDocChange(path):
 			report.Docs = report.Docs || true
-		} else {
+
+		default:
 			report.Code = report.Code || true
 		}
 
@@ -70,10 +76,9 @@ func Analyze(workspaceDir string, targetBranch string, commitSHA string) (Change
 	return report, nil
 }
 
-func isDocChange(change *object.Change) bool {
-	path := getChangePath(change)
-	return path == "" ||
-		strings.HasPrefix(path, "docs/") ||
+func isDocChange(path string) bool {
+	path = strings.ToLower(path)
+	return strings.HasPrefix(path, "docs/") ||
 		strings.HasSuffix(path, ".mdx") ||
 		strings.HasSuffix(path, ".md")
 }
