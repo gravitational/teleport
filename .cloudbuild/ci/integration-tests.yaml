@@ -15,4 +15,6 @@ steps:
     id: check-tests
     dir: /workspace/.cloudbuild/scripts
     entrypoint: bash 
-    args: [go, run, ./integration-tests, -w=/workspace, -t=$_BASE_BRANCH, -c=HEAD]
+    args: 
+      - -c
+      - go run ./integration-tests -w=/workspace -t=$_BASE_BRANCH -c=HEAD
