@@ -17,5 +17,5 @@ steps:
     entrypoint: bash
     args: 
       - -c
-      - go run ./integration-tests -w=/workspace -t=$_BASE_BRANCH -c=HEAD
+      - go run ./cmd/integration-tests -w=/workspace -t=$_BASE_BRANCH -c=HEAD
     timeout: 15m

@@ -20,19 +20,23 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
+	"syscall"
 
-	"github.com/gravitational/teleport/.cloudbuild/scripts/pkg/changes"
-	"github.com/gravitational/teleport/.cloudbuild/scripts/pkg/etcd"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
 	"github.com/gravitational/trace"
 )
 
 const (
 	gomodcacheDir = ".gomodcache-ci"
+	nonrootUID    = 1000
+	nonrootGID    = 1000
 )
 
 // main is just a stub that prints out an error message and sets a nonzero exit
@@ -47,6 +51,7 @@ type commandlineArgs struct {
 	workspace    string
 	targetBranch string
 	commitSHA    string
+	skipChown    bool
 }
 
 func parseCommandLine() (commandlineArgs, error) {
@@ -55,6 +60,7 @@ func parseCommandLine() (commandlineArgs, error) {
 	flag.StringVar(&args.workspace, "w", "", "Fully-qualified path to the build workspace")
 	flag.StringVar(&args.targetBranch, "t", "", "The PR's target branch")
 	flag.StringVar(&args.commitSHA, "c", "", "The PR's latest commit SHA")
+	flag.BoolVar(&args.skipChown, "skip-chown", false, "Skip reconfiguring the workspace for a nonroot user.")
 
 	flag.Parse()
 
@@ -99,18 +105,35 @@ func innerMain() error {
 		return nil
 	}
 
+	log.Printf("Running root-only integration tests...")
+	err = runRootIntegrationTests(args.workspace)
+	if err != nil {
+		return trace.Wrap(err, "Root-only integration tests failed")
+	}
+
+	if !args.skipChown {
+		// We run some build steps as root and others as a non user, and we
+		// want the nonroot user to be able to manipulate the artifacts
+		// created by root, so we `chown -R` the whole workspace to allow it.
+		log.Printf("Reconfiguring workspace for nonroot user")
+		err = chownR(args.workspace, nonrootUID, nonrootGID)
+		if err != nil {
+			return trace.Wrap(err, "failed reconfiguring workspace")
+		}
+	}
+
 	log.Printf("Starting etcd...")
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	err = etcd.Start(cancelCtx, args.workspace, 0, 0)
+	err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID)
 	if err != nil {
 		return trace.Wrap(err, "failed starting etcd")
 	}
 
-	log.Printf("Running unit tests...")
-	err = runUnitTests(args.workspace)
+	log.Printf("Running nonroot integration tests...")
+	err = runNonrootIntegrationTests(args.workspace, nonrootUID, nonrootGID)
 	if err != nil {
-		return trace.Wrap(err, "unit tests failed")
+		return trace.Wrap(err, "Nonroot integration tests failed")
 	}
 
 	log.Printf("PASS")
@@ -118,14 +141,50 @@ func innerMain() error {
 	return nil
 }
 
-func runUnitTests(workspace string) error {
+func runRootIntegrationTests(workspace string) error {
+	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(workspace, gomodcacheDir))
+	log.Printf("Using %s", gomodcache)
+
+	// Run root integration tests
+	cmd := exec.Command("make", "rdpclient", "integration-root")
+	cmd.Dir = workspace
+	cmd.Env = append(os.Environ(), gomodcache)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
+}
+
+func runNonrootIntegrationTests(workspace string, uid, gid int) error {
 	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(workspace, gomodcacheDir))
 
-	cmd := exec.Command("make", "test")
+	cmd := exec.Command("make", "integration")
 	cmd.Dir = workspace
 	cmd.Env = append(os.Environ(), gomodcache, "TELEPORT_ETCD_TEST=yes")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
+	// make the command run under the supplied nonroot account
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Credential: &syscall.Credential{
+			Uid: uint32(uid),
+			Gid: uint32(gid),
+		},
+	}
+
 	return cmd.Run()
+}
+
+// chownR changes the owner of each file in the workspace to the supplied
+// uid:guid combo.
+func chownR(workspace string, uid, gid int) error {
+	err := filepath.WalkDir(workspace, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		return os.Chown(path, uid, gid)
+	})
+
+	return trace.Wrap(err, "Failed changing file owner")
 }
