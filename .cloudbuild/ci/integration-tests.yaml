@@ -1,4 +1,4 @@
-timeout: 20m
+timeout: 25m
 options:
   machineType: E2_HIGHCPU_32
 
@@ -18,4 +18,4 @@ steps:
     args: 
       - -c
       - go run ./cmd/integration-tests -w=/workspace -t=$_BASE_BRANCH -c=HEAD
-    timeout: 15m
+    timeout: 20m
