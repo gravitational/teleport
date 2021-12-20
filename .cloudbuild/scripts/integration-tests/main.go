@@ -123,7 +123,7 @@ func innerMain() error {
 	log.Printf("Starting etcd...")
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	err = startEtcd(cancelCtx, args.workspace)
+	err = startEtcd(cancelCtx, args.workspace, nonrootUID, nonrootGID)
 	if err != nil {
 		return trace.Wrap(err, "failed etcd")
 	}
@@ -133,6 +133,8 @@ func innerMain() error {
 	if err != nil {
 		return trace.Wrap(err, "Nonroot integration tests failed")
 	}
+
+	log.Printf("PASS")
 
 	return nil
 }
@@ -171,11 +173,19 @@ func runNonrootIntegrationTests(workspace string, uid, gid int) error {
 	return cmd.Run()
 }
 
-func startEtcd(ctx context.Context, workspace string) error {
+func startEtcd(ctx context.Context, workspace string, uid, gid int) error {
 	cmd := exec.CommandContext(ctx, "make", "run-etcd")
 	cmd.Dir = workspace
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	// make etcd run under the supplied nonroot account
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Credential: &syscall.Credential{
+			Uid: uint32(uid),
+			Gid: uint32(gid),
+		},
+	}
 
 	log.Printf("Launching etcd")
 	go cmd.Run()
