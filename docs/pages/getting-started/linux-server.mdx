@@ -37,6 +37,8 @@ Run the following commands to install the Teleport binary on your system:
   <TabItem label="Debian/Ubuntu (DEB)">
     ```code
     $ curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
+    # software-properties-common includes add-apt-repository
+    $ apt-get install --no-install-recommends software-properties-common
     $ sudo add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
     $ sudo apt-get update
     $ sudo apt-get install teleport
