@@ -9,10 +9,10 @@ steps:
     id: fetch-history
     args: ['fetch', '--unshallow']
 
-  # Check if the PR only has docs changes. If so we will set a marker file 
-  # meaning that we can skip the other tests in this target
+  # Run the integration tests. Actual content of this job depends on the changes 
+  # detected in the PR
   - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
     id: check-tests
     dir: /workspace/.cloudbuild/scripts
     entrypoint: bash 
-    args: [go run, ./integration-tests, -w=/workspace, -t=$_BASE_BRANCH, -c=HEAD]
+    args: [go, run, ./integration-tests, -w=/workspace, -t=$_BASE_BRANCH, -c=HEAD]
