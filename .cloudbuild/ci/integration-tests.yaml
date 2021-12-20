@@ -12,9 +12,10 @@ steps:
   # Run the integration tests. Actual content of this job depends on the changes 
   # detected in the PR
   - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
-    id: check-tests
+    id: run-tests
     dir: /workspace/.cloudbuild/scripts
-    entrypoint: bash 
+    entrypoint: bash
     args: 
       - -c
       - go run ./integration-tests -w=/workspace -t=$_BASE_BRANCH -c=HEAD
+    timeout: 15m
