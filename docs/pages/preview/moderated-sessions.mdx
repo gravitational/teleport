@@ -92,13 +92,6 @@ tsh kube exec -st nginx /bin/bash
 tsh kube join $SESSION_ID
 ```
 
-## Participant Modes
-
-A participant joining a session will always have one of three modes:
-- Peers can join and collaborate in a session. They can view output and send input.
-- Moderators can join and watch a session, they can view output and forcefully terminate the session at will.
-- Observers can join and watch a session. They cannot control the session in any way.
-
 ## RBAC
 
 Moderated Sessions makes use of RBAC policies to allow for fine grained control over
@@ -108,6 +101,32 @@ The system is based around *require policies* and *allow policies*. Require poli
 that must be a met for a session to start/run. The allow policies that matter for a given session
 are always those of user that initiated the session. Allow policies are used to define
 what users a session may join and under what conditions.
+
+### Participant Modes
+
+A participant joining a session will always have one of three modes:
+- Peers can join and collaborate in a session. They can view output and send input.
+- Moderators can join and watch a session, they can view output and forcefully terminate the session at will.
+- Observers can join and watch a session. They cannot control the session in any way.
+
+When joining a session with `tsh join` or `tsh kube join`, a mode can be specified with `--mode <mode>`
+where mode is one of `peer`, `moderator` or `observer`. By default, the mode is `peer` for SSH and
+`moderator` for Kubernetes sessions.
+
+A participant may leave a session with the shortcut `c` while in observer or moderator mode.
+When in moderator mode, a participant may also forcefully terminate the session at any point in time
+with the shortcut `t`.
+
+### Session kinds
+
+Require and allow policies have to specify which sessions they apply to. Currently, only `ssh` and `k8s`
+are valid alternatives.
+
+### Filters
+
+Require policies can specify which users they consider as valid with a filter expression. They work like
+other filters used within Teleport such with access requests. The filter context has a `user` object defined
+which the set fields `roles`, `traits` and `name`.
 
 ### Backwards compatibility with Server Access
 
