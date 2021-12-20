@@ -93,6 +93,8 @@ func innerMain() error {
 		return trace.Wrap(err)
 	}
 
+	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(args.workspace, gomodcacheDir))
+
 	log.Println("Analysing code changes")
 	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
 	if err != nil {
@@ -106,7 +108,7 @@ func innerMain() error {
 	}
 
 	log.Printf("Running root-only integration tests...")
-	err = runRootIntegrationTests(args.workspace)
+	err = runRootIntegrationTests(args.workspace, gomodcache)
 	if err != nil {
 		return trace.Wrap(err, "Root-only integration tests failed")
 	}
@@ -125,13 +127,13 @@ func innerMain() error {
 	log.Printf("Starting etcd...")
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID)
+	err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID, gomodcache)
 	if err != nil {
 		return trace.Wrap(err, "failed starting etcd")
 	}
 
 	log.Printf("Running nonroot integration tests...")
-	err = runNonrootIntegrationTests(args.workspace, nonrootUID, nonrootGID)
+	err = runNonrootIntegrationTests(args.workspace, nonrootUID, nonrootGID, gomodcache)
 	if err != nil {
 		return trace.Wrap(err, "Nonroot integration tests failed")
 	}
@@ -141,26 +143,23 @@ func innerMain() error {
 	return nil
 }
 
-func runRootIntegrationTests(workspace string) error {
-	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(workspace, gomodcacheDir))
-	log.Printf("Using %s", gomodcache)
-
+func runRootIntegrationTests(workspace string, env ...string) error {
 	// Run root integration tests
 	cmd := exec.Command("make", "rdpclient", "integration-root")
 	cmd.Dir = workspace
-	cmd.Env = append(os.Environ(), gomodcache)
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
 }
 
-func runNonrootIntegrationTests(workspace string, uid, gid int) error {
-	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(workspace, gomodcacheDir))
-
+func runNonrootIntegrationTests(workspace string, uid, gid int, env ...string) error {
 	cmd := exec.Command("make", "integration")
 	cmd.Dir = workspace
-	cmd.Env = append(os.Environ(), gomodcache, "TELEPORT_ETCD_TEST=yes")
+	cmd.Env = append(append(os.Environ(), "TELEPORT_ETCD_TEST=yes"), env...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
