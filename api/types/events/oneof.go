@@ -17,10 +17,8 @@ limitations under the License.
 package events
 
 import (
-	// "fmt"
 	"reflect"
 
-	// "github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
