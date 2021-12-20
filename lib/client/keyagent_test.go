@@ -19,7 +19,9 @@ package client
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"net"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -498,7 +500,15 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 }
 
 func startDebugAgent(t *testing.T) error {
-	socketpath := filepath.Join(t.TempDir(), "teleport-test")
+	// Create own tmp dir instead of using t.TmpDir
+	// because net.Listen("unix", path) has dir path length limitation
+	tempDir, err := ioutil.TempDir("", "teleport-test")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		os.RemoveAll(tempDir)
+	})
+
+	socketpath := filepath.Join(tempDir, "agent.sock")
 	listener, err := net.Listen("unix", socketpath)
 	if err != nil {
 		return trace.Wrap(err)
