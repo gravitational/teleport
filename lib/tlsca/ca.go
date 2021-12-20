@@ -29,8 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/types"
-	"github.com/gravitational/teleport/api/v7/types/wrappers"
+	"github.com/gravitational/teleport/api/types/wrappers"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -41,12 +40,16 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentAuthority,
 })
 
-// FromAuthority returns the CertificateAutority's TLS certificate authority from TLS key pairs.
-func FromAuthority(ca types.CertAuthority) (*CertAuthority, error) {
-	if len(ca.GetActiveKeys().TLS) == 0 {
-		return nil, trace.BadParameter("no TLS key pairs found for certificate authority")
+// FromCertAndSigner returns a CertAuthority with the given raw certificate and signer.
+func FromCertAndSigner(certPEM []byte, signer crypto.Signer) (*CertAuthority, error) {
+	cert, err := ParseCertificatePEM(certPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return FromKeys(ca.GetActiveKeys().TLS[0].Cert, ca.GetActiveKeys().TLS[0].Key)
+	return &CertAuthority{
+		Cert:   cert,
+		Signer: signer,
+	}, nil
 }
 
 // FromKeys returns new CA from PEM encoded certificate and private
@@ -597,6 +600,13 @@ type CertificateRequest struct {
 	NotAfter time.Time
 	// DNSNames is a list of DNS names to add to certificate
 	DNSNames []string
+	// Optional. ExtraExtensions to populate.
+	// Note: ExtraExtensions can override ExtKeyUsage and SANs (like DNSNames).
+	ExtraExtensions []pkix.Extension
+	// Optional. KeyUsage for the certificate.
+	KeyUsage x509.KeyUsage
+	// Optional. CRL endpoints.
+	CRLDistributionPoints []string
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -612,6 +622,9 @@ func (c *CertificateRequest) CheckAndSetDefaults() error {
 	}
 	if c.NotAfter.IsZero() {
 		return trace.BadParameter("missing parameter NotAfter")
+	}
+	if c.KeyUsage == 0 {
+		c.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 	}
 	return nil
 }
@@ -643,11 +656,13 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		// time skewed clusters.
 		NotBefore:   req.Clock.Now().UTC().Add(-1 * time.Minute),
 		NotAfter:    req.NotAfter,
-		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		KeyUsage:    req.KeyUsage,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 		// BasicConstraintsValid is true to not allow any intermediate certs.
 		BasicConstraintsValid: true,
 		IsCA:                  false,
+		ExtraExtensions:       req.ExtraExtensions,
+		CRLDistributionPoints: req.CRLDistributionPoints,
 	}
 
 	// sort out principals into DNS names and IP addresses

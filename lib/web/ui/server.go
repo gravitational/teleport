@@ -18,8 +18,12 @@ package ui
 
 import (
 	"sort"
+	"strconv"
+	"strings"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Label describes label for webapp
@@ -156,24 +160,24 @@ type Database struct {
 	Protocol string `json:"protocol"`
 	// Type is the database type, self-hosted or cloud-hosted.
 	Type string `json:"type"`
-	// Labels is a map of static and dynamic labels associated with an database.
+	// Labels is a map of static and dynamic labels associated with a database.
 	Labels []Label `json:"labels"`
 }
 
-// MakeDatabases creates server database objects.
-func MakeDatabases(clusterName string, servers []types.DatabaseServer) []Database {
-	uiServers := make([]Database, 0, len(servers))
-	for _, server := range servers {
+// MakeDatabases creates database objects.
+func MakeDatabases(clusterName string, databases []types.Database) []Database {
+	uiServers := make([]Database, 0, len(databases))
+	for _, database := range databases {
 		uiLabels := []Label{}
 
-		for name, value := range server.GetStaticLabels() {
+		for name, value := range database.GetStaticLabels() {
 			uiLabels = append(uiLabels, Label{
 				Name:  name,
 				Value: value,
 			})
 		}
 
-		for name, cmd := range server.GetDynamicLabels() {
+		for name, cmd := range database.GetDynamicLabels() {
 			uiLabels = append(uiLabels, Label{
 				Name:  name,
 				Value: cmd.GetResult(),
@@ -183,13 +187,65 @@ func MakeDatabases(clusterName string, servers []types.DatabaseServer) []Databas
 		sort.Sort(sortedLabels(uiLabels))
 
 		uiServers = append(uiServers, Database{
-			Name:     server.GetName(),
-			Desc:     server.GetDescription(),
-			Protocol: server.GetProtocol(),
-			Type:     server.GetType(),
+			Name:     database.GetName(),
+			Desc:     database.GetDescription(),
+			Protocol: database.GetProtocol(),
+			Type:     database.GetType(),
 			Labels:   uiLabels,
 		})
 	}
 
 	return uiServers
+}
+
+// Desktop describes a desktop to pass to the ui.
+type Desktop struct {
+	// OS is the os of this desktop. Should be one of constants.WindowsOS, constants.LinuxOS, or constants.DarwinOS.
+	OS string `json:"os"`
+	// Name is name (uuid) of the windows desktop.
+	Name string `json:"name"`
+	// Addr is the network address the desktop can be reached at.
+	Addr string `json:"addr"`
+	// Labels is a map of static and dynamic labels associated with a desktop.
+	Labels []Label `json:"labels"`
+}
+
+// MakeDesktop converts a desktop from its API form to a type the UI can display.
+func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
+	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
+	stripRdpPort := func(addr string) string {
+		splitAddr := strings.Split(addr, ":")
+		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(teleport.StandardRDPPort) {
+			return splitAddr[0]
+		}
+		return addr
+	}
+	uiLabels := []Label{}
+
+	for name, value := range windowsDesktop.GetAllLabels() {
+		uiLabels = append(uiLabels, Label{
+			Name:  name,
+			Value: value,
+		})
+	}
+
+	sort.Sort(sortedLabels(uiLabels))
+
+	return Desktop{
+		OS:     constants.WindowsOS,
+		Name:   windowsDesktop.GetName(),
+		Addr:   stripRdpPort(windowsDesktop.GetAddr()),
+		Labels: uiLabels,
+	}
+}
+
+// MakeDesktops converts desktops from their API form to a type the UI can display.
+func MakeDesktops(windowsDesktops []types.WindowsDesktop) []Desktop {
+	uiDesktops := make([]Desktop, 0, len(windowsDesktops))
+
+	for _, windowsDesktop := range windowsDesktops {
+		uiDesktops = append(uiDesktops, MakeDesktop(windowsDesktop))
+	}
+
+	return uiDesktops
 }

@@ -20,7 +20,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -75,17 +75,24 @@ func (s *ProvisioningService) GetToken(ctx context.Context, token string) (types
 		return nil, trace.BadParameter("missing parameter token")
 	}
 	item, err := s.Get(ctx, backend.Key(tokensPrefix, token))
-	if err != nil {
+	if trace.IsNotFound(err) {
+		return nil, trace.NotFound("provisioning token(%s) not found", backend.MaskKeyName(token))
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return services.UnmarshalProvisionToken(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
+// DeleteToken deletes a token by ID
 func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) error {
 	if token == "" {
 		return trace.BadParameter("missing parameter token")
 	}
 	err := s.Delete(ctx, backend.Key(tokensPrefix, token))
+	if trace.IsNotFound(err) {
+		return trace.NotFound("provisioning token(%s) not found", backend.MaskKeyName(token))
+	}
 	return trace.Wrap(err)
 }
 

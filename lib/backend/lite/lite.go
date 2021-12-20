@@ -28,8 +28,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/types"
-	"github.com/gravitational/teleport/api/v7/utils"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 
 	"github.com/gravitational/trace"
@@ -99,7 +99,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("specify directory path to the database using 'path' parameter")
 	}
 	if cfg.BufferSize == 0 {
-		cfg.BufferSize = backend.DefaultBufferSize
+		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.PollStreamPeriod == 0 {
 		cfg.PollStreamPeriod = backend.DefaultPollStreamPeriod
@@ -153,10 +153,9 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	}
 	// serialize access to sqlite to avoid database is locked errors
 	db.SetMaxOpenConns(1)
-	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	buf := backend.NewCircularBuffer(
+		backend.BufferCapacity(cfg.BufferSize),
+	)
 	closeCtx, cancel := context.WithCancel(ctx)
 	watchStarted, signalWatchStart := context.WithCancel(ctx)
 	l := &Backend{
@@ -611,7 +610,7 @@ func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
 	if limit <= 0 {
-		limit = backend.DefaultLargeLimit
+		limit = backend.DefaultRangeLimit
 	}
 
 	// When in mirror mode, don't set the current time so the SELECT query
@@ -647,6 +646,9 @@ func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if len(result.Items) == backend.DefaultRangeLimit {
+		l.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
 	}
 	return &result, nil
 }

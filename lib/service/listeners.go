@@ -17,9 +17,10 @@ limitations under the License.
 package service
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // listenerType identifies different registered listeners in
@@ -39,7 +40,10 @@ var (
 	listenerProxyWeb          = listenerType(teleport.Component(teleport.ComponentProxy, "web"))
 	listenerProxyTunnel       = listenerType(teleport.Component(teleport.ComponentProxy, "tunnel"))
 	listenerProxyMySQL        = listenerType(teleport.Component(teleport.ComponentProxy, "mysql"))
+	listenerProxyPostgres     = listenerType(teleport.Component(teleport.ComponentProxy, "postgres"))
+	listenerProxyMongo        = listenerType(teleport.Component(teleport.ComponentProxy, "mongo"))
 	listenerMetrics           = listenerType(teleport.ComponentMetrics)
+	listenerWindowsDesktop    = listenerType(teleport.ComponentWindowsDesktop)
 )
 
 // AuthSSHAddr returns auth server SSH endpoint, if configured and started.

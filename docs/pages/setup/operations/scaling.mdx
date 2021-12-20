@@ -1,0 +1,66 @@
+---
+title: Scaling
+description: How to configure Teleport for large-scale deployments
+---
+
+This section covers recommended configurations for large-scale
+deployments of Teleport.
+
+## Prerequisites
+
+- Teleport v(=teleport.version=) Open Source or Enterprise.
+
+## Hardware recommendations
+
+Set up Teleport with a [High Availability configuration](../reference/backends.mdx).
+
+| Scenario | Max Recommended Count | Proxy | Auth server | AWS Instance Types |
+| - | - | - | - | - |
+| Teleport nodes connected to auth server. | 10,000 | 2x  4 vCPUs, 8GB RAM | 2x 8 vCPUs, 16GB RAM | m4.2xlarge |
+| Teleport nodes connected to proxy server through reverse tunnels. | 2,000\* | 2x 4 vCPUs, 8GB RAM | 2x 8 vCPUs, 16+GB RAM | m4.2xlarge |
+
+## Proxy Configuration
+
+Upgrade Teleport's connection limits from default connection limit from `15000` to `65000`
+and use in-memory cache instead of default SQLite persistent cache.
+
+```yaml
+teleport:
+  cache:
+    # Use an in-memory cache to speed up the connection of many teleport nodes
+    # back to proxy.
+    type: in-memory
+  # Set up connection limits to prevent throttling of many nodes connecting to proxies
+  connection_limits:
+    max_connections: 65000
+    max_users: 1000
+```
+
+## Auth Configuration
+
+Upgrade Teleport's connection limits from default connection limit from `15000` to `65000`.
+
+```yaml
+# Teleport Auth
+teleport:
+  connection_limits:
+    max_connections: 65000
+    max_users: 1000
+```
+
+## Kernel parameters
+
+Tweak Teleport's systemd unit parameters to allow higher amount of open files:
+
+```txt
+[Service]
+LimitNOFILE=65536
+```
+
+Verify that Teleport's process has high enough file limits:
+
+```code
+$ cat /proc/$(pidof teleport)/limits
+# Limit                     Soft Limit           Hard Limit           Units
+# Max open files            65536                65536                files
+```

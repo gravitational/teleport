@@ -18,9 +18,12 @@ package local
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
+	"strings"
+	"time"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -53,7 +56,11 @@ func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
 		role, err := services.UnmarshalRole(item.Value,
 			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			// Try to get the role name for the error, it allows admins to take action
+			// against the "bad" role.
+			h := &types.ResourceHeader{}
+			_ = json.Unmarshal(item.Value, h)
+			return nil, trace.WrapWithMessage(err, "role %q", h.GetName())
 		}
 		out = append(out, role)
 	}
@@ -63,6 +70,11 @@ func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // CreateRole creates a role on the backend.
 func (s *AccessService) CreateRole(role types.Role) error {
+	err := services.ValidateRoleName(role)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	value, err := services.MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
@@ -83,6 +95,11 @@ func (s *AccessService) CreateRole(role types.Role) error {
 
 // UpsertRole updates parameters about role
 func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) error {
+	err := services.ValidateRoleName(role)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	value, err := services.MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
@@ -217,6 +234,62 @@ func (s *AccessService) DeleteLock(ctx context.Context, name string) error {
 func (s *AccessService) DeleteAllLocks(ctx context.Context) error {
 	startKey := backend.Key(locksPrefix)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+}
+
+// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName string, newRemoteLocks []types.Lock) error {
+	return backend.RunWhileLocked(ctx, s.Backend, "ReplaceRemoteLocks/"+clusterName, time.Minute, func(ctx context.Context) error {
+		remoteLocksKey := backend.Key(locksPrefix, clusterName)
+		origRemoteLocks, err := s.GetRange(ctx, remoteLocksKey, backend.RangeEnd(remoteLocksKey), backend.NoLimit)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		newRemoteLocksToStore := make(map[string]backend.Item, len(newRemoteLocks))
+		for _, lock := range newRemoteLocks {
+			if !strings.HasPrefix(lock.GetName(), clusterName) {
+				lock.SetName(clusterName + "/" + lock.GetName())
+			}
+			value, err := services.MarshalLock(lock)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			item := backend.Item{
+				Key:     backend.Key(locksPrefix, lock.GetName()),
+				Value:   value,
+				Expires: lock.Expiry(),
+				ID:      lock.GetResourceID(),
+			}
+			newRemoteLocksToStore[string(item.Key)] = item
+		}
+
+		for _, origLockItem := range origRemoteLocks.Items {
+			// If one of the new remote locks to store is already known,
+			// perform a CompareAndSwap.
+			key := string(origLockItem.Key)
+			if newLockItem, ok := newRemoteLocksToStore[key]; ok {
+				if _, err := s.CompareAndSwap(ctx, origLockItem, newLockItem); err != nil {
+					return trace.Wrap(err)
+				}
+				delete(newRemoteLocksToStore, key)
+				continue
+			}
+
+			// If an originally stored lock is not among the new locks,
+			// delete it from the backend.
+			if err := s.Delete(ctx, origLockItem.Key); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		// Store the remaining new locks.
+		for _, newLockItem := range newRemoteLocksToStore {
+			if _, err := s.Put(ctx, newLockItem); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	})
 }
 
 const (

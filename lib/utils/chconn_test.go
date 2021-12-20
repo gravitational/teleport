@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/utils/sshutils"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -87,7 +87,7 @@ func startSSHServer(t *testing.T, listener net.Listener, sshConnCh chan<- sshCon
 	require.NoError(t, err)
 	t.Cleanup(func() { nConn.Close() })
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
 
 	_, private, err := MarshalPrivateKey(privateKey)

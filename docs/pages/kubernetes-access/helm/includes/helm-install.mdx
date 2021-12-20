@@ -13,11 +13,11 @@ Teleport's charts require the use of Helm version 3. You can [install Helm 3 by 
 
 Throughout this guide, we will assume that you have the `helm` and `kubectl` binaries available in your `PATH`:
 
-```bash
-helm version
+```code
+$ helm version
 # version.BuildInfo{Version:"v(=helm.version=)"}
 
-kubectl version
+$ kubectl version
 # Client Version: version.Info{Major:"(=kubernetes.major_version=)", Minor:"(=kubernetes.minor_version=)+"}
 # Server Version: version.Info{Major:"(=kubernetes.major_version=)", Minor:"(=kubernetes.minor_version=)+"}
 ```
@@ -26,12 +26,12 @@ kubectl version
 
 To allow Helm to install charts that are hosted in the Teleport Helm repository, use `helm repo add`:
 
-```bash
-helm repo add teleport (=teleport.helm_repo_url=)
+```code
+$ helm repo add teleport (=teleport.helm_repo_url=)
 ```
 
 To update the cache of charts from the remote repository, run `helm repo update`:
 
-```bash
-helm repo update
+```code
+$ helm repo update
 ```

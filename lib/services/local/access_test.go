@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -25,7 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/lite"
 )
 
@@ -146,6 +147,43 @@ func TestLockCRUD(t *testing.T) {
 
 		// Expect no locks to be returned.
 		locks, err := access.GetLocks(ctx, false)
+		require.NoError(t, err)
+		require.Empty(t, locks)
+	})
+
+	t.Run("ReplaceRemoteLocks", func(t *testing.T) {
+		clusterName := "root-cluster"
+
+		newRemoteLocks := []types.Lock{lock1, lock2}
+		err = access.ReplaceRemoteLocks(ctx, clusterName, newRemoteLocks)
+		require.NoError(t, err)
+		locks, err := access.GetLocks(ctx, false)
+		require.NoError(t, err)
+		require.Len(t, locks, 2)
+		require.Empty(t, cmp.Diff(newRemoteLocks, locks,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+		for _, lock := range locks {
+			require.True(t, strings.HasPrefix(lock.GetName(), clusterName+"/"))
+		}
+
+		// DeleteLock should work with remote locks.
+		require.NoError(t, access.DeleteLock(ctx, lock1.GetName()))
+
+		newRemoteLocks = []types.Lock{lock1}
+		err = access.ReplaceRemoteLocks(ctx, clusterName, newRemoteLocks)
+		require.NoError(t, err)
+		locks, err = access.GetLocks(ctx, false)
+		require.NoError(t, err)
+		require.Len(t, locks, 1)
+		require.Empty(t, cmp.Diff(newRemoteLocks, locks,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+		_, err = access.GetLock(ctx, lock2.GetName())
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+
+		err = access.ReplaceRemoteLocks(ctx, clusterName, nil)
+		require.NoError(t, err)
+		locks, err = access.GetLocks(ctx, false)
 		require.NoError(t, err)
 		require.Empty(t, locks)
 	})

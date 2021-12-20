@@ -28,10 +28,12 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ClusterName returns cluster name from organization
@@ -88,12 +90,14 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 	config.Entity.SerialNumber = serialNumber.String()
 
 	template := x509.Certificate{
-		SerialNumber:          serialNumber,
-		Issuer:                config.Entity,
-		Subject:               config.Entity,
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		SerialNumber: serialNumber,
+		Issuer:       config.Entity,
+		Subject:      config.Entity,
+		NotBefore:    notBefore,
+		NotAfter:     notAfter,
+		// Note: KeyUsageCRLSign is set only to generate empty CRLs for Desktop
+		// Access authentication with Windows.
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
 		DNSNames:              config.DNSNames,
@@ -110,7 +114,7 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 
 // GenerateSelfSignedCA generates self-signed certificate authority used for internal inter-node communications
 func GenerateSelfSignedCA(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -166,6 +170,28 @@ func ParseCertificatePEM(bytes []byte) (*x509.Certificate, error) {
 		return nil, trace.BadParameter(err.Error())
 	}
 	return cert, nil
+}
+
+// ParseCertificatePEM parses multiple PEM-encoded certificates
+func ParseCertificatePEMs(bytes []byte) ([]*x509.Certificate, error) {
+	if len(bytes) == 0 {
+		return nil, trace.BadParameter("missing PEM encoded block")
+	}
+	var blocks []*pem.Block
+	block, remaining := pem.Decode(bytes)
+	for block != nil {
+		blocks = append(blocks, block)
+		block, remaining = pem.Decode(remaining)
+	}
+	var certs []*x509.Certificate
+	for _, block := range blocks {
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+		certs = append(certs, cert)
+	}
+	return certs, nil
 }
 
 // ParsePrivateKeyPEM parses PEM-encoded private key
@@ -252,4 +278,18 @@ func MarshalCertificatePEM(cert *x509.Certificate) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// CalculatePins returns the SPKI pins for the given set of concatenated
+// PEM-encoded certificates
+func CalculatePins(certsBytes []byte) ([]string, error) {
+	certs, err := ParseCertificatePEMs(certsBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pins := make([]string, 0, len(certs))
+	for _, cert := range certs {
+		pins = append(pins, utils.CalculateSPKI(cert))
+	}
+	return pins, nil
 }

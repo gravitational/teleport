@@ -27,10 +27,10 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
-	apisshutils "github.com/gravitational/teleport/api/v7/utils/sshutils"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
@@ -134,7 +134,7 @@ type Server struct {
 	macAlgorithms []string
 
 	authClient      auth.ClientI
-	authService     auth.AccessPoint
+	authService     srv.AccessPoint
 	sessionRegistry *srv.SessionRegistry
 	sessionServer   session.Service
 	dataDir         string
@@ -372,8 +372,8 @@ func (s *Server) PermitUserEnvironment() bool {
 	return false
 }
 
-// GetAccessPoint returns an auth.AccessPoint for this cluster.
-func (s *Server) GetAccessPoint() auth.AccessPoint {
+// GetAccessPoint returns a srv.AccessPoint for this cluster.
+func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
 }
 

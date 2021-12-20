@@ -19,7 +19,7 @@ package services
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // ClusterConfiguration stores the cluster configuration in the backend. All
@@ -56,14 +56,6 @@ type ClusterConfiguration interface {
 	SetSessionRecordingConfig(context.Context, types.SessionRecordingConfig) error
 	// DeleteSessionRecordingConfig deletes SessionRecordingConfig from the backend.
 	DeleteSessionRecordingConfig(ctx context.Context) error
-
-	// DELETE IN 8.0.0: ClusterConfig and all related methods.
-	// GetClusterConfig gets services.ClusterConfig from the backend.
-	GetClusterConfig(opts ...MarshalOption) (types.ClusterConfig, error)
-	// SetClusterConfig sets services.ClusterConfig on the backend.
-	SetClusterConfig(types.ClusterConfig) error
-	// DeleteClusterConfig deletes cluster config resource
-	DeleteClusterConfig() error
 
 	// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
 	GetClusterAuditConfig(context.Context, ...MarshalOption) (types.ClusterAuditConfig, error)

@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -33,13 +34,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/types"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/service"
@@ -186,6 +192,45 @@ func TestAppAccessClientCert(t *testing.T) {
 			require.Equal(t, tt.outStatusCode, status)
 			require.Contains(t, body, tt.outMessage)
 		})
+	}
+}
+
+// TestAppAccessFlush makes sure that application access periodically flushes
+// buffered data to the response.
+func TestAppAccessFlush(t *testing.T) {
+	pack := setup(t)
+
+	req, err := http.NewRequest("GET", pack.assembleRootProxyURL("/"), nil)
+	require.NoError(t, err)
+
+	cookie := pack.createAppSession(t, pack.flushAppPublicAddr, pack.flushAppClusterName)
+	req.AddCookie(&http.Cookie{
+		Name:  app.CookieName,
+		Value: cookie,
+	})
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// The "flush server" will send 2 messages, "hello" and "world", with a
+	// 500ms delay between them. They should arrive as 2 different frames
+	// due to the periodic flushing.
+	frames := []string{"hello", "world"}
+	for _, frame := range frames {
+		buffer := make([]byte, 1024)
+		n, err := resp.Body.Read(buffer)
+		if err != nil {
+			require.ErrorIs(t, err, io.EOF)
+		}
+		require.Equal(t, frame, strings.TrimSpace(string(buffer[:n])))
 	}
 }
 
@@ -532,6 +577,63 @@ func TestAppAccessRewriteHeadersLeaf(t *testing.T) {
 	require.NotContains(t, resp, "rewritten-x-forwarded-server-header")
 }
 
+func TestAppAuditEvents(t *testing.T) {
+	// Create cluster, user, sessions, and credentials package.
+	pack := setup(t)
+	inCookie := pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName)
+
+	status, body, err := pack.makeRequest(inCookie, http.MethodGet, "/")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+	require.Contains(t, body, pack.rootMessage)
+
+	// session start event
+	pack.ensureAuditEvent(t, events.AppSessionStartEvent, func(event apievents.AuditEvent) {
+		expectedEvent := &apievents.AppSessionStart{
+			Metadata: apievents.Metadata{
+				Type:        events.AppSessionStartEvent,
+				Code:        events.AppSessionStartCode,
+				ClusterName: pack.rootAppClusterName,
+			},
+			AppMetadata: apievents.AppMetadata{
+				AppURI:        pack.rootAppURI,
+				AppPublicAddr: pack.rootAppPublicAddr,
+				AppName:       pack.rootAppName,
+			},
+			PublicAddr: pack.rootAppPublicAddr,
+		}
+		require.Empty(t, cmp.Diff(
+			expectedEvent,
+			event,
+			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time"),
+		))
+	})
+
+	// session chunk event
+	pack.ensureAuditEvent(t, events.AppSessionChunkEvent, func(event apievents.AuditEvent) {
+		expectedEvent := &apievents.AppSessionChunk{
+			Metadata: apievents.Metadata{
+				Type:        events.AppSessionChunkEvent,
+				Code:        events.AppSessionChunkCode,
+				ClusterName: pack.rootAppClusterName,
+			},
+			AppMetadata: apievents.AppMetadata{
+				AppURI:        pack.rootAppURI,
+				AppPublicAddr: pack.rootAppPublicAddr,
+				AppName:       pack.rootAppName,
+			},
+		}
+		require.Empty(t, cmp.Diff(
+			expectedEvent,
+			event,
+			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time"),
+			cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
+		))
+	})
+}
+
 // pack contains identity as well as initialized Teleport clusters and instances.
 type pack struct {
 	username string
@@ -552,14 +654,17 @@ type pack struct {
 	rootAppPublicAddr  string
 	rootAppClusterName string
 	rootMessage        string
+	rootAppURI         string
 
 	rootWSAppName    string
 	rootWSPublicAddr string
 	rootWSMessage    string
+	rootWSAppURI     string
 
 	rootWSSAppName    string
 	rootWSSPublicAddr string
 	rootWSSMessage    string
+	rootWSSAppURI     string
 
 	jwtAppName        string
 	jwtAppPublicAddr  string
@@ -573,25 +678,39 @@ type pack struct {
 	leafAppPublicAddr  string
 	leafAppClusterName string
 	leafMessage        string
+	leafAppURI         string
 
 	leafWSAppName    string
 	leafWSPublicAddr string
 	leafWSMessage    string
+	leafWSAppURI     string
 
 	leafWSSAppName    string
 	leafWSSPublicAddr string
 	leafWSSMessage    string
+	leafWSSAppURI     string
 
 	headerAppName        string
 	headerAppPublicAddr  string
 	headerAppClusterName string
+	headerAppURI         string
+
+	flushAppName        string
+	flushAppPublicAddr  string
+	flushAppClusterName string
+	flushAppURI         string
 }
 
 type appTestOptions struct {
-	extraRootApps []service.App
-	extraLeafApps []service.App
-	userLogins    []string
-	userTraits    map[string][]string
+	extraRootApps    []service.App
+	extraLeafApps    []service.App
+	userLogins       []string
+	userTraits       map[string][]string
+	rootClusterPorts *InstancePorts
+	leafClusterPorts *InstancePorts
+
+	rootConfig func(config *service.Config)
+	leafConfig func(config *service.Config)
 }
 
 // setup configures all clusters and servers needed for a test.
@@ -646,6 +765,10 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		headerAppName:        "app-04",
 		headerAppPublicAddr:  "app-04.example.com",
 		headerAppClusterName: "example.com",
+
+		flushAppName:        "app-05",
+		flushAppPublicAddr:  "app-05.example.com",
+		flushAppClusterName: "example.com",
 	}
 
 	// Start a few different HTTP server that will be acting like a proxied application.
@@ -691,8 +814,35 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		}
 	}))
 	t.Cleanup(headerServer.Close)
+	flushServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.(http.Hijacker)
+		conn, _, err := h.Hijack()
+		require.NoError(t, err)
+		defer conn.Close()
+		data := "HTTP/1.1 200 OK\r\n" +
+			"Transfer-Encoding: chunked\r\n" +
+			"\r\n" +
+			"05\r\n" +
+			"hello\r\n"
+		fmt.Fprint(conn, data)
+		time.Sleep(500 * time.Millisecond)
+		data = "05\r\n" +
+			"world\r\n" +
+			"0\r\n" +
+			"\r\n"
+		fmt.Fprint(conn, data)
+	}))
+	t.Cleanup(flushServer.Close)
 
+	p.rootAppURI = rootServer.URL
+	p.rootWSAppURI = rootWSServer.URL
+	p.rootWSSAppURI = rootWSSServer.URL
+	p.leafAppURI = leafServer.URL
+	p.leafWSAppURI = leafWSServer.URL
+	p.leafWSSAppURI = leafWSSServer.URL
 	p.jwtAppURI = jwtServer.URL
+	p.headerAppURI = headerServer.URL
+	p.flushAppURI = flushServer.URL
 
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
 	require.NoError(t, err)
@@ -702,10 +852,10 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		ClusterName: "example.com",
 		HostID:      uuid.New(),
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
+		Ports:       opts.rootClusterPorts,
 	})
 
 	// Create a new Teleport instance with passed in configuration.
@@ -713,10 +863,10 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New(),
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
+		Ports:       opts.leafClusterPorts,
 	})
 
 	rcConf := service.MakeDefaultConfig()
@@ -732,6 +882,9 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
 	rcConf.Apps.Enabled = false
+	if opts.rootConfig != nil {
+		opts.rootConfig(rcConf)
+	}
 
 	lcConf := service.MakeDefaultConfig()
 	lcConf.Console = nil
@@ -746,6 +899,9 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.SSH.Enabled = false
 	lcConf.Apps.Enabled = false
+	if opts.rootConfig != nil {
+		opts.rootConfig(lcConf)
+	}
 
 	err = p.leafCluster.CreateEx(t, p.rootCluster.Secrets.AsSlice(), lcConf)
 	require.NoError(t, err)
@@ -805,6 +961,11 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 			Name:       p.headerAppName,
 			URI:        headerServer.URL,
 			PublicAddr: p.headerAppPublicAddr,
+		},
+		{
+			Name:       p.flushAppName,
+			URI:        flushServer.URL,
+			PublicAddr: p.flushAppPublicAddr,
 		},
 	}, opts.extraRootApps...)
 	p.rootAppServer, err = p.rootCluster.StartApp(raConf)
@@ -874,9 +1035,9 @@ func (p *pack) initUser(t *testing.T, opts appTestOptions) {
 
 	role := services.RoleForUser(user)
 	if len(opts.userLogins) != 0 {
-		role.SetLogins(services.Allow, opts.userLogins)
+		role.SetLogins(types.Allow, opts.userLogins)
 	} else {
-		role.SetLogins(services.Allow, []string{p.username})
+		role.SetLogins(types.Allow, []string{p.username})
 	}
 	err = p.rootCluster.Process.GetAuthServer().UpsertRole(context.Background(), role)
 	require.NoError(t, err)
@@ -1010,6 +1171,27 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) st
 	require.NoError(t, err)
 
 	return casResp.CookieValue
+}
+
+func (p *pack) ensureAuditEvent(t *testing.T, eventType string, checkEvent func(event apievents.AuditEvent)) {
+	require.Eventuallyf(t, func() bool {
+		events, _, err := p.rootCluster.Process.GetAuthServer().SearchEvents(
+			time.Now().Add(-time.Hour),
+			time.Now().Add(time.Hour),
+			apidefaults.Namespace,
+			[]string{eventType},
+			1,
+			types.EventOrderDescending,
+			"",
+		)
+		require.NoError(t, err)
+		if len(events) == 0 {
+			return false
+		}
+
+		checkEvent(events[0])
+		return true
+	}, 500*time.Millisecond, 50*time.Millisecond, "failed to fetch audit event \"%s\"", eventType)
 }
 
 // initCertPool initializes root cluster CA pool.

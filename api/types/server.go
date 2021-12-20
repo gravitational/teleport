@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/constants"
+	"github.com/gravitational/teleport/api/constants"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -68,8 +68,10 @@ type Server interface {
 	// SetNamespace sets server namespace
 	SetNamespace(namespace string)
 	// GetApps gets the list of applications this server is proxying.
+	// DELETE IN 9.0.
 	GetApps() []*App
 	// GetApps gets the list of applications this server is proxying.
+	// DELETE IN 9.0.
 	SetApps([]*App)
 	// GetKubeClusters returns the kubernetes clusters directly handled by this
 	// server.

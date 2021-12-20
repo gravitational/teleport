@@ -25,13 +25,15 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 )
+
+var requestLoginHint = "use 'tsh login --request-id=<request-id>' to login with an approved request"
 
 func onRequestList(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
@@ -202,6 +204,8 @@ func onRequestShow(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 	}
+
+	fmt.Fprintf(os.Stdout, "\nhint: %v\n", requestLoginHint)
 	return nil
 }
 
@@ -286,6 +290,7 @@ func showRequestTable(reqs []types.AccessRequest) error {
 	}
 	_, err := table.AsBuffer().WriteTo(os.Stdout)
 
-	fmt.Fprintf(os.Stderr, "\nhint: use 'tsh request show <request-id>' for additional details\n")
+	fmt.Fprintf(os.Stdout, "\nhint: use 'tsh request show <request-id>' for additional details\n")
+	fmt.Fprintf(os.Stdout, "      %v\n", requestLoginHint)
 	return trace.Wrap(err)
 }

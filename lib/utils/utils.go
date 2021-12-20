@@ -33,8 +33,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/constants"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	"github.com/gravitational/teleport/api/constants"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 
 	"github.com/gravitational/trace"
@@ -590,4 +590,10 @@ const (
 	CertTeleportClusterName = "x-teleport-cluster-name"
 	// CertTeleportUserCertificate is the certificate of the authenticated in user.
 	CertTeleportUserCertificate = "x-teleport-certificate"
+	// ExtIntCertType is an internal extension used to propagate cert type.
+	ExtIntCertType = "certtype@teleport"
+	// ExtIntCertTypeHost indicates a host-type certificate.
+	ExtIntCertTypeHost = "host"
+	// ExtIntCertTypeUser indicates a user-type certificate.
+	ExtIntCertTypeUser = "user"
 )

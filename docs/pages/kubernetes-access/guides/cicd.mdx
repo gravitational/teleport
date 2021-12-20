@@ -14,7 +14,7 @@ to create credentials.
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: robot
 spec:
@@ -28,7 +28,7 @@ spec:
     kubernetes_groups: ['system:masters']
 ---
 kind: user
-version: v3
+version: v2
 metadata:
   name: jenkins
 spec:
@@ -38,17 +38,17 @@ spec:
 
 (!docs/pages/includes/permission-warning.mdx!)
 
-Generate a `kubeconfig` using the `jenkins` user and its roles using [`tctl auth sign`](../../cli-docs.mdx#tctl-auth-sign):
+Generate a `kubeconfig` using the `jenkins` user and its roles using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign):
 
-```bash
+```code
 # Create a new local user for Jenkins
-tctl users add jenkins --roles=robot
+$ tctl users add jenkins --roles=robot
 # Creates a token for 25hrs
-tctl auth sign --user=jenkins --format=kubernetes --out=kubeconfig --ttl=25h
+$ tctl auth sign --user=jenkins --format=kubernetes --out=kubeconfig --ttl=25h
 
 #  The credentials have been written to kubeconfig
 
-cat kubeconfig
+$ cat kubeconfig
 #   apiVersion: v1
 #   clusters:
 #   - cluster:
@@ -56,7 +56,7 @@ cat kubeconfig
 # This kubeconfig can now be exported and will provide access to the automation tooling.
 
 # Uses kubectl to get pods, using the provided kubeconfig.
-kubectl --kubeconfig /path/to/kubeconfig get pods
+$ kubectl --kubeconfig /path/to/kubeconfig get pods
 ```
 
 <Admonition
@@ -64,7 +64,7 @@ kubectl --kubeconfig /path/to/kubeconfig get pods
   title="Short-Lived Certs"
 >
   Short-lived certificates expire in hours or minutes. You don't have to revoke them if the host gets compromised.
-  Generate a new kubeconfig every hour using `tctl` or [API](../../reference/api/introduction.mdx)
+  Generate a new kubeconfig every hour using `tctl` or [API](../../api/introduction.mdx)
   and publish it to secret storage, like [AWS](https://aws.amazon.com/secrets-manager/) or
   [GCP](https://cloud.google.com/secret-manager) secret managers.
 </Admonition>

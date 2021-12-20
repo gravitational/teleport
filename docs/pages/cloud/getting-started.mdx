@@ -26,7 +26,6 @@ Paste and run script
 Teleport Agent Installed
 ![Completed Install](../../img/cloud/completed-script-4.png)
 
-
 ## Step 4/5 Access Server
 
 Select close and Server can be accessed
@@ -38,26 +37,26 @@ Install client libraries:
 
 <Tabs>
   <TabItem label="Linux">
-    ```bash
-    curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    ```code
+    $ curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
     # verify signature 
-    echo "$(curl  https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256)" | sha256sum --check 
-    tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    cd teleport-ent
-    sudo ./install
+    $ echo "$(curl  https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256)" | sha256sum --check 
+    $ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    $ cd teleport-ent
+    $ sudo ./install
     ```
   </TabItem>
 </Tabs>
 
 Login into Teleport and test the connection:
 
-```bash
+```code
 # tsh logs you in and receives short-lived certificates
-$ tsh login --proxy=myinstance.teleport.sh:443 --user=email@example.com
+$ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
 $ tsh ls
-Node Name Address    Labels 
---------- ---------- ------ 
-myserver  ⟵ Tunnel     
+# Node Name Address    Labels 
+# --------- ---------- ------ 
+# myserver  ⟵ Tunnel     
 $ tsh ssh root@myserver
 ```
 

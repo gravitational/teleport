@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 	"crypto/subtle"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -31,9 +32,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/utils/sshutils"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 
 	"github.com/sirupsen/logrus"
@@ -66,6 +66,9 @@ type LocalKeyAgent struct {
 
 	// proxyHost is the proxy for the cluster that his key agent holds keys for.
 	proxyHost string
+
+	// insecure allows to accept public host keys.
+	insecure bool
 }
 
 // NewKeyStoreCertChecker returns a new certificate checker
@@ -74,7 +77,7 @@ func NewKeyStoreCertChecker(keyStore LocalKeyStore) ssh.HostKeyCallback {
 	// CheckHostSignature checks if the given host key was signed by a Teleport
 	// certificate authority (CA) or a host certificate the user has seen before.
 	return func(addr string, remote net.Addr, key ssh.PublicKey) error {
-		certChecker := utils.CertChecker{
+		certChecker := sshutils.CertChecker{
 			CertChecker: ssh.CertChecker{
 				IsHostAuthority: func(key ssh.PublicKey, addr string) bool {
 					keys, err := keyStore.GetKnownHostKeys("")
@@ -118,21 +121,31 @@ func shouldAddKeysToAgent(addKeysToAgent string) bool {
 	return (addKeysToAgent == AddKeysToAgentAuto && agentSupportsSSHCertificates()) || addKeysToAgent == AddKeysToAgentOnly || addKeysToAgent == AddKeysToAgentYes
 }
 
+// LocalAgentConfig contains parameters for creating the local keys agent.
+type LocalAgentConfig struct {
+	Keystore   LocalKeyStore
+	ProxyHost  string
+	Username   string
+	KeysOption string
+	Insecure   bool
+}
+
 // NewLocalAgent reads all available credentials from the provided LocalKeyStore
 // and loads them into the local and system agent
-func NewLocalAgent(keystore LocalKeyStore, proxyHost, username string, keysOption string) (a *LocalKeyAgent, err error) {
+func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 	a = &LocalKeyAgent{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentKeyAgent,
 		}),
 		Agent:     agent.NewKeyring(),
-		keyStore:  keystore,
+		keyStore:  conf.Keystore,
 		noHosts:   make(map[string]bool),
-		username:  username,
-		proxyHost: proxyHost,
+		username:  conf.Username,
+		proxyHost: conf.ProxyHost,
+		insecure:  conf.Insecure,
 	}
 
-	if shouldAddKeysToAgent(keysOption) {
+	if shouldAddKeysToAgent(conf.KeysOption) {
 		a.sshAgent = connectToSSHAgent()
 	} else {
 		log.Debug("Skipping connection to the local ssh-agent.")
@@ -315,13 +328,14 @@ func (a *LocalKeyAgent) UserRefusedHosts() bool {
 // CheckHostSignature checks if the given host key was signed by a Teleport
 // certificate authority (CA) or a host certificate the user has seen before.
 func (a *LocalKeyAgent) CheckHostSignature(addr string, remote net.Addr, key ssh.PublicKey) error {
-	certChecker := utils.CertChecker{
+	certChecker := sshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsHostAuthority: a.checkHostCertificate,
 			HostKeyFallback: a.checkHostKey,
 		},
 		FIPS: isFIPS(),
 	}
+	a.log.Debugf("Checking key: %s.", ssh.MarshalAuthorizedKey(key))
 	err := certChecker.CheckHostKey(addr, remote, key)
 	if err != nil {
 		a.log.Debugf("Host validation failed: %v.", err)
@@ -359,6 +373,15 @@ func (a *LocalKeyAgent) checkHostCertificate(key ssh.PublicKey, addr string) boo
 // or reject.
 func (a *LocalKeyAgent) checkHostKey(addr string, remote net.Addr, key ssh.PublicKey) error {
 	var err error
+
+	// Unless --insecure flag was given, prohibit public keys or host certs
+	// not signed by Teleport.
+	if !a.insecure {
+		a.log.Debugf("Host %s presented a public key not signed by Teleport. Rejecting due to insecure mode being OFF.", addr)
+		return trace.BadParameter("host %s presented a public key not signed by Teleport", addr)
+	}
+
+	a.log.Warnf("Host %s presented a public key not signed by Teleport. Proceeding due to insecure mode being ON.", addr)
 
 	// Check if this exact host is in the local cache.
 	keys, _ := a.keyStore.GetKnownHostKeys(addr)
@@ -414,8 +437,27 @@ func (a *LocalKeyAgent) defaultHostPromptFunc(host string, key ssh.PublicKey, wr
 // AddKey activates a new signed session key by adding it into the keystore and also
 // by loading it into the SSH agent.
 func (a *LocalKeyAgent) AddKey(key *Key) (*agent.AddedKey, error) {
+	if err := a.addKey(key); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Load key into the teleport agent and system agent.
+	return a.LoadKey(*key)
+}
+
+// AddDatabaseKey activates a new signed database key by adding it into the keystore.
+// key must contain at least one db cert. ssh cert is not required.
+func (a *LocalKeyAgent) AddDatabaseKey(key *Key) error {
+	if len(key.DBTLSCerts) == 0 {
+		return trace.BadParameter("key must contains at least one database access certificate")
+	}
+	return a.addKey(key)
+}
+
+// addKey activates a new signed session key by adding it into the keystore.
+func (a *LocalKeyAgent) addKey(key *Key) error {
 	if key == nil {
-		return nil, trace.BadParameter("key is nil")
+		return trace.BadParameter("key is nil")
 	}
 	if key.ProxyHost == "" {
 		key.ProxyHost = a.proxyHost
@@ -430,23 +472,22 @@ func (a *LocalKeyAgent) AddKey(key *Key) (*agent.AddedKey, error) {
 	storedKey, err := a.keyStore.GetKey(key.KeyIndex)
 	if err != nil {
 		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	} else {
 		if subtle.ConstantTimeCompare(storedKey.Priv, key.Priv) == 0 {
 			a.log.Debugf("Deleting obsolete stored key with index %+v.", storedKey.KeyIndex)
 			if err := a.keyStore.DeleteKey(storedKey.KeyIndex); err != nil {
-				return nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 		}
 	}
 
 	// Save the new key to the keystore (usually into ~/.tsh).
 	if err := a.keyStore.AddKey(key); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	// Load key into the teleport agent and system agent.
-	return a.LoadKey(*key)
+	return nil
 }
 
 // DeleteKey removes the key with all its certs from the key store
@@ -528,7 +569,22 @@ func (a *LocalKeyAgent) certsForCluster(clusterName string) ([]ssh.Signer, error
 		certs = append(certs, s)
 	}
 	if len(certs) == 0 {
-		return nil, trace.BadParameter("no auth method available")
+		return nil, trace.NotFound("no auth method available")
 	}
 	return certs, nil
+}
+
+// ClientCertPool returns x509.CertPool containing trusted CA.
+func (a *LocalKeyAgent) ClientCertPool(cluster string) (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	key, err := a.GetKey(cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, caPEM := range key.TLSCAs() {
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, trace.BadParameter("failed to parse TLS CA certificate")
+		}
+	}
+	return pool, nil
 }

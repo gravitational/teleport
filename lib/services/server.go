@@ -21,15 +21,14 @@ import (
 	"fmt"
 	"time"
 
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
-
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -48,9 +47,19 @@ func CompareServers(a, b types.Resource) int {
 			return compareServers(serverA, serverB)
 		}
 	}
+	if appA, ok := a.(types.AppServer); ok {
+		if appB, ok := b.(types.AppServer); ok {
+			return compareApplicationServers(appA, appB)
+		}
+	}
 	if dbA, ok := a.(types.DatabaseServer); ok {
 		if dbB, ok := b.(types.DatabaseServer); ok {
 			return compareDatabaseServers(dbA, dbB)
+		}
+	}
+	if winA, ok := a.(types.WindowsDesktopService); ok {
+		if winB, ok := b.(types.WindowsDesktopService); ok {
+			return compareWindowsDesktopServices(winA, winB)
 		}
 	}
 	return Different
@@ -104,6 +113,32 @@ func compareServers(a, b types.Server) int {
 	return Equal
 }
 
+func compareApplicationServers(a, b types.AppServer) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
+	if a.GetName() != b.GetName() {
+		return Different
+	}
+	if a.GetNamespace() != b.GetNamespace() {
+		return Different
+	}
+	if a.GetTeleportVersion() != b.GetTeleportVersion() {
+		return Different
+	}
+	r := a.GetRotation()
+	if !r.Matches(b.GetRotation()) {
+		return Different
+	}
+	if !cmp.Equal(a.GetApp(), b.GetApp()) {
+		return Different
+	}
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
+	}
+	return Equal
+}
+
 func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if a.GetKind() != b.GetKind() {
 		return Different
@@ -121,20 +156,30 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !r.Matches(b.GetRotation()) {
 		return Different
 	}
-	if !utils.StringMapsEqual(a.GetStaticLabels(), b.GetStaticLabels()) {
-		return Different
-	}
-	if !cmp.Equal(a.GetDynamicLabels(), b.GetDynamicLabels()) {
+	if !cmp.Equal(a.GetDatabase(), b.GetDatabase()) {
 		return Different
 	}
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
 	}
-	if a.GetProtocol() != b.GetProtocol() {
+	return Equal
+}
+
+func compareWindowsDesktopServices(a, b types.WindowsDesktopService) int {
+	if a.GetKind() != b.GetKind() {
 		return Different
 	}
-	if a.GetURI() != b.GetURI() {
+	if a.GetName() != b.GetName() {
 		return Different
+	}
+	if a.GetAddr() != b.GetAddr() {
+		return Different
+	}
+	if a.GetTeleportVersion() != b.GetTeleportVersion() {
+		return Different
+	}
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
 	}
 	return Equal
 }
@@ -314,5 +359,5 @@ func MarshalServers(s []types.Server) ([]byte, error) {
 // NodeHasMissedKeepAlives checks if node has missed its keep alive
 func NodeHasMissedKeepAlives(s types.Server) bool {
 	serverExpiry := s.Expiry()
-	return serverExpiry.Before(time.Now().Add(apidefaults.ServerAnnounceTTL - (apidefaults.ServerKeepAliveTTL * 2)))
+	return serverExpiry.Before(time.Now().Add(apidefaults.ServerAnnounceTTL - (apidefaults.ServerKeepAliveTTL() * 2)))
 }

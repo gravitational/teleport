@@ -8,6 +8,11 @@
 {{- else }}
   {{- $_ := set . "teleportVersion" .Chart.Version }}
 {{- end }}
+{{- if .Values.replicaCount }}
+  {{- $_ := set . "replicaCount" .Values.replicaCount }}
+{{- else }}
+  {{- $_ := set . "replicaCount" .Values.highAvailability.replicaCount }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,7 +25,7 @@ metadata:
     {{- toYaml .Values.annotations.deployment | nindent 4 }}
   {{- end }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .replicaCount }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}
@@ -35,14 +40,46 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
-      {{- if .Values.affinity }}
+      {{- if or .Values.affinity (gt (int .replicaCount) 1) }}
       affinity:
-        {{- toYaml .Values.affinity | nindent 8 }}
+        {{- if .Values.affinity }}
+          {{- if .Values.highAvailability.requireAntiAffinity }}
+            {{- fail "Cannot use highAvailability.requireAntiAffinity when affinity is also set in chart values - unset one or the other" }}
+          {{- end }}
+          {{- toYaml .Values.affinity | nindent 8 }}
+        {{- else }}
+        podAntiAffinity:
+        {{- if .Values.highAvailability.requireAntiAffinity }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ .Release.Name }}
+            topologyKey: "kubernetes.io/hostname"
+        {{- else if gt (int .replicaCount) 1 }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
+        {{- end }}
+        {{- end }}
       {{- end }}
       {{- if .Values.tolerations }}
       tolerations:
         {{- toYaml .Values.tolerations | nindent 6 }}
       {{- end }}
+{{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.imagePullSecrets | indent 6 }}
+{{- end }}
 {{- if .Values.initContainers }}
       initContainers: {{- toYaml .Values.initContainers | nindent 6 }}
   {{- if .Values.resources }}
@@ -120,7 +157,7 @@ spec:
           name: "auth-token"
           readOnly: true
         - mountPath: /var/lib/teleport
-          name: "data"
+          name: {{ default "data" .Values.existingDataVolume }}
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
@@ -131,8 +168,10 @@ spec:
       - name: "auth-token"
         secret:
           secretName: {{ .Values.secretName }}
+      {{- if not .Values.existingDataVolume }}
       - name: "data"
         emptyDir: {}
+      {{- end }}
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
 {{- end }}

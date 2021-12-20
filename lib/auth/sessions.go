@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -91,8 +91,8 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
 		User:    req.Username,
 		Priv:    privateKey,
-		Pub:     certs.ssh,
-		TLSCert: certs.tls,
+		Pub:     certs.SSH,
+		TLSCert: certs.TLS,
 		Expires: s.clock.Now().Add(ttl),
 	})
 	if err != nil {
@@ -108,7 +108,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 
 // WaitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
-func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoint) error {
+func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint) error {
 	_, err := ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
 	if err == nil {
 		return nil
@@ -170,7 +170,11 @@ func (s *Server) generateAppToken(username string, roles []string, uri string, e
 	}
 
 	// Extract the JWT signing key and sign the claims.
-	privateKey, err := services.GetJWTSigner(ca, s.clock)
+	signer, err := s.GetKeyStore().GetJWTSigner(ca)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	privateKey, err := services.GetJWTSigner(signer, ca.GetClusterName(), s.clock)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -227,5 +231,5 @@ func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, pu
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return certs.ssh, certs.tls, nil
+	return certs.SSH, certs.TLS, nil
 }

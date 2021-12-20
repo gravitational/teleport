@@ -22,10 +22,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 
-	"github.com/gravitational/teleport/api/v7/identityfile"
-	"github.com/gravitational/teleport/api/v7/utils/keypaths"
+	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -61,12 +62,16 @@ const (
 	// configuring a MongoDB database for mutual TLS authentication.
 	FormatMongo Format = "mongodb"
 
+	// FormatCockroach produces CA and key pair in the format suitable for
+	// configuring a CockroachDB database for mutual TLS.
+	FormatCockroach Format = "cockroachdb"
+
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
 )
 
 // KnownFormats is a list of all above formats.
-var KnownFormats = []Format{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo}
+var KnownFormats = []Format{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo, FormatCockroach}
 
 // WriteConfig holds the necessary information to write an identity file.
 type WriteConfig struct {
@@ -147,10 +152,18 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-	case FormatTLS, FormatDatabase:
+	case FormatTLS, FormatDatabase, FormatCockroach:
 		keyPath := cfg.OutputPath + ".key"
 		certPath := cfg.OutputPath + ".crt"
 		casPath := cfg.OutputPath + ".cas"
+
+		// CockroachDB expects files to be named ca.crt, node.crt and node.key.
+		if cfg.Format == FormatCockroach {
+			keyPath = filepath.Join(cfg.OutputPath, "node.key")
+			certPath = filepath.Join(cfg.OutputPath, "node.crt")
+			casPath = filepath.Join(cfg.OutputPath, "ca.crt")
+		}
+
 		filesWritten = append(filesWritten, keyPath, certPath, casPath)
 		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)

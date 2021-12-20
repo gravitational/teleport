@@ -24,9 +24,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/constants"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/pam"
@@ -115,6 +116,34 @@ func TestRootUTMPEntryExists(t *testing.T) {
 	t.Errorf("did not detect utmp entry within 5 minutes")
 }
 
+// TestUsernameLimit tests that the maximum length of usernames is a hard error.
+func TestRootUsernameLimit(t *testing.T) {
+	if !isRoot() {
+		t.Skip("This test will be skipped because tests are not being run as root.")
+	}
+
+	dir := t.TempDir()
+	utmpPath := path.Join(dir, "utmp")
+	wtmpPath := path.Join(dir, "wtmp")
+
+	err := TouchFile(utmpPath)
+	require.NoError(t, err)
+	err = TouchFile(wtmpPath)
+	require.NoError(t, err)
+
+	// A 33 character long username.
+	username := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	host := [4]int32{0, 0, 0, 0}
+	tty := os.NewFile(uintptr(0), "/proc/self/fd/0")
+	err = uacc.Open(utmpPath, wtmpPath, username, "localhost", host, tty)
+	require.Error(t, err)
+
+	// A 32 character long username.
+	username = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	err = uacc.Open(utmpPath, wtmpPath, username, "localhost", host, tty)
+	require.NoError(t, err)
+}
+
 // upack holds all ssh signing artefacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
@@ -172,19 +201,29 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 			ClusterName: "localhost",
 			Dir:         tempdir,
 			Clock:       s.clock,
-		}})
-	require.NoError(t, err)
-
-	// set up host private key and certificate
-	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: s.server.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
+		},
 	})
 	require.NoError(t, err)
 
+	// set up host private key and certificate
+	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	certs, err := s.server.Auth().GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     s.server.ClusterName(),
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
+	require.NoError(t, err)
+
 	// set up user CA and set up a user that has access to the server
-	s.signer, err = sshutils.NewSigner(certs.Key, certs.Cert)
+	s.signer, err = sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
 	s.nodeID = uuid.New()
@@ -234,7 +273,8 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 			services.CommandLabels{
 				"baz": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"}},
+					Command: []string{"expr", "1", "+", "3"},
+				},
 			},
 		),
 		regular.SetBPF(&bpf.NOP{}),
@@ -261,14 +301,14 @@ func newUpack(ctx context.Context, s *SrvCtx, username string, allowedLogins []s
 		return nil, trace.Wrap(err)
 	}
 	role := services.RoleForUser(user)
-	rules := role.GetRules(services.Allow)
+	rules := role.GetRules(types.Allow)
 	rules = append(rules, types.NewRule(types.Wildcard, services.RW()))
-	role.SetRules(services.Allow, rules)
+	role.SetRules(types.Allow, rules)
 	opts := role.GetOptions()
 	opts.PermitX11Forwarding = types.NewBool(true)
 	role.SetOptions(opts)
-	role.SetLogins(services.Allow, allowedLogins)
-	role.SetNodeLabels(services.Allow, allowedLabels)
+	role.SetLogins(types.Allow, allowedLogins)
+	role.SetNodeLabels(types.Allow, allowedLabels)
 	err = auth.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)

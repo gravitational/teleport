@@ -19,7 +19,7 @@ package utils
 import (
 	"strings"
 
-	"github.com/gravitational/teleport/api/v7/constants"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 )
 
@@ -33,8 +33,17 @@ func IsUseOfClosedNetworkError(err error) bool {
 	return strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection)
 }
 
+// IsFailedToSendCloseNotifyError returns true if the provided error is the
+// "tls: failed to send closeNofify".
+func IsFailedToSendCloseNotifyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), constants.FailedToSendCloseNotify)
+}
+
 // IsOKNetworkError returns true if the provided error received from a network
 // operation is one of those that usually indicate normal connection close.
 func IsOKNetworkError(err error) bool {
-	return trace.IsEOF(err) || IsUseOfClosedNetworkError(err)
+	return trace.IsEOF(err) || IsUseOfClosedNetworkError(err) || IsFailedToSendCloseNotifyError(err)
 }

@@ -22,45 +22,27 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/types"
-	"github.com/gravitational/teleport/api/v7/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/trace"
 )
 
 // CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
 // This differs from normal equality only in that resource IDs are ignored.
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
 	return cmp.Equal(lhs, rhs, cmpopts.IgnoreFields(types.Metadata{}, "ID"))
-}
-
-// NewJWTAuthority creates and returns a types.CertAuthority with a new
-// key pair.
-func NewJWTAuthority(clusterName string) (types.CertAuthority, error) {
-	var err error
-	var keyPair types.JWTKeyPair
-	if keyPair.PublicKey, keyPair.PrivateKey, err = jwt.GenerateKeyPair(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        types.JWTSigner,
-		ClusterName: clusterName,
-		ActiveKeys: types.CAKeySet{
-			JWT: []*types.JWTKeyPair{&keyPair},
-		},
-	})
 }
 
 // ValidateCertAuthority validates the CertAuthority
@@ -119,7 +101,8 @@ func checkJWTKeys(cai types.CertAuthority) error {
 
 	// Check that the JWT keys set are valid.
 	for _, pair := range ca.GetTrustedJWTKeyPairs() {
-		if len(pair.PrivateKey) > 0 {
+		// TODO(nic): validate PKCS11 private keys
+		if len(pair.PrivateKey) > 0 && pair.PrivateKeyType == types.PrivateKeyType_RAW {
 			privateKey, err = utils.ParsePrivateKey(pair.PrivateKey)
 			if err != nil {
 				return trace.Wrap(err)
@@ -144,24 +127,14 @@ func checkJWTKeys(cai types.CertAuthority) error {
 }
 
 // GetJWTSigner returns the active JWT key used to sign tokens.
-func GetJWTSigner(ca types.CertAuthority, clock clockwork.Clock) (*jwt.Key, error) {
-	if len(ca.GetActiveKeys().JWT) == 0 {
-		return nil, trace.BadParameter("no JWT keypairs found")
-	}
-	privateKey, err := utils.ParsePrivateKey(ca.GetActiveKeys().JWT[0].PrivateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func GetJWTSigner(signer crypto.Signer, clusterName string, clock clockwork.Clock) (*jwt.Key, error) {
 	key, err := jwt.New(&jwt.Config{
 		Clock:       clock,
 		Algorithm:   defaults.ApplicationTokenAlgorithm,
-		ClusterName: ca.GetClusterName(),
-		PrivateKey:  privateKey,
+		ClusterName: clusterName,
+		PrivateKey:  signer,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return key, nil
+	return key, trace.Wrap(err)
 }
 
 // GetTLSCerts returns TLS certificates from CA
@@ -200,8 +173,8 @@ type HostCertParams struct {
 	NodeName string
 	// ClusterName is the name of the cluster within which a node lives
 	ClusterName string
-	// Roles identifies the roles of a Teleport instance
-	Roles types.SystemRoles
+	// Role identifies the role of a Teleport instance
+	Role types.SystemRole
 	// TTL defines how long a certificate is valid for
 	TTL time.Duration
 }
@@ -219,7 +192,7 @@ func (c HostCertParams) Check() error {
 		return trace.BadParameter("ClusterName [%q] is required", c.ClusterName)
 	}
 
-	if err := c.Roles.Check(); err != nil {
+	if err := c.Role.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -238,6 +211,8 @@ type ChangePasswordReq struct {
 	SecondFactorToken string `json:"second_factor_token"`
 	// U2FSignResponse is U2F sign response
 	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
+	// WebauthnResponse is Webauthn sign response
+	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response"`
 }
 
 // UserCertParams defines OpenSSH user certificate parameters

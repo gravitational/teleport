@@ -22,7 +22,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -47,6 +47,11 @@ func ValidateLocalAuthSecrets(l *types.LocalAuthSecrets) error {
 			return trace.BadParameter("MFA device named %q already exists", d.Metadata.Name)
 		}
 		mfaNames[d.Metadata.Name] = struct{}{}
+	}
+	if l.Webauthn != nil {
+		if err := l.Webauthn.Check(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
@@ -80,6 +85,9 @@ func ValidateMFADevice(d *types.MFADevice) error {
 		if err := u2f.ValidateDevice(dd.U2F); err != nil {
 			return trace.Wrap(err)
 		}
+	case *types.MFADevice_Webauthn:
+		// TODO(codingllama): Refactor Webauthn device validation so it runs here as
+		//  well?
 	default:
 		return trace.BadParameter("MFADevice has Device field of unknown type %T", d.Device)
 	}

@@ -27,17 +27,16 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	"github.com/gravitational/teleport/api/v7/types/events"
+	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -67,7 +66,7 @@ type ProxyServerConfig struct {
 	// AuthClient is the authenticated client to the auth server.
 	AuthClient *auth.Client
 	// AccessPoint is the caching client connected to the auth server.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.ReadDatabaseAccessPoint
 	// Authorizer is responsible for authorizing user identities.
 	Authorizer auth.Authorizer
 	// Tunnel is the reverse tunnel server.
@@ -144,8 +143,8 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 	return server, nil
 }
 
-// Serve starts accepting database connections from the provided listener.
-func (s *ProxyServer) Serve(listener net.Listener) error {
+// ServePostgres starts accepting Postgres connections from the provided listener.
+func (s *ProxyServer) ServePostgres(listener net.Listener) error {
 	s.log.Debug("Started database proxy.")
 	defer s.log.Debug("Database proxy exited.")
 	for {
@@ -158,20 +157,13 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 			}
 			return trace.Wrap(err)
 		}
-		// The multiplexed connection contains information about detected
-		// protocol so dispatch to the appropriate proxy.
-		proxy, err := s.dispatch(clientConn)
-		if err != nil {
-			s.log.WithError(err).Error("Failed to dispatch client connection.")
-			continue
-		}
 		// Let the appropriate proxy handle the connection and go back
 		// to listening.
 		go func() {
 			defer clientConn.Close()
-			err := proxy.HandleConnection(s.closeCtx, clientConn)
+			err := s.PostgresProxy().HandleConnection(s.closeCtx, clientConn)
 			if err != nil {
-				s.log.WithError(err).Warn("Failed to handle client connection.")
+				s.log.WithError(err).Warn("Failed to handle Postgres client connection.")
 			}
 		}()
 	}
@@ -193,9 +185,36 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 		// Pass over to the MySQL proxy handler.
 		go func() {
 			defer clientConn.Close()
-			err := s.mysqlProxy().HandleConnection(s.closeCtx, clientConn)
-			if err != nil {
+			err := s.MySQLProxy().HandleConnection(s.closeCtx, clientConn)
+			if err != nil && !utils.IsOKNetworkError(err) {
 				s.log.WithError(err).Error("Failed to handle MySQL client connection.")
+			}
+		}()
+	}
+}
+
+// ServeMongo starts accepting Mongo client connections.
+func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) error {
+	s.log.Debug("Started Mongo proxy.")
+	defer s.log.Debug("Mongo proxy exited.")
+	for {
+		clientConn, err := listener.Accept()
+		if err != nil {
+			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+		go func() {
+			defer clientConn.Close()
+			tlsConn := tls.Server(clientConn, tlsConfig)
+			if err := tlsConn.Handshake(); err != nil {
+				s.log.WithError(err).Error("Mongo TLS handshake failed.")
+				return
+			}
+			err := s.handleConnection(tlsConn)
+			if err != nil {
+				s.log.WithError(err).Error("Failed to handle Mongo client connection.")
 			}
 		}()
 	}
@@ -245,23 +264,8 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	return nil
 }
 
-// dispatch dispatches the connection to appropriate database proxy.
-func (s *ProxyServer) dispatch(clientConn net.Conn) (common.Proxy, error) {
-	muxConn, ok := clientConn.(*multiplexer.Conn)
-	if !ok {
-		return nil, trace.BadParameter("expected multiplexer connection, got %T", clientConn)
-	}
-	switch muxConn.Protocol() {
-	case multiplexer.ProtoPostgres:
-		s.log.Debugf("Accepted Postgres connection from %v.", muxConn.RemoteAddr())
-		return s.postgresProxy(), nil
-	}
-	return nil, trace.BadParameter("unsupported database protocol %q",
-		muxConn.Protocol())
-}
-
-// postgresProxy returns a new instance of the Postgres protocol aware proxy.
-func (s *ProxyServer) postgresProxy() *postgres.Proxy {
+// PostgresProxy returns a new instance of the Postgres protocol aware proxy.
+func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 	return &postgres.Proxy{
 		TLSConfig:  s.cfg.TLSConfig,
 		Middleware: s.middleware,
@@ -270,8 +274,8 @@ func (s *ProxyServer) postgresProxy() *postgres.Proxy {
 	}
 }
 
-// mysqlProxy returns a new instance of the MySQL protocol aware proxy.
-func (s *ProxyServer) mysqlProxy() *mysql.Proxy {
+// MySQLProxy returns a new instance of the MySQL protocol aware proxy.
+func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 	return &mysql.Proxy{
 		TLSConfig:  s.cfg.TLSConfig,
 		Middleware: s.middleware,
@@ -335,6 +339,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 	tc, err := monitorConn(ctx, monitorConnConfig{
 		conn:         clientConn,
 		lockWatcher:  s.cfg.LockWatcher,
+		lockTargets:  authContext.LockTargets(),
 		identity:     authContext.Identity.GetIdentity(),
 		checker:      authContext.Checker,
 		clock:        s.cfg.Clock,
@@ -384,6 +389,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clie
 type monitorConnConfig struct {
 	conn         net.Conn
 	lockWatcher  *services.LockWatcher
+	lockTargets  []types.LockTarget
 	checker      services.AccessChecker
 	identity     tlsca.Identity
 	clock        clockwork.Clock
@@ -428,7 +434,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
 	err = srv.StartMonitor(srv.MonitorConfig{
 		LockWatcher:           cfg.lockWatcher,
-		LockTargets:           services.LockTargetsFromTLSIdentity(cfg.identity),
+		LockTargets:           cfg.lockTargets,
 		DisconnectExpiredCert: disconnectCertExpired,
 		ClientIdleTimeout:     idleTimeout,
 		Conn:                  cfg.conn,
@@ -498,19 +504,19 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	s.log.Debugf("Available database servers on %v: %s.", cluster.GetName(), servers)
+	s.log.Debugf("Available databases in %v: %s.", cluster.GetName(), servers)
 	// Find out which database servers proxy the database a user is
 	// connecting to using routing information from identity.
 	var result []types.DatabaseServer
 	for _, server := range servers {
-		if server.GetName() == identity.RouteToDatabase.ServiceName {
+		if server.GetDatabase().GetName() == identity.RouteToDatabase.ServiceName {
 			result = append(result, server)
 		}
 	}
 	if len(result) != 0 {
 		return cluster, result, nil
 	}
-	return nil, nil, trace.NotFound("database %q not found among registered database servers on cluster %q",
+	return nil, nil, trace.NotFound("database %q not found among registered databases in cluster %q",
 		identity.RouteToDatabase.ServiceName,
 		identity.RouteToCluster)
 }
@@ -555,12 +561,12 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	}, nil
 }
 
-func getConfigForClient(conf *tls.Config, ap auth.AccessPoint, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
 		if info.ServerName != "" {
-			clusterName, err = auth.DecodeClusterName(info.ServerName)
+			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
 			if err != nil && !trace.IsNotFound(err) {
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}

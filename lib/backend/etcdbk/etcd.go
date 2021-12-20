@@ -28,9 +28,9 @@ import (
 	"strings"
 	"time"
 
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -206,10 +206,9 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	buf := backend.NewCircularBuffer(
+		backend.BufferCapacity(cfg.BufferSize),
+	)
 	closeCtx, cancel := context.WithCancel(ctx)
 	b := &EtcdBackend{
 		Entry:     log.WithFields(log.Fields{trace.Component: GetName()}),
@@ -273,7 +272,7 @@ func (cfg *Config) Validate() error {
 		}
 	}
 	if cfg.BufferSize == 0 {
-		cfg.BufferSize = backend.DefaultBufferSize
+		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.DialTimeout == 0 {
 		cfg.DialTimeout = apidefaults.DefaultDialTimeout

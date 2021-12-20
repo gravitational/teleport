@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 
 	"github.com/google/btree"
@@ -72,7 +72,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.Context = context.Background()
 	}
 	if cfg.BufferSize == 0 {
-		cfg.BufferSize = backend.DefaultBufferSize
+		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.BTreeDegree <= 0 {
 		cfg.BTreeDegree = defaultBTreeDegree
@@ -92,11 +92,9 @@ func New(cfg Config) (*Memory, error) {
 		return nil, trace.Wrap(err)
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
-	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
+	buf := backend.NewCircularBuffer(
+		backend.BufferCapacity(cfg.BufferSize),
+	)
 	buf.SetInit()
 	m := &Memory{
 		Mutex: &sync.Mutex{},
@@ -326,12 +324,15 @@ func (m *Memory) GetRange(ctx context.Context, startKey []byte, endKey []byte, l
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
 	if limit <= 0 {
-		limit = backend.DefaultLargeLimit
+		limit = backend.DefaultRangeLimit
 	}
 	m.Lock()
 	defer m.Unlock()
 	m.removeExpired()
 	re := m.getRange(ctx, startKey, endKey, limit)
+	if len(re.Items) == backend.DefaultRangeLimit {
+		m.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
+	}
 	return &re, nil
 }
 
@@ -480,35 +481,15 @@ func (m *Memory) processEvent(event backend.Event) {
 		if treeItem != nil {
 			existingItem = treeItem.(*btreeItem)
 		}
-		switch {
-		case item.Expires.IsZero():
-			// new item is added, it does not expire,
-			if existingItem != nil && existingItem.index >= 0 {
-				// new item replaces the existing item that should be removed
-				// from the heap
-				m.heap.RemoveEl(existingItem)
-			}
-			m.tree.ReplaceOrInsert(item)
-		case !item.Expires.IsZero() && m.Clock().Now().Before(item.Expires):
-			// new item is added, but it has not expired yet
-			if existingItem != nil && existingItem.index >= 0 {
-				m.heap.RemoveEl(existingItem)
-			}
-			m.heap.PushEl(item)
-			m.tree.ReplaceOrInsert(item)
-		case !item.Expires.IsZero() && (m.Clock().Now().After(item.Expires) || m.Clock().Now() == item.Expires):
-			// new expired item has added, remove the existing
-			// item if present
-			if existingItem != nil {
-				// existing item should be removed from the heap
-				if existingItem.index >= 0 {
-					m.heap.RemoveEl(existingItem)
-				}
-				m.tree.Delete(existingItem)
-			}
-		default:
-			// skip adding or updating the item that has expired
+
+		// new item is added, but it has not expired yet
+		if existingItem != nil && existingItem.index >= 0 {
+			m.heap.RemoveEl(existingItem)
 		}
+		if !item.Expires.IsZero() {
+			m.heap.PushEl(item)
+		}
+		m.tree.ReplaceOrInsert(item)
 	case types.OpDelete:
 		treeItem := m.tree.Get(&btreeItem{Item: event.Item})
 		if treeItem != nil {

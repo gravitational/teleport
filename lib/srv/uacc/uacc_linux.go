@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 /*
@@ -39,16 +40,19 @@ import (
 // Due to thread safety design in glibc we must serialize all access to the accounting database.
 var accountDb sync.Mutex
 
-// Max length of username and hostname as defined by glibc.
-const nameMaxLen = 255
+// Max hostname length as defined by glibc.
+const hostMaxLen = 255
+
+// Max username length as defined by glibc.
+const userMaxLen = 32
 
 // Open writes a new entry to the utmp database with a tag of `USER_PROCESS`.
 // This should be called when an interactive session is started.
 //
 // `username`: Name of the user the interactive session is running under.
 // `hostname`: Name of the system the user is logged into.
-// `remoteAddrV6`: IPv6 address of the remote host.
-// `ttyName`: Name of the TTY including the `/dev/` prefix.
+// `remote`: IPv6 address of the remote host.
+// `tty`: Pointer to the tty stream
 func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32, tty *os.File) error {
 	ttyName, err := os.Readlink(tty.Name())
 	if err != nil {
@@ -56,10 +60,10 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	}
 
 	// String parameter validation.
-	if len(username) > nameMaxLen {
+	if len(username) > userMaxLen {
 		return trace.BadParameter("username length exceeds OS limits")
 	}
-	if len(hostname) > nameMaxLen {
+	if len(hostname) > hostMaxLen {
 		return trace.BadParameter("hostname length exceeds OS limits")
 	}
 	if len(ttyName) > (int)(C.max_len_tty_name()-1) {
@@ -114,7 +118,7 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
 		if status != 0 {
-			return trace.Errorf("unknown error with code %d", status)
+			return trace.Errorf("unknown error with errno %d", C.get_errno())
 		}
 
 		return nil
@@ -183,7 +187,7 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 
 // UserWithPtyInDatabase checks the user accounting database for the existence of an USER_PROCESS entry with the given username.
 func UserWithPtyInDatabase(utmpPath string, username string) error {
-	if len(username) > nameMaxLen {
+	if len(username) > userMaxLen {
 		return trace.BadParameter("username length exceeds OS limits")
 	}
 

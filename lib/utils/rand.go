@@ -25,11 +25,14 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// CryptoRandomHex returns hex encoded random string generated with crypto-strong
-// pseudo random generator of the given bytes
-func CryptoRandomHex(len int) (string, error) {
-	randomBytes := make([]byte, len)
-	if _, err := rand.Reader.Read(randomBytes); err != nil {
+// CryptoRandomHex returns a hex-encoded random string generated
+// with a crypto-strong pseudo-random generator. The length parameter
+// controls how many random bytes are generated, and the returned
+// hex string will be twice the length. An error is returned when
+// fewer bytes were generated than length.
+func CryptoRandomHex(length int) (string, error) {
+	randomBytes := make([]byte, length)
+	if _, err := rand.Read(randomBytes); err != nil {
 		return "", trace.Wrap(err)
 	}
 	return hex.EncodeToString(randomBytes), nil

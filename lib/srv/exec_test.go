@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 /*
@@ -35,9 +36,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/types"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
-	apisshutils "github.com/gravitational/teleport/api/v7/utils/sshutils"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -425,7 +426,7 @@ func (f *fakeTerminal) SetTermType(string) {
 type fakeServer struct {
 	auditLog events.IAuditLog
 	events.MockEmitter
-	accessPoint auth.AccessPoint
+	accessPoint AccessPoint
 	id          string
 }
 
@@ -457,7 +458,7 @@ func (f *fakeServer) PermitUserEnvironment() bool {
 	return true
 }
 
-func (f *fakeServer) GetAccessPoint() auth.AccessPoint {
+func (f *fakeServer) GetAccessPoint() AccessPoint {
 	return f.accessPoint
 }
 
@@ -553,7 +554,7 @@ func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 	return nil, "", trace.NotFound("")
 }
 
-func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+func (a *fakeLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
 	return nil, "", trace.NotFound("")
 }
 

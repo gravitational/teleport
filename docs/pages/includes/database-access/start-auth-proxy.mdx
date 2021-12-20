@@ -9,8 +9,8 @@ will assume that you have configured DNS records for `teleport.example.com` and
 
 Generate Teleport config with ACME enabled:
 
-```bash
-teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
+```code
+$ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
 ```
 
 <Admonition type="note" title="Web Proxy Port">
@@ -22,6 +22,6 @@ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice
 
 Start Teleport Auth and Proxy services:
 
-```bash
-sudo teleport start
+```code
+$ sudo teleport start
 ```

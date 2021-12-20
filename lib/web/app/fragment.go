@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
@@ -67,7 +67,7 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httpr
 			h.log.WithError(err).Debugf("Failed to generate and encode random numbers.")
 			return trace.AccessDenied("access denied")
 		}
-		setRedirectPageHeaders(w.Header(), nonce)
+		SetRedirectPageHeaders(w.Header(), nonce)
 		fmt.Fprintf(w, js, nonce)
 		return nil
 

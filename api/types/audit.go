@@ -19,8 +19,7 @@ package types
 import (
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/defaults"
-
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -69,20 +68,15 @@ type ClusterAuditConfig interface {
 	WriteMinCapacity() int64
 	// WriteTargetValue is the ratio of consumed write to provisioned capacity.
 	WriteTargetValue() float64
+	// RetentionPeriod is the retention period for audit events.
+	RetentionPeriod() *Duration
+	// Clone performs a deep copy.
+	Clone() ClusterAuditConfig
 }
 
 // NewClusterAuditConfig is a convenience method to to create ClusterAuditConfigV2.
 func NewClusterAuditConfig(spec ClusterAuditConfigSpecV2) (ClusterAuditConfig, error) {
-	auditConfig := &ClusterAuditConfigV2{
-		Kind:    KindClusterAuditConfig,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      MetaNameClusterAuditConfig,
-			Namespace: defaults.Namespace,
-		},
-		Spec: spec,
-	}
-
+	auditConfig := &ClusterAuditConfigV2{Spec: spec}
 	if err := auditConfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -234,6 +228,17 @@ func (c *ClusterAuditConfigV2) WriteMinCapacity() int64 {
 // WriteTargetValue is the ratio of consumed write to provisioned capacity.
 func (c *ClusterAuditConfigV2) WriteTargetValue() float64 {
 	return c.Spec.WriteTargetValue
+}
+
+// RetentionPeriod is the retention period for audit events.
+func (c *ClusterAuditConfigV2) RetentionPeriod() *Duration {
+	value := c.Spec.RetentionPeriod
+	return &value
+}
+
+// Clone performs a deep copy.
+func (c *ClusterAuditConfigV2) Clone() ClusterAuditConfig {
+	return proto.Clone(c).(*ClusterAuditConfigV2)
 }
 
 // setStaticFields sets static resource header and metadata fields.

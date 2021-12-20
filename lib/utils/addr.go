@@ -25,6 +25,8 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 // NetAddr is network address that includes network, optional path and
@@ -76,7 +78,12 @@ func (a *NetAddr) IsLocal() bool {
 
 // IsLoopback returns true if this is a loopback address
 func (a *NetAddr) IsLoopback() bool {
-	return IsLoopback(a.Addr)
+	return apiutils.IsLoopback(a.Addr)
+}
+
+// IsHostUnspecified returns true if this address' host is unspecified.
+func (a *NetAddr) IsHostUnspecified() bool {
+	return a.Host() == "" || net.ParseIP(a.Host()).IsUnspecified()
 }
 
 // IsEmpty returns true if address is empty
@@ -266,28 +273,6 @@ func IsLocalhost(host string) bool {
 	return ip.IsLoopback() || ip.IsUnspecified()
 }
 
-// IsLoopback returns 'true' if a given hostname resolves to local
-// host's loopback interface
-func IsLoopback(host string) bool {
-	if strings.Contains(host, ":") {
-		var err error
-		host, _, err = net.SplitHostPort(host)
-		if err != nil {
-			return false
-		}
-	}
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		return false
-	}
-	for _, ip := range ips {
-		if ip.IsLoopback() {
-			return true
-		}
-	}
-	return false
-}
-
 // GuessIP tries to guess an IP address this machine is reachable at on the
 // internal network, always picking IPv4 from the internal address space
 //
@@ -357,4 +342,16 @@ func guessHostIP(addrs []net.Addr) (ip net.IP) {
 		ip = net.IPv4(127, 0, 0, 1)
 	}
 	return ip
+}
+
+// ReplaceUnspecifiedHost  replaces unspecified "0.0.0.0" host localhost since 0.0.0.0 is never a valid
+// principal (auth server explicitly removes it when issuing host certs) and when a reverse tunnel client used
+// establishes SSH reverse tunnel connection the host is validated against
+// the valid principal list.
+func ReplaceUnspecifiedHost(addr *NetAddr, defaultPort int) string {
+	if !addr.IsHostUnspecified() {
+		return addr.String()
+	}
+	port := addr.Port(defaultPort)
+	return net.JoinHostPort("localhost", strconv.Itoa(port))
 }

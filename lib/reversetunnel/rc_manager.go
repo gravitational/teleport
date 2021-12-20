@@ -21,14 +21,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // RemoteClusterTunnelManager manages AgentPools for trusted (remote) clusters. It
@@ -59,7 +60,7 @@ type RemoteClusterTunnelManagerConfig struct {
 	AuthClient auth.ClientI
 	// AccessPoint is a lightweight access point that can optionally cache some
 	// values.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.ProxyAccessPoint
 	// HostSigners is a signer for the host private key.
 	HostSigner ssh.Signer
 	// HostUUID is a unique ID of this host
@@ -73,6 +74,10 @@ type RemoteClusterTunnelManagerConfig struct {
 	Clock clockwork.Clock
 	// KubeDialAddr is an optional address of a local kubernetes proxy.
 	KubeDialAddr utils.NetAddr
+	// FIPS indicates if Teleport was started in FIPS mode.
+	FIPS bool
+	// Log is the logger
+	Log logrus.FieldLogger
 }
 
 func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
@@ -93,6 +98,9 @@ func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+	if c.Log == nil {
+		c.Log = logrus.New()
 	}
 
 	return nil
@@ -135,7 +143,7 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 	w.mu.Unlock()
 
 	if err := w.Sync(ctx); err != nil {
-		logrus.Warningf("Failed to sync reverse tunnels: %v.", err)
+		w.cfg.Log.Warningf("Failed to sync reverse tunnels: %v.", err)
 	}
 
 	ticker := time.NewTicker(defaults.ResyncInterval)
@@ -144,11 +152,11 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			logrus.Debugf("Closing.")
+			w.cfg.Log.Debugf("Closing.")
 			return
 		case <-ticker.C:
 			if err := w.Sync(ctx); err != nil {
-				logrus.Warningf("Failed to sync reverse tunnels: %v.", err)
+				w.cfg.Log.Warningf("Failed to sync reverse tunnels: %v.", err)
 				continue
 			}
 		}
@@ -211,6 +219,7 @@ func (w *RemoteClusterTunnelManager) realNewAgentPool(ctx context.Context, clust
 		Clock:               w.cfg.Clock,
 		KubeDialAddr:        w.cfg.KubeDialAddr,
 		ReverseTunnelServer: w.cfg.ReverseTunnelServer,
+		FIPS:                w.cfg.FIPS,
 		// RemoteClusterManager only runs on proxies.
 		Component: teleport.ComponentProxy,
 

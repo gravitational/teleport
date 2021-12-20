@@ -26,9 +26,9 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/client/proto"
-	"github.com/gravitational/teleport/api/v7/constants"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/trace"
 )
@@ -51,6 +51,8 @@ type Features struct {
 	AdvancedAccessWorkflows bool
 	// Cloud enables some cloud-related features
 	Cloud bool
+	// HSM enables PKCS#11 HSM support
+	HSM bool
 }
 
 // ToProto converts Features into proto.Features
@@ -64,6 +66,7 @@ func (f Features) ToProto() *proto.Features {
 		AccessControls:          f.AccessControls,
 		AdvancedAccessWorkflows: f.AdvancedAccessWorkflows,
 		Cloud:                   f.Cloud,
+		HSM:                     f.HSM,
 	}
 }
 

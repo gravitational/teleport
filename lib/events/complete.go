@@ -21,16 +21,17 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types/events"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
-	apiutils "github.com/gravitational/teleport/api/v7/utils"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -154,6 +155,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			Metadata: apievents.Metadata{
 				Type:  SessionUploadEvent,
 				Code:  SessionUploadCode,
+				ID:    uuid.New(),
 				Index: SessionUploadIndex,
 			},
 			SessionMetadata: apievents.SessionMetadata{

@@ -22,8 +22,8 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/services"
@@ -59,7 +59,7 @@ func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWr
 		Clock:        s.cfg.Clock,
 		SessionID:    session.ID(sessionCtx.ID),
 		Namespace:    apidefaults.Namespace,
-		ServerID:     sessionCtx.Server.GetHostID(),
+		ServerID:     sessionCtx.HostID,
 		RecordOutput: recConfig.GetMode() != types.RecordOff,
 		Component:    teleport.ComponentDatabase,
 		ClusterName:  clusterName.GetClusterName(),

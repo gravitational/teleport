@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	"github.com/gravitational/teleport/api/v7/types"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -164,10 +164,10 @@ func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reverset
 
 type mockRemoteSite struct {
 	reversetunnel.RemoteSite
-	accessPoint auth.AccessPoint
+	accessPoint auth.ProxyAccessPoint
 }
 
-func (m *mockRemoteSite) CachingAccessPoint() (auth.AccessPoint, error) {
+func (m *mockRemoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
 	return m.accessPoint, nil
 }
 
@@ -184,7 +184,7 @@ func (m *mockRemoteSite) GetStatus() string {
 }
 
 type mockAccessPoint struct {
-	auth.AccessPoint
+	auth.ProxyAccessPoint
 	presence *local.PresenceService
 }
 

@@ -26,7 +26,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/api/v7/utils"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 
@@ -106,7 +106,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.WriteCapacityUnits = DefaultWriteCapacityUnits
 	}
 	if cfg.BufferSize == 0 {
-		cfg.BufferSize = backend.DefaultBufferSize
+		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.PollStreamPeriod == 0 {
 		cfg.PollStreamPeriod = backend.DefaultPollStreamPeriod
@@ -212,10 +212,9 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	buf := backend.NewCircularBuffer(
+		backend.BufferCapacity(cfg.BufferSize),
+	)
 	closeCtx, cancel := context.WithCancel(ctx)
 	watchStarted, signalWatchStart := context.WithCancel(ctx)
 	b := &Backend{
@@ -386,13 +385,16 @@ func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []b
 	var result getResult
 	// this code is being extra careful here not to introduce endless loop
 	// by some unfortunate series of events
-	for i := 0; i < backend.DefaultLargeLimit/100; i++ {
+	for i := 0; i < backend.DefaultRangeLimit/100; i++ {
 		re, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), limit, result.lastEvaluatedKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		result.records = append(result.records, re.records...)
 		if len(result.records) >= limit || len(re.lastEvaluatedKey) == 0 {
+			if len(result.records) == backend.DefaultRangeLimit {
+				b.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
+			}
 			result.lastEvaluatedKey = nil
 			return &result, nil
 		}
@@ -412,7 +414,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) erro
 	// keep fetching and deleting until no records left,
 	// keep the very large limit, just in case if someone else
 	// keeps adding records
-	for i := 0; i < backend.DefaultLargeLimit/100; i++ {
+	for i := 0; i < backend.DefaultRangeLimit/100; i++ {
 		result, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), 100, nil)
 		if err != nil {
 			return trace.Wrap(err)
@@ -672,7 +674,7 @@ func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey st
 		KeySchema:             elems,
 		ProvisionedThroughput: &pThroughput,
 	}
-	_, err := b.svc.CreateTable(&c)
+	_, err := b.svc.CreateTableWithContext(ctx, &c)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -722,7 +724,7 @@ func (b *Backend) getRecords(ctx context.Context, startKey, endKey string, limit
 	if limit > 0 {
 		input.Limit = aws.Int64(int64(limit))
 	}
-	out, err := b.svc.Query(&input)
+	out, err := b.svc.QueryWithContext(ctx, &input)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -852,7 +854,7 @@ func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
 		TableName:      aws.String(b.TableName),
 		ConsistentRead: aws.Bool(true),
 	}
-	out, err := b.svc.GetItem(&input)
+	out, err := b.svc.GetItemWithContext(ctx, &input)
 	if err != nil || len(out.Item) == 0 {
 		return nil, trace.NotFound("%q is not found", string(key))
 	}

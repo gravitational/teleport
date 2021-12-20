@@ -26,7 +26,7 @@ import (
 	"net/url"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -46,7 +46,7 @@ type HandlerConfig struct {
 	// AuthClient is a direct client to auth.
 	AuthClient auth.ClientI
 	// AccessPoint is caching client to auth.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.ProxyAccessPoint
 	// ProxyClient holds connections to leaf clusters.
 	ProxyClient reversetunnel.Tunnel
 	// CipherSuites is the list of TLS cipher suites that have been configured

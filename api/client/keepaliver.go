@@ -20,8 +20,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/teleport/api/v7/client/proto"
-	"github.com/gravitational/teleport/api/v7/types"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace/trail"

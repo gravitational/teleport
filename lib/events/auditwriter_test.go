@@ -23,8 +23,8 @@ import (
 	"testing"
 	"time"
 
-	apidefaults "github.com/gravitational/teleport/api/v7/defaults"
-	apievents "github.com/gravitational/teleport/api/v7/types/events"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 
@@ -195,7 +195,7 @@ func TestAuditWriter(t *testing.T) {
 		require.Equal(t, 1, int(streamCreated.Load()), "Stream created once.")
 	})
 
-	// Backoff looses the events on emitter hang, but does not lock
+	// Backoff loses the events on emitter hang, but does not lock
 	t.Run("Backoff", func(t *testing.T) {
 		streamCreated := atomic.NewUint64(0)
 		terminateConnection := atomic.NewUint64(1)
