@@ -174,3 +174,25 @@ issue, you can
 your own third party certificate. Note that Active Directory is
 [extremely picky](https://docs.microsoft.com/en-us/troubleshoot/windows-server/identity/enable-ldap-over-ssl-3rd-certification-authority#requirements-for-an-ldaps-certificate)
 so take care to generate your certificates correctly.
+
+### Teleport Certificate Authority not Compatible
+
+Teleport fails to start with an error similar to:
+
+```text
+x509: issuer must have the crlSign key usage bit set
+```
+
+**Solution:** Rotate Teleport Certificate Authority
+
+The Teleport certificate autherity in a cluster that was created prior to teleport
+8.x does not meet the requirements that Active Directory has to trust the
+certificates it signs. This means that you will need to rotate the teleport
+certificate authority while running at least Teleport 8.x to switch over to a
+certificate authority that does meet these requirements.
+
+See [CA rotation](../setup/operations/ca-rotation.mdx) for instructions to perform
+the rotation.
+
+Once the rotation is complete, make sure to [import the new certificate authority
+to Active Directory](./getting-started.mdx#step-36-configure-a-gpo-to-allow-teleport-connections)
