@@ -121,7 +121,7 @@ func innerMain() error {
 func runUnitTests(workspace string) error {
 	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(workspace, gomodcacheDir))
 
-	cmd := exec.Command("make", "integration")
+	cmd := exec.Command("make", "test")
 	cmd.Dir = workspace
 	cmd.Env = append(os.Environ(), gomodcache, "TELEPORT_ETCD_TEST=yes")
 	cmd.Stdout = os.Stdout
