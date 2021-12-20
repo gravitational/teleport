@@ -1686,9 +1686,9 @@ func (g *GRPCServer) MaintainSessionPresence(stream proto.AuthService_MaintainSe
 			return trace.Wrap(err)
 		}
 
-		if len(authChallenge.U2F) == 0 {
-			log.Errorf("no u2f challenges")
-			return trace.BadParameter("no U2F devices registered for %q", user)
+		if len(authChallenge.U2F) == 0 && authChallenge.WebauthnChallenge == nil {
+			log.Errorf("no u2f or webauthn challenges")
+			return trace.BadParameter("no U2F or WebAuthn devices registered for %q", user)
 		}
 
 		if err := stream.Send(authChallenge); err != nil {
