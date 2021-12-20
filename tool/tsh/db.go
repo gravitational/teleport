@@ -575,29 +575,49 @@ func getMySQLCommand(tc *client.TeleportClient, profile *client.ProfileStatus, d
 }
 
 func getMongoCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
+	// look for `mongosh`
+	_, err := exec.LookPath(mongoshBin)
+	hasMongosh := err == nil
+
+	// Starting with Mongo 4.2 there is an updated set of flags.
+	// We are using them with `mongosh` as otherwise warnings will get displayed.
+	type tlsFlags struct {
+		tls            string
+		tlsCertKeyFile string
+		tlsCAFile      string
+	}
+
+	var flags tlsFlags
+
+	if hasMongosh {
+		flags = tlsFlags{tls: "--tls", tlsCertKeyFile: "--tlsCertificateKeyFile", tlsCAFile: "--tlsCAFile"}
+	} else {
+		flags = tlsFlags{tls: "--ssl", tlsCertKeyFile: "--sslPEMKeyFile", tlsCAFile: "--sslCAFile"}
+	}
+
 	args := []string{
 		"--host", host,
 		"--port", strconv.Itoa(port),
-		"--ssl",
-		"--sslPEMKeyFile", profile.DatabaseCertPathForCluster(tc.SiteName, db.ServiceName),
+		flags.tls,
+		flags.tlsCertKeyFile, profile.DatabaseCertPathForCluster(tc.SiteName, db.ServiceName),
 	}
 
 	if options.caPath != "" {
 		// caPath is set only if mongo connects to the Teleport Proxy via ALPN SNI Local Proxy
 		// and connection is terminated by proxy identity certificate.
-		args = append(args, []string{"--sslCAFile", options.caPath}...)
+		args = append(args, []string{flags.tlsCAFile, options.caPath}...)
 	}
+
 	if db.Database != "" {
 		args = append(args, db.Database)
 	}
 
-	// look for `mongosh`, fall back to `mongo` if not found.
-	clientPath, err := exec.LookPath(mongoshBin)
-	if err != nil {
+	// fall back to `mongo` if `mongosh` isn't found
+	if hasMongosh {
+		return exec.Command(mongoshBin, args...)
+	} else {
 		return exec.Command(mongoBin, args...)
 	}
-
-	return exec.Command(clientPath, args...)
 }
 
 func formatDatabaseListCommand(clusterFlag string) string {
