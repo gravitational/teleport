@@ -22,22 +22,21 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
-	"net"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"syscall"
-	"time"
 
-	"github.com/gravitational/teleport/.cloudbuild/scripts/changes"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/pkg/changes"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/pkg/etcd"
 	"github.com/gravitational/trace"
 )
 
 const (
-	gomodcache = ".gomodcache-ci"
-	nonrootUID = 1000
-	nonrootGID = 1000
+	gomodcacheDir = ".gomodcache-ci"
+	nonrootUID    = 1000
+	nonrootGID    = 1000
 )
 
 // main is just a stub that prints out an error message and sets a nonzero exit
@@ -113,8 +112,11 @@ func innerMain() error {
 	}
 
 	if !args.skipChown {
+		// We run some build steps as root and others as a non user, and we
+		// want the nonroot user to be able to manipulate the artifacts
+		// created by root, so we `chown -R` the whole workspace to allow it.
 		log.Printf("Reconfiguring workspace for nonroot user")
-		err = reconfigureForNonrootUser(args.workspace, nonrootUID, nonrootGID)
+		err = chownR(args.workspace, nonrootUID, nonrootGID)
 		if err != nil {
 			return trace.Wrap(err, "failed reconfiguring workspace")
 		}
@@ -123,9 +125,9 @@ func innerMain() error {
 	log.Printf("Starting etcd...")
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	err = startEtcd(cancelCtx, args.workspace, nonrootUID, nonrootGID)
+	err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID)
 	if err != nil {
-		return trace.Wrap(err, "failed etcd")
+		return trace.Wrap(err, "failed starting etcd")
 	}
 
 	log.Printf("Running nonroot integration tests...")
@@ -140,7 +142,7 @@ func innerMain() error {
 }
 
 func runRootIntegrationTests(workspace string) error {
-	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(workspace, gomodcache))
+	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(workspace, gomodcacheDir))
 	log.Printf("Using %s", gomodcache)
 
 	// Run root integration tests
@@ -154,7 +156,7 @@ func runRootIntegrationTests(workspace string) error {
 }
 
 func runNonrootIntegrationTests(workspace string, uid, gid int) error {
-	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(workspace, gomodcache))
+	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(workspace, gomodcacheDir))
 
 	cmd := exec.Command("make", "integration")
 	cmd.Dir = workspace
@@ -173,51 +175,9 @@ func runNonrootIntegrationTests(workspace string, uid, gid int) error {
 	return cmd.Run()
 }
 
-func startEtcd(ctx context.Context, workspace string, uid, gid int) error {
-	cmd := exec.CommandContext(ctx, "make", "run-etcd")
-	cmd.Dir = workspace
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	// make etcd run under the supplied nonroot account
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Credential: &syscall.Credential{
-			Uid: uint32(uid),
-			Gid: uint32(gid),
-		},
-	}
-
-	log.Printf("Launching etcd")
-	go cmd.Run()
-
-	log.Printf("Waiting for etcd to start...")
-
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	for {
-		select {
-		case <-ticker.C:
-			log.Printf(".")
-			d := net.Dialer{Timeout: 100 * time.Millisecond}
-			_, err := d.Dial("tcp", "127.0.0.1:2379")
-			if err == nil {
-				log.Printf("Etcd is up")
-				return nil
-			}
-
-		case <-timeoutCtx.Done():
-			return trace.Errorf("Timed out waiting for etcd to start")
-		}
-	}
-
-	return nil
-}
-
-func reconfigureForNonrootUser(workspace string, uid, gid int) error {
+// chownR changes the owner of each file in the workspace to the supplied
+// uid:guid combo.
+func chownR(workspace string, uid, gid int) error {
 	err := filepath.WalkDir(workspace, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
