@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport/.cloudbuild/scripts/changes"
@@ -158,6 +159,14 @@ func runNonrootIntegrationTests(workspace string, uid, gid int) error {
 	cmd.Env = append(os.Environ(), gomodcache, "TELEPORT_ETCD_TEST=yes")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	// make the command run under the supplied nonroot account
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Credential: &syscall.Credential{
+			Uid: uint32(uid),
+			Gid: uint32(gid),
+		},
+	}
 
 	return cmd.Run()
 }
