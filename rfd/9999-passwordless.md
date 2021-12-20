@@ -23,10 +23,9 @@ documents for client-side aspects of the design:
 
 * [Passwordless for FIDO2 clients](
   https://github.com/gravitational/teleport/blob/master/rfd/9999-passwordless-fido2.md)
-* TODO(codingllama): Passwordless for macOS CLI (aka Touch ID)
-* TODO(codingllama): Passwordless for Windows CLI (aka plain FIDO2, Hello
-                     out-of-scope for now)
-* TODO(codingllama): Passwordless for SSO
+* [Passwordless for macOS CLI](
+  https://github.com/gravitational/teleport/blob/master/rfd/9999-passwordless-macos.md)
+  (aka Touch ID)
 
 ## Why
 
