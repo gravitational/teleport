@@ -1,19 +1,6 @@
 timeout: 20m
 options:
   machineType: E2_HIGHCPU_32
-  
-  volumes:
-    # A place to put shared state between build steps so that we don't pollute
-    # the workspace
-    - name: state
-      path: '/state'
-
-  env: 
-    # Path to where the Go module cache will live, where we can control it
-    - GOMODCACHE=/state/gomodcacheci
-
-    # Path to a marker file. If this file exists test steps should be skipped.
-    - SKIP_TESTS=/state/skip
 
 steps:
   # GCB does a shallow checkout for a build, but if we want to check our changes
@@ -24,46 +11,8 @@ steps:
 
   # Check if the PR only has docs changes. If so we will set a marker file 
   # meaning that we can skip the other tests in this target
-  - name: golang:1.17.5
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
     id: check-tests
     dir: /workspace/.cloudbuild/scripts
-    entrypoint: go
-    args: [run, ./can-skip, -w=/workspace, -s=$$SKIP_TESTS, -t=$_BASE_BRANCH, -c=HEAD]
-
-  # Run non-root integration tests. The root user is selected by docker image.
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
-    id: root-integration-test
-    entrypoint: bash
-    args: 
-      - '-c'
-      - |
-        if [ ! -f $$SKIP_TESTS ]; then 
-          make rdpclient integration-root
-        fi
-    timeout: 10m
-
-  # Reconfigure the workspace for the non-root user
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
-    id: reconfigure-for-nonroot-user
-    entrypoint: bash
-    args: 
-      - '-c'
-      - |
-        if [ ! -f $$SKIP_TESTS ]; then 
-          chown -R ci:ci /workspace
-          chown -R ci:ci $$GOMODCACHE
-        fi
-
-  # Run non-root integration tests. The non-root user is selected by docker image.
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-nonroot:v0.1.0
-    id: nonroot-integration-test
-    env:
-      - TELEPORT_ETCD_TEST="yes"
-    entrypoint: bash
-    args: 
-      - '-c'
-      - |
-        if [ ! -f $$SKIP_TESTS ]; then 
-          (make run-etcd &); sleep 1; make integration
-        fi
-    timeout: 15m
+    entrypoint: bash 
+    args: [go run, ./integration-tests, -w=/workspace, -t=$_BASE_BRANCH, -c=HEAD]
