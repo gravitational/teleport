@@ -569,10 +569,8 @@ func (s *Suite) checkHTTPResponse(t *testing.T, clientCert tls.Certificate, chec
 	checkResp(resp)
 	require.NoError(t, resp.Body.Close())
 
-	// Context will close because of the net.Pipe, expect a context canceled
-	// error here.
-	err = s.appServer.Close()
-	require.NotNil(t, err)
+	// Close should not trigger an error.
+	require.NoError(t, s.appServer.Close())
 
 	// Wait for the application server to actually stop serving before
 	// closing the test. This will make sure the server removes the listeners
