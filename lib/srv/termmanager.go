@@ -15,9 +15,6 @@
 package srv
 
 import (
-	"math"
-	"regexp"
-	"strings"
 	"sync"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -40,21 +37,21 @@ type TermManager struct {
 }
 
 func NewTermManager(command string, w *SwitchWriter) *TermManager {
-	var state termState
-	isRecognizedShell := strings.HasSuffix(command, "sh") ||
-		strings.HasSuffix(command, "bash") ||
-		strings.HasSuffix(command, "zsh") ||
-		strings.HasSuffix(command, "fish") ||
-		len(command) == 0
-
-	if isRecognizedShell {
-		state = TermStateShell
-	} else {
-		state = TermStateApp
-	}
+	//var state termState
+	//isRecognizedShell := strings.HasSuffix(command, "sh") ||
+	//	strings.HasSuffix(command, "bash") ||
+	//	strings.HasSuffix(command, "zsh") ||
+	//	strings.HasSuffix(command, "fish") ||
+	//	len(command) == 0
+	//
+	//if isRecognizedShell {
+	//	state = TermStateShell
+	//} else {
+	//	state = TermStateApp
+	//}
 
 	return &TermManager{
-		state:    state,
+		state:    TermStateShell,
 		lastline: nil,
 		W:        w,
 	}
@@ -70,7 +67,7 @@ func (g *TermManager) Write(p []byte) (int, error) {
 	}
 
 	preState := g.state
-	g.update(p[:count])
+	//g.update(p[:count])
 	if preState == TermStateApp && g.state == TermStateShell {
 		err := g.flushMessages()
 		if err != nil {
@@ -107,48 +104,48 @@ func (g *TermManager) BroadcastMessage(message string) error {
 	return nil
 }
 
-var shellPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`^bash.*`),
-	regexp.MustCompile(`^zsh.*`),
-	regexp.MustCompile(`^sh.*`),
-	regexp.MustCompile(`^fish.*`),
-	regexp.MustCompile(`^.+@.+:\/#`),
-}
+//var shellPatterns = []*regexp.Regexp{
+//	regexp.MustCompile(`^bash.*`),
+//	regexp.MustCompile(`^zsh.*`),
+//	regexp.MustCompile(`^sh.*`),
+//	regexp.MustCompile(`^fish.*`),
+//	regexp.MustCompile(`^.+@.+:\/#`),
+//}
 
-func (g *TermManager) update(data []byte) {
-	lastRet := findLast(data, '\n')
-	if lastRet == math.MaxInt {
-		g.lastline = append(g.lastline, data...)
-	} else {
-		g.lastline = data[lastRet:]
-	}
+//func (g *TermManager) update(data []byte) {
+//lastRet := findLast(data, '\n')
+//if lastRet == math.MaxInt {
+//	g.lastline = append(g.lastline, data...)
+//} else {
+//	g.lastline = data[lastRet:]
+//}
+//
+//target := string(g.lastline)
+//if strings.HasPrefix("Teleport > ", string(g.lastline)) {
+//	g.state = TermStateShell
+//	return
+//}
+//
+//if len(g.lastline) > 0 {
+//	for _, pattern := range shellPatterns {
+//		if pattern.MatchString(target) {
+//			g.state = TermStateShell
+//			return
+//		}
+//	}
+//}
+//
+//g.state = TermStateApp
+//}
 
-	target := string(g.lastline)
-	if strings.HasPrefix("Teleport > ", string(g.lastline)) {
-		g.state = TermStateShell
-		return
-	}
-
-	if len(g.lastline) > 0 {
-		for _, pattern := range shellPatterns {
-			if pattern.MatchString(target) {
-				g.state = TermStateShell
-				return
-			}
-		}
-	}
-
-	g.state = TermStateApp
-}
-
-func findLast(haystack []byte, needle byte) int {
-	location := math.MaxInt
-
-	for i, b := range haystack {
-		if b == needle {
-			location = i
-		}
-	}
-
-	return location
-}
+//func findLast(haystack []byte, needle byte) int {
+//	location := math.MaxInt
+//
+//	for i, b := range haystack {
+//		if b == needle {
+//			location = i
+//		}
+//	}
+//
+//	return location
+//}

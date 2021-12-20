@@ -45,7 +45,7 @@ import (
 	broadcast "github.com/dustin/go-broadcast"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 const PresenceVerifyInterval = time.Second * 15
@@ -71,7 +71,7 @@ type SessionRegistry struct {
 	mu sync.Mutex
 
 	// log holds the structured logger
-	log *logrus.Entry
+	log *log.Entry
 
 	// sessions holds a map between session ID and the session object. Used to
 	// find active sessions as well as close all sessions when the registry
@@ -95,7 +95,7 @@ func NewSessionRegistry(srv Server, auth auth.ClientI) (*SessionRegistry, error)
 	}
 
 	return &SessionRegistry{
-		log: logrus.WithFields(logrus.Fields{
+		log: log.WithFields(log.Fields{
 			trace.Component: teleport.Component(teleport.ComponentSession, srv.Component()),
 		}),
 		srv:      srv,
@@ -319,13 +319,8 @@ func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
 		return nil
 	}
 
-	err := sess.Close()
-	if err != nil {
-		s.log.Errorf("Unable to close session: %v", sess.id)
-	}
-
-	s.removeSession(sess)
-
+	sess.terminated = true
+	sess.out.BroadcastMessage("Forcefully terminating session...")
 	start, end := sess.startTime, time.Now().UTC()
 
 	// Emit a session.end event for this (interactive) session.
@@ -359,14 +354,11 @@ func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
 		s.log.WithError(err).Warn("Failed to emit session end event.")
 	}
 
-	// close recorder to free up associated resources and flush data
-	if err := sess.recorder.Close(s.srv.Context()); err != nil {
-		s.log.WithError(err).Warn("Failed to close recorder.")
-	}
-
 	if err := sess.Close(); err != nil {
 		s.log.Errorf("Unable to close session %v: %v", sess.id, err)
 	}
+
+	s.removeSession(sess)
 
 	// Remove the session from the backend.
 	if s.srv.GetSessionServer() != nil {
@@ -571,7 +563,7 @@ type session struct {
 	mu sync.RWMutex
 
 	// log holds the structured logger
-	log *logrus.Entry
+	log *log.Entry
 
 	// session ID. unique GUID, this is what people use to "join" sessions
 	id rsession.ID
@@ -634,6 +626,10 @@ type session struct {
 	scx *ServerContext
 
 	presenceEnabled bool
+
+	done chan bool
+
+	terminated bool
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -695,7 +691,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 	initiator := []types.Role(ctx.Identity.RoleSet)
 
 	sess := &session{
-		log: logrus.WithFields(logrus.Fields{
+		log: log.WithFields(log.Fields{
 			trace.Component: teleport.Component(teleport.ComponentSession, r.srv.Component()),
 		}),
 		id:              id,
@@ -753,20 +749,27 @@ func (s *session) Close() error {
 		// (session writer) will try to close this session, causing a deadlock
 		// because of closeOnce
 		go func() {
+			close(s.closeC)
 			s.out.BroadcastMessage("Closing session...")
 			s.log.Infof("Closing session %v.", s.id)
 			err := s.trackerUpdateState(types.SessionState_SessionStateTerminated)
+			if s.term != nil {
+				s.term.Kill()
+			}
 			if err != nil {
 				s.log.WithError(err).Errorf("Failed to update tracker state.")
 			}
 
-			if s.term != nil {
-				s.term.Close()
+			for _, p := range s.parties {
+				err := p.Close()
+				if err != nil {
+					s.log.WithError(err).Errorf("Failed to close party.")
+				}
 			}
+
 			if s.recorder != nil {
 				s.recorder.Close(s.serverCtx)
 			}
-			close(s.closeC)
 			s.state = types.SessionState_SessionStateTerminated
 		}()
 	})
@@ -779,7 +782,7 @@ func (s *session) isLingering() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return len(s.parties) == 0
+	return len(s.parties) == 0 && !s.terminated
 }
 
 func (s *session) monitorAccess() error {
@@ -1026,6 +1029,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	go s.heartbeat(ctx)
 
 	doneCh := make(chan bool, 1)
+	s.done = doneCh
 
 	// copy everything from the pty to the writer. this lets us capture all input
 	// and output of the session (because input is echoed to stdout in the pty).
@@ -1697,7 +1701,7 @@ func (m *MultiWriter) GetRecentWrites() []byte {
 type party struct {
 	sync.Mutex
 
-	log        *logrus.Entry
+	log        *log.Entry
 	login      string
 	user       string
 	serverID   string
@@ -1716,7 +1720,7 @@ type party struct {
 
 func newParty(s *session, ch ssh.Channel, ctx *ServerContext) *party {
 	return &party{
-		log: logrus.WithFields(logrus.Fields{
+		log: log.WithFields(log.Fields{
 			trace.Component: teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 		}),
 		user:      ctx.Identity.TeleportUser,
@@ -1766,6 +1770,7 @@ func (p *party) Close() (err error) {
 		}
 		close(p.closeC)
 		close(p.termSizeC)
+		err = p.ch.Close()
 	})
 	return err
 }

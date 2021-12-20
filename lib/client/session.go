@@ -610,24 +610,23 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, mode types.SessionPar
 				buf := make([]byte, 1)
 				_, err := ns.terminal.Stdin().Read(buf)
 				if err == io.EOF {
-					break
+					return
 				}
 
 				// Ctrl-C
 				if buf[0] == '\x03' {
 					fmt.Print("\n\rLeft session\n\r")
-					break
+					return
 				}
 
-				// Ctrl-T
+				// t
 				if buf[0] == 't' && mode == types.SessionModeratorMode {
-					fmt.Print("\n\rForcefully terminated session\n\r")
 					_, err := sess.SendRequest(teleport.ForceTerminateRequest, true, nil)
 					if err != nil {
 						fmt.Printf("\n\rerror while sending force termination request: %v\n\r", err.Error())
 					}
 
-					break
+					return
 				}
 			}
 		}()
