@@ -25,7 +25,10 @@ UID := $$(id -u)
 GID := $$(id -g)
 
 HOST_ARCH := $(shell uname -m)
-DEVBOX_RUNTIME_ARCH := $(HOST_ARCH)
+DEVBOX_RUNTIME_ARCH_x86_64 := amd64
+DEVBOX_RUNTIME_ARCH_arm64 := arm64
+DEVBOX_RUNTIME_ARCH := $(DEVBOX_RUNTIME_ARCH_$(HOST_ARCH))
+
 DEVBOX_BASE_IMAGE_x86_64 = ubuntu:20.04
 DEVBOX_BASE_IMAGE_arm64 = arm64v8/ubuntu:20.04
 DEVBOX_BASE_IMAGE = $(DEVBOX_BASE_IMAGE_$(HOST_ARCH))
@@ -235,7 +238,7 @@ buildbox-arm-fips: buildbox-fips
 grpc: devbox
 	docker run \
 		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(DEVBOX) \
-		make -C /go/src/github.com/gravitational/teleport devbox-grpc
+		make -C /go/src/github.com/gravitational/teleport DISABLE_TEST_TARGETS=1 devbox-grpc
 
 #
 # Removes the docker image
