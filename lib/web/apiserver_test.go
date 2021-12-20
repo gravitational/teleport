@@ -2844,6 +2844,85 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	require.NotEmpty(t, re.Recovery.Created)
 }
 
+func TestParseSSORequestParams(t *testing.T) {
+	t.Parallel()
+
+	token := "someMeaninglessTokenString"
+
+	tests := []struct {
+		name, url string
+		wantErr   bool
+		expected  *ssoRequestParams
+	}{
+		{
+			name: "preserve space",
+			url:  "https://localhost/login?redirect_url=https://localhost/nodes?q=hello%20test&connector_id=oidc",
+			expected: &ssoRequestParams{
+				clientRedirectURL: "https://localhost/nodes?q=hello test",
+				connectorID:       "oidc",
+				csrfToken:         token,
+			},
+		},
+		{
+			name: "preserve encoded space",
+			url:  "https://localhost/login?redirect_url=https://localhost/nodes?q=hello%2520test&connector_id=oidc",
+			expected: &ssoRequestParams{
+				clientRedirectURL: "https://localhost/nodes?q=hello%20test",
+				connectorID:       "oidc",
+				csrfToken:         token,
+			},
+		},
+		{
+			name: "preserve plus char",
+			url:  "https://localhost:8080/web/login?redirect_url=https:%2F%2Flocalhost:8080%2Fweb%2Fcluster%2Fim-a-cluster-name%2Fnodes%3Fq=l=country:South%2520Korea+l=os:windows+l=dev:staging&connector_id=github",
+			expected: &ssoRequestParams{
+				clientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?q=l=country:South%20Korea+l=os:windows+l=dev:staging",
+				connectorID:       "github",
+				csrfToken:         token,
+			},
+		},
+		{
+			name: "preserve encoded plus",
+			url:  "https://localhost/login?redirect_url=https://localhost/nodes?q=hello%252Btest&connector_id=oidc",
+			expected: &ssoRequestParams{
+				clientRedirectURL: "https://localhost/nodes?q=hello%2Btest",
+				connectorID:       "oidc",
+				csrfToken:         token,
+			},
+		},
+		{
+			name:    "invalid redirect_url query param",
+			url:     "https://localhost/login?redirect=https://localhost/nodes&connector_id=oidc",
+			wantErr: true,
+		},
+		{
+			name:    "invalid connector_id query param",
+			url:     "https://localhost/login?redirect_url=https://localhost/nodes&connector=oidc",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			req, err := http.NewRequest("", tc.url, nil)
+			require.NoError(t, err)
+			addCSRFCookieToReq(req, token)
+
+			params, err := parseSSORequestParams(req)
+
+			switch {
+			case tc.wantErr:
+				require.Error(t, err)
+			default:
+				require.NoError(t, err)
+				require.Equal(t, tc.expected, params)
+			}
+		})
+	}
+}
+
 type authProviderMock struct {
 	server types.ServerV2
 }

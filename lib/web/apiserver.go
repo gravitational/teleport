@@ -2652,7 +2652,11 @@ type ssoRequestParams struct {
 }
 
 func parseSSORequestParams(r *http.Request) (*ssoRequestParams, error) {
-	query := r.URL.Query()
+	rawQuery := strings.Replace(r.URL.RawQuery, "+", "%2B", -1)
+	query, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	clientRedirectURL := query.Get("redirect_url")
 	if clientRedirectURL == "" {
