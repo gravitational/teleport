@@ -797,6 +797,12 @@ message ClusterAuditConfigSpecV2 {
     int64 WriteMinCapacity = 12 [ (gogoproto.jsontag) = "write_min_capacity,omitempty" ];
     // WriteTargetValue is the ratio of consumed write to provisioned capacity.
     double WriteTargetValue = 13 [ (gogoproto.jsontag) = "write_target_value,omitempty" ];
+    // RetentionPeriod is the retention period for audit events.
+    int64 RetentionPeriod = 14 [
+        (gogoproto.jsontag) = "retention_period",
+        (gogoproto.casttype) = "Duration",
+        (gogoproto.nullable) = true
+    ];
 }
 
 // ClusterNetworkingConfigV2 contains cluster-wide networking configuration.
