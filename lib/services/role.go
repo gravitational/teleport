@@ -103,10 +103,10 @@ func NewImplicitRole() types.Role {
 		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.MaxDuration(),
-				// PortForwarding has to be set to false in the default-implicit-role
-				// otherwise all roles will be allowed to forward ports (since we default
-				// to true in the check).
-				PortForwarding: types.NewBoolOption(false),
+				// Explicitly disable options that default to true, otherwise the option
+				// will always be enabled, as this implicit role is part of every role set.
+				PortForwarding:       types.NewBoolOption(false),
+				RecordDesktopSession: types.NewBoolOption(false),
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -1849,6 +1849,17 @@ func (set RoleSet) CanForwardAgents() bool {
 func (set RoleSet) CanPortForward() bool {
 	for _, role := range set {
 		if types.BoolDefaultTrue(role.GetOptions().PortForwarding) {
+			return true
+		}
+	}
+	return false
+}
+
+// RecordDesktopSession returns true if a role in the role set has enabled
+// desktop session recoring.
+func (set RoleSet) RecordDesktopSession() bool {
+	for _, role := range set {
+		if types.BoolDefaultTrue(role.GetOptions().RecordDesktopSession) {
 			return true
 		}
 	}

@@ -587,6 +587,9 @@ func (r *RoleV4) CheckAndSetDefaults() error {
 	if r.Spec.Allow.Namespaces == nil {
 		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
 	}
+	if r.Spec.Options.RecordDesktopSession == nil {
+		r.Spec.Options.RecordDesktopSession = NewBoolOption(true)
+	}
 
 	switch r.Version {
 	case V3:

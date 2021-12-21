@@ -1527,6 +1527,14 @@ message RoleOptions {
         (gogoproto.jsontag) = "lock,omitempty",
         (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
     ];
+
+    // RecordDesktopSession indicates whether desktop access sessions should be recorded.
+    // It defaults to true unless explicitly set to false.
+    BoolValue RecordDesktopSession = 15 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "record_desktop_session",
+        (gogoproto.customtype) = "BoolOption"
+    ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
