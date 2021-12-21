@@ -47,9 +47,7 @@ import (
 
 // TestProxySSHDial verifies "tsh proxy ssh" command.
 func TestProxySSHDial(t *testing.T) {
-	// Setup ssh agent.
-	sockPath := createAgent(t)
-	os.Setenv("SSH_AUTH_SOCK", sockPath)
+	createAgent(t)
 
 	os.RemoveAll(profile.FullProfilePath(""))
 	t.Cleanup(func() {
@@ -210,6 +208,7 @@ func createAgent(t *testing.T) string {
 	})
 
 	sockPath := filepath.Join(sockDir, "agent.sock")
+	t.Setenv("SSH_AUTH_SOCK", sockPath)
 
 	uid, err := strconv.Atoi(user.Uid)
 	require.NoError(t, err)
