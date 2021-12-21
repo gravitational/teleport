@@ -33,8 +33,8 @@ spec:
               mountPath: /etc/telegraf/telegraf.conf
               subPath: telegraf.conf
         - name: teleport
-          image: gcr.io/teleport-loadtest/teleport:8.0.0-tross.dev.1
-          args: ["-d", "--insecure"]
+          image: ${TELEPORT_IMAGE}
+          args: ["-d", "--insecure", "--diag-addr=0.0.0.0:3434"]
           ports:
             - name: diag
               containerPort: 3434

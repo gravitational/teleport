@@ -39,8 +39,8 @@ spec:
               subPath: telegraf.conf
               readOnly: true
         - name: teleport
-          image: quay.io/gravitational/teleport-ent:8.0.0
-          args: ["-d", "--insecure"]
+          image: ${TELEPORT_IMAGE}
+          args: ["-d", "--insecure", "--diag-addr=0.0.0.0:3434"]
           ports:
             - name: diag
               containerPort: 3434
