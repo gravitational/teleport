@@ -1799,16 +1799,18 @@ func (set RoleSet) String() string {
 	return fmt.Sprintf("roles %v", strings.Join(roleNames, ","))
 }
 
-// CheckAccessToAnyResource is used to determine if access is possible for an
-// entire category of resources.
-// Rules with a Where clause are handled differently by the method:
-// - "allow" rules have their "where" clause always match, as it's assumed that
-//   there could be a resource that matches it.
-// - "deny" rules have their "where" clause always fail, as it's assumed that
-//   there could be a resource that passes it.
-// Do not use this method to check for access for specific resources, instead
-// use CheckAccessToRule.
-func (set RoleSet) CheckAccessToAnyResource(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+// GuessIfAccessIsPossible guesses if access is possible for an entire category
+// of resources.
+// It responds the question: "is it possible that there is a resource of this
+// kind that the current user can access?".
+// GuessIfAccessIsPossible is used, mainly, for UI decisions ("should the tab
+// for resource X appear"?). Most callers should use CheckAccessToRule instead.
+func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+	// "Where" clause are handled differently by the method:
+	// - "allow" rules have their "where" clause always match, as it's assumed
+	//   that there could be a resource that matches it.
+	// - "deny" rules have their "where" clause always fail, as it's assumed that
+	//   there could be a resource that passes it.
 	return set.checkAccessToRuleImpl(checkAccessParams{
 		ctx:        ctx,
 		namespace:  namespace,

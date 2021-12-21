@@ -151,7 +151,7 @@ func hasAccess(roleSet services.RoleSet, ctx *services.Context, kind string, ver
 	for _, verb := range verbs {
 		// Since this check occurs often and does not imply the caller is trying to
 		// access any resource, silence any logging done on the proxy.
-		if err := roleSet.CheckAccessToAnyResource(ctx, apidefaults.Namespace, kind, verb, true); err != nil {
+		if err := roleSet.GuessIfAccessIsPossible(ctx, apidefaults.Namespace, kind, verb, true); err != nil {
 			return false
 		}
 	}

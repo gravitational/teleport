@@ -1491,7 +1491,7 @@ func TestCheckRuleAccess(t *testing.T) {
 	}
 }
 
-func TestCheckAccessToAnyResource(t *testing.T) {
+func TestGuessIfAccessIsPossible(t *testing.T) {
 	// Examples from https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions.
 	ownSessions, err := types.NewRole("own-sessions", types.RoleSpecV4{
 		Allow: types.RoleConditions{
@@ -1575,9 +1575,9 @@ func TestCheckAccessToAnyResource(t *testing.T) {
 		// wantRuleAccess fully evaluates where conditions, used to determine access
 		// to specific resources.
 		wantRuleAccess bool
-		// wantResourceAccess doesn't evaluate where conditions, used to determine
+		// wantGuessAccess doesn't evaluate where conditions, used to determine
 		// access to a category of resources.
-		wantResourceAccess bool
+		wantGuessAccess bool
 	}{
 		{
 			name:  "global session list/read allowed",
@@ -1587,8 +1587,8 @@ func TestCheckAccessToAnyResource(t *testing.T) {
 				resource:  types.KindSession,
 				verbs:     []string{types.VerbList, types.VerbRead},
 			},
-			wantRuleAccess:     true,
-			wantResourceAccess: true,
+			wantRuleAccess:  true,
+			wantGuessAccess: true,
 		},
 		{
 			name:  "own session list/read allowed",
@@ -1598,8 +1598,8 @@ func TestCheckAccessToAnyResource(t *testing.T) {
 				resource:  types.KindSession,
 				verbs:     []string{types.VerbList, types.VerbRead},
 			},
-			wantRuleAccess:     false, // where condition needs specific resource
-			wantResourceAccess: true,
+			wantRuleAccess:  false, // where condition needs specific resource
+			wantGuessAccess: true,
 		},
 		{
 			name:  "session list/read denied",
@@ -1630,8 +1630,8 @@ func TestCheckAccessToAnyResource(t *testing.T) {
 				resource:  types.KindSSHSession,
 				verbs:     []string{types.VerbList, types.VerbRead},
 			},
-			wantRuleAccess:     true,
-			wantResourceAccess: true,
+			wantRuleAccess:  true,
+			wantGuessAccess: true,
 		},
 		{
 			name:  "own SSH session list/read allowed",
@@ -1641,8 +1641,8 @@ func TestCheckAccessToAnyResource(t *testing.T) {
 				resource:  types.KindSSHSession,
 				verbs:     []string{types.VerbList, types.VerbRead},
 			},
-			wantRuleAccess:     false, // where condition needs specific resource
-			wantResourceAccess: true,
+			wantRuleAccess:  false, // where condition needs specific resource
+			wantGuessAccess: true,
 		},
 		{
 			name: "SSH session list/read denied",
@@ -1680,9 +1680,9 @@ func TestCheckAccessToAnyResource(t *testing.T) {
 					t.Errorf("CheckAccessToRule(verb=%q) returned err = %v=q, wantAccess = %v", verb, err, wantAccess)
 				}
 
-				err = test.roles.CheckAccessToAnyResource(&params.ctx, params.namespace, params.resource, verb, silent)
-				if gotAccess, wantAccess := err == nil, test.wantResourceAccess; gotAccess != wantAccess {
-					t.Errorf("CheckAccessToAnyResource(verb=%q) returned err = %q, wantAccess = %v", verb, err, wantAccess)
+				err = test.roles.GuessIfAccessIsPossible(&params.ctx, params.namespace, params.resource, verb, silent)
+				if gotAccess, wantAccess := err == nil, test.wantGuessAccess; gotAccess != wantAccess {
+					t.Errorf("GuessIfAccessIsPossible(verb=%q) returned err = %q, wantAccess = %v", verb, err, wantAccess)
 				}
 			}
 		})
