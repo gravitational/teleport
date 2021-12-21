@@ -39,14 +39,14 @@ message Frame {
 
 // DialRequest contains details for connecting to a node.
 message DialRequest {
-   // ServerID is the {UUID}.{ClusterName} of a node.
-   string ServerID = 1;
-   // ConnType is the type of connection requested.
-   // Examples: “node” or “app”
-   string ConnType = 2;
-   // Source is the source address of the connection.
+   // NodeID is the {UUID}.{ClusterName} of the node to connect to.
+   string NodeID = 1;
+   // TunnelType is the type of service being accessed. This differentiates agents that
+   // create multiple reverse tunnels for different services.
+   string TunnelType = 2 [ (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.TunnelType" ];
+   // Source is the original source address of the client.
    Addr Source = 3;
-   // Destination is the destination address of the connection.
+   // Destination is the destination address to connect to over the reverse tunnel.
    Addr Destination = 4;
 }
 
@@ -90,7 +90,7 @@ type NodeTunnelClient interface {
         src net.Addr,
         dst net.Addr,
         serverID string,
-        connType string,
+        tunnelType types.TunnelType,
     ) (net.Conn, error)
 }
 ```
