@@ -20,6 +20,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"os/exec"
@@ -50,6 +51,7 @@ type commandlineArgs struct {
 	workspace    string
 	targetBranch string
 	commitSHA    string
+	skipChown    bool
 }
 
 func parseCommandLine() (commandlineArgs, error) {
@@ -58,6 +60,7 @@ func parseCommandLine() (commandlineArgs, error) {
 	flag.StringVar(&args.workspace, "w", "", "Fully-qualified path to the build workspace")
 	flag.StringVar(&args.targetBranch, "t", "", "The PR's target branch")
 	flag.StringVar(&args.commitSHA, "c", "", "The PR's latest commit SHA")
+	flag.BoolVar(&args.skipChown, "skip-chown", false, "Skip reconfiguring the workspace for a nonroot user.")
 
 	flag.Parse()
 
@@ -102,6 +105,17 @@ func innerMain() error {
 		return nil
 	}
 
+	if !args.skipChown {
+		// We run some build steps as root and others as a non user, and we
+		// want the nonroot user to be able to manipulate the artifacts
+		// created by root, so we `chown -R` the whole workspace to allow it.
+		log.Printf("Reconfiguring workspace for nonroot user")
+		err = chownR(args.workspace, nonrootUID, nonrootGID)
+		if err != nil {
+			return trace.Wrap(err, "failed reconfiguring workspace")
+		}
+	}
+
 	log.Printf("Starting etcd...")
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -122,14 +136,18 @@ func innerMain() error {
 }
 
 func runUnitTests(workspace string) error {
-	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(workspace, gomodcacheDir))
-
 	cmd := exec.Command("make", "test")
 	cmd.Dir = workspace
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	cmd.Env = append(os.Environ(), gomodcache, "TELEPORT_ETCD_TEST=yes",
+	cmd.Env = append(os.Environ(),
+		"TELEPORT_ETCD_TEST=yes",
+
+		// We want the go module cache to be in a place we control, so force it
+		// to be in the workspace
+		fmt.Sprintf("GOMODCACHE=%s", path.Join(workspace, gomodcacheDir)),
+
 		// Some unit tests are not well isolated and will use the current $HOME
 		// to store tsh profile data. GCB protects the real builder homedir, so
 		// we tell the tests to use somewhere else that we know we can write to.
@@ -144,4 +162,18 @@ func runUnitTests(workspace string) error {
 	}
 
 	return cmd.Run()
+}
+
+// chownR changes the owner of each file in the workspace to the supplied
+// uid:guid combo.
+func chownR(workspace string, uid, gid int) error {
+	err := filepath.WalkDir(workspace, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		return os.Chown(path, uid, gid)
+	})
+
+	return trace.Wrap(err, "Failed changing file owner")
 }
