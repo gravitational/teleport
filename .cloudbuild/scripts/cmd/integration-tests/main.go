@@ -112,7 +112,7 @@ func innerMain() error {
 	if err != nil {
 		return trace.Wrap(err, "Root-only integration tests failed")
 	}
-log.Println("Root-only integration tests passed.")
+	log.Println("Root-only integration tests passed.")
 	if !args.skipChown {
 		// We run some build steps as root and others as a non user, and we
 		// want the nonroot user to be able to manipulate the artifacts
@@ -124,6 +124,11 @@ log.Println("Root-only integration tests passed.")
 		}
 	}
 
+	// Note that we run `etcd` as nonroot here. The files created by etcd live
+	// inside the directory searched by `go list ./...` when generating the list
+	// of packages to test, and so making them owned by root produces a heap of
+	// diagnostic warnings that would pollute the build log and just confuse
+	// people when they are trying to work out why their build failed.
 	log.Printf("Starting etcd...")
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
