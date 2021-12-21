@@ -20,7 +20,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/fs"
 	"log"
 	"os"
 	"os/exec"
@@ -177,7 +176,7 @@ func runNonrootIntegrationTests(workspace string, uid, gid int, env ...string) e
 // chownR changes the owner of each file in the workspace to the supplied
 // uid:guid combo.
 func chownR(workspace string, uid, gid int) error {
-	err := filepath.WalkDir(workspace, func(path string, d fs.DirEntry, err error) error {
+	err := filepath.Walk(workspace, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
