@@ -232,4 +232,7 @@ type Presence interface {
 	DeleteWindowsDesktopService(ctx context.Context, name string) error
 	// DeleteAllWindowsDesktopServices removes all Windows desktop services.
 	DeleteAllWindowsDesktopServices(context.Context) error
+
+	// ListResoures returns a paginated list of resources.
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.Resource, nextKey string, err error)
 }

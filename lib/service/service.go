@@ -1035,6 +1035,7 @@ func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, 
 				WriteMinCapacity:        auditConfig.WriteMinCapacity(),
 				WriteMaxCapacity:        auditConfig.WriteMaxCapacity(),
 				WriteTargetValue:        auditConfig.WriteTargetValue(),
+				RetentionPeriod:         auditConfig.RetentionPeriod(),
 			}
 			err = cfg.SetFromURL(uri)
 			if err != nil {

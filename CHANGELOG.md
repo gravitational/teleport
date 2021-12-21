@@ -1,5 +1,21 @@
 # Changelog
 
+## 8.0.7
+
+This release of Teleport contains multiple features and bug fixes.
+
+* Added support for a configurable event TTL in DynamoDB. [#8840](https://github.com/gravitational/teleport/pull/8840)
+* Added support for `tsh play -f json <ID>` [#9319](https://github.com/gravitational/teleport/pull/9319)
+* Added Helm chart enhancements. [#8105](https://github.com/gravitational/teleport/pull/8105) [#8774](https://github.com/gravitational/teleport/pull/8774) [#9130](https://github.com/gravitational/teleport/pull/9130) [#9263](https://github.com/gravitational/teleport/pull/9263) [#9349](https://github.com/gravitational/teleport/pull/9349) [#9503](https://github.com/gravitational/teleport/pull/9503)
+* Fixed an issue with TLS Routing that would cause Teleport to not respect `NO_PROXY`. [#9287](https://github.com/gravitational/teleport/pull/9287)
+* Fixed an issue with Database Access where running `show tables` MySQL would result in an error. [#9411](https://github.com/gravitational/teleport/pull/9411)
+* Fixed an issue with Server Access where a null route would cause high latency when connecting to hosts. [#9254](https://github.com/gravitational/teleport/pull/9254)
+* Fixed an issue with Database Access that would cause the Web UI to fail to list databases. [#9096](https://github.com/gravitational/teleport/pull/9096)
+* Fixed a goroutine leak in Application Access. [#9332](https://github.com/gravitational/teleport/pull/9332)
+* Fixed potentially short reads from the system random number generator. [#9186](https://github.com/gravitational/teleport/pull/9186)
+* Fixed RPM repository compatibility issues for CentOS 7 users. [#9464](https://github.com/gravitational/teleport/pull/9464)
+* Fixed issue with Kubernetes Access and CA rotation. [#9418](https://github.com/gravitational/teleport/pull/9418)
+
 ## 8.0.6
 
 This release of Teleport contains a feature and bug fixes.
