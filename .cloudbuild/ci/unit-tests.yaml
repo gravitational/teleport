@@ -25,6 +25,9 @@ steps:
   # detected in the PR
   - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:teleport6.2-v0.1.0
     id: run-tests
+    volumes: 
+      - name: bcc-headers
+        path: /usr/include/bcc
     dir: /workspace/.cloudbuild/scripts
     entrypoint: bash 
     args: 
