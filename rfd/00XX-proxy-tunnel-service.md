@@ -6,7 +6,7 @@ state: draft
 # RFD XX - Proxy Tunnel Service
 
 ## What
-This document describes an API that enables a proxy to dial the nodes connected to a neighboring proxy. This will allow node agents to connect to one proxy and be reachable through any other proxy in the cluster. This is one component of a larger design to make teleport more cloud friendly. See [RFD 48](https://github.com/gravitational/teleport/blob/master/rfd/0048-war-dialler-node-tracker.md) for more details.
+This document describes an API that enables a proxy to dial the nodes connected to a neighboring proxy. This is an optional feature that will allow node agents to connect to one proxy and be reachable through any other proxy in the cluster. This is one component of a larger design to make teleport more cloud friendly. See [RFD 48](https://github.com/gravitational/teleport/blob/master/rfd/0048-war-dialler-node-tracker.md) for more details.
 
 ## Why
 The main goal is to remove the need for a node agent to create a reverse tunnel to every proxy. The problems caused by this behavior are outlined [here](https://github.com/gravitational/teleport/blob/master/rfd/0048-war-dialler-node-tracker.md#why).
@@ -134,3 +134,6 @@ A proxy initiated reconnect will work as follows:
 
 ### Trusted Clusters
 Leaf clusters will continue to use the mesh agent pool, connecting to all proxies in the root cluster. Supporting trusted clusters would add a non-trivial amount of work and complexity to this design and provides diminishing returns. It is expected that trusted clusters will not be connected at the same scale as other resouces like ssh nodes and therefore will not be a big contributer to the problems we are trying to address here.
+
+## Alternative Considerations
+An alternative approach was considered to redirect clients to the corresponding node-proxy. This was ultimately disregarded for a couple of reasons. It increases the time to establish a session for the client as a client would need to dial and authenticate with two proxies. Proxies would need to be individually addressible by the client which makes them an easier targets for DDOS attacks.
