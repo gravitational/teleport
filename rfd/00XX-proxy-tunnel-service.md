@@ -101,7 +101,13 @@ The api will use mTLS to ensure that only other proxies are able to connect. Thi
 ### API Clients
 Each proxy will need to manage multiple grpc clients, one to each neighboring proxy. These will be created as needed, or in other words the first time `DialNode` is called for that specific proxy. Once a client is created it will be reused for any future requests to the same neighboring proxy.
 
-Testing should be done to ensure that a single grpc connection does not become a bottleneck for many concurrent streams. Some comments on [grpc#2412](https://github.com/grpc/grpc-go/issues/2412) could be useful. If this does become an issue additional connections to the same proxy will need to be created.
+Monitoring will be added to ensure that a single grpc connection does not become a bottleneck for many concurrent streams. The following metrics will be tracked:
+
+1. Total throughput in bytes, this is the aggregate number of bytes sent over all grpc channels on a single connection.
+2. Number of concurrent streams, this is the number of streams at any instant.
+3. Total number of streams, this is the total number of streams including both current and past streams.
+
+With these metrics we will be able to see if throughput begins to drop as more streams are being used. If this does become an issue additional tcp connections will need to be created.
 
 In dynamic environments where proxies are added and removed, grpc clients will need to be cleaned up periodically to avoid memory leaks. This can be implemented using [grpc connectivity states](https://github.com/grpc/grpc/blob/master/doc/connectivity-semantics-and-api.md). If a client connection enters a bad state for some period of time it can be cleaned up.
 
