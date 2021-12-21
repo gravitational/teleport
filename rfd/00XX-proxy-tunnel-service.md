@@ -131,3 +131,6 @@ A proxy initiated reconnect will work as follows:
 3. The agent establishes a new connection to a proxy server.
 4. The agent sends an request over the old ssh connection to indicate the old connection is being drained. At this point the proxy will stop sending new requests to the old connection.
 5. After all pre existing requests have been drained the agent closes the old connection.
+
+### Trusted Clusters
+Leaf clusters will continue to use the mesh agent pool, connecting to all proxies in the root cluster. Supporting trusted clusters would add a non-trivial amount of work and complexity to this design and provides diminishing returns. It is expected that trusted clusters will not be connected at the same scale as other resouces like ssh nodes and therefore will not be a big contributer to the problems we are trying to address here.
