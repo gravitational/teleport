@@ -11,6 +11,11 @@ This document describes an API that enables a proxy to dial the nodes connected 
 ## Why
 The main goal is to remove the need for a node agent to create a reverse tunnel to every proxy. The problems caused by this behavior are outlined [here](https://github.com/gravitational/teleport/blob/master/rfd/0048-war-dialler-node-tracker.md#why).
 
+## Terminology
+**User-Proxy** - The proxy a user establishes a connection to.
+
+**Node-Proxy** - The proxy a node establishes a reverse tunnel to.
+
 ## Details
 
 ### Proxy API
@@ -58,24 +63,24 @@ message Data { bytes Bytes = 1; }
 
 ### How it works
 
-The following diagram shows a user connecting to a proxy, proxy1, and trying to reach a node connected to another proxy, proxy2. Using the DialNode rpc, proxy1 can create a bidirectional stream to the node through proxy2.
+The following diagram shows a user connecting to a proxy, the user-proxy, and trying to reach a node connected to a different proxy, the node-proxy. Using the DialNode rpc, the user-proxy can create a bidirectional stream to the node through the node-proxy.
 ```
-┌──────┐                       ┌──────┐
-|client|──────connection──────>|proxy1|
-└──────┘                       └──╥───┘
-                                  ║
-                             grpc stream
-                                  ║
-  ┌────┐                       ┌──╨───┐
-  |node|────reverse-tunnel────>|proxy2|
-  └────┘                       └──────┘
+┌────┐                         ┌──────────┐
+|user|──────connection────────>|user-proxy|
+└────┘                         └────╥─────┘
+                                    ║
+                                grpc stream
+                                    ║
+┌────┐                         ┌────╨─────┐
+|node|─────reverse-tunnel─────>|node-proxy|
+└────┘                         └──────────┘
 ```
 
 A call to the DialNode rpc will send an initial frame containing a `DialRequest`. All subsequent frames should contain `Data` messages. An appropriate error will be returned if the dial request fails for some reason.
 
-To avoid duplicate work the user proxy will handle all typical proxy side logic like session recording. While the node proxy will bypass this and forward the connection directly to the node.
+To avoid duplicate work the user-proxy will handle all typical proxy side logic like authorization and session recording, while the node-proxy will forward the connection directly to the node.
 
-The DialNode rpc will be wrapped with a client library to return a net.Conn when called. This abstraction allows teleport to treat any underlying transport the same, whether it be a direct dial to the node, a reverse tunnel connected to the user proxy, or a connection over the DialNode rpc.
+The DialNode rpc will be wrapped with a client library to return a net.Conn when called. This abstraction allows teleport to treat any underlying transport the same, whether it be a direct dial to the node, a reverse tunnel connected to the user-proxy, or a connection over the DialNode rpc.
 
 ```go
 type NodeTunnelClient interface {
@@ -91,7 +96,7 @@ type NodeTunnelClient interface {
 ```
 
 ### Security
-The api will use mTLS to ensure that only other proxies are able to connect. This is done by checking certificates for the build-in role “Proxy”. This will prevent users from connecting to the service directly and bypassing proxy side logic.
+The api will use mTLS to ensure that only other proxies are able to connect. This is done by checking certificates for the build-in role “Proxy”. This will prevent users from connecting to the service directly without going through the user-proxy logic of authorization and session recording.
 
 ### API Clients
 Each proxy will need to manage multiple grpc clients, one to each neighboring proxy. These will be created as needed, or in other words the first time `DialNode` is called for that specific proxy. Once a client is created it will be reused for any future requests to the same neighboring proxy.
