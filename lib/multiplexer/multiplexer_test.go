@@ -655,13 +655,13 @@ func TestMux(t *testing.T) {
 }
 
 func TestProtocolString(t *testing.T) {
-	// []string{"", "Unknown", "TLS", "SSH", "Proxy", "HTTP", "Postgres", ""}
-	expect := make([]string, len(protocolStrings)+2)
-	copy(expect[1:], protocolStrings)
-	for i := range expect {
-		got := Protocol(i - 1).String()
-		if expect[i] != got {
-			t.Errorf("expected '%s' got '%s'", expect[i], got)
+	for i := -1; i < len(protocolStrings)+1; i++ {
+		got := Protocol(i).String()
+		switch i {
+		case -1, len(protocolStrings) + 1:
+			require.Equal(t, "", got)
+		default:
+			require.Equal(t, protocolStrings[Protocol(i)], got)
 		}
 	}
 }

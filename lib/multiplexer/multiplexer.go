@@ -333,15 +333,19 @@ const (
 )
 
 // protocolStrings defines strings for each Protocol.
-var protocolStrings = []string{"Unknown", "TLS", "SSH", "Proxy", "HTTP", "Postgres"}
+var protocolStrings = map[Protocol]string{
+	ProtoUnknown:  "Unknown",
+	ProtoTLS:      "TLS",
+	ProtoSSH:      "SSH",
+	ProtoProxy:    "Proxy",
+	ProtoHTTP:     "HTTP",
+	ProtoPostgres: "Postgres",
+}
 
 // String returns the string representation of Protocol p.
 // An empty string is returned when the protocol is not defined.
 func (p Protocol) String() string {
-	if ProtoUnknown <= p && int(p) < len(protocolStrings) {
-		return protocolStrings[p]
-	}
-	return ""
+	return protocolStrings[p]
 }
 
 var (

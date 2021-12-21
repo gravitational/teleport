@@ -2594,7 +2594,6 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		}
 	}
 
-	useSeparatePostgresListener := !cfg.Proxy.PostgresAddr.IsEmpty()
 	if cfg.Proxy.Kube.Enabled && !cfg.Proxy.Kube.ListenAddr.IsEmpty() {
 		process.log.Debugf("Setup Proxy: turning on Kubernetes proxy.")
 		listener, err := process.importOrCreateListener(listenerProxyKube, cfg.Proxy.Kube.ListenAddr.Addr)
@@ -2644,10 +2643,8 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		if !cfg.Proxy.DisableWebService {
 			listeners.web = listeners.mux.TLS()
 		}
-		if !cfg.Proxy.DisableDatabaseProxy && !useSeparatePostgresListener {
-			if err := process.setPostgresListener(cfg, &listeners); err != nil {
-				return nil, trace.Wrap(err)
-			}
+		if err := process.setPostgresListener(cfg, &listeners); err != nil {
+			return nil, trace.Wrap(err)
 		}
 		if !cfg.Proxy.DisableReverseTunnel {
 			listeners.reverseTunnel = listeners.mux.SSH()
@@ -2670,10 +2667,8 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.web = listeners.mux.TLS()
-		if !cfg.Proxy.DisableDatabaseProxy && !useSeparatePostgresListener {
-			if err := process.setPostgresListener(cfg, &listeners); err != nil {
-				return nil, trace.Wrap(err)
-			}
+		if err := process.setPostgresListener(cfg, &listeners); err != nil {
+			return nil, trace.Wrap(err)
 		}
 		if !cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
 			listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
