@@ -4,6 +4,8 @@
 package forward
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/tls"
 	"io"
 	"net"
@@ -283,6 +285,30 @@ func (f *websocketForwarder) serveHTTP(w http.ResponseWriter, req *http.Request,
 		ctx.errHandler.ServeHTTP(w, req, err)
 		return
 	}
+
+	// read response code to make sure connection upgrade succeeded
+	respCode, respBody, err := readResponseAndCode(targetConn)
+	if err != nil {
+		ctx.log.Errorf("Unable to read websocket upgrade response: %v", err)
+		return
+	}
+
+	// write upgrade response to the client
+	if len(respBody) > 0 {
+		if _, err := underlyingConn.Write(respBody); err != nil {
+			ctx.log.Errorf("Unable to write websocket upgrade response: %v", err)
+			return
+		}
+	}
+
+	// make sure we got 101 before establishing a bidirectional pipe
+	if respCode != http.StatusSwitchingProtocols {
+		ctx.log.Warningf("Unable to upgrade websocket connection: %v", string(respBody))
+		return
+	}
+
+	ctx.log.Infof("Websocket upgrade: %v", outReq.URL.String())
+
 	errc := make(chan error, 2)
 	replicate := func(dst io.Writer, src io.Reader) {
 		_, err := io.Copy(dst, src)
@@ -291,6 +317,16 @@ func (f *websocketForwarder) serveHTTP(w http.ResponseWriter, req *http.Request,
 	go replicate(targetConn, underlyingConn)
 	go replicate(underlyingConn, targetConn)
 	<-errc
+}
+
+// readResponseAndCode reads an HTTP response and its status code from reader.
+func readResponseAndCode(r io.Reader) (int, []byte, error) {
+	buf := bytes.NewBuffer(make([]byte, 0, 256))
+	resp, err := http.ReadResponse(bufio.NewReader(io.TeeReader(r, buf)), nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	return resp.StatusCode, buf.Bytes(), nil
 }
 
 // copyRequest makes a copy of the specified request.
