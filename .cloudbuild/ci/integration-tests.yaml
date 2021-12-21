@@ -1,4 +1,14 @@
+timeout: 25m
+options:
+  machineType: E2_HIGHCPU_32
+
 steps:
+  # GCB does a shallow checkout for a build, but if we want to check our changes
+  # against other branches we'll need to fetch the repo history.
+  - name: gcr.io/cloud-builders/git
+    id: fetch-history
+    args: ['fetch', '--unshallow']
+
   # Set up BCC headers in a volume to replace the incompatible system-level 
   # headers
   - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:teleport6.2-v0.1.0
@@ -11,38 +21,17 @@ steps:
       - -c
       - cp -R /workspace/build.assets/bcc/* /usr/include/bcc
 
-  # Run non-root integration tests. The root user is selected by docker image.
+  # Run the integration tests. Actual content of this job depends on the changes 
+  # detected in the PR
   - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:teleport6.2-v0.1.0
-    id: root-integration-test
+    id: run-tests
     volumes: 
       - name: bcc-headers
         path: /usr/include/bcc
-    args: ['make', 'integration-root']
-    timeout: 10m
 
-  # Reconfigure the workspace for the non-root user
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:teleport6.2-v0.1.0
-    id: reconfigure-for-nonroot-user
-    args: ['chown', '-R', 'ci:ci', '/workspace']
-
-  # Run non-root integration tests. The non-root user is selected by docker image.
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-nonroot:teleport6.2-v0.1.0
-    id: nonroot-integration-test
-    env:
-      - TELEPORT_ETCD_TEST="yes"
-    volumes: 
-      - name: bcc-headers
-        path: /usr/include/bcc    
-    entrypoint: '/bin/bash'
+    dir: /workspace/.cloudbuild/scripts
+    entrypoint: bash
     args: 
-      - '-c'
-      - '(make run-etcd &); sleep 1; make integration'
-    timeout: 15m
-
-timeout: 20m
-options:
-  env:
-    - GOCACHE=
-    - GOMODCACHE=/workspace/.gomodcacheci
-  machineType: E2_HIGHCPU_32
-  
+      - -c
+      - go run ./cmd/integration-tests -w=/workspace -t=$_BASE_BRANCH -c=HEAD
+    timeout: 20m
