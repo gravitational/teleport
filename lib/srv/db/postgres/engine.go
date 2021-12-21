@@ -54,17 +54,15 @@ type Engine struct {
 	Log logrus.FieldLogger
 	// client is a client connection.
 	client *pgproto3.Backend
-	//TODO(jakule): This probably shouldn't be a part of this struct. Move it somewhere.
-	SessionCtx *common.Session
 }
 
-func (e *Engine) InitializeConnection(clientConn net.Conn) error {
+func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.client = pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
 
 	// The proxy is supposed to pass a startup message it received from
 	// the psql client over to us, so wait for it and extract database
 	// and username from it.
-	err := e.handleStartup(e.client, e.SessionCtx)
+	err := e.handleStartup(e.client, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

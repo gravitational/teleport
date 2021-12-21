@@ -55,7 +55,7 @@ type Engine struct {
 }
 
 // InitializeConnection initializes the client connection.
-func (e *Engine) InitializeConnection(clientConn net.Conn) error {
+func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
 	e.clientConn = clientConn
 	return nil
 }

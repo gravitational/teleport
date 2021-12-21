@@ -53,7 +53,7 @@ type Service interface {
 type Engine interface {
 	// InitializeConnection initializes the client connection. No DB connection is made at this point, but a message
 	// can be sent to a client in a database format.
-	InitializeConnection(clientConn net.Conn) error
+	InitializeConnection(clientConn net.Conn, sessionCtx *Session) error
 	// SendError sends an error to a client in database encoded format.
 	// NOTE: Client connection must be initialized before this function is called.
 	SendError(error)

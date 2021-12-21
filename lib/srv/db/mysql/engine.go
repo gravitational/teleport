@@ -63,7 +63,7 @@ type Engine struct {
 }
 
 // InitializeConnection initializes the engine with client connection.
-func (e *Engine) InitializeConnection(clientConn net.Conn) error {
+func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
 	// Make server conn to get access to protocol's WriteOK/WriteError methods.
 	e.proxyConn = server.Conn{Conn: packet.NewConn(clientConn)}
 	return nil

@@ -699,7 +699,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		return trace.Wrap(err)
 	}
 
-	if err := engine.InitializeConnection(clientConn); err != nil {
+	if err := engine.InitializeConnection(clientConn, sessionCtx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -746,12 +746,11 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 	switch sessionCtx.Database.GetProtocol() {
 	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		return &postgres.Engine{
-			Auth:       s.cfg.Auth,
-			Audit:      audit,
-			Context:    s.closeContext,
-			Clock:      s.cfg.Clock,
-			Log:        sessionCtx.Log,
-			SessionCtx: sessionCtx, //TODO(jakule)
+			Auth:    s.cfg.Auth,
+			Audit:   audit,
+			Context: s.closeContext,
+			Clock:   s.cfg.Clock,
+			Log:     sessionCtx.Log,
 		}, nil
 	case defaults.ProtocolMySQL:
 		return &mysql.Engine{
