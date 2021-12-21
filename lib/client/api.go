@@ -1424,7 +1424,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	// Issue "exec" request(s) to run on remote node(s).
 	if len(command) > 0 {
 		if len(nodeAddrs) > 1 {
-			fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes matched label selector, running command on all.")
+			fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes matched label selector, running command on all.\n")
 			return tc.runCommandOnNodes(ctx, siteInfo.Name, nodeAddrs, proxyClient, command)
 		}
 		// Reuse the existing nodeClient we connected above.
