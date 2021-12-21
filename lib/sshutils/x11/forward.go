@@ -148,8 +148,6 @@ func OpenNewXServerListener(displayOffset int, useLocalhost bool, screen uint32)
 
 // ForwardToX11Channel begins x11 forwarding between the given
 // XServer connection and a new x11 channel.
-// ForwardToX11Channel creates a new XServer listener and serves any XServer requests
-// by beginngin X11 forwarding between the XServer's display and an x11 channel.
 func ForwardToX11Channel(conn net.Conn, sc *ssh.ServerConn) error {
 	originHost, originPort, err := net.SplitHostPort(sc.LocalAddr().String())
 	if err != nil {
@@ -327,13 +325,23 @@ func dialDisplay(display string) (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// display is a unix socket, dial the default x11 unix socket
-	// for the display number found in $DISPLAY.
+	// If display is a unix socket, dial the default x11 unix socket
+	// "/tmp/.X11-unix/X[display_number]" for the display number found in $DISPLAY.
 	if hostname == "unix" || hostname == "" {
 		sock := fmt.Sprintf("%s/.X11-unix/X%d", os.TempDir(), displayNumber)
 		return net.Dial("unix", sock)
 	}
 
-	// dial generic display
-	return net.Dial("tcp", display)
+	// If hostname can be parsed as an IP address, dial tcp with port 6000+display.
+	// MobaXTerm expects x11 forwarding to dial "localhost:6000+display".
+	if ip := net.ParseIP(hostname); ip != nil {
+		conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", hostname, x11BasePort+displayNumber))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conn, nil
+	}
+
+	// dial display as generic socket address
+	return net.Dial("unix", display)
 }

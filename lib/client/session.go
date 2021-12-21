@@ -290,22 +290,19 @@ func (ns *NodeSession) setX11Parameters(ctx context.Context) error {
 		ns.x11RefuseTime = time.Now().Add(time.Second * time.Duration(ns.nodeClient.TC.X11ForwardingTimeout))
 	}
 
+	log.Debug("obtaining xauth cookie for x11 forwarding")
 	// If in trusted mode, attempt to retrieve the auth protocol and cookie for
 	// the set display from client's local xauthority.
 	if ns.nodeClient.TC.X11ForwardingTrusted {
-		log.Debug("obtaining xauth cookie for x11 forwarding")
 		xauthEntry, err = x11.GetXauthEntry(ctx, ns.x11Display)
-		if trace.IsNotFound(err) {
-			log.Debug("failed to find a valid xauth cookie")
-		} else if err != nil {
+		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 	}
 
-	// If we failed to obtain an xauth entry above, or the client requested
+	// If we failed to find an xauth entry above, or the client requested
 	// untrusted x11 forwarding, create a new xauth entry for the given display.
 	if xauthEntry == nil {
-		log.Debug("generating xauth cookie for x11 forwarding")
 		xauthEntry, err = x11.CreateXauthEntry(ctx, ns.x11Display, ns.nodeClient.TC.X11ForwardingTrusted, ns.nodeClient.TC.X11ForwardingTimeout)
 		if err != nil {
 			return trace.Wrap(err)
