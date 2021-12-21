@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,14 +36,12 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
 )
 
 func TestMain(m *testing.M) {
@@ -50,34 +49,35 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-type ServiceTestSuite struct {
-}
+func TestServiceDebugModeEnv(t *testing.T) {
+	require.False(t, isDebugMode())
 
-var _ = check.Suite(&ServiceTestSuite{})
-
-func (s *ServiceTestSuite) TestDebugModeEnv(c *check.C) {
-	c.Assert(isDebugMode(), check.Equals, false)
-	os.Setenv(teleport.DebugEnvVar, "no")
-	c.Assert(isDebugMode(), check.Equals, false)
-	os.Setenv(teleport.DebugEnvVar, "0")
-	c.Assert(isDebugMode(), check.Equals, false)
-	os.Setenv(teleport.DebugEnvVar, "1")
-	c.Assert(isDebugMode(), check.Equals, true)
-	os.Setenv(teleport.DebugEnvVar, "true")
-	c.Assert(isDebugMode(), check.Equals, true)
-}
-
-func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {
-	cfg := &Config{
-		DataDir:  c.MkDir(),
-		Hostname: "example.com",
-		Log:      utils.WrapLogger(logrus.New().WithField("test", c.TestName())),
+	for _, test := range []struct {
+		debugVal string
+		isDebug  bool
+	}{
+		{"no", false},
+		{"0", false},
+		{"1", true},
+		{"true", true},
+	} {
+		t.Run(fmt.Sprintf("%v=%v", teleport.DebugEnvVar, test.debugVal), func(t *testing.T) {
+			t.Setenv(teleport.DebugEnvVar, test.debugVal)
+			require.Equal(t, test.isDebug, isDebugMode())
+		})
 	}
-	err := initSelfSignedHTTPSCert(cfg)
-	c.Assert(err, check.IsNil)
-	c.Assert(cfg.Proxy.KeyPairs, check.HasLen, 1)
-	c.Assert(utils.FileExists(cfg.Proxy.KeyPairs[0].Certificate), check.Equals, true)
-	c.Assert(utils.FileExists(cfg.Proxy.KeyPairs[0].PrivateKey), check.Equals, true)
+}
+
+func TestServiceSelfSignedHTTPS(t *testing.T) {
+	cfg := &Config{
+		DataDir:  t.TempDir(),
+		Hostname: "example.com",
+		Log:      utils.WrapLogger(logrus.New().WithField("test", "TestServiceSelfSignedHTTPS")),
+	}
+	require.NoError(t, initSelfSignedHTTPSCert(cfg))
+	require.Len(t, cfg.Proxy.KeyPairs, 1)
+	require.FileExists(t, cfg.Proxy.KeyPairs[0].Certificate)
+	require.FileExists(t, cfg.Proxy.KeyPairs[0].PrivateKey)
 }
 
 func TestMonitor(t *testing.T) {
@@ -176,22 +176,17 @@ func TestMonitor(t *testing.T) {
 	}
 }
 
-// TestCheckPrincipals checks certificates regeneration only requests
+// TestServiceCheckPrincipals checks certificates regeneration only requests
 // regeneration when the principals change.
-func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
-	dataDir := c.MkDir()
-
-	t := testlog.NewCheckTestWrapper(c)
-	defer t.Close()
-
+func TestServiceCheckPrincipals(t *testing.T) {
 	// Create a test auth server to extract the server identity (SSH and TLS
 	// certificates).
 	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
-		Dir: dataDir,
+		Dir: t.TempDir(),
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	tlsServer, err := testAuthServer.NewTestTLSServer()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	defer tlsServer.Close()
 
 	testConnector := &Connector{
@@ -235,20 +230,17 @@ func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
 			outRegenerate: false,
 		},
 	}
-	for _, tt := range tests {
-		ok := checkServerIdentity(testConnector, tt.inPrincipals, tt.inDNS, t.Log)
-		c.Assert(ok, check.Equals, tt.outRegenerate)
+	for i, tt := range tests {
+		ok := checkServerIdentity(testConnector, tt.inPrincipals, tt.inDNS, logrus.New().WithField("test", "TestServiceCheckPrincipals"))
+		require.Equal(t, tt.outRegenerate, ok, "test %d", i)
 	}
 }
 
-// TestInitExternalLog verifies that external logging can be used both as a means of
+// TestServiceInitExternalLog verifies that external logging can be used both as a means of
 // overriding the local audit event target.  Ideally, this test would also verify
 // setup of true external loggers, but at the time of writing there isn't good
 // support for setting up fake external logging endpoints.
-func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
-	t := testlog.NewCheckTestWrapper(c)
-	defer t.Close()
-
+func TestServiceInitExternalLog(t *testing.T) {
 	tts := []struct {
 		events []string
 		isNil  bool
@@ -267,33 +259,33 @@ func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
 	}
 
 	backend, err := memory.New(memory.Config{})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	for i, tt := range tts {
-		// isErr implies isNil.
-		if tt.isErr {
-			tt.isNil = true
-		}
+	for _, tt := range tts {
+		t.Run(strings.Join(tt.events, ","), func(t *testing.T) {
+			// isErr implies isNil.
+			if tt.isErr {
+				tt.isNil = true
+			}
 
-		cmt := check.Commentf("tt[%v]: %+v", i, tt)
+			auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+				AuditEventsURI: tt.events,
+			})
+			require.NoError(t, err)
 
-		auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
-			AuditEventsURI: tt.events,
+			loggers, err := initExternalLog(context.Background(), auditConfig, logrus.New(), backend)
+			if tt.isErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if tt.isNil {
+				require.Nil(t, loggers)
+			} else {
+				require.NotNil(t, loggers)
+			}
 		})
-		c.Assert(err, check.IsNil, cmt)
-		loggers, err := initExternalLog(context.Background(), auditConfig, t.Log, backend)
-
-		if tt.isErr {
-			c.Assert(err, check.NotNil, cmt)
-		} else {
-			c.Assert(err, check.IsNil, cmt)
-		}
-
-		if tt.isNil {
-			c.Assert(loggers, check.IsNil, cmt)
-		} else {
-			c.Assert(loggers, check.NotNil, cmt)
-		}
 	}
 }
 
