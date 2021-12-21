@@ -112,7 +112,7 @@ func innerMain() error {
 	if err != nil {
 		return trace.Wrap(err, "Root-only integration tests failed")
 	}
-
+log.Println("Root-only integration tests passed.")
 	if !args.skipChown {
 		// We run some build steps as root and others as a non user, and we
 		// want the nonroot user to be able to manipulate the artifacts
@@ -138,7 +138,7 @@ func innerMain() error {
 		return trace.Wrap(err, "Nonroot integration tests failed")
 	}
 
-	log.Printf("PASS")
+	log.Printf("Non-root integration tests passed.")
 
 	return nil
 }
