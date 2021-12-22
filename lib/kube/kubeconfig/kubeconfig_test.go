@@ -16,6 +16,7 @@ package kubeconfig
 
 import (
 	"crypto/x509/pkix"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -209,6 +210,64 @@ func (s *KubeconfigSuite) TestUpdate(c *check.C) {
 		Extensions:       map[string]runtime.Object{},
 	}
 	wantConfig.CurrentContext = clusterName
+
+	config, err := Load(s.kubeconfigPath)
+	c.Assert(err, check.IsNil)
+	c.Assert(config, check.DeepEquals, wantConfig)
+}
+
+func (s *KubeconfigSuite) TestUpdateWithExec(c *check.C) {
+	const (
+		clusterName = "teleport-cluster"
+		clusterAddr = "https://1.2.3.6:3080"
+		tshPath     = "/path/to/tsh"
+		kubeCluster = "my-cluster"
+		homeEnvVar  = "TELEPORT_HOME"
+		home        = "/alt/home"
+	)
+	creds, caCertPEM, err := s.genUserKey()
+	c.Assert(err, check.IsNil)
+	err = Update(s.kubeconfigPath, Values{
+		TeleportClusterName: clusterName,
+		ClusterAddr:         clusterAddr,
+		Credentials:         creds,
+		Exec: &ExecValues{
+			TshBinaryPath: tshPath,
+			KubeClusters:  []string{kubeCluster},
+			Env: map[string]string{
+				homeEnvVar: home,
+			},
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	wantConfig := s.initialConfig.DeepCopy()
+	contextName := ContextName(clusterName, kubeCluster)
+	wantConfig.Clusters[clusterName] = &clientcmdapi.Cluster{
+		Server:                   clusterAddr,
+		CertificateAuthorityData: caCertPEM,
+		LocationOfOrigin:         s.kubeconfigPath,
+		Extensions:               map[string]runtime.Object{},
+	}
+	wantConfig.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
+		LocationOfOrigin: s.kubeconfigPath,
+		Extensions:       map[string]runtime.Object{},
+		Exec: &clientcmdapi.ExecConfig{
+			APIVersion: "client.authentication.k8s.io/v1beta1",
+			Command:    tshPath,
+			Args: []string{"kube", "credentials",
+				fmt.Sprintf("--kube-cluster=%s", kubeCluster),
+				fmt.Sprintf("--teleport-cluster=%s", clusterName),
+			},
+			Env: []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
+		},
+	}
+	wantConfig.Contexts[contextName] = &clientcmdapi.Context{
+		Cluster:          clusterName,
+		AuthInfo:         contextName,
+		LocationOfOrigin: s.kubeconfigPath,
+		Extensions:       map[string]runtime.Object{},
+	}
 
 	config, err := Load(s.kubeconfigPath)
 	c.Assert(err, check.IsNil)
