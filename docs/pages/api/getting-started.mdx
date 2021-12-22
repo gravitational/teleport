@@ -26,12 +26,12 @@ Here are the steps we'll walkthrough:
   Read [API authorization](./architecture.mdx#authorization) to learn more about defining custom roles for your API client.
 </Admonition>
 
-Create a user `api-admin` with the built-in role `admin`:
+Create a user `api-admin` with the built-in role `editor`:
 
 ```code
 # Run this directly on your auth server
 # Add user and login via web proxy
-$ sudo tctl users add api-admin --roles=admin
+$ sudo tctl users add api-admin --roles=editor
 ```
 
 ## Step 2/3. Generate client credentials

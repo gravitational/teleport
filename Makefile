@@ -436,6 +436,7 @@ docs-test-whitespace:
 	fi
 
 
+ifeq (${DISABLE_TEST_TARGETS},)
 #
 # Runs all Go/shell tests, called by CI/CD.
 #
@@ -512,6 +513,7 @@ integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES := $(shell go list ./... | grep integration)
 integration-root:
 	$(CGOFLAG) go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
+endif
 
 #
 # Lint the source code.
@@ -715,23 +717,41 @@ enter:
 	make -C build.assets enter
 
 # grpc generates GRPC stubs from service definitions.
-# This target runs in the buildbox container.
+# This target runs in the devbox container.
 .PHONY: grpc
 grpc:
 	$(MAKE) -C build.assets grpc
 
-# buildbox-grpc generates GRPC stubs
-.PHONY: buildbox-grpc
-buildbox-grpc:
+# devbox-grpc generates GRPC stubs
+.PHONY: devbox-grpc
+devbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
-	find lib/ -iname *.proto | xargs $(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
-	find api/ -iname *.proto | xargs $(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
+	$(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}' \
+		api/client/proto/authservice.proto \
+		api/types/events/events.proto \
+		api/types/types.proto \
+		api/types/webauthn/webauthn.proto \
+		api/types/wrappers/wrappers.proto \
+		lib/datalog/types.proto \
+		lib/events/slice.proto \
+		lib/multiplexer/test/ping.proto \
+		lib/web/envelope.proto
+
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/client/proto \
+		--gogofast_out=plugins=grpc:api/client/proto \
+		authservice.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/events \
 		--gogofast_out=plugins=grpc:api/types/events \
 		events.proto
+
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types \
+		--gogofast_out=plugins=grpc:api/types \
+		types.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/webauthn \
@@ -743,27 +763,21 @@ buildbox-grpc:
 		--gogofast_out=plugins=grpc:api/types/wrappers \
 		wrappers.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/types \
-		--gogofast_out=plugins=grpc:api/types \
+	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc:. \
 		types.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/client/proto \
-		--gogofast_out=plugins=grpc:api/client/proto \
-		authservice.proto
+	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc:. \
+		slice.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
-	  --gogofast_out=plugins=grpc:.\
-    *.proto
+		--gogofast_out=plugins=grpc:. \
+		ping.proto
 
 	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
-	  --gogofast_out=plugins=grpc:.\
-    *.proto
-
-	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
-	  --gogofast_out=plugins=grpc:.\
-    types.proto
+		--gogofast_out=plugins=grpc:. \
+		envelope.proto
 
 .PHONY: goinstall
 goinstall:

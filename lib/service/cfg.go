@@ -247,6 +247,9 @@ type Config struct {
 	// unit time that the node can sustain before restarting itself, as
 	// measured by the rotation state service.
 	RestartThreshold Rate
+
+	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
+	MaxRetryPeriod time.Duration
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -361,6 +364,9 @@ type ProxyConfig struct {
 	// PostgresAddr is address of Postgres proxy.
 	PostgresAddr utils.NetAddr
 
+	// MongoAddr is address of Mongo proxy.
+	MongoAddr utils.NetAddr
+
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
@@ -385,6 +391,10 @@ type ProxyConfig struct {
 	// MySQLPublicAddrs is a list of the public addresses the proxy
 	// advertises for MySQL clients.
 	MySQLPublicAddrs []utils.NetAddr
+
+	// MongoPublicAddrs is a list of the public addresses the proxy
+	// advertises for Mongo clients.
+	MongoPublicAddrs []utils.NetAddr
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
@@ -1046,6 +1056,7 @@ func ApplyDefaults(cfg *Config) {
 		Amount: defaults.MaxConnectionErrorsBeforeRestart,
 		Time:   defaults.ConnectionErrorMeasurementPeriod,
 	}
+	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

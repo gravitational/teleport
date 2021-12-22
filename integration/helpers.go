@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -599,6 +600,10 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			// Postgres proxy port was configured on a separate listener.
 			tconf.Proxy.PostgresAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortPostgres())
 		}
+		if i.Mongo != nil {
+			// Mongo proxy port was configured on a separate listener.
+			tconf.Proxy.MongoAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMongo())
+		}
 	}
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
 	tconf.Auth.StorageConfig = backend.Config{
@@ -609,6 +614,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
 
 	tconf.Keygen = testauthority.New()
+	tconf.MaxRetryPeriod = defaults.HighResPollingPeriod
 	i.Config = tconf
 	return tconf, nil
 }
@@ -1654,4 +1660,27 @@ func fatalIf(err error) {
 	if err != nil {
 		log.Fatalf("%v at %v", string(debug.Stack()), err)
 	}
+}
+
+func enableKubernetesService(t *testing.T, config *service.Config) {
+	kubeConfigPath := filepath.Join(t.TempDir(), "kube_config")
+
+	err := kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
+		TeleportClusterName: "teleport-cluster",
+		ClusterAddr:         net.JoinHostPort(Host, ports.Pop()),
+		Credentials: &client.Key{
+			Cert:    []byte("cert"),
+			TLSCert: []byte("tls-cert"),
+			Priv:    []byte("priv"),
+			Pub:     []byte("pub"),
+			TrustedCA: []auth.TrustedCerts{{
+				TLSCertificates: [][]byte{[]byte("ca-cert")},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	config.Kube.Enabled = true
+	config.Kube.KubeconfigPath = kubeConfigPath
+	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, ports.Pop()))
 }

@@ -324,17 +324,11 @@ auth_service:
 
     # Optional setting for configuring session recording. Possible values are:
     #    "node"  : sessions will be recorded on the node level  (the default)
+    #    "node-sync" : session recordings will be streamed from node -> auth -> storage service without being stored on disk at all.
     #    "proxy" : recording on the proxy level, see "Recording Proxy Mode"
     #              (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
+    #    "proxy-sync : session recordings will be streamed from proxy -> auth -> storage service without being stored on disk at all.
     #    "off"   : session recording is turned off
-    #
-    # EXPERIMENTAL *-sync modes
-    # Proxy and node send logs directly to S3 or other storage without
-    # storing the records on disk at all. *-sync requires all nodes to be
-    # upgraded to 4.4.
-    #
-    #    "node-sync" : session recordings will be streamed from node -> auth -> storage service
-    #    "proxy-sync : session recordings will be streamed from proxy -> auth -> storage service
     #
     session_recording: "node"
 
@@ -556,11 +550,22 @@ proxy_service:
     # "v1": defaults to 0.0.0.0:3036
     mysql_listen_addr: "0.0.0.0:3036"
 
-    # Address advertised to PostgreSQL clients. If not set, public_addr is used.
-    postgres_public_addr: "postgres.teleport.example.com:443"
+    # Postgres Proxy listener address. If provided, proxy will use a separate listener
+    # instead of multiplexing Postgres protocol on web_listener_addr.
+    # postgres_listen_addr: "0.0.0.0:5432"
+
+    # Mongo Proxy listener address. If provided, proxy will use a separate listener
+    # instead of multiplexing Mongo protocol on web_listener_addr.
+    # mongo_listen_addr: "0.0.0.0:27017"
 
     # Address advertised to MySQL clients. If not set, public_addr is used.
     mysql_public_addr: "mysql.teleport.example.com:3306"
+
+    # Address advertised to PostgresSQL clients. If not set, public_addr is used.
+    postgres_public_addr: "postgres.teleport.example.com:443"
+
+    # Address advertised to Mongo clients. If not set, public_addr is used.
+    mongo_public_addr: "mongo.teleport.example.com:443"
 
     # Get an automatic certificate from Letsencrypt.org using ACME via TLS_ALPN-01 challenge.
     # When using ACME, the cluster name must match the 'public_addr' of Teleport and
