@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
@@ -45,10 +44,7 @@ import (
 
 // TestDatabaseLogin verifies "tsh db login" command.
 func TestDatabaseLogin(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
 
@@ -76,24 +72,24 @@ func TestDatabaseLogin(t *testing.T) {
 	// Log into Teleport cluster.
 	err = Run([]string{
 		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
-	}, cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	}))
 	require.NoError(t, err)
 
 	// Fetch the active profile.
-	profile, err := client.StatusFor("", proxyAddr.Host(), alice.GetName())
+	profile, err := client.StatusFor(tmpHomePath, proxyAddr.Host(), alice.GetName())
 	require.NoError(t, err)
 
 	// Log into test Postgres database.
 	err = Run([]string{
 		"db", "login", "--debug", "postgres",
-	})
+	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	// Verify Postgres identity file contains certificate.
-	certs, keys, err := decodePEM(profile.DatabaseCertPath("postgres"))
+	certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", "postgres"))
 	require.NoError(t, err)
 	require.Len(t, certs, 1)
 	require.Len(t, keys, 0)
@@ -101,14 +97,38 @@ func TestDatabaseLogin(t *testing.T) {
 	// Log into test Mongo database.
 	err = Run([]string{
 		"db", "login", "--debug", "--db-user", "admin", "mongo",
-	})
+	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	// Verify Mongo identity file contains both certificate and key.
-	certs, keys, err = decodePEM(profile.DatabaseCertPath("mongo"))
+	certs, keys, err = decodePEM(profile.DatabaseCertPathForCluster("", "mongo"))
 	require.NoError(t, err)
 	require.Len(t, certs, 1)
 	require.Len(t, keys, 1)
+}
+
+func TestFormatDatabaseListCommand(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		require.Equal(t, "tsh db ls", formatDatabaseListCommand(""))
+	})
+
+	t.Run("with cluster flag", func(t *testing.T) {
+		require.Equal(t, "tsh db ls --cluster=leaf", formatDatabaseListCommand("leaf"))
+	})
+}
+
+func TestFormatConfigCommand(t *testing.T) {
+	db := tlsca.RouteToDatabase{
+		ServiceName: "example-db",
+	}
+
+	t.Run("default", func(t *testing.T) {
+		require.Equal(t, "tsh db config --format=cmd example-db", formatDatabaseConfigCommand("", db))
+	})
+
+	t.Run("with cluster flag", func(t *testing.T) {
+		require.Equal(t, "tsh db config --cluster=leaf --format=cmd example-db", formatDatabaseConfigCommand("leaf", db))
+	})
 }
 
 func TestDBInfoHasChanged(t *testing.T) {
