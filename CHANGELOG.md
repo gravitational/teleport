@@ -1,5 +1,17 @@
 # Changelog
 
+## 7.3.9
+
+This release of Teleport contains features and fixes.
+
+* Added support for clearing the users terminal when a session ends. [#8850](https://github.com/gravitational/teleport/pull/8850)
+* Added jitter and backoff to prevent thundering herd situations when reconnecting to auth. [#9393](https://github.com/gravitational/teleport/pull/9393)
+* Fixed an issue with Access Requests where the request reason was not being escaped when using `tctl`. [#9381](https://github.com/gravitational/teleport/pull/9381)
+* Fixed an issue where Teleport would incorrectly log `json: unsupported type: utils.Jitter`. [#9417](https://github.com/gravitational/teleport/pull/9417)
+* Fixed an issue that would cause `tsh login` to hang indefinitely. [#9193](https://github.com/gravitational/teleport/pull/9193)
+* Fixed an issue where a null route could cause high latency when connecting to hosts. [#9254](https://github.com/gravitational/teleport/pull/9254)
+* Fixed an issue with Database Access where running `show tables` MySQL would result in an error. [#9411](https://github.com/gravitational/teleport/pull/9411)
+
 ## 7.3.8
 
 This release of Teleport contains multiple security fixes.
