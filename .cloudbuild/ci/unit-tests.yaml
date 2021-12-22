@@ -1,4 +1,16 @@
+timeout: 20m
+
+options:
+  machineType: 'E2_HIGHCPU_32'
+  
 steps:
+  # GCB does a shallow checkout for a build, but if we want to check our changes
+  # against other branches we'll need to fetch the repo history. This takes less 
+  # than 30s at the time of writing, so it is probably not worth tweaking.
+  - name: gcr.io/cloud-builders/git
+    id: fetch-history
+    args: ['fetch', '--unshallow']
+
   - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:teleport6.2-v0.1.0
     id: configure BCC headers
     volumes: 
@@ -9,36 +21,16 @@ steps:
       - -c
       - cp -R /workspace/build.assets/bcc/* /usr/include/bcc
         
+  # Run the unit tests. Actual content of this job depends on the changes 
+  # detected in the PR
   - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:teleport6.2-v0.1.0
-    id: reconfigure-for-nonroot-user
-    args: [chown, -R, ci:ci, /workspace]  
-
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-nonroot:teleport6.2-v0.1.0
-    id: unit-test
-    env:
-      - TELEPORT_ETCD_TEST="yes"
-        # Some unit tests are not well isolated and will use the current $HOME
-        # to store tsh profile data. GCB protects the real builder homedir, so 
-        # we tell the tests to use somewhere else that we know we can write to.
-      - HOME="/tmp/.home"
+    id: run-tests
     volumes: 
       - name: bcc-headers
         path: /usr/include/bcc
-    entrypoint: /bin/bash
+    dir: /workspace/.cloudbuild/scripts
+    entrypoint: bash 
     args: 
       - -c
-      - |
-        # launch the etcd emulator and wait for it to start 
-        (make run-etcd &); sleep 1; 
-
-        # Actually run tests
-        make test
+      - go run ./cmd/unit-tests -w=/workspace -t=$_BASE_BRANCH -c=HEAD
     timeout: 15m
-
-timeout: 15m
-options:
-  env: 
-    - GOCACHE=/workspace/.gocache-ci
-    - GOMODCACHE=/workspace/.gomodcache-ci
-  machineType: 'E2_HIGHCPU_32'
-  
