@@ -1,5 +1,13 @@
 # Changelog
 
+## 6.2.24
+
+This release of Teleport contains a feature and multiple fixes.
+
+* Added support for clearing the users terminal when a session ends. [#8850](https://github.com/gravitational/teleport/pull/8850)
+* Fixed an issue with Database Access where running `show tables` MySQL would result in an error. [#9423](https://github.com/gravitational/teleport/pull/9423)
+* Fixed an issue with Access Requests where the request reason was not being escaped when using `tctl`. [#9381](https://github.com/gravitational/teleport/pull/9381)
+
 ## 6.2.23
 
 This release of Teleport contains performance improvements.
