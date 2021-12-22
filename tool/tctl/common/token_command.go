@@ -225,7 +225,6 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 
 		authServer := authServers[0].GetAddr()
 
-		// Use proxy if available, otherwise use auth server address
 		if len(proxies) != 0 {
 			authServer = proxies[0].GetPublicAddr()
 		}
