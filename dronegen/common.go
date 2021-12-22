@@ -3,17 +3,16 @@ package main
 import "fmt"
 
 var (
-	triggerPush = trigger{
-		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
-		Branch: triggerRef{Include: []string{"master", "branch/*"}},
-		Repo:   triggerRef{Include: []string{"gravitational/*"}},
-	}
 	triggerTag = trigger{
 		Event: triggerRef{Include: []string{"tag"}},
 		Ref:   triggerRef{Include: []string{"refs/tags/v*"}},
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
 	}
-
+	triggerPush = trigger{
+		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
+		Branch: triggerRef{Include: []string{"master", "branch/*"}},
+		Repo:   triggerRef{Include: []string{"gravitational/*"}},
+	}
 	volumeDocker = volume{
 		Name: "dockersock",
 		Temp: &volumeTemp{},
@@ -22,15 +21,6 @@ var (
 		Name: "tmpfs",
 		Temp: &volumeTemp{Medium: "memory"},
 	}
-	volumeTmpDind = volume{
-		Name: "tmp-dind",
-		Temp: &volumeTemp{},
-	}
-	volumeTmpIntegration = volume{
-		Name: "tmp-integration",
-		Temp: &volumeTemp{},
-	}
-
 	volumeRefTmpfs = volumeRef{
 		Name: "tmpfs",
 		Path: "/tmpfs",
@@ -38,14 +28,6 @@ var (
 	volumeRefDocker = volumeRef{
 		Name: "dockersock",
 		Path: "/var/run",
-	}
-	volumeRefTmpDind = volumeRef{
-		Name: "tmp-dind",
-		Path: "/tmp",
-	}
-	volumeRefTmpIntegration = volumeRef{
-		Name: "tmp-integration",
-		Path: "/tmp",
 	}
 
 	// TODO(gus): Set this from `make -C build.assets print-runtime-version` or similar rather
