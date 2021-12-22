@@ -129,7 +129,7 @@ We currently don't expose any metrics interfaces for a tenant.
 For our own metrics collection, we're rolling out mTLS, so that only authorized internal clients may collect or scrape metrics from the running instances. 
 This design does not include a mechanism to issue mTLS certificates to external clients, while maintaining isolation guarantees that one tenant cannot interact with another tenant.
 
-Teleport cloud tenants are made up of a cluster of processes, with designated processes sitting behind a load balancer. To scrape the entire cluster, would require each component of
+Teleport cloud tenants are made up of a cluster of processes, with designated processes sitting behind a load balancer. To scrape the entire cluster would require each component of
 the Teleport cluster to be individually addressable and accessible from external sources. This could allow individual components to be selectively attacked, if an adversary is able to 
 address traffic to any individual software instance within the cluster. 
 
@@ -157,7 +157,7 @@ If you plan on connecting more than 10,000 nodes or agents, please contact your 
 ## Are internal connections encrypted / authenticated?
 
 Teleport components communicate with themselves using mTLS, with a separate certificate authority for each tenant. Connections to AWS services, such as DynamoDB and
-S3, are established using encryption provided by AWS, both at rest and in transit. Each tenant has it's own credentials that isolate it to interacting with only its own data.
+S3, are established using encryption provided by AWS, both at rest and in transit. Each tenant has its own credentials that isolate it to interacting with only its own data.
 
 
 
