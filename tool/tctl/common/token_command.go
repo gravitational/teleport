@@ -218,12 +218,24 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 			token,
 			int(c.ttl.Minutes()))
 	default:
+		proxies, err := client.GetProxies()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		authServer := authServers[0].GetAddr()
+
+		// Use proxy if available, otherwise use auth server address
+		if len(proxies) != 0 {
+			authServer = proxies[0].GetPublicAddr()
+		}
+
 		return nodeMessageTemplate.Execute(os.Stdout, map[string]interface{}{
 			"token":       token,
 			"roles":       strings.ToLower(roles.String()),
 			"minutes":     int(c.ttl.Minutes()),
 			"ca_pins":     caPins,
-			"auth_server": authServers[0].GetAddr(),
+			"auth_server": authServer,
 		})
 	}
 
