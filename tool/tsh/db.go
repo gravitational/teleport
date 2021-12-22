@@ -18,6 +18,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -405,12 +406,53 @@ func needRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteTo
 	if !found {
 		return true, nil
 	}
+
+	// For database protocols where database username is encoded in client certificate like Mongo
+	// check if the command line dbUser matches the encoded username in database certificate.
+	userChanged, err := dbInfoHasChanged(cf, profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName))
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if userChanged {
+		return true, nil
+	}
+
 	// Call API and check is a user needs to use MFA to connect to the database.
 	mfaRequired, err := isMFADatabaseAccessRequired(cf, tc, database)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 	return mfaRequired, nil
+}
+
+// dbInfoHasChanged checks if cf.DatabaseUser or cf.DatabaseName info has changed in the user database certificate.
+func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
+	if cf.DatabaseUser == "" && cf.DatabaseName == "" {
+		return false, nil
+	}
+
+	buff, err := ioutil.ReadFile(certPath)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	cert, err := tlsca.ParseCertificatePEM(buff)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	if cf.DatabaseUser != "" && cf.DatabaseUser != identity.RouteToDatabase.Username {
+		log.Debugf("Will reissue database certificate for user %s (was %s)", cf.DatabaseUser, identity.RouteToDatabase.Username)
+		return true, nil
+	}
+	if cf.DatabaseName != "" && cf.DatabaseName != identity.RouteToDatabase.Database {
+		log.Debugf("Will reissue database certificate for database name %s (was %s)", cf.DatabaseName, identity.RouteToDatabase.Database)
+		return true, nil
+	}
+	return false, nil
 }
 
 // isMFADatabaseAccessRequired calls the IsMFARequired endpoint in order to get from user roles if access to the database
