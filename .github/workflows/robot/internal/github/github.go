@@ -56,6 +56,12 @@ type Client interface {
 
 	// DeleteWorkflowRun is used to delete a workflow run.
 	DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error
+
+	// GetBranch returns information about the requested branch.
+	GetBranch(ctx context.Context, organization string, repository string, branch string) (Branch, error)
+
+	// UpdateBranch will update PR branch with latest from master.
+	UpdateBranch(ctx context.Context, organization string, repository string, number int) error
 }
 
 type client struct {
@@ -145,11 +151,22 @@ type PullRequest struct {
 	Author string
 	// Repository is the name of the repository.
 	Repository string
-	// UnsafeHead is the name of the branch this PR is created from. It is marked
-	// unsafe as it can be attacker controlled.
-	UnsafeHead string
+	// Number is the Pull Request number.
+	Number int
+	// UnsafeHeadRef is the name of the branch this PR is created from. It is marked
+	// unsafe because it can be attacker controlled.
+	UnsafeHeadRef string
+	// HeadHSA is the commit hash of the branch this PR is created from.
+	HeadSHA string
+	// UnsafeBaseRef is the name of the base branch this PR is to be merged into. It
+	// is marked unsafe because it can be attacker controlled.
+	UnsafeBaseRef string
+	// BaseHSA is the commit hash of the branch this PR is created from.
+	BaseSHA string
 	// Fork determines if the pull request is from a fork.
 	Fork bool
+	// AutoMerge indicates if the author turned on automatic merging for this PR.
+	AutoMerge bool
 }
 
 func (c *client) ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]PullRequest, error) {
@@ -173,10 +190,15 @@ func (c *client) ListPullRequests(ctx context.Context, organization string, repo
 
 		for _, pr := range page {
 			pulls = append(pulls, PullRequest{
-				Author:     pr.GetUser().GetLogin(),
-				Repository: repository,
-				UnsafeHead: pr.GetHead().GetRef(),
-				Fork:       pr.GetHead().GetRepo().GetFork(),
+				Author:        pr.GetUser().GetLogin(),
+				Repository:    repository,
+				Number:        pr.GetNumber(),
+				UnsafeHeadRef: pr.GetHead().GetRef(),
+				HeadSHA:       pr.GetHead().GetSHA(),
+				UnsafeBaseRef: pr.GetBase().GetRef(),
+				BaseSHA:       pr.GetBase().GetSHA(),
+				Fork:          pr.GetHead().GetRepo().GetFork(),
+				AutoMerge:     pr.GetAutoMerge().GetMergeMethod() == "squash",
 			})
 		}
 		if resp.NextPage == 0 {
@@ -341,6 +363,45 @@ func (c *client) DeleteWorkflowRun(ctx context.Context, organization string, rep
 		return trace.Wrap(err)
 	}
 	_, err = c.client.Do(ctx, req, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// Branch contains information about a branch.
+type Branch struct {
+	// UnsafeName is the name of the branch. It is marked unsafe because it can
+	// be attacker controlled.
+	UnsafeName string
+	// SHA is the current commit hash of the branch.
+	SHA string
+}
+
+// GetBranch returns information about the requested branch.
+func (c *client) GetBranch(ctx context.Context, organization string, repository string, branch string) (Branch, error) {
+	b, _, err := c.client.Repositories.GetBranch(ctx,
+		organization,
+		repository,
+		branch,
+		false)
+	if err != nil {
+		return Branch{}, trace.Wrap(err)
+	}
+
+	return Branch{
+		UnsafeName: b.GetName(),
+		SHA:        b.GetCommit().GetSHA(),
+	}, nil
+}
+
+// UpdateBranch will update PR branch with latest from master.
+func (c *client) UpdateBranch(ctx context.Context, organization string, repository string, number int) error {
+	_, _, err := c.client.PullRequests.UpdateBranch(ctx,
+		organization,
+		repository,
+		number,
+		nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}

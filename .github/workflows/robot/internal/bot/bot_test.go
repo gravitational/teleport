@@ -124,3 +124,11 @@ func (f *fakeGithub) ListWorkflowRuns(ctx context.Context, organization string, 
 func (f *fakeGithub) DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error {
 	return nil
 }
+
+func (f *fakeGithub) GetBranch(ctx context.Context, organization string, repository string, branch string) (github.Branch, error) {
+	return github.Branch{}, nil
+}
+
+func (f *fakeGithub) UpdateBranch(ctx context.Context, organization string, repository string, number int) error {
+	return nil
+}
