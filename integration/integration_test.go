@@ -858,8 +858,7 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	nodeConf.Auth.Enabled = false
 	nodeConf.Proxy.Enabled = false
 	nodeConf.SSH.Enabled = true
-	os.Setenv(apidefaults.TunnelPublicAddrEnvar, main.GetWebAddr())
-	t.Cleanup(func() { os.Unsetenv(apidefaults.TunnelPublicAddrEnvar) })
+	t.Setenv(apidefaults.TunnelPublicAddrEnvar, main.GetWebAddr())
 
 	// verify the node is able to join the cluster
 	_, err = main.StartReverseTunnelNode(nodeConf)
@@ -1401,7 +1400,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 
 	// clear out any proxy environment variables
 	for _, v := range []string{"http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"} {
-		os.Setenv(v, "")
+		t.Setenv(v, "")
 	}
 
 	username := suite.me.Username
@@ -1568,8 +1567,7 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 	// set the http_proxy environment variable
 	u, err := url.Parse(ts.URL)
 	require.NoError(t, err)
-	os.Setenv("http_proxy", u.Host)
-	defer os.Setenv("http_proxy", "")
+	t.Setenv("http_proxy", u.Host)
 
 	username := suite.me.Username
 
