@@ -719,9 +719,6 @@ func (i ImpersonateConditions) CheckAndSetDefaults() error {
 	if len(i.Users) != 0 && len(i.Roles) == 0 {
 		return trace.BadParameter("please set both impersonate.users and impersonate.roles")
 	}
-	if len(i.Users) == 0 && len(i.Roles) != 0 {
-		return trace.BadParameter("please set both impersonate.users and impersonate.roles")
-	}
 	return nil
 }
 

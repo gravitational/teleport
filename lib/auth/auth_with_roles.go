@@ -1559,9 +1559,31 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	// If the user is generating a certificate, the roles and traits come from the logged in identity.
 	if req.Username == a.context.User.GetName() {
-		roles, traits, err = services.ExtractFromIdentity(a.authServer, a.context.Identity.GetIdentity())
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if len(req.RoleRequests) > 0 {
+			// If role requests are provided, attempt to satisfy them instead of pulling them
+			// directly from the logged in identity.
+
+			// TODO: traits?
+			// TODO: this could serve as a role name oracle?
+			parsedRoles, err := services.FetchRoleList(req.RoleRequests, a.authServer, map[string][]string{})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			err = a.context.Checker.CheckImpersonateRoles(a.context.User, parsedRoles)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// CheckImpersonateRoles is all-or-nothing, so if it succeeds, we
+			// can trust the role requests outright
+			roles = req.RoleRequests
+			log.Infof("CheckImpersonateRoles succeeded: %s granted roles %+v", a.context.User.GetName(), roles)
+		} else {
+			roles, traits, err = services.ExtractFromIdentity(a.authServer, a.context.Identity.GetIdentity())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	} else {
 		// Do not allow combining impersonation and access requests
