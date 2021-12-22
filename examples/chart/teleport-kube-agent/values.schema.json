@@ -14,7 +14,6 @@
         "podSecurityPolicy",
         "labels",
         "image",
-        "replicaCount",
         "clusterRoleName",
         "clusterRoleBindingName",
         "serviceAccountName",
@@ -136,6 +135,47 @@
             "type": "string",
             "default": ""
         },
+        "highAvailability": {
+            "$id": "#/properties/highAvailability",
+            "type": "object",
+            "required": [
+                "podDisruptionBudget",
+                "replicaCount",
+                "requireAntiAffinity"
+            ],
+            "properties": {
+                "podDisruptionBudget": {
+                    "$id": "#/properties/highAvailability/properties/podDisruptionBudget",
+                    "type": "object",
+                    "required": [
+                        "enabled",
+                        "minAvailable"
+                    ],
+                    "properties": {
+                        "enabled": {
+                            "$id": "#/properties/highAvailability/properties/podDisruptionBudget/properties/enabled",
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "minAvailable": {
+                            "$id": "#/properties/highAvailability/properties/podDisruptionBudget/properties/minAvailable",
+                            "type": "integer",
+                            "default": 1
+                        }
+                    }
+                },
+                "replicaCount": {
+                    "$id": "#/properties/highAvailability/properties/replicaCount",
+                    "type": "integer",
+                    "default": 1
+                },
+                "requireAntiAffinity": {
+                    "$id": "#/properties/highAvailability/properties/requireAntiAffinity",
+                    "type": "boolean",
+                    "default": false
+                }
+            }
+        },
         "serviceAccountName": {
             "$id": "#/properties/serviceAccountName",
             "type": "string",
@@ -149,7 +189,13 @@
         "logLevel": {
             "$id": "#/properties/logLevel",
             "type": "string",
-            "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
+            "enum": [
+                "DEBUG",
+                "INFO",
+                "WARN",
+                "WARNING",
+                "ERROR"
+            ],
             "default": "INFO"
         },
         "affinity": {
@@ -202,7 +248,11 @@
         "imagePullPolicy": {
             "$id": "#/properties/imagePullPolicy",
             "type": "string",
-            "enum": ["Never", "IfNotPresent", "Always"],
+            "enum": [
+                "Never",
+                "IfNotPresent",
+                "Always"
+            ],
             "default": "IfNotPresent"
         },
         "initContainers": {

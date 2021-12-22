@@ -11,7 +11,7 @@
         "highAvailability",
         "image",
         "enterpriseImage",
-        "logLevel",
+        "log",
         "affinity",
         "annotations",
         "extraVolumes",
@@ -31,6 +31,11 @@
             "$id": "#/properties/authenticationType",
             "type": "string",
             "default": "local"
+        },
+        "proxyListenerMode": {
+            "$id": "#/properties/proxyListenerMode",
+            "type": "string",
+            "default": ""
         },
         "teleportVersionOverride": {
             "$id": "#/properties/teleportVersionOverride",
@@ -120,6 +125,11 @@
                     "type": "string",
                     "default": ""
                 },
+                "auditLogMirrorOnStdout": {
+                    "$id": "#/properties/aws/properties/auditLogMirrorOnStdout",
+                    "type": "boolean",
+                    "default": "false"
+                },
                 "sessionRecordingBucket": {
                     "$id": "#/properties/aws/properties/sessionRecordingBucket",
                     "type": "string",
@@ -153,6 +163,11 @@
                     "$id": "#/properties/gcp/properties/auditLogTable",
                     "type": "string",
                     "default": ""
+                },
+                "auditLogMirrorOnStdout": {
+                    "$id": "#/properties/aws/properties/auditLogMirrorOnStdout",
+                    "type": "boolean",
+                    "default": "false"
                 },
                 "sessionRecordingBucket": {
                     "$id": "#/properties/gcp/properties/sessionRecordingBucket",
@@ -250,6 +265,38 @@
             "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
             "default": "INFO"
         },
+        "log": {
+            "$id": "#/properties/log",
+            "type": "object",
+            "required": [
+                "output",
+                "format",
+                "extraFields"
+            ],
+            "properties": {
+                "level": {
+                    "$id": "#/properties/log/properties/level",
+                    "type": "string",
+                    "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
+                    "default": "INFO"
+                },
+                "deployment": {
+                    "$id": "#/properties/log/properties/output",
+                    "type": "string",
+                    "default": {}
+                },
+                "pod": {
+                    "$id": "#/properties/log/properties/format",
+                    "type": "string",
+                    "default": {}
+                },
+                "service": {
+                    "$id": "#/properties/log/properties/extraFields",
+                    "type": "array",
+                    "default": {}
+                }
+            }
+        },
         "affinity": {
             "$id": "#/properties/affinity",
             "type": "object",
@@ -294,6 +341,25 @@
                 },
                 "certSecret": {
                     "$id": "#/properties/annotations/properties/certSecret",
+                    "type": "object",
+                    "default": {}
+                }
+            }
+        },
+        "service": {
+            "$id": "#/properties/service",
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "type": {
+                    "$id": "#properties/service/type",
+                    "type": "string",
+                    "default": "LoadBalancer"
+                },
+                "spec": {
+                    "$id": "#/properties/service/spec",
                     "type": "object",
                     "default": {}
                 }

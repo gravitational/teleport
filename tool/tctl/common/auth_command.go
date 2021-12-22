@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 // AuthCommand implements `tctl auth` group of commands
@@ -609,11 +610,12 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		certUsage = proto.UserCertsRequest_App
 	}
 
+	reqExpiry := time.Now().UTC().Add(a.genTTL)
 	// Request signed certs from `auth` server.
 	certs, err := clusterAPI.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
 		PublicKey:         key.Pub,
 		Username:          a.genUser,
-		Expires:           time.Now().UTC().Add(a.genTTL),
+		Expires:           reqExpiry,
 		Format:            certificateFormat,
 		RouteToCluster:    a.leafCluster,
 		KubernetesCluster: a.kubeCluster,
@@ -644,6 +646,20 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
+
+	expires, err := key.TeleportTLSCertValidBefore()
+	if err != nil {
+		log.WithError(err).Warn("Failed to check TTL validity")
+		// err swallowed on purpose
+		return nil
+	}
+	if reqExpiry.Sub(expires) > time.Minute {
+		log.Warnf("Requested TTL of %s was not granted. User may have a role with a shorter max session TTL"+
+			" or an existing session ending before the requested TTL. Proceeding with %s",
+			a.genTTL,
+			time.Until(expires).Round(time.Second))
+	}
+
 	return nil
 }
 

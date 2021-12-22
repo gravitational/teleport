@@ -48,7 +48,11 @@ data:
 {{- end }}
 
       public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.authssh.port }}
+{{- if .Values.config.teleport.auth_service.cluster_name }}
+      cluster_name: {{ .Values.config.teleport.auth_service.cluster_name }}
+{{- else }}
       cluster_name: {{ .Values.config.public_address }}
+{{- end }}
       listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.authssh.containerPort }}
       client_idle_timeout: {{ .Values.config.teleport.auth_service.client_idle_timeout }}
       disconnect_expired_cert: {{ .Values.config.teleport.auth_service.disconnect_expired_cert }}
@@ -178,7 +182,11 @@ data:
       session_recording: {{ .Values.config.teleport.auth_service.session_recording }}
 {{- end }}
       public_addr: {{ .Values.config.auth_public_address }}:{{ .Values.service.ports.authssh.port }}
+{{- if .Values.config.teleport.auth_service.cluster_name }}
+      cluster_name: {{ .Values.config.teleport.auth_service.cluster_name }}
+{{- else }}
       cluster_name: {{ .Values.config.public_address }}
+{{- end }}
       listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.authssh.containerPort }}
       client_idle_timeout: {{ .Values.config.teleport.auth_service.client_idle_timeout }}
       disconnect_expired_cert: {{ .Values.config.teleport.auth_service.disconnect_expired_cert }}

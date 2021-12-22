@@ -436,6 +436,7 @@ docs-test-whitespace:
 	fi
 
 
+ifeq (${DISABLE_TEST_TARGETS},)
 #
 # Runs all Go/shell tests, called by CI/CD.
 #
@@ -452,9 +453,9 @@ test-go: FLAGS ?= '-race'
 test-go: PACKAGES := $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
-	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| go run build.assets/render-tests/main.go
-	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
+	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| go run build.assets/render-tests/main.go
 
 #
@@ -466,7 +467,7 @@ test-go-root: ensure-webassets bpf-bytecode roletester rdpclient
 test-go-root: FLAGS ?= '-race'
 test-go-root: PACKAGES := $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
-	$(CGOFLAG) go test -p 4 -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Runs API Go tests. These have to be run separately as the package name is different.
 #
@@ -475,7 +476,7 @@ test-api:
 test-api: FLAGS ?= '-race'
 test-api: PACKAGES := $(shell cd api && go list ./...)
 test-api: $(VERSRC)
-	$(CGOFLAG) go test -p 4 -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
@@ -487,6 +488,10 @@ test-sh:
 	fi; \
 	find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
 
+
+.PHONY: run-etcd
+run-etcd:
+	examples/etcd/start-etcd.sh
 #
 # Integration tests. Need a TTY to work.
 # Any tests which need to run as root must be skipped during regular integration testing.
@@ -496,7 +501,7 @@ integration: FLAGS ?= -v -race
 integration: PACKAGES := $(shell go list ./... | grep integration)
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -p 4 -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -timeout 30m -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS)
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -507,7 +512,8 @@ INTEGRATION_ROOT_REGEX := ^TestRoot
 integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES := $(shell go list ./... | grep integration)
 integration-root:
-	$(CGOFLAG) go test -p 4 -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
+endif
 
 #
 # Lint the source code.
@@ -700,7 +706,7 @@ remove-temp-files:
 docker:
 	make -C build.assets build
 
-# Dockerized build: useful for making Linux binaries on OSX
+# Dockerized build: useful for making Linux binaries on macOS
 .PHONY:docker-binaries
 docker-binaries: clean
 	make -C build.assets build-binaries
@@ -710,23 +716,42 @@ docker-binaries: clean
 enter:
 	make -C build.assets enter
 
-# grpc generates GRPC stubs from service definitions
+# grpc generates GRPC stubs from service definitions.
+# This target runs in the devbox container.
 .PHONY: grpc
 grpc:
 	$(MAKE) -C build.assets grpc
 
-# buildbox-grpc generates GRPC stubs inside buildbox
-.PHONY: buildbox-grpc
-buildbox-grpc:
+# devbox-grpc generates GRPC stubs
+.PHONY: devbox-grpc
+devbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
-	find lib/ -iname *.proto | xargs $(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
-	find api/ -iname *.proto | xargs $(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
+	$(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}' \
+		api/client/proto/authservice.proto \
+		api/types/events/events.proto \
+		api/types/types.proto \
+		api/types/webauthn/webauthn.proto \
+		api/types/wrappers/wrappers.proto \
+		lib/datalog/types.proto \
+		lib/events/slice.proto \
+		lib/multiplexer/test/ping.proto \
+		lib/web/envelope.proto
+
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/client/proto \
+		--gogofast_out=plugins=grpc:api/client/proto \
+		authservice.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/events \
 		--gogofast_out=plugins=grpc:api/types/events \
 		events.proto
+
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types \
+		--gogofast_out=plugins=grpc:api/types \
+		types.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/webauthn \
@@ -738,27 +763,21 @@ buildbox-grpc:
 		--gogofast_out=plugins=grpc:api/types/wrappers \
 		wrappers.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/types \
-		--gogofast_out=plugins=grpc:api/types \
+	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc:. \
 		types.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/client/proto \
-		--gogofast_out=plugins=grpc:api/client/proto \
-		authservice.proto
+	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc:. \
+		slice.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
-	  --gogofast_out=plugins=grpc:.\
-    *.proto
+		--gogofast_out=plugins=grpc:. \
+		ping.proto
 
 	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
-	  --gogofast_out=plugins=grpc:.\
-    *.proto
-
-	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
-	  --gogofast_out=plugins=grpc:.\
-    types.proto
+		--gogofast_out=plugins=grpc:. \
+		envelope.proto
 
 .PHONY: goinstall
 goinstall:

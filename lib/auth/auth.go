@@ -2699,6 +2699,32 @@ func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesReques
 	}
 }
 
+// ResourcePageFunc is a function to run on each page iterated over.
+type ResourcePageFunc func(next []types.Resource) (stop bool, err error)
+
+// IterateResourcePages can be used to iterate over pages of resources.
+func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (string, error) {
+	for {
+		nextPage, nextKey, err := a.ListResources(ctx, req)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		stop, err := f(nextPage)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// Iterator stopped before end of pages or
+		// there are no more pages, return nextKey
+		if stop || nextKey == "" {
+			return nextKey, nil
+		}
+
+		req.StartKey = nextKey
+	}
+}
+
 // GetReverseTunnels returns reverse tunnels from the cache
 func (a *Server) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	return a.GetCache().GetReverseTunnels(opts...)
@@ -2970,6 +2996,11 @@ func (a *Server) GetDatabases(ctx context.Context) ([]types.Database, error) {
 // GetDatabase returns the specified database resource.
 func (a *Server) GetDatabase(ctx context.Context, name string) (types.Database, error) {
 	return a.GetCache().GetDatabase(ctx, name)
+}
+
+// GetDatabases returns all database resources.
+func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.Resource, string, error) {
+	return a.GetCache().ListResources(ctx, req)
 }
 
 // GetLock gets a lock by name from the auth server's cache.

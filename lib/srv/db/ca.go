@@ -41,7 +41,10 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 	}
 	// Can only download it for cloud-hosted instances.
 	switch database.GetType() {
-	case types.DatabaseTypeRDS, types.DatabaseTypeRedshift, types.DatabaseTypeCloudSQL:
+	case types.DatabaseTypeRDS,
+		types.DatabaseTypeRedshift,
+		types.DatabaseTypeCloudSQL,
+		types.DatabaseTypeAzure:
 	default:
 		return nil
 	}
@@ -108,6 +111,8 @@ func (s *Server) getCACertPath(database types.Database) (string, error) {
 		return filepath.Join(s.cfg.DataDir, filepath.Base(redshiftCAURL)), nil
 	case types.DatabaseTypeCloudSQL:
 		return filepath.Join(s.cfg.DataDir, fmt.Sprintf("%v-root.pem", database.GetName())), nil
+	case types.DatabaseTypeAzure:
+		return filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURL)), nil
 	}
 	return "", trace.BadParameter("%v doesn't support automatic CA download", database)
 }
@@ -136,6 +141,8 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database) 
 		return d.downloadFromURL(redshiftCAURL)
 	case types.DatabaseTypeCloudSQL:
 		return d.downloadForCloudSQL(ctx, database)
+	case types.DatabaseTypeAzure:
+		return d.downloadFromURL(azureCAURL)
 	}
 	return nil, trace.BadParameter("%v doesn't support automatic CA download", database)
 }
@@ -199,6 +206,12 @@ const (
 	rdsDefaultCAURL = "https://s3.amazonaws.com/rds-downloads/rds-ca-2019-root.pem"
 	// redshiftCAURL is the Redshift CA bundle download URL.
 	redshiftCAURL = "https://s3.amazonaws.com/redshift-downloads/redshift-ca-bundle.crt"
+	// azureCAURL is the URL of the CA certificate for validating certificates
+	// presented by Azure hosted databases. See:
+	//
+	// https://docs.microsoft.com/en-us/azure/postgresql/concepts-ssl-connection-security
+	// https://docs.microsoft.com/en-us/azure/mysql/howto-configure-ssl
+	azureCAURL = "https://www.digicert.com/CACerts/BaltimoreCyberTrustRoot.crt.pem"
 	// cloudSQLDownloadError is the error message that gets returned when
 	// we failed to download root certificate for Cloud SQL instance.
 	cloudSQLDownloadError = `Could not download Cloud SQL CA certificate for database %v due to the following error:

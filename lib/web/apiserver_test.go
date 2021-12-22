@@ -623,16 +623,6 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
-func (s *WebSuite) TestNamespace(c *C) {
-	pack := s.authPack(c, "foo")
-
-	_, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "..%252fevents%3f", "nodes"), url.Values{})
-	c.Assert(err, NotNil)
-
-	_, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "nodes"), url.Values{})
-	c.Assert(err, IsNil)
-}
-
 func (s *WebSuite) TestCSRF(c *C) {
 	type input struct {
 		reqToken    string
@@ -1187,10 +1177,6 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
 	c.Assert(err, IsNil)
 
-	// flush out raw event (pty texts)
-	err = s.waitForRawEvent(ws, 5*time.Second)
-	c.Assert(err, IsNil)
-
 	var numPings int
 	start := time.Now()
 	for {
@@ -1204,8 +1190,8 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 		if numPings > 1 {
 			break
 		}
-		if time.Since(start) > 5*time.Second {
-			c.Fatalf("received %d ping frames within 5s of opening a socket, expected at least 2", numPings)
+		if deadline := 15 * time.Second; time.Since(start) > deadline {
+			c.Fatalf("Received %v ping frames within %v of opening a socket, expected at least 2", numPings, deadline)
 		}
 	}
 
@@ -1302,7 +1288,7 @@ func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 
 	// Retrieve the session with the empty ClusterName.
 	pack := s.authPack(c, "baz")
-	res, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "sessions", sess1.ID.String()), url.Values{})
+	res, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions", sess1.ID.String()), url.Values{})
 	c.Assert(err, IsNil)
 
 	// Test that empty ClusterName and ServerHostname got set.
@@ -1320,7 +1306,7 @@ func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 	c.Assert(err, IsNil)
 
 	// Retrieve sessions list.
-	res, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "sessions"), url.Values{})
+	res, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
 	c.Assert(err, IsNil)
 
 	var sessionList *siteSessionsGetResponse
@@ -3369,7 +3355,7 @@ type proxy struct {
 	revTun  reversetunnel.Server
 	node    *regular.Server
 	proxy   *regular.Server
-	handler *RewritingHandler
+	handler *WebAPIHandler
 	web     *httptest.Server
 	webURL  url.URL
 }

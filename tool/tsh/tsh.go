@@ -239,6 +239,9 @@ type CLIConf struct {
 	// unsetEnvironment unsets Teleport related environment variables.
 	unsetEnvironment bool
 
+	// overrideStdout allows to switch standard output source for resource command. Used in tests.
+	overrideStdout io.Writer
+
 	// mockSSOLogin used in tests to override sso login handler in teleport client.
 	mockSSOLogin client.SSOLoginFunc
 
@@ -255,6 +258,14 @@ type CLIConf struct {
 	AWSRole string
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
 	AWSCommandArgs []string
+}
+
+// Stdout returns the stdout writer.
+func (c *CLIConf) Stdout() io.Writer {
+	if c.overrideStdout != nil {
+		return c.overrideStdout
+	}
+	return os.Stdout
 }
 
 func main() {
@@ -401,9 +412,9 @@ func Run(args []string, opts ...cliOption) error {
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
+	db.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	dbList := db.Command("ls", "List all available databases.")
 	dbList.Flag("verbose", "Show extra database fields.").Short('v').BoolVar(&cf.Verbose)
-	dbList.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	dbLogin := db.Command("login", "Retrieve credentials for a database.")
 	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").Required().StringVar(&cf.DatabaseService)
 	dbLogin.Flag("db-user", "Optional database user to configure as default.").StringVar(&cf.DatabaseUser)
@@ -702,7 +713,7 @@ func onPlay(cf *CLIConf) error {
 			if err != nil {
 				return trace.ConvertSystemError(err)
 			}
-			if err := client.PlayFile(context.TODO(), tarFile, sid); err != nil {
+			if err := client.PlayFile(cf.Context, tarFile, sid); err != nil {
 				return trace.Wrap(err)
 			}
 		default:
@@ -710,14 +721,36 @@ func onPlay(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := tc.Play(context.TODO(), cf.Namespace, cf.SessionID); err != nil {
+			if err := tc.Play(cf.Context, cf.Namespace, cf.SessionID); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 	default:
-		err := exportFile(cf.SessionID, cf.Format)
-		if err != nil {
-			return trace.Wrap(err)
+		switch {
+		case path.Ext(cf.SessionID) == ".tar":
+			err := exportFile(cf.SessionID, cf.Format)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		default:
+			tc, err := makeClient(cf, true)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			events, err := tc.GetSessionEvents(context.TODO(), cf.Namespace, cf.SessionID)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			for _, event := range events {
+				// when playing from a file, id is not included, this
+				// makes the outputs otherwise identical
+				delete(event, "id")
+				e, err := utils.FastMarshal(event)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				fmt.Println(string(e))
+			}
 		}
 	}
 	return nil
@@ -1225,13 +1258,36 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		req.SetSuggestedReviewers(reviewers)
 	}
 
-	// Watch for resolution events on the given request. Start watcher before
-	// creating the request to avoid a potential race.
+	// Watch for resolution events on the given request. Start watcher and wait
+	// for it to be ready before creating the request to avoid a potential race.
 	errChan := make(chan error)
 	if !cf.NoWait {
+		log.Debug("Waiting for the access-request watcher to ready up...")
+		ready := make(chan struct{})
 		go func() {
-			errChan <- waitForRequestResolution(cf, tc, req)
+			var resolvedReq types.AccessRequest
+			err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+				var err error
+				resolvedReq, err = waitForRequestResolution(cf, clt, req, ready)
+				return trace.Wrap(err)
+			})
+
+			if err != nil {
+				errChan <- trace.Wrap(err)
+			} else {
+				errChan <- trace.Wrap(onRequestResolution(cf, tc, resolvedReq))
+			}
 		}()
+
+		select {
+		case err = <-errChan:
+			if err == nil {
+				return trace.Errorf("event watcher exited cleanly without readying up?")
+			}
+			return trace.Wrap(err)
+		case <-ready:
+			log.Debug("Access-request watcher is ready")
+		}
 	}
 
 	// Create request if it doesn't already exist
@@ -1370,7 +1426,7 @@ func showApps(apps []types.Application, active []tlsca.RouteToApp, verbose bool)
 	}
 }
 
-func showDatabases(cluster string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
+func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
 	if verbose {
 		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Labels", "Connect", "Expires"})
 		for _, database := range databases {
@@ -1379,7 +1435,7 @@ func showDatabases(cluster string, databases []types.Database, active []tlsca.Ro
 			for _, a := range active {
 				if a.ServiceName == name {
 					name = formatActiveDB(a)
-					connect = formatConnectCommand(cluster, a)
+					connect = formatConnectCommand(clusterFlag, a)
 				}
 			}
 			t.AddRow([]string{
@@ -1402,7 +1458,7 @@ func showDatabases(cluster string, databases []types.Database, active []tlsca.Ro
 			for _, a := range active {
 				if a.ServiceName == name {
 					name = formatActiveDB(a)
-					connect = formatConnectCommand(cluster, a)
+					connect = formatConnectCommand(clusterFlag, a)
 				}
 			}
 			t.AddRow([]string{
@@ -1425,16 +1481,21 @@ func formatDatabaseLabels(database types.Database) string {
 
 // formatConnectCommand formats an appropriate database connection command
 // for a user based on the provided database parameters.
-func formatConnectCommand(cluster string, active tlsca.RouteToDatabase) string {
-	switch {
-	case active.Username != "" && active.Database != "":
-		return fmt.Sprintf("tsh db connect %v", active.ServiceName)
-	case active.Username != "":
-		return fmt.Sprintf("tsh db connect --db-name=<name> %v", active.ServiceName)
-	case active.Database != "":
-		return fmt.Sprintf("tsh db connect --db-user=<user> %v", active.ServiceName)
+func formatConnectCommand(clusterFlag string, active tlsca.RouteToDatabase) string {
+	cmdTokens := []string{"tsh", "db", "connect"}
+
+	if clusterFlag != "" {
+		cmdTokens = append(cmdTokens, fmt.Sprintf("--cluster=%s", clusterFlag))
 	}
-	return fmt.Sprintf("tsh db connect --db-user=<user> --db-name=<name> %v", active.ServiceName)
+	if active.Username == "" {
+		cmdTokens = append(cmdTokens, "--db-user=<user>")
+	}
+	if active.Database == "" {
+		cmdTokens = append(cmdTokens, "--db-name=<name>")
+	}
+
+	cmdTokens = append(cmdTokens, active.ServiceName)
+	return strings.Join(cmdTokens, " ")
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase) string {
@@ -2054,6 +2115,9 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 
 	fmt.Printf("%vProfile URL:        %v\n", prefix, p.ProxyURL.String())
 	fmt.Printf("  Logged in as:       %v\n", p.Username)
+	if len(p.ActiveRequests.AccessRequests) != 0 {
+		fmt.Printf("  Active requests:    %v\n", strings.Join(p.ActiveRequests.AccessRequests, ", "))
+	}
 	if p.Cluster != "" {
 		fmt.Printf("  Cluster:            %v\n", p.Cluster)
 	}
@@ -2145,26 +2209,24 @@ func host(in string) string {
 	return out
 }
 
-// waitForRequestResolution waits for an access request to be resolved.
-func waitForRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.AccessRequest) error {
+// waitForRequestResolution waits for an access request to be resolved. On
+// approval, returns the updated request. `clt` must be a client to the root
+// cluster, such as the one returned by
+// `(*TeleportClient).WithRootClusterClient`. `ready` will be closed when the
+// event watcher used to wait for the request updates is ready.
+func waitForRequestResolution(cf *CLIConf, clt auth.ClientI, req types.AccessRequest, ready chan<- struct{}) (types.AccessRequest, error) {
 	filter := types.AccessRequestFilter{
 		User: req.GetUser(),
 	}
-	var err error
-	var watcher types.Watcher
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		watcher, err = tc.NewWatcher(cf.Context, types.Watch{
-			Name: "await-request-approval",
-			Kinds: []types.WatchKind{{
-				Kind:   types.KindAccessRequest,
-				Filter: filter.IntoMap(),
-			}},
-		})
-		return trace.Wrap(err)
+	watcher, err := clt.NewWatcher(cf.Context, types.Watch{
+		Name: "await-request-approval",
+		Kinds: []types.WatchKind{{
+			Kind:   types.KindAccessRequest,
+			Filter: filter.IntoMap(),
+		}},
 	})
-
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer watcher.Close()
 Loop:
@@ -2174,28 +2236,29 @@ Loop:
 			switch event.Type {
 			case types.OpInit:
 				log.Infof("Access-request watcher initialized...")
+				close(ready)
 				continue Loop
 			case types.OpPut:
 				r, ok := event.Resource.(*types.AccessRequestV3)
 				if !ok {
-					return trace.BadParameter("unexpected resource type %T", event.Resource)
+					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
 				}
 				if r.GetName() != req.GetName() || r.GetState().IsPending() {
 					log.Debugf("Skipping put event id=%s,state=%s.", r.GetName(), r.GetState())
 					continue Loop
 				}
-				return onRequestResolution(cf, tc, r)
+				return r, nil
 			case types.OpDelete:
 				if event.Resource.GetName() != req.GetName() {
 					log.Debugf("Skipping delete event id=%s", event.Resource.GetName())
 					continue Loop
 				}
-				return trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+				return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
 			default:
 				log.Warnf("Skipping unknown event type %s", event.Type)
 			}
 		case <-watcher.Done():
-			return trace.Wrap(watcher.Error())
+			return nil, trace.Wrap(watcher.Error())
 		}
 	}
 }
@@ -2240,7 +2303,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if err := tc.ReissueUserCerts(cf.Context, client.CertCacheDrop, params); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := tc.SaveProfile("", true); err != nil {
+	if err := tc.SaveProfile(cf.HomePath, true); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := updateKubeConfig(cf, tc, ""); err != nil {

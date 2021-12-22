@@ -58,8 +58,8 @@ type Config struct {
 	DisableSSH bool
 	// DisableTLS disables TLS socket
 	DisableTLS bool
-	// DisableDB disables database access proxy listener
-	DisableDB bool
+	// DisablePostgres disables Postgres access proxy listener
+	DisablePostgres bool
 	// ID is an identifier used for debugging purposes
 	ID string
 }
@@ -249,7 +249,7 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		conn.Close()
 	case ProtoPostgres:
 		m.WithField("protocol", connWrapper.protocol).Debug("Detected Postgres client connection.")
-		if m.DisableDB {
+		if m.DisablePostgres {
 			m.Debug("Closing Postgres client connection: db proxy listener is disabled.")
 			conn.Close()
 			return
