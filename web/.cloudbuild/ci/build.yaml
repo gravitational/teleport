@@ -1,3 +1,6 @@
+options:
+  machineType: 'E2_HIGHCPU_32'
+
 availableSecrets:
   secretManager:
   - versionName: projects/771512790633/secrets/webapps-e-deployment-key/versions/1
@@ -15,9 +18,9 @@ steps:
       - "go run ./cmd/checkout -w=/workspace"
 
   - name: gcr.io/cloud-builders/docker
-    id: test
+    id: build
     args:
       - build
       - '--build-arg'
-      - NPM_SCRIPT=test
+      - NPM_SCRIPT=build
       - .
