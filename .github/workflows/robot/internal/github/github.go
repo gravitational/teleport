@@ -53,6 +53,9 @@ type Client interface {
 
 	// DeleteWorkflowRun is used to delete a workflow run.
 	DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error
+
+	// UpdateBranch will update PR branch with latest from master.
+	UpdateBranch(ctx context.Context, organization string, repository string, number int) error
 }
 
 type client struct {
@@ -142,11 +145,20 @@ type PullRequest struct {
 	Author string
 	// Repository is the name of the repository.
 	Repository string
+	// Number is the Pull Request number.
+	Number int
 	// UnsafeHead is the name of the branch this PR is created from. It is marked
 	// unsafe as it can be attacker controlled.
 	UnsafeHead string
+	// UnsafeBase is the name of the base branch this PR is to be merged into. It
+	// is marked unsafe as it can be attacker controlled.
+	UnsafeBase string
 	// Fork determines if the pull request is from a fork.
 	Fork bool
+	// AutoMerge indicates if the author turned on automatic merging for this PR.
+	AutoMerge bool
+	// Mergeable indicates if the PR is update-to-date with the base branch.
+	Mergeable bool
 }
 
 func (c *client) ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]PullRequest, error) {
@@ -172,8 +184,12 @@ func (c *client) ListPullRequests(ctx context.Context, organization string, repo
 			pulls = append(pulls, PullRequest{
 				Author:     pr.GetUser().GetLogin(),
 				Repository: repository,
+				Number:     pr.GetNumber(),
 				UnsafeHead: pr.GetHead().GetRef(),
+				UnsafeBase: pr.GetBase().GetRef(),
 				Fork:       pr.GetHead().GetRepo().GetFork(),
+				AutoMerge:  pr.GetAutoMerge().GetMergeMethod() == "squash",
+				Mergeable:  pr.GetMergeable(),
 			})
 		}
 		if resp.NextPage == 0 {
@@ -324,6 +340,19 @@ func (c *client) DeleteWorkflowRun(ctx context.Context, organization string, rep
 		return trace.Wrap(err)
 	}
 	_, err = c.client.Do(ctx, req, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// UpdateBranch will update PR branch with latest from master.
+func (c *client) UpdateBranch(ctx context.Context, organization string, repository string, number int) error {
+	_, _, err := c.client.PullRequests.UpdateBranch(ctx,
+		organization,
+		repository,
+		number,
+		nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}

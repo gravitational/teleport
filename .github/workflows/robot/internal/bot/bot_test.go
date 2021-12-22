@@ -120,3 +120,7 @@ func (f *fakeGithub) ListWorkflowRuns(ctx context.Context, organization string, 
 func (f *fakeGithub) DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error {
 	return nil
 }
+
+func (f *fakeGithub) UpdateBranch(ctx context.Context, organization string, repository string, number int) error {
+	return nil
+}

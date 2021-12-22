@@ -1,0 +1,37 @@
+# This workflow will run every 15 minutes and if the branch is out-of-date
+# with the base branch it will merge the latest changes from master into this
+# branch.
+name: "Merge Queue"
+on:
+  schedule:
+    # Runs every 15 minutes.
+    - cron: '0,15 * * * *'
+
+# Limit the permissions on the GitHub token for this workflow to the subset
+# that is required. In this case, the merge queue needs to be able to write
+# to Pull Requests (to update them), nothing else.
+permissions:
+  actions: none
+  pull-requests: write
+  checks: none
+  contents: none
+  deployments: none
+  issues: none
+  packages: none
+  repository-projects: none
+  security-events: none
+  statuses: none
+
+jobs:
+  merge-queue:
+    name: "Merge Queue"
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout master branch"
+        uses: "actions/checkout@v2"
+        with:
+          ref: "master"
+      - name: "Installing the latest version of Go"
+        uses: "actions/setup-go@v2"
+      - name: "Update PRs"
+        run: cd .github/workflows/robot && go run main.go -workflow=queue -token="${{ secrets.GITHUB_TOKEN }}"
