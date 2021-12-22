@@ -2740,7 +2740,7 @@ func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesReques
 }
 
 // ResourcePageFunc is a function to run on each page iterated over.
-type ResourcePageFunc func(next []types.Resource) (stop bool, err error)
+type ResourcePageFunc func(next []types.ResourceWithLabels) (stop bool, err error)
 
 // IterateResourcePages can be used to iterate over pages of resources.
 func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (string, error) {
@@ -3039,7 +3039,7 @@ func (a *Server) GetDatabase(ctx context.Context, name string) (types.Database, 
 }
 
 // GetDatabases returns all database resources.
-func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.Resource, string, error) {
+func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
 	return a.GetCache().ListResources(ctx, req)
 }
 
