@@ -21,7 +21,8 @@ export default {
   title: 'Teleport/SelectFilters',
 };
 
-export const NoAppliedFilters = () => <SelectFilter {...props} />;
+export const Filters = () => <SelectFilter {...props} />;
+export const FiltersWithPages = () => <SelectFilter {...props} pageSize={3} />;
 export const WithAppliedFilters = () => (
   <SelectFilter {...props} appliedFilters={props.filters} />
 );
