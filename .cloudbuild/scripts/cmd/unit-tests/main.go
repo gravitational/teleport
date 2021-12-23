@@ -95,7 +95,7 @@ func innerMain() error {
 
 	hasOnlyDocChanges := ch.Docs && (!ch.Code)
 	if hasOnlyDocChanges {
-		log.Println("No non-docs changes detected. Skipping tests.")
+		log.Println("No code changes detected. Skipping tests.")
 		return nil
 	}
 
