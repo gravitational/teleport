@@ -676,7 +676,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		s.recorder, err = events.NewAuditWriter(events.AuditWriterConfig{
+		rec, err := events.NewAuditWriter(events.AuditWriterConfig{
 			// Audit stream is using server context, not session context,
 			// to make sure that session is uploaded even after it is closed
 			Context:      ctx.srv.Context(),
@@ -692,6 +692,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		s.recorder = rec
 	}
 	s.writer.addWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder), true)
 
@@ -874,7 +875,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		s.recorder, err = events.NewAuditWriter(events.AuditWriterConfig{
+		rec, err := events.NewAuditWriter(events.AuditWriterConfig{
 			// Audit stream is using server context, not session context,
 			// to make sure that session is uploaded even after it is closed
 			Context:      ctx.srv.Context(),
@@ -890,6 +891,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		s.recorder = rec
 	}
 
 	// Emit a session.start event for the exec session.

@@ -1467,7 +1467,17 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 		ta(cachedRemote)
 		return cachedRemote.Clone(), nil
 	}
-	return rg.presence.GetRemoteCluster(clusterName)
+	rc, err := rg.presence.GetRemoteCluster(clusterName)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because this method is never used
+		// in construction of derivative caches.
+		if rc, err := c.Config.Presence.GetRemoteCluster(clusterName); err == nil {
+			return rc, nil
+		}
+	}
+	return rc, trace.Wrap(err)
 }
 
 // GetUser is a part of auth.Cache implementation.
