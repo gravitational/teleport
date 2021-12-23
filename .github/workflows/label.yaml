@@ -43,4 +43,4 @@ jobs:
         uses: actions/setup-go@v2
       # Run "label" subcommand on bot.
       - name: Labeling PR
-        run: cd .github/workflows/robot && go run main.go -workflow=label -token="${{ secrets.GITHUB_TOKEN }}"
+        run: cd .github/workflows/robot && go run main.go -workflow=label -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"
