@@ -1,6 +1,8 @@
 // package: gravitational.cloud.tenants.v1
 // file: api/tenants/v1/tenants.proto
 
+/* eslint-disable */
+
 import * as jspb from 'google-protobuf';
 
 export class Account extends jspb.Message {

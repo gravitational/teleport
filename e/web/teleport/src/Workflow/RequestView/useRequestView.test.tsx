@@ -25,7 +25,7 @@ test('flags for own request', async () => {
   // test on mount, request and flags are init
   expect(hook.current.user).toBe('Sam');
   expect(hook.current.request.id).toEqual(requestPending.id);
-  expect(hook.current.request.state).toEqual('PENDING');
+  expect(hook.current.request.state).toBe('PENDING');
   expect(hook.current.flags).toEqual({
     canAssume: false,
     isAssumed: false,
@@ -35,7 +35,7 @@ test('flags for own request', async () => {
 
   // test setting of request and flags after request is approved
   await act(async () => hook.current.submitReview('APPROVED', ''));
-  expect(hook.current.request.state).toEqual('APPROVED');
+  expect(hook.current.request.state).toBe('APPROVED');
   expect(hook.current.flags).toEqual({
     canAssume: true,
     isAssumed: false,
@@ -58,7 +58,7 @@ test('flags for own request', async () => {
   ctx.workflowService.submitAccessRequestReview = () =>
     Promise.resolve({ ...requestPending, state: 'DENIED' });
   await act(async () => hook.current.submitReview('DENIED', ''));
-  expect(hook.current.request.state).toEqual('DENIED');
+  expect(hook.current.request.state).toBe('DENIED');
   expect(hook.current.flags).toEqual({
     canAssume: false,
     isAssumed: false,

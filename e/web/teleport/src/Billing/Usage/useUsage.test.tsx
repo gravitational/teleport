@@ -17,7 +17,7 @@ test('formatting of cycles and its item list in yearlyUsages', async () => {
 
   // Test first in array is the most recent year (2021)
   const list1 = hook.current.yearlyUsages[0];
-  expect(list1.year).toEqual('2021');
+  expect(list1.year).toBe('2021');
   expect(list1.items).toEqual([
     { resource: 'Application Access', jan: 0 },
     { resource: 'Database Access', jan: 1, apr: 3333 },
@@ -39,7 +39,7 @@ test('formatting of cycles and its item list in yearlyUsages', async () => {
 
   // Test older list (2020)
   const list2 = hook.current.yearlyUsages[1];
-  expect(list2.year).toEqual('2020');
+  expect(list2.year).toBe('2020');
   expect(list2.items).toEqual([{ resource: 'Database Access', dec: 1 }]);
 
   setCyclesTotalAmts = {};
