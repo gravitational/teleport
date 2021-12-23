@@ -102,7 +102,6 @@ func Update(path string, v Values) error {
 		clusterName := v.TeleportClusterName
 		var envVars []clientcmdapi.ExecEnvVar
 		if v.Exec.Env != nil {
-			envVars = make([]clientcmdapi.ExecEnvVar, 0)
 			for name, value := range v.Exec.Env {
 				envVars = append(envVars, clientcmdapi.ExecEnvVar{Name: name, Value: value})
 			}
@@ -124,7 +123,7 @@ func Update(path string, v Values) error {
 			if v.Exec.TshBinaryInsecure {
 				authInfo.Exec.Args = append(authInfo.Exec.Args, "--insecure")
 			}
-			if envVars != nil {
+			if len(envVars) > 0 {
 				authInfo.Exec.Env = envVars
 			}
 			config.AuthInfos[authName] = authInfo
