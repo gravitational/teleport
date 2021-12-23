@@ -18,6 +18,8 @@ import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
 import api from 'teleport/services/api';
 
+/* eslint-disable jest/no-conditional-expect */
+
 describe('services/auth', () => {
   beforeEach(() => {
     // setup u2f mocks
@@ -95,7 +97,7 @@ describe('services/auth', () => {
       await auth.loginWithU2f(email, password);
     } catch (err) {
       expect(window.u2f.sign).toHaveBeenCalled();
-      expect(err.message).not.toBeUndefined();
+      expect(err.message).toBeDefined();
     }
     expect.assertions(2);
   });

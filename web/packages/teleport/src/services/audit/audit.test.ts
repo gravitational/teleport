@@ -81,8 +81,8 @@ test('fetch events', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(unknownEvent);
   response = await audit.fetchEvents('clusterId', params);
 
-  expect(response.events[0].codeDesc).toEqual('Unknown');
-  expect(response.events[0].message).toEqual('Unknown');
+  expect(response.events[0].codeDesc).toBe('Unknown');
+  expect(response.events[0].message).toBe('Unknown');
 });
 
 const params = {

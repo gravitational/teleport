@@ -157,8 +157,8 @@ test('decodes regions', () => {
   view.setUint32(13, 64);
 
   const region = codec.decodeRegion(buffer);
-  expect(region.top).toEqual(0);
-  expect(region.left).toEqual(0);
-  expect(region.bottom).toEqual(64);
-  expect(region.right).toEqual(64);
+  expect(region.top).toBe(0);
+  expect(region.left).toBe(0);
+  expect(region.bottom).toBe(64);
+  expect(region.right).toBe(64);
 });

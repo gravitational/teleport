@@ -116,7 +116,7 @@ test('prop auth2faType: webauthn form with mocked error', async () => {
   );
 
   // Rendering of mfa dropdown.
-  expect(screen.getByTestId('mfa-select')).not.toBeEmpty();
+  expect(screen.getByTestId('mfa-select')).not.toBeEmptyDOMElement();
 
   // fill out form
   fireEvent.change(getByPlaceholderText(placeholdCurrPass), inputVal);
@@ -146,7 +146,7 @@ test('prop auth2faType: OTP form', async () => {
   );
 
   // rendering of mfa dropdown
-  expect(screen.getByTestId('mfa-select')).not.toBeEmpty();
+  expect(screen.getByTestId('mfa-select')).not.toBeEmptyDOMElement();
 
   // test input validation error state
   await wait(() => fireEvent.click(getByText(btnSubmitText)));
@@ -188,7 +188,7 @@ test('prop auth2faType: U2f form with mocked error', async () => {
   );
 
   // rendering of mfa dropdown
-  expect(screen.getByTestId('mfa-select')).not.toBeEmpty();
+  expect(screen.getByTestId('mfa-select')).not.toBeEmptyDOMElement();
 
   // fill out form
   fireEvent.change(getByPlaceholderText(placeholdCurrPass), inputVal);

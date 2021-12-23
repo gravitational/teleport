@@ -10,7 +10,7 @@ test('only the first png frame causes a "connect" event to be emitted', () => {
   // Set up listener to check for connect event.
   tdpClient.on('connect', () => {
     connectEmitted = true;
-    expect(i).toEqual(0); // check only emitted on the first frame
+    expect(i).toBe(0); // check only emitted on the first frame
   });
 
   arrayBufFirst2Pngs.forEach(pngFrame => {
@@ -18,5 +18,5 @@ test('only the first png frame causes a "connect" event to be emitted', () => {
     i++;
   });
 
-  expect(connectEmitted).toEqual(true); // check that connect was emitted at all
+  expect(connectEmitted).toBe(true); // check that connect was emitted at all
 });

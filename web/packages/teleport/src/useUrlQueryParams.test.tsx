@@ -108,7 +108,7 @@ test('toggle filter', () => {
 describe('test decoding of urls', () => {
   const enc = encodeURIComponent;
 
-  const tests: {
+  const testCases: {
     name: string;
     url: string;
     expect: Filter[];
@@ -193,22 +193,19 @@ describe('test decoding of urls', () => {
     },
   ];
 
-  // eslint-disable-next-line jest/require-hook
-  tests.forEach(tc => {
-    test(`${tc.name}`, () => {
-      let result;
-      act(() => {
-        result = renderHook(() => useUrlQueryParams(), {
-          wrapper: Wrapper,
-          wrapperProps: {
-            history: createMemoryHistory({ initialEntries: [tc.url] }),
-          },
-        });
+  test.each(testCases)('$name', testCase => {
+    let result;
+    act(() => {
+      result = renderHook(() => useUrlQueryParams(), {
+        wrapper: Wrapper,
+        wrapperProps: {
+          history: createMemoryHistory({ initialEntries: [testCase.url] }),
+        },
       });
-
-      let hook: State = result.current;
-      expect(hook.filters).toMatchObject(tc.expect);
     });
+
+    const hook: State = result.current;
+    expect(hook.filters).toMatchObject(testCase.expect);
   });
 });
 

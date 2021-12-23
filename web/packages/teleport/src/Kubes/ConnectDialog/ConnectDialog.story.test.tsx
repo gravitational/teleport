@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { render } from 'design/utils/testing';
-import { Local, SSO } from './ConnectDialog.story';
+import { Local, Sso } from './ConnectDialog.story';
 
 test('kube connect dialogue local', () => {
   const { baseElement } = render(<Local />);
@@ -24,6 +24,6 @@ test('kube connect dialogue local', () => {
 });
 
 test('kube connect dialogue sso', () => {
-  const { baseElement } = render(<SSO />);
+  const { baseElement } = render(<Sso />);
   expect(baseElement).toMatchSnapshot();
 });

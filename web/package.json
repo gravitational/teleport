@@ -15,7 +15,8 @@
     "build-teleport-e": "yarn workspace @gravitational/teleport.e build --output-path=../../../dist/e/teleport/app",
     "build-oss": "yarn build-teleport-oss",
     "build-e": "yarn build-teleport-e",
-    "build": "yarn type-check && yarn build-oss && yarn build-e",
+    "build": "yarn lint && yarn type-check && yarn build-oss && yarn build-e",
+    "lint": "eslint --ext .js,.jsx,.ts,.tsx packages/",
     "type-check": "yarn tsc"
   },
   "private": true,

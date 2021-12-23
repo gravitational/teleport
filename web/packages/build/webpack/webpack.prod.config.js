@@ -20,7 +20,7 @@ process.env.BABEL_ENV = 'production';
 process.env.NODE_ENV = 'production';
 
 /**
- * @type { import("webpack").webpack.Configuration }
+ * @type { import('webpack').webpack.Configuration }
  */
 module.exports = {
   ...configFactory.createDefaultConfig(),
@@ -39,5 +39,5 @@ module.exports = {
       configFactory.rules.css(),
     ],
   },
-  plugins: [configFactory.plugins.eslint()],
+  plugins: [],
 };

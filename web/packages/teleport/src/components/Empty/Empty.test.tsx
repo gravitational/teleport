@@ -6,13 +6,15 @@ import Empty, { Props } from './Empty';
 test('empty state for enterprise or oss, with create perms', async () => {
   const { findByText } = render(<Empty {...props} />);
 
-  expect(await findByText(/ADD YOUR FIRST SERVER/i)).toBeVisible();
+  await expect(findByText(/ADD YOUR FIRST SERVER/i)).resolves.toBeVisible();
 });
 
 test('empty state for cant create or leaf cluster', async () => {
   const { findByText } = render(<Empty {...props} canCreate={false} />);
 
-  expect(await findByText(/Either there are no servers in the/i)).toBeVisible();
+  await expect(
+    findByText(/Either there are no servers in the/i)
+  ).resolves.toBeVisible();
 });
 
 const props: Props = {

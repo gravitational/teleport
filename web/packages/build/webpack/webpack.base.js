@@ -17,7 +17,6 @@ limitations under the License.
 const fs = require('fs');
 const path = require('path');
 const HtmlWebPackPlugin = require('html-webpack-plugin');
-const ESLintPlugin = require('eslint-webpack-plugin');
 const ReactRefreshPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 
 const appDirectory = fs.realpathSync(process.cwd());
@@ -28,15 +27,6 @@ const configFactory = {
   plugins: {
     reactRefresh(options) {
       return new ReactRefreshPlugin(options);
-    },
-    eslint(options) {
-      return new ESLintPlugin({
-        context: '../',
-        extensions: ['ts', 'tsx', 'js', 'jsx'],
-        failOnError: false,
-        failOnWarning: false,
-        ...options,
-      });
     },
     indexHtml(options) {
       return new HtmlWebPackPlugin({

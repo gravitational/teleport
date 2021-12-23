@@ -32,7 +32,6 @@ module.exports = {
   devtool: false,
   mode: 'development',
   plugins: [
-    configFactory.plugins.eslint(),
     configFactory.plugins.reactRefresh(),
   ],
   module: {

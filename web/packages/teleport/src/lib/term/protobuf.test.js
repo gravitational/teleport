@@ -26,7 +26,7 @@ describe('lib/term/protobuf', () => {
       const array = Uint8Array.from(input);
       const msg = pb.decode(array);
 
-      expect(msg.type).toEqual('a');
+      expect(msg.type).toBe('a');
       expect(msg.payload).toEqual(
         `{"addr.local":"172.10.1.20:3022","addr.remote":"172.10.1.254:59590","event":"session.join","login":"root","namespace":"default","server_id":"75f4fc80-76c5-4372-bc61-1e665fd7ef96","sid":"cc8d05f4-69d1-11e8-a61d-0242ac0a0101","user":"mama"}`
       );
@@ -36,7 +36,7 @@ describe('lib/term/protobuf', () => {
       const input = [10, 1, 49, 18, 1, 99];
       const array = Uint8Array.from(input);
       const msg = pb.decode(array);
-      expect(msg.type).toEqual('c');
+      expect(msg.type).toBe('c');
       expect(msg.payload).toEqual(``);
     });
 
@@ -46,8 +46,8 @@ describe('lib/term/protobuf', () => {
       const array = Uint8Array.from(input);
       const msg = pb.decode(array);
 
-      expect(msg.version).toEqual('1');
-      expect(msg.type).toEqual('r');
+      expect(msg.version).toBe('1');
+      expect(msg.type).toBe('r');
       expect(msg.payload).toEqual(`[33;1mcontainer(f1ff295e4127)[0;33m ~[00m: `);
     });
   });
@@ -57,9 +57,9 @@ describe('lib/term/protobuf', () => {
       const buffer = pb.encodeRawMessage('mama');
       const array = Uint8Array.from(buffer);
       const msg = pb.decode(array);
-      expect(msg.version).toEqual('1');
-      expect(msg.type).toEqual('r');
-      expect(msg.payload).toEqual('mama');
+      expect(msg.version).toBe('1');
+      expect(msg.type).toBe('r');
+      expect(msg.payload).toBe('mama');
     });
 
     it('should encode "resize" message', () => {
@@ -67,9 +67,9 @@ describe('lib/term/protobuf', () => {
       const buffer = pb.encodeResizeMessage(payload);
       const array = Uint8Array.from(buffer);
       const msg = pb.decode(array);
-      expect(msg.version).toEqual('1');
-      expect(msg.type).toEqual('w');
-      expect(msg.payload).toEqual(payload);
+      expect(msg.version).toBe('1');
+      expect(msg.type).toBe('w');
+      expect(msg.payload).toBe(payload);
     });
   });
 });

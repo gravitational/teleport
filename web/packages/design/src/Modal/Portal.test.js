@@ -23,7 +23,7 @@ describe('design/Modal/Portal', () => {
     const { getByTestId, container } = renderPortal();
     const content = getByTestId('content');
     expect(container).not.toContainElement(content);
-    expect(content.parentNode.nodeName).toEqual('BODY');
+    expect(content.parentNode.nodeName).toBe('BODY');
   });
 
   test('container to be attached to custom element', () => {

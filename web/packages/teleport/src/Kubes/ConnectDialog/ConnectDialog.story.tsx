@@ -32,7 +32,7 @@ export const Local = () => {
   );
 };
 
-export const SSO = () => {
+export const Sso = () => {
   return (
     <Component
       onClose={() => null}

@@ -20,20 +20,19 @@ import EventProvider, { MAX_SIZE } from './ttyPlayerEventProvider';
 import { TermEventEnum } from 'teleport/lib/term/enums';
 import sample from './fixtures/streamData';
 
-// TODO: fixed below tests
-describe.skip('lib/term/ttyPlayer/eventProvider', () => {
-  afterEach(function() {
+describe('lib/term/ttyPlayer/eventProvider', () => {
+  afterEach(function () {
     jest.clearAllMocks();
   });
 
-  describe.skip('new()', () => {
+  describe('new()', () => {
     it('should create an instance', () => {
       const provider = new EventProvider({ url: 'sample.com' });
       expect(provider.events).toEqual([]);
     });
   });
 
-  describe.skip('init()', () => {
+  describe('init()', () => {
     it('should load events and initialize itself', async () => {
       const provider = new EventProvider({ url: 'sample.com' });
 
@@ -55,7 +54,7 @@ describe.skip('lib/term/ttyPlayer/eventProvider', () => {
     });
   });
 
-  describe.skip('_createEvents()', () => {
+  describe('_createEvents()', () => {
     it('should create event objects', () => {
       const provider = new EventProvider({ url: 'sample.com' });
       const events = provider._createEvents(sample.events);
@@ -72,12 +71,12 @@ describe.skip('lib/term/ttyPlayer/eventProvider', () => {
         msNormalized: 1744,
       };
 
-      expect(events.length).toBe(32);
+      expect(events).toHaveLength(32);
       expect(events[30]).toEqual(eventObj);
     });
   });
 
-  describe.skip('fetchContent()', () => {
+  describe('fetchContent()', () => {
     it('should fetch session content', async () => {
       const provider = new EventProvider({ url: 'sample.com' });
 
@@ -111,26 +110,26 @@ describe.skip('lib/term/ttyPlayer/eventProvider', () => {
   });
 });
 
-describe.skip('lib/ttyPlayer', () => {
+describe('lib/ttyPlayer', () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  describe.skip('new()', () => {
+  describe('new()', () => {
     it('should create an instance', () => {
       const ttyPlayer = new TtyPlayer({ url: 'testSid' });
-      expect(ttyPlayer.isReady).toBe(false);
-      expect(ttyPlayer.isPlaying).toBe(false);
-      expect(ttyPlayer.isError).toBe(false);
-      expect(ttyPlayer.isLoading).toBe(true);
+      expect(ttyPlayer.isReady()).toBe(false);
+      expect(ttyPlayer.isPlaying()).toBe(false);
+      expect(ttyPlayer.isError()).toBe(false);
+      expect(ttyPlayer.isLoading()).toBe(true);
       expect(ttyPlayer.duration).toBe(0);
       expect(ttyPlayer.current).toBe(0);
     });
   });
 
-  describe.skip('connect()', () => {
-    it('should initialize event provider', async () => {
-      const ttyPlayer = new TtyPlayer({ url: 'testSid' });
+  describe('connect()', () => {
+    it('should connect using event provider', async () => {
+      const ttyPlayer = new TtyPlayer(new EventProvider({ url: 'testSid' }));
 
       jest.spyOn(api, 'get').mockImplementation(() => Promise.resolve(sample));
       jest
@@ -139,47 +138,43 @@ describe.skip('lib/ttyPlayer', () => {
 
       await ttyPlayer.connect();
 
-      expect(ttyPlayer.isReady).toBe(true);
+      expect(ttyPlayer.isReady()).toBe(true);
       expect(ttyPlayer.getEventCount()).toBe(32);
     });
 
-    it('should indicate its loading status', cb => {
-      const ttyPlayer = new TtyPlayer({ url: 'testSid' });
+    it('should indicate its loading status', async () => {
+      const ttyPlayer = new TtyPlayer(new EventProvider({ url: 'testSid' }));
       jest
         .spyOn(api, 'get')
         .mockImplementation(() => Promise.resolve({ events: [] }));
 
-      ttyPlayer.connect().then(() => {
-        cb();
-      });
-
-      expect(ttyPlayer.isLoading).toBe(true);
+      ttyPlayer.connect();
+      expect(ttyPlayer.isLoading()).toBe(true);
     });
 
-    it('should indicate its error status', cb => {
+    it('should indicate its error status', async () => {
+      jest.spyOn(console, 'error').mockImplementation(() => {});
       jest.spyOn(api, 'get').mockImplementation(() => Promise.reject('!!'));
 
-      const ttyPlayer = new TtyPlayer({ url: 'testSid' });
+      const ttyPlayer = new TtyPlayer(new EventProvider({ url: 'testSid' }));
 
-      ttyPlayer.connect().finally(() => {
-        expect(ttyPlayer.isError).toBe(true);
-        cb();
-      });
+      await ttyPlayer.connect();
+      expect(ttyPlayer.isError()).toBe(true);
     });
   });
 
-  describe.skip('move()', () => {
+  describe('move()', () => {
     var tty = null;
 
     beforeEach(() => {
-      tty = new TtyPlayer({ url: 'sample.com' });
+      tty = new TtyPlayer(new EventProvider({ url: 'testSid' }));
       jest.spyOn(api, 'get').mockImplementation(() => Promise.resolve(sample));
       jest
         .spyOn(tty._eventProvider, '_fetchContent')
         .mockImplementation(() => Promise.resolve(sample.data));
     });
 
-    afterEach(function() {
+    afterEach(function () {
       jest.clearAllMocks();
     });
 
@@ -192,7 +187,7 @@ describe.skip('lib/ttyPlayer', () => {
       });
 
       tty.move();
-      expect(renderedData.length).toBe(42);
+      expect(renderedData).toHaveLength(42);
     });
 
     it('should move from 1 to 478 position (forward)', async () => {
@@ -258,17 +253,17 @@ describe.skip('lib/ttyPlayer', () => {
       });
 
       tty.move(2);
-      expect(renderedData.length).toEqual(42);
+      expect(renderedData).toHaveLength(42);
     });
 
     it('should stop playing if new position is greater than session length', async () => {
       await tty.connect();
-      tty.isPlaying = true;
+      tty.play();
 
       const someBigNumber = 20000;
       tty.move(someBigNumber);
 
-      expect(tty.isPlaying).toBe(false);
+      expect(tty.isPlaying()).toBe(false);
     });
   });
 });

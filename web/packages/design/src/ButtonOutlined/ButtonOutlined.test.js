@@ -21,7 +21,7 @@ import { render, theme } from 'design/utils/testing';
 describe('design/ButtonOutlined', () => {
   it('renders a <button> and respects default props', () => {
     const { container } = render(<ButtonOutlined />);
-    expect(container.firstChild.nodeName).toEqual('BUTTON');
+    expect(container.firstChild.nodeName).toBe('BUTTON');
     expect(container.firstChild).toHaveStyle('font-size: 12px');
     expect(container.firstChild).toHaveStyle({
       'border-color': theme.colors.text.primary,

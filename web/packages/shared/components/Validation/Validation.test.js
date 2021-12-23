@@ -40,14 +40,14 @@ test('methods of Validator: sub, unsub, validate', () => {
   validator.subscribe(mockCb2);
 
   // test validate runs all subscribed cb's
-  expect(validator.validate()).toEqual(true);
+  expect(validator.validate()).toBe(true);
   expect(mockCb1).toHaveBeenCalledTimes(1);
   expect(mockCb2).toHaveBeenCalledTimes(1);
   jest.clearAllMocks();
 
   // test unsubscribe method removes correct cb
   validator.unsubscribe(mockCb2);
-  expect(validator.validate()).toEqual(true);
+  expect(validator.validate()).toBe(true);
   expect(mockCb1).toHaveBeenCalledTimes(1);
   expect(mockCb2).toHaveBeenCalledTimes(0);
 });

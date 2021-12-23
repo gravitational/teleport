@@ -48,7 +48,7 @@ test('auth2faType: otp', () => {
   );
 
   // Rendering of mfa dropdown.
-  expect(getByTestId('mfa-select')).not.toBeEmpty();
+  expect(getByTestId('mfa-select')).not.toBeEmptyDOMElement();
 
   // fill form
   fireEvent.change(getByPlaceholderText(/username/i), {
@@ -73,7 +73,7 @@ test('auth2faType: u2f', async () => {
   );
 
   // Rendering of mfa dropdown.
-  expect(getByTestId('mfa-select')).not.toBeEmpty();
+  expect(getByTestId('mfa-select')).not.toBeEmptyDOMElement();
 
   // fill form
   fireEvent.change(getByPlaceholderText(/username/i), {
@@ -119,7 +119,7 @@ test('auth2faType: webauthn', async () => {
   );
 
   // Rendering of mfa dropdown.
-  expect(getByTestId('mfa-select')).not.toBeEmpty();
+  expect(getByTestId('mfa-select')).not.toBeEmptyDOMElement();
 
   // fill form
   fireEvent.change(getByPlaceholderText(/username/i), {

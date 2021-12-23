@@ -21,7 +21,7 @@ import { render } from 'design/utils/testing';
 describe('design/ButtonLink', () => {
   it('respects the "as" prop', () => {
     const { container } = render(<ButtonLink />);
-    expect(container.firstChild.nodeName).toEqual('A');
+    expect(container.firstChild.nodeName).toBe('A');
   });
 
   it('respects the button size prop', () => {

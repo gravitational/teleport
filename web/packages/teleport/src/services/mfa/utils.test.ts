@@ -18,7 +18,7 @@ import { getMfaOptions } from './utils';
 import { Auth2faType, PreferredMfaType } from 'shared/services';
 
 describe('test retrieving mfa options', () => {
-  const tests: {
+  const testCases: {
     name: string;
     type?: Auth2faType;
     preferred?: PreferredMfaType;
@@ -78,16 +78,15 @@ describe('test retrieving mfa options', () => {
     },
   ];
 
-  tests.forEach(tc => {
-    test(`${tc.name}`, () => {
-      const vals = getMfaOptions(tc.type, tc.preferred).map(o => o.value);
-      // Order matters.
-      expect(vals).toEqual(tc.expect);
-    });
+  test.each(testCases)('$name', testCase => {
+    const mfa = getMfaOptions(testCase.type, testCase.preferred).map(
+      o => o.value
+    );
+    expect(mfa).toEqual(testCase.expect);
   });
 
   test('no "none" option if requireMfa=true', () => {
-    const vals = getMfaOptions('optional', 'webauthn', true).map(o => o.value);
-    expect(vals).toEqual(['webauthn', 'otp']);
+    const mfa = getMfaOptions('optional', 'webauthn', true).map(o => o.value);
+    expect(mfa).toEqual(['webauthn', 'otp']);
   });
 });

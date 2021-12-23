@@ -30,7 +30,7 @@ const fakeClient = () => {
   client.init = () => {
     client.emit('init');
   };
-  client.resize = (w: number, h: number) => {};
+  client.resize = () => {};
   client.disconnect = () => {
     client.emit('disconnect');
   };
@@ -55,15 +55,15 @@ const props: State = {
     fillGray(canvas);
   },
   onConnect: () => {},
-  onRender: (ctx: CanvasRenderingContext2D, data: ImageData) => {},
+  onRender: () => {},
   onDisconnect: () => {},
-  onError: (err: Error) => {},
-  onKeyDown: (cli: TdpClient, e: KeyboardEvent) => {},
-  onKeyUp: (cli: TdpClient, e: KeyboardEvent) => {},
-  onMouseMove: (cli: TdpClient, canvas: HTMLCanvasElement, e: MouseEvent) => {},
-  onMouseDown: (cli: TdpClient, e: MouseEvent) => {},
-  onMouseUp: (cli: TdpClient, e: MouseEvent) => {},
-  onMouseWheelScroll: (cli: TdpClient, e: WheelEvent) => {},
+  onError: () => {},
+  onKeyDown: () => {},
+  onKeyUp: () => {},
+  onMouseMove: () => {},
+  onMouseDown: () => {},
+  onMouseUp: () => {},
+  onMouseWheelScroll: () => {},
 };
 
 export const Processing = () => (

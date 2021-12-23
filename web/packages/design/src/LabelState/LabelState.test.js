@@ -45,7 +45,7 @@ describe('design/LabelState', () => {
       background: expected,
     });
 
-    expect(getComputedStyle(container.firstChild).boxShadow).toEqual('');
+    expect(getComputedStyle(container.firstChild).boxShadow).toBe('');
   });
 
   it('respects shadow prop', () => {
