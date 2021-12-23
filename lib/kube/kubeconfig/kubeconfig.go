@@ -100,7 +100,7 @@ func Update(path string, v Values) error {
 	if v.Exec != nil {
 		// Called from tsh, use the exec plugin model.
 		clusterName := v.TeleportClusterName
-		var envVars []clientcmdapi.ExecEnvVar
+		envVars := make([]clientcmdapi.ExecEnvVar, 0, len(v.Exec.Env))
 		if v.Exec.Env != nil {
 			for name, value := range v.Exec.Env {
 				envVars = append(envVars, clientcmdapi.ExecEnvVar{Name: name, Value: value})
