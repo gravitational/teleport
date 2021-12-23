@@ -84,7 +84,7 @@ func parseFlags() (string, string, string, error) {
 	if *token == "" {
 		return "", "", "", trace.BadParameter("token missing")
 	}
-	if *reviewers == "" && (*workflow == "assign" || *workflow == "check") {
+	if *reviewers == "" {
 		return "", "", "", trace.BadParameter("reviewers required for assign and check")
 	}
 
