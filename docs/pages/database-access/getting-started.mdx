@@ -81,25 +81,9 @@ Download the appropriate version of Teleport for your platform from
 our [downloads page](https://goteleport.com/teleport/download).
 
 Teleport requires a valid TLS certificate to operate and can fetch one automatically
-using Let's Encrypt [ACME](https://letsencrypt.org/how-it-works/) protocol.
+using Let's Encrypt.
 
-We will assume that you have configured DNS records for `teleport.example.com` and
-`*.teleport.example.com` to point to the node where you're launching Teleport.
-
-Let's generate a Teleport config with ACME enabled:
-
-```code
-$ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com > /tmp/teleport.yaml
-```
-
-<Admonition
-  type="warning"
-  title="Web Proxy Port"
->
-  Teleport's ACME protocol integration currently requires web proxy to run on
-  port 443 so open /tmp/teleport.yaml and update `proxy_service.web_listen_addr`
-  and `proxy_service.public_addr` to use port 443 instead of the default 3080.
-</Admonition>
+(!docs/pages/includes/acme.mdx!)
 
 Now start Teleport and point it to your Aurora database instance. Make sure to
 update the database endpoint and region appropriately.

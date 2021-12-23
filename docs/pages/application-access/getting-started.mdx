@@ -31,31 +31,17 @@ $ docker run -d -p 3000:3000 grafana/grafana
 ```
 
 ## Step 2/3. Install and configure Teleport
+(!docs/pages/includes/permission-warning.mdx!)
 
 Download the latest version of Teleport for your platform from our
 [downloads page](https://goteleport.com/teleport/download).
 
-Teleport requires a valid TLS certificate to operate and can fetch one automatically
-using Let's Encrypt [ACME](https://letsencrypt.org/how-it-works/) protocol.
-
 We will assume that you have configured DNS records for `teleport.example.com`
 and `*.teleport.example.com` to point to the Teleport node.
 
-(!docs/pages/includes/permission-warning.mdx!)
+Teleport uses TLS to communicate with clients, and can fetch certificates automatically via Let's Encrypt.
 
-Let's generate a Teleport config with ACME enabled:
-
-```code
-$ sudo teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
-```
-
-<Admonition
-  type="note"
-  title="Web Proxy Port"
->
-  Teleport uses [TLS-ALPN-01](https://letsencrypt.org/docs/challenge-types/#tls-alpn-01)
-  ACME challenge to validate certificate requests which only works on port `443`. Make sure your Teleport proxy is accessible on port `443` when using ACME for certificate management.
-</Admonition>
+(!docs/pages/includes/acme.mdx!)
 
 Now start Teleport and point it to the application endpoint:
 
