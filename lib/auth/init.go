@@ -313,6 +313,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	log.Infof("Created namespace: %q.", apidefaults.Namespace)
 
+	// Migrate user CA to DB CA before generation...
+	if err := migrateDBAuthority(ctx, asrv); err != nil {
+		return nil, trace.Wrap(err, "fail to migrate DB CA")
+	}
+
 	// generate certificate authorities if they don't exist
 	for _, caType := range []types.CertAuthType{types.HostCA, types.DatabaseCA, types.UserCA, types.JWTSigner} {
 		caID := types.CertAuthID{Type: caType, DomainName: cfg.ClusterName.GetClusterName()}
@@ -1017,6 +1022,53 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 		}
 		return trace.Errorf("fail to migrate certificate authorities to the v7 storage format")
 	}
+	return nil
+}
+
+func migrateDBAuthority(ctx context.Context, asrv *Server) error {
+	clusterName, err := asrv.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	dbCaID := types.CertAuthID{Type: types.DatabaseCA, DomainName: clusterName.GetClusterName()}
+	_, err = asrv.GetCertAuthority(dbCaID, false)
+	if err == nil {
+		return nil // no migration needed. Cert is already here
+	}
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err) // something bad happen, break
+	}
+	// cert not found, copy Host CA as Database CA.
+
+	hostCaID := types.CertAuthID{Type: types.HostCA, DomainName: clusterName.GetClusterName()}
+	hostCA, err := asrv.GetCertAuthority(hostCaID, true)
+	if trace.IsNotFound(err) {
+		// first run, nothing to migrate
+		return nil
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Infof("Migrating Database CA")
+
+	cav2, ok := hostCA.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.Errorf("bad CA type??")
+	}
+
+	hostCA.GetTrustedTLSKeyPairs()
+
+	// Copy the Host CA with a different type.
+	cav2.Spec.Type = types.DatabaseCA
+	cav2.SetSubKind(string(types.DatabaseCA))
+
+	err = asrv.Trust.CreateCertAuthority(cav2)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
