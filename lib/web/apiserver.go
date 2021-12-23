@@ -2652,11 +2652,10 @@ type ssoRequestParams struct {
 }
 
 func parseSSORequestParams(r *http.Request) (*ssoRequestParams, error) {
+	// We are encoding plus characters to preserve them after parsing.
+	// Otherwise the query parser will replace the unencoded plus chars with spaces.
 	rawQuery := strings.Replace(r.URL.RawQuery, "+", "%2B", -1)
-	query, err := url.ParseQuery(rawQuery)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	query, _ := url.ParseQuery(rawQuery)
 
 	clientRedirectURL := query.Get("redirect_url")
 	if clientRedirectURL == "" {
