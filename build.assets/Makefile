@@ -120,14 +120,13 @@ build-binaries-fips: buildbox-fips
 buildbox:
 	if [[ "$(BUILDBOX_NAME)" == "$(BUILDBOX)" ]]; then \
 		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX) 2>&1 >/dev/null; then docker pull $(BUILDBOX) || true; fi; \
-		docker build --platform=linux/amd64 \
+		docker build --platform=linux/$(DEVBOX_RUNTIME_ARCH) \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
 			--build-arg RUNTIME=$(RUNTIME) \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg PROTOC_VER=$(PROTOC_VER) \
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
-			--build-arg PROTOC_PLATFORM=$(PROTOC_PLATFORM) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 			--cache-from $(BUILDBOX) \
 			--tag $(BUILDBOX) . ; \

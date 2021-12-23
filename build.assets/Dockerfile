@@ -17,8 +17,13 @@ ENV LANGUAGE="en_US.UTF-8" \
     LC_CTYPE="en_US.UTF-8" \
     DEBIAN_FRONTEND="noninteractive"
 
+# BUILDARCH is automatically set by DOCKER when building the image.
+# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+ARG BUILDARCH
+
 # Install packages.
 # We install curl first to allow setting up the Google SDK as part of the same layer.
+# NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -y --no-install-recommends apt-utils ca-certificates curl gnupg && \
@@ -31,7 +36,7 @@ RUN apt-get update -y --fix-missing && \
         clang-format-10 \
         curl \
         gcc \
-        gcc-multilib \
+        `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
         git \
         google-cloud-sdk \
         google-cloud-sdk-firestore-emulator \
@@ -48,7 +53,9 @@ RUN apt-get update -y --fix-missing && \
         net-tools \
         openssh-client \
         osslsigncode \
-        python-pip \
+        python3-pip \
+        python3-setuptools \
+        python3-wheel \
         pkg-config \
         shellcheck \
         softhsm2 \
@@ -58,7 +65,7 @@ RUN apt-get update -y --fix-missing && \
         zip \
         zlib1g-dev \
         && \
-    pip --no-cache-dir install yamllint && \
+    pip3 --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
@@ -69,12 +76,12 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
 # Install etcd.
-RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
-     cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
+RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
+     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/)
 
 # Install Go.
 ARG RUNTIME
-RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNTIME.linux-amd64.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNTIME.linux-${BUILDARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -111,13 +118,11 @@ RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar 
 
 # Install protobuf and grpc build tools.
 ARG PROTOC_VER
-ARG PROTOC_PLATFORM
 ARG GOGO_PROTO_TAG
-
-ENV PROTOC_TARBALL protoc-${PROTOC_VER}-${PROTOC_PLATFORM}.zip
 ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 
-RUN (curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
+RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86-64"; else echo "aarch_64"; fi).zip && \
+     curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
      chmod -R a+r /usr/local/include/google/protobuf && \
      rm /tmp/${PROTOC_TARBALL})
@@ -153,7 +158,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     rustup --version && \
     cargo --version && \
     rustc --version && \
-    rustup component add --toolchain $RUST_VERSION-x86_64-unknown-linux-gnu rustfmt clippy && \
+    rustup component add rustfmt clippy && \
     rustup target add i686-unknown-linux-gnu && \
     rustup target add arm-unknown-linux-gnueabihf && \
     rustup target add aarch64-unknown-linux-gnu && \
