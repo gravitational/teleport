@@ -17,7 +17,7 @@ ENV LANGUAGE="en_US.UTF-8" \
     LC_CTYPE="en_US.UTF-8" \
     DEBIAN_FRONTEND="noninteractive"
 
-# BUILDARCH is automatically set by DOCKER when building the image.
+# BUILDARCH is automatically set by DOCKER when building the image with Build Kit (MacOS by deafult).
 # https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
 ARG BUILDARCH
 
