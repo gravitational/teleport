@@ -313,9 +313,10 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	log.Infof("Created namespace: %q.", apidefaults.Namespace)
 
+	// TODO(jakule): Describe
 	// Migrate user CA to DB CA before generation...
 	if err := migrateDBAuthority(ctx, asrv); err != nil {
-		return nil, trace.Wrap(err, "fail to migrate DB CA")
+		return nil, trace.Wrap(err, "Failed to migrate database CA.")
 	}
 
 	// generate certificate authorities if they don't exist
@@ -1045,6 +1046,7 @@ func migrateDBAuthority(ctx context.Context, asrv *Server) error {
 	hostCA, err := asrv.GetCertAuthority(hostCaID, true)
 	if trace.IsNotFound(err) {
 		// first run, nothing to migrate
+		// TODO(jakule): looks like the first run is covered before this function is called.
 		return nil
 	}
 	if err != nil {
@@ -1055,7 +1057,7 @@ func migrateDBAuthority(ctx context.Context, asrv *Server) error {
 
 	cav2, ok := hostCA.(*types.CertAuthorityV2)
 	if !ok {
-		return trace.Errorf("bad CA type??")
+		return trace.Errorf("Failed to cast Host CA to concrete type.")
 	}
 
 	hostCA.GetTrustedTLSKeyPairs()
