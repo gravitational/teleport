@@ -119,6 +119,10 @@ type HTTPClient struct {
 
 // NewHTTPClient creates a new HTTP client with TLS authentication and the given dialer.
 func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.ClientParam) (*HTTPClient, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, err
+	}
+
 	dialer := cfg.Dialer
 	if dialer == nil {
 		if len(cfg.Addrs) == 0 {
@@ -305,8 +309,8 @@ func (c *Client) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	return &re, nil
 }
 
-// GetSessions returns a list of active sessions in the cluster
-// as reported by auth server
+// GetSessions returns a list of active sessions in the cluster as reported by
+// the auth server.
 func (c *Client) GetSessions(namespace string) ([]session.Session, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
@@ -1629,6 +1633,36 @@ func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 		return nil, trace.Wrap(err)
 	}
 	return resp.CRL, nil
+}
+
+// DeleteClusterNetworkingConfig not implemented: can only be called locally.
+func (c *Client) DeleteClusterNetworkingConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteSessionRecordingConfig not implemented: can only be called locally.
+func (c *Client) DeleteSessionRecordingConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAuthPreference not implemented: can only be called locally.
+func (c *Client) DeleteAuthPreference(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// SetClusterAuditConfig not implemented: can only be called locally.
+func (c *Client) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteClusterAuditConfig not implemented: can only be called locally.
+func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAllLocks not implemented: can only be called locally.
+func (c *Client) DeleteAllLocks(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // WebService implements features used by Web UI clients

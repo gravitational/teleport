@@ -575,6 +575,11 @@ func TestGetDatabaseServers(t *testing.T) {
 	testServers, err := srv.Auth().GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
 
+	testResources := make([]types.Resource, len(testServers))
+	for i, server := range testServers {
+		testResources[i] = server
+	}
+
 	// create user, role, and client
 	username := "user"
 	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
@@ -583,6 +588,13 @@ func TestGetDatabaseServers(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
+	listRequest := proto.ListResourcesRequest{
+		Namespace: defaults.Namespace,
+		// Guarantee that the list will all the servers.
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindDatabaseServer,
+	}
+
 	// permit user to get the first database
 	role.SetDatabaseLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
@@ -590,6 +602,10 @@ func TestGetDatabaseServers(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 1, len(servers))
 	require.Empty(t, cmp.Diff(testServers[0:1], servers))
+	resources, _, err := clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
 
 	// permit user to get all databases
 	role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
@@ -598,6 +614,10 @@ func TestGetDatabaseServers(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, len(testServers), len(servers))
 	require.Empty(t, cmp.Diff(testServers, servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resources))
 
 	// deny user to get the first database
 	role.SetDatabaseLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
@@ -606,6 +626,10 @@ func TestGetDatabaseServers(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, len(testServers[1:]), len(servers))
 	require.Empty(t, cmp.Diff(testServers[1:], servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources[1:]))
+	require.Empty(t, cmp.Diff(testResources[1:], resources))
 
 	// deny user to get all databases
 	role.SetDatabaseLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
@@ -614,6 +638,10 @@ func TestGetDatabaseServers(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 0, len(servers))
 	require.Empty(t, cmp.Diff([]types.DatabaseServer{}, servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, 0)
+	require.Empty(t, cmp.Diff([]types.Resource{}, resources))
 }
 
 // TestGetApplicationServers verifies RBAC is applied when fetching app servers.
@@ -641,6 +669,18 @@ func TestGetApplicationServers(t *testing.T) {
 	testServers, err := srv.Auth().GetApplicationServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
 
+	testResources := make([]types.Resource, len(testServers))
+	for i, server := range testServers {
+		testResources[i] = server
+	}
+
+	listRequest := proto.ListResourcesRequest{
+		Namespace: defaults.Namespace,
+		// Guarantee that the list will all the servers.
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindAppServer,
+	}
+
 	// create user, role, and client
 	username := "user"
 	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
@@ -656,6 +696,10 @@ func TestGetApplicationServers(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 1, len(servers))
 	require.Empty(t, cmp.Diff(testServers[0:1], servers))
+	resources, _, err := clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
 
 	// permit user to get all apps
 	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
@@ -664,6 +708,10 @@ func TestGetApplicationServers(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, len(testServers), len(servers))
 	require.Empty(t, cmp.Diff(testServers, servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resources))
 
 	// deny user to get the first app
 	role.SetAppLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
@@ -672,6 +720,10 @@ func TestGetApplicationServers(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, len(testServers[1:]), len(servers))
 	require.Empty(t, cmp.Diff(testServers[1:], servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources[1:]))
+	require.Empty(t, cmp.Diff(testResources[1:], resources))
 
 	// deny user to get all apps
 	role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
@@ -679,6 +731,10 @@ func TestGetApplicationServers(t *testing.T) {
 	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, len(servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, 0)
+	require.Empty(t, cmp.Diff([]types.Resource{}, resources))
 }
 
 func TestGetAppServers(t *testing.T) {

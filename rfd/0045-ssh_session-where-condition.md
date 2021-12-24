@@ -1,6 +1,6 @@
 ---
 authors: Andrej Tokarčík (andrej@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 45 - RBAC `where` conditions for active sessions list/read
@@ -21,7 +21,8 @@ sessions, notably only their own active sessions.
 
 ### Work around implicit allow rule
 
-Unlike `session`, the `ssh_session` kind is referred to by an [implicit rule](https://github.com/gravitational/teleport/blob/36998cf5669ebda59190453d265e2df24161992b/lib/services/role.go#L57)
+Unlike `session`, the `ssh_session` kind is referred to by an [implicit rule](
+https://github.com/gravitational/teleport/blob/066f0dbbad801ad822b81482948732641773d8fe/lib/services/role.go#L57)
 granting unrestricted list/read privileges to all users:
 
 ```go
@@ -39,17 +40,19 @@ spec:
     rules:
     - resources: [ssh_session]
       verbs: [list, read]
-      where: '!contains(ssh_session.parties, user.metadata.name)'
+      where: '!contains(ssh_session.participants, user.metadata.name)'
 ```
 
-### Replacing parties by usernames
+### `ssh_session` identifier API
 
-The `ssh_session` identifier is used to expose the fields of the
-[`session.Session` struct](https://github.com/gravitational/teleport/blob/36998cf5669ebda59190453d265e2df24161992b/lib/session/session.go#L84).
+The `ssh_session` identifier exposes the private `lib.session.ctxSession`
+struct. `ctxSession` is a subset of [`session.Session`](
+https://github.com/gravitational/teleport/blob/066f0dbbad801ad822b81482948732641773d8fe/lib/session/session.go#L84)
+with the addition of the `participants` field.
 
 In general, the RBAC `contains` predicate can only be used to detect the
-occurrence of a string in a slice of strings.  However, the `parties` field of
+occurrence of a string in a slice of strings. However, the `Parties` field of
 `session.Session` is a slice of more complex `Party` objects, not strings.
 To support `where` conditions as above, a list of usernames is extracted from
 the original `Party` slice in order that the usernames be then bound to
-`ssh_session.parties` instead.
+`ssh_session.participants` instead.

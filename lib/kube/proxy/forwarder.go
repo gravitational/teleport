@@ -1682,7 +1682,7 @@ func (f *Forwarder) serializedRequestClientCreds(authContext authContext) (*tls.
 
 func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	f.log.Debugf("Requesting K8s cert for %v.", ctx)
-	keyPEM, _, err := f.cfg.Keygen.GenerateKeyPair("")
+	keyPEM, _, err := f.cfg.Keygen.GetNewKeyPairFromPool()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

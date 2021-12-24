@@ -17,6 +17,9 @@ get a good starting file, run `teleport configure -o teleport.yaml`.
 ```yaml
 # By default, this file should be stored in /etc/teleport.yaml
 
+# Configuration file version. The current version is "v2".
+version: v2
+
 # This section of the configuration file applies to all teleport
 # services.
 teleport:
@@ -321,17 +324,11 @@ auth_service:
 
     # Optional setting for configuring session recording. Possible values are:
     #    "node"  : sessions will be recorded on the node level  (the default)
+    #    "node-sync" : session recordings will be streamed from node -> auth -> storage service without being stored on disk at all.
     #    "proxy" : recording on the proxy level, see "Recording Proxy Mode"
     #              (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
+    #    "proxy-sync : session recordings will be streamed from proxy -> auth -> storage service without being stored on disk at all.
     #    "off"   : session recording is turned off
-    #
-    # EXPERIMENTAL *-sync modes
-    # Proxy and node send logs directly to S3 or other storage without
-    # storing the records on disk at all. *-sync requires all nodes to be
-    # upgraded to 4.4.
-    #
-    #    "node-sync" : session recordings will be streamed from node -> auth -> storage service
-    #    "proxy-sync : session recordings will be streamed from proxy -> auth -> storage service
     #
     session_recording: "node"
 
@@ -382,12 +379,24 @@ auth_service:
     # the configured `data_dir` .
     license_file: /var/lib/teleport/license.pem
 
-
     # Configures a banner message to be displayed to a user logging into the cluster,
     # which must be acknowledged before the user is allowed to log in. Note that will
     # be shown *before* login, so should not contain any confidential information.
     # Defaults to the empty string, implying no message or acknowledgment is required.
     message_of_the_day: ""
+
+    # Indicates to the clients whether the cluster is running in TLS routing mode
+    # with all protocols multiplexed on the proxy's web_listen_addr.
+    #
+    # Possible values are:
+    #
+    # "multiplex": clients will be connecting to Teleport proxy's web listener
+    #              in TLS routing mode.
+    # "separate":  clients will be connecting to Teleport proxy's individual
+    #              listeners: tunnel_listen_addr, mysql_listen_addr, etc.
+    #
+    # See "TLS Routing" in Architecture section for additional information.
+    proxy_listener_mode: multiplex
 
 # This section configures the 'node service':
 ssh_service:
@@ -468,12 +477,22 @@ proxy_service:
 
     # SSH forwarding/proxy address. Command line (CLI) clients always begin their
     # SSH sessions by connecting to this port
+    #
+    # If not set, behavior depends on the config file version:
+    #
+    # "v2": listener is not created, SSH is multiplexed on web_listen_addr
+    # "v1": defaults to 0.0.0.0:3023
     listen_addr: 0.0.0.0:3023
 
     # Reverse tunnel listening address. An auth server (CA) can establish an
     # outbound (from behind the firewall) connection to this address.
     # This will allow users of the outside CA to connect to behind-the-firewall
     # nodes.
+    #
+    # If not set, behavior depends on the config file version:
+    #
+    # "v2": listener is not created, reverse tunnel traffic is multiplexed on web_listen_addr
+    # "v1": defaults to 0.0.0.0:3024
     tunnel_listen_addr: 0.0.0.0:3024
 
     # The HTTPS listen address to serve the Web UI and also to authenticate the
@@ -513,18 +532,40 @@ proxy_service:
     - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
       cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 
+    # Kubernetes proxy listen address.
+    #
+    # If not set, behavior depends on the config file version:
+    #
+    # "v2": listener is not created, Kubernetes traffic is multiplexed on web_listen_addr
+    # "v1": defaults to 0.0.0.0:3026
     kube_listen_addr: 0.0.0.0:3026
     # optional: set a different public address for kubernetes access
     kube_public_addr: kube.example.com:3026
 
     # MySQL proxy listen address.
+    #
+    # If not set, behavior depends on the config file version:
+    #
+    # "v2": listener is not created, MySQL traffic is multiplexed on web_listen_addr
+    # "v1": defaults to 0.0.0.0:3036
     mysql_listen_addr: "0.0.0.0:3036"
 
-    # Address advertised to PostgreSQL clients. If not set, public_addr is used.
-    postgres_public_addr: "postgres.teleport.example.com:443"
+    # Postgres Proxy listener address. If provided, proxy will use a separate listener
+    # instead of multiplexing Postgres protocol on web_listener_addr.
+    # postgres_listen_addr: "0.0.0.0:5432"
+
+    # Mongo Proxy listener address. If provided, proxy will use a separate listener
+    # instead of multiplexing Mongo protocol on web_listener_addr.
+    # mongo_listen_addr: "0.0.0.0:27017"
 
     # Address advertised to MySQL clients. If not set, public_addr is used.
     mysql_public_addr: "mysql.teleport.example.com:3306"
+
+    # Address advertised to PostgresSQL clients. If not set, public_addr is used.
+    postgres_public_addr: "postgres.teleport.example.com:443"
+
+    # Address advertised to Mongo clients. If not set, public_addr is used.
+    mongo_public_addr: "mongo.teleport.example.com:443"
 
     # Get an automatic certificate from Letsencrypt.org using ACME via TLS_ALPN-01 challenge.
     # When using ACME, the cluster name must match the 'public_addr' of Teleport and

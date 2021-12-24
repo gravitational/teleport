@@ -621,6 +621,24 @@ func (proxy *ProxyClient) GetDatabaseServers(ctx context.Context, namespace stri
 	return servers, nil
 }
 
+// ListResources returns a paginated list of resources.
+func (proxy *ProxyClient) ListResources(ctx context.Context, namespace, resource, startKey string, limit int) ([]types.Resource, string, error) {
+	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	resources, nextKey, err := authClient.ListResources(ctx, proto.ListResourcesRequest{
+		Namespace:    namespace,
+		ResourceType: resource,
+		StartKey:     startKey,
+		Limit:        int32(limit),
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resources, nextKey, nil
+}
+
 // CurrentClusterAccessPoint returns cluster access point to the currently
 // selected cluster and is used for discovery
 // and could be cached based on the access policy

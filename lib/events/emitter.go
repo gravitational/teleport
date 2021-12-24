@@ -53,7 +53,7 @@ func (c *AsyncEmitterConfig) CheckAndSetDefaults() error {
 }
 
 // NewAsyncEmitter returns emitter that submits events
-// without blocking the caller. It will start loosing events
+// without blocking the caller. It will start losing events
 // on buffer overflow.
 func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -100,7 +100,7 @@ func (a *AsyncEmitter) forward() {
 }
 
 // EmitAuditEvent emits audit event without blocking the caller. It will start
-// loosing events on buffer overflow, but it never fails.
+// losing events on buffer overflow, but it never fails.
 func (a *AsyncEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	select {
 	case a.eventsCh <- event:

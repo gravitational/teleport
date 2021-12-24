@@ -35,6 +35,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
@@ -65,6 +66,8 @@ type TestAuthServerConfig struct {
 	// ClusterNetworkingConfig allows a test to change the default
 	// networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
+	// Streamer allows a test to set its own audit events streamer.
+	Streamer events.Streamer
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -230,6 +233,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		Access:                 access,
 		Identity:               identity,
 		AuditLog:               srv.AuditLog,
+		Streamer:               cfg.Streamer,
 		SkipPeriodicOperations: true,
 		Emitter:                localLog,
 	}, WithClock(cfg.Clock))
@@ -323,9 +327,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	srv.LockWatcher, err = services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentAuth,
-			Client:    srv.AuthServer,
-			Clock:     cfg.Clock,
+			Component:      teleport.ComponentAuth,
+			Client:         srv.AuthServer,
+			Clock:          cfg.Clock,
+			MaxRetryPeriod: defaults.HighResPollingPeriod,
 		},
 	})
 	if err != nil {
@@ -960,7 +965,7 @@ func CreateAccessPluginUser(ctx context.Context, clt clt, username string) (type
 	return user, nil
 }
 
-// CreateUser creates user and role and assignes role to a user, used in tests
+// CreateUser creates user and role and assigns role to a user, used in tests
 func CreateUser(clt clt, username string, roles ...types.Role) (types.User, error) {
 	ctx := context.TODO()
 	user, err := types.NewUser(username)
@@ -983,7 +988,7 @@ func CreateUser(clt clt, username string, roles ...types.Role) (types.User, erro
 	return user, nil
 }
 
-// CreateUserAndRole creates user and role and assignes role to a user, used in tests
+// CreateUserAndRole creates user and role and assigns role to a user, used in tests
 func CreateUserAndRole(clt clt, username string, allowedLogins []string) (types.User, types.Role, error) {
 	ctx := context.TODO()
 	user, err := types.NewUser(username)
