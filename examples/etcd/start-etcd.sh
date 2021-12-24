@@ -9,7 +9,7 @@
 
 set -e
 
-# Etcd require ETCD_UNSUPPORTED_ARCH to be set in order to run on arm64.
+# Etcd before v3.5.0 requires ETCD_UNSUPPORTED_ARCH to be set in order to run on arm64.
 if [ "$(uname -m)" = "aarch64" ]; then
 export ETCD_UNSUPPORTED_ARCH=arm64
 fi

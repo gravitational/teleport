@@ -25,6 +25,7 @@ UID := $$(id -u)
 GID := $$(id -g)
 
 HOST_ARCH := $(shell uname -m)
+GOARCH := $(shell go env GOARCH)
 DEVBOX_RUNTIME_ARCH_x86_64 := amd64
 DEVBOX_RUNTIME_ARCH_arm64 := arm64
 DEVBOX_RUNTIME_ARCH := $(DEVBOX_RUNTIME_ARCH_$(HOST_ARCH))
@@ -123,6 +124,7 @@ buildbox:
 		docker build --platform=linux/$(DEVBOX_RUNTIME_ARCH) \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
+			--build-arg BUILDARCH=$(GOARCH) \
 			--build-arg RUNTIME=$(RUNTIME) \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg PROTOC_VER=$(PROTOC_VER) \
