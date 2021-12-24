@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -457,11 +458,6 @@ func TestCASigningAlg(t *testing.T) {
 		for _, ca := range userCAs {
 			require.Equal(t, sshutils.GetSigningAlgName(ca), alg)
 		}
-		dbCAs, err := auth.GetCertAuthorities(types.DatabaseCA, false)
-		require.NoError(t, err)
-		for _, ca := range dbCAs {
-			require.Equal(t, sshutils.GetSigningAlgName(ca), alg)
-		}
 	}
 
 	// Start a new server without specifying a signing alg.
@@ -775,6 +771,7 @@ func TestInit_bootstrap(t *testing.T) {
 	invalidJWTCA.(*types.CertAuthorityV2).Spec.ActiveKeys.JWT = nil
 	invalidJWTCA.(*types.CertAuthorityV2).Spec.JWTKeyPairs = nil
 
+	// TODO(jakule): add database ca test.
 	tests := []struct {
 		name         string
 		modifyConfig func(*InitConfig)
@@ -934,4 +931,42 @@ func TestIdentityChecker(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInitCreatesCertsIfMissing(t *testing.T) {
+	conf := setupConfig(t)
+	auth, err := Init(conf)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err = auth.Close()
+		require.NoError(t, err)
+	})
+
+	for _, caType := range types.CertAuthTypes {
+		cert, err := auth.GetCertAuthorities(caType, false)
+		require.NoError(t, err)
+		require.Len(t, cert, 1)
+	}
+}
+
+func TestMigrateDatabaseCA(t *testing.T) {
+	conf := setupConfig(t)
+
+	hostCA := suite.NewTestCA(types.HostCA, "me.localhost")
+	userCA := suite.NewTestCA(types.UserCA, "me.localhost")
+
+	conf.Authorities = []types.CertAuthority{hostCA, userCA}
+
+	auth, err := Init(conf)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err = auth.Close()
+		require.NoError(t, err)
+	})
+
+	dbCAs, err := auth.GetCertAuthorities(types.DatabaseCA, true)
+	require.NoError(t, err)
+	require.Len(t, dbCAs, 1)
+	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Cert, dbCAs[0].GetActiveKeys().TLS[0].Cert)
+	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Key, dbCAs[0].GetActiveKeys().TLS[0].Key)
 }
