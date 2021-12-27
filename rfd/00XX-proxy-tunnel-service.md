@@ -135,6 +135,16 @@ A proxy initiated reconnect will work as follows:
 ### Trusted Clusters
 Leaf clusters will continue to use the mesh agent pool, connecting to all proxies in the root cluster. Supporting trusted clusters would add a non-trivial amount of work and complexity to this design and provides diminishing returns. It is expected that trusted clusters will not be connected at the same scale as other resouces like ssh nodes and therefore will not be a big contributer to the problems we are trying to address here.
 
+### Cluster Upgrade
+Upgrading a cluster to support proxy tunneling and single point agents should be no more disruptive than restarting each proxy. Users can expect a short period of degraded service as node agents reconnect and routes to each node are updated in the node tracker.
+
+TODO: Research complexity of automatically detecting the type of agent pool to use for the node agent. This would reduce the work required for an upgrade.
+
+Upgrading proxies will work as follows:
+1. Deploy a node tracker.
+2. Update proxy configurations to use node tracking.
+3. Begin rolling update of proxies.
+
 ### Failure Scenarios
 This design introduces several new points of failure on the path from a client to a node agent.
 
@@ -151,3 +161,6 @@ These failures will be presented to the client as follows:
 
 ## Alternative Considerations
 An alternative approach was considered to redirect clients to the corresponding node-proxy. This was ultimately disregarded for a couple of reasons. It increases the time to establish a session for the client as a client would need to dial and authenticate with two proxies. Proxies would need to be individually addressible by the client which makes them an easier targets for DDOS attacks.
+
+TODO: IDEA
+Mesh and Single point pools are maintained. Proxy sends type of pool down to the agent. The mesh pool is closed when no proxies are in mesh pool mode. The mesh pool will be reenabled when a single point agent discovers a proxy in mesh pool mode.
