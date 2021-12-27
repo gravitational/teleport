@@ -107,9 +107,36 @@ In summary, dropping vendor would make go.mod/go.sum the single source of truth
 for our dependencies, reduce the size of the teleport repo, make code changes
 easier to review, and restore functionality with the latest version of `gopls`.
 
+#### Testing Changes to Dependencies
+
+With the vendoring approach, if a developer wants to test a change to one of our
+dependencies, they can simply modify the file in the vendor directory and rebuild
+the program.
+
+If vendor is removed, this workflow becomes slightly more difficult, as the
+module cache is read-only and may be shared across projects. In order to achieve
+the same workflow without vendoring, developers must create a writeable copy of
+the dependency on disk, and use a
+[replace directive](https://go.dev/ref/mod#go-mod-file-replace) in order to
+instruct the go tool to use the local copy instead of the version in the module
+cache. [`gohack`](https://github.com/rogpeppe/gohack) is a tool that automates
+this workflow:
+
+```
+# create a local copy of the module and set up a replace
+# directive in go.mod
+$ gohack get module/to/edit
+
+# make some changes to the local copy
+# build and test with the changes
+
+# remove the replace directive
+$ gohack undo module/to/edit
+```
+
 ### Impact to CI
 
-If the vendor directory is dropped, each CI build will need to pull down
+If the vendor directory is removed, each CI build will need to pull down
 dependencies on first use. Should this become an issue, we can cache
 the Go module cache in [Google Cloud Storage](https://cloud.google.com/build/docs/speeding-up-builds)
 to speed up builds.
