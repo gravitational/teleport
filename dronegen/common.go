@@ -1,12 +1,22 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import "fmt"
 
 var (
-	triggerPullRequest = trigger{
-		Event: triggerRef{Include: []string{"pull_request"}},
-		Repo:  triggerRef{Include: []string{"gravitational/*"}},
-	}
 	triggerPush = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
 		Branch: triggerRef{Include: []string{"master", "branch/*"}},
@@ -27,17 +37,9 @@ var (
 		Name: "dockersock",
 		Temp: &volumeTemp{},
 	}
-	volumeDockerTmpfs = volume{
-		Name: "dockertmpfs",
-		Temp: &volumeTemp{},
-	}
 	volumeTmpfs = volume{
 		Name: "tmpfs",
 		Temp: &volumeTemp{Medium: "memory"},
-	}
-	volumeTmpIntegration = volume{
-		Name: "tmp-integration",
-		Temp: &volumeTemp{},
 	}
 
 	volumeRefTmpfs = volumeRef{
@@ -47,14 +49,6 @@ var (
 	volumeRefDocker = volumeRef{
 		Name: "dockersock",
 		Path: "/var/run",
-	}
-	volumeRefDockerTmpfs = volumeRef{
-		Name: "dockertmpfs",
-		Path: "/var/lib/docker",
-	}
-	volumeRefTmpIntegration = volumeRef{
-		Name: "tmp-integration",
-		Path: "/tmp",
 	}
 
 	// TODO(gus): Set this from `make -C build.assets print-runtime-version` or similar rather
