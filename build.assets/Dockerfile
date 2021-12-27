@@ -153,15 +153,15 @@ RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
 
 # Install Rust using the ci user, as that is the user that
 # will run builds using the Rust toolchains we install here.
+# Cross-compilation targets are only installed on amd64, as
+# this image doesn't contain gcc-multilib.
 USER ci
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
     rustup --version && \
     cargo --version && \
     rustc --version && \
     rustup component add rustfmt clippy && \
-    rustup target add i686-unknown-linux-gnu && \
-    rustup target add arm-unknown-linux-gnueabihf && \
-    rustup target add aarch64-unknown-linux-gnu && \
+    if [ "$BUILDARCH" = "amd64" ]; then rustup target add i686-unknown-linux-gnu arm-unknown-linux-gnueabihf aarch64-unknown-linux-gnu; fi && \
     cargo install cbindgen
 
 USER root
