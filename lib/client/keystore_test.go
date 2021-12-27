@@ -353,6 +353,27 @@ hRdXE63PXwAfzj0P/H4qWsFfwdeCo/fuIQIDAQAB
 	require.NoError(t, err)
 }
 
+func TestAddKey_withoutSSHCert(t *testing.T) {
+	s, cleanup := newTest(t)
+	defer cleanup()
+
+	// without ssh cert, db certs only
+	idx := KeyIndex{"host.a", "bob", "root"}
+	key := s.makeSignedKey(t, idx, false)
+	key.Cert = nil
+	require.NoError(t, s.addKey(key))
+
+	// ssh cert path should NOT exist
+	sshCertPath := s.store.sshCertPath(key.KeyIndex)
+	_, err := os.Stat(sshCertPath)
+	require.ErrorIs(t, err, os.ErrNotExist)
+
+	// check db certs
+	keyCopy, err := s.store.GetKey(idx, WithDBCerts{})
+	require.NoError(t, err)
+	require.Len(t, keyCopy.DBTLSCerts, 1)
+}
+
 type keyStoreTest struct {
 	storeDir  string
 	store     *FSLocalKeyStore
