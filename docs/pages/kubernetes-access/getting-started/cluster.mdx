@@ -5,11 +5,17 @@ description: Getting started with Teleport. Let's deploy Teleport in a Kubernete
 
 # Getting Started
 
-Let's deploy Teleport in a Kubernetes with SSO and Audit logs:
+Let's deploy Teleport in a Kubernetes cluster with SSO and Audit logs:
 
 - Install Teleport in a Kubernetes cluster.
 - Set up Single Sign-On (SSO).
 - Capture and playback Kubernetes commands.
+
+While completing this guide, you will deploy a single Teleport pod running the Auth Service and Proxy Service on your Kubernetes cluster, and a load balancer that allows outside traffic to your Teleport cluster.
+
+<Admonition type="tip" title="Have an existing Teleport cluster?">
+If you are already running Teleport on another platform, you can use your existing Teleport deployment to access your Kubernetes cluster. [Follow our guide](./agent.mdx) to connect your Kubernetes cluster to Teleport.
+</Admonition>
 
 ## Follow along with our video guide
 
@@ -23,6 +29,15 @@ Let's deploy Teleport in a Kubernetes with SSO and Audit logs:
 />
 
 ## Prerequisites
+- A registered domain name. This is required for Teleport to set up TLS via Let's Encrypt and for Teleport clients to verify the Proxy Service host.
+
+- A Kubernetes cluster hosted by a cloud provider, which is required for the load balancer we deploy in this guide.
+
+<Admonition title="Local-only setups" type="tip">
+Teleport also supports Kubernetes in on-premise and air-gapped environments. If you would like to try out Teleport on your local machine, we recommend following our [Docker Compose guide](../../getting-started/docker-compose.mdx). 
+
+You can also [contact us](/contact-us/) so we can work with you to determine the best setup for your Kubernetes environment.
+</Admonition>
 
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 
@@ -30,11 +45,13 @@ Let's deploy Teleport in a Kubernetes with SSO and Audit logs:
 
 ## Step 1/3. Install Teleport
 
-Let's start with a single-pod Teleport using persistent volume as a backend.
+Let's start with a single-pod Teleport using persistent volume as a backend. Modify the values of `CLUSTER_NAME` and `EMAIL` according to your environment, where `CLUSTER_NAME` is the domain name you are using for your Teleport deployment and `EMAIL` is an email address used for notifications.
 
 <Tabs>
   <TabItem label="Open Source">
     ```code
+    $ CLUSTER_NAME="tele.example.com"
+    $ EMAIL="mail@example.com"
     $ helm repo add teleport https://charts.releases.teleport.dev
 
     # Install a single node teleport cluster and provision a cert using ACME.
@@ -47,6 +64,8 @@ Let's start with a single-pod Teleport using persistent volume as a backend.
 
   <TabItem label="Enterprise">
     ```code
+    $ CLUSTER_NAME="tele.example.com"
+    $ EMAIL="mail@example.com"
     $ helm repo add teleport https://charts.releases.teleport.dev
 
     # Create a namespace for a deployment.
@@ -84,6 +103,12 @@ to create a public IP for Teleport.
     $ echo $MYIP
     # 192.168.2.1
     ```
+
+    If `$MYIP` is blank, your cloud provider may have assigned a hostname to the load balancer rather than an IP address. Run the following command to retrieve the hostname:
+
+    ```code 
+    $ MYHOSTNAME=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+    ```
   </TabItem>
 
   <TabItem label="Enterprise">
@@ -100,6 +125,12 @@ to create a public IP for Teleport.
     $ MYIP=$(kubectl get services teleport-cluster-ent -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
     $ echo $MYIP
     # 192.168.2.1
+    ```
+
+    If `$MYIP` is blank, your cloud provider may have assigned a hostname to the load balancer rather than an IP address. Run the following command to retrieve the hostname:
+
+    ```code 
+    $ MYHOSTNAME=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
     ```
   </TabItem>
 </Tabs>
@@ -130,10 +161,7 @@ for web apps using [application access](../../application-access/introduction.md
     $ MYDNS="tele.example.com"
 
     # Create a JSON file changeset for AWS.
-    $ jq -n --arg ip ${MYIP?} --arg dns ${MYDNS?} '{"Comment": "Create records", "Changes": [
-      {"Action": "CREATE", "ResourceRecordSet": {"Name": $dns, "Type": "A", "TTL": 300, "ResourceRecords": [{ "Value": $ip}]}},
-      {"Action": "CREATE", "ResourceRecordSet": {"Name": ("*." + $dns), "Type": "A", "TTL": 300, "ResourceRecords": [{ "Value": $ip}]}}
-      ]}' > myrecords.json
+    $ jq -n --arg ip ${MYIP?} --arg dns ${MYDNS?} '{"Comment": "Create records", "Changes": [{"Action": "CREATE","ResourceRecordSet": {"Name": $dns, "Type": "A", "TTL": 300, "ResourceRecords": [{ "Value": $ip}]}},{"Action": "CREATE", "ResourceRecordSet": {"Name": ("*." + $dns), "Type": "A", "TTL": 300, "ResourceRecords": [{ "Value": $ip}]}}]}' > myrecords.json
 
     # Review records before applying.
     $ cat myrecords.json | jq
