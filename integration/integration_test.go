@@ -555,7 +555,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		start := findByType(events.SessionStartEvent)
 		c.Assert(start, check.DeepEquals, first, comment)
 		c.Assert(start.GetInt("bytes"), check.Equals, 0, comment)
-		c.Assert(start.GetString(events.SessionEventID) != "", check.Equals, true, comment)
+		c.Assert(start.GetString(events.SessionEventID), check.Equals, string(session.ID), comment)
 		c.Assert(start.GetString(events.TerminalSize) != "", check.Equals, true, comment)
 
 		// If session are being recorded at nodes, the SessionServerID should contain
@@ -580,13 +580,13 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		end := findByType(events.SessionEndEvent)
 		c.Assert(end, check.NotNil)
 		c.Assert(end.GetInt("bytes"), check.Equals, 0)
-		c.Assert(end.GetString(events.SessionEventID) != "", check.Equals, true)
+		c.Assert(end.GetString(events.SessionEventID), check.Equals, string(session.ID), comment)
 
 		// there should alwys be 'session.leave' event
 		leave := findByType(events.SessionLeaveEvent)
 		c.Assert(leave, check.NotNil, comment)
 		c.Assert(leave.GetInt("bytes"), check.Equals, 0, comment)
-		c.Assert(leave.GetString(events.SessionEventID) != "", check.Equals, true, comment)
+		c.Assert(leave.GetString(events.SessionEventID), check.Equals, string(session.ID), comment)
 
 		// all of them should have a proper time:
 		for _, e := range history {
