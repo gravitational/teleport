@@ -197,7 +197,8 @@ spec:
       - contractors
 ```
 
-Analysts sometimes need write access to your organization's database in order to create stored procedures, and can request access to the `db-writer` role. Only trusted analysts can request this access, and belong to a special `admins` group. Using `deny` rules, you can prevent analysts who are *not* in the `admins` group from requesting access to the `db-writer` role:
+Analysts sometimes need write access to your organization's database in order to create stored procedures, and can request access to the `db-writer` role. Only trusted analysts can request this access, and belong to a special `admins` group. Using `deny` rules,
+you can prevent analysts who are *not* in the `admins` group from requesting access to the `db-writer` role:
 
 ```yaml
 kind: role
