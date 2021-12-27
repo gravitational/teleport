@@ -263,7 +263,7 @@ func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 			ServerAddr:      party.ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: events.SessionMetadata{
-			SessionID: party.id.String(),
+			SessionID: party.s.ID(),
 		},
 		UserMetadata: events.UserMetadata{
 			User: party.user,
