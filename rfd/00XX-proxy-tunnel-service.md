@@ -96,7 +96,7 @@ type NodeTunnelClient interface {
 ```
 
 ### Security
-The api will use mTLS to ensure that only other proxies are able to connect. This is done by checking certificates for the build-in role “Proxy”. This will prevent users from connecting to the service directly without going through the user-proxy logic of authorization and session recording.
+The api will use mTLS to ensure that only other proxies are able to connect. This is done by checking certificates for the built-in role “Proxy”. This will prevent users from connecting to the service directly without going through the user-proxy logic of authorization and session recording.
 
 ### API Clients
 Each proxy will need to manage multiple grpc clients, one to each neighboring proxy. These will be created as needed, or in other words the first time `DialNode` is called for that specific proxy. Once a client is created it will be reused for any future requests to the same neighboring proxy.
@@ -134,6 +134,20 @@ A proxy initiated reconnect will work as follows:
 
 ### Trusted Clusters
 Leaf clusters will continue to use the mesh agent pool, connecting to all proxies in the root cluster. Supporting trusted clusters would add a non-trivial amount of work and complexity to this design and provides diminishing returns. It is expected that trusted clusters will not be connected at the same scale as other resouces like ssh nodes and therefore will not be a big contributer to the problems we are trying to address here.
+
+### Failure Scenarios
+This design introduces several new points of failure on the path from a client to a node agent.
+
+1. Failure to dial the node-proxy.
+2. Node agent not connected to the expected node-proxy.
+3. Proxy tunnel grpc client disconnects.
+4. Node agent disconnects during dial/session over proxy tunnel.
+
+These failures will be presented to the client as follows:
+
+1 and 2 will display a message similar to what is returned [here](https://github.com/gravitational/teleport/blob/9edf72b86fd192ca965e65db60fb92c6858a314d/lib/reversetunnel/localsite.go#L314-L322) to indicate the node agent is offline or disconnected.
+
+3 and 4 will have the same behavior as a node agent disconnecting unexpectedly with the current implementation. This results in an [ExitMissingError](https://pkg.go.dev/golang.org/x/crypto/ssh#ExitMissingError) being displayed client side.
 
 ## Alternative Considerations
 An alternative approach was considered to redirect clients to the corresponding node-proxy. This was ultimately disregarded for a couple of reasons. It increases the time to establish a session for the client as a client would need to dial and authenticate with two proxies. Proxies would need to be individually addressible by the client which makes them an easier targets for DDOS attacks.
