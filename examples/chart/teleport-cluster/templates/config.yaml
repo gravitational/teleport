@@ -40,11 +40,11 @@ data:
         {{- if .Values.gcp.credentialSecretName }}
         credentials_path: /etc/teleport-secrets/gcp-credentials.json
         {{- end }}
-        {{- if .Values.gcp.auditLogMirrorOnStdout -}}
+        {{- if .Values.gcp.auditLogMirrorOnStdout }}
         audit_events_uri: ['firestore://{{ required "gcp.auditLogTable is required in chart values" .Values.gcp.auditLogTable }}?projectID={{ required "gcp.projectId is required in chart values" .Values.gcp.projectId }}&credentialsPath=/etc/teleport-secrets/gcp-credentials.json', 'stdout://']
-        {{- else -}}
+        {{- else }}
         audit_events_uri: ['firestore://{{ required "gcp.auditLogTable is required in chart values" .Values.gcp.auditLogTable }}?projectID={{ required "gcp.projectId is required in chart values" .Values.gcp.projectId }}&credentialsPath=/etc/teleport-secrets/gcp-credentials.json']
-        {{- end -}}
+        {{- end }}
         audit_sessions_uri: "gs://{{ required "gcp.sessionRecordingBucket is required in chart values" .Values.gcp.sessionRecordingBucket }}?projectID={{ required "gcp.projectId is required in chart values" .Values.gcp.projectId }}&credentialsPath=/etc/teleport-secrets/gcp-credentials.json"
   {{- end }}
     auth_service:
