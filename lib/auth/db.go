@@ -43,14 +43,14 @@ func (s *Server) GenerateDatabaseCert(_ context.Context, req *proto.DatabaseCert
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	hostCA, err := s.GetCertAuthority(types.CertAuthID{
+	databaseCA, err := s.GetCertAuthority(types.CertAuthID{
 		Type:       types.DatabaseCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(hostCA)
+	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(databaseCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,7 +74,7 @@ func (s *Server) GenerateDatabaseCert(_ context.Context, req *proto.DatabaseCert
 	}
 	return &proto.DatabaseCertResponse{
 		Cert:    cert,
-		CACerts: services.GetTLSCerts(hostCA),
+		CACerts: services.GetTLSCerts(databaseCA),
 	}, nil
 }
 
@@ -102,8 +102,8 @@ func (s *Server) SignDatabaseCSR(_ context.Context, req *proto.DatabaseCSRReques
 		return nil, trace.Wrap(err)
 	}
 
-	databaseCA, err := s.GetCertAuthority(types.CertAuthID{
-		Type:       types.DatabaseCA,
+	hostCA, err := s.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
 		DomainName: req.ClusterName,
 	}, false)
 	if err != nil {
@@ -173,6 +173,6 @@ func (s *Server) SignDatabaseCSR(_ context.Context, req *proto.DatabaseCSRReques
 
 	return &proto.DatabaseCSRResponse{
 		Cert:    tlsCert,
-		CACerts: services.GetTLSCerts(databaseCA),
+		CACerts: services.GetTLSCerts(hostCA),
 	}, nil
 }

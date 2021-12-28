@@ -317,7 +317,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 
 	// TODO(jakule): Describe
 	// Migrate user CA to DB CA before generation...
-	if err := migrateDBAuthority(ctx, asrv); err != nil {
+	if err := migrateDBAuthority(asrv); err != nil {
 		return nil, trace.Wrap(err, "Failed to migrate database CA.")
 	}
 
@@ -550,8 +550,10 @@ func checkResourceConsistency(keyStore keystore.KeyStore, clusterName string, re
 			var hasKeys bool
 			var signerErr error
 			switch r.GetType() {
-			case types.HostCA, types.UserCA, types.DatabaseCA:
+			case types.HostCA, types.UserCA:
 				_, signerErr = keyStore.GetSSHSigner(r)
+			case types.DatabaseCA:
+				_, _, signerErr = keyStore.GetTLSCertAndSigner(r)
 			case types.JWTSigner:
 				_, signerErr = keyStore.GetJWTSigner(r)
 			default:
@@ -1028,7 +1030,7 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 	return nil
 }
 
-func migrateDBAuthority(ctx context.Context, asrv *Server) error {
+func migrateDBAuthority(asrv *Server) error {
 	clusterName, err := asrv.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
