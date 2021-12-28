@@ -1091,6 +1091,34 @@ func (s *PresenceService) UpsertKubeService(ctx context.Context, server types.Se
 	return s.upsertServer(ctx, kubeServicesPrefix, server)
 }
 
+func (s *PresenceService) UpsertKubeServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lease, err := s.Put(ctx, backend.Item{
+		Key: backend.Key(kubeServicesPrefix,
+			server.GetName()),
+		Value:   value,
+		Expires: server.Expiry(),
+		ID:      server.GetResourceID(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if server.Expiry().IsZero() {
+		return &types.KeepAlive{}, nil
+	}
+	return &types.KeepAlive{
+		Type:    types.KeepAlive_KUBERNETES,
+		LeaseID: lease.ID,
+		Name:    server.GetName(),
+	}, nil
+}
+
 // GetKubeServices returns a list of registered kubernetes services.
 func (s *PresenceService) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	return s.getServers(ctx, types.KindKubeService, kubeServicesPrefix)
@@ -1406,6 +1434,8 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 		key = backend.Key(dbServersPrefix, h.Namespace, h.HostID, h.Name)
 	case constants.KeepAliveWindowsDesktopService:
 		key = backend.Key(windowsDesktopServicesPrefix, h.Name)
+	case constants.KeepAliveKube:
+		key = backend.Key(kubeServicesPrefix, h.Name)
 	default:
 		return trace.BadParameter("unknown keep-alive type %q", h.GetType())
 	}

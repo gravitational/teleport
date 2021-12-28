@@ -177,6 +177,7 @@ type Presence interface {
 	// UpsertKubeService registers kubernetes service presence.
 	UpsertKubeService(context.Context, types.Server) error
 
+	UpsertKubeServer(context.Context, types.Server) (*types.KeepAlive, error)
 	// GetAppServers gets all application servers.
 	//
 	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
