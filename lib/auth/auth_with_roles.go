@@ -602,6 +602,16 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbUpdate); err != nil {
 			return trace.Wrap(err)
 		}
+	case constants.KeepAliveKube:
+		if serverName != handle.Name {
+			return trace.AccessDenied("access denied")
+		}
+		if !a.hasBuiltinRole(string(types.RoleKube)) {
+			return trace.AccessDenied("access denied")
+		}
+		if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unknown keep alive type %q", handle.Type)
 	}
@@ -661,6 +671,10 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 			}
 		case types.KindDatabaseServer:
 			if err := a.action(apidefaults.Namespace, types.KindDatabaseServer, types.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case types.KindKubeService:
+			if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		default:
@@ -3268,6 +3282,38 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 		}
 	}
 	return a.authServer.UpsertKubeService(ctx, s)
+}
+
+func (a *ServerWithRoles) UpsertKubeServer(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ap, err := a.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	_, isService := a.context.Checker.(BuiltinRoleSet)
+	isMFAVerified := a.context.Identity.GetIdentity().MFAVerified != ""
+	mfaParams := services.AccessMFAParams{
+		// MFA requirement only applies to users.
+		//
+		// Builtin services (like proxy_service and kube_service) are not gated
+		// on MFA and only need to pass the RBAC action check above.
+		Verified:       isService || isMFAVerified,
+		AlwaysRequired: ap.GetRequireSessionMFA(),
+	}
+
+	for _, kube := range s.GetKubernetesClusters() {
+		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), kube)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.context.Checker.CheckAccess(k8sV3, mfaParams); err != nil {
+			return nil, utils.OpaqueAccessDenied(err)
+		}
+	}
+	return a.authServer.UpsertKubeServer(ctx, s)
 }
 
 // GetKubeServices returns all Servers representing teleport kubernetes

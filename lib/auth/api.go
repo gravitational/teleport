@@ -43,7 +43,11 @@ type Announcer interface {
 
 	// UpsertKubeService registers kubernetes presence, permanently if ttl is 0
 	// or for the specified duration with second resolution if it's >= 1 second
+	// DELETE IN 11.0. Deprecated, use UpsertKubeServer
 	UpsertKubeService(context.Context, types.Server) error
+
+	// UpsertKubeServer registers a kubernetes kubernetes service
+	UpsertKubeServer(context.Context, types.Server) (*types.KeepAlive, error)
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
