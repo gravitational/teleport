@@ -2460,9 +2460,7 @@ func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
 			User:         ClientUsername(ctx),
 			Impersonator: ClientImpersonator(ctx),
 		},
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name: name,
-		},
+		RequestID: name,
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit access request delete event.")
 	}

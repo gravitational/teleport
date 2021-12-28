@@ -697,9 +697,8 @@ message AccessRequestDelete {
     UserMetadata User = 2
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
-    // ResourceMetadata is a common resource event metadata
-    ResourceMetadata Resource = 3
-        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // RequestID is access request ID
+    string RequestID = 3 [ (gogoproto.jsontag) = "id" ];
 }
 
 // PortForward is emitted when a user requests port forwarding.
