@@ -4,10 +4,6 @@
 package proto
 
 import (
-	types "/types"
-	events "/types/events"
-	webauthn "/types/webauthn"
-	_ "/types/wrappers"
 	context "context"
 	fmt "fmt"
 	_ "github.com/gogo/protobuf/gogoproto"
@@ -16,6 +12,10 @@ import (
 	empty "github.com/golang/protobuf/ptypes/empty"
 	_ "github.com/golang/protobuf/ptypes/timestamp"
 	github_com_gravitational_teleport_api_types "github.com/gravitational/teleport/api/types"
+	types "github.com/gravitational/teleport/api/types"
+	events "github.com/gravitational/teleport/api/types/events"
+	webauthn "github.com/gravitational/teleport/api/types/webauthn"
+	_ "github.com/gravitational/teleport/api/types/wrappers"
 	github_com_gravitational_teleport_api_types_wrappers "github.com/gravitational/teleport/api/types/wrappers"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
