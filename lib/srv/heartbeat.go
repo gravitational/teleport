@@ -27,8 +27,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // KeepAliveState represents state of the heartbeat
@@ -440,15 +443,40 @@ func (h *Heartbeat) announce() error {
 			if !ok {
 				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
-			err := h.Announcer.UpsertKubeService(h.cancelCtx, kube)
+			keepAlive, err := h.Announcer.UpsertKubeServer(h.cancelCtx, kube)
 			if err != nil {
-				h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
-				h.setState(HeartbeatStateAnnounceWait)
+				// Check the if the error is an Unimplemented grpc status code,
+				// if it is fall back to old keepalive method
+				log.Infof("New method failed with error: %v", err)
+				if e, ok := status.FromError(trail.ToGRPC(err)); ok {
+					switch e.Code() {
+					case codes.Unimplemented:
+						log.Infof("GRPC unimplemented received, falling back to previous keepalive method")
+						err := h.Announcer.UpsertKubeService(h.cancelCtx, kube)
+						if err != nil {
+							h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
+							h.setState(HeartbeatStateAnnounceWait)
+							return trace.Wrap(err)
+						}
+						h.nextAnnounce = h.Clock.Now().UTC().Add(h.AnnouncePeriod)
+						h.notifySend()
+						h.setState(HeartbeatStateAnnounceWait)
+						return nil
+					}
+					return trace.Wrap(err)
+				}
+			}
+			log.Infof("Using new grpc keepalive method")
+			keepAliver, err := h.Announcer.NewKeepAliver(h.cancelCtx)
+			if err != nil {
+				h.reset(HeartbeatStateInit)
 				return trace.Wrap(err)
 			}
 			h.nextAnnounce = h.Clock.Now().UTC().Add(h.AnnouncePeriod)
-			h.notifySend()
-			h.setState(HeartbeatStateAnnounceWait)
+			h.nextKeepAlive = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
+			h.keepAlive = keepAlive
+			h.keepAliver = keepAliver
+			h.setState(HeartbeatStateKeepAliveWait)
 			return nil
 		case HeartbeatModeApp:
 			var keepAlive *types.KeepAlive
