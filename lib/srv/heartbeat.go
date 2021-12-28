@@ -447,11 +447,10 @@ func (h *Heartbeat) announce() error {
 			if err != nil {
 				// Check the if the error is an Unimplemented grpc status code,
 				// if it is fall back to old keepalive method
-				log.Infof("New method failed with error: %v", err)
+				// DELETE in 11.0
 				if e, ok := status.FromError(trail.ToGRPC(err)); ok {
 					switch e.Code() {
 					case codes.Unimplemented:
-						log.Infof("GRPC unimplemented received, falling back to previous keepalive method")
 						err := h.Announcer.UpsertKubeService(h.cancelCtx, kube)
 						if err != nil {
 							h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
@@ -466,7 +465,6 @@ func (h *Heartbeat) announce() error {
 					return trace.Wrap(err)
 				}
 			}
-			log.Infof("Using new grpc keepalive method")
 			keepAliver, err := h.Announcer.NewKeepAliver(h.cancelCtx)
 			if err != nil {
 				h.reset(HeartbeatStateInit)
