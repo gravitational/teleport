@@ -1525,7 +1525,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	tcHasReconnected := func() bool {
 		return tc.SSH(context.TODO(), cmd, false) == nil
 	}
-	require.Eventually(t, tcHasReconnected, 2500*time.Millisecond, 250*time.Millisecond,
+	require.Eventually(t, tcHasReconnected, 10*time.Second, 250*time.Millisecond,
 		"Timed out waiting for Site A to restart")
 
 	clientHasEvents := func(site auth.ClientI, count int) func() bool {
@@ -3446,6 +3446,10 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	tconf := suite.rotationConfig(true)
 	config, err := teleport.GenerateConfig(t, nil, tconf)
 	require.NoError(t, err)
+
+	// Enable Kubernetes service to test issue where the `KubernetesReady` event was not properly propagated
+	// and in the case where Kube service was enabled cert rotation flow was broken.
+	enableKubernetesService(t, config)
 
 	serviceC := make(chan *service.TeleportProcess, 20)
 
