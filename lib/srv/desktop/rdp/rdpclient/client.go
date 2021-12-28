@@ -68,6 +68,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"io"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -251,13 +252,17 @@ func (c *Client) start() {
 	go func() {
 		defer c.wg.Done()
 		defer c.Close()
-		defer c.cfg.Log.Info("RDP input streaming finished")
+		defer c.cfg.Log.Info("TDP input streaming finished")
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
 		for {
 			msg, err := c.cfg.InputMessage()
+			if err == io.EOF {
+				c.cfg.Log.Debugln("Received EOF, TDP connection closed by user/proxy")
+				return
+			}
 			if err != nil {
-				c.cfg.Log.Warningf("Failed reading RDP input message: %v", err)
+				c.cfg.Log.Warningf("Failed reading TDP input message: %v", err)
 				return
 			}
 

@@ -225,6 +225,20 @@ message SessionPrint {
     int64 Offset = 6 [ (gogoproto.jsontag) = "offset" ];
 }
 
+// DesktopRecording happens when a Teleport Desktop Protocol message
+// is captured during a Desktop Access Session.
+message DesktopRecording {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // Message is the encoded TDP message. It is not marshaled to JSON format
+    bytes Message = 2 [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "-" ];
+
+    // DelayMilliseconds is the delay in milliseconds from the start of the session
+    int64 DelayMilliseconds = 3 [ (gogoproto.jsontag) = "ms" ];
+}
+
 // SessionReject event happens when a user hits a session control restriction.
 message SessionReject {
     // Metadata is a common event metadata
@@ -1731,6 +1745,7 @@ message OneOf {
         events.PostgresClose PostgresClose = 64;
         events.PostgresFunctionCall PostgresFunctionCall = 65;
         events.AccessRequestDelete AccessRequestDelete = 66;
+        events.DesktopRecording DesktopRecording = 67;
     }
 }
 

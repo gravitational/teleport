@@ -2099,7 +2099,6 @@ func (a *ServerWithRoles) ResumeAuditStream(ctx context.Context, sid session.ID,
 	}, nil
 }
 
-// streamWithRoles verifies every event
 type streamWithRoles struct {
 	a        *ServerWithRoles
 	serverID string
