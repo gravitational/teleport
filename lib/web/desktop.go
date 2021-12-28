@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
@@ -31,7 +32,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -144,6 +147,9 @@ func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
 	// Ensure we send binary frames to the browser.
 	ws.PayloadType = websocket.BinaryFrame
 
+	// TODO(zmb3): improve graceful shutdown handling
+	// (if the browser intentionally disconnects, we don't want to use "use of closed connection" errors)
+
 	errs := make(chan error, 2)
 	go func() {
 		defer ws.Close()
@@ -165,4 +171,50 @@ func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
 		retErrs = append(retErrs, <-errs)
 	}
 	return trace.NewAggregate(retErrs...)
+}
+
+func (h *Handler) desktopPlaybackHandle(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	ctx *SessionContext,
+) (interface{}, error) {
+	sID := p.ByName("session")
+	if sID == "" {
+		return nil, trace.BadParameter("missing session in request URL")
+	}
+
+	websocket.Handler(func(ws *websocket.Conn) {
+		defer ws.Close()
+		ws.PayloadType = websocket.BinaryFrame
+
+		var lastDelay int64
+		eventsC, errC := ctx.clt.StreamSessionEvents(r.Context(), session.ID(sID), 0)
+		for {
+			select {
+			case err := <-errC:
+				h.log.WithError(err).Errorf("streaming session %v", sID)
+				return
+			case evt := <-eventsC:
+				if evt == nil {
+					h.log.Debug("reached end of playback")
+					return
+				}
+				switch e := evt.(type) {
+				case *apievents.DesktopRecording:
+					if e.DelayMilliseconds > lastDelay {
+						time.Sleep(time.Duration(e.DelayMilliseconds-lastDelay) * time.Millisecond)
+						lastDelay = e.DelayMilliseconds
+					}
+					if _, err := ws.Write(e.Message); err != nil {
+						h.log.WithError(err).Error("failed to write TDP message over websocket")
+						return
+					}
+				default:
+					h.log.Warnf("session %v contains unexpected event type %T", sID, evt)
+				}
+			}
+		}
+	}).ServeHTTP(w, r)
+	return nil, nil
 }

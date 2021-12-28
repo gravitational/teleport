@@ -75,7 +75,7 @@ type Rate struct {
 type Config struct {
 	// Teleport configuration version.
 	Version string
-	// DataDir provides directory where teleport stores it's permanent state
+	// DataDir is the directory where teleport stores its permanent state
 	// (in case of auth server backed by BoltDB) or local state, e.g. keys
 	DataDir string
 

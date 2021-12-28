@@ -453,9 +453,12 @@ const (
 	// WindowsDesktopSessionStartEvent is emitted when a user attempts
 	// to connect to a desktop.
 	WindowsDesktopSessionStartEvent = "windows.desktop.session.start"
-	// WindowsDesktopSessionEndEvent is emitted when a user  disconnects
+	// WindowsDesktopSessionEndEvent is emitted when a user disconnects
 	// from a desktop.
 	WindowsDesktopSessionEndEvent = "windows.desktop.session.end"
+
+	// DesktopRecordingEvent is emitted as a desktop access session is recorded.
+	DesktopRecordingEvent = "desktop.recording"
 )
 
 const (

@@ -1597,7 +1597,7 @@ func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessi
 	}
 	sid, err := session.ParseID(sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
+		return nil, trace.BadParameter("%q is not a valid session ID (must be GUID)", sid)
 	}
 	// connect to the auth server (site) who made the recording
 	proxyClient, err := tc.ConnectToProxy(ctx)

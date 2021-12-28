@@ -28,6 +28,8 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -44,6 +46,8 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -74,6 +78,8 @@ type WindowsService struct {
 	cfg        WindowsServiceConfig
 	middleware *auth.Middleware
 
+	streamer libevents.Streamer
+
 	lc *ldapClient
 
 	// lastDisoveryResults stores the results of the most recent LDAP search
@@ -99,7 +105,8 @@ type WindowsServiceConfig struct {
 	// Log is the logging sink for the service.
 	Log logrus.FieldLogger
 	// Clock provides current time.
-	Clock clockwork.Clock
+	Clock   clockwork.Clock
+	DataDir string
 	// Authorizer is used to authorize requests.
 	Authorizer auth.Authorizer
 	// LockWatcher is used to monitor for new locks.
@@ -313,6 +320,19 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		close:       close,
 	}
 
+	recConfig, err := s.cfg.AccessPoint.GetSessionRecordingConfig(s.closeCtx)
+	if err != nil {
+		s.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	streamer, err := s.newStreamer(s.closeCtx, recConfig)
+	if err != nil {
+		s.Close()
+		return nil, trace.Wrap(err)
+	}
+	s.streamer = streamer
+
 	// Note: admin still needs to import our CA into the Group Policy following
 	// https://docs.vmware.com/en/VMware-Horizon-7/7.13/horizon-installation/GUID-7966AE16-D98F-430E-A916-391E8EAAFE18.html
 	//
@@ -326,10 +346,9 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	//
 	// TODO(zmb3): do these periodically
 	if err := s.updateCA(ctx); err != nil {
+		s.Close()
 		return nil, trace.Wrap(err)
 	}
-
-	// TODO(zmb3): session recording.
 
 	if err := s.startServiceHeartbeat(); err != nil {
 		s.Close()
@@ -353,6 +372,53 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	}
 
 	return s, nil
+}
+
+func (s *WindowsService) newStreamWriter(recConfig types.SessionRecordingConfig, sessionID string) (libevents.StreamWriter, error) {
+	return libevents.NewAuditWriter(libevents.AuditWriterConfig{
+		Component:    teleport.ComponentWindowsDesktop,
+		Namespace:    apidefaults.Namespace,
+		Context:      s.closeCtx,
+		Clock:        s.cfg.Clock,
+		ClusterName:  s.clusterName,
+		SessionID:    session.ID(sessionID),
+		Streamer:     s.streamer,
+		ServerID:     s.cfg.Heartbeat.HostUUID,               // TODO(zmb3): is this the service ID or desktop ID?
+		RecordOutput: recConfig.GetMode() != types.RecordOff, // TODO(zmb3) this will eventually depend on user roles, not cluster-wide config
+	})
+}
+
+// newStreamer creates a streamer (sync or async) based on the cluster configuration.
+// Synchronous streamers send events directly to the auth server, and blocks if the server
+// cannot keep up. Asynchronous streamers buffers the events to disk and uploads them later.
+func (s *WindowsService) newStreamer(ctx context.Context, recConfig types.SessionRecordingConfig) (libevents.Streamer, error) {
+	// TODO(zmb3): determine whether we should even support sync
+	// (it may be that the volume of desktop recordings is too high)
+	if services.IsRecordSync(recConfig.GetMode()) {
+		s.cfg.Log.Debugf("using sync streamer (for mode %v)", recConfig.GetMode())
+		return s.cfg.AuthClient, nil
+	}
+	s.cfg.Log.Debugf("using async streamer (for mode %v)", recConfig.GetMode())
+	uploadDir := filepath.Join(s.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
+		libevents.StreamingLogsDir, apidefaults.Namespace)
+
+	// ensure upload dir exists
+	_, err := utils.StatDir(uploadDir)
+	if trace.IsNotFound(err) {
+		s.cfg.Log.Debugf("Creating upload dir %v.", uploadDir)
+		if err := os.MkdirAll(uploadDir, 0755); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fileStreamer, err := filesessions.NewStreamer(uploadDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return libevents.NewTeeStreamer(fileStreamer, s.cfg.Emitter), nil
 }
 
 func (s *WindowsService) startServiceHeartbeat() error {
@@ -530,7 +596,24 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		return trace.Wrap(err)
 	}
 
+	recConfig, err := s.cfg.AccessPoint.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	sessionID := session.NewID()
+	sw, err := s.newStreamWriter(recConfig, string(sessionID))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		go func() {
+			if err := sw.Close(context.Background()); err != nil {
+				log.WithError(err).Errorf("closing stream writer for desktop session %v", sessionID.String())
+			}
+		}()
+	}()
 
 	var windowsUser string
 	authorize := func(login string) error {
@@ -541,7 +624,23 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			services.NewWindowsLoginMatcher(login))
 	}
 
+	delay := timer()
 	tdpConn := tdp.NewConn(proxyConn)
+	tdpConn.OnSend = func(m tdp.Message, b []byte) {
+		switch b[0] {
+		case byte(tdp.TypePNGFrame), byte(tdp.TypeClientScreenSpec), byte(tdp.TypeClipboardData), byte(tdp.TypeMouseButton):
+			if err := sw.EmitAuditEvent(ctx, &events.DesktopRecording{
+				Metadata: events.Metadata{
+					Type: libevents.DesktopRecordingEvent,
+					Time: s.cfg.Clock.Now().UTC().Round(time.Millisecond),
+				},
+				Message:           b,
+				DelayMilliseconds: delay(), // TODO(zmb3): AuditWriter should set this for us if necessary
+			}); err != nil {
+				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
+			}
+		}
+	}
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
@@ -664,6 +763,20 @@ func (s *WindowsService) nameForStaticHost(addr string) (string, error) {
 	parts := strings.Split(s.cfg.Heartbeat.HostUUID, "-")
 	prefix := parts[len(parts)-1]
 	return prefix + "-static-" + strings.ReplaceAll(host, ".", "-"), nil
+}
+
+// timer returns a closer that on each call returns the
+// number of milliseconds that have elapsed since the first call.
+// it returns 0 on the very first call.
+func timer() func() int64 {
+	var first time.Time
+	return func() int64 {
+		if first.IsZero() {
+			first = time.Now()
+			return 0
+		}
+		return int64(time.Since(first) / time.Millisecond)
+	}
 }
 
 func (s *WindowsService) updateCA(ctx context.Context) error {
