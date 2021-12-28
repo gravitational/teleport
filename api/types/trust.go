@@ -31,7 +31,8 @@ const (
 	HostCA CertAuthType = "host"
 	// UserCA identifies the key as a user certificate authority
 	UserCA CertAuthType = "user"
-
+	// DatabaseCA is a certificate authority used to generate certificates for
+	// database access. TODO(jakule): Add more details?
 	DatabaseCA CertAuthType = "db"
 	// JWTSigner identifies type of certificate authority as JWT signer. In this
 	// case JWT is not a certificate authority because it does not issue
