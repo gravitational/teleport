@@ -1524,18 +1524,18 @@ func (a *ServerWithRoles) determineDesiredRolesAndTraits(req proto.UserCertsRequ
 		// later).
 		// Note: traits are not currently set for role impersonation.
 		return req.RoleRequests, nil, nil
-	} else {
-		// Otherwise, use the roles and traits of the impersonated user. Note
-		// that permissions have not been verified at this point.
-
-		// Do not allow combining impersonation and access requests
-		if len(req.AccessRequests) > 0 {
-			log.Warningf("User %v tried to issue a cert for %v and added access requests. This is not supported.", a.context.User.GetName(), req.Username)
-			return nil, nil, trace.AccessDenied("access denied")
-		}
-
-		return user.GetRoles(), user.GetTraits(), nil
 	}
+
+	// Otherwise, use the roles and traits of the impersonated user. Note
+	// that permissions have not been verified at this point.
+
+	// Do not allow combining impersonation and access requests
+	if len(req.AccessRequests) > 0 {
+		log.Warningf("User %v tried to issue a cert for %v and added access requests. This is not supported.", a.context.User.GetName(), req.Username)
+		return nil, nil, trace.AccessDenied("access denied")
+	}
+
+	return user.GetRoles(), user.GetTraits(), nil
 }
 
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
