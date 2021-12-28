@@ -29,7 +29,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"testing"
 	"unicode"
 
 	"github.com/gravitational/teleport"
@@ -77,19 +76,33 @@ func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 
 // InitLoggerForTests initializes the standard logger for tests.
 func InitLoggerForTests() {
-	// Parse flags to check testing.Verbose().
+	// logging flags
+	logEnabled := false
+	logLevel := log.DebugLevel
+
+	// Parse flags until --
 	flag.Parse()
 
+	// create new flagset for flags after --
+	flags := flag.NewFlagSet("test", flag.ExitOnError)
+	flags.BoolVar(&logEnabled, "log", false, "enable logging")
+	flags.Func("log.level", "set logging level (and enable logging)", func(v string) (err error) {
+		logEnabled = true
+		logLevel, err = log.ParseLevel(v)
+		return err
+	})
+	flags.Parse(flag.Args()) // will exit on error
+
+	// configure root logger
 	logger := log.StandardLogger()
-	logger.ReplaceHooks(make(log.LevelHooks))
-	logger.SetFormatter(&trace.TextFormatter{})
-	logger.SetLevel(log.DebugLevel)
-	logger.SetOutput(os.Stderr)
-	if testing.Verbose() {
-		return
-	}
 	logger.SetLevel(log.WarnLevel)
 	logger.SetOutput(ioutil.Discard)
+	if logEnabled {
+		logger.ReplaceHooks(make(log.LevelHooks))
+		logger.SetFormatter(&trace.TextFormatter{})
+		logger.SetLevel(logLevel)
+		logger.SetOutput(os.Stderr)
+	}
 }
 
 // NewLoggerForTests creates a new logger for test environment
