@@ -1104,9 +1104,10 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (t
 		return nil, trace.Wrap(err)
 	}
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:   user,
-		Roles:  roles,
-		Traits: traits,
+		User:           user,
+		Roles:          roles,
+		Traits:         traits,
+		AccessRequests: identity.ActiveRequests,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
