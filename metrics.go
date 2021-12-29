@@ -198,10 +198,12 @@ const (
 	// TagResource is a tag specifying the resource for an event
 	TagResource = "resource"
 
-	// TagVersion
+	// TagVersion is a prometheus label for version of Teleport built
 	TagVersion = "version"
 
+	// TagGitref is a prometheus label for the gitref of Teleport built
 	TagGitref = "gitref"
 
+	// TagGoVersion is a prometheus label for version of Go used to build Teleport
 	TagGoVersion = "goversion"
 )
