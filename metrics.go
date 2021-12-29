@@ -177,6 +177,12 @@ const (
 	// MetricState tracks the state of the teleport process.
 	MetricState = "process_state"
 
+	// MetricNamespace defines the teleport prometheus namespace
+	MetricNamespace = "teleport"
+
+	// MetricBuildInfo tracks build information
+	MetricBuildInfo = "build_info"
+
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
 
@@ -191,4 +197,11 @@ const (
 
 	// TagResource is a tag specifying the resource for an event
 	TagResource = "resource"
+
+	// TagVersion
+	TagVersion = "version"
+
+	TagGitref = "gitref"
+
+	TagGoVersion = "goversion"
 )
