@@ -485,7 +485,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			start := findByType(events.SessionStartEvent)
 			require.Equal(t, first, start)
 			require.Equal(t, 0, start.GetInt("bytes"))
-			require.NotEmpty(t, start.GetString(events.SessionEventID))
+			require.Equal(t, string(sessionID), start.GetString(events.SessionEventID))
 			require.NotEmpty(t, start.GetString(events.TerminalSize))
 
 			// If session are being recorded at nodes, the SessionServerID should contain
@@ -510,15 +510,15 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			end := findByType(events.SessionEndEvent)
 			require.NotNil(t, end)
 			require.Equal(t, 0, end.GetInt("bytes"))
-			require.NotEmpty(t, end.GetString(events.SessionEventID))
+			require.Equal(t, string(sessionID), end.GetString(events.SessionEventID))
 
 			// there should always be 'session.leave' event
 			leave := findByType(events.SessionLeaveEvent)
 			require.NotNil(t, leave)
 			require.Equal(t, 0, leave.GetInt("bytes"))
-			require.NotEmpty(t, leave.GetString(events.SessionEventID))
+			require.Equal(t, string(sessionID), leave.GetString(events.SessionEventID))
 
-			// all of them should have a proper time:
+			// all of them should have a proper time
 			for _, e := range history {
 				require.False(t, e.GetTime("time").IsZero())
 			}
