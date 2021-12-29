@@ -303,33 +303,14 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	// Setup certificate and signing authorities.
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
-		Type:        types.HostCA,
-		ClusterName: srv.ClusterName,
-		Clock:       cfg.Clock,
-	})); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
-		Type:        types.UserCA,
-		ClusterName: srv.ClusterName,
-		Clock:       cfg.Clock,
-	})); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
-		Type:        types.DatabaseCA,
-		ClusterName: srv.ClusterName,
-		Clock:       cfg.Clock,
-	})); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
-		Type:        types.JWTSigner,
-		ClusterName: srv.ClusterName,
-		Clock:       cfg.Clock,
-	})); err != nil {
-		return nil, trace.Wrap(err)
+	for _, caType := range types.CertAuthTypes {
+		if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+			Type:        caType,
+			ClusterName: srv.ClusterName,
+			Clock:       cfg.Clock,
+		})); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	srv.LockWatcher, err = services.NewLockWatcher(ctx, services.LockWatcherConfig{

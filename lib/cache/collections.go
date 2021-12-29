@@ -33,13 +33,11 @@ type collection interface {
 	// will apply said resources to the cache.  fetch *must*
 	// not mutate cache state outside of the apply function.
 	fetch(ctx context.Context) (apply func(ctx context.Context) error, err error)
-	// process processes event
+	// processEvent processes event
 	processEvent(ctx context.Context, e types.Event) error
 	// watchKind returns a watch
 	// required for this collection
 	watchKind() types.WatchKind
-	// erase erases all data in the collection
-	erase(ctx context.Context) error
 }
 
 // setupCollections returns a mapping of collections
@@ -786,31 +784,6 @@ func (c *namespace) watchKind() types.WatchKind {
 type certAuthority struct {
 	*Cache
 	watch types.WatchKind
-}
-
-// erase erases all data in the collection
-func (c *certAuthority) erase(ctx context.Context) error {
-	if err := c.trustCache.DeleteAllCertAuthorities(types.UserCA); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-	if err := c.trustCache.DeleteAllCertAuthorities(types.HostCA); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-	if err := c.trustCache.DeleteAllCertAuthorities(types.DatabaseCA); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-	if err := c.trustCache.DeleteAllCertAuthorities(types.JWTSigner); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
 }
 
 func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
