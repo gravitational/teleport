@@ -46,10 +46,13 @@ var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, JWTSigner}
 
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {
-	if c != HostCA && c != UserCA && c != DatabaseCA && c != JWTSigner {
-		return trace.BadParameter("'%v' authority type is not supported", c)
+	for _, caType := range CertAuthTypes {
+		if c == caType {
+			return nil
+		}
 	}
-	return nil
+
+	return trace.BadParameter("'%v' authority type is not supported", c)
 }
 
 // CertAuthID - id of certificate authority (it's type and domain name)

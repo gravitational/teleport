@@ -67,7 +67,7 @@ func checkUserOrHostCA(cai types.CertAuthority) error {
 	if !ok {
 		return trace.BadParameter("unknown CA type %T", cai)
 	}
-	if len(ca.Spec.ActiveKeys.SSH) == 0 && len(ca.Spec.CheckingKeys) == 0 {
+	if cai.GetType() != types.DatabaseCA && len(ca.Spec.ActiveKeys.SSH) == 0 && len(ca.Spec.CheckingKeys) == 0 {
 		return trace.BadParameter("certificate authority missing SSH key pairs")
 	}
 	if len(ca.Spec.ActiveKeys.TLS) == 0 && len(ca.Spec.TLSKeyPairs) == 0 {
