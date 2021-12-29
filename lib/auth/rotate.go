@@ -86,7 +86,8 @@ func (r *RotateRequest) CheckAndSetDefaults(clock clockwork.Clock) error {
 	if r.Mode == "" {
 		r.Mode = types.RotationModeManual
 	}
-	if err := r.Type.Check(); err != nil {
+	// Empty r.Type is valid too.
+	if err := r.Type.Check(); err != nil && r.Type != "" {
 		return trace.Wrap(err)
 	}
 	if r.GracePeriod == nil {
