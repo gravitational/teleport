@@ -175,6 +175,19 @@ func (c *Client) readClientUsername() error {
 	}
 }
 
+func (c *Client) handleTDPerror(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	tdpErr := tdp.Error{Message: err.Error()}
+	if err2 := c.cfg.OutputMessage(tdpErr); err2 != nil {
+		c.cfg.Log.Warningf("Failed to send TDP Error message: %v", tdpErr)
+		return trace.NewAggregate(err, err2)
+	}
+	return err
+}
+
 func (c *Client) readClientSize() error {
 	for {
 		msg, err := c.cfg.InputMessage()
@@ -196,7 +209,7 @@ func (c *Client) readClientSize() error {
 func (c *Client) connect(ctx context.Context) error {
 	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(c.handleTDPerror(err))
 	}
 
 	// Addr and username strings only need to be valid for the duration of
@@ -220,7 +233,7 @@ func (c *Client) connect(ctx context.Context) error {
 		C.uint16_t(c.clientHeight),
 	)
 	if err := cgoError(res.err); err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(c.handleTDPerror(err))
 	}
 	c.rustClient = res.client
 	return nil
@@ -258,6 +271,7 @@ func (c *Client) start() {
 			msg, err := c.cfg.InputMessage()
 			if err != nil {
 				c.cfg.Log.Warningf("Failed reading RDP input message: %v", err)
+				c.handleTDPerror(err)
 				return
 			}
 
@@ -281,6 +295,7 @@ func (c *Client) start() {
 					},
 				)); err != nil {
 					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.handleTDPerror(err)
 					return
 				}
 			case tdp.MouseButton:
@@ -307,6 +322,7 @@ func (c *Client) start() {
 					},
 				)); err != nil {
 					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.handleTDPerror(err)
 					return
 				}
 			case tdp.MouseWheel:
@@ -336,6 +352,7 @@ func (c *Client) start() {
 					},
 				)); err != nil {
 					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.handleTDPerror(err)
 					return
 				}
 			case tdp.KeyboardButton:
@@ -347,6 +364,7 @@ func (c *Client) start() {
 					},
 				)); err != nil {
 					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.handleTDPerror(err)
 					return
 				}
 			default:
@@ -384,6 +402,7 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	copy(img.Pix, data)
 
 	if err := c.cfg.OutputMessage(tdp.PNGFrame{Img: img}); err != nil {
+		c.handleTDPerror(err)
 		return C.CString(fmt.Sprintf("failed to send PNG frame %v: %v", img.Rect, err))
 	}
 	return nil
