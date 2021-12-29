@@ -320,7 +320,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	// generate certificate authorities if they don't exist
-	for _, caType := range []types.CertAuthType{types.HostCA, types.DatabaseCA, types.UserCA, types.JWTSigner} {
+	for _, caType := range types.CertAuthTypes {
 		caID := types.CertAuthID{Type: caType, DomainName: cfg.ClusterName.GetClusterName()}
 		ca, err := asrv.GetCertAuthority(caID, true)
 		if err != nil {

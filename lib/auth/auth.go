@@ -3505,7 +3505,7 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 func newKeySet(keyStore keystore.KeyStore, caID types.CertAuthID) (types.CAKeySet, error) {
 	var keySet types.CAKeySet
 	switch caID.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA:
+	case types.UserCA, types.HostCA:
 		sshKeyPair, err := keyStore.NewSSHKeyPair()
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -3515,6 +3515,12 @@ func newKeySet(keyStore keystore.KeyStore, caID types.CertAuthID) (types.CAKeySe
 			return keySet, trace.Wrap(err)
 		}
 		keySet.SSH = append(keySet.SSH, sshKeyPair)
+		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+	case types.DatabaseCA:
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(caID.DomainName)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
 		keySet.TLS = append(keySet.TLS, tlsKeyPair)
 	case types.JWTSigner:
 		jwtKeyPair, err := keyStore.NewJWTKeyPair()
@@ -3586,7 +3592,7 @@ func (a *Server) deleteUnusedKeys() error {
 	}
 
 	var usedKeys [][]byte
-	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.JWTSigner} {
+	for _, caType := range types.CertAuthTypes {
 		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
 		ca, err := a.Trust.GetCertAuthority(caID, true)
 		if err != nil {

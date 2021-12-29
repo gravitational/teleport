@@ -62,7 +62,7 @@ type RotateRequest struct {
 func (r *RotateRequest) Types() []types.CertAuthType {
 	switch r.Type {
 	case "":
-		return []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.JWTSigner}
+		return types.CertAuthTypes[:]
 	case types.HostCA:
 		return []types.CertAuthType{types.HostCA}
 	case types.DatabaseCA:
@@ -86,10 +86,8 @@ func (r *RotateRequest) CheckAndSetDefaults(clock clockwork.Clock) error {
 	if r.Mode == "" {
 		r.Mode = types.RotationModeManual
 	}
-	switch r.Type {
-	case "", types.HostCA, types.DatabaseCA, types.UserCA, types.JWTSigner:
-	default:
-		return trace.BadParameter("unsupported certificate authority type: %q", r.Type)
+	if err := r.Type.Check(); err != nil {
+		return trace.Wrap(err)
 	}
 	if r.GracePeriod == nil {
 		period := defaults.RotationGracePeriod
@@ -300,7 +298,7 @@ func (a *Server) autoRotateCertAuthorities() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.JWTSigner} {
+	for _, caType := range types.CertAuthTypes {
 		ca, err := a.Trust.GetCertAuthority(types.CertAuthID{
 			Type:       caType,
 			DomainName: clusterName.GetClusterName(),
