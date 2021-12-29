@@ -143,16 +143,16 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	}
 
 	if err := c.readClientUsername(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(c.handleTDPerror(err))
 	}
 	if err := cfg.AuthorizeFn(c.username); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(c.handleTDPerror(err))
 	}
 	if err := c.readClientSize(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(c.handleTDPerror(err))
 	}
 	if err := c.connect(ctx); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(c.handleTDPerror(err))
 	}
 	c.start()
 	return c, nil
@@ -175,6 +175,7 @@ func (c *Client) readClientUsername() error {
 	}
 }
 
+// handleTDPerror sends the browser a TDP error message with err.Error().
 func (c *Client) handleTDPerror(err error) error {
 	if err == nil {
 		return nil
@@ -182,7 +183,7 @@ func (c *Client) handleTDPerror(err error) error {
 
 	tdpErr := tdp.Error{Message: err.Error()}
 	if err2 := c.cfg.OutputMessage(tdpErr); err2 != nil {
-		c.cfg.Log.Warningf("Failed to send TDP Error message: %v", tdpErr)
+		c.cfg.Log.Errorf("Failed to send TDP Error message (%v): %v", tdpErr, err2)
 		return trace.NewAggregate(err, err2)
 	}
 	return err
@@ -209,7 +210,7 @@ func (c *Client) readClientSize() error {
 func (c *Client) connect(ctx context.Context) error {
 	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username)
 	if err != nil {
-		return trace.Wrap(c.handleTDPerror(err))
+		return trace.Wrap(err)
 	}
 
 	// Addr and username strings only need to be valid for the duration of
@@ -233,7 +234,7 @@ func (c *Client) connect(ctx context.Context) error {
 		C.uint16_t(c.clientHeight),
 	)
 	if err := cgoError(res.err); err != nil {
-		return trace.Wrap(c.handleTDPerror(err))
+		return trace.Wrap(err)
 	}
 	c.rustClient = res.client
 	return nil
@@ -255,7 +256,8 @@ func (c *Client) start() {
 		// C.read_rdp_output blocks for the duration of the RDP connection and
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
 		if err := cgoError(C.read_rdp_output(c.rustClient, C.uintptr_t(h))); err != nil {
-			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
+			c.cfg.Log.Errorf("Failed reading RDP output frame: %v", err)
+			c.handleTDPerror(err)
 		}
 	}()
 
@@ -270,7 +272,7 @@ func (c *Client) start() {
 		for {
 			msg, err := c.cfg.InputMessage()
 			if err != nil {
-				c.cfg.Log.Warningf("Failed reading RDP input message: %v", err)
+				c.cfg.Log.Errorf("Failed reading RDP input message: %v", err)
 				c.handleTDPerror(err)
 				return
 			}
@@ -294,7 +296,7 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.cfg.Log.Errorf("Failed forwarding RDP input message: %v", err)
 					c.handleTDPerror(err)
 					return
 				}
@@ -321,7 +323,7 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.cfg.Log.Errorf("Failed forwarding RDP input message: %v", err)
 					c.handleTDPerror(err)
 					return
 				}
@@ -351,7 +353,7 @@ func (c *Client) start() {
 						wheel_delta: C.int16_t(m.Delta),
 					},
 				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.cfg.Log.Errorf("Failed forwarding RDP input message: %v", err)
 					c.handleTDPerror(err)
 					return
 				}
@@ -363,7 +365,7 @@ func (c *Client) start() {
 						down: m.State == tdp.ButtonPressed,
 					},
 				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.cfg.Log.Errorf("Failed forwarding RDP input message: %v", err)
 					c.handleTDPerror(err)
 					return
 				}
@@ -402,7 +404,6 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	copy(img.Pix, data)
 
 	if err := c.cfg.OutputMessage(tdp.PNGFrame{Img: img}); err != nil {
-		c.handleTDPerror(err)
 		return C.CString(fmt.Sprintf("failed to send PNG frame %v: %v", img.Rect, err))
 	}
 	return nil
