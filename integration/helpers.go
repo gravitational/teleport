@@ -327,10 +327,27 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return []types.CertAuthority{
-		hostCA,
-		userCA,
-	}, nil
+	dbCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.DatabaseCA,
+		ClusterName: s.SiteName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey:     s.PrivKey,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+				PublicKey:      s.PubKey,
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Key:     s.PrivKey,
+				KeyType: types.PrivateKeyType_RAW,
+				Cert:    s.TLSCACert,
+			}},
+		},
+		Roles:      []string{},
+		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
+	})
+	require.NoError(t, err)
+
+	return []types.CertAuthority{hostCA, userCA, dbCA}
 }
 
 func (s *InstanceSecrets) AllowedLogins() []string {
