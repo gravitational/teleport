@@ -177,6 +177,12 @@ const (
 	// MetricState tracks the state of the teleport process.
 	MetricState = "process_state"
 
+	// MetricNamespace defines the teleport prometheus namespace
+	MetricNamespace = "teleport"
+
+	// MetricConnectedResources tracks the number and type of resources connected via keepalives
+	MetricConnectedResources = "connected_resources"
+
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
 
@@ -191,4 +197,7 @@ const (
 
 	// TagResource is a tag specifying the resource for an event
 	TagResource = "resource"
+
+	// TagType is a tag tracking the type of resource
+	TagType = "type"
 )
