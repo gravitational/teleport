@@ -445,7 +445,7 @@ func (h *Heartbeat) announce() error {
 			}
 			keepAlive, err := h.Announcer.UpsertKubeServer(h.cancelCtx, kube)
 			if err != nil {
-				// Check the if the error is an Unimplemented grpc status code,
+				// Check if the error is an Unimplemented grpc status code,
 				// if it is fall back to old keepalive method
 				// DELETE in 11.0
 				if e, ok := status.FromError(trail.ToGRPC(err)); ok {
