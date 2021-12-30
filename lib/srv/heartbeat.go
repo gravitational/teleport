@@ -465,6 +465,7 @@ func (h *Heartbeat) announce() error {
 				}
 				return trace.Wrap(err)
 			}
+			h.notifySend()
 			keepAliver, err := h.Announcer.NewKeepAliver(h.cancelCtx)
 			if err != nil {
 				h.reset(HeartbeatStateInit)
