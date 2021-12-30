@@ -288,7 +288,7 @@ integration: buildbox
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
-		make -C $(SRCDIR) FLAGS='-cover' integration"
+		make -C $(SRCDIR) FLAGS='-cover -race' integration"
 
 .PHONY:integration-root
 integration-root: buildbox
