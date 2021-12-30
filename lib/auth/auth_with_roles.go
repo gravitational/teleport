@@ -1733,7 +1733,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AccessRequests: req.AccessRequests,
 		},
 	}
-	if user.GetName() != a.context.User.GetName() {
+	if user.GetName() != a.context.User.GetName() || len(req.RoleRequests) > 0 {
+		// impersonation should always set the impersonator field, even for
+		// role impersonation ("self impersonation")
 		certReq.impersonator = a.context.User.GetName()
 	} else if a.context.Identity != nil && a.context.Identity.GetIdentity().Impersonator != "" {
 		// impersonating users can receive new certs

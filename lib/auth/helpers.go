@@ -902,6 +902,23 @@ type clt interface {
 	UpsertUser(types.User) error
 }
 
+// CreateRole creates a role without assigning any users. Used in tests.
+func CreateRole(clt clt, name string, spec types.RoleSpecV4) (types.Role, error) {
+	ctx := context.TODO()
+
+	role, err := types.NewRole(name, spec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = clt.UpsertRole(ctx, role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return role, nil
+}
+
 // CreateUserRoleAndRequestable creates two roles for a user, one base role with allowed login
 // matching username, and another role with a login matching rolename that can be requested.
 func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (types.User, error) {
