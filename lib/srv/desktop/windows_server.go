@@ -438,58 +438,71 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 				return nil
 			}
 			return trace.Wrap(err)
+
+		}
+		proxyConn, ok := conn.(*tls.Conn)
+		if !ok {
+			return trace.ConnectionProblem(nil, "Got %T from TLS listener, expected *tls.Conn", conn)
 		}
 
-		go s.handleConnection(conn)
+		go s.handleConnection(proxyConn)
 	}
 }
 
 // handleConnection handles TLS connections from a Teleport proxy.
 // It authenticates and authorizes the connection, and then begins
 // translating the TDP messages from the proxy into native RDP.
-func (s *WindowsService) handleConnection(con net.Conn) {
-	defer con.Close()
+func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
+	defer proxyConn.Close()
 	log := s.cfg.Log
+	tdpConn := tdp.NewConn(proxyConn)
+
+	// logFn should be something like s.cfg.Log.WithError(err).Warning or s.cfg.Log.Error
+	logAndSendTdpError := func(message string, logFn func(args ...interface{})) {
+		if logFn == nil {
+			logFn = s.cfg.Log.Error
+		}
+
+		logFn(message)
+		if err := tdpConn.OutputMessage(tdp.Error{Message: message}); err != nil {
+			s.cfg.Log.Error(fmt.Sprintf("Failed to send TDP error message %v: %v", tdp.Error{Message: message}, err))
+		}
+	}
 
 	// Check connection limits.
-	remoteAddr, _, err := net.SplitHostPort(con.RemoteAddr().String())
+	remoteAddr, _, err := net.SplitHostPort(proxyConn.RemoteAddr().String())
 	if err != nil {
-		log.WithError(err).Errorf("Could not parse client IP from %q", con.RemoteAddr().String())
+		logAndSendTdpError(fmt.Sprintf("Could not parse client IP from %q", proxyConn.RemoteAddr().String()), log.WithError(err).Error)
 		return
 	}
 	log = log.WithField("client-ip", remoteAddr)
 	if err := s.cfg.ConnLimiter.AcquireConnection(remoteAddr); err != nil {
-		log.WithError(err).Warning("Connection limit exceeded, rejecting connection")
+		logAndSendTdpError("Connection limit exceeded, rejecting connection", log.WithError(err).Warning)
 		return
 	}
 	defer s.cfg.ConnLimiter.ReleaseConnection(remoteAddr)
 
 	// Authenticate the client.
-	tlsConn, ok := con.(*tls.Conn)
-	if !ok {
-		log.Errorf("Got %T from TLS listener, expected *tls.Conn", con)
-		return
-	}
-	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, tlsConn)
+	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, proxyConn)
 	if err != nil {
-		log.WithError(err).Warning("mTLS authentication failed for incoming connection")
+		logAndSendTdpError("mTLS authentication failed for incoming connection", log.WithError(err).Warning)
 		return
 	}
 	log.Debug("Authenticated Windows desktop connection")
 
 	authContext, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
-		log.WithError(err).Warning("authorization failed for Windows desktop connection")
+		logAndSendTdpError("authorization failed for Windows desktop connection", log.WithError(err).Warning)
 		return
 	}
 
 	// Fetch the target desktop info. Name of the desktop is passed via SNI.
-	desktopName := strings.TrimSuffix(tlsConn.ConnectionState().ServerName, SNISuffix)
+	desktopName := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
 	log = log.WithField("desktop-name", desktopName)
 
 	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopName)
 	if err != nil {
-		log.WithError(err).Warning("Failed to fetch desktop by name")
+		logAndSendTdpError("Failed to fetch desktop by name", log.WithError(err).Warning)
 		return
 	}
 
@@ -497,13 +510,13 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 	log.Debug("Connecting to Windows desktop")
 	defer log.Debug("Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, log, tlsConn, desktop, authContext); err != nil {
-		log.WithError(err).Error("RDP connection failed")
+	if err := s.connectRDP(ctx, log, proxyConn, desktop, authContext); err != nil {
+		logAndSendTdpError(fmt.Sprintf("RDP connection failed: %v", err), log.Error)
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, conn net.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, proxyConn *tls.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
@@ -527,7 +540,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			services.NewWindowsLoginMatcher(login))
 	}
 
-	tdpConn := tdp.NewConn(conn)
+	tdpConn := tdp.NewConn(proxyConn)
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
@@ -545,7 +558,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 
 	monitorCfg := srv.MonitorConfig{
 		Context:           ctx,
-		Conn:              conn,
+		Conn:              proxyConn,
 		Clock:             s.cfg.Clock,
 		ClientIdleTimeout: authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		Entry:             log,
@@ -572,7 +585,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	}
 
 	s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, nil)
-	err = rdpc.Wait()
+	err = rdpc.Start()
 	s.onSessionEnd(ctx, &identity, windowsUser, string(sessionID), desktop)
 
 	return trace.Wrap(err)

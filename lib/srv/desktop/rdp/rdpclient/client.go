@@ -123,9 +123,6 @@ type Client struct {
 	// Used with sync/atomic, 0 means false, 1 means true.
 	readyForInput uint32
 
-	// wg is used to wait for the input/output streaming
-	// goroutines to complete
-	wg        sync.WaitGroup
 	closeOnce sync.Once
 
 	clientActivityMu sync.RWMutex
@@ -141,20 +138,20 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 		cfg:           cfg,
 		readyForInput: 0,
 	}
+	c.UpdateClientActivity()
 
 	if err := c.readClientUsername(); err != nil {
-		return nil, trace.Wrap(c.handleTDPerror(err))
+		return nil, trace.Wrap(err)
 	}
 	if err := cfg.AuthorizeFn(c.username); err != nil {
-		return nil, trace.Wrap(c.handleTDPerror(err))
+		return nil, trace.Wrap(err)
 	}
 	if err := c.readClientSize(); err != nil {
-		return nil, trace.Wrap(c.handleTDPerror(err))
+		return nil, trace.Wrap(err)
 	}
 	if err := c.connect(ctx); err != nil {
-		return nil, trace.Wrap(c.handleTDPerror(err))
+		return nil, trace.Wrap(err)
 	}
-	c.start()
 	return c, nil
 }
 
@@ -173,20 +170,6 @@ func (c *Client) readClientUsername() error {
 		c.username = u.Username
 		return nil
 	}
-}
-
-// handleTDPerror sends the browser a TDP error message with err.Error().
-func (c *Client) handleTDPerror(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	tdpErr := tdp.Error{Message: err.Error()}
-	if err2 := c.cfg.OutputMessage(tdpErr); err2 != nil {
-		c.cfg.Log.Errorf("Failed to send TDP Error message (%v): %v", tdpErr, err2)
-		return trace.NewAggregate(err, err2)
-	}
-	return err
 }
 
 func (c *Client) readClientSize() error {
@@ -240,13 +223,12 @@ func (c *Client) connect(ctx context.Context) error {
 	return nil
 }
 
-// start kicks off goroutines for input/output streaming and returns right
-// away. Use Wait to wait for them to finish.
-func (c *Client) start() {
+// Start kicks off goroutines for input/output streaming and hangs until they finish.
+func (c *Client) Start() error {
+	errs := make(chan error, 2)
+
 	// Video output streaming worker goroutine.
-	c.wg.Add(1)
 	go func() {
-		defer c.wg.Done()
 		defer c.Close()
 		defer c.cfg.Log.Info("RDP output streaming finished")
 
@@ -256,15 +238,12 @@ func (c *Client) start() {
 		// C.read_rdp_output blocks for the duration of the RDP connection and
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
 		if err := cgoError(C.read_rdp_output(c.rustClient, C.uintptr_t(h))); err != nil {
-			c.cfg.Log.Errorf("Failed reading RDP output frame: %v", err)
-			c.handleTDPerror(err)
+			errs <- trace.NewAggregate(trace.Errorf("Failed reading RDP output frame"), err)
 		}
 	}()
 
 	// User input streaming worker goroutine.
-	c.wg.Add(1)
 	go func() {
-		defer c.wg.Done()
 		defer c.Close()
 		defer c.cfg.Log.Info("RDP input streaming finished")
 		// Remember mouse coordinates to send them with all CGOPointer events.
@@ -272,8 +251,7 @@ func (c *Client) start() {
 		for {
 			msg, err := c.cfg.InputMessage()
 			if err != nil {
-				c.cfg.Log.Errorf("Failed reading RDP input message: %v", err)
-				c.handleTDPerror(err)
+				errs <- trace.NewAggregate(trace.Errorf("Failed reading RDP input message"), err)
 				return
 			}
 
@@ -287,7 +265,7 @@ func (c *Client) start() {
 			switch m := msg.(type) {
 			case tdp.MouseMove:
 				mouseX, mouseY = m.X, m.Y
-				if err := cgoError(C.write_rdp_pointer(
+				if err = cgoError(C.write_rdp_pointer(
 					c.rustClient,
 					C.CGOMousePointerEvent{
 						x:      C.uint16_t(m.X),
@@ -296,8 +274,7 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				)); err != nil {
-					c.cfg.Log.Errorf("Failed forwarding RDP input message: %v", err)
-					c.handleTDPerror(err)
+					errs <- trace.NewAggregate(trace.Errorf("Failed forwarding RDP input message: %v"), err)
 					return
 				}
 			case tdp.MouseButton:
@@ -323,8 +300,7 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				)); err != nil {
-					c.cfg.Log.Errorf("Failed forwarding RDP input message: %v", err)
-					c.handleTDPerror(err)
+					errs <- trace.NewAggregate(trace.Errorf("Failed forwarding RDP input message: %v"), err)
 					return
 				}
 			case tdp.MouseWheel:
@@ -353,8 +329,7 @@ func (c *Client) start() {
 						wheel_delta: C.int16_t(m.Delta),
 					},
 				)); err != nil {
-					c.cfg.Log.Errorf("Failed forwarding RDP input message: %v", err)
-					c.handleTDPerror(err)
+					errs <- trace.NewAggregate(trace.Errorf("Failed forwarding RDP input message: %v"), err)
 					return
 				}
 			case tdp.KeyboardButton:
@@ -365,8 +340,7 @@ func (c *Client) start() {
 						down: m.State == tdp.ButtonPressed,
 					},
 				)); err != nil {
-					c.cfg.Log.Errorf("Failed forwarding RDP input message: %v", err)
-					c.handleTDPerror(err)
+					errs <- trace.NewAggregate(trace.Errorf("Failed forwarding RDP input message: %v"), err)
 					return
 				}
 			default:
@@ -374,6 +348,16 @@ func (c *Client) start() {
 			}
 		}
 	}()
+
+	var retErrs []error
+	for i := 0; i < 2; i++ {
+		retErrs = append(retErrs, <-errs)
+	}
+
+	// Close() has been called and both rustClient-using goroutines have returned, let the Rust side free its data.
+	C.free_rdp(c.rustClient)
+
+	return trace.NewAggregate(retErrs...)
 }
 
 //export handle_bitmap
@@ -382,6 +366,8 @@ func handle_bitmap(handle C.uintptr_t, cb C.CGOBitmap) C.CGOError {
 }
 
 func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
+	c.UpdateClientActivity()
+
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
 	// from the fact that a bitmap was sent.
@@ -406,14 +392,6 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	if err := c.cfg.OutputMessage(tdp.PNGFrame{Img: img}); err != nil {
 		return C.CString(fmt.Sprintf("failed to send PNG frame %v: %v", img.Rect, err))
 	}
-	return nil
-}
-
-// Wait blocks until the client disconnects and runs the cleanup.
-func (c *Client) Wait() error {
-	c.wg.Wait()
-	// Let the Rust side free its data.
-	C.free_rdp(c.rustClient)
 	return nil
 }
 
