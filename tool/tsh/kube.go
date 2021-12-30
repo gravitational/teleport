@@ -338,6 +338,11 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		TshBinaryPath:     cf.executablePath,
 		TshBinaryInsecure: cf.InsecureSkipVerify,
 		KubeClusters:      kubeStatus.kubeClusters,
+		Env:               make(map[string]string),
+	}
+
+	if cf.HomePath != "" {
+		v.Exec.Env[homeEnvVar] = cf.HomePath
 	}
 
 	// Only switch the current context if kube-cluster is explicitly set on the command line.
