@@ -3284,6 +3284,8 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 	return a.authServer.UpsertKubeService(ctx, s)
 }
 
+// UpsertKubeServer creates or updates a Server representing a teleport
+// kubernetes service.
 func (a *ServerWithRoles) UpsertKubeServer(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)

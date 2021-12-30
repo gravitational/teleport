@@ -1507,6 +1507,7 @@ func (g *GRPCServer) UpsertKubeService(ctx context.Context, req *proto.UpsertKub
 	return new(empty.Empty), nil
 }
 
+// UpsertKubeServer adds a kubernetes service
 func (g *GRPCServer) UpsertKubeServer(ctx context.Context, req *proto.UpsertKubeServiceRequest) (*types.KeepAlive, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

@@ -1091,6 +1091,7 @@ func (s *PresenceService) UpsertKubeService(ctx context.Context, server types.Se
 	return s.upsertServer(ctx, kubeServicesPrefix, server)
 }
 
+// UpsertKubeServer registers kubernetes service presence.
 func (s *PresenceService) UpsertKubeServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
 	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
