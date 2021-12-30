@@ -278,7 +278,7 @@ trusted repository or provide the filepath to the `der_ca_file` configuration va
 In order to enable Desktop Access in Teleport, add the
 following section in `teleport.yaml` on your Linux server:
 
-````yaml
+```yaml
 windows_desktop_service:
   enabled: yes
   # This is the address that windows_desktop_service will listen on.
@@ -304,10 +304,10 @@ windows_desktop_service:
     #
     # If you are unsure of your NetBIOS name, you can find it by opening a PowerShell command prompt
     # and running:
-    # 
+    #
     # (Get-ADDomain).NetBIOSName
-    # 
-    username: '$LDAP_USERNAME'
+    #
+    username: "$LDAP_USERNAME"
     # Plain text file containing the LDAP password for authentication. This is the password that was
     # randomly generated and saved to $OutputFile in Step 1, which you will need to transfer
     # to this machine.
@@ -338,7 +338,7 @@ windows_desktop_service:
     # These are only needed to connect to desktops that aren't covered by the discovery setting.
     - "100.104.52.89"
     - "another-example.com"
-````
+```
 
 After updating `teleport.yaml`, start Teleport as usual using `teleport start`.
 
@@ -346,7 +346,6 @@ After updating `teleport.yaml`, start Teleport as usual using `teleport start`.
 
 ### Create a Teleport user/role for Windows Desktop Access
 
-{/* TODO: remove the "/ver/8.0/" in the link once these docs are the primary version */}
 In order to gain access to a remote desktop, a Teleport user needs to have the appropriate permissions for that desktop.
 For example, you can create a role that gives its users access to all Windows desktop labels and the `"Administrator"` user:
 
