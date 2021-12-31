@@ -58,6 +58,8 @@ func main() {
 		err = b.Check(ctx)
 	case "dismiss":
 		err = b.Dismiss(ctx)
+	case "label":
+		err = b.Label(ctx)
 	default:
 		err = trace.BadParameter("unknown workflow: %v", workflow)
 	}
@@ -83,7 +85,7 @@ func parseFlags() (string, string, string, error) {
 		return "", "", "", trace.BadParameter("token missing")
 	}
 	if *reviewers == "" {
-		return "", "", "", trace.BadParameter("reviewers missing")
+		return "", "", "", trace.BadParameter("reviewers required for assign and check")
 	}
 
 	data, err := base64.StdEncoding.DecodeString(*reviewers)

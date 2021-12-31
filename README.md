@@ -2,7 +2,7 @@
    <img src="https://goteleport.com/blog/images/2020/gravitational-is-teleport-header.png" width=750/>
    <div align="center" style="padding: 25px">
       <a href="https://goteleport.com/docs/">
-      <img src="https://img.shields.io/badge/Teleport-7.0-651FFF.svg" />
+      <img src="https://img.shields.io/badge/Teleport-8.0-651FFF.svg" />
       </a>
       <a href="https://golang.org/">
       <img src="https://img.shields.io/badge/Go-1.17-7fd5ea.svg" />
@@ -35,16 +35,18 @@
 
 ## Introduction
 
+Teleport is the easiest, most secure way to access all your infrastructure. 
 Teleport is an identity-aware, multi-protocol access proxy which understands
-SSH, HTTPS, Kubernetes API, MySQL, and PostgreSQL wire protocols.
+SSH, HTTPS, RDP, Kubernetes API, MySQL, MongoDB and PostgreSQL wire protocols.
 
 On the server-side, Teleport is a single binary which enables convenient secure
 access to behind-NAT resources such as:
 
 * [SSH nodes](https://goteleport.com/docs/getting-started/) - SSH works in browsers too!
 * [Kubernetes clusters](https://goteleport.com/docs/kubernetes-access/introduction/)
-* [PostgreSQL and MySQL databases](https://goteleport.com/docs/database-access/introduction/)
+* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/database-access/introduction/)
 * [Internal Web apps](https://goteleport.com/docs/application-access/introduction/)
+* [Windows Hosts](https://goteleport.com/docs/desktop-access/introduction/)
 * [Networked servers](https://goteleport.com/docs/server-access/introduction/)
 
 Teleport is trivial to set up as a Linux daemon or in a Kubernetes pod. It's rapidly
@@ -72,13 +74,13 @@ implementation. It is _fully compatible with OpenSSH_,
 
 |Project Links| Description
 |---|----
-| [Teleport Website](https://goteleport.com/teleport) | The official website of the project. |
-| [Documentation](https://goteleport.com/teleport/docs/quickstart/) | Admin guide, user manual and more. |
-| [Demo Video](https://www.youtube.com/watch?v=0HlyGk8dihM) | 4-minute video overview of the UI. |
+| [Teleport Website](https://goteleport.com/) | The official website of the project. |
+| [Documentation](https://goteleport.com/docs/) | Admin guide, user manual and more. |
+| [Demo Video](https://www.youtube.com/watch?v=b1WHFW0NIoM) | 3-minute video overview of Teleport. |
 | [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news. |
 | [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback, or idea on our forum. |
 | [Slack](https://goteleport.com/slack) | Need help with your setup? Ping us in our Slack channel. |
-| [Cloud-hosted](https://goteleport.com/pricing) | We offer Teleport Pro and Enteprise with a Cloud-hosted option. For teams that require easy and secure access to their computing environments. |
+| [Cloud-hosted](https://goteleport.com/pricing) | We offer Enterprise with a Cloud-hosted option. For teams that require easy and secure access to their computing environments. |
 
 
 ## Installing and Running
@@ -109,8 +111,8 @@ In a production environment, Teleport must run as `root`. For testing or non-pro
 
 If you wish to deploy Teleport inside a Docker container:
 ```
-# This command will pull the Teleport container image for version 6
-$ docker pull quay.io/gravitational/teleport:6
+# This command will pull the Teleport container image for version 8
+$ docker pull quay.io/gravitational/teleport:8
 ```
 View latest tags on [Quay.io | gravitational/teleport](https://quay.io/repository/gravitational/teleport?tab=tags)
 
@@ -122,7 +124,7 @@ Follow the instructions in the [docker/README](docker/README.md) file.
 
 The Teleport source code contains the Teleport daemon binary written in Golang and a web UI written in Javascript (a git submodule located in the `/webassets` directory).
 
-Make sure you have Golang `v1.16` or newer, then run:
+Make sure you have Golang `v1.17` or newer, then run:
 
 ```bash
 # get the source & build:
@@ -140,7 +142,7 @@ If the build succeeds, the installer places the binaries in the following direct
 
 **Important:**
 * The Go compiler is somewhat sensitive to the amount of memory: you will need **at least** 1GB of virtual memory to compile Teleport. A 512MB instance without swap will **not** work.
-* This will build the latest version of Teleport, **regardless** of whether it is stable. If you want to build the latest stable release, run `git checkout` to the corresponding tag (for example, run `git checkout v6.0.0`) **before** running `make full`.
+* This will build the latest version of Teleport, **regardless** of whether it is stable. If you want to build the latest stable release, run `git checkout` to the corresponding tag (for example, run `git checkout v8.0.0`) **before** running `make full`.
 
 ### Web UI
 
@@ -268,10 +270,9 @@ We had a choice, either start a security consulting business or build a solution
 
 ## More Information
 
-* [Quick Start Guide](https://goteleport.com/teleport/docs/quickstart)
+* [Teleport Getting Started](https://goteleport.com/docs/getting-started/)
 * [Teleport Architecture](https://goteleport.com/teleport/docs/architecture)
-* [Admin Manual](https://goteleport.com/teleport/docs/admin-guide)
-* [User Manual](https://goteleport.com/teleport/docs/user-manual)
+* [Reference](https://goteleport.com/docs/setup/reference/)
 * [FAQ](https://goteleport.com/teleport/docs/faq)
 
 ## Support and Contributing
@@ -280,31 +281,21 @@ We offer a few different options for support. First of all, we try to provide cl
 
 * Join [Teleport Discussions](https://github.com/gravitational/teleport/discussions) to ask questions. Our engineers are available there to help you.
 * If you want to contribute to Teleport or file a bug report/issue, you can create an issue here in Github.
-* If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://goteleport.com/teleport/) to arrange for a POC.
+* If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://goteleport.com/pricing/) to arrange for a POC.
 
 ## Is Teleport Secure and Production Ready?
 
-Teleport has completed several security audits from the nationally recognized
-technology security companies. [Some](https://goteleport.com/blog/teleport-release-2-2/) of
-[them](https://goteleport.com/blog/teleport-security-audit/) have been made public.
+Teleport is used by leading companies to enable engineers to quickly access any
+computing resource anywhere. Teleport has completed several security audits from the nationally recognized technology security companies. We make some our audits public, view our latest [audit reports.](https://goteleport.com/resources/audits/).
 We are comfortable with the use of Teleport from a security perspective.
 
 You can see the list of companies who use Teleport in production on the Teleport
 [product page](https://goteleport.com/case-study/).
-
-However, Teleport is still a relatively young product, so you may experience usability issues.  We actively support Teleport and address any issues that users submit to this repo. Ask questions, send pull requests,
-report issues, and don't be shy! :)
 
 You can find the latest stable Teleport build on our [Releases](https://goteleport.com/teleport/download) page.
 
 ## Who Built Teleport?
 
 Teleport was created by [Gravitational Inc](https://goteleport.com). We have
-built Teleport by borrowing from our previous experiences at Rackspace. It has
-been extracted from [Gravity](https://goteleport.com/gravity), our
-Kubernetes distribution optimized for deploying and remotely controlling complex
-applications into multiple environments _at the same time_:
-
-* Multiple cloud regions
-* Colocation
-* Private enterprise clouds located behind firewalls
+built Teleport by borrowing from our previous experiences at Rackspace. [Learn more 
+about Teleport and our history](https://goteleport.com/about/).

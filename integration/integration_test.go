@@ -485,7 +485,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			start := findByType(events.SessionStartEvent)
 			require.Equal(t, first, start)
 			require.Equal(t, 0, start.GetInt("bytes"))
-			require.NotEmpty(t, start.GetString(events.SessionEventID))
+			require.Equal(t, string(sessionID), start.GetString(events.SessionEventID))
 			require.NotEmpty(t, start.GetString(events.TerminalSize))
 
 			// If session are being recorded at nodes, the SessionServerID should contain
@@ -510,15 +510,15 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			end := findByType(events.SessionEndEvent)
 			require.NotNil(t, end)
 			require.Equal(t, 0, end.GetInt("bytes"))
-			require.NotEmpty(t, end.GetString(events.SessionEventID))
+			require.Equal(t, string(sessionID), end.GetString(events.SessionEventID))
 
 			// there should always be 'session.leave' event
 			leave := findByType(events.SessionLeaveEvent)
 			require.NotNil(t, leave)
 			require.Equal(t, 0, leave.GetInt("bytes"))
-			require.NotEmpty(t, leave.GetString(events.SessionEventID))
+			require.Equal(t, string(sessionID), leave.GetString(events.SessionEventID))
 
-			// all of them should have a proper time:
+			// all of them should have a proper time
 			for _, e := range history {
 				require.False(t, e.GetTime("time").IsZero())
 			}
@@ -1525,7 +1525,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	tcHasReconnected := func() bool {
 		return tc.SSH(context.TODO(), cmd, false) == nil
 	}
-	require.Eventually(t, tcHasReconnected, 2500*time.Millisecond, 250*time.Millisecond,
+	require.Eventually(t, tcHasReconnected, 10*time.Second, 250*time.Millisecond,
 		"Timed out waiting for Site A to restart")
 
 	clientHasEvents := func(site auth.ClientI, count int) func() bool {
@@ -3446,6 +3446,10 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	tconf := suite.rotationConfig(true)
 	config, err := teleport.GenerateConfig(t, nil, tconf)
 	require.NoError(t, err)
+
+	// Enable Kubernetes service to test issue where the `KubernetesReady` event was not properly propagated
+	// and in the case where Kube service was enabled cert rotation flow was broken.
+	enableKubernetesService(t, config)
 
 	serviceC := make(chan *service.TeleportProcess, 20)
 
