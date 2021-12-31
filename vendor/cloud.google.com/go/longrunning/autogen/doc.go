@@ -1,4 +1,4 @@
-// Copyright 2020 Google LLC
+// Copyright 2021 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,48 @@
 //
 //   NOTE: This package is in alpha. It is not stable, and is likely to change.
 //
+// Example usage
+//
+// To get started with this package, create a client.
+//  ctx := context.Background()
+//  c, err := longrunning.NewOperationsClient(ctx)
+//  if err != nil {
+//  	// TODO: Handle error.
+//  }
+//  defer c.Close()
+//
+// The client will use your default application credentials. Clients should be reused instead of created as needed.
+// The methods of Client are safe for concurrent use by multiple goroutines.
+// The returned client must be Closed when it is done being used.
+//
+// Using the Client
+//
+// The following is an example of making an API call with the newly created client.
+//
+//  ctx := context.Background()
+//  c, err := longrunning.NewOperationsClient(ctx)
+//  if err != nil {
+//  	// TODO: Handle error.
+//  }
+//  defer c.Close()
+//
+//  req := &longrunningpb.ListOperationsRequest{
+//  	// TODO: Fill request struct fields.
+//  	// See https://pkg.go.dev/google.golang.org/genproto/googleapis/longrunning#ListOperationsRequest.
+//  }
+//  it := c.ListOperations(ctx, req)
+//  for {
+//  	resp, err := it.Next()
+//  	if err == iterator.Done {
+//  		break
+//  	}
+//  	if err != nil {
+//  		// TODO: Handle error.
+//  	}
+//  	// TODO: Use resp.
+//  	_ = resp
+//  }
+//
 // Use of Context
 //
 // The ctx passed to NewClient is used for authentication requests and
@@ -28,12 +70,14 @@
 // To close the open connection, use the Close() method.
 //
 // For information about setting deadlines, reusing contexts, and more
-// please visit godoc.org/cloud.google.com/go.
+// please visit https://pkg.go.dev/cloud.google.com/go.
 package longrunning // import "cloud.google.com/go/longrunning/autogen"
 
 import (
 	"context"
+	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -46,7 +90,7 @@ import (
 type clientHookParams struct{}
 type clientHook func(context.Context, clientHookParams) ([]option.ClientOption, error)
 
-const versionClient = "20200629"
+const versionClient = "20211206"
 
 func insertMetadata(ctx context.Context, mds ...metadata.MD) context.Context {
 	out, _ := metadata.FromOutgoingContext(ctx)
@@ -57,6 +101,16 @@ func insertMetadata(ctx context.Context, mds ...metadata.MD) context.Context {
 		}
 	}
 	return metadata.NewOutgoingContext(ctx, out)
+}
+
+func checkDisableDeadlines() (bool, error) {
+	raw, ok := os.LookupEnv("GOOGLE_API_GO_EXPERIMENTAL_DISABLE_DEFAULT_DEADLINE")
+	if !ok {
+		return false, nil
+	}
+
+	b, err := strconv.ParseBool(raw)
+	return b, err
 }
 
 // DefaultAuthScopes reports the default set of authentication scopes to use with this package.

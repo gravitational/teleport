@@ -9,15 +9,19 @@ package grpc
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"log"
+	"net"
 	"os"
 	"strings"
 
+	"cloud.google.com/go/compute/metadata"
 	"go.opencensus.io/plugin/ocgrpc"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/internal"
 	"google.golang.org/api/option"
+	"google.golang.org/api/transport/internal/dca"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	grpcgoogle "google.golang.org/grpc/credentials/google"
@@ -26,6 +30,9 @@ import (
 	// Install grpclb, which is required for direct path.
 	_ "google.golang.org/grpc/balancer/grpclb"
 )
+
+// Check env to decide if using google-c2p resolver for DirectPath traffic.
+const enableDirectPathXds = "GOOGLE_CLOUD_ENABLE_DIRECT_PATH_XDS"
 
 // Set at init time by dial_appengine.go. If nil, we're not on App Engine.
 var appengineDialerHook func(context.Context) grpc.DialOption
@@ -112,6 +119,10 @@ func dial(ctx context.Context, insecure bool, o *internal.DialSettings) (*grpc.C
 	if o.GRPCConn != nil {
 		return o.GRPCConn, nil
 	}
+	clientCertSource, endpoint, err := dca.GetClientCertificateSourceAndEndpoint(o)
+	if err != nil {
+		return nil, err
+	}
 	var grpcOpts []grpc.DialOption
 	if insecure {
 		grpcOpts = []grpc.DialOption{grpc.WithInsecure()}
@@ -128,35 +139,45 @@ func dial(ctx context.Context, insecure bool, o *internal.DialSettings) (*grpc.C
 			o.QuotaProject = internal.QuotaProjectFromCreds(creds)
 		}
 
-		// Attempt Direct Path only if:
-		// * The endpoint is a host:port (or dns:///host:port).
-		// * Credentials are obtained via GCE metadata server, using the default
-		//   service account.
-		// * Opted in via GOOGLE_CLOUD_ENABLE_DIRECT_PATH environment variable.
-		//   For example, GOOGLE_CLOUD_ENABLE_DIRECT_PATH=spanner,pubsub
-		if isDirectPathEnabled(o.Endpoint) && isTokenSourceDirectPathCompatible(creds.TokenSource) {
-			if !strings.HasPrefix(o.Endpoint, "dns:///") {
-				o.Endpoint = "dns:///" + o.Endpoint
-			}
+		// Attempt Direct Path:
+		if o.EnableDirectPath && checkDirectPathEndPoint(endpoint) && isTokenSourceDirectPathCompatible(creds.TokenSource, o) && metadata.OnGCE() {
 			grpcOpts = []grpc.DialOption{
-				grpc.WithCredentialsBundle(
-					grpcgoogle.NewComputeEngineCredentials(),
-				),
-				// For now all DirectPath go clients will be using the following lb config, but in future
-				// when different services need different configs, then we should change this to a
-				// per-service config.
-				grpc.WithDisableServiceConfig(),
-				grpc.WithDefaultServiceConfig(`{"loadBalancingConfig":[{"grpclb":{"childPolicy":[{"pick_first":{}}]}}]}`),
+				grpc.WithCredentialsBundle(grpcgoogle.NewDefaultCredentialsWithOptions(grpcgoogle.DefaultCredentialsOptions{oauth.TokenSource{creds.TokenSource}}))}
+			if timeoutDialerOption != nil {
+				grpcOpts = append(grpcOpts, timeoutDialerOption)
+			}
+			// Check if google-c2p resolver is enabled for DirectPath
+			// TODO(mohanli): remove grpc version guard once google-api-go-client is able to depends on the latest grpc
+			if grpc.Version >= "1.42" && strings.EqualFold(os.Getenv(enableDirectPathXds), "true") {
+				// google-c2p resolver target must not have a port number
+				if addr, _, err := net.SplitHostPort(endpoint); err == nil {
+					endpoint = "google-c2p:///" + addr
+				} else {
+					endpoint = "google-c2p:///" + endpoint
+				}
+			} else {
+				if !strings.HasPrefix(endpoint, "dns:///") {
+					endpoint = "dns:///" + endpoint
+				}
+				grpcOpts = append(grpcOpts,
+					// For now all DirectPath go clients will be using the following lb config, but in future
+					// when different services need different configs, then we should change this to a
+					// per-service config.
+					grpc.WithDisableServiceConfig(),
+					grpc.WithDefaultServiceConfig(`{"loadBalancingConfig":[{"grpclb":{"childPolicy":[{"pick_first":{}}]}}]}`))
 			}
 			// TODO(cbro): add support for system parameters (quota project, request reason) via chained interceptor.
 		} else {
+			tlsConfig := &tls.Config{
+				GetClientCertificate: clientCertSource,
+			}
 			grpcOpts = []grpc.DialOption{
 				grpc.WithPerRPCCredentials(grpcTokenSource{
 					TokenSource:   oauth.TokenSource{creds.TokenSource},
 					quotaProject:  o.QuotaProject,
 					requestReason: o.RequestReason,
 				}),
-				grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
+				grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 			}
 		}
 	}
@@ -176,38 +197,7 @@ func dial(ctx context.Context, insecure bool, o *internal.DialSettings) (*grpc.C
 		grpcOpts = append(grpcOpts, grpc.WithUserAgent(o.UserAgent))
 	}
 
-	// TODO(weiranf): This socketopt dialer will be used by default at some
-	// point when isDirectPathEnabled will default to true, we guard it by
-	// the Directpath env var for now once we can introspect user defined
-	// dialer (https://github.com/grpc/grpc-go/issues/2795).
-	if timeoutDialerOption != nil && isDirectPathEnabled(o.Endpoint) {
-		grpcOpts = append(grpcOpts, timeoutDialerOption)
-	}
-
-	return grpc.DialContext(ctx, o.Endpoint, grpcOpts...)
-}
-
-// generateDefaultMtlsEndpoint attempts to derive the mTLS version of the
-// defaultEndpoint via regex, and returns defaultEndpoint if unsuccessful.
-//
-// We need to applying the following 2 transformations:
-// 1. pubsub.googleapis.com to pubsub.mtls.googleapis.com
-// 2. pubsub.sandbox.googleapis.com to pubsub.mtls.sandbox.googleapis.com
-//
-// TODO(cbro): In the future, the mTLS endpoint will be read from Service Config
-// and passed in as defaultMtlsEndpoint instead of generated from defaultEndpoint,
-// and this function will be removed.
-func generateDefaultMtlsEndpoint(defaultEndpoint string) string {
-	var domains = []string{
-		".sandbox.googleapis.com", // must come first because .googleapis.com is a substring
-		".googleapis.com",
-	}
-	for _, domain := range domains {
-		if strings.Contains(defaultEndpoint, domain) {
-			return strings.Replace(defaultEndpoint, domain, ".mtls"+domain, -1)
-		}
-	}
-	return defaultEndpoint
+	return grpc.DialContext(ctx, endpoint, grpcOpts...)
 }
 
 func addOCStatsHandler(opts []grpc.DialOption, settings *internal.DialSettings) []grpc.DialOption {
@@ -244,7 +234,7 @@ func (ts grpcTokenSource) GetRequestMetadata(ctx context.Context, uri ...string)
 	return metadata, nil
 }
 
-func isTokenSourceDirectPathCompatible(ts oauth2.TokenSource) bool {
+func isTokenSourceDirectPathCompatible(ts oauth2.TokenSource, o *internal.DialSettings) bool {
 	if ts == nil {
 		return false
 	}
@@ -255,6 +245,9 @@ func isTokenSourceDirectPathCompatible(ts oauth2.TokenSource) bool {
 	if tok == nil {
 		return false
 	}
+	if o.AllowNonDefaultServiceAccount {
+		return true
+	}
 	if source, _ := tok.Extra("oauth2.google.tokenSource").(string); source != "compute-metadata" {
 		return false
 	}
@@ -264,8 +257,8 @@ func isTokenSourceDirectPathCompatible(ts oauth2.TokenSource) bool {
 	return true
 }
 
-func isDirectPathEnabled(endpoint string) bool {
-	// Only host:port is supported, not other schemes (e.g., "tcp://" or "unix://").
+func checkDirectPathEndPoint(endpoint string) bool {
+	// Only [dns:///]host[:port] is supported, not other schemes (e.g., "tcp://" or "unix://").
 	// Also don't try direct path if the user has chosen an alternate name resolver
 	// (i.e., via ":///" prefix).
 	//
@@ -275,15 +268,11 @@ func isDirectPathEnabled(endpoint string) bool {
 		return false
 	}
 
-	// Only try direct path if the user has opted in via the environment variable.
-	whitelist := strings.Split(os.Getenv("GOOGLE_CLOUD_ENABLE_DIRECT_PATH"), ",")
-	for _, api := range whitelist {
-		// Ignore empty string since an empty env variable splits into [""]
-		if api != "" && strings.Contains(endpoint, api) {
-			return true
-		}
+	if endpoint == "" {
+		return false
 	}
-	return false
+
+	return true
 }
 
 func processAndValidateOpts(opts []option.ClientOption) (*internal.DialSettings, error) {
@@ -293,12 +282,6 @@ func processAndValidateOpts(opts []option.ClientOption) (*internal.DialSettings,
 	}
 	if err := o.Validate(); err != nil {
 		return nil, err
-	}
-
-	// NOTE(cbro): this is used only by the nightly mtls_smoketest and should
-	// not otherwise be used. It will be removed or renamed at some point.
-	if os.Getenv("GOOGLE_API_USE_MTLS") == "always" {
-		o.Endpoint = generateDefaultMtlsEndpoint(o.Endpoint)
 	}
 
 	return &o, nil
