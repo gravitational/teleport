@@ -733,6 +733,7 @@ devbox-grpc:
 		api/types/types.proto \
 		api/types/webauthn/webauthn.proto \
 		api/types/wrappers/wrappers.proto \
+		api/backend/grpc/backend.proto \
 		lib/datalog/types.proto \
 		lib/events/slice.proto \
 		lib/multiplexer/test/ping.proto \
@@ -762,6 +763,11 @@ devbox-grpc:
 		--proto_path=api/types/wrappers \
 		--gogofast_out=plugins=grpc:api/types/wrappers \
 		wrappers.proto
+
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/backend/grpc \
+		--gogofast_out=plugins=grpc:api/backend/grpc \
+		backend.proto
 
 	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc:. \
