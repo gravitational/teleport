@@ -824,6 +824,8 @@ func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
 	return trace.Wrap(err)
 }
 
+// UpsertKubeServer is used by kubernetes services to report their presence
+// to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertKubeServer(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	server, ok := s.(*types.ServerV2)
 	if !ok {
