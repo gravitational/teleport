@@ -522,6 +522,10 @@ const (
 	// allowed database users.
 	TraitDBUsers = "db_users"
 
+	// TraitTeams is the name of the role variable use to store team
+	// membership information
+	TraitTeams = "github_teams"
+
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
 	TraitInternalLoginsVariable = "{{internal.logins}}"
