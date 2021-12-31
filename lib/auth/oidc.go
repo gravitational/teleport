@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"google.golang.org/api/cloudidentity/v1"
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
@@ -839,6 +840,12 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		cloudidentityService, err := cloudidentity.NewService(a.closeCtx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cloudidentityService.Groups.Memberships.SearchTransitiveGroups("foo")
 
 		var jsonCredentials []byte
 		var credentialLoadingMethod string
