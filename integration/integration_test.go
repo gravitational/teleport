@@ -3710,10 +3710,10 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 // TestRotateTrustedClusters tests CA rotation support for trusted clusters
 func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
-	defer tr.Stop()
+	t.Cleanup(func() { tr.Stop() })
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 
 	clusterMain := "rotate-main"
 	clusterAux := "rotate-aux"
@@ -3772,7 +3772,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	require.NoError(t, err)
-	trustedClusterToken := "trusted-clsuter-token"
+	trustedClusterToken := "trusted-cluster-token"
 	err = svc.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
@@ -3788,7 +3788,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	tryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
 	waitForTunnelConnections(t, svc.GetAuthServer(), aux.Secrets.SiteName, 1)
 
-	// capture credentials before has reload started to simulate old client
+	// capture credentials before reload has started to simulate old client
 	initialCreds, err := GenerateUserCreds(UserCredsRequest{
 		Process:  svc,
 		Username: suite.me.Username,
@@ -3817,24 +3817,40 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service phase update to be broadcasted (init phase does not trigger reload)
+	// wait until service phase update to be broadcast (init phase does not trigger reload)
 	err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
 	require.NoError(t, err)
 
 	// waitForPhase waits until aux cluster detects the rotation
 	waitForPhase := func(phase string) error {
+		ctx, cancel := context.WithTimeout(context.Background(), tconf.PollingPeriod*10)
+		defer cancel()
+
+		watcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component: teleport.ComponentProxy,
+				Clock:     tconf.Clock,
+				Client:    aux.GetSiteAPI(clusterAux),
+			},
+		})
+		if err != nil {
+			return err
+		}
 		var lastPhase string
 		for i := 0; i < 10; i++ {
-			ca, err := aux.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
-				Type:       types.HostCA,
-				DomainName: clusterMain,
-			}, false)
-			require.NoError(t, err)
-			if ca.GetRotation().Phase == phase {
-				return nil
+			select {
+			case <-ctx.Done():
+				return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
+			case cas := <-watcher.CertAuthorityC:
+				for _, ca := range cas {
+					if ca.GetClusterName() == clusterMain &&
+						ca.GetType() == types.HostCA &&
+						ca.GetRotation().Phase == phase {
+						return nil
+					}
+					lastPhase = ca.GetRotation().Phase
+				}
 			}
-			lastPhase = ca.GetRotation().Phase
-			time.Sleep(tconf.PollingPeriod / 2)
 		}
 		return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
 	}
@@ -3915,7 +3931,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	// shut down the service
 	cancel()
 	// close the service without waiting for the connections to drain
-	svc.Close()
+	require.NoError(t, svc.Close())
 
 	select {
 	case err := <-runErrCh:
@@ -4081,6 +4097,7 @@ func (s *integrationTestSuite) rotationConfig(disableWebService bool) *service.C
 	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.ClientTimeout = time.Second
 	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
+	tconf.MaxRetryPeriod = time.Second
 	return tconf
 }
 

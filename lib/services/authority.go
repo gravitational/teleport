@@ -39,6 +39,15 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// AuthorityGetter defines interface for fetching cert authority resources.
+type AuthorityGetter interface {
+	// GetCertAuthority returns cert authority by id
+	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...MarshalOption) (types.CertAuthority, error)
+
+	// GetCertAuthorities returns a list of cert authorities
+	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...MarshalOption) ([]types.CertAuthority, error)
+}
+
 // CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
 // This differs from normal equality only in that resource IDs are ignored.
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
@@ -260,7 +269,7 @@ type UserCertParams struct {
 	DisallowReissue bool
 }
 
-// Check checks the user certificate parameters
+// CheckAndSetDefaults checks the user certificate parameters
 func (c *UserCertParams) CheckAndSetDefaults() error {
 	if c.CASigner == nil || c.CASigningAlg == "" {
 		return trace.BadParameter("CASigner and CASigningAlg are required")
@@ -389,7 +398,7 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 	}
 }
 
-// CertAuthorityNeedsMigrations returns true if the given CertAuthority needs to be migrated
+// CertAuthorityNeedsMigration returns true if the given CertAuthority needs to be migrated
 func CertAuthorityNeedsMigration(cai types.CertAuthority) (bool, error) {
 	ca, ok := cai.(*types.CertAuthorityV2)
 	if !ok {
