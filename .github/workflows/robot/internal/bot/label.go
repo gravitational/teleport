@@ -104,6 +104,7 @@ var prefixes map[string][]string = map[string][]string{
 	"rfd/":                []string{"documentation", "rfd"},
 	"examples/chart":      []string{"helm"},
 	"lib/bpf/":            []string{"bpf"},
+	"lib/events":          []string{"audit-log"},
 	"lib/kube":            []string{"kubernetes"},
 	"lib/srv/desktop":     []string{"desktop-access"},
 	"lib/srv/desktop/rdp": []string{"desktop-access", "rdp"},
