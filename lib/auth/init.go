@@ -313,8 +313,8 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	log.Infof("Created namespace: %q.", apidefaults.Namespace)
 
-	// TODO(jakule): Describe
-	// Migrate user CA to DB CA before generation...
+	// Migrate Host CA as Database CA before certificates generation. Otherwise, the Database CA will be
+	// generated which we don't want for existing installations.
 	if err := migrateDBAuthority(asrv); err != nil {
 		return nil, trace.Wrap(err, "Failed to migrate database CA.")
 	}
@@ -1028,6 +1028,11 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 	return nil
 }
 
+// migrateDBAuthority copies Host CA as Database CA. Before v9.0 database access was using host CA to sign all
+// DB certificates. In order to support existing installations Teleport copies Host CA as Database CA on
+// the first run after update to v9.0+.
+// Function does nothing for databases created with Teleport v9.0+.
+// https://github.com/gravitational/teleport/issues/5029
 func migrateDBAuthority(asrv *Server) error {
 	clusterName, err := asrv.GetClusterName()
 	if err != nil {
@@ -1047,14 +1052,14 @@ func migrateDBAuthority(asrv *Server) error {
 	hostCaID := types.CertAuthID{Type: types.HostCA, DomainName: clusterName.GetClusterName()}
 	hostCA, err := asrv.GetCertAuthority(hostCaID, true)
 	if trace.IsNotFound(err) {
-		// first run, nothing to migrate
-		// TODO(jakule): looks like the first run is covered before this function is called.
+		// DB CA and Host CA are missing. Looks like the first start. No migration needed.
 		return nil
 	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	// Database CA is missing, but Host CA has been found. Copy the Host CA.
 	log.Infof("Migrating Database CA")
 
 	cav2, ok := hostCA.(*types.CertAuthorityV2)
