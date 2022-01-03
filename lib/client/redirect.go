@@ -42,6 +42,10 @@ const (
 	// LoginFailedBadCallbackRedirectURL is a redirect URL when an SSO error specific to
 	// auth connector's callback was encountered.
 	LoginFailedBadCallbackRedirectURL = "/web/msg/error/login/callback"
+
+	// LoginFailedUnauthorizedRedirectURL is a redirect URL for when an SSO authenticates successfully,
+	// but the user has no matching roles in Teleport.
+	LoginFailedUnauthorizedRedirectURL = "/web/msg/error/login/auth"
 )
 
 // Redirector handles SSH redirect flow with the Teleport server

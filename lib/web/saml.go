@@ -99,6 +99,9 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 	response, err := h.cfg.ProxyClient.ValidateSAMLResponse(samlResponse)
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
+		if isRoleMatchError(err) {
+			return client.LoginFailedUnauthorizedRedirectURL
+		}
 		return client.LoginFailedBadCallbackRedirectURL
 	}
 

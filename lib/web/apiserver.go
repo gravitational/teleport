@@ -1056,6 +1056,9 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	response, err := h.cfg.ProxyClient.ValidateGithubAuthCallback(r.URL.Query())
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
+		if isRoleMatchError(err) {
+			return client.LoginFailedUnauthorizedRedirectURL
+		}
 		return client.LoginFailedBadCallbackRedirectURL
 	}
 
@@ -1145,6 +1148,9 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	response, err := h.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
+		if isRoleMatchError(err) {
+			return client.LoginFailedUnauthorizedRedirectURL
+		}
 		return client.LoginFailedBadCallbackRedirectURL
 	}
 
@@ -2700,4 +2706,19 @@ func ssoSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 	response.clientRedirectURL = parsedURL.RequestURI()
 
 	return nil
+}
+
+// isRoleMatchError checks if an error is the result of a failed role match during
+// SSO authorization.
+func isRoleMatchError(err error) bool {
+	// oidc or saml
+	if trace.IsAccessDenied(err) {
+		return strings.HasPrefix(err.Error(), "unable to map attributes to role") ||
+			strings.HasPrefix(err.Error(), "unable to map claims to role")
+	}
+	// github
+	if trace.IsBadParameter(err) {
+		return strings.Contains(err.Error(), "does not belong to any teams")
+	}
+	return false
 }

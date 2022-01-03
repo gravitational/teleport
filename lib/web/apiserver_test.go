@@ -25,6 +25,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -3564,4 +3565,36 @@ type mockProxySettings struct {
 
 func (mock *mockProxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error) {
 	return &webclient.ProxySettings{}, nil
+}
+
+func TestIsRoleMatchError(t *testing.T) {
+	t.Parallel()
+	matches := []struct {
+		name string
+		err  error
+	}{
+		{"saml", trace.AccessDenied("unable to map attributes to role for connector: x")},
+		{"oidc", trace.AccessDenied("unable to map claims to role for connector: x")},
+		{"github", trace.BadParameter("user y does not belong to any teams configured in z connector")},
+	}
+	for _, tc := range matches {
+		t.Run(fmt.Sprintf("Accept %s", tc.name), func(t *testing.T) {
+			require.True(t, isRoleMatchError(tc.err))
+		})
+	}
+
+	nonMatches := []struct {
+		name string
+		err  error
+	}{
+		{"nil", nil},
+		{"random error", errors.New("random error")},
+		{"unrelated access denied", trace.AccessDenied("something unrelated")},
+		{"unrelated bad parameter", trace.BadParameter("something unrelated")},
+	}
+	for _, tc := range nonMatches {
+		t.Run(fmt.Sprintf("Reject %s", tc.name), func(t *testing.T) {
+			require.False(t, isRoleMatchError(tc.err))
+		})
+	}
 }
