@@ -169,4 +169,6 @@ const (
 
 	// ALPNSNIAuthProtocol allows dialing local/remote auth service based on SNI cluster name value.
 	ALPNSNIAuthProtocol = "teleport-auth@"
+	// ALPNSNIProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
+	ALPNSNIProtocolReverseTunnel = "teleport-reversetunnel"
 )
