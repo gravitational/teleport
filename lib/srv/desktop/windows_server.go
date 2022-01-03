@@ -444,6 +444,9 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 	}
 }
 
+// handleConnection handles TLS connections from a Teleport proxy.
+// It authenticates and authorizes the connection, and then begins
+// translating the TDP messages from the proxy into native RDP.
 func (s *WindowsService) handleConnection(con net.Conn) {
 	defer con.Close()
 	log := s.cfg.Log
@@ -548,7 +551,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		Entry:             log,
 		Emitter:           s.cfg.Emitter,
 		LockWatcher:       s.cfg.LockWatcher,
-		LockTargets:       services.LockTargetsFromTLSIdentity(identity),
+		LockingMode:       authCtx.Checker.LockingMode(authPref.GetLockingMode()),
+		LockTargets:       append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
 		Tracker:           rdpc,
 		TeleportUser:      identity.Username,
 		ServerID:          s.cfg.Heartbeat.HostUUID,
