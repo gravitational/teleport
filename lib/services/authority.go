@@ -52,8 +52,10 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		return trace.Wrap(err)
 	}
 	switch ca.GetType() {
-	case types.UserCA, types.HostCA, types.DatabaseCA:
-		err = checkUserOrHostCA(ca) //TODO(JN): misleading name if we want to use it for DB too.
+	case types.UserCA, types.HostCA:
+		err = checkUserOrHostCA(ca)
+	case types.DatabaseCA:
+		err = checkDatabaseCA(ca)
 	case types.JWTSigner:
 		err = checkJWTKeys(ca)
 	default:
@@ -67,7 +69,7 @@ func checkUserOrHostCA(cai types.CertAuthority) error {
 	if !ok {
 		return trace.BadParameter("unknown CA type %T", cai)
 	}
-	if cai.GetType() != types.DatabaseCA && len(ca.Spec.ActiveKeys.SSH) == 0 && len(ca.Spec.CheckingKeys) == 0 {
+	if len(ca.Spec.ActiveKeys.SSH) == 0 && len(ca.Spec.CheckingKeys) == 0 {
 		return trace.BadParameter("certificate authority missing SSH key pairs")
 	}
 	if len(ca.Spec.ActiveKeys.TLS) == 0 && len(ca.Spec.TLSKeyPairs) == 0 {
@@ -85,6 +87,32 @@ func checkUserOrHostCA(cai types.CertAuthority) error {
 	}
 	_, err := parseRoleMap(ca.GetRoleMap())
 	return trace.Wrap(err)
+}
+
+func checkDatabaseCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+
+	if len(ca.Spec.ActiveKeys.TLS) == 0 && len(ca.Spec.TLSKeyPairs) == 0 {
+		return trace.BadParameter("DB certificate authority missing TLS key pairs")
+	}
+
+	for _, pair := range ca.GetTrustedTLSKeyPairs() {
+		if len(pair.Key) > 0 && pair.KeyType == types.PrivateKeyType_RAW {
+			_, err := utils.ParsePrivateKey(pair.Key)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		_, err := tlsca.ParseCertificatePEM(pair.Cert)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
 
 func checkJWTKeys(cai types.CertAuthority) error {
