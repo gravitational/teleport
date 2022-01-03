@@ -27,7 +27,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -123,6 +122,8 @@ var _ = Suite(&WebSuite{})
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	os.Unsetenv(teleport.DebugEnvVar)
+
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 &&
@@ -137,8 +138,6 @@ func TestMain(m *testing.M) {
 }
 
 func (s *WebSuite) SetUpSuite(c *C) {
-	os.Unsetenv(teleport.DebugEnvVar)
-
 	var err error
 	s.mockU2F, err = mocku2f.Create()
 	c.Assert(err, IsNil)
@@ -147,6 +146,249 @@ func (s *WebSuite) SetUpSuite(c *C) {
 
 func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
 	return clt, nil
+}
+
+func newSuite(t *testing.T) *WebSuite {
+	clock := clockwork.NewFakeClock()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	u, err := user.Current()
+	require.NoError(t, err)
+
+	mockU2F, err := mocku2f.Create()
+	require.NoError(t, err)
+	require.NotNil(t, mockU2F)
+
+	srv, err := auth.NewTestServer(auth.TestServerConfig{
+		Auth: auth.TestAuthServerConfig{
+			ClusterName: "localhost",
+			Dir:         t.TempDir(),
+			Clock:       clock,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, srv.Shutdown(ctx))
+	})
+
+	s := &WebSuite{
+		ctx:     ctx,
+		cancel:  cancel,
+		clock:   clock,
+		mockU2F: mockU2F,
+		server:  srv,
+		user:    u.Username,
+	}
+
+	// Register the auth server, since test auth server doesn't start its own
+	// heartbeat.
+	err = s.server.Auth().UpsertAuthServer(&types.ServerV2{
+		Kind:    types.KindAuthServer,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Namespace: apidefaults.Namespace,
+			Name:      "auth",
+		},
+		Spec: types.ServerSpecV2{
+			Addr:     s.server.TLS.Listener.Addr().String(),
+			Hostname: "localhost",
+			Version:  teleport.Version,
+		},
+	})
+	require.NoError(t, err)
+
+	priv, pub, err := s.server.AuthServer.AuthServer.GenerateKeyPair("")
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	// start node
+	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
+		&apiProto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     s.server.ClusterName(),
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
+	require.NoError(t, err)
+
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
+	require.NoError(t, err)
+
+	nodeID := "node"
+	nodeClient, err := s.server.NewClient(auth.TestIdentity{
+		I: auth.BuiltinRole{
+			Role:     types.RoleNode,
+			Username: nodeID,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, nodeClient.Close())
+	})
+
+	nodeLockWatcher, err := services.NewLockWatcher(s.ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentNode,
+			Client:    nodeClient,
+		},
+	})
+	require.NoError(t, err)
+
+	// create SSH service:
+	nodeDataDir := t.TempDir()
+	node, err := regular.New(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		s.server.ClusterName(),
+		[]ssh.Signer{signer},
+		nodeClient,
+		nodeDataDir,
+		"",
+		utils.NetAddr{},
+		regular.SetUUID(nodeID),
+		regular.SetNamespace(apidefaults.Namespace),
+		regular.SetShell("/bin/sh"),
+		regular.SetSessionServer(nodeClient),
+		regular.SetEmitter(nodeClient),
+		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetBPF(&bpf.NOP{}),
+		regular.SetRestrictedSessionManager(&restricted.NOP{}),
+		regular.SetClock(s.clock),
+		regular.SetLockWatcher(nodeLockWatcher),
+	)
+	require.NoError(t, err)
+
+	s.node = node
+	s.srvID = node.ID()
+
+	require.NoError(t, s.node.Start())
+	t.Cleanup(func() {
+		require.NoError(t, s.node.Close())
+	})
+
+	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
+
+	// create reverse tunnel service:
+	proxyID := "proxy"
+	s.proxyClient, err = s.server.NewClient(auth.TestIdentity{
+		I: auth.BuiltinRole{
+			Role:     types.RoleProxy,
+			Username: proxyID,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, s.proxyClient.Close())
+	})
+
+	revTunListener, err := net.Listen("tcp", fmt.Sprintf("%v:0", s.server.ClusterName()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, revTunListener.Close())
+	})
+
+	proxyLockWatcher, err := services.NewLockWatcher(s.ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    s.proxyClient,
+		},
+	})
+	require.NoError(t, err)
+
+	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
+		ID:                    node.ID(),
+		Listener:              revTunListener,
+		ClientTLS:             s.proxyClient.TLSConfig(),
+		ClusterName:           s.server.ClusterName(),
+		HostSigners:           []ssh.Signer{signer},
+		LocalAuthClient:       s.proxyClient,
+		LocalAccessPoint:      s.proxyClient,
+		Emitter:               s.proxyClient,
+		NewCachingAccessPoint: noCache,
+		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
+		DataDir:               t.TempDir(),
+		LockWatcher:           proxyLockWatcher,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, revTunServer.Close())
+	})
+	s.proxyTunnel = revTunServer
+
+	// proxy server:
+	s.proxy, err = regular.New(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		s.server.ClusterName(),
+		[]ssh.Signer{signer},
+		s.proxyClient,
+		t.TempDir(),
+		"",
+		utils.NetAddr{},
+		regular.SetUUID(proxyID),
+		regular.SetProxyMode(revTunServer, s.proxyClient),
+		regular.SetSessionServer(s.proxyClient),
+		regular.SetEmitter(s.proxyClient),
+		regular.SetNamespace(apidefaults.Namespace),
+		regular.SetBPF(&bpf.NOP{}),
+		regular.SetRestrictedSessionManager(&restricted.NOP{}),
+		regular.SetClock(s.clock),
+		regular.SetLockWatcher(proxyLockWatcher),
+	)
+	require.NoError(t, err)
+
+	fs, err := NewDebugFileSystem("../../webassets/teleport")
+	require.NoError(t, err)
+
+	// Expired sessions are purged immediately
+	var sessionLingeringThreshold time.Duration
+	handler, err := NewHandler(Config{
+		Proxy:                           revTunServer,
+		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
+		DomainName:                      s.server.ClusterName(),
+		ProxyClient:                     s.proxyClient,
+		CipherSuites:                    utils.DefaultCipherSuites(),
+		AccessPoint:                     s.proxyClient,
+		Context:                         s.ctx,
+		HostUUID:                        proxyID,
+		Emitter:                         s.proxyClient,
+		StaticFS:                        fs,
+		cachedSessionLingeringThreshold: &sessionLingeringThreshold,
+		ProxySettings:                   &mockProxySettings{},
+	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
+	require.NoError(t, err)
+
+	s.webServer = httptest.NewUnstartedServer(handler)
+	s.webServer.StartTLS()
+	t.Cleanup(s.webServer.Close)
+
+	err = s.proxy.Start()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, s.proxy.Close())
+	})
+
+	// Wait for proxy to fully register before starting the test.
+	require.Eventually(t, func() bool {
+		proxies, err := s.proxyClient.GetProxies()
+		return err == nil && len(proxies) != 0
+	},
+		5*time.Second, 500*time.Millisecond,
+		"proxy didn't register within 5s after startup")
+
+	proxyAddr := utils.MustParseAddr(s.proxy.Addr())
+	addr := utils.MustParseAddr(s.webServer.Listener.Addr().String())
+	handler.handler.cfg.ProxyWebAddr = *addr
+	handler.handler.cfg.ProxySSHAddr = *proxyAddr
+	_, sshPort, err := net.SplitHostPort(proxyAddr.String())
+	require.NoError(t, err)
+
+	handler.handler.sshPort = sshPort
+	return s
 }
 
 func (s *WebSuite) SetUpTest(c *C) {
@@ -497,18 +739,20 @@ func TestValidRedirectURL(t *testing.T) {
 	}
 }
 
-func (s *WebSuite) TestSAMLSuccess(c *C) {
+func TestSAMLSuccess(t *testing.T) {
+	s := newSuite(t)
+
 	input := fixtures.SAMLOktaConnectorV2
 
 	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
 	var raw services.UnknownResource
 	err := decoder.Decode(&raw)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	connector, err := services.UnmarshalSAMLConnector(raw.Raw)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 	err = services.ValidateSAMLConnector(connector)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	role, err := types.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV4{
 		Options: types.RoleOptions{
@@ -522,83 +766,88 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 			},
 		},
 	})
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 	role.SetLogins(types.Allow, []string{s.user})
 	err = s.server.Auth().UpsertRole(s.ctx, role)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	err = s.server.Auth().CreateSAMLConnector(connector)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 	s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC)))
 	clt := s.clientNoRedirects()
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 
 	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?redirect_url=http://localhost/after&connector_id=` + connector.GetName())
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 	req, err := http.NewRequest("GET", baseURL.String(), nil)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 	addCSRFCookieToReq(req, csrfToken)
 	re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
 		return clt.Client.HTTPClient().Do(req)
 	})
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	// we got a redirect
 	urlPattern := regexp.MustCompile(`URL='([^']*)'`)
 	locationURL := urlPattern.FindStringSubmatch(string(re.Bytes()))[1]
 	u, err := url.Parse(locationURL)
-	c.Assert(err, IsNil)
-	c.Assert(u.Scheme+"://"+u.Host+u.Path, Equals, fixtures.SAMLOktaSSO)
+	require.NoError(t, err)
+	require.Equal(t, fixtures.SAMLOktaSSO, u.Scheme+"://"+u.Host+u.Path)
+
 	data, err := base64.StdEncoding.DecodeString(u.Query().Get("SAMLRequest"))
-	c.Assert(err, IsNil)
-	buf, err := ioutil.ReadAll(flate.NewReader(bytes.NewReader(data)))
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
+
+	buf, err := io.ReadAll(flate.NewReader(bytes.NewReader(data)))
+	require.NoError(t, err)
+
 	doc := etree.NewDocument()
 	err = doc.ReadFromBytes(buf)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
+
 	id := doc.Root().SelectAttr("ID")
-	c.Assert(id, NotNil)
+	require.NotNil(t, id)
 
 	authRequest, err := s.server.Auth().GetSAMLAuthRequest(id.Value)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	// now swap the request id to the hardcoded one in fixtures
 	authRequest.ID = fixtures.SAMLOktaAuthRequestID
 	authRequest.CSRFToken = csrfToken
 	err = s.server.Auth().Identity.CreateSAMLAuthRequest(*authRequest, backend.Forever)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	// now respond with pre-recorded request to the POST url
 	in := &bytes.Buffer{}
 	fw, err := flate.NewWriter(in, flate.DefaultCompression)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	_, err = fw.Write([]byte(fixtures.SAMLOktaAuthnResponseXML))
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 	err = fw.Close()
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 	encodedResponse := base64.StdEncoding.EncodeToString(in.Bytes())
-	c.Assert(encodedResponse, NotNil)
+	require.NotEmpty(t, encodedResponse)
 
 	// now send the response to the server to exchange it for auth session
 	form := url.Values{}
 	form.Add("SAMLResponse", encodedResponse)
 	req, err = http.NewRequest("POST", clt.Endpoint("webapi", "saml", "acs"), strings.NewReader(form.Encode()))
+	require.NoError(t, err)
+
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	addCSRFCookieToReq(req, csrfToken)
-	c.Assert(err, IsNil)
+
 	authRe, err := clt.Client.RoundTrip(func() (*http.Response, error) {
 		return clt.Client.HTTPClient().Do(req)
 	})
+	require.NoError(t, err)
 
-	c.Assert(err, IsNil)
-	comment := Commentf("Response: %v", string(authRe.Bytes()))
-	c.Assert(authRe.Code(), Equals, http.StatusFound, comment)
+	require.Equal(t, http.StatusFound, authRe.Code(), "Response: %v", string(authRe.Bytes()))
 	// we have got valid session
-	c.Assert(authRe.Headers().Get("Set-Cookie"), Not(Equals), "")
+	require.NotEmpty(t, authRe.Headers().Get("Set-Cookie"))
 	// we are being redirected to orignal URL
-	c.Assert(authRe.Headers().Get("Location"), Equals, "/after")
+	require.Equal(t, "/after", authRe.Headers().Get("Location"))
 }
 
 func (s *WebSuite) TestWebSessionsCRUD(c *C) {
