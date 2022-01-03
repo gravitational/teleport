@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -1041,6 +1042,9 @@ func (i *TeleInstance) Reset() (err error) {
 		if err := i.Process.Close(); err != nil {
 			return trace.Wrap(err)
 		}
+		if err := i.Process.Wait(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	i.Process, err = service.NewTeleport(i.Config)
 	if err != nil {
@@ -1295,16 +1299,20 @@ func (i *TeleInstance) StopNodes() error {
 // StopAuth stops the auth server process. If removeData is true, the data
 // directory is also cleaned up.
 func (i *TeleInstance) StopAuth(removeData bool) error {
-	if i.Config != nil && removeData {
-		err := os.RemoveAll(i.Config.DataDir)
-		if err != nil {
-			i.log.WithError(err).Error("Failed removing temporary local Teleport directory.")
+	defer func() {
+		if i.Config != nil && removeData {
+			i.log.Infoln("Removing data dir", i.Config.DataDir)
+			if err := os.RemoveAll(i.Config.DataDir); err != nil {
+				i.log.WithError(err).Error("Failed removing temporary local Teleport directory.")
+			}
 		}
-	}
+		i.Process = nil
+	}()
+
 	if i.Process == nil {
 		return nil
 	}
-	i.log.Infof("Asking Teleport to stop")
+	i.log.Infof("Asking Teleport instance %q to stop", i.Secrets.SiteName)
 	err := i.Process.Close()
 	if err != nil {
 		i.log.WithError(err).Error("Failed closing the teleport process.")
@@ -1331,7 +1339,7 @@ func (i *TeleInstance) StopAll() error {
 		errors = append(errors, os.RemoveAll(dir))
 	}
 
-	i.log.Info("Stopped all teleport services.")
+	i.log.Infof("Stopped all teleport services for site %q", i.Secrets.SiteName)
 	return trace.NewAggregate(errors...)
 }
 
@@ -1659,4 +1667,27 @@ func fatalIf(err error) {
 	if err != nil {
 		log.Fatalf("%v at %v", string(debug.Stack()), err)
 	}
+}
+
+func enableKubernetesService(t *testing.T, config *service.Config) {
+	kubeConfigPath := filepath.Join(t.TempDir(), "kube_config")
+
+	err := kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
+		TeleportClusterName: "teleport-cluster",
+		ClusterAddr:         net.JoinHostPort(Host, ports.Pop()),
+		Credentials: &client.Key{
+			Cert:    []byte("cert"),
+			TLSCert: []byte("tls-cert"),
+			Priv:    []byte("priv"),
+			Pub:     []byte("pub"),
+			TrustedCA: []auth.TrustedCerts{{
+				TLSCertificates: [][]byte{[]byte("ca-cert")},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	config.Kube.Enabled = true
+	config.Kube.KubeconfigPath = kubeConfigPath
+	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, ports.Pop()))
 }
