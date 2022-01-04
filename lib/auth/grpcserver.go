@@ -1507,8 +1507,8 @@ func (g *GRPCServer) UpsertKubeService(ctx context.Context, req *proto.UpsertKub
 	return new(empty.Empty), nil
 }
 
-// UpsertKubeServer adds a kubernetes service
-func (g *GRPCServer) UpsertKubeServer(ctx context.Context, req *proto.UpsertKubeServiceRequest) (*types.KeepAlive, error) {
+// UpsertKubeServiceV2 adds a kubernetes service
+func (g *GRPCServer) UpsertKubeServiceV2(ctx context.Context, req *proto.UpsertKubeServiceRequest) (*types.KeepAlive, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1528,7 +1528,7 @@ func (g *GRPCServer) UpsertKubeServer(ctx context.Context, req *proto.UpsertKube
 	}
 	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), clientAddr.String()))
 
-	keepAlive, err := auth.UpsertKubeServer(ctx, server)
+	keepAlive, err := auth.UpsertKubeServiceV2(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

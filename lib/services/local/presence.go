@@ -1085,14 +1085,15 @@ func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter types.Sema
 }
 
 // UpsertKubeService registers kubernetes service presence.
+// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2.
 func (s *PresenceService) UpsertKubeService(ctx context.Context, server types.Server) error {
 	// TODO(awly): verify that no other KubeService has the same kubernetes
 	// cluster names with different labels to avoid RBAC check confusion.
 	return s.upsertServer(ctx, kubeServicesPrefix, server)
 }
 
-// UpsertKubeServer registers kubernetes service presence.
-func (s *PresenceService) UpsertKubeServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
+// UpsertKubeServiceV2 registers kubernetes service presence.
+func (s *PresenceService) UpsertKubeServiceV2(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
 	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

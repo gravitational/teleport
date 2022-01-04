@@ -3284,9 +3284,9 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 	return a.authServer.UpsertKubeService(ctx, s)
 }
 
-// UpsertKubeServer creates or updates a Server representing a teleport
+// UpsertKubeServiceV2 creates or updates a Server representing a teleport
 // kubernetes service.
-func (a *ServerWithRoles) UpsertKubeServer(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+func (a *ServerWithRoles) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3315,7 +3315,7 @@ func (a *ServerWithRoles) UpsertKubeServer(ctx context.Context, s types.Server) 
 			return nil, utils.OpaqueAccessDenied(err)
 		}
 	}
-	return a.authServer.UpsertKubeServer(ctx, s)
+	return a.authServer.UpsertKubeServiceV2(ctx, s)
 }
 
 // GetKubeServices returns all Servers representing teleport kubernetes

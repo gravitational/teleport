@@ -175,10 +175,11 @@ type Presence interface {
 	DeleteAllRemoteClusters() error
 
 	// UpsertKubeService registers kubernetes service presence.
+	// DELETE in 11.0. Deprecated, use UpsertKubeServiceV2
 	UpsertKubeService(context.Context, types.Server) error
 
-	// UpsertKubeServer registers kubernetes service presence
-	UpsertKubeServer(context.Context, types.Server) (*types.KeepAlive, error)
+	// UpsertKubeServiceV2 registers kubernetes service presence
+	UpsertKubeServiceV2(context.Context, types.Server) (*types.KeepAlive, error)
 
 	// GetAppServers gets all application servers.
 	//

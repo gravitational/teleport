@@ -372,7 +372,7 @@ func (f *fakeAnnouncer) UpsertKubeService(ctx context.Context, s types.Server) e
 	return f.err
 }
 
-func (f *fakeAnnouncer) UpsertKubeServer(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+func (f *fakeAnnouncer) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeKube]++
 	if f.err != nil {
 		return nil, f.err

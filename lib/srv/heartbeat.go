@@ -443,7 +443,7 @@ func (h *Heartbeat) announce() error {
 			if !ok {
 				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
-			keepAlive, err := h.Announcer.UpsertKubeServer(h.cancelCtx, kube)
+			keepAlive, err := h.Announcer.UpsertKubeServiceV2(h.cancelCtx, kube)
 			if err != nil {
 				// Check if the error is an Unimplemented grpc status code,
 				// if it is fall back to old keepalive method
