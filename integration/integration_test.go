@@ -3832,6 +3832,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 				Clock:     tconf.Clock,
 				Client:    aux.GetSiteAPI(clusterAux),
 			},
+			WatchHostCA: true,
 		})
 		if err != nil {
 			return err

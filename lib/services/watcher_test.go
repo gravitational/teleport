@@ -743,14 +743,34 @@ func TestCertAuthorityWatcher(t *testing.T) {
 			},
 		},
 		CertAuthorityC: make(chan []types.CertAuthority, 10),
+		WatchUserCA:    true,
+		WatchHostCA:    true,
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
+
+	nothingWatcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				Trust:  caService,
+				Events: local.NewEventsService(bk),
+			},
+		},
+		CertAuthorityC: make(chan []types.CertAuthority, 10),
+	})
+	require.NoError(t, err)
+	t.Cleanup(nothingWatcher.Close)
+
+	require.Empty(t, w.GetCurrent())
+	require.Empty(t, nothingWatcher.GetCurrent())
 
 	// Initially there are no cas so watcher should send an empty list.
 	select {
 	case changeset := <-w.CertAuthorityC:
 		require.Len(t, changeset, 0)
+		require.Empty(t, nothingWatcher.GetCurrent())
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
@@ -766,6 +786,7 @@ func TestCertAuthorityWatcher(t *testing.T) {
 	case changeset := <-w.CertAuthorityC:
 		require.Len(t, changeset, 1)
 		require.Empty(t, caDiff(changeset[0], ca1))
+		require.Empty(t, nothingWatcher.GetCurrent())
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
@@ -780,6 +801,7 @@ func TestCertAuthorityWatcher(t *testing.T) {
 	select {
 	case changeset := <-w.CertAuthorityC:
 		require.Len(t, changeset, 2)
+		require.Empty(t, nothingWatcher.GetCurrent())
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
@@ -794,6 +816,7 @@ func TestCertAuthorityWatcher(t *testing.T) {
 	case changeset := <-w.CertAuthorityC:
 		require.Len(t, changeset, 1)
 		require.Empty(t, caDiff(changeset[0], ca2))
+		require.Empty(t, nothingWatcher.GetCurrent())
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
