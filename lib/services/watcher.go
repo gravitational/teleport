@@ -990,17 +990,11 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 	defer c.lock.Unlock()
 	switch event.Type {
 	case types.OpDelete:
-		ca, ok := event.Resource.(types.CertAuthority)
-		if !ok {
-			c.Log.Warnf("Unexpected resource type %T.", event.Resource)
-			return
+		if event.Resource.GetSubKind() == string(types.HostCA) {
+			delete(c.host, event.Resource.GetName())
 		}
-
-		if ca.GetType() == types.HostCA {
-			delete(c.host, ca.GetName())
-		}
-		if ca.GetType() == types.UserCA {
-			delete(c.user, ca.GetName())
+		if event.Resource.GetSubKind() == string(types.UserCA) {
+			delete(c.user, event.Resource.GetName())
 		}
 
 		c.CertAuthorityC <- casToSlice(c.host, c.user)

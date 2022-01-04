@@ -478,10 +478,10 @@ func (s *remoteSite) watchCertAuthorities() error {
 			return trace.Wrap(s.ctx.Err())
 		case <-localWatcher.Done():
 			s.Warn("Local CertAuthority watcher subscription has closed")
-			return fmt.Errorf("local ca watcher closed")
+			return fmt.Errorf("local ca watcher for cluster %s has closed", s.srv.ClusterName)
 		case <-remoteWatcher.Done():
 			s.Warn("Remote CertAuthority watcher subscription has closed")
-			return fmt.Errorf("remmote ca watcher closed")
+			return fmt.Errorf("remote ca watcher for cluster %s has closed", s.domainName)
 		case cas := <-localWatcher.CertAuthorityC:
 			for _, localCA := range cas {
 				if localCA.GetClusterName() != s.srv.ClusterName ||

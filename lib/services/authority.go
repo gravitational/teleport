@@ -39,15 +39,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// AuthorityGetter defines interface for fetching cert authority resources.
-type AuthorityGetter interface {
-	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...MarshalOption) (types.CertAuthority, error)
-
-	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...MarshalOption) ([]types.CertAuthority, error)
-}
-
 // CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
 // This differs from normal equality only in that resource IDs are ignored.
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
