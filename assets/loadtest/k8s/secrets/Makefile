@@ -23,14 +23,14 @@ env:
 		exit 1; \
 	fi
 
-	@echo PROXY_IP=$(shell make -C ../../network get-proxy-ip) > secrets.env
+	@echo PROXY_IP=$(shell make --no-print-directory -C ../../network get-proxy-ip) > secrets.env
 	@echo PROXY_HOST=${PROXY_HOST} >> secrets.env
-	@echo GRAFANA_IP=$(shell make -C ../../network get-grafana-ip) >> secrets.env
+	@echo GRAFANA_IP=$(shell make --no-print-directory -C ../../network get-grafana-ip) >> secrets.env
 	@echo GRAFANA_HOST=${GRAFANA_HOST} >> secrets.env
 	@echo NODE_TOKEN=$(shell cat node-token) >> secrets.env
 	@echo PROXY_TOKEN=$(shell cat proxy-token) >> secrets.env
 	@echo TC_TOKEN=$(shell cat tc-token) >> secrets.env
-	@echo GCP_PROJECT=$(shell make -C ../../cluster get-project) >> secrets.env
+	@echo GCP_PROJECT=$(shell make --no-print-directory -C ../../cluster get-project) >> secrets.env
 
 grafana-pass:
 	openssl rand -base64 32 | tr -d '\n' > grafana-pass

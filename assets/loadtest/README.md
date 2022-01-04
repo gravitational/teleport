@@ -16,7 +16,9 @@ Teleports manual release test plan.
     - `gcloud`
     - `kubectl`
 - Make sure that you have a GCP service account key with `Compute Admin`, `Compute Network Admin`,
-      `Kubernetes Engine Admin`, `Kubernetes Engine Cluster Admin`, and `Service Account User`
+      `Kubernetes Engine Admin`, `Kubernetes Engine Cluster Admin`, and `Service Account User`.  If you are using
+      the default `gcs` backend for the network configuration, you will need `Storage Object Creator` and
+      `Storage Object Viewer` as well.
   - To authenticate as the service account follow these [instructions](https://cloud.google.com/docs/authentication/production)
 - Make sure you have reserved static ip addresses for the proxy and grafana
   - This only needs to be done once per GCP project, see the [network docs](./network/README.md) for details

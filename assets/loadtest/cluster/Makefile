@@ -11,7 +11,7 @@ apply:
 # authorize kubectl to manage the cluster
 .PHONY: get-creds
 get-creds:
-	gcloud container clusters get-credentials $(shell make get-cluster-name) --zone us-central1 --project teleport-loadtest
+	gcloud container clusters get-credentials $(shell make --no-print-directory get-cluster-name) --zone us-central1 --project teleport-loadtest
 
 # destroy the cluster
 .PHONY: destroy

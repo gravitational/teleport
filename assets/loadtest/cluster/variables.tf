@@ -1,6 +1,7 @@
 variable "project" {
   type        = string
   description = "The project to manage resources in."
+  default = "teleport-loadtest"
 }
 
 variable "region" {
