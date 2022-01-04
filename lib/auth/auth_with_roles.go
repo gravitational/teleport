@@ -93,6 +93,23 @@ func (a *ServerWithRoles) withOptions(opts ...actionOption) actionConfig {
 	return cfg
 }
 
+func (a *ServerWithRoles) withStaticRoles() (actionConfig, error) {
+	user, err := a.authServer.GetUser(a.context.User.GetName(), false)
+	if err != nil {
+		return actionConfig{}, trace.Wrap(err)
+	}
+
+	checker, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	if err != nil {
+		return actionConfig{}, trace.Wrap(err)
+	}
+
+	return actionConfig{context: Context{
+		User:    user,
+		Checker: checker,
+	}}, nil
+}
+
 func (c actionConfig) action(namespace, resource string, verbs ...string) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("no verbs provided for authorization check on resource %q", resource)
@@ -1385,7 +1402,17 @@ func (a *ServerWithRoles) getProxyPublicAddr() string {
 }
 
 func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {
-	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbDelete); err != nil {
+	cfg, err := a.withStaticRoles()
+	if err != nil {
+		return err
+	}
+	if err := cfg.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbDelete); err != nil {
+		if trace.IsAccessDenied(err) {
+			if a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbDelete) == nil {
+				// the user would've had permission with the roles granted by access requests
+				return trace.WrapWithMessage(err, "access request deletion through elevated roles is not allowed")
+			}
+		}
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAccessRequest(ctx, name)
@@ -1597,6 +1624,16 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 		if req.Expires.Before(a.authServer.GetClock().Now()) {
 			return nil, trace.AccessDenied("access denied: client credentials have expired, please relogin.")
+		}
+	}
+
+	if req.Username == a.context.User.GetName() {
+		// we're going to extend the roles list based on the access requests, so
+		// we ensure that all the current requests are added to the new
+		// certificate (and are checked again)
+		req.AccessRequests = append(req.AccessRequests, a.context.Identity.GetIdentity().ActiveRequests...)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
