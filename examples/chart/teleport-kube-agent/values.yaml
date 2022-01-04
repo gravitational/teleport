@@ -48,8 +48,6 @@ teleportVersionOverride: ""
 # When set to true, the agent will skip the verification of proxy TLS
 # certificate.
 insecureSkipProxyTLSVerify: false
-# Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
-auditLogMirrorOnStdout: false
 
 # If set, will use an existing volume mounted via extraVolumes
 # as the Teleport data directory.
