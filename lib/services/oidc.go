@@ -39,8 +39,12 @@ func ValidateOIDCConnector(oc types.OIDCConnector) error {
 		return trace.BadParameter("RedirectURL: bad url: '%v'", oc.GetRedirectURL())
 	}
 
+	if oc.GetGoogleServiceAccountURI() == "" && oc.GetGoogleServiceAccount() == "" {
+		return nil
+	}
+
 	if oc.GetGoogleServiceAccountURI() != "" && oc.GetGoogleServiceAccount() != "" {
-		return trace.BadParameter("one of either google_service_account_uri or google_service_account is supported, not both")
+		return trace.BadParameter("at most one of google_service_account_uri and google_service_account can be specified, not both")
 	}
 
 	if oc.GetGoogleServiceAccountURI() != "" {
@@ -51,15 +55,12 @@ func ValidateOIDCConnector(oc types.OIDCConnector) error {
 		if uri.Scheme != teleport.SchemeFile {
 			return trace.BadParameter("only %v:// scheme is supported for google_service_account_uri", teleport.SchemeFile)
 		}
-		if oc.GetGoogleAdminEmail() == "" {
-			return trace.BadParameter("whenever google_service_account_uri is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
-		}
 	}
-	if oc.GetGoogleServiceAccount() != "" {
-		if oc.GetGoogleAdminEmail() == "" {
-			return trace.BadParameter("whenever google_service_account is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
-		}
+
+	if oc.GetGoogleAdminEmail() == "" && !oc.GetGoogleTransitiveGroups() {
+		return trace.BadParameter("whenever google_service_account_uri or google_service_account are specified and google_transitive_groups is not set, google_admin_email should be specified as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
 	}
+
 	return nil
 }
 
