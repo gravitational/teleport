@@ -364,6 +364,9 @@ type ProxyConfig struct {
 	// MySQLAddr is address of MySQL proxy.
 	MySQLAddr utils.NetAddr
 
+	// RedisAddr is address of Redis proxy.
+	RedisAddr utils.NetAddr
+
 	// PostgresAddr is address of Postgres proxy.
 	PostgresAddr utils.NetAddr
 

@@ -40,6 +40,7 @@ var (
 	listenerProxyWeb          = listenerType(teleport.Component(teleport.ComponentProxy, "web"))
 	listenerProxyTunnel       = listenerType(teleport.Component(teleport.ComponentProxy, "tunnel"))
 	listenerProxyMySQL        = listenerType(teleport.Component(teleport.ComponentProxy, "mysql"))
+	listenerProxyRedis        = listenerType(teleport.Component(teleport.ComponentProxy, "redis"))
 	listenerProxyPostgres     = listenerType(teleport.Component(teleport.ComponentProxy, "postgres"))
 	listenerProxyMongo        = listenerType(teleport.Component(teleport.ComponentProxy, "mongo"))
 	listenerMetrics           = listenerType(teleport.ComponentMetrics)

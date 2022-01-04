@@ -224,6 +224,8 @@ func toALPNProtocol(dbProtocol string) (alpncommon.Protocol, error) {
 		return alpncommon.ProtocolPostgres, nil
 	case defaults.ProtocolMongoDB:
 		return alpncommon.ProtocolMongoDB, nil
+	case defaults.ProtocolRedis:
+		return alpncommon.ProtocolRedisDB, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}

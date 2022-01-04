@@ -66,6 +66,9 @@ const (
 	// MongoListenPort is the default listen port for Mongo proxy.
 	MongoListenPort = 27017
 
+	// RedisListenPort is the default listen port for Redis proxy.
+	RedisListenPort = 6379
+
 	// MetricsListenPort is the default listen port for the metrics service.
 	MetricsListenPort = 3081
 
@@ -497,6 +500,8 @@ const (
 	ProtocolMySQL = "mysql"
 	// ProtocolMongoDB is the MongoDB database protocol.
 	ProtocolMongoDB = "mongodb"
+	// ProtocolRedis is the Redis database protocol.
+	ProtocolRedis = "redis"
 	// ProtocolCockroachDB is the CockroachDB database protocol.
 	//
 	// Technically it's the same as the Postgres protocol, but it's used to
@@ -511,6 +516,7 @@ var DatabaseProtocols = []string{
 	ProtocolMySQL,
 	ProtocolMongoDB,
 	ProtocolCockroachDB,
+	ProtocolRedis,
 }
 
 const (

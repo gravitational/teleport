@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -206,6 +207,43 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 	}
 }
 
+// ServeRedis starts accepting Redis client connections.
+func (s *ProxyServer) ServeRedis(listener net.Listener, tlsConfig *tls.Config) error {
+	s.log.Debug("Started Redis proxy.")
+	defer s.log.Debug("Redis proxy exited.")
+	for {
+		// Accept the connection from a Redis client.
+		clientConn, err := listener.Accept()
+		if err != nil {
+			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+		//// Pass over to the Redis proxy handler.
+		//go func() {
+		//	defer clientConn.Close()
+		//	err := s.RedisProxy().HandleConnection(s.closeCtx, clientConn)
+		//	if err != nil && !utils.IsOKNetworkError(err) {
+		//		s.log.WithError(err).Error("Failed to handle Redis client connection.")
+		//	}
+		//}()
+
+		go func() {
+			defer clientConn.Close()
+			tlsConn := tls.Server(clientConn, tlsConfig)
+			if err := tlsConn.Handshake(); err != nil {
+				s.log.WithError(err).Error("Redis TLS handshake failed.")
+				return
+			}
+			err := s.handleConnection(tlsConn)
+			if err != nil {
+				s.log.WithError(err).Error("Failed to handle Redis client connection.")
+			}
+		}()
+	}
+}
+
 // ServeMongo starts accepting Mongo client connections.
 func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) error {
 	s.log.Debug("Started Mongo proxy.")
@@ -310,6 +348,16 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 		Middleware: s.middleware,
 		Service:    s,
 		Limiter:    s.cfg.Limiter,
+		Log:        s.log,
+	}
+}
+
+// RedisProxy returns a new instance of the Redis protocol aware proxy.
+func (s *ProxyServer) RedisProxy() *redis.Proxy {
+	return &redis.Proxy{
+		TLSConfig:  s.cfg.TLSConfig,
+		Middleware: s.middleware,
+		Service:    s,
 		Log:        s.log,
 	}
 }

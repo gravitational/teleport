@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/uuid"
@@ -775,6 +776,14 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		}, nil
 	case defaults.ProtocolMongoDB:
 		return &mongodb.Engine{
+			Auth:    s.cfg.Auth,
+			Audit:   audit,
+			Context: s.closeContext,
+			Clock:   s.cfg.Clock,
+			Log:     sessionCtx.Log,
+		}, nil
+	case defaults.ProtocolRedis:
+		return &redis.Engine{
 			Auth:    s.cfg.Auth,
 			Audit:   audit,
 			Context: s.closeContext,

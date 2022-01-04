@@ -202,6 +202,9 @@ type Config struct {
 	// MongoProxyAddr is the host:port the Mongo proxy can be accessed at.
 	MongoProxyAddr string
 
+	// RedisProxyAddr is the host:port the Redis proxy can be accessed at.
+	RedisProxyAddr string
+
 	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
 	MySQLProxyAddr string
 
@@ -1012,6 +1015,17 @@ func (c *Config) MongoProxyHostPort() (string, int) {
 	return c.WebProxyHostPort()
 }
 
+// RedisProxyHostPort returns the host and port of Mongo proxy.
+func (c *Config) RedisProxyHostPort() (string, int) {
+	if c.RedisProxyAddr != "" {
+		addr, err := utils.ParseAddr(c.RedisProxyAddr)
+		if err == nil {
+			return addr.Host(), addr.Port(defaults.RedisListenPort)
+		}
+	}
+	return c.WebProxyHostPort()
+}
+
 // MySQLProxyHostPort returns the host and port of MySQL proxy.
 func (c *Config) MySQLProxyHostPort() (string, int) {
 	if c.MySQLProxyAddr != "" {
@@ -1033,6 +1047,8 @@ func (c *Config) DatabaseProxyHostPort(db tlsca.RouteToDatabase) (string, int) {
 		return c.MySQLProxyHostPort()
 	case defaults.ProtocolMongoDB:
 		return c.MongoProxyHostPort()
+	case defaults.ProtocolRedis:
+		return c.RedisProxyHostPort()
 	}
 	return c.WebProxyHostPort()
 }
