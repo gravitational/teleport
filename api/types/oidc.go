@@ -88,6 +88,10 @@ type OIDCConnector interface {
 	// https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority
 	// "Note: Although you can use service accounts in applications that run from a Google Workspace (formerly G Suite) domain, service accounts are not members of your Google Workspace account and aren’t subject to domain policies set by  administrators. For example, a policy set in the Google Workspace admin console to restrict the ability of end users to share documents outside of the domain would not apply to service accounts."
 	GetGoogleAdminEmail() string
+	// GetGoogleTransitiveGroups returns true if the connector is meant to fetch
+	// the list of transitive groups or just the groups that users directly
+	// belong to.
+	GetGoogleTransitiveGroups() bool
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV2.
@@ -141,6 +145,11 @@ func (o *OIDCConnectorV2) SetGoogleServiceAccount(s string) {
 // GetGoogleAdminEmail returns a google admin user email
 func (o *OIDCConnectorV2) GetGoogleAdminEmail() string {
 	return o.Spec.GoogleAdminEmail
+}
+
+// GetGoogleTransitiveGroups returns true if we should fetch transitive groups
+func (o *OIDCConnectorV2) GetGoogleTransitiveGroups() bool {
+	return o.Spec.GoogleTransitiveGroups
 }
 
 // GetVersion returns resource version

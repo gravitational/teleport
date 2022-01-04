@@ -2366,6 +2366,9 @@ message OIDCConnectorSpecV2 {
     string GoogleServiceAccount = 12 [ (gogoproto.jsontag) = "google_service_account,omitempty" ];
     // GoogleAdminEmail is the email of a google admin to impersonate.
     string GoogleAdminEmail = 13 [ (gogoproto.jsontag) = "google_admin_email,omitempty" ];
+    // GoogleTransitiveGroups determines if we should fetch the list of
+    // transitive groups or just the groups that users directly belong to.
+    bool GoogleTransitiveGroups = 14 [ (gogoproto.jsontag) = "google_transitive_groups,omitempty" ];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
