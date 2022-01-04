@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -30,8 +29,7 @@ func (m *reportMode) String() string {
 		return byTestName
 
 	default:
-		log.Fatalf("Unexpected report mode %d", *m)
-		return ""
+		return fmt.Sprintf("Unknown filter mode %d", *m)
 	}
 }
 
