@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -58,7 +57,7 @@ func TestServerKeyAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &server{
-		log: testlog.FailureOnly(t),
+		log: utils.NewLoggerForTests(),
 		localAccessPoint: mockAccessPoint{
 			ca: ca,
 		},
