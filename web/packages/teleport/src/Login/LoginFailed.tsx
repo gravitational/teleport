@@ -26,6 +26,9 @@ export default function Container() {
       <Route path={cfg.routes.loginErrorCallback}>
         <LoginFailed message="unable to process callback" />
       </Route>
+      <Route path={cfg.routes.loginErrorUnauthorized}>
+        <LoginFailed message="You are not authorized, please contact your SSO administrator." />
+      </Route>
       <Route component={LoginFailed} />
     </Switch>
   );
