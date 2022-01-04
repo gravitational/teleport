@@ -301,6 +301,7 @@ clean:
 	rm -rf *.gz
 	rm -rf *.zip
 	rm -f gitref.go
+	rm -rf build.assets/tooling/bin
 
 #
 # make release - Produces a binary release tarball.
@@ -437,6 +438,11 @@ docs-test-whitespace:
 
 
 ifeq (${DISABLE_TEST_TARGETS},)
+
+RENDER_TESTS := ./build.assets/tooling/bin/render-tests
+$(RENDER_TESTS): $(wildcard ./build.assets/tooling/cmd/render-tests)
+	go build -o "$@" ./build.assets/tooling/cmd/render-tests
+
 #
 # Runs all Go/shell tests, called by CI/CD.
 #
@@ -448,15 +454,16 @@ test: test-sh test-api test-go
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 #
 .PHONY: test-go
-test-go: ensure-webassets bpf-bytecode roletester rdpclient
+test-go: ensure-webassets bpf-bytecode roletester rdpclient $(RENDER_TESTS)
 test-go: FLAGS ?= '-race'
 test-go: PACKAGES := $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
-		| go run build.assets/render-tests/main.go
-	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
-		| go run build.assets/render-tests/main.go
+		| ${RENDER_TESTS}
+	#	| go run build.assets/render-tests/main.go
+	# $(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
+	# 	| go run build.assets/render-tests/main.go
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
