@@ -1432,9 +1432,9 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	bcfg.SSH.Enabled = false
 
 	require.NoError(t, b.CreateEx(t, a.Secrets.AsSlice(), bcfg))
-	defer b.StopAll()
+	t.Cleanup(func() { require.NoError(t, b.StopAll()) })
 	require.NoError(t, a.CreateEx(t, b.Secrets.AsSlice(), acfg))
-	defer a.StopAll()
+	t.Cleanup(func() { require.NoError(t, a.StopAll()) })
 
 	require.NoError(t, b.Start())
 	require.NoError(t, a.Start())
@@ -1522,11 +1522,13 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	// try to execute an SSH command using the same old client to Site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
 	// and 'tc' (client) is also supposed to reconnect
+	var sshErr error
 	tcHasReconnected := func() bool {
-		return tc.SSH(context.TODO(), cmd, false) == nil
+		sshErr = tc.SSH(context.TODO(), cmd, false)
+		return sshErr == nil
 	}
 	require.Eventually(t, tcHasReconnected, 10*time.Second, 250*time.Millisecond,
-		"Timed out waiting for Site A to restart")
+		"Timed out waiting for Site A to restart: %v", sshErr)
 
 	clientHasEvents := func(site auth.ClientI, count int) func() bool {
 		// only look for exec events
@@ -1546,11 +1548,6 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	siteB := b.GetSiteAPI(b.Secrets.SiteName)
 	require.Eventually(t, clientHasEvents(siteB, execCountSiteB), 5*time.Second, 500*time.Millisecond,
 		"Failed to find %d events on Site B after 5s", execCountSiteB)
-
-	// stop both sites for real
-	require.NoError(t, b.StopAll())
-
-	require.NoError(t, a.StopAll())
 }
 
 // TestTwoClustersProxy checks if the reverse tunnel uses a HTTP PROXY to
@@ -5396,7 +5393,7 @@ func (s *integrationTestSuite) newNamedTeleportInstance(t *testing.T, clusterNam
 		NodeName:    Host,
 		Priv:        s.priv,
 		Pub:         s.pub,
-		log:         s.log,
+		log:         utils.WrapLogger(s.log.WithField("cluster", clusterName)),
 		Ports:       standardPortSetup(),
 	}
 	for _, opt := range opts {
