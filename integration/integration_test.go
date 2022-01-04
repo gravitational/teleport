@@ -3836,6 +3836,8 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 		if err != nil {
 			return err
 		}
+		defer watcher.Close()
+
 		var lastPhase string
 		for i := 0; i < 10; i++ {
 			select {

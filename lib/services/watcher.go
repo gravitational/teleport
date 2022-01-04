@@ -941,7 +941,7 @@ type caCollector struct {
 	CertAuthorityWatcherConfig
 	host map[string]types.CertAuthority
 	user map[string]types.CertAuthority
-	lock sync.RWMutex
+	lock sync.Mutex
 }
 
 // resourceKind specifies the resource kind to watch.
