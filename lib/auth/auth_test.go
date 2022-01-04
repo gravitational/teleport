@@ -1132,20 +1132,22 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	user, role, err := CreateUserAndRole(p.a, "test-user", []string{})
 	require.NoError(t, err)
 	mfaID := "test-mfa-id"
+	requestID := "test-access-request"
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
 	certReq := certRequest{
-		user:        user,
-		checker:     services.NewRoleSet(role),
-		mfaVerified: mfaID,
-		publicKey:   pub,
+		user:           user,
+		checker:        services.NewRoleSet(role),
+		mfaVerified:    mfaID,
+		publicKey:      pub,
+		activeRequests: services.RequestIDs{AccessRequests: []string{requestID}},
 	}
 	_, err = p.a.generateUserCert(certReq)
 	require.NoError(t, err)
 
 	testTargets := append(
-		[]types.LockTarget{{User: user.GetName()}, {MFADevice: mfaID}},
+		[]types.LockTarget{{User: user.GetName()}, {MFADevice: mfaID}, {AccessRequest: requestID}},
 		services.RolesToLockTargets(user.GetRoles())...,
 	)
 	for _, target := range testTargets {
