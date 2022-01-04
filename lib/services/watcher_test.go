@@ -82,8 +82,12 @@ func TestResourceWatcher_Backoff(t *testing.T) {
 
 			require.GreaterOrEqual(t, duration, stepMin)
 			require.LessOrEqual(t, duration, stepMax)
+
+			// wait for watcher to get to retry.After
+			clock.BlockUntil(1)
+
 			// add some extra to the duration to ensure the retry occurs
-			clock.Advance(duration * 3)
+			clock.Advance(w.MaxRetryPeriod)
 		case <-time.After(time.Minute):
 			t.Fatalf("timeout waiting for reset")
 		}
