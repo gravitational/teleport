@@ -858,8 +858,7 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	nodeConf.Auth.Enabled = false
 	nodeConf.Proxy.Enabled = false
 	nodeConf.SSH.Enabled = true
-	os.Setenv(apidefaults.TunnelPublicAddrEnvar, main.GetWebAddr())
-	t.Cleanup(func() { os.Unsetenv(apidefaults.TunnelPublicAddrEnvar) })
+	t.Setenv(apidefaults.TunnelPublicAddrEnvar, main.GetWebAddr())
 
 	// verify the node is able to join the cluster
 	_, err = main.StartReverseTunnelNode(nodeConf)
@@ -1401,7 +1400,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 
 	// clear out any proxy environment variables
 	for _, v := range []string{"http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"} {
-		os.Setenv(v, "")
+		t.Setenv(v, "")
 	}
 
 	username := suite.me.Username
@@ -1568,8 +1567,7 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 	// set the http_proxy environment variable
 	u, err := url.Parse(ts.URL)
 	require.NoError(t, err)
-	os.Setenv("http_proxy", u.Host)
-	defer os.Setenv("http_proxy", "")
+	t.Setenv("http_proxy", u.Host)
 
 	username := suite.me.Username
 
@@ -1907,6 +1905,8 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 // tryCreateTrustedCluster performs several attempts to create a trusted cluster,
 // retries on connection problems and access denied errors to let caches
 // propagate and services to start
+//
+// Duplicated in tool/tsh/tsh_test.go
 func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
@@ -3446,6 +3446,10 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	tconf := suite.rotationConfig(true)
 	config, err := teleport.GenerateConfig(t, nil, tconf)
 	require.NoError(t, err)
+
+	// Enable Kubernetes service to test issue where the `KubernetesReady` event was not properly propagated
+	// and in the case where Kube service was enabled cert rotation flow was broken.
+	enableKubernetesService(t, config)
 
 	serviceC := make(chan *service.TeleportProcess, 20)
 

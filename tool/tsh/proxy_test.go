@@ -47,14 +47,9 @@ import (
 
 // TestProxySSHDial verifies "tsh proxy ssh" command.
 func TestProxySSHDial(t *testing.T) {
-	// Setup ssh agent.
-	sockPath := createAgent(t)
-	os.Setenv("SSH_AUTH_SOCK", sockPath)
+	createAgent(t)
 
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
 	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV4{
@@ -87,7 +82,7 @@ func TestProxySSHDial(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	})
@@ -102,7 +97,7 @@ func TestProxySSHDial(t *testing.T) {
 	// as communication channels but in unit test there is no easy way to mock this behavior.
 	err = Run([]string{
 		"proxy", "ssh", unreachableSubsystem,
-	})
+	}, setHomePath(tmpHomePath))
 	require.Contains(t, err.Error(), "subsystem request failed")
 }
 
@@ -210,6 +205,7 @@ func createAgent(t *testing.T) string {
 	})
 
 	sockPath := filepath.Join(sockDir, "agent.sock")
+	t.Setenv("SSH_AUTH_SOCK", sockPath)
 
 	uid, err := strconv.Atoi(user.Uid)
 	require.NoError(t, err)

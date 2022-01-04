@@ -34,6 +34,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -213,8 +214,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	// set the http_proxy environment variable
 	u, err := url.Parse(ts.URL)
 	require.NoError(t, err)
-	os.Setenv("http_proxy", u.Host)
-	defer os.Setenv("http_proxy", "")
+	t.Setenv("http_proxy", u.Host)
 
 	username := mustGetCurrentUser(t).Username
 
@@ -576,6 +576,56 @@ func TestALPNProxyRootLeafAuthDial(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestALPNProxyAuthClientConnectWithUserIdentity creates and connects to the Auth service
+// using user identity file when teleport is configured with Multiple proxy listener mode.
+func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	rc := NewInstance(InstanceConfig{
+		ClusterName: "root.example.com",
+		HostID:      uuid.New(),
+		NodeName:    Loopback,
+		log:         testlog.FailureOnly(t),
+		Ports:       singleProxyPortSetup(),
+	})
+
+	rcConf := service.MakeDefaultConfig()
+	rcConf.DataDir = t.TempDir()
+	rcConf.Auth.Enabled = true
+	rcConf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Proxy.Enabled = true
+	rcConf.Proxy.DisableWebInterface = true
+	rcConf.SSH.Enabled = false
+	rcConf.Version = "v2"
+
+	username := mustGetCurrentUser(t).Username
+	rc.AddUser(username, []string{username})
+
+	err := rc.CreateEx(t, nil, rcConf)
+	require.NoError(t, err)
+	err = rc.Start()
+	require.NoError(t, err)
+	defer rc.StopAll()
+
+	identityFilePath := mustCreateUserIdentityFile(t, rc, username)
+
+	identity := client.LoadIdentityFile(identityFilePath)
+	require.NoError(t, err)
+
+	tc, err := client.New(context.Background(), client.Config{
+		Addrs:                    []string{rc.GetWebAddr()},
+		Credentials:              []client.Credentials{identity},
+		InsecureAddressDiscovery: true,
+	})
+	require.NoError(t, err)
+
+	resp, err := tc.Ping(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, rc.Secrets.SiteName, resp.ClusterName)
+}
+
 // TestALPNProxyDialProxySSHWithoutInsecureMode tests dialing to the localhost with teleport-proxy-ssh
 // protocol without using insecure mode in order to check if establishing connection to localhost works properly.
 func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
@@ -641,4 +691,73 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 	err = tc.SSH(ctx, cmd, false)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output.String())
+}
+
+// TestALPNProxyHTTPProxyNoProxyDial tests if a node joining to root cluster
+// takes into account http_proxy and no_proxy env variables.
+func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	rc := NewInstance(InstanceConfig{
+		ClusterName: "root.example.com",
+		HostID:      uuid.New(),
+		NodeName:    Loopback,
+		log:         testlog.FailureOnly(t),
+		Ports:       singleProxyPortSetup(),
+	})
+	username := mustGetCurrentUser(t).Username
+	rc.AddUser(username, []string{username})
+
+	rcConf := service.MakeDefaultConfig()
+	rcConf.DataDir = t.TempDir()
+	rcConf.Auth.Enabled = true
+	rcConf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Proxy.Enabled = true
+	rcConf.Proxy.DisableWebInterface = true
+	rcConf.SSH.Enabled = false
+
+	err := rc.CreateEx(t, nil, rcConf)
+	require.NoError(t, err)
+
+	err = rc.Start()
+	require.NoError(t, err)
+	defer rc.StopAll()
+
+	// Create and start http_proxy server.
+	ps := &proxyServer{}
+	ts := httptest.NewServer(ps)
+	defer ts.Close()
+
+	u, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+
+	t.Setenv("http_proxy", u.Host)
+	t.Setenv("no_proxy", "127.0.0.1")
+
+	rcProxyAddr := net.JoinHostPort(Loopback, rc.GetPortWeb())
+
+	// Start the node, due to no_proxy=127.0.0.1 env variable the connection established
+	// to the proxy should not go through the http_proxy server.
+	_, err = rc.StartNode(makeNodeConfig("first-root-node", rcProxyAddr))
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*30))
+	defer cancel()
+
+	err = waitForNodeCount(ctx, rc, "root.example.com", 1)
+	require.NoError(t, err)
+
+	require.Zero(t, ps.Count())
+
+	// Unset the no_proxy=127.0.0.1 env variable. After that a new node
+	// should take into account the http_proxy address and connection should go through the http_proxy.
+	require.NoError(t, os.Unsetenv("no_proxy"))
+	_, err = rc.StartNode(makeNodeConfig("second-root-node", rcProxyAddr))
+	require.NoError(t, err)
+	err = waitForNodeCount(ctx, rc, "root.example.com", 2)
+	require.NoError(t, err)
+
+	require.NotZero(t, ps.Count())
 }

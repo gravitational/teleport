@@ -18,18 +18,24 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/pem"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -38,10 +44,7 @@ import (
 
 // TestDatabaseLogin verifies "tsh db login" command.
 func TestDatabaseLogin(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
 
@@ -69,24 +72,24 @@ func TestDatabaseLogin(t *testing.T) {
 	// Log into Teleport cluster.
 	err = Run([]string{
 		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
-	}, cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	}))
 	require.NoError(t, err)
 
 	// Fetch the active profile.
-	profile, err := client.StatusFor("", proxyAddr.Host(), alice.GetName())
+	profile, err := client.StatusFor(tmpHomePath, proxyAddr.Host(), alice.GetName())
 	require.NoError(t, err)
 
 	// Log into test Postgres database.
 	err = Run([]string{
 		"db", "login", "--debug", "postgres",
-	})
+	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	// Verify Postgres identity file contains certificate.
-	certs, keys, err := decodePEM(profile.DatabaseCertPath("postgres"))
+	certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", "postgres"))
 	require.NoError(t, err)
 	require.Len(t, certs, 1)
 	require.Len(t, keys, 0)
@@ -94,14 +97,148 @@ func TestDatabaseLogin(t *testing.T) {
 	// Log into test Mongo database.
 	err = Run([]string{
 		"db", "login", "--debug", "--db-user", "admin", "mongo",
-	})
+	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	// Verify Mongo identity file contains both certificate and key.
-	certs, keys, err = decodePEM(profile.DatabaseCertPath("mongo"))
+	certs, keys, err = decodePEM(profile.DatabaseCertPathForCluster("", "mongo"))
 	require.NoError(t, err)
 	require.Len(t, certs, 1)
 	require.Len(t, keys, 1)
+}
+
+func TestFormatDatabaseListCommand(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		require.Equal(t, "tsh db ls", formatDatabaseListCommand(""))
+	})
+
+	t.Run("with cluster flag", func(t *testing.T) {
+		require.Equal(t, "tsh db ls --cluster=leaf", formatDatabaseListCommand("leaf"))
+	})
+}
+
+func TestFormatConfigCommand(t *testing.T) {
+	db := tlsca.RouteToDatabase{
+		ServiceName: "example-db",
+	}
+
+	t.Run("default", func(t *testing.T) {
+		require.Equal(t, "tsh db config --format=cmd example-db", formatDatabaseConfigCommand("", db))
+	})
+
+	t.Run("with cluster flag", func(t *testing.T) {
+		require.Equal(t, "tsh db config --cluster=leaf --format=cmd example-db", formatDatabaseConfigCommand("leaf", db))
+	})
+}
+
+func TestDBInfoHasChanged(t *testing.T) {
+	tests := []struct {
+		name               string
+		databaseUserName   string
+		databaseName       string
+		db                 tlsca.RouteToDatabase
+		wantUserHasChanged bool
+	}{
+		{
+			name:             "empty cli database user flag",
+			databaseUserName: "",
+			db: tlsca.RouteToDatabase{
+				Username: "alice",
+				Protocol: defaults.ProtocolMongoDB,
+			},
+			wantUserHasChanged: false,
+		},
+		{
+			name:             "different user",
+			databaseUserName: "alice",
+			db: tlsca.RouteToDatabase{
+				Username: "bob",
+				Protocol: defaults.ProtocolMongoDB,
+			},
+			wantUserHasChanged: true,
+		},
+		{
+			name:             "different user mysql protocol",
+			databaseUserName: "alice",
+			db: tlsca.RouteToDatabase{
+				Username: "bob",
+				Protocol: defaults.ProtocolMySQL,
+			},
+			wantUserHasChanged: true,
+		},
+		{
+			name:             "same user",
+			databaseUserName: "bob",
+			db: tlsca.RouteToDatabase{
+				Username: "bob",
+				Protocol: defaults.ProtocolMongoDB,
+			},
+			wantUserHasChanged: false,
+		},
+		{
+			name:             "empty cli database user and database name flags",
+			databaseUserName: "",
+			databaseName:     "",
+			db: tlsca.RouteToDatabase{
+				Username: "alice",
+				Protocol: defaults.ProtocolMongoDB,
+			},
+			wantUserHasChanged: false,
+		},
+		{
+			name:             "different database name",
+			databaseUserName: "",
+			databaseName:     "db1",
+			db: tlsca.RouteToDatabase{
+				Username: "alice",
+				Database: "db2",
+				Protocol: defaults.ProtocolMongoDB,
+			},
+			wantUserHasChanged: true,
+		},
+		{
+			name:             "same database name",
+			databaseUserName: "",
+			databaseName:     "db1",
+			db: tlsca.RouteToDatabase{
+				Username: "alice",
+				Database: "db1",
+				Protocol: defaults.ProtocolMongoDB,
+			},
+			wantUserHasChanged: false,
+		},
+	}
+
+	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	require.NoError(t, err)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			identity := tlsca.Identity{
+				Username:        "user",
+				RouteToDatabase: tc.db,
+				Groups:          []string{"none"},
+			}
+			subj, err := identity.Subject()
+			require.NoError(t, err)
+			certBytes, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+				PublicKey: privateKey.Public(),
+				Subject:   subj,
+				NotAfter:  time.Now().Add(time.Hour),
+			})
+			require.NoError(t, err)
+
+			certPath := filepath.Join(t.TempDir(), "mongo_db_cert.pem")
+			require.NoError(t, ioutil.WriteFile(certPath, certBytes, 0600))
+
+			cliConf := &CLIConf{DatabaseUser: tc.databaseUserName, DatabaseName: tc.databaseName}
+			got, err := dbInfoHasChanged(cliConf, certPath)
+			require.NoError(t, err)
+			require.Equal(t, tc.wantUserHasChanged, got)
+		})
+	}
 }
 
 func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *service.TeleportProcess, dbs ...service.Database) (db *service.TeleportProcess) {

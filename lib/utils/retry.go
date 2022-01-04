@@ -220,6 +220,9 @@ func (r *Linear) Duration() time.Duration {
 	if a <= r.Max {
 		return a
 	}
+	if r.Jitter != nil {
+		return r.Jitter(r.Max)
+	}
 	return r.Max
 }
 

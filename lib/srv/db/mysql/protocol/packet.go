@@ -89,6 +89,18 @@ type Quit struct {
 	packet
 }
 
+// ChangeUser represents the COM_CHANGE_USER command.
+type ChangeUser struct {
+	packet
+	// user is the requested user.
+	user string
+}
+
+// User returns the requested user.
+func (p *ChangeUser) User() string {
+	return p.user
+}
+
 // ParsePacket reads a protocol packet from the connection and returns it
 // in a parsed form. See ReadPacket below for the packet structure.
 func ParsePacket(conn net.Conn) (Packet, error) {
@@ -130,6 +142,18 @@ func ParsePacket(conn net.Conn) (Packet, error) {
 
 	case mysql.COM_QUIT:
 		return &Quit{packet: packet}, nil
+
+	case mysql.COM_CHANGE_USER:
+		if len(packetBytes) < 5 {
+			return nil, trace.BadParameter("failed to parse COM_CHANGE_USER packet: %s", packetBytes)
+		}
+		// User is the first null-terminated string in the payload:
+		// https://dev.mysql.com/doc/internals/en/com-change-user.html#packet-COM_CHANGE_USER
+		idx := bytes.IndexByte(packetBytes[5:], 0x00)
+		if idx < 0 {
+			return nil, trace.BadParameter("failed to parse COM_CHANGE_USER packet: %s", packetBytes)
+		}
+		return &ChangeUser{packet: packet, user: string(packetBytes[5 : 5+idx])}, nil
 	}
 
 	return &Generic{packet: packet}, nil

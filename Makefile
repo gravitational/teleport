@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=8.0.1
+VERSION=8.0.7
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -37,6 +37,13 @@ ifeq ("$(OS)","windows")
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -buildmode=exe
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 endif
+
+# RPM_FLAGS is a hack for Teleport 8. It allows passing in flags to
+# build-package.sh to create CentOS 7 RPMs.
+#
+# In Teleport 9 we will switch the buildbox to CentOS 7 and no longer need to
+# do this. This should never make it into master or branch/v9.
+RPM_FLAGS ?=
 
 ifeq ("$(OS)","linux")
 # ARM builds need to specify the correct C compiler
@@ -696,14 +703,15 @@ docker-binaries: clean
 enter:
 	make -C build.assets enter
 
-# grpc generates GRPC stubs from service definitions
+# grpc generates GRPC stubs from service definitions.
+# This target runs in the devbox container.
 .PHONY: grpc
 grpc:
 	make -C build.assets grpc
 
-# buildbox-grpc generates GRPC stubs inside buildbox
-.PHONY: buildbox-grpc
-buildbox-grpc:
+# devbox-grpc generates GRPC stubs
+.PHONY: devbox-grpc
+devbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
 	find lib/ -iname *.proto | xargs $(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
@@ -839,8 +847,8 @@ rpm:
 	chmod +x $(BUILDDIR)/build-package.sh
 	cp -a ./build.assets/rpm $(BUILDDIR)/
 	cp -a ./build.assets/rpm-sign $(BUILDDIR)/
-	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e rpm; fi
+	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) $(RPM_FLAGS) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+	if [ -f e/Makefile ]; then $(MAKE) -C e rpm RPM_FLAGS="$(RPM_FLAGS)"; fi
 
 # build unsigned .rpm (for testing)
 .PHONY: rpm-unsigned
@@ -912,8 +920,3 @@ update-webassets: WEBAPPS_BRANCH ?= 'master'
 update-webassets: TELEPORT_BRANCH ?= 'master'
 update-webassets:
 	build.assets/webapps/update-teleport-webassets.sh -w $(WEBAPPS_BRANCH) -t $(TELEPORT_BRANCH)
-
-# dronegen generates .drone.yml config
-.PHONY: dronegen
-dronegen:
-	go run ./dronegen

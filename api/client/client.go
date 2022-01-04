@@ -216,7 +216,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 				})
 			}
 
-			// Attempt to connect to each address as Auth, Proxy, and Tunnel
+			// Attempt to connect to each address as Auth, Proxy, Tunnel and TLS Routing.
 			for _, addr := range cfg.Addrs {
 				syncConnect(ctx, authConnect, connectParams{
 					cfg:       cfg,
@@ -224,18 +224,14 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					addr:      addr,
 				})
 				if sshConfig != nil {
-					syncConnect(ctx, proxyConnect, connectParams{
-						cfg:       cfg,
-						tlsConfig: tlsConfig,
-						sshConfig: sshConfig,
-						addr:      addr,
-					})
-					syncConnect(ctx, tunnelConnect, connectParams{
-						cfg:       cfg,
-						tlsConfig: tlsConfig,
-						sshConfig: sshConfig,
-						addr:      addr,
-					})
+					for _, cf := range []connectFunc{proxyConnect, tunnelConnect, tlsRoutingConnect} {
+						syncConnect(ctx, cf, connectParams{
+							cfg:       cfg,
+							tlsConfig: tlsConfig,
+							sshConfig: sshConfig,
+							addr:      addr,
+						})
+					}
 				}
 			}
 		}
@@ -318,6 +314,21 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
+// tlsRoutingConnect connects to the Teleport Auth Server through the proxy using TLS Routing.
+func tlsRoutingConnect(ctx context.Context, params connectParams) (*Client, error) {
+	if params.sshConfig == nil {
+		return nil, trace.BadParameter("must provide ssh client config")
+	}
+	dialer := newTLSRoutingTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
+	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	if err := clt.dialGRPC(ctx, params.addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing dialer", params.addr)
+	}
+	return clt, nil
+}
+
+// dialerConnect connects to the Teleport Auth Server through a custom dialer.
+// The dialer must provide the address in a custom ContextDialerFunc function.
 func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.dialer == nil {
 		if params.cfg.Dialer == nil {
@@ -822,12 +833,52 @@ func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 
 // GetApplicationServers returns all registered application servers.
 func (c *Client) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	resources, err := c.GetResources(ctx, namespace, types.KindAppServer)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			servers, err := c.getApplicationServersFallback(ctx, namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return servers, nil
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	servers := make([]types.AppServer, len(resources))
+	for i, resource := range resources {
+		appServer, ok := resource.(types.AppServer)
+		if !ok {
+			return nil, trace.BadParameter("expected AppServer resource, got %T", resource)
+		}
+
+		servers[i] = appServer
+	}
+
+	// In addition, we need to fetch legacy application servers.
+	//
+	// DELETE IN 9.0.
+	legacyServers, err := c.getAppServersFallback(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return append(servers, legacyServers...), nil
+}
+
+// getAppServersFallback fetches app servers using deprecated API call
+// `GetApplicationServers`.
+//
+// DELETE IN 10.0
+func (c *Client) getApplicationServersFallback(ctx context.Context, namespace string) ([]types.AppServer, error) {
 	resp, err := c.grpc.GetApplicationServers(ctx, &proto.GetApplicationServersRequest{
 		Namespace: namespace,
 	}, c.callOpts...)
 	if err != nil {
 		if trace.IsNotImplemented(trail.FromGRPC(err)) {
-			servers, err := c.getApplicationServersFallback(ctx, namespace)
+			servers, err := c.getAppServersFallback(ctx, namespace)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -839,14 +890,15 @@ func (c *Client) GetApplicationServers(ctx context.Context, namespace string) ([
 	for _, server := range resp.GetServers() {
 		servers = append(servers, server)
 	}
+
 	return servers, nil
 }
 
-// getApplicationServersFallback fetches app servers using legacy API call
-// from clusters that haven't been upgraded yet.
+// getAppServersFallback fetches app servers using legacy API call
+// `GetAppServers`.
 //
 // DELETE IN 9.0.
-func (c *Client) getApplicationServersFallback(ctx context.Context, namespace string) ([]types.AppServer, error) {
+func (c *Client) getAppServersFallback(ctx context.Context, namespace string) ([]types.AppServer, error) {
 	legacyServers, err := c.GetAppServers(ctx, namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1040,6 +1092,38 @@ func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
 
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
+	resources, err := c.GetResources(ctx, namespace, types.KindDatabaseServer)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			servers, err := c.getDatabaseServersFallback(ctx, namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return servers, nil
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	servers := make([]types.DatabaseServer, len(resources))
+	for i, resource := range resources {
+		databaseServer, ok := resource.(types.DatabaseServer)
+		if !ok {
+			return nil, trace.BadParameter("expected DatabaseServer resource, got %T", resource)
+		}
+
+		servers[i] = databaseServer
+	}
+
+	return servers, nil
+}
+
+// getDatabaseServersFallback fetches database servers using legacy API call
+// `GetDatabaseServers`.
+//
+// DELETE IN 10.0.
+func (c *Client) getDatabaseServersFallback(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
 	resp, err := c.grpc.GetDatabaseServers(ctx, &proto.GetDatabaseServersRequest{
 		Namespace: namespace,
 	}, c.callOpts...)
@@ -1050,6 +1134,7 @@ func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]ty
 	for _, server := range resp.GetServers() {
 		servers = append(servers, server)
 	}
+
 	return servers, nil
 }
 
@@ -2193,4 +2278,75 @@ func (c *Client) CreateRegisterChallenge(ctx context.Context, in *proto.CreateRe
 func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
 	resp, err := c.grpc.GenerateCertAuthorityCRL(ctx, req)
 	return resp, trail.FromGRPC(err)
+}
+
+// ListResources returns a paginated list of nodes that the user has access to.
+// `nextKey` is used as `startKey` in another call to ListResources to retrieve
+// the next page. If you want to list all resources pages, check the
+// `GetResources` function.
+// It will return a `trace.LimitExceeded` error if the page exceeds gRPC max
+// message size.
+func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.Resource, nextKey string, err error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	resp, err := c.grpc.ListResources(ctx, &req, c.callOpts...)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	resources = make([]types.Resource, len(resp.GetResources()))
+	for i, respResource := range resp.GetResources() {
+		switch req.ResourceType {
+		case types.KindDatabaseServer:
+			resources[i] = respResource.GetDatabaseServer()
+		case types.KindAppServer:
+			resources[i] = respResource.GetAppServer()
+		default:
+			return nil, "", trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+		}
+	}
+
+	return resources, resp.NextKey, nil
+}
+
+// GetResources retrieves all pages from ListResourcesPage and return all
+// resources.
+func (c *Client) GetResources(ctx context.Context, namespace, resourceType string) ([]types.Resource, error) {
+	var (
+		resources []types.Resource
+		startKey  string
+		chunkSize = int32(defaults.DefaultChunkSize)
+	)
+
+	for {
+		listResources, nextKey, err := c.ListResources(ctx, proto.ListResourcesRequest{
+			Namespace:    namespace,
+			ResourceType: resourceType,
+			StartKey:     startKey,
+			Limit:        chunkSize,
+		})
+		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				chunkSize = chunkSize / 2
+				if chunkSize == 0 {
+					return nil, trace.Wrap(trail.FromGRPC(err), "resource is too large to retrieve")
+				}
+
+				continue
+			}
+
+			return nil, trail.FromGRPC(err)
+		}
+
+		startKey = nextKey
+		resources = append(resources, listResources...)
+		if startKey == "" || len(listResources) == 0 {
+			break
+		}
+
+	}
+
+	return resources, nil
 }
