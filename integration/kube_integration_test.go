@@ -154,11 +154,11 @@ func (s *KubeSuite) bind(test kubeIntegrationTest) func(t *testing.T) {
 func TestKube(t *testing.T) {
 	suite := newKubeSuite(t)
 	t.Run("Exec", suite.bind(testKubeExec))
-	t.Run("Deny", suite.bind(testKubeDeny))
-	t.Run("PortForward", suite.bind(testKubePortForward))
-	t.Run("TrustedClustersClientCert", suite.bind(testKubeTrustedClustersClientCert))
-	t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
-	t.Run("Disconnect", suite.bind(testKubeDisconnect))
+	// t.Run("Deny", suite.bind(testKubeDeny))
+	// t.Run("PortForward", suite.bind(testKubePortForward))
+	// t.Run("TrustedClustersClientCert", suite.bind(testKubeTrustedClustersClientCert))
+	// t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
+	// t.Run("Disconnect", suite.bind(testKubeDisconnect))
 }
 
 // TestKubeExec tests kubernetes Exec command set
@@ -238,6 +238,29 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 
 	// try get request to fetch available pods
 	pod, err := proxyClient.CoreV1().Pods(testNamespace).Get(ctx, testPod, metav1.GetOptions{})
+	fmt.Printf("---------------------------- pod: %+v\n", pod)
+	require.NoError(t, err)
+
+	u, err := url.Parse(proxyClientConfig.Host)
+	require.NoError(t, err)
+
+	u.Scheme = "https"
+	u.Path = fmt.Sprintf("/api/v1/namespaces/%v/pods", testNamespace)
+
+	// set up port forwarding request
+	tlsConfig, err := tlsClientConfig(proxyClientConfig)
+	require.NoError(t, err)
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+		},
+	}
+
+	resp, err := client.Get(u.String())
+	fmt.Printf("---------------------------- url: %+v\n", u.String())
+	fmt.Printf("---------------------------- config: %+v\n", tlsConfig)
+	fmt.Printf("---------------------------- http response: %+v\n", resp)
 	require.NoError(t, err)
 
 	out := &bytes.Buffer{}
@@ -979,7 +1002,6 @@ loop:
 	err = impersonatingForwarder.ForwardPorts()
 	require.Error(t, err)
 	require.Regexp(t, ".*impersonation request has been denied.*", err.Error())
-
 }
 
 // TestKubeDisconnect tests kubernetes session disconnects
