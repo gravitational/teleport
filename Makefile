@@ -464,7 +464,7 @@ test: test-sh test-api test-go
 test-go: ensure-webassets bpf-bytecode roletester rdpclient $(RENDER_TESTS)
 test-go: FLAGS ?= '-race'
 test-go: PACKAGES := $(shell go list ./... | grep -v integration)
-test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
+test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| ${RENDER_TESTS}
@@ -560,7 +560,7 @@ lint-api:
 .PHONY: lint-sh
 lint-sh: SH_LINT_FLAGS ?=
 lint-sh:
-	find . -type f -name '*.sh' | grep -v vendor | xargs \
+	find . -type f -name '*.sh' | xargs \
 		shellcheck \
 		--exclude=SC2086 \
 		$(SH_LINT_FLAGS)
@@ -620,7 +620,6 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'e/**' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/web/build/**' \
-		-ignore 'vendor/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme' \
@@ -661,7 +660,6 @@ $(VERSRC): Makefile
 .PHONY: update-api-module-path
 update-api-module-path:
 	go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
-	$(MAKE) update-vendor
 	$(MAKE) grpc
 
 # make tag - prints a tag to use with git for the current version
@@ -711,7 +709,7 @@ profile:
 
 .PHONY: sloccount
 sloccount:
-	find . -path ./vendor -prune -o -name "*.go" -print0 | xargs -0 wc -l
+	find . -o -name "*.go" -print0 | xargs -0 wc -l
 
 .PHONY: remove-temp-files
 remove-temp-files:
@@ -941,31 +939,6 @@ init-webapps-submodules-e:
 init-submodules-e: init-webapps-submodules-e
 	git submodule init e
 	git submodule update
-
-# Update go.mod and vendor files.
-.PHONY: update-vendor
-update-vendor:
-	# update modules in api/
-	cd api && go mod tidy
-	# update modules in root directory
-	go mod tidy
-	go mod vendor
-	$(MAKE) vendor-api
-
-# When teleport vendors its dependencies, Go also vendors the local api sub module. To get
-# around this issue, we replace the vendored api package with a symlink to the
-# local module. The symlink should be in vendor/.../api or vendor/.../api/vX if X >= 2.
-.PHONY: vendor-api
-vendor-api: API_VENDOR_PATH := vendor/$(shell head -1 api/go.mod | awk '{print $$2;}')
-vendor-api:
-	rm -rf vendor/github.com/gravitational/teleport/api
-	mkdir -p $(shell dirname $(API_VENDOR_PATH))
-	# make a relative link to the true api dir (without using `ln -r` for non-linux OS compatibility)
-	if [ -d $(shell dirname $(API_VENDOR_PATH))/../../../../../api/ ]; then \
-		ln -s ../../../../../api $(API_VENDOR_PATH); \
-	else \
-		ln -s ../../../../api $(API_VENDOR_PATH); \
-	fi;
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.
