@@ -5,13 +5,12 @@ description: Getting started with Teleport. Let's deploy Teleport in a Kubernete
 
 # Getting Started
 
-Let's deploy Teleport in a Kubernetes cluster with SSO and Audit logs:
+Teleport can provide secure, unified access to your Kubernetes clusters. This guide will show you how to:
 
-- Install Teleport in a Kubernetes cluster.
-- Set up Single Sign-On (SSO).
-- Capture and playback Kubernetes commands.
+- Deploy Teleport in a Kubernetes cluster.
+- Set up Single Sign-On (SSO) for authentication to your Teleport cluster.
 
-While completing this guide, you will deploy a single Teleport pod running the Auth Service and Proxy Service on your Kubernetes cluster, and a load balancer that allows outside traffic to your Teleport cluster.
+While completing this guide, you will deploy a single Teleport pod running the Auth Service and Proxy Service in your Kubernetes cluster, and a load balancer that allows outside traffic to your Teleport cluster. Users can then access your Kubernetes cluster via the Teleport cluster running within it.
 
 <Admonition type="tip" title="Have an existing Teleport cluster?">
 If you are already running Teleport on another platform, you can use your existing Teleport deployment to access your Kubernetes cluster. [Follow our guide](./agent.mdx) to connect your Kubernetes cluster to Teleport.
@@ -45,7 +44,7 @@ You can also [contact us](/contact-us/) so we can work with you to determine the
 
 ## Step 1/3. Install Teleport
 
-Let's start with a single-pod Teleport using persistent volume as a backend. Modify the values of `CLUSTER_NAME` and `EMAIL` according to your environment, where `CLUSTER_NAME` is the domain name you are using for your Teleport deployment and `EMAIL` is an email address used for notifications.
+Let's start with a single-pod Teleport deployment using a persistent volume as a backend. Modify the values of `CLUSTER_NAME` and `EMAIL` according to your environment, where `CLUSTER_NAME` is the domain name you are using for your Teleport deployment and `EMAIL` is an email address used for notifications.
 
 <Tabs>
   <TabItem label="Open Source">
@@ -84,7 +83,7 @@ Let's start with a single-pod Teleport using persistent volume as a backend. Mod
   </TabItem>
 </Tabs>
 
-Teleport's helm chart uses an [external load balancer](https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/)
+Teleport's Helm chart uses an [external load balancer](https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/)
 to create a public IP for Teleport.
 
 <Tabs>
@@ -175,9 +174,7 @@ for web apps using [application access](../../application-access/introduction.md
   </TabItem>
 </Tabs>
 
-The first request to Teleport's API will take a bit longer because it gets
-a cert from [Let's Encrypt](https://letsencrypt.org).
-Teleport will respond with discovery info:
+Use the following command to confirm that Teleport is running:
 
 ```code
 $ curl https://tele.example.com/webapi/ping
@@ -252,7 +249,7 @@ the default one in case there is a problem.
 $ KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com:443 --user=alice
 ```
 
-Teleport updated `KUBECONFIG` with a short-lived 12-hour certificate.
+Teleport updates `KUBECONFIG` with a short-lived 12-hour certificate.
 
 ```code
 # List connected Kubernetes clusters
@@ -272,12 +269,12 @@ $ KUBECONFIG=${HOME?}/teleport.yaml kubectl get -n teleport-cluster pods
 
 ## Step 3/3. SSO for Kubernetes
 
-We are going to setup Github connector for OSS and Okta for Enterprise version.
+In this step, we will set up the GitHub Single Sign-On connector for the OSS version of Teleport and Okta for the Enterprise version.
 
 <Tabs>
   <TabItem label="Open Source">
-    Save the file below as `github.yaml` and update the fields. You will need to set up
-    [Github OAuth 2.0 Connector](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) app.
+    Save the file below as `github.yaml` and update the fields. You will need to set up the
+    [GitHub OAuth 2.0 Connector](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) app.
     Any member with the team `admin` in the organization `octocats` will be able to assume a builtin role `access`.
 
     ```yaml
@@ -287,25 +284,25 @@ We are going to setup Github connector for OSS and Okta for Enterprise version.
       # connector name that will be used with `tsh --auth=github login`
       name: github
     spec:
-      # client ID of Github OAuth app
+      # client ID of your GitHub OAuth app
       client_id: client-id
-      # client secret of Github OAuth app
+      # client secret of your GitHub OAuth app
       client_secret: client-secret
       # This name will be shown on UI login screen
-      display: Github
+      display: GitHub
       # Change tele.example.com to your domain name
       redirect_url: https://tele.example.com:443/v1/webapi/github/callback
       # Map github teams to teleport roles
       teams_to_logins:
-        - organization: octocats # Github organization name
-          team: admin            # Github team name within that organization
-          # map Github's "admin" team to Teleport's "access" role
+        - organization: octocats # GitHub organization name
+          team: admin            # GitHub team name within that organization
+          # map GitHub's "admin" team to Teleport's "access" role
           logins: ["access"]
     ```
   </TabItem>
 
   <TabItem label="Enterprise">
-    Follow [SAML Okta Guide](../../enterprise/sso/okta.mdx#configure-okta) to create a SAML app.
+    Follow the [SAML Okta Guide](../../enterprise/sso/okta.mdx#configure-okta) to create a SAML app.
     Check out [OIDC guides](../../enterprise/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
     Save the file below as `okta.yaml` and update the `acs` field.
     Any member in Okta group `okta-admin` will assume a builtin role `access`.
@@ -350,7 +347,7 @@ To create a connector, we are going to run Teleport's admin tool `tctl` from the
   </TabItem>
 </Tabs>
 
-Try `tsh login` with Github user. I am using a custom `KUBECONFIG` to prevent overwriting
+Try `tsh login` with a GitHub user. This example uses a custom `KUBECONFIG` to prevent overwriting
 the default one in case there is a problem.
 
 <Tabs>
