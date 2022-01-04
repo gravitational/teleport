@@ -123,6 +123,9 @@ type Client struct {
 	// Used with sync/atomic, 0 means false, 1 means true.
 	readyForInput uint32
 
+	// wg is used to wait for the input/output streaming
+	// goroutines to complete
+	wg        sync.WaitGroup
 	closeOnce sync.Once
 
 	clientActivityMu sync.RWMutex
@@ -138,7 +141,6 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 		cfg:           cfg,
 		readyForInput: 0,
 	}
-	c.UpdateClientActivity()
 
 	if err := c.readClientUsername(); err != nil {
 		return nil, trace.Wrap(err)
@@ -152,6 +154,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	if err := c.connect(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	c.start()
 	return c, nil
 }
 
@@ -223,12 +226,13 @@ func (c *Client) connect(ctx context.Context) error {
 	return nil
 }
 
-// Start kicks off goroutines for input/output streaming and hangs until they finish.
-func (c *Client) Start() error {
-	errs := make(chan error, 2)
-
+// start kicks off goroutines for input/output streaming and returns right
+// away. Use Wait to wait for them to finish.
+func (c *Client) start() {
 	// Video output streaming worker goroutine.
+	c.wg.Add(1)
 	go func() {
+		defer c.wg.Done()
 		defer c.Close()
 		defer c.cfg.Log.Info("RDP output streaming finished")
 
@@ -238,12 +242,14 @@ func (c *Client) Start() error {
 		// C.read_rdp_output blocks for the duration of the RDP connection and
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
 		if err := cgoError(C.read_rdp_output(c.rustClient, C.uintptr_t(h))); err != nil {
-			errs <- trace.NewAggregate(trace.Errorf("Failed reading RDP output frame"), err)
+			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
 		}
 	}()
 
 	// User input streaming worker goroutine.
+	c.wg.Add(1)
 	go func() {
+		defer c.wg.Done()
 		defer c.Close()
 		defer c.cfg.Log.Info("RDP input streaming finished")
 		// Remember mouse coordinates to send them with all CGOPointer events.
@@ -251,7 +257,7 @@ func (c *Client) Start() error {
 		for {
 			msg, err := c.cfg.InputMessage()
 			if err != nil {
-				errs <- trace.NewAggregate(trace.Errorf("Failed reading RDP input message"), err)
+				c.cfg.Log.Warningf("Failed reading RDP input message: %v", err)
 				return
 			}
 
@@ -265,7 +271,7 @@ func (c *Client) Start() error {
 			switch m := msg.(type) {
 			case tdp.MouseMove:
 				mouseX, mouseY = m.X, m.Y
-				if err = cgoError(C.write_rdp_pointer(
+				if err := cgoError(C.write_rdp_pointer(
 					c.rustClient,
 					C.CGOMousePointerEvent{
 						x:      C.uint16_t(m.X),
@@ -274,7 +280,7 @@ func (c *Client) Start() error {
 						wheel:  C.PointerWheelNone,
 					},
 				)); err != nil {
-					errs <- trace.NewAggregate(trace.Errorf("Failed forwarding RDP input message: %v"), err)
+					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
 					return
 				}
 			case tdp.MouseButton:
@@ -300,7 +306,7 @@ func (c *Client) Start() error {
 						wheel:  C.PointerWheelNone,
 					},
 				)); err != nil {
-					errs <- trace.NewAggregate(trace.Errorf("Failed forwarding RDP input message: %v"), err)
+					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
 					return
 				}
 			case tdp.MouseWheel:
@@ -329,7 +335,7 @@ func (c *Client) Start() error {
 						wheel_delta: C.int16_t(m.Delta),
 					},
 				)); err != nil {
-					errs <- trace.NewAggregate(trace.Errorf("Failed forwarding RDP input message: %v"), err)
+					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
 					return
 				}
 			case tdp.KeyboardButton:
@@ -340,7 +346,7 @@ func (c *Client) Start() error {
 						down: m.State == tdp.ButtonPressed,
 					},
 				)); err != nil {
-					errs <- trace.NewAggregate(trace.Errorf("Failed forwarding RDP input message: %v"), err)
+					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
 					return
 				}
 			default:
@@ -348,16 +354,6 @@ func (c *Client) Start() error {
 			}
 		}
 	}()
-
-	var retErrs []error
-	for i := 0; i < 2; i++ {
-		retErrs = append(retErrs, <-errs)
-	}
-
-	// Close() has been called and both rustClient-using goroutines have returned, let the Rust side free its data.
-	C.free_rdp(c.rustClient)
-
-	return trace.NewAggregate(retErrs...)
 }
 
 //export handle_bitmap
@@ -366,8 +362,6 @@ func handle_bitmap(handle C.uintptr_t, cb C.CGOBitmap) C.CGOError {
 }
 
 func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
-	c.UpdateClientActivity()
-
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
 	// from the fact that a bitmap was sent.
@@ -392,6 +386,14 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	if err := c.cfg.OutputMessage(tdp.PNGFrame{Img: img}); err != nil {
 		return C.CString(fmt.Sprintf("failed to send PNG frame %v: %v", img.Rect, err))
 	}
+	return nil
+}
+
+// Wait blocks until the client disconnects and runs the cleanup.
+func (c *Client) Wait() error {
+	c.wg.Wait()
+	// Let the Rust side free its data.
+	C.free_rdp(c.rustClient)
 	return nil
 }
 

@@ -585,7 +585,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	}
 
 	s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, nil)
-	err = rdpc.Start()
+	err = rdpc.Wait()
 	s.onSessionEnd(ctx, &identity, windowsUser, string(sessionID), desktop)
 
 	return trace.Wrap(err)
