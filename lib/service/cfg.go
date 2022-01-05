@@ -247,6 +247,9 @@ type Config struct {
 	// unit time that the node can sustain before restarting itself, as
 	// measured by the rotation state service.
 	RestartThreshold Rate
+
+	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
+	MaxRetryPeriod time.Duration
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -1053,6 +1056,7 @@ func ApplyDefaults(cfg *Config) {
 		Amount: defaults.MaxConnectionErrorsBeforeRestart,
 		Time:   defaults.ConnectionErrorMeasurementPeriod,
 	}
+	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2
