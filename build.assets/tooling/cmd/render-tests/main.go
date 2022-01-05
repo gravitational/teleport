@@ -20,6 +20,7 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,6 +31,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/gravitational/trace"
 )
 
 var covPattern = regexp.MustCompile(`^coverage: (\d+\.\d+)\% of statements`)
@@ -61,126 +64,76 @@ const (
 // separator for console output
 const separator = "==================================================="
 
-func readInput(input io.Reader, ch chan<- TestEvent) {
+func readInput(input io.Reader, ch chan<- TestEvent, errCh chan<- error) {
+	defer close(ch)
 	decoder := json.NewDecoder(input)
 	for {
 		event := TestEvent{}
 
 		err := decoder.Decode(&event)
 		if errors.Is(err, io.EOF) {
-			close(ch)
-			break
+			return
 		}
 
 		if err != nil {
 			fmt.Printf("Error parsing JSON test record: %v\n", err)
-			continue
+
+			scanner := bufio.NewScanner(decoder.Buffered())
+			for scanner.Scan() {
+				line := scanner.Text()
+				if line != "" {
+					err = trace.Errorf(line)
+					break
+				}
+			}
+
+			errCh <- err
+
+			return
 		}
 
 		ch <- event
 	}
 }
 
-type packageOutput struct {
-	output         []string
-	subtestOutput  map[string][]string
-	failedSubtests map[string][]string
-}
-
-func (pkg *packageOutput) FailedTests() []string {
-	result := []string{}
-	for testName := range pkg.failedSubtests {
-		result = append(result, testName)
-	}
-	sort.Strings(result)
-	return result
-}
-
-type outputMap struct {
-	pkgs         map[string]*packageOutput
-	actionCounts map[string]int
-}
-
-func newOutputMap() *outputMap {
-	return &outputMap{
-		pkgs:         make(map[string]*packageOutput),
-		actionCounts: make(map[string]int),
-	}
-}
-
-func (m *outputMap) record(event TestEvent) {
-	m.actionCounts[event.Action]++
-
-	var pkgOutput *packageOutput
-	var exists bool
-	if pkgOutput, exists = m.pkgs[event.Package]; !exists {
-		pkgOutput = &packageOutput{
-			subtestOutput:  make(map[string][]string),
-			failedSubtests: make(map[string][]string),
-		}
-		m.pkgs[event.Package] = pkgOutput
-	}
-
-	switch event.Action {
-	case actionOutput:
-		pkgOutput.output = append(pkgOutput.output, event.Output)
-		if event.Test != "" {
-			pkgOutput.subtestOutput[event.Test] = append(pkgOutput.subtestOutput[event.Test], event.Output)
-		}
-
-	case actionFail:
-		// If this is a single test result
-		if event.Test != "" {
-			pkgOutput.failedSubtests[event.Test] = pkgOutput.subtestOutput[event.Test]
-		} else {
-			// If this is a package result, we only want to preserve the package output if
-			// there are no failed subtests
-			if len(pkgOutput.failedSubtests) > 0 {
-				pkgOutput.output = nil
-			}
-		}
-		fallthrough
-
-	case actionPass, actionSkip:
-		delete(pkgOutput.subtestOutput, event.Test)
-	}
-}
-
-func (m *outputMap) getPkg(pkgName string) *packageOutput {
-	return m.pkgs[pkgName]
-}
-
-func (m *outputMap) deletePkg(pkgName string) {
-	delete(m.pkgs, pkgName)
-}
-
 func main() {
+	args := parseCommandLine()
+
 	testOutput := newOutputMap()
 	failedPackages := make(map[string]*packageOutput)
 	coverage := make(map[string]float64)
 
 	events := make(chan TestEvent)
-	go readInput(os.Stdin, events)
+	errors := make(chan error)
+	go readInput(os.Stdin, events, errors)
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
 
-	keepGoing := true
-	event := TestEvent{}
-
-	for keepGoing {
+readloop:
+	for {
 		select {
 		case <-signals:
-			keepGoing = false
+			break readloop
 
-		case event, keepGoing = <-events:
+		case err := <-errors:
+			fmt.Printf("FATAL error: %q\n", err)
+
+		case event, keepGoing := <-events:
 			if !keepGoing {
-				continue
+				break readloop
 			}
 
 			testName := event.FullName()
 
 			testOutput.record(event)
+
+			if args.report == byTest {
+				switch event.Action {
+				case actionPass, actionFail, actionSkip:
+					fmt.Printf("%s: %s\n", event.Action, event.FullName())
+				}
+			}
 
 			// if this is whole-package summary result
 			if event.Test == "" {
@@ -200,14 +153,16 @@ func main() {
 					fallthrough
 
 				case actionPass, actionSkip:
-					// extract and format coverage value
-					covText := "------"
-					if covValue, ok := coverage[testName]; ok {
-						covText = fmt.Sprintf("%5.1f%%", covValue)
-					}
+					if args.report == byPackage {
+						// extract and format coverage value
+						covText := "------"
+						if covValue, ok := coverage[testName]; ok {
+							covText = fmt.Sprintf("%5.1f%%", covValue)
+						}
 
-					// only display package results as progress messages
-					fmt.Printf("%s %s: %s\n", covText, event.Action, event.Package)
+						// only display package results as progress messages
+						fmt.Printf("%s %s: %s\n", covText, event.Action, event.Package)
+					}
 
 					// Don't need this no more
 					testOutput.deletePkg(event.Package)
