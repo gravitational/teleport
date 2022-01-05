@@ -57,6 +57,7 @@ package rdpclient
 #cgo linux,arm LDFLAGS: -L${SRCDIR}/target/arm-unknown-linux-gnueabihf/release
 #cgo linux,arm64 LDFLAGS: -L${SRCDIR}/target/aarch64-unknown-linux-gnu/release
 #cgo linux LDFLAGS: -l:librdp_client.a -lpthread -ldl -lm
+// linux,arm flags are split into to sections as linker require to pass -latomic flag after -l:librdp_client.a, otherwise it fails.
 #cgo linux,arm LDFLAGS: -latomic
 #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/target/x86_64-apple-darwin/release
 #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/target/aarch64-apple-darwin/release
