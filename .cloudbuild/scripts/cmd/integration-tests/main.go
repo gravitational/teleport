@@ -27,6 +27,7 @@ import (
 	"path"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
@@ -125,12 +126,13 @@ func innerMain() error {
 	}
 
 	log.Printf("Starting etcd...")
-	cancelCtx, cancel := context.WithCancel(context.Background())
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID, gomodcache)
+	etcdSvc, err := etcd.Start(timeoutCtx, args.workspace)
 	if err != nil {
 		return trace.Wrap(err, "failed starting etcd")
 	}
+	defer etcdSvc.Stop()
 
 	log.Printf("Running nonroot integration tests...")
 	err = runNonrootIntegrationTests(args.workspace, nonrootUID, nonrootGID, gomodcache)

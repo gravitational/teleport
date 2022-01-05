@@ -99,13 +99,14 @@ func innerMain() error {
 		return nil
 	}
 
-	log.Printf("Starting etcd...")
-	cancelCtx, cancel := context.WithCancel(context.Background())
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err = etcd.Start(cancelCtx, args.workspace, 0, 0)
+	etcdSvc, err := etcd.Start(timeoutCtx, args.workspace)
 	if err != nil {
 		return trace.Wrap(err, "failed starting etcd")
 	}
+	defer etcdSvc.Stop()
+
 
 	log.Printf("Running unit tests...")
 	err = runUnitTests(args.workspace)
