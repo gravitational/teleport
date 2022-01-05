@@ -50,12 +50,11 @@ type RenderOptions = {
 export {
   act,
   screen,
-  waitFor as wait,  //TODO: refactor everything to use `waitFor`
   fireEvent,
   theme,
   render,
   prettyDOM,
-  waitFor as waitForElement,
+  waitFor,
   getByTestId,
   Router,
 };

@@ -16,7 +16,7 @@
 
 import React from 'react';
 import FormLogin, { Props } from './FormLogin';
-import { render, fireEvent, wait } from 'design/utils/testing';
+import { render, fireEvent, waitFor } from 'design/utils/testing';
 
 test('auth2faType: off', () => {
   const onLogin = jest.fn();
@@ -150,7 +150,7 @@ test('input validation error handling', async () => {
     />
   );
 
-  await wait(() => {
+  await waitFor(() => {
     fireEvent.click(getByText(/login/i));
   });
 

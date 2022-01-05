@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { render, fireEvent, wait, screen } from 'design/utils/testing';
+import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 import { Context, ContextProvider } from 'teleport';
 import authService from 'teleport/services/auth';
 import ManageDevices from './ManageDevices';
@@ -99,7 +99,7 @@ describe('mfa device dashboard testing', () => {
   });
 
   test('re-authenticating with totp and adding a u2f device', async () => {
-    await wait(() => renderManageDevices());
+    await waitFor(() => renderManageDevices());
 
     fireEvent.click(screen.getByText(/add two-factor device/i));
 
@@ -114,7 +114,7 @@ describe('mfa device dashboard testing', () => {
     const tokenField = screen.getByPlaceholderText('123 456');
     fireEvent.change(tokenField, { target: { value: '321321' } });
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
     });
 
@@ -127,7 +127,7 @@ describe('mfa device dashboard testing', () => {
     const deviceNameField = screen.getByPlaceholderText('Name');
     fireEvent.change(deviceNameField, { target: { value: 'yubikey' } });
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Add device'));
     });
 
@@ -140,13 +140,13 @@ describe('mfa device dashboard testing', () => {
   });
 
   test('re-authenticating with u2f and adding a totp device', async () => {
-    await wait(() => renderManageDevices());
+    await waitFor(() => renderManageDevices());
 
     fireEvent.click(screen.getByText(/add two-factor device/i));
 
     expect(screen.getByText('Verify your identity')).toBeInTheDocument();
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
     });
 
@@ -166,7 +166,7 @@ describe('mfa device dashboard testing', () => {
     const deviceNameField = screen.getByPlaceholderText('Name');
     fireEvent.change(deviceNameField, { target: { value: 'iphone 12' } });
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Add device'));
     });
 
@@ -181,13 +181,13 @@ describe('mfa device dashboard testing', () => {
 
   test('re-authenticating with webauthn and adding a totp device', async () => {
     jest.spyOn(cfg, 'getPreferredMfaType').mockReturnValue('webauthn');
-    await wait(() => renderManageDevices());
+    await waitFor(() => renderManageDevices());
 
     fireEvent.click(screen.getByText(/add two-factor device/i));
 
     expect(screen.getByText('Verify your identity')).toBeInTheDocument();
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
     });
 
@@ -207,7 +207,7 @@ describe('mfa device dashboard testing', () => {
     const deviceNameField = screen.getByPlaceholderText('Name');
     fireEvent.change(deviceNameField, { target: { value: 'iphone 12' } });
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Add device'));
     });
 
@@ -223,9 +223,9 @@ describe('mfa device dashboard testing', () => {
   test('adding a first device', async () => {
     jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([]);
 
-    await wait(() => renderManageDevices());
+    await waitFor(() => renderManageDevices());
 
-    await wait(() =>
+    await waitFor(() =>
       fireEvent.click(screen.getByText(/add two-factor device/i))
     );
 
@@ -236,7 +236,7 @@ describe('mfa device dashboard testing', () => {
     const deviceNameField = screen.getByPlaceholderText('Name');
     fireEvent.change(deviceNameField, { target: { value: 'yubikey' } });
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Add device'));
     });
 
@@ -249,13 +249,13 @@ describe('mfa device dashboard testing', () => {
   });
 
   test('removing a device', async () => {
-    await wait(() => renderManageDevices());
+    await waitFor(() => renderManageDevices());
 
     fireEvent.click(screen.getAllByText(/remove/i)[0]);
 
     expect(screen.getByText('Verify your identity')).toBeInTheDocument();
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
     });
 
@@ -265,7 +265,7 @@ describe('mfa device dashboard testing', () => {
       screen.getByText(/Are you sure you want to remove device/i)
     ).toBeInTheDocument();
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getAllByText('Remove')[2]);
     });
 

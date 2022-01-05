@@ -17,7 +17,7 @@
 import React from 'react';
 import FormPassword from './FormPassword';
 import { On, Optional } from './FormPassword.story';
-import { render, fireEvent, wait, screen } from 'design/utils/testing';
+import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 
 jest.mock('../../libs/logger', () => {
   const mockLogger = {
@@ -53,7 +53,7 @@ test('input validation error states', async () => {
   );
 
   // test input validation error states
-  await wait(() => fireEvent.click(getByText(btnSubmitText)));
+  await waitFor(() => fireEvent.click(getByText(btnSubmitText)));
   expect(onChangePass).not.toHaveBeenCalled();
   expect(onChangePassWithU2f).not.toHaveBeenCalled();
 
@@ -86,7 +86,7 @@ test('prop auth2faType: off', async () => {
   fireEvent.change(getByPlaceholderText(placeholdConfirm), inputVal);
 
   // test the correct cb is called when submitting
-  await wait(() => fireEvent.click(getByText(btnSubmitText)));
+  await waitFor(() => fireEvent.click(getByText(btnSubmitText)));
   expect(onChangePass).toHaveBeenCalledWith(inputValText, inputValText, '');
   expect(onChangePassWithU2f).not.toHaveBeenCalled();
 
@@ -124,7 +124,7 @@ test('prop auth2faType: webauthn form with mocked error', async () => {
   fireEvent.change(getByPlaceholderText(placeholdConfirm), inputVal);
 
   // test correct cb is called
-  await wait(() => fireEvent.click(getByText(btnSubmitText)));
+  await waitFor(() => fireEvent.click(getByText(btnSubmitText)));
   expect(onChangePassWithWebauthn).toHaveBeenCalledTimes(1);
 
   // test rendering of status message after submit
@@ -149,7 +149,7 @@ test('prop auth2faType: OTP form', async () => {
   expect(screen.getByTestId('mfa-select')).not.toBeEmptyDOMElement();
 
   // test input validation error state
-  await wait(() => fireEvent.click(getByText(btnSubmitText)));
+  await waitFor(() => fireEvent.click(getByText(btnSubmitText)));
 
   // fill out form
   fireEvent.change(getByPlaceholderText(placeholdCurrPass), inputVal);
@@ -158,7 +158,7 @@ test('prop auth2faType: OTP form', async () => {
   fireEvent.change(getByPlaceholderText(/123 456/i), inputVal);
 
   // test the correct cb is called when submitting
-  await wait(() => fireEvent.click(getByText(btnSubmitText)));
+  await waitFor(() => fireEvent.click(getByText(btnSubmitText)));
   expect(onChangePass).toHaveBeenCalledWith(
     inputValText,
     inputValText,
@@ -197,7 +197,7 @@ test('prop auth2faType: U2f form with mocked error', async () => {
 
   // test U2F status message
 
-  await wait(() => {
+  await waitFor(() => {
     fireEvent.click(getByText(btnSubmitText));
     const statusMsg = getByText(
       /Insert your U2F key and press the button on the key/i

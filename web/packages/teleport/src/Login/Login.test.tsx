@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { render, fireEvent, wait, screen } from 'design/utils/testing';
+import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 import auth from 'teleport/services/auth/auth';
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
@@ -51,7 +51,7 @@ test('login with username and password', async () => {
   fireEvent.change(password, { target: { value: '123' } });
 
   // test login pathways
-  await wait(() => fireEvent.click(getByText(/login/i)));
+  await waitFor(() => fireEvent.click(getByText(/login/i)));
   expect(auth.login).toHaveBeenCalledWith('username', '123', '');
   expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
 });
@@ -73,7 +73,7 @@ test('login with password and u2f', async () => {
   fireEvent.change(password, { target: { value: '123' } });
 
   // test login pathways
-  await wait(() => fireEvent.click(getByText(/login/i)));
+  await waitFor(() => fireEvent.click(getByText(/login/i)));
   expect(auth.loginWithU2f).toHaveBeenCalledWith('username', '123');
   expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
 });
@@ -99,7 +99,7 @@ test('login with password and otp', async () => {
   const token = screen.getByPlaceholderText('123 456');
   fireEvent.change(token, { target: { value: '0' } });
 
-  await wait(() => fireEvent.click(screen.getByText(/login/i)));
+  await waitFor(() => fireEvent.click(screen.getByText(/login/i)));
   expect(auth.login).toHaveBeenCalledWith('username', '123', '0');
   expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
 });
@@ -121,7 +121,7 @@ test('login with password and webauthn', async () => {
   fireEvent.change(password, { target: { value: '123' } });
 
   // test login pathways
-  await wait(() => fireEvent.click(getByText(/login/i)));
+  await waitFor(() => fireEvent.click(getByText(/login/i)));
   expect(auth.loginWithWebauthn).toHaveBeenCalledWith('username', '123');
   expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
 });
@@ -166,7 +166,7 @@ test('login with 2fa set to "optional", select option: none', async () => {
   fireEvent.change(username, { target: { value: 'username' } });
   fireEvent.change(password, { target: { value: '123' } });
 
-  await wait(() => fireEvent.click(screen.getByText(/login/i)));
+  await waitFor(() => fireEvent.click(screen.getByText(/login/i)));
   expect(auth.login).toHaveBeenCalledWith('username', '123', '');
 });
 

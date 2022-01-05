@@ -17,7 +17,7 @@
 import React from 'react';
 import useStore from './useStore';
 import Store from './store';
-import { render, wait } from 'design/utils/testing';
+import { render, waitFor } from 'design/utils/testing';
 
 test('components subscribes to store changes and unsubscribes on unmount', async () => {
   const store = new Store();
@@ -31,7 +31,7 @@ test('components subscribes to store changes and unsubscribes on unmount', async
 
   expect(container.innerHTML).toBe(JSON.stringify(store.state));
 
-  await wait(() => {
+  await waitFor(() => {
     store.setState({
       firstname: 'alex',
     });

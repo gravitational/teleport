@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { Document, createContext } from './DocumentNodes.story';
-import { wait, render } from 'design/utils/testing';
+import { waitFor, render } from 'design/utils/testing';
 
 test('render DocumentNodes', async () => {
   const ctx = createContext();
@@ -24,7 +24,7 @@ test('render DocumentNodes', async () => {
   jest.spyOn(ctx, 'fetchNodes');
 
   const { container } = render(<Document value={ctx} />);
-  await wait(() => expect(ctx.fetchClusters).toHaveBeenCalledTimes(1));
-  await wait(() => expect(ctx.fetchNodes).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(ctx.fetchClusters).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(ctx.fetchNodes).toHaveBeenCalledTimes(1));
   expect(container.firstChild).toMatchSnapshot();
 });

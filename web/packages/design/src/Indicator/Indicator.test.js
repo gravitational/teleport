@@ -16,7 +16,7 @@
 
 import React from 'react';
 import Indicator from './Indicator';
-import { render, waitForElement, getByTestId } from 'design/utils/testing';
+import { render, waitFor, getByTestId } from 'design/utils/testing';
 
 describe('design/Indicator', () => {
   it('renders', async () => {
@@ -25,7 +25,7 @@ describe('design/Indicator', () => {
     );
     expect(container.firstChild).toBeNull();
 
-    await waitForElement(() => getByTestId(container, 'spinner'), {
+    await waitFor(() => getByTestId(container, 'spinner'), {
       container,
     });
 

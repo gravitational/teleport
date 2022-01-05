@@ -16,11 +16,11 @@
 
 import React from 'react';
 import Validation, { useRule } from '.';
-import { render, fireEvent, wait, screen } from 'design/utils/testing';
+import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 
 test('basic usage', async () => {
   let results;
-  await wait(() => {
+  await waitFor(() => {
     results = render(<Component value="" rule={required} />);
   });
 

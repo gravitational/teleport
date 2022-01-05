@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import { MemoryRouter, Route, Router } from 'react-router';
 import { createMemoryHistory } from 'history';
-import { screen, fireEvent, act, render, wait } from 'design/utils/testing';
+import { screen, fireEvent, act, render, waitFor } from 'design/utils/testing';
 import { Logger } from 'shared/libs/logger';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
@@ -65,7 +65,7 @@ describe('teleport/components/Welcome', () => {
 
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText(/get started/i));
       mockHistory.push(inviteContinuePath);
     });
@@ -99,7 +99,7 @@ describe('teleport/components/Welcome', () => {
 
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText(/Continue/i));
       mockHistory.push(resetContinuePath);
     });
