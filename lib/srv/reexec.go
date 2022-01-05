@@ -215,8 +215,13 @@ func RunCommand() (io.Writer, int, error) {
 		pamEnvironment = pamContext.Environment()
 	}
 
+	localUser, err := user.Lookup(c.Login)
+	if err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
 	// Build the actual command that will launch the shell.
-	cmd, err := buildCommand(&c, tty, pty, pamEnvironment)
+	cmd, err := buildCommand(&c, localUser, tty, pty, pamEnvironment)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -359,14 +364,10 @@ func RunAndExit(commandType string) {
 
 // buildCommand constructs a command that will execute the users shell. This
 // function is run by Teleport while it's re-executing.
-func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
+func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
 
-	// Lookup the UID and GID for the user.
-	localUser, err := user.Lookup(c.Login)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// Get UID and GID.
 	uid, err := strconv.Atoi(localUser.Uid)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -423,11 +424,18 @@ func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []s
 		cmd.Args = []string{shellPath, "-c", c.Command}
 	}
 
+	// Ensure that the user has a home directory.
+	// TODO: Generalize this to support Windows.
+	homeDir := string(os.PathSeparator)
+	if utils.IsDir(localUser.HomeDir) {
+		homeDir = localUser.HomeDir
+	}
+
 	// Create default environment for user.
 	cmd.Env = []string{
 		"LANG=en_US.UTF-8",
 		getDefaultEnvPath(localUser.Uid, defaultLoginDefsPath),
-		"HOME=" + localUser.HomeDir,
+		"HOME=" + homeDir,
 		"USER=" + c.Login,
 		"SHELL=" + shellPath,
 	}
@@ -450,7 +458,7 @@ func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []s
 	cmd.Env = append(cmd.Env, pamEnvironment...)
 
 	// Set the home directory for the user.
-	cmd.Dir = localUser.HomeDir
+	cmd.Dir = homeDir
 
 	// If a terminal was requested, connect std{in,out,err} to the TTY and set
 	// the controlling TTY. Otherwise, connect std{in,out,err} to
