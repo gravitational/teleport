@@ -19,10 +19,8 @@ package watchers
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
@@ -144,7 +142,7 @@ func (f *rdsFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, e
 	}
 	databases := make(types.Databases, 0, len(clusters))
 	for _, cluster := range clusters {
-		if !isDBClusterSupported(cluster, f.log) {
+		if !services.IsRDSClusterSupported(cluster, f.log) {
 			continue
 		}
 
@@ -202,74 +200,5 @@ func auroraFilters() []*rds.Filter {
 	}}
 }
 
-// isDBClusterSupported checks whether the aurora cluster is supported and logs
-// related info if not.
-func isDBClusterSupported(cluster *rds.DBCluster, log logrus.FieldLogger) bool {
-	switch aws.StringValue(cluster.EngineMode) {
-	// Aurora Serverless (v1 and v2) does not support IAM authentication
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless.html#aurora-serverless.limitations
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-2.limitations.html
-	case RDSEngineModeServerless:
-		log.Infof("Aurora cluster %q is %s which doesn't support IAM authentication. Skipping.",
-			aws.StringValue(cluster.DBClusterIdentifier),
-			aws.StringValue(cluster.EngineMode),
-		)
-		return false
-
-	// Aurora MySQL 1.22.2, 1.20.1, 1.19.6, and 5.6.10a only: Parallel query doesn't support AWS Identity and Access Management (IAM) database authentication.
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-mysql-parallel-query.html#aurora-mysql-parallel-query-limitations
-	case RDSEngineModeParallelQuery:
-		if utils.SliceContainsStr([]string{"1.22.2", "1.20.1", "1.19.6", "5.6.10a"}, auroraMySQLVersion(cluster)) {
-			log.Infof("Aurora cluster %q (engine mode %v, engine version %v) doesn't support IAM authentication. Skipping.",
-				aws.StringValue(cluster.DBClusterIdentifier),
-				aws.StringValue(cluster.EngineMode),
-				aws.StringValue(cluster.EngineVersion),
-			)
-			return false
-		}
-
-	// other modes are compatible
-	default:
-	}
-
-	return true
-}
-
-// auroraMySQLVersion extracts aurora mysql version from engine version
-func auroraMySQLVersion(cluster *rds.DBCluster) string {
-	// version guide: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Updates.Versions.html
-	// a list of all the available versions: https://docs.aws.amazon.com/cli/latest/reference/rds/describe-db-engine-versions.html
-	//
-	// some examples of possible inputs:
-	// 5.6.10a
-	// 5.7.12
-	// 5.6.mysql_aurora.1.22.0
-	// 5.6.mysql_aurora.1.22.1
-	// 5.6.mysql_aurora.1.22.1.3
-	//
-	// general format is: <mysql-major-version>.mysql_aurora.<aurora-mysql-version>
-	// 5.6.10a and 5.7.12 are "legacy" versions and they are returned as it is
-	parts := strings.Split(aws.StringValue(cluster.EngineVersion), ".")
-	for i, part := range parts {
-		if part == "mysql_aurora" {
-			return strings.Join(parts[i+1:], ".")
-		}
-	}
-	return aws.StringValue(cluster.EngineVersion)
-}
-
 // maxPages is the maximum number of pages to iterate over when fetching databases.
 const maxPages = 10
-
-const (
-	// RDSEngineModeProvisioned is the RDS engine mode for provisioned Aurora clusters
-	RDSEngineModeProvisioned = "provisioned"
-	// RDSEngineModeServerless is the RDS engine mode for Aurora Serverless DB clusters
-	RDSEngineModeServerless = "serverless"
-	// RDSEngineModeParallelQuery is the RDS engine mode for Aurora MySQL clusters with parallel query enabled
-	RDSEngineModeParallelQuery = "parallelquery"
-	// RDSEngineModeGlobal is the RDS engine mode for Aurora Global databases
-	RDSEngineModeGlobal = "global"
-	// RDSEngineModeMultiMaster is the RDS engine mode for Multi-master clusters
-	RDSEngineModeMultiMaster = "multimaster"
-)

@@ -43,10 +43,10 @@ func TestWatcher(t *testing.T) {
 	rdsInstance2, _ := makeRDSInstance(t, "instance-2", "us-east-2", map[string]string{"env": "prod"})
 	rdsInstance3, _ := makeRDSInstance(t, "instance-3", "us-east-1", map[string]string{"env": "dev"})
 
-	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", RDSEngineModeProvisioned, map[string]string{"env": "prod"})
-	auroraCluster2, auroraDatabase2 := makeRDSCluster(t, "cluster-2", "us-east-2", RDSEngineModeProvisioned, map[string]string{"env": "dev"})
-	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", RDSEngineModeProvisioned, map[string]string{"env": "prod"})
-	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", RDSEngineModeServerless, map[string]string{"env": "prod"})
+	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
+	auroraCluster2, auroraDatabase2 := makeRDSCluster(t, "cluster-2", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "dev"})
+	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
+	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", services.RDSEngineModeServerless, map[string]string{"env": "prod"})
 
 	watcher, err := NewWatcher(ctx, WatcherConfig{
 		AWSMatchers: []services.AWSMatcher{
