@@ -157,17 +157,14 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		backend.BufferCapacity(cfg.BufferSize),
 	)
 	closeCtx, cancel := context.WithCancel(ctx)
-	watchStarted, signalWatchStart := context.WithCancel(ctx)
 	l := &Backend{
-		Config:           cfg,
-		db:               db,
-		Entry:            log.WithFields(log.Fields{trace.Component: BackendName}),
-		clock:            cfg.Clock,
-		buf:              buf,
-		ctx:              closeCtx,
-		cancel:           cancel,
-		watchStarted:     watchStarted,
-		signalWatchStart: signalWatchStart,
+		Config: cfg,
+		db:     db,
+		Entry:  log.WithFields(log.Fields{trace.Component: BackendName}),
+		clock:  cfg.Clock,
+		buf:    buf,
+		ctx:    closeCtx,
+		cancel: cancel,
 	}
 	l.Debugf("Connected to: %v, poll stream period: %v", connectorURL, cfg.PollStreamPeriod)
 	if err := l.createSchema(); err != nil {
@@ -190,11 +187,9 @@ type Backend struct {
 	// could be swapped in tests for fixed time
 	clock clockwork.Clock
 
-	buf              *backend.CircularBuffer
-	ctx              context.Context
-	cancel           context.CancelFunc
-	watchStarted     context.Context
-	signalWatchStart context.CancelFunc
+	buf    *backend.CircularBuffer
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	// closedFlag is set to indicate that the database is closed
 	closedFlag int32
