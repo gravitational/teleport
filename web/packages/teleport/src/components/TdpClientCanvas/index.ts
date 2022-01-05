@@ -15,7 +15,5 @@ limitations under the License.
 */
 
 import TdpClientCanvas from './TdpClientCanvas';
-import useTdpClientCanvas from './useTdpClientCanvas';
 
-export { useTdpClientCanvas };
 export default TdpClientCanvas;

@@ -20,16 +20,23 @@ import Codec, {
 } from './codec';
 import Logger from 'shared/libs/logger';
 
+export enum TdpClientEvent {
+  IMAGE_FRAGMENT = 'imgfrag',
+  TDP_ERROR = 'tdperr',
+  WS_OPEN = 'wsopen',
+  WS_CLOSE = 'wsclose',
+}
+
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
-// sending client commands, and recieving and processing server messages.
+// sending client commands, and recieving and processing server messages. It's listener is responsible for
+// calling Client.nuke() (typically after Client emits a TdpClientEvent.DISCONNECT or TdpClientEvent.ERROR event) in order to clean
+// up its websocket listeners.
 export default class Client extends EventEmitter {
   codec: Codec;
   socket: WebSocket;
   socketAddr: string;
   username: string;
   logger = Logger.create('TDPClient');
-  private connected = false;
-  private disconnected = false;
 
   constructor(socketAddr: string, username: string) {
     super();
@@ -45,15 +52,15 @@ export default class Client extends EventEmitter {
 
     this.socket.onopen = () => {
       this.logger.info('websocket is open');
-      this.emit('init');
+      this.emit(TdpClientEvent.WS_OPEN);
     };
 
     this.socket.onmessage = (ev: MessageEvent) => {
       this.processMessage(ev.data as ArrayBuffer);
     };
 
-    // The 'error' event will only ever be emitted by the socket
-    // prior to a 'close' event (https://stackoverflow.com/a/40084550/6277051).
+    // The socket 'error' event will only ever be emitted by the socket
+    // prior to a socket 'close' event (https://stackoverflow.com/a/40084550/6277051).
     // Therefore, we can rely on our onclose handler to account for any websocket errors.
     this.socket.onerror = null;
     this.socket.onclose = () => {
@@ -65,11 +72,7 @@ export default class Client extends EventEmitter {
       this.socket.onclose = null;
       this.socket = null;
 
-      if (this.disconnected) {
-        this.emit('disconnect');
-      } else {
-        this.handleError(new Error('websocket connection failed'));
-      }
+      this.emit(TdpClientEvent.WS_CLOSE);
     };
   }
 
@@ -77,12 +80,9 @@ export default class Client extends EventEmitter {
     const messageType = this.codec.decodeMessageType(buffer);
     try {
       if (messageType === MessageType.PNG_FRAME) {
-        if (!this.connected) {
-          // The first png frame signals a successful connection.
-          this.connected = true;
-          this.emit('connect');
-        }
         this.processFrame(buffer);
+      } else if (messageType === MessageType.ERROR) {
+        this.handleError(new Error(this.codec.decodeErrorMessage(buffer)));
       } else {
         this.handleError(
           new Error(`recieved unsupported message type ${messageType}`)
@@ -98,7 +98,8 @@ export default class Client extends EventEmitter {
   processFrame(buffer: ArrayBuffer) {
     const { left, top } = this.codec.decodeRegion(buffer);
     const image = new Image();
-    image.onload = () => this.emit('render', { image, left, top });
+    image.onload = () =>
+      this.emit(TdpClientEvent.IMAGE_FRAGMENT, { image, left, top });
     image.src = this.codec.decodePng(buffer);
   }
 
@@ -128,10 +129,11 @@ export default class Client extends EventEmitter {
     this.socket?.send(this.codec.encodeScreenSpec(w, h));
   }
 
-  // Called to cleanup websocket when the connection is intentionally
-  // closed by the end user (customer). Causes 'disconnect' event to be emitted
-  disconnect() {
-    this.disconnected = true;
+  // Emits an TdpClientEvent.ERROR event. Sets this.errored to true to alert the socket.onclose handler that
+  // it needn't emit a generic unknown error event.
+  handleError(err: Error) {
+    this.logger.error(err);
+    this.emit(TdpClientEvent.TDP_ERROR, err);
     this.socket?.close();
   }
 
@@ -142,14 +144,9 @@ export default class Client extends EventEmitter {
     this.removeAllListeners();
     this.socket?.close();
   }
-
-  handleError(err: Error) {
-    this.emit('error', err);
-    this.logger.error(err);
-  }
 }
 
-export type ImageData = {
+export type ImageFragment = {
   image: HTMLImageElement;
   left: number;
   top: number;

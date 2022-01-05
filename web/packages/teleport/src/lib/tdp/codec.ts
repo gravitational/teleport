@@ -9,6 +9,7 @@ export enum MessageType {
   CLIPBOARD_DATA = 6,
   CLIENT_USERNAME = 7,
   MOUSE_WHEEL_SCROLL = 8,
+  ERROR = 9,
 }
 
 // 0 is left button, 1 is middle button, 2 is right button
@@ -305,14 +306,26 @@ export default class Codec {
   // Throws an error on an invalid or unexpected MessageType value.
   decodeMessageType(buffer: ArrayBuffer): MessageType {
     const messageType = new DataView(buffer).getUint8(0);
-    if (messageType === MessageType.PNG_FRAME) {
-      return MessageType.PNG_FRAME;
-    } else if (messageType === MessageType.CLIPBOARD_DATA) {
-      return MessageType.CLIPBOARD_DATA;
+    if (
+      messageType === MessageType.PNG_FRAME ||
+      messageType === MessageType.CLIPBOARD_DATA ||
+      messageType === MessageType.ERROR
+    ) {
+      return messageType;
     } else {
       // We don't expect to need to decode any other value on the client side
       throw new Error(`invalid message type: ${messageType}`);
     }
+  }
+
+  // decodeError decodes a raw tdp ERROR message and returns it as a string
+  // | message type (9) | message_length uint32 | message []byte
+  decodeErrorMessage(buffer: ArrayBuffer): string {
+    // slice(5) ensures we skip the message type and message_length
+    let messageUtf8array = new Uint8Array(buffer.slice(5));
+    let decoder = new TextDecoder();
+    let message = decoder.decode(messageUtf8array);
+    return message;
   }
 
   // decodeRegion decodes the region from a PNG_FRAME tdp message.
