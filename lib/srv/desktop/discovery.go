@@ -66,14 +66,23 @@ func (s *WindowsService) startDesktopDiscovery(ctx context.Context) error {
 
 		GetCurrentResources: func() types.ResourcesWithLabels { return s.lastDiscoveryResults },
 		GetNewResources:     s.getDesktopsFromLDAP,
-		OnCreate:            s.createDesktop,
-		OnUpdate:            s.updateDesktop,
-		OnDelete:            s.deleteDesktop,
-		Log:                 s.cfg.Log,
+		// On the first run of the reconcile loop, a desktop may exist in the database
+		OnCreate: s.createDesktop,
+		OnUpdate: s.updateDesktop,
+		OnDelete: s.deleteDesktop,
+		Log:      s.cfg.Log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	initialDesktops, err := s.getDesktopsFromAuthServer(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.lastDiscoveryResults = initialDesktops
+	s.cfg.Log.Debugf("desktop discovery starting with initial discovery results of %v", s.lastDiscoveryResults)
 
 	go func() {
 		// reconcile once before starting the ticker, so that desktops show up immediately
@@ -98,6 +107,25 @@ func (s *WindowsService) startDesktopDiscovery(ctx context.Context) error {
 	}()
 
 	return nil
+}
+
+// getDesktopsFromAuthServer gets all the Windows hosts already saved on the auth server.
+func (s *WindowsService) getDesktopsFromAuthServer(ctx context.Context) (types.ResourcesWithLabels, error) {
+	windowsDesktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var desktops types.ResourcesWithLabels
+	for _, windowsDesktop := range windowsDesktops {
+		desktop, ok := windowsDesktop.(*types.WindowsDesktopV3)
+		if !ok {
+			return nil, trace.Errorf("create: expected a *WindowsDesktopV3, got %T", desktop)
+		}
+		desktops = append(desktops, desktop)
+	}
+
+	return desktops, nil
 }
 
 func (s *WindowsService) ldapSearchFilter() string {
