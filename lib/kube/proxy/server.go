@@ -169,7 +169,6 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 		Listener:            listener,
 		Clock:               t.Clock,
 		EnableProxyProtocol: true,
-		DisableSSH:          true,
 		ID:                  t.Component,
 	})
 	if err != nil {

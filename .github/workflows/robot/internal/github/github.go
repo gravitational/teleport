@@ -45,6 +45,9 @@ type Client interface {
 	// ListFiles is used to list all the files within a PR.
 	ListFiles(ctx context.Context, organization string, repository string, number int) ([]string, error)
 
+	// AddLabels will add labels to an Issue or Pull Request.
+	AddLabels(ctx context.Context, organization string, repository string, number int, labels []string) error
+
 	// ListWorkflows lists all workflows within a repository.
 	ListWorkflows(ctx context.Context, organization string, repository string) ([]Workflow, error)
 
@@ -145,6 +148,8 @@ type PullRequest struct {
 	// UnsafeHead is the name of the branch this PR is created from. It is marked
 	// unsafe as it can be attacker controlled.
 	UnsafeHead string
+	// Fork determines if the pull request is from a fork.
+	Fork bool
 }
 
 func (c *client) ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]PullRequest, error) {
@@ -171,6 +176,7 @@ func (c *client) ListPullRequests(ctx context.Context, organization string, repo
 				Author:     pr.GetUser().GetLogin(),
 				Repository: repository,
 				UnsafeHead: pr.GetHead().GetRef(),
+				Fork:       pr.GetHead().GetRepo().GetFork(),
 			})
 		}
 		if resp.NextPage == 0 {
@@ -210,6 +216,20 @@ func (c *client) ListFiles(ctx context.Context, organization string, repository 
 	}
 
 	return files, nil
+}
+
+// AddLabels will add labels to an Issue or Pull Request.
+func (c *client) AddLabels(ctx context.Context, organization string, repository string, number int, labels []string) error {
+	_, _, err := c.client.Issues.AddLabelsToIssue(ctx,
+		organization,
+		repository,
+		number,
+		labels)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // Workflow contains information about a workflow.

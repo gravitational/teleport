@@ -12,19 +12,24 @@ security feature that protects users against compromises of their on-disk
 Teleport certificates.
 
 <Admonition type="note">
-  Per-session MFA checks don't apply to regular Teleport logins (`tsh login` or
-  logging into the Web UI). We encourage you to enable login MFA in your SSO
-  provider and/or for all [local Teleport
-  users](../../setup/reference/authentication.mdx#local).
+  In addition to per-session MFA, enable login MFA in your SSO provider and/or for all [local Teleport
+  users](../../setup/reference/authentication.mdx#local) to improve security.
 </Admonition>
 
-<Admonition type="warning">
+<Details
+  title="Version warning"
+  opened={false}
+  scope={["oss", "enterprise"]}
+  scopeOnly={true}
+  min="6.1"
+>
   Per-session MFA checks were introduced in Teleport v6.1. To enforce the
   checks, you must update **all** `teleport` binaries in your deployment. If
   only Auth and Proxy services are updated, these checks will *not* be properly
   enforced. Additionally, only v6.1 or newer `tsh` binaries implement
   per-session MFA checks.
-</Admonition>
+</Details>
+
 
 ## Prerequisites
 

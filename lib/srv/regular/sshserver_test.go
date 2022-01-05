@@ -297,7 +297,7 @@ func waitForBytes(ch <-chan []byte) ([]byte, error) {
 }
 
 func TestInactivityTimeout(t *testing.T) {
-	const timeoutMessage = "You snooze, you loose."
+	const timeoutMessage = "You snooze, you lose."
 
 	// Given
 	//  * a running auth server configured with a 5s inactivity timeout,
@@ -1029,6 +1029,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 		AccessPoint:         proxyClient,
 		ReverseTunnelServer: reverseTunnelServer,
 		LocalCluster:        f.testSrv.ClusterName(),
+		Log:                 logger,
 	})
 	require.NoError(t, err)
 
