@@ -34,6 +34,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -313,6 +314,8 @@ const (
 	// establishment of a TCP connection, rather than the full HTTP round-
 	// trip that we measure against, so some tweaking may be needed.
 	proxyDefaultResolutionTimeout = 2 * time.Second
+
+	teleportNamespace = "teleport.dev"
 )
 
 // cliOption is used in tests to inject/override configuration within Run
@@ -1360,20 +1363,36 @@ func printNodesAsText(nodes []types.Server, verbose bool) {
 	// In normal mode chunk the labels and print two per line and allow multiple
 	// lines per node.
 	case false:
-		t = asciitable.MakeTable([]string{"Node Name", "Address", "Labels"})
+		var rows [][]string
 		for _, n := range nodes {
-			labelChunks := chunkLabels(n.GetAllLabels(), 2)
-			for i, v := range labelChunks {
-				if i == 0 {
-					t.AddRow([]string{n.GetHostname(), getAddr(n), strings.Join(v, ", ")})
-				} else {
-					t.AddRow([]string{"", "", strings.Join(v, ", ")})
-				}
-			}
+			rows = append(rows,
+				[]string{n.GetHostname(), getAddr(n), sortedLabels(n.GetAllLabels())})
 		}
+		t = makeTableWithTruncatedFinalColumn([]string{"Node Name", "Address", "Labels"}, rows)
 	}
-
 	fmt.Println(t.AsBuffer().String())
+}
+
+func sortedLabels(labels map[string]string) string {
+	var teleportNamespaced []string
+	var namespaced []string
+	var result []string
+	for key, val := range labels {
+		if strings.HasPrefix(key, teleportNamespace+"/") {
+			teleportNamespaced = append(teleportNamespaced, key)
+			continue
+		}
+		if strings.Contains(key, "/") {
+			namespaced = append(namespaced, fmt.Sprintf("%s=%s", key, val))
+			continue
+		}
+		result = append(result, fmt.Sprintf("%s=%s", key, val))
+	}
+	sort.Strings(result)
+	sort.Strings(namespaced)
+	sort.Strings(teleportNamespaced)
+	namespaced = append(namespaced, teleportNamespaced...)
+	return strings.Join(append(result, namespaced...), ",")
 }
 
 func showApps(apps []types.Application, active []tlsca.RouteToApp, verbose bool) {
@@ -1394,36 +1413,66 @@ func showApps(apps []types.Application, active []tlsca.RouteToApp, verbose bool)
 				app.GetDescription(),
 				app.GetPublicAddr(),
 				app.GetURI(),
-				app.LabelsString(),
+				sortedLabels(app.GetAllLabels()),
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
-		t := asciitable.MakeTable([]string{"Application", "Description", "Public Address", "Labels"})
+		var rows [][]string
 		for _, app := range apps {
-			labelChunks := chunkLabels(app.GetAllLabels(), 2)
-			for i, v := range labelChunks {
-				var name string
-				var addr string
-				if i == 0 {
-					name = app.GetName()
-					addr = app.GetPublicAddr()
+			name := app.GetName()
+			for _, a := range active {
+				if name == a.Name {
+					name = fmt.Sprintf("> %v", name)
 				}
-				for _, a := range active {
-					if name == a.Name {
-						name = fmt.Sprintf("> %v", name)
-					}
-				}
-				t.AddRow([]string{
-					name,
-					app.GetDescription(),
-					addr,
-					strings.Join(v, ", "),
-				})
 			}
+			desc := app.GetDescription()
+			addr := app.GetPublicAddr()
+			labels := sortedLabels(app.GetAllLabels())
+			rows = append(rows, []string{name, desc, addr, labels})
 		}
+		t := makeTableWithTruncatedFinalColumn(
+			[]string{"Application", "Description", "Public Address", "Labels"}, rows)
 		fmt.Println(t.AsBuffer().String())
 	}
+}
+
+func makeTableWithTruncatedFinalColumn(columnOrder []string, rows [][]string) asciitable.Table {
+	width, _, err := term.GetSize(int(os.Stdin.Fd()))
+	if err != nil {
+		width = 80
+	}
+	lastColMinSize := 16
+	maxColWidth := (width - lastColMinSize) / (len(columnOrder) - 1)
+	t := asciitable.MakeTable([]string{})
+	totalLen := 0
+	for collIndex, colName := range columnOrder[:len(columnOrder)-1] { // final column is handled separately
+		column := asciitable.Column{
+			Title:         colName,
+			MaxCellLength: len(colName),
+		}
+		for _, row := range rows {
+			cellLen := row[collIndex]
+			if len(cellLen) > column.MaxCellLength {
+				column.MaxCellLength = len(cellLen)
+			}
+		}
+		if column.MaxCellLength > maxColWidth {
+			column.MaxCellLength = maxColWidth
+			totalLen += column.MaxCellLength + 4 // "...<space>"
+		} else {
+			totalLen += column.MaxCellLength + 1 // +1 for column separator
+		}
+		t.AddColumn(column)
+	}
+	t.AddColumn(asciitable.Column{
+		Title:         columnOrder[len(columnOrder)-1],
+		MaxCellLength: width - totalLen - len("... "),
+	})
+	for _, row := range rows {
+		t.AddRow(row)
+	}
+	return t
 }
 
 func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
@@ -1508,26 +1557,6 @@ func formatActiveDB(active tlsca.RouteToDatabase) string {
 		return fmt.Sprintf("> %v (db: %v)", active.ServiceName, active.Database)
 	}
 	return fmt.Sprintf("> %v", active.ServiceName)
-}
-
-// chunkLabels breaks labels into sized chunks. Used to improve readability
-// of "tsh ls".
-func chunkLabels(labels map[string]string, chunkSize int) [][]string {
-	// First sort labels so they always occur in the same order.
-	sorted := make([]string, 0, len(labels))
-	for k, v := range labels {
-		sorted = append(sorted, fmt.Sprintf("%v=%v", k, v))
-	}
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
-
-	// Then chunk labels into sized chunks.
-	var chunks [][]string
-	for chunkSize < len(sorted) {
-		sorted, chunks = sorted[chunkSize:], append(chunks, sorted[0:chunkSize:chunkSize])
-	}
-	chunks = append(chunks, sorted)
-
-	return chunks
 }
 
 // onListClusters executes 'tsh clusters' command
@@ -2115,6 +2144,9 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 
 	fmt.Printf("%vProfile URL:        %v\n", prefix, p.ProxyURL.String())
 	fmt.Printf("  Logged in as:       %v\n", p.Username)
+	if len(p.ActiveRequests.AccessRequests) != 0 {
+		fmt.Printf("  Active requests:    %v\n", strings.Join(p.ActiveRequests.AccessRequests, ", "))
+	}
 	if p.Cluster != "" {
 		fmt.Printf("  Cluster:            %v\n", p.Cluster)
 	}

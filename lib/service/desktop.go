@@ -149,6 +149,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentWindowsDesktop,
 			Log:       log,
+			Clock:     cfg.Clock,
 			Client:    conn.Client,
 		},
 	})
