@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/pem"
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -328,16 +329,22 @@ func decodePEM(pemPath string) (certs []pem.Block, keys []pem.Block, err error) 
 
 // fakeExec implements execer interface for mocking purposes.
 type fakeExec struct {
-	foundBinary bool
-	execOutput  []byte
+	// execOutput maps binary name and output that should be returned on RunCommand().
+	// Map is also being used to check if a binary exist. Command line args are not supported.
+	execOutput map[string][]byte
 }
 
-func (f fakeExec) RunCommand(_ string, _ ...string) ([]byte, error) {
-	return f.execOutput, nil
+func (f fakeExec) RunCommand(cmd string, _ ...string) ([]byte, error) {
+	out, found := f.execOutput[cmd]
+	if !found {
+		return nil, errors.New("binary not found")
+	}
+
+	return out, nil
 }
 
-func (f fakeExec) LookPath(_ string) (string, error) {
-	if f.foundBinary {
+func (f fakeExec) LookPath(path string) (string, error) {
+	if _, found := f.execOutput[path]; found {
 		return "", nil
 	}
 	return "", trace.NotFound("not found")
@@ -380,7 +387,9 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			name:       "cockroach",
 			dbProtocol: defaults.ProtocolCockroachDB,
 			execer: &fakeExec{
-				foundBinary: true,
+				execOutput: map[string][]byte{
+					"cockroach": []byte(""),
+				},
 			},
 			cmd: []string{"cockroach", "sql", "--url",
 				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/certs.pem&" +
@@ -391,9 +400,7 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 		{
 			name:       "cockroach psql fallback",
 			dbProtocol: defaults.ProtocolCockroachDB,
-			execer: &fakeExec{
-				foundBinary: false,
-			},
+			execer:     &fakeExec{},
 			cmd: []string{"psql",
 				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/certs.pem&" +
 					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
@@ -404,7 +411,9 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			name:       "mariadb",
 			dbProtocol: defaults.ProtocolMySQL,
 			execer: &fakeExec{
-				foundBinary: true,
+				execOutput: map[string][]byte{
+					"mariadb": []byte(""),
+				},
 			},
 			cmd: []string{"mariadb",
 				"--user", "myUser",
@@ -422,8 +431,9 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			name:       "mysql by mariadb",
 			dbProtocol: defaults.ProtocolMySQL,
 			execer: &fakeExec{
-				foundBinary: false,
-				execOutput:  []byte("mysql  Ver 15.1 Distrib 10.3.32-MariaDB, for debian-linux-gnu (x86_64) using readline 5.2"),
+				execOutput: map[string][]byte{
+					"mysql": []byte("mysql  Ver 15.1 Distrib 10.3.32-MariaDB, for debian-linux-gnu (x86_64) using readline 5.2"),
+				},
 			},
 			cmd: []string{"mysql",
 				"--user", "myUser",
@@ -441,8 +451,9 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			name:       "mysql by oracle",
 			dbProtocol: defaults.ProtocolMySQL,
 			execer: &fakeExec{
-				foundBinary: false,
-				execOutput:  []byte("Ver 8.0.27-0ubuntu0.20.04.1 for Linux on x86_64 ((Ubuntu))"),
+				execOutput: map[string][]byte{
+					"mysql": []byte("Ver 8.0.27-0ubuntu0.20.04.1 for Linux on x86_64 ((Ubuntu))"),
+				},
 			},
 			cmd: []string{"mysql",
 				"--defaults-group-suffix=_db.example.com-mysql",
@@ -452,6 +463,15 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 				"--host", "localhost",
 				"--protocol", "TCP"},
 			wantErr: false,
+		},
+		{
+			name:       "no mysql nor mariadb",
+			dbProtocol: defaults.ProtocolMySQL,
+			execer: &fakeExec{
+				execOutput: map[string][]byte{},
+			},
+			cmd:     []string{},
+			wantErr: true,
 		},
 		{
 			name:       "mongodb",
@@ -481,11 +501,14 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			c := newCmdBuilder(tc, profile, database, WithLocalProxy("localhost", 12345, ""))
 			c.exe = tt.execer
 			got, err := c.getConnectCommand()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("getConnectCommand() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("getConnectCommand() should return an error, but it didn't")
+				}
 				return
 			}
 
+			require.NoError(t, err)
 			require.Equal(t, tt.cmd, got.Args)
 		})
 	}

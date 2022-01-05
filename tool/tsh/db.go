@@ -618,7 +618,7 @@ func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
 		return c.getCockroachCommand(), nil
 
 	case defaults.ProtocolMySQL:
-		return c.getMySQLCommand(), nil
+		return c.getMySQLCommand()
 
 	case defaults.ProtocolMongoDB:
 		return c.getMongoCommand(), nil
@@ -644,6 +644,7 @@ func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
 		postgres.GetConnString(dbprofile.New(c.tc, *c.db, *c.profile, c.host, c.port)))
 }
 
+// getMySQLCommonCmdOpts returns common command line arguments for mysql and mariadb.
 func (c *cliCommandBuilder) getMySQLCommonCmdOpts() []string {
 	args := make([]string, 0)
 	if c.db.Username != "" {
@@ -666,7 +667,9 @@ func (c *cliCommandBuilder) getMySQLCommonCmdOpts() []string {
 	return args
 }
 
-func (c *cliCommandBuilder) getMariadbArgs() []string {
+// getMariaDBArgs returns arguments unique for mysql cmd shipped by MariaDB and mariadb cmd. Common options for mysql
+// between Oracle and MariaDB version are covered by getMySQLCommonCmdOpts().
+func (c *cliCommandBuilder) getMariaDBArgs() []string {
 	args := c.getMySQLCommonCmdOpts()
 	sslCertPath := c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName)
 
@@ -675,6 +678,7 @@ func (c *cliCommandBuilder) getMariadbArgs() []string {
 	args = append(args, []string{"--ssl-cert", sslCertPath}...)
 
 	// Flag below verifies "Common Name" check on the certificate provided by the server.
+	// This option is disabled by default.
 	if !c.tc.InsecureSkipVerify {
 		args = append(args, "--ssl-verify-server-cert")
 	}
@@ -682,6 +686,8 @@ func (c *cliCommandBuilder) getMariadbArgs() []string {
 	return args
 }
 
+// getMySQLOracleCommand returns arguments unique for mysql cmd shipped by Oracle. Common options between
+// Oracle and MariaDB version are covered by getMySQLCommonCmdOpts().
 func (c *cliCommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 	args := c.getMySQLCommonCmdOpts()
 
@@ -699,29 +705,39 @@ func (c *cliCommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 
 // getMySQLCommand returns mariadb command if the binary is on the path. Otherwise,
 // mysql command is returned. Both mysql versions (MariaDB and Oracle) are supported.
-func (c *cliCommandBuilder) getMySQLCommand() *exec.Cmd {
+func (c *cliCommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	// Check if mariadb client is available. Prefer it over mysql client even if connecting to MySQL server.
-	if c.isMariadbBinAvailable() {
-		args := c.getMariadbArgs()
-		return exec.Command(mariadbBin, args...)
+	if c.isMariaDBBinAvailable() {
+		args := c.getMariaDBArgs()
+		return exec.Command(mariadbBin, args...), nil
+	}
+
+	// Check for mysql binary. Return with error as mysql and mariadb are missing. There is nothing else we can do here.
+	if !c.isMySQLBinAvailable() {
+		return nil, trace.NotFound("neither \"mysql\" nor \"mariadb\" were found")
 	}
 
 	// Check which flavor is installed. Otherwise, we don't know which ssl flag to use.
-	// Yes, at the moment of writing they both have the same name and accept different parameters.
-	mySQLMariadbFlavor, err := c.isMySQLBinMariaDBFlavor()
-	if mySQLMariadbFlavor && err == nil {
-		args := c.getMariadbArgs()
-		return exec.Command(mysqlBin, args...)
+	// At the moment of writing mysql binary shipped by Oracle and MariaDB accept different ssl parameters and have the same name.
+	mySQLMariaDBFlavor, err := c.isMySQLBinMariaDBFlavor()
+	if mySQLMariaDBFlavor && err == nil {
+		args := c.getMariaDBArgs()
+		return exec.Command(mysqlBin, args...), nil
 	}
 
-	// Either we failed to check the flavor or binary comes from Oracle. Regardless return mysql command.
-	// This will generate "not found mysql" command.
-	return c.getMySQLOracleCommand()
+	// Either we failed to check the flavor or binary comes from Oracle. Regardless return mysql/Oracle command.
+	return c.getMySQLOracleCommand(), nil
 }
 
-// isMariadbBinAvailable returns true if "mariadb" binary is found in the system PATH.
-func (c *cliCommandBuilder) isMariadbBinAvailable() bool {
+// isMariaDBBinAvailable returns true if "mariadb" binary is found in the system PATH.
+func (c *cliCommandBuilder) isMariaDBBinAvailable() bool {
 	_, err := c.exe.LookPath(mariadbBin)
+	return err == nil
+}
+
+// isMySQLBinAvailable returns true if "mysql" binary is found in the system PATH.
+func (c *cliCommandBuilder) isMySQLBinAvailable() bool {
+	_, err := c.exe.LookPath(mysqlBin)
 	return err == nil
 }
 
@@ -731,10 +747,7 @@ func (c *cliCommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	// Check if mysql comes from Oracle or MariaDB
 	mysqlVer, err := c.exe.RunCommand(mysqlBin, "--version")
 	if err != nil {
-		// Looks like incorrect mysql installation or mysql binary is missing.
-		// Assume the Oracle's version and return the command. Nest time when
-		// why try to run it to open the DB connection the error will be
-		// presented to a user.
+		// Looks like incorrect mysql installation.
 		return false, trace.Wrap(err)
 	}
 
