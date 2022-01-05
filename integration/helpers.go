@@ -1085,6 +1085,9 @@ func (i *TeleInstance) Start() error {
 	// Build a list of expected events to wait for before unblocking based off
 	// the configuration passed in.
 	expectedEvents := []string{}
+
+	fmt.Printf("--> expectedEvents: %v.\n", expectedEvents)
+
 	if i.Config.Auth.Enabled {
 		expectedEvents = append(expectedEvents, service.AuthTLSReady)
 	}
@@ -1126,6 +1129,7 @@ func (i *TeleInstance) Start() error {
 		}
 	}
 
+	fmt.Printf("--> got all events: %v.\n", receivedEvents)
 	log.Debugf("Teleport instance %v started: %v/%v events received.",
 		i.Secrets.SiteName, len(receivedEvents), len(expectedEvents))
 	return nil

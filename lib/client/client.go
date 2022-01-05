@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -1023,10 +1024,12 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 
 		// read the stderr output from the failed SSH session and append
 		// it to the end of our own message:
-		serverErrorMsg, _ := ioutil.ReadAll(proxyErr)
+		serverErrorMsg, eeerrr := ioutil.ReadAll(proxyErr)
+		fmt.Printf("--> client.go: %v %v %v.\n", err, eeerrr, string(serverErrorMsg))
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
 			nodeName(nodeAddress.Addr), serverErrorMsg)
 	}
+	fmt.Printf("--> got conn!\n")
 	pipeNetConn := utils.NewPipeNetConn(
 		proxyReader,
 		proxyWriter,

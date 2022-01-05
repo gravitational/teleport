@@ -214,6 +214,7 @@ func (s *remoteSite) nextConn() (*remoteConn, error) {
 		}
 	}
 
+	fmt.Printf("--> okay but no active tunnels found!\n")
 	return nil, trace.NotFound("%v is offline: no active tunnels to %v found", s.GetName(), s.srv.ClusterName)
 }
 
@@ -711,16 +712,20 @@ func (s *remoteSite) connThroughTunnel(req *sshutils.DialReq) (*sshutils.ChConn,
 }
 
 func (s *remoteSite) chanTransportConn(req *sshutils.DialReq) (*sshutils.ChConn, error) {
+	fmt.Printf("--> chanTransportConn.\n")
 	rconn, err := s.nextConn()
 	if err != nil {
+		fmt.Printf("--> chanTransportConn: %v\n", err)
 		return nil, trace.Wrap(err)
 	}
 
+	fmt.Printf("--> chanTransportConn: sshutils.ConnectProxyTransport\n")
 	conn, markInvalid, err := sshutils.ConnectProxyTransport(rconn.sconn, req, false)
 	if err != nil {
 		if markInvalid {
 			rconn.markInvalid(err)
 		}
+		fmt.Printf("--> chanTransportConn: sshutils.ConnectProxyTransport: %v\n", err)
 		return nil, trace.Wrap(err)
 	}
 

@@ -1399,6 +1399,8 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 // dispatch receives an SSH request for a subsystem and disptaches the request to the
 // appropriate subsystem implementation
 func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+	fmt.Printf("--> in dispatch %v\n", s.proxyMode)
+
 	ctx.Debugf("Handling request %v, want reply %v.", req.Type, req.WantReply)
 
 	// If this SSH server is configured to only proxy, we do not support anything

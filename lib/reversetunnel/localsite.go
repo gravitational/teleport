@@ -365,6 +365,7 @@ func (s *localSite) addConn(nodeID string, connType types.TunnelType, conn net.C
 		uuid:     nodeID,
 		connType: connType,
 	}
+	fmt.Printf("--> inserting uuid: %v, connType: %v.\n", nodeID, connType)
 	s.remoteConns[key] = rconn
 
 	return rconn, nil

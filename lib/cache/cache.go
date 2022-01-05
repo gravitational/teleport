@@ -1174,7 +1174,11 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"networking"}, func() (interface{}, error) {
 			// use cache's close context instead of request context in order to ensure
 			// that we don't cache a context cancellation error.
-			cfg, err := rg.clusterConfig.GetClusterNetworkingConfig(c.ctx, opts...)
+
+			cctx, _ := context.WithTimeout(c.ctx, 5*time.Second)
+			cfg, err := rg.clusterConfig.GetClusterNetworkingConfig(cctx, opts...)
+
+			//cfg, err := rg.clusterConfig.GetClusterNetworkingConfig(c.ctx, opts...)
 			ta(cfg)
 			return cfg, err
 		})
@@ -1280,24 +1284,32 @@ var _ map[getNodesCacheKey]struct{} // compile-time hashability check
 
 // GetNodes is a part of auth.Cache implementation
 func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+	fmt.Printf("--> %v Cache 1.\n", c.Config.target)
 	rg, err := c.read()
 	if err != nil {
+		fmt.Printf("--> %v Cache 2.\n", c.Config.target)
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
+	fmt.Printf("--> %v Cache 3.\n", c.Config.target)
 	if !rg.IsCacheRead() {
+		fmt.Printf("--> %v Cache 4 %v.\n", c.Config.target, time.Now())
 		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace, opts...)
 		if err != nil {
+			fmt.Printf("-----------> %v Cache 5 %v.\n", c.Config.target, time.Now())
 			return nil, trace.Wrap(err)
 		}
+		fmt.Printf("-----------> %v Cache 5.5 %v.\n", c.Config.target, time.Now())
 		nodes := make([]types.Server, 0, len(cachedNodes))
 		for _, node := range cachedNodes {
 			nodes = append(nodes, node.DeepCopy())
 		}
+		fmt.Printf("-------------> %v Cache 6.\n", c.Config.target)
 		return nodes, nil
 	}
 
+	fmt.Printf("--> %v Cache 7.\n", c.Config.target)
 	return rg.presence.GetNodes(ctx, namespace, opts...)
 }
 
@@ -1308,7 +1320,10 @@ func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespac
 	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func() (interface{}, error) {
 		// use cache's close context instead of request context in order to ensure
 		// that we don't cache a context cancellation error.
-		nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
+		cctx, _ := context.WithTimeout(c.ctx, 5*time.Second)
+
+		nodes, err := rg.presence.GetNodes(cctx, namespace, opts...)
+		//nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
 		ta(nodes)
 		return nodes, err
 	})

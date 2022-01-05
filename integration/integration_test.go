@@ -1373,14 +1373,14 @@ func testTwoClustersTunnel(t *testing.T, suite *integrationTestSuite) {
 			3,
 			0,
 		},
-		// recording proxy. since events are recorded at the proxy, 3 events end up
-		// on site-a (because it's a teleport node so it still records at the node)
-		// and 2 events end up on site-b because it's recording.
-		{
-			types.RecordAtProxy,
-			3,
-			2,
-		},
+		//// recording proxy. since events are recorded at the proxy, 3 events end up
+		//// on site-a (because it's a teleport node so it still records at the node)
+		//// and 2 events end up on site-b because it's recording.
+		//{
+		//	types.RecordAtProxy,
+		//	3,
+		//	2,
+		//},
 	}
 
 	for _, tt := range tests {
@@ -1496,6 +1496,8 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	// wait for active tunnel connections to be established
 	waitForActiveTunnelConnections(t, b.Tunnel, a.Secrets.SiteName, 1)
 
+	fmt.Printf("--> got active tunnel conns...\n")
+
 	// via tunnel b->a:
 	tc, err = b.NewClient(t, ClientConfig{
 		Login:        username,
@@ -1510,25 +1512,56 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.NoError(t, err)
 	require.Equal(t, outputA.String(), outputB.String())
 
+	fmt.Printf("--> Stopping A...\n")
+
 	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
 	require.NoError(t, a.StopAuth(false))
 	err = tc.SSH(context.TODO(), cmd, false)
 	require.IsType(t, err, trace.ConnectionProblem(nil, ""))
 
+	fmt.Printf("--> Resetting and starting A...\n")
+
 	// Reset and start "Site-A" again
 	require.NoError(t, a.Reset())
+
+	wfatc(t, b.Tunnel, a.Secrets.SiteName, 0)
+
 	require.NoError(t, a.Start())
+
+	// wait for active tunnel connections to be established
+	waitForActiveTunnelConnections(t, b.Tunnel, a.Secrets.SiteName, 1)
 
 	// try to execute an SSH command using the same old client to Site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
 	// and 'tc' (client) is also supposed to reconnect
-	var sshErr error
-	tcHasReconnected := func() bool {
-		sshErr = tc.SSH(context.TODO(), cmd, false)
-		return sshErr == nil
+	for i := 0; i < 5; i++ {
+		time.Sleep(250 * time.Millisecond)
+
+		cctx, _ := context.WithTimeout(context.Background(), 20*time.Second)
+		fmt.Printf("--> %v attempt %v ssh.\n", time.Now(), i)
+		err = tc.SSH(cctx, cmd, false)
+		tc.Stdout = &prependWriter{}
+		tc.Stderr = &prependWriter{}
+
+		fmt.Printf("--> %v sshErr: %v\n", time.Now(), err)
+		if err == nil {
+			break
+		}
 	}
-	require.Eventually(t, tcHasReconnected, 10*time.Second, 250*time.Millisecond,
-		"Timed out waiting for Site A to restart: %v", sshErr)
+	require.NoError(t, err)
+
+	//	// try to execute an SSH command using the same old client to Site-B
+	//	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
+	//	// and 'tc' (client) is also supposed to reconnect
+	//	var sshErr error
+	//	tcHasReconnected := func() bool {
+	//		sshErr = tc.SSH(context.TODO(), cmd, false)
+	//		fmt.Printf("--> sshErr: %v\n", sshErr)
+	//		return sshErr == nil
+	//	}
+	//	// HERE!!!!!!!!!!!!!!
+	//require.Eventually(t, tcHasReconnected, 10*time.Second, 250*time.Millisecond,
+	//	"Timed out waiting for Site A to restart: %v", sshErr)
 
 	clientHasEvents := func(site auth.ClientI, count int) func() bool {
 		// only look for exec events
@@ -1548,6 +1581,14 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	siteB := b.GetSiteAPI(b.Secrets.SiteName)
 	require.Eventually(t, clientHasEvents(siteB, execCountSiteB), 5*time.Second, 500*time.Millisecond,
 		"Failed to find %d events on Site B after 5s", execCountSiteB)
+}
+
+type prependWriter struct {
+}
+
+func (pw *prependWriter) Write(p []byte) (int, error) {
+	fmt.Printf("--> %v\n", string(p))
+	return len(p), nil
 }
 
 // TestTwoClustersProxy checks if the reverse tunnel uses a HTTP PROXY to
@@ -2786,6 +2827,25 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 }
 
+func wfatc(t *testing.T, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
+	var lastCount int
+	var lastErr error
+	for i := 0; i < 30; i++ {
+		cluster, err := tunnel.GetSite(clusterName)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		lastCount = cluster.GetTunnelsCount()
+		fmt.Printf("--> got lastCount tunnels: %v.\n", lastCount)
+		if lastCount >= expectedCount {
+			return
+		}
+		time.Sleep(1 * time.Second)
+	}
+	t.Fatalf("Connections count on %v: %v, expected %v, last error: %v", clusterName, lastCount, expectedCount, lastErr)
+}
+
 // waitForActiveTunnelConnections  waits for remote cluster to report a minimum number of active connections
 func waitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
 	var lastCount int
@@ -2797,6 +2857,7 @@ func waitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, c
 			continue
 		}
 		lastCount = cluster.GetTunnelsCount()
+		fmt.Printf("--> got lastCount tunnels: %v.\n", lastCount)
 		if lastCount >= expectedCount {
 			return
 		}

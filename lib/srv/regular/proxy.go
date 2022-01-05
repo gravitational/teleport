@@ -83,6 +83,8 @@ type proxySubsys struct {
 //  "proxy:host:22@clustername" - Teleport request to connect to host:22 on cluster 'clustername'
 //  "proxy:host:22@namespace@clustername"
 func parseProxySubsysRequest(request string) (proxySubsysRequest, error) {
+	fmt.Printf("--> got subsystem request: %v.\n", request)
+
 	log.Debugf("parse_proxy_subsys(%q)", request)
 	var (
 		clusterName  string
@@ -306,6 +308,7 @@ func (t *proxySubsys) proxyToSite(
 // requested remote node (t.host:t.port) via the given site
 func (t *proxySubsys) proxyToHost(
 	ctx *srv.ServerContext, site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
+	fmt.Printf("--> proxyToHost: enter\n")
 	//
 	// first, lets fetch a list of servers at the given site. this allows us to
 	// match the given "host name" against node configuration (their 'nodename' setting)
@@ -322,6 +325,7 @@ func (t *proxySubsys) proxyToHost(
 	// going to "local" CA? lets use the caching 'auth service' directly and avoid
 	// hitting the reverse tunnel link (it can be offline if the CA is down)
 	if site.GetName() == localCluster.GetName() {
+		fmt.Printf("--> 1\n")
 		servers, err = t.srv.proxyAccessPoint.GetNodes(ctx.CancelContext(), t.namespace)
 		if err != nil {
 			t.log.Warn(err)
@@ -334,32 +338,44 @@ func (t *proxySubsys) proxyToHost(
 			strategy = cfg.GetRoutingStrategy()
 		}
 	} else {
+		fmt.Printf("--> 2\n")
 		// "remote" CA? use a reverse tunnel to talk to it:
 		siteClient, err := site.CachingAccessPoint()
 		if err != nil {
+			fmt.Printf("--> 2.0: %v.\n", err)
 			t.log.Warn(err)
 		} else {
+			pr, _ := siteClient.GetProxies()
+			fmt.Printf("--> 2.1: %#v\n", pr)
 			servers, err = siteClient.GetNodes(ctx.CancelContext(), t.namespace)
 			if err != nil {
+				fmt.Printf("--> 2.2: %v.\n", err)
 				t.log.Warn(err)
 			}
 
+			fmt.Printf("--> 2.3: %v\n")
 			cfg, err := siteClient.GetClusterNetworkingConfig(ctx.CancelContext())
 			if err != nil {
+				fmt.Printf("--> 2.4: %v.\n", err)
 				t.log.Warn(err)
 			} else {
+				fmt.Printf("--> 2.5\n")
 				strategy = cfg.GetRoutingStrategy()
 			}
+			fmt.Printf("--> 2.6: %v.\n", err)
 		}
+		fmt.Printf("--> 2.7: %v.\n", err)
 	}
 
 	// if port is 0, it means the client wants us to figure out
 	// which port to use
 	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v, strategy=%s", t.host, t.port, t.SpecifiedPort(), strategy)
 
+	fmt.Printf("--> 3\n")
 	// determine which server to connect to
 	server, err := t.getMatchingServer(servers, strategy)
 	if err != nil {
+		fmt.Printf("--> proxyToHost: getMatchingServer: %v\n", err)
 		return trace.Wrap(err)
 	}
 
@@ -374,6 +390,7 @@ func (t *proxySubsys) proxyToHost(
 	// DNS resolvable.
 	var serverAddr string
 	if server != nil {
+		fmt.Printf("--> 4\n")
 		// Add hostUUID.clusterName to list of principals.
 		serverID = fmt.Sprintf("%v.%v", server.GetName(), t.clusterName)
 		principals = append(principals, serverID)
@@ -383,6 +400,7 @@ func (t *proxySubsys) proxyToHost(
 		if serverAddr != "" {
 			host, _, err := net.SplitHostPort(serverAddr)
 			if err != nil {
+				fmt.Printf("--> proxyToHost: net.SplitHostPort: %v\n", err)
 				return trace.Wrap(err)
 			}
 			principals = append(principals, host)
@@ -390,6 +408,7 @@ func (t *proxySubsys) proxyToHost(
 			serverAddr = reversetunnel.LocalNode
 		}
 	} else {
+		fmt.Printf("--> 5\n")
 		if !t.SpecifiedPort() {
 			t.port = strconv.Itoa(defaults.SSHServerListenPort)
 		}
@@ -397,6 +416,7 @@ func (t *proxySubsys) proxyToHost(
 		t.log.Warnf("server lookup failed: using default=%v", serverAddr)
 	}
 
+	fmt.Printf("--> 6\n")
 	// Pass the agent along to the site. If the proxy is in recording mode, this
 	// agent is used to perform user authentication. Pass the DNS name to the
 	// dialer as well so the forwarding proxy can generate a host certificate
@@ -415,9 +435,11 @@ func (t *proxySubsys) proxyToHost(
 		ConnType:     types.NodeTunnel,
 	})
 	if err != nil {
+		fmt.Printf("--> failed connecting to host: %v.\n", err)
 		failedConnectingToNode.Inc()
 		return trace.Wrap(err)
 	}
+	fmt.Printf("--> connected to host: %v.\n", err)
 
 	// this custom SSH handshake allows SSH proxy to relay the client's IP
 	// address to the SSH server
