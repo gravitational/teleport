@@ -1,6 +1,6 @@
 import React from 'react';
 import { MemoryRouter, Route } from 'react-router';
-import { screen, fireEvent, act, render, wait } from 'design/utils/testing';
+import { screen, fireEvent, act, render, waitFor } from 'design/utils/testing';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import auth from 'teleport/services/auth';
@@ -34,7 +34,7 @@ test('should render recovery codes screen afterwards if the response includes th
   fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
   fireEvent.change(otpField, { target: { value: '2222' } });
 
-  await wait(() => fireEvent.click(screen.getByText('Create Account')));
+  await waitFor(() => fireEvent.click(screen.getByText('Create Account')));
 
   expect(auth.resetPassword).toHaveBeenCalledWith('5182', 'pwd_value', '2222');
 
@@ -64,7 +64,7 @@ test('should not render recovery codes screen afterwards if the response doesnt 
   fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
   fireEvent.change(otpField, { target: { value: '2222' } });
 
-  await wait(() => fireEvent.click(screen.getByText('Create Account')));
+  await waitFor(() => fireEvent.click(screen.getByText('Create Account')));
 
   expect(auth.resetPassword).toHaveBeenCalledWith('5182', 'pwd_value', '2222');
 

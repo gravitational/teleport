@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent, wait, screen } from 'design/utils/testing';
+import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
 import AuthService from 'teleport/services/auth';
 import TeleportContextE from 'e-teleport/teleportContextE';
@@ -59,11 +59,11 @@ describe('recovery dashboard testing', () => {
   });
 
   test('generating new codes with totp', async () => {
-    await wait(() => renderRecoveryDashboard());
+    await waitFor(() => renderRecoveryDashboard());
 
     expect(ctx.recoveryService.fetchRecoveryCodesMetadata).toHaveBeenCalled();
 
-    await wait(() =>
+    await waitFor(() =>
       fireEvent.click(screen.getByText('Generate new recovery codes'))
     );
 
@@ -78,7 +78,7 @@ describe('recovery dashboard testing', () => {
     const tokenField = screen.getByPlaceholderText('123 456');
     fireEvent.change(tokenField, { target: { value: '321321' } });
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
     });
 
@@ -99,7 +99,7 @@ describe('recovery dashboard testing', () => {
   });
 
   test('generating new codes with u2f', async () => {
-    await wait(() => renderRecoveryDashboard());
+    await waitFor(() => renderRecoveryDashboard());
 
     expect(ctx.recoveryService.fetchRecoveryCodesMetadata).toHaveBeenCalled();
 
@@ -107,7 +107,7 @@ describe('recovery dashboard testing', () => {
 
     expect(screen.getByText('Verify your identity')).toBeInTheDocument();
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
     });
 
@@ -128,7 +128,7 @@ describe('recovery dashboard testing', () => {
   test('generating new codes with webauthn', async () => {
     jest.spyOn(cfg.oss, 'getPreferredMfaType').mockReturnValue('webauthn');
 
-    await wait(() => renderRecoveryDashboard());
+    await waitFor(() => renderRecoveryDashboard());
 
     expect(ctx.recoveryService.fetchRecoveryCodesMetadata).toHaveBeenCalled();
 
@@ -136,7 +136,7 @@ describe('recovery dashboard testing', () => {
 
     expect(screen.getByText('Verify your identity')).toBeInTheDocument();
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
     });
 

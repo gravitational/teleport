@@ -1,7 +1,7 @@
 import React from 'react';
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
-import { render, fireEvent, wait, screen } from 'design/utils/testing';
+import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 import history from 'teleport/services/history';
 import MfaService from 'teleport/services/mfa';
 import cfg from 'e-teleport/config';
@@ -110,7 +110,7 @@ describe('all recovery flows should show correct screens', () => {
       isRecoverPassword: true,
     });
 
-    await wait(() => {
+    await waitFor(() => {
       renderRecovery();
       mockHistory.replace(route1VerifyWithStartToken);
     });
@@ -128,7 +128,7 @@ describe('all recovery flows should show correct screens', () => {
 
     fireEvent.change(tokenField, { target: { value: '321321' } });
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
       mockHistory.push(route2NewPasswordWithApprovedToken);
     });
@@ -153,7 +153,7 @@ describe('all recovery flows should show correct screens', () => {
       target: { value: 'password123' },
     });
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
       mockHistory.push(routeNewCodesWithApprovedToken);
     });
@@ -197,7 +197,7 @@ describe('all recovery flows should show correct screens', () => {
         isRecoverPassword: true,
       });
 
-    await wait(() => {
+    await waitFor(() => {
       renderRecovery();
       mockHistory.replace(route1VerifyWithStartToken);
     });
@@ -211,7 +211,7 @@ describe('all recovery flows should show correct screens', () => {
         isRecoverPassword: true,
       });
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
       mockHistory.push(route2NewPasswordWithApprovedToken);
     });
@@ -235,7 +235,7 @@ describe('all recovery flows should show correct screens', () => {
       target: { value: 'password123' },
     });
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
       mockHistory.push(routeNewCodesWithApprovedToken);
     });
@@ -277,7 +277,7 @@ describe('all recovery flows should show correct screens', () => {
       isRecoverPassword: false,
     });
 
-    await wait(() => {
+    await waitFor(() => {
       renderRecovery();
       mockHistory.replace(route1VerifyWithStartToken);
     });
@@ -295,7 +295,7 @@ describe('all recovery flows should show correct screens', () => {
 
     fireEvent.change(passwordField, { target: { value: 'password123' } });
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
       mockHistory.push(route2NewDeviceWithApprovedToken);
     });
@@ -316,7 +316,7 @@ describe('all recovery flows should show correct screens', () => {
     fireEvent.change(newTokenField, { target: { value: '321321' } });
     fireEvent.change(deviceNameField, { target: { value: 'backup' } });
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
       mockHistory.push(route3DevicesWithApprovedToken);
     });
@@ -343,7 +343,7 @@ describe('all recovery flows should show correct screens', () => {
     expect(screen.getByText(/iphone 12/i)).toBeInTheDocument();
     expect(screen.getByText(/solokey/i)).toBeInTheDocument();
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
       mockHistory.push(routeNewCodesWithApprovedToken);
     });
@@ -378,7 +378,7 @@ describe('all recovery flows should show correct screens', () => {
       isRecoverPassword: false,
     });
 
-    await wait(() => {
+    await waitFor(() => {
       renderRecovery();
       mockHistory.replace(route1VerifyWithStartToken);
     });
@@ -396,7 +396,7 @@ describe('all recovery flows should show correct screens', () => {
 
     fireEvent.change(passwordField, { target: { value: 'password123' } });
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
       mockHistory.push(route2NewDeviceWithApprovedToken);
     });
@@ -417,7 +417,7 @@ describe('all recovery flows should show correct screens', () => {
     fireEvent.change(deviceNameField, { target: { value: 'backup' } });
     fireEvent.click(registerKeyBtn);
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText(/continue/i));
       mockHistory.push(route3DevicesWithApprovedToken);
     });
@@ -443,7 +443,7 @@ describe('all recovery flows should show correct screens', () => {
     expect(screen.getByText(/iphone 12/i)).toBeInTheDocument();
     expect(screen.getByText(/solokey/i)).toBeInTheDocument();
 
-    await wait(() => {
+    await waitFor(() => {
       fireEvent.click(screen.getByText('Continue'));
       mockHistory.push(routeNewCodesWithApprovedToken);
     });

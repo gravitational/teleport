@@ -1,6 +1,6 @@
 import React from 'react';
 import Banner from './Banner';
-import { render, screen, wait, fireEvent } from 'design/utils/testing';
+import { render, screen, waitFor, fireEvent } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
 import history from 'teleport/services/history';
 import session from 'teleport/services/session';
@@ -102,7 +102,7 @@ describe('banner behavioral testing', () => {
     expect(screen.getByText(/hello/i)).toBeInTheDocument();
 
     // Test clicking on switchback button, calls appropriate funcs.
-    await wait(() => fireEvent.click(screen.getByText(/switch back/i)));
+    await waitFor(() => fireEvent.click(screen.getByText(/switch back/i)));
     expect(workflowSvc.applyPermission).toHaveBeenCalledWith({
       switchback: true,
     });
@@ -132,7 +132,7 @@ describe('banner behavioral testing', () => {
 
     render(<>{Component}</>);
 
-    await wait(() => fireEvent.click(screen.getByText(/switch back/i)));
+    await waitFor(() => fireEvent.click(screen.getByText(/switch back/i)));
     expect(screen.getByTestId('Modal')).toBeInTheDocument();
     expect(screen.getByText('some error')).toBeInTheDocument();
   });

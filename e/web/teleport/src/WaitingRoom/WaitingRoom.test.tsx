@@ -3,7 +3,7 @@ import WaitingRoom from './WaitingRoom';
 import { ContextProvider } from 'teleport';
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { makeUserContext } from 'teleport/services/user';
-import { render, screen, wait, fireEvent } from 'design/utils/testing';
+import { render, screen, waitFor, fireEvent } from 'design/utils/testing';
 import historyService from 'teleport/services/history';
 import { makeAccessRequest } from 'e-teleport/services/workflow';
 
@@ -34,7 +34,7 @@ describe('access strategy behavioral testing', () => {
     jest.spyOn(userService, 'fetchUserContext').mockResolvedValue(userContext);
 
     render(<>{Component}</>);
-    await wait(() => expect(screen.getByText(/hello/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/hello/i)).toBeInTheDocument());
   });
 
   test('strategy "reason" dialog', async () => {
@@ -44,7 +44,7 @@ describe('access strategy behavioral testing', () => {
     jest.spyOn(userService, 'fetchUserContext').mockResolvedValue(userContext);
 
     render(<>{Component}</>);
-    await wait(() =>
+    await waitFor(() =>
       expect(screen.getByText(/custom prompt/i)).toBeInTheDocument()
     );
   });
@@ -62,7 +62,7 @@ describe('access strategy behavioral testing', () => {
       .mockResolvedValue(request);
 
     render(<>{Component}</>);
-    await wait(() =>
+    await waitFor(() =>
       expect(screen.getByText(/send request/i)).toBeInTheDocument()
     );
 
@@ -70,7 +70,7 @@ describe('access strategy behavioral testing', () => {
       target: { value: 'reason' },
     });
 
-    await wait(() => fireEvent.click(screen.getByText(/send request/i)));
+    await waitFor(() => fireEvent.click(screen.getByText(/send request/i)));
     expect(screen.getByText(/being authorized/i)).toBeInTheDocument();
     expect(workflowService.createAccessRequest).toHaveBeenCalledTimes(1);
     expect(workflowService.fetchAccessRequest).toHaveBeenCalled();
@@ -84,7 +84,7 @@ describe('access strategy behavioral testing', () => {
     jest.spyOn(userService, 'fetchUserContext').mockResolvedValue(userContext);
 
     render(<>{Component}</>);
-    await wait(() =>
+    await waitFor(() =>
       expect(screen.getByText(/send request/i)).toBeInTheDocument()
     );
 
@@ -92,7 +92,7 @@ describe('access strategy behavioral testing', () => {
       target: { value: 'reason' },
     });
 
-    await wait(() => fireEvent.click(screen.getByText(/send request/i)));
+    await waitFor(() => fireEvent.click(screen.getByText(/send request/i)));
     expect(screen.getByText(/send request/i)).toBeInTheDocument();
     expect(screen.getByText(/some error/i)).toBeInTheDocument();
   });
@@ -115,7 +115,7 @@ describe('access strategy behavioral testing', () => {
     jest.spyOn(userService, 'fetchUserContext').mockResolvedValue(userContext);
 
     render(<>{Component}</>);
-    await wait(() => {
+    await waitFor(() => {
       expect(screen.getByText(/being authorized/i)).toBeInTheDocument();
     });
 
@@ -140,7 +140,7 @@ describe('access strategy behavioral testing', () => {
     jest.spyOn(userService, 'fetchUserContext').mockResolvedValue(userContext);
 
     render(<>{Component}</>);
-    await wait(() => {
+    await waitFor(() => {
       expect(screen.getByText(/being authorized/i)).toBeInTheDocument();
     });
 
@@ -165,7 +165,7 @@ describe('access strategy behavioral testing', () => {
     jest.spyOn(historyService, 'reload').mockImplementation();
 
     render(<>{Component}</>);
-    await wait(() =>
+    await waitFor(() =>
       expect(workflowService.applyPermission).toHaveBeenCalledTimes(1)
     );
 
@@ -185,7 +185,7 @@ describe('access strategy behavioral testing', () => {
     jest.spyOn(userService, 'fetchUserContext').mockResolvedValue(userContext);
 
     render(<>{Component}</>);
-    await wait(() =>
+    await waitFor(() =>
       expect(screen.getByText(/request denied/i)).toBeInTheDocument()
     );
   });
@@ -198,7 +198,7 @@ describe('access strategy behavioral testing', () => {
     jest.spyOn(userService, 'fetchUserContext').mockResolvedValue(userContext);
 
     render(<>{Component}</>);
-    await wait(() => expect(screen.getByText(/hello/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/hello/i)).toBeInTheDocument());
   });
 
   test('strategy "always" fetch request errors', async () => {
@@ -212,7 +212,7 @@ describe('access strategy behavioral testing', () => {
     jest.spyOn(userService, 'fetchUserContext').mockResolvedValue(userContext);
 
     render(<>{Component}</>);
-    await wait(() =>
+    await waitFor(() =>
       expect(screen.getByText(/error has occurred/i)).toBeInTheDocument()
     );
   });
@@ -228,7 +228,7 @@ describe('access strategy behavioral testing', () => {
     jest.spyOn(userService, 'fetchUserContext').mockResolvedValue(userContext);
 
     render(<>{Component}</>);
-    await wait(() => expect(screen.getByText(/hello/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/hello/i)).toBeInTheDocument());
   });
 });
 
