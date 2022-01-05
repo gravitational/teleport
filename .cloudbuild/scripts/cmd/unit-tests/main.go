@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"time"
 
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
@@ -106,7 +107,6 @@ func innerMain() error {
 		return trace.Wrap(err, "failed starting etcd")
 	}
 	defer etcdSvc.Stop()
-
 
 	log.Printf("Running unit tests...")
 	err = runUnitTests(args.workspace)
