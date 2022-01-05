@@ -751,9 +751,9 @@ func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
 	// fall back to `mongo` if `mongosh` isn't found
 	if hasMongosh {
 		return exec.Command(mongoshBin, args...)
-	} else {
-		return exec.Command(mongoBin, args...)
 	}
+
+	return exec.Command(mongoBin, args...)
 }
 
 func formatDatabaseListCommand(clusterFlag string) string {
