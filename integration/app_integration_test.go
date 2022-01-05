@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 
@@ -723,7 +722,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	log := testlog.FailureOnly(t)
+	log := utils.NewLoggerForTests()
 
 	// Insecure development mode needs to be set because the web proxy uses a
 	// self-signed certificate during tests.
