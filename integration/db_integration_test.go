@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
@@ -540,7 +539,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	t.Cleanup(func() { tracer.Stop() })
 	lib.SetInsecureDevMode(true)
 	SetTestTimeouts(100 * time.Millisecond)
-	log := testlog.FailureOnly(t)
+	log := utils.NewLoggerForTests()
 
 	// Generate keypair.
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")

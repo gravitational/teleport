@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 )
 
 // TestALPNSNIProxyMultiCluster tests SSH connection in multi-cluster setup with.
@@ -586,7 +585,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New(),
 		NodeName:    Loopback,
-		log:         testlog.FailureOnly(t),
+		log:         utils.NewLoggerForTests(),
 		Ports:       singleProxyPortSetup(),
 	})
 
@@ -641,7 +640,7 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 		NodeName:    Loopback,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         testlog.FailureOnly(t),
+		log:         utils.NewLoggerForTests(),
 		Ports:       standardPortSetup(),
 	})
 	username := mustGetCurrentUser(t).Username
@@ -703,7 +702,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New(),
 		NodeName:    Loopback,
-		log:         testlog.FailureOnly(t),
+		log:         utils.NewLoggerForTests(),
 		Ports:       singleProxyPortSetup(),
 	})
 	username := mustGetCurrentUser(t).Username
