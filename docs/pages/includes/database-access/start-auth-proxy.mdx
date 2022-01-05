@@ -1,27 +1,41 @@
+Teleport requires a valid TLS certificate to operate and can fetch one automatically
+using Let's Encrypt's [ACME](https://letsencrypt.org/how-it-works/) protocol. 
+
+<Tabs>
+<TabItem scope={["oss","enterprise"]} label="Self Hosted">
+We will assume that you have configured DNS records for `teleport.example.com` and
+`*.teleport.example.com` to point to your Teleport node.
+
+<Admonition type="note" title="Web Proxy Port">
+  The ACME protocol must verify that an HTTPS server is reachable on port 443 of a host before Let's Encrypt can issue a TLS certificate with that host's domain as a subject. Port 443 must be open to all incoming traffic on the Teleport Proxy host.
+</Admonition>
+
 Download the latest version of Teleport for your platform from our
 [downloads page](https://goteleport.com/teleport/download) and follow the
 installation [instructions](../../installation.mdx).
 
-Teleport requires a valid TLS certificate to operate and can fetch one automatically
-using Let's Encrypt [ACME](https://letsencrypt.org/how-it-works/) protocol. We
-will assume that you have configured DNS records for `teleport.example.com` and
-`*.teleport.example.com` to point to the Teleport node.
-
-Generate Teleport config with ACME enabled:
+Generate a Teleport configuration file with ACME enabled:
 
 ```code
 $ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
 ```
 
-<Admonition type="note" title="Web Proxy Port">
-  Teleport uses [TLS-ALPN-01](https://letsencrypt.org/docs/challenge-types/#tls-alpn-01)
-  ACME challenge to validate certificate requests which only works on port `443`.
-  As such, in order to use ACME for certificate management, web proxy needs to
-  be accessible on port `443`.
-</Admonition>
-
-Start Teleport Auth and Proxy services:
+Start the Teleport Auth and Proxy services:
 
 ```code
 $ sudo teleport start
 ```
+</TabItem>
+<TabItem label="Teleport Cloud" scope={["cloud"]}>
+If you do not have a Teleport Cloud account, use our [signup form](/signup) to get started. Teleport Cloud manages instances of the Proxy Service and Auth Service, and automatically issues and renews the required TLS certificate.
+
+You will need to download the Enterprise version of Teleport from the [customer portal](https://dashboard.gravitational.com/web/login) to run `tctl` commands in Teleport Cloud.
+
+You must log into your cluster before you can run `tctl` commands.
+```code
+$ tsh login --proxy=myinstance.teleport.sh
+$ tctl status
+```
+</TabItem>
+</Tabs>
+
