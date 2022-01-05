@@ -66,6 +66,7 @@ func TestResourceWatcher_Backoff(t *testing.T) {
 			Clock:          clock,
 			MaxRetryPeriod: defaults.MaxWatcherBackoff,
 			Client:         &errorWatcher{},
+			ResetC:         make(chan time.Duration, 5),
 		},
 		ProxyGetter: &nopProxyGetter{},
 	})
