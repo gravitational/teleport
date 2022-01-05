@@ -2193,8 +2193,11 @@ func TestCache_Backoff(t *testing.T) {
 			require.GreaterOrEqual(t, duration, stepMin)
 			require.LessOrEqual(t, duration, stepMax)
 
+			// wait for cache to get to retry.After
+			clock.BlockUntil(1)
+
 			// add some extra to the duration to ensure the retry occurs
-			clock.Advance(duration * 3)
+			clock.Advance(p.cache.MaxRetryPeriod)
 		case <-time.After(time.Minute):
 			t.Fatalf("timeout waiting for event")
 		}
