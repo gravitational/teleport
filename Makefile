@@ -301,6 +301,7 @@ clean:
 	rm -rf *.gz
 	rm -rf *.zip
 	rm -f gitref.go
+	rm -rf build.assets/tooling/bin
 
 #
 # make release - Produces a binary release tarball.
@@ -437,6 +438,15 @@ docs-test-whitespace:
 
 
 ifeq (${DISABLE_TEST_TARGETS},)
+
+
+#
+# Builds some tooling for filtering and displaying test progress/output/etc
+#
+RENDER_TESTS := ./build.assets/tooling/bin/render-tests
+$(RENDER_TESTS): $(wildcard ./build.assets/tooling/cmd/render-tests/*.go)
+	go build -o "$@" ./build.assets/tooling/cmd/render-tests
+
 #
 # Runs all Go/shell tests, called by CI/CD.
 #
@@ -448,15 +458,15 @@ test: test-sh test-api test-go
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 #
 .PHONY: test-go
-test-go: ensure-webassets bpf-bytecode roletester rdpclient
+test-go: ensure-webassets bpf-bytecode roletester rdpclient $(RENDER_TESTS)
 test-go: FLAGS ?= '-race'
 test-go: PACKAGES := $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
-		| go run build.assets/render-tests/main.go
+		| ${RENDER_TESTS}
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
-		| go run build.assets/render-tests/main.go
+		| ${RENDER_TESTS}
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
@@ -499,9 +509,10 @@ run-etcd:
 .PHONY: integration
 integration: FLAGS ?= -v -race
 integration: PACKAGES := $(shell go list ./... | grep integration)
-integration:
+integration: $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -timeout 30m -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
+		| $(RENDER_TESTS) -report-by test
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -511,8 +522,9 @@ INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
 integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES := $(shell go list ./... | grep integration)
-integration-root:
-	$(CGOFLAG) go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
+integration-root: $(RENDER_TESTS)
+	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
+		| $(RENDER_TESTS) -report-by test
 endif
 
 #

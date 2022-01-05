@@ -98,7 +98,12 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			types.DatabaseSpecV3{
 				Protocol: db.Protocol,
 				URI:      db.URI,
-				CACert:   string(db.CACert),
+				CACert:   string(db.TLS.CACert),
+				TLS: types.DatabaseTLS{
+					CACert:     string(db.TLS.CACert),
+					ServerName: db.TLS.ServerName,
+					Mode:       db.TLS.Mode.ToProto(),
+				},
 				AWS: types.AWS{
 					Region: db.AWS.Region,
 					Redshift: types.Redshift{
