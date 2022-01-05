@@ -1,5 +1,5 @@
 {{- if .Values.highAvailability.certManager.enabled }}
-  {{- $domain:= (required "clusterName is required in chartValues when certManager is enabled" .Values.clusterName) }}
+  {{- $domain := (required "clusterName is required in chartValues when certManager is enabled" .Values.clusterName) }}
   {{- $domainWildcard := printf "*.%s" (required "clusterName is required in chartValues when certManager is enabled" .Values.clusterName) }}
 apiVersion: cert-manager.io/v1
 kind: Certificate

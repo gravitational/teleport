@@ -34,6 +34,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -46,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 )
 
 // TestALPNSNIProxyMultiCluster tests SSH connection in multi-cluster setup with.
@@ -575,6 +575,56 @@ func TestALPNProxyRootLeafAuthDial(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestALPNProxyAuthClientConnectWithUserIdentity creates and connects to the Auth service
+// using user identity file when teleport is configured with Multiple proxy listener mode.
+func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	rc := NewInstance(InstanceConfig{
+		ClusterName: "root.example.com",
+		HostID:      uuid.New(),
+		NodeName:    Loopback,
+		log:         utils.NewLoggerForTests(),
+		Ports:       singleProxyPortSetup(),
+	})
+
+	rcConf := service.MakeDefaultConfig()
+	rcConf.DataDir = t.TempDir()
+	rcConf.Auth.Enabled = true
+	rcConf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Proxy.Enabled = true
+	rcConf.Proxy.DisableWebInterface = true
+	rcConf.SSH.Enabled = false
+	rcConf.Version = "v2"
+
+	username := mustGetCurrentUser(t).Username
+	rc.AddUser(username, []string{username})
+
+	err := rc.CreateEx(t, nil, rcConf)
+	require.NoError(t, err)
+	err = rc.Start()
+	require.NoError(t, err)
+	defer rc.StopAll()
+
+	identityFilePath := mustCreateUserIdentityFile(t, rc, username)
+
+	identity := client.LoadIdentityFile(identityFilePath)
+	require.NoError(t, err)
+
+	tc, err := client.New(context.Background(), client.Config{
+		Addrs:                    []string{rc.GetWebAddr()},
+		Credentials:              []client.Credentials{identity},
+		InsecureAddressDiscovery: true,
+	})
+	require.NoError(t, err)
+
+	resp, err := tc.Ping(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, rc.Secrets.SiteName, resp.ClusterName)
+}
+
 // TestALPNProxyDialProxySSHWithoutInsecureMode tests dialing to the localhost with teleport-proxy-ssh
 // protocol without using insecure mode in order to check if establishing connection to localhost works properly.
 func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
@@ -590,7 +640,7 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 		NodeName:    Loopback,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         testlog.FailureOnly(t),
+		log:         utils.NewLoggerForTests(),
 		Ports:       standardPortSetup(),
 	})
 	username := mustGetCurrentUser(t).Username
@@ -652,7 +702,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New(),
 		NodeName:    Loopback,
-		log:         testlog.FailureOnly(t),
+		log:         utils.NewLoggerForTests(),
 		Ports:       singleProxyPortSetup(),
 	})
 	username := mustGetCurrentUser(t).Username
