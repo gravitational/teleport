@@ -855,12 +855,17 @@ func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
 		ConsistentRead: aws.Bool(true),
 	}
 	out, err := b.svc.GetItemWithContext(ctx, &input)
-	if err != nil || len(out.Item) == 0 {
+	if err != nil {
+		// we deliberately use a "generic" trace error here, since we don't want
+		// callers to make assumptions about the nature of the failure.
+		return nil, trace.WrapWithMessage(err, "failed to get %q (dynamo error)", string(key))
+	}
+	if len(out.Item) == 0 {
 		return nil, trace.NotFound("%q is not found", string(key))
 	}
 	var r record
 	if err := dynamodbattribute.UnmarshalMap(out.Item, &r); err != nil {
-		return nil, trace.WrapWithMessage(err, "%q is not found", string(key))
+		return nil, trace.WrapWithMessage(err, "failed to unmarshal dynamo item %q", string(key))
 	}
 	// Check if key expired, if expired delete it
 	if r.isExpired() {

@@ -245,6 +245,17 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		switch pkt := packet.(type) {
 		case *protocol.Query:
 			e.Audit.OnQuery(e.Context, sessionCtx, common.Query{Query: pkt.Query()})
+		case *protocol.ChangeUser:
+			// MySQL protocol includes COM_CHANGE_USER command that allows to
+			// re-authenticate connection as a different user. It is not
+			// supported by mysql shell and most drivers but some drivers do
+			// provide it.
+			//
+			// We do not want to allow changing the connection user and instead
+			// force users to go through normal reconnect flow so log the
+			// attempt and close the client connection.
+			log.Warnf("Rejecting attempt to change user to %q for session %v.", pkt.User(), sessionCtx)
+			return
 		case *protocol.Quit:
 			return
 		}
@@ -270,7 +281,7 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 		close(serverErrCh)
 	}()
 	for {
-		packet, err := protocol.ParsePacket(serverConn)
+		packet, _, err := protocol.ReadPacket(serverConn)
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				log.Debug("Server connection closed.")
@@ -280,7 +291,7 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 			serverErrCh <- err
 			return
 		}
-		_, err = protocol.WritePacket(packet.Bytes(), clientConn)
+		_, err = protocol.WritePacket(packet, clientConn)
 		if err != nil {
 			log.WithError(err).Error("Failed to write client packet.")
 			serverErrCh <- err
