@@ -1585,9 +1585,16 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	//
 	// Bob (impersonated by Alice) can renew the cert with route to cluster
 	//
+	// Similarly, for role requests, Alice is allowed to request roles `access`
+	// and `ci`, however these impersonated identities, Alice(access) and
+	// Alice(ci), should not be able to issue any new certificates.
+	//
 	if a.context.Identity != nil && a.context.Identity.GetIdentity().Impersonator != "" {
 		if len(req.AccessRequests) > 0 {
 			return nil, trace.AccessDenied("access denied: impersonated user can not request new roles")
+		}
+		if len(req.RoleRequests) > 0 {
+			return nil, trace.AccessDenied("access denied: impersonated roles can not request other roles")
 		}
 		if req.Username != a.context.User.GetName() {
 			return nil, trace.AccessDenied("access denied: impersonated user can not impersonate anyone else")
@@ -1696,6 +1703,11 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// must be checked.
 
 		if len(req.RoleRequests) > 0 {
+			// Note: CheckImpersonateRoles() checks against the _stored_
+			// impersonate roles for the user rather than the set available
+			// to the current identity. If not explicitly denied (as above),
+			// this could allow a role-impersonated certificate to request new
+			// certificates with alternate RoleRequests.
 			err = a.context.Checker.CheckImpersonateRoles(a.context.User, parsedRoles)
 			if err != nil {
 				log.Warning(err)

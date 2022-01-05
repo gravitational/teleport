@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
 	"testing"
@@ -99,6 +100,15 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	denyBarRole, err := CreateRole(srv.Auth(), "test-deny", types.RoleSpecV4{
+		Deny: types.RoleConditions{
+			Impersonate: &types.ImpersonateConditions{
+				Roles: []string{accessBarRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	tests := []struct {
 		desc             string
 		username         string
@@ -148,16 +158,32 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 				return err != nil && trace.IsNotFound(err)
 			},
 		},
+		{
+			desc:             "requesting an allowed role with a separate deny role",
+			username:         "frank",
+			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName(), denyBarRole.GetName()},
+			roleRequests:     []string{accessFooRole.GetName()},
+			expectPrincipals: []string{"foo"},
+		},
+		{
+			desc:         "requesting a denied role",
+			username:     "geoff",
+			roles:        []string{emptyRole.GetName(), impersonatorRole.GetName(), denyBarRole.GetName()},
+			roleRequests: []string{accessBarRole.GetName()},
+			expectError: func(err error) bool {
+				return err != nil && trace.IsAccessDenied(err)
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			user, err := CreateUser(srv.Auth(), tt.username)
+			require.NoError(t, err)
 			defer func() {
 				if err := srv.Auth().DeleteUser(context.TODO(), tt.username); err != nil {
 					t.Errorf("failed cleaning up testing user: %+v", err)
 				}
 			}()
-			require.NoError(t, err)
 			for _, role := range tt.roles {
 				user.AddRole(role)
 			}
@@ -207,8 +233,103 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 				require.Equal(t, tt.username, impersonator, "certificate must show self-impersonation")
 			}
 		})
-
 	}
+}
+
+// TestRoleRequestReimpersonation make sure role requests can't be used to
+// re-escalate privileges using a (perhaps compromised) set of role
+// impersonated certs.
+func TestRoleRequestDenyReimpersonation(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	accessFooRole, err := CreateRole(srv.Auth(), "test-access-foo", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Logins: []string{"foo"},
+		},
+	})
+	require.NoError(t, err)
+
+	accessBarRole, err := CreateRole(srv.Auth(), "test-access-bar", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Logins: []string{"bar"},
+		},
+	})
+	require.NoError(t, err)
+
+	impersonatorRole, err := CreateRole(srv.Auth(), "test-impersonator", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Impersonate: &types.ImpersonateConditions{
+				Roles: []string{accessFooRole.GetName(), accessBarRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a testing user.
+	user, err := CreateUser(srv.Auth(), "alice")
+	require.NoError(t, err)
+	user.AddRole(impersonatorRole.GetName())
+	err = srv.Auth().UpsertUser(user)
+	require.NoError(t, err)
+
+	// Generate cert with a role request.
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	priv, pub, err := srv.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	// Request certs for only the `foo` role.
+	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey:    pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RoleRequests: []string{accessFooRole.GetName()},
+	})
+	require.NoError(t, err)
+
+	// Make an impersonated client.
+	impersonatedTlsCert, err := tls.X509KeyPair(certs.TLS, priv)
+	require.NoError(t, err)
+	impersonatedClient := srv.NewClientWithCert(impersonatedTlsCert)
+
+	// Attempt a request.
+	_, err = impersonatedClient.GetClusterName()
+	require.NoError(t, err)
+
+	// Attempt to generate new certs for a different (allowed) role.
+	_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey:    pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RoleRequests: []string{accessBarRole.GetName()},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Attempt to generate new certs for the same role.
+	_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey:    pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RoleRequests: []string{accessFooRole.GetName()},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Attempt to generate new certs with no role requests.
+	_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey: pub,
+		Username:  user.GetName(),
+		Expires:   time.Now().Add(time.Hour),
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// TODO: this is currently allowed and allows privilege re-escalation via
+	// a compromised cert.
 }
 
 // TestGenerateDatabaseCert makes sure users and services with appropriate
