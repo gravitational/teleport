@@ -76,15 +76,16 @@ func (s *WindowsService) startDesktopDiscovery(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	initialDesktops, err := s.getDesktopsFromAuthServer(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	s.lastDiscoveryResults = initialDesktops
-	s.cfg.Log.Debugf("desktop discovery starting with initial discovery results of %v", s.lastDiscoveryResults)
-
 	go func() {
+		// initialize lastDiscoverResults with any desktops from a previous run that were saved in the backend
+		initialDesktops, err := s.getDesktopsFromAuthServer(ctx)
+		if err != nil {
+			s.cfg.Log.Errorf("initial fetch of previously discovered desktops from auth server failed : %v", err)
+		}
+
+		s.lastDiscoveryResults = initialDesktops
+		s.cfg.Log.Debugf("desktop discovery starting with initial discovery results of %v", s.lastDiscoveryResults)
+
 		// reconcile once before starting the ticker, so that desktops show up immediately
 		if err := reconciler.Reconcile(ctx); err != nil && err != context.Canceled {
 			s.cfg.Log.Errorf("desktop reconciliation failed: %v", err)
