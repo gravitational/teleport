@@ -47,6 +47,7 @@ PACKAGE_TYPE=${p}
 ARCH=${a}
 RUNTIME=${r}
 BUILD_MODE=${m}
+DEPENDS=""
 TARBALL_DIRECTORY=/tmp/teleport-tarballs
 DOWNLOAD_IF_NEEDED=true
 GNUPG_DIR=${GNUPG_DIR:-/tmp/gnupg}
@@ -188,6 +189,12 @@ elif [[ "${ARCH}" == "amd64" ]]; then
     TEXT_ARCH="64-bit"
 elif [[ "${ARCH}" == "arm" ]]; then
     TEXT_ARCH="ARMv7"
+    # libatomic is only required on arm
+    if [[ "${PACKAGE_TYPE}" == "deb" ]]; then
+        DEPENDS="--depends libatomic1"
+    elif [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
+        DEPENDS="--depends libatomic"
+    fi
 elif [[ "${ARCH}" == "arm64" ]]; then
     TEXT_ARCH="ARMv8/ARM64"
 fi
@@ -399,6 +406,7 @@ else
         --provides teleport \
         --prefix / \
         --verbose \
+        ${DEPENDS} \
         ${CONFIG_FILE_STANZA} \
         ${FILE_PERMISSIONS_STANZA} \
         ${RPM_SIGN_STANZA} .
