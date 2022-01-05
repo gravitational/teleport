@@ -1149,17 +1149,19 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 
 	// call proxy with an HTTP1 client
 	client := &http.Client{Transport: trans}
-	resp, err := client.Get(u.String())
+	resp1, err := client.Get(u.String())
 	require.NoError(t, err)
-	require.Equal(t, resp.Proto, "HTTP/1.1")
+	defer resp1.Body.Close()
+	require.Equal(t, resp1.Proto, "HTTP/1.1")
 
 	// call proxy with an HTTP2 client
 	err = http2.ConfigureTransport(trans)
 	require.NoError(t, err)
 
-	resp, err = client.Get(u.String())
+	resp2, err := client.Get(u.String())
 	require.NoError(t, err)
-	require.Equal(t, resp.Proto, "HTTP/2.0")
+	defer resp2.Body.Close()
+	require.Equal(t, resp2.Proto, "HTTP/2.0")
 }
 
 // teleKubeConfig sets up teleport with kubernetes turned on
