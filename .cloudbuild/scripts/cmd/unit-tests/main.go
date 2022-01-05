@@ -66,7 +66,7 @@ func parseCommandLine() (commandlineArgs, error) {
 	var err error
 	args.workspace, err = filepath.Abs(args.workspace)
 	if err != nil {
-		return args, trace.Wrap(err, "Unable to resole absolute path to workspace")
+		return args, trace.Wrap(err, "Unable to resolve absolute path to workspace")
 	}
 
 	if args.targetBranch == "" {
@@ -96,7 +96,7 @@ func innerMain() error {
 
 	hasOnlyDocChanges := ch.Docs && (!ch.Code)
 	if hasOnlyDocChanges {
-		log.Println("No non-docs changes detected. Skipping tests.")
+		log.Println("No code changes detected. Skipping tests.")
 		return nil
 	}
 
