@@ -229,7 +229,9 @@ func TestCheckDatabase(t *testing.T) {
 				Name:     "example",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
-				CACert:   []byte("cert"),
+				TLS: DatabaseTLS{
+					CACert: []byte("cert"),
+				},
 			},
 			outErr: true,
 		},
@@ -243,7 +245,9 @@ func TestCheckDatabase(t *testing.T) {
 					ProjectID:  "project-1",
 					InstanceID: "instance-1",
 				},
-				CACert: fixtures.LocalhostCert,
+				TLS: DatabaseTLS{
+					CACert: fixtures.LocalhostCert,
+				},
 			},
 			outErr: false,
 		},
@@ -256,7 +260,9 @@ func TestCheckDatabase(t *testing.T) {
 				GCP: DatabaseGCP{
 					ProjectID: "project-1",
 				},
-				CACert: fixtures.LocalhostCert,
+				TLS: DatabaseTLS{
+					CACert: fixtures.LocalhostCert,
+				},
 			},
 			outErr: true,
 		},
@@ -269,7 +275,9 @@ func TestCheckDatabase(t *testing.T) {
 				GCP: DatabaseGCP{
 					InstanceID: "instance-1",
 				},
-				CACert: fixtures.LocalhostCert,
+				TLS: DatabaseTLS{
+					CACert: fixtures.LocalhostCert,
+				},
 			},
 			outErr: true,
 		},

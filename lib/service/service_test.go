@@ -545,6 +545,8 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = true
+	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
+	cfg.ConnectFailureC = make(chan time.Duration, 5)
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
 
@@ -561,14 +563,18 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		// wait for connection to fail
 		select {
-		case duration := <-process.connectFailureC:
+		case duration := <-process.Config.ConnectFailureC:
 			stepMin := step * time.Duration(i) / 2
 			stepMax := step * time.Duration(i+1)
 
 			require.GreaterOrEqual(t, duration, stepMin)
 			require.LessOrEqual(t, duration, stepMax)
+
+			// wait for connection to get to retry.After
+			clock.BlockUntil(1)
+
 			// add some extra to the duration to ensure the retry occurs
-			clock.Advance(duration * 3)
+			clock.Advance(cfg.MaxRetryPeriod)
 		case <-time.After(time.Minute):
 			t.Fatalf("timeout waiting for failure")
 		}
