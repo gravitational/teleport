@@ -209,9 +209,9 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			require.NoError(t, err)
 
 			// Parse the Identity
-			impersonatedTlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+			impersonatedTLSCert, err := tlsca.ParseCertificatePEM(certs.TLS)
 			require.NoError(t, err)
-			impersonatedIdent, err := tlsca.FromSubject(impersonatedTlsCert.Subject, impersonatedTlsCert.NotAfter)
+			impersonatedIdent, err := tlsca.FromSubject(impersonatedTLSCert.Subject, impersonatedTLSCert.NotAfter)
 			require.NoError(t, err)
 
 			userCert, err := sshutils.ParseCertificate(certs.SSH)
@@ -302,9 +302,9 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make an impersonated client.
-	impersonatedTlsCert, err := tls.X509KeyPair(certs.TLS, priv)
+	impersonatedTLSCert, err := tls.X509KeyPair(certs.TLS, priv)
 	require.NoError(t, err)
-	impersonatedClient := srv.NewClientWithCert(impersonatedTlsCert)
+	impersonatedClient := srv.NewClientWithCert(impersonatedTLSCert)
 
 	// Attempt a request.
 	_, err = impersonatedClient.GetClusterName()
