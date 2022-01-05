@@ -18,7 +18,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"testing"
 
@@ -399,84 +398,86 @@ func TestTLSConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		tt := tt
-		// Run the same scenario for all supported databases.
-		for _, dbType := range []string{
-			defaults.ProtocolPostgres,
-			defaults.ProtocolMySQL,
-			defaults.ProtocolMongoDB,
-		} {
-			dbType := dbType
-			t.Run(fmt.Sprintf("%s-%s", dbType, tt.name), func(t *testing.T) {
-				t.Parallel()
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-				ctx := context.Background()
-				cfg := &setupTLSTestCfg{
-					commonName: tt.commonName,
-					serverName: tt.serverName,
-					tlsMode:    tt.tlsMode,
-					caCert:     tt.caCert,
-				}
-
-				switch dbType {
-				case defaults.ProtocolPostgres:
-					testCtx := setupPostgres(ctx, t, cfg)
-					t.Cleanup(func() {
-						err := testCtx.Close()
-						require.NoError(t, err)
-					})
-
-					psql, err := testCtx.postgresClient(ctx, "bob", "postgres", "postgres", "postgres")
-					if tt.errMsg == "" {
-						require.NoError(t, err)
-
-						err = psql.Close(ctx)
-						require.NoError(t, err)
-					} else {
-						require.Error(t, err)
-						// skip error message validation here. Postgres driver by default tried to connect to
-						// a database on localhost using IPv4 and IPv6. Docker doesn't enable IPv6 support
-						// by default and that fails the check (on our CI and every default Docker installation )
-						// as error is different "connection refused" that expected x509 related.
+			// Run the same scenario for all supported databases.
+			for _, dbType := range []string{
+				defaults.ProtocolPostgres,
+				defaults.ProtocolMySQL,
+				defaults.ProtocolMongoDB,
+			} {
+				dbType := dbType
+				t.Run(dbType, func(t *testing.T) {
+					ctx := context.Background()
+					cfg := &setupTLSTestCfg{
+						commonName: tt.commonName,
+						serverName: tt.serverName,
+						tlsMode:    tt.tlsMode,
+						caCert:     tt.caCert,
 					}
-				case defaults.ProtocolMySQL:
-					testCtx := setupMySQL(ctx, t, cfg)
-					t.Cleanup(func() {
-						err := testCtx.Close()
-						require.NoError(t, err)
-					})
 
-					mysqlConn, err := testCtx.mysqlClient("bob", "mysql", "admin")
-					if tt.errMsg == "" {
-						require.NoError(t, err)
+					switch dbType {
+					case defaults.ProtocolPostgres:
+						testCtx := setupPostgres(ctx, t, cfg)
+						t.Cleanup(func() {
+							err := testCtx.Close()
+							require.NoError(t, err)
+						})
 
-						err = mysqlConn.Close()
-						require.NoError(t, err)
-					} else {
-						require.Error(t, err)
-						require.Contains(t, err.Error(), tt.errMsg)
+						psql, err := testCtx.postgresClient(ctx, "bob", "postgres", "postgres", "postgres")
+						if tt.errMsg == "" {
+							require.NoError(t, err)
+
+							err = psql.Close(ctx)
+							require.NoError(t, err)
+						} else {
+							require.Error(t, err)
+							// skip error message validation here. Postgres driver by default tried to connect to
+							// a database on localhost using IPv4 and IPv6. Docker doesn't enable IPv6 support
+							// by default and that fails the check (on our CI and every default Docker installation )
+							// as error is different "connection refused" that expected x509 related.
+						}
+					case defaults.ProtocolMySQL:
+						testCtx := setupMySQL(ctx, t, cfg)
+						t.Cleanup(func() {
+							err := testCtx.Close()
+							require.NoError(t, err)
+						})
+
+						mysqlConn, err := testCtx.mysqlClient("bob", "mysql", "admin")
+						if tt.errMsg == "" {
+							require.NoError(t, err)
+
+							err = mysqlConn.Close()
+							require.NoError(t, err)
+						} else {
+							require.Error(t, err)
+							require.Contains(t, err.Error(), tt.errMsg)
+						}
+					case defaults.ProtocolMongoDB:
+						testCtx := setupMongo(ctx, t, cfg)
+						t.Cleanup(func() {
+							err := testCtx.Close()
+							require.NoError(t, err)
+						})
+
+						mongoConn, err := testCtx.mongoClient(ctx, "bob", "mongo", "admin")
+						if tt.errMsg == "" {
+							require.NoError(t, err)
+
+							err = mongoConn.Disconnect(ctx)
+							require.NoError(t, err)
+						} else {
+							require.Error(t, err)
+							// Do not verify Mongo error message. On authentication error Mongo re-tries and
+							// returns timeout instead of x509 related error.
+						}
+					default:
+						t.Fatalf("unrecognized database: %s", dbType)
 					}
-				case defaults.ProtocolMongoDB:
-					testCtx := setupMongo(ctx, t, cfg)
-					t.Cleanup(func() {
-						err := testCtx.Close()
-						require.NoError(t, err)
-					})
-
-					mongoConn, err := testCtx.mongoClient(ctx, "bob", "mongo", "admin")
-					if tt.errMsg == "" {
-						require.NoError(t, err)
-
-						err = mongoConn.Disconnect(ctx)
-						require.NoError(t, err)
-					} else {
-						require.Error(t, err)
-						// Do not verify Mongo error message. On authentication error Mongo re-tries and
-						// returns timeout instead of x509 related error.
-					}
-				default:
-					t.Fatalf("unrecognized database: %s", dbType)
-				}
-			})
-		}
+				})
+			}
+		})
 	}
 }
