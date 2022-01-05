@@ -189,9 +189,12 @@ elif [[ "${ARCH}" == "amd64" ]]; then
     TEXT_ARCH="64-bit"
 elif [[ "${ARCH}" == "arm" ]]; then
     TEXT_ARCH="ARMv7"
-    # libatomic is only required on arm
+    # libatomic is only required on arm v7
     if [[ "${PACKAGE_TYPE}" == "deb" ]]; then
         DEPENDS="--depends libatomic1"
+        # Debian distinguish between arm soft and hard floats.
+        # We're building for linux-gnueabihf, so the correct arch is armhf.
+        ARCH="armhf"
     elif [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
         DEPENDS="--depends libatomic"
     fi
