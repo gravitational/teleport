@@ -2558,6 +2558,9 @@ message LockTarget {
 
     // MFADevice specifies the UUID of a user MFA device.
     string MFADevice = 5 [ (gogoproto.jsontag) = "mfa_device,omitempty" ];
+
+    // WindowsDesktop specifies the name of a Windows desktop.
+    string WindowsDesktop = 6 [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specfied

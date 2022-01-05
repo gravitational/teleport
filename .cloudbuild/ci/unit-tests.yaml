@@ -1,14 +1,23 @@
-steps:
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
-    id: unit-test
-    env:
-      - TELEPORT_ETCD_TEST="yes"
-    entrypoint: '/bin/bash'
-    args: 
-      - '-c'
-      - '(make run-etcd &); sleep 1; make test'
-    timeout: 15m
-timeout: 15m
+timeout: 20m
+
 options:
   machineType: 'E2_HIGHCPU_32'
   
+steps:
+  # GCB does a shallow checkout for a build, but if we want to check our changes
+  # against other branches we'll need to fetch the repo history. This takes less 
+  # than 30s at the time of writing, so it is probably not worth tweaking.
+  - name: gcr.io/cloud-builders/git
+    id: fetch-history
+    args: ['fetch', '--unshallow']
+
+  # Run the unit tests. Actual content of this job depends on the changes 
+  # detected in the PR
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
+    id: run-tests
+    dir: /workspace/.cloudbuild/scripts
+    entrypoint: bash 
+    args: 
+      - -c
+      - go run ./cmd/unit-tests -w=/workspace -t=$_BASE_BRANCH -c=HEAD
+    timeout: 15m

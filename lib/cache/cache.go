@@ -512,8 +512,8 @@ type Config struct {
 	WindowsDesktops services.WindowsDesktops
 	// Backend is a backend for local cache
 	Backend backend.Backend
-	// RetryPeriod is a period between cache retries on failures
-	RetryPeriod time.Duration
+	// MaxRetryPeriod is the maximum period between cache retries on failures
+	MaxRetryPeriod time.Duration
 	// WatcherInitTimeout is the maximum acceptable delay for an
 	// OpInit after a watcher has been started (default=1m).
 	WatcherInitTimeout time.Duration
@@ -552,8 +552,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
-	if c.RetryPeriod == 0 {
-		c.RetryPeriod = defaults.HighResPollingPeriod
+	if c.MaxRetryPeriod == 0 {
+		c.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	}
 	if c.WatcherInitTimeout == 0 {
 		c.WatcherInitTimeout = time.Minute
@@ -586,6 +586,9 @@ const (
 	// TombstoneWritten is emitted if cache is closed in a healthy
 	// state and successfully writes its tombstone.
 	TombstoneWritten = "tombstone_written"
+	// Reloading is emitted when an error occurred watching events
+	// and the cache is waiting to create a new watcher
+	Reloading = "reloading_cache"
 )
 
 // New creates a new instance of Cache
@@ -660,8 +663,11 @@ func New(config Config) (*Cache, error) {
 	}
 
 	retry, err := utils.NewLinear(utils.LinearConfig{
-		Step: cs.Config.RetryPeriod / 10,
-		Max:  cs.Config.RetryPeriod,
+		First:  utils.HalfJitter(cs.MaxRetryPeriod / 10),
+		Step:   cs.MaxRetryPeriod / 5,
+		Max:    cs.MaxRetryPeriod,
+		Jitter: utils.NewHalfJitter(),
+		Clock:  cs.Clock,
 	})
 	if err != nil {
 		cs.Close()
@@ -724,10 +730,20 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 		if err != nil {
 			c.Warningf("Re-init the cache on error: %v.", err)
 		}
+
 		// events cache should be closed as well
-		c.Debugf("Reloading %v.", retry)
+		c.Debugf("Reloading cache.")
+
+		c.notify(ctx, Event{Type: Reloading, Event: types.Event{
+			Resource: &types.ResourceHeader{
+				Kind: retry.Duration().String(),
+			},
+		}})
+
+		startedWaiting := c.Clock.Now()
 		select {
-		case <-retry.After():
+		case t := <-retry.After():
+			c.Debugf("Initiating new watch after waiting %v.", t.Sub(startedWaiting))
 			retry.Inc()
 		case <-c.ctx.Done():
 			return
@@ -1451,7 +1467,17 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 		ta(cachedRemote)
 		return cachedRemote.Clone(), nil
 	}
-	return rg.presence.GetRemoteCluster(clusterName)
+	rc, err := rg.presence.GetRemoteCluster(clusterName)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because this method is never used
+		// in construction of derivative caches.
+		if rc, err := c.Config.Presence.GetRemoteCluster(clusterName); err == nil {
+			return rc, nil
+		}
+	}
+	return rc, trace.Wrap(err)
 }
 
 // GetUser is a part of auth.Cache implementation.

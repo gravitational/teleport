@@ -319,6 +319,9 @@ type TeleportProcess struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
+
+	// connectFailureC is a channel to notify of failures to connect to auth (used in tests).
+	connectFailureC chan time.Duration
 }
 
 type keyPairKey struct {
@@ -574,7 +577,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 	defer cancel()
 	srv.Shutdown(timeoutCtx)
 	if timeoutCtx.Err() == context.DeadlineExceeded {
-		// The new serivce can start initiating connections to the old service
+		// The new service can start initiating connections to the old service
 		// keeping it from shutting down gracefully, or some external
 		// connections can keep hanging the old auth service and prevent
 		// the services from shutting down, so abort the graceful way
@@ -710,6 +713,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		id:                  processID,
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
+		connectFailureC:     make(chan time.Duration),
 	}
 
 	process.registerAppDepend()
@@ -2590,7 +2594,6 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		}
 	}
 
-	useSeparatePostgresListener := !cfg.Proxy.PostgresAddr.IsEmpty()
 	if cfg.Proxy.Kube.Enabled && !cfg.Proxy.Kube.ListenAddr.IsEmpty() {
 		process.log.Debugf("Setup Proxy: turning on Kubernetes proxy.")
 		listener, err := process.importOrCreateListener(listenerProxyKube, cfg.Proxy.Kube.ListenAddr.Addr)
@@ -2631,20 +2634,21 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		listeners.mux, err = multiplexer.New(multiplexer.Config{
 			EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			Listener:            listener,
-			DisableTLS:          cfg.Proxy.DisableWebService,
-			DisableSSH:          cfg.Proxy.DisableReverseTunnel,
-			DisablePostgres:     cfg.Proxy.DisableDatabaseProxy || useSeparatePostgresListener,
 			ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
 		})
 		if err != nil {
 			listener.Close()
 			return nil, trace.Wrap(err)
 		}
-		listeners.web = listeners.mux.TLS()
+		if !cfg.Proxy.DisableWebService {
+			listeners.web = listeners.mux.TLS()
+		}
 		if err := process.setPostgresListener(cfg, &listeners); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		listeners.reverseTunnel = listeners.mux.SSH()
+		if !cfg.Proxy.DisableReverseTunnel {
+			listeners.reverseTunnel = listeners.mux.SSH()
+		}
 		go listeners.mux.Serve()
 		return &listeners, nil
 	case cfg.Proxy.EnableProxyProtocol && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
@@ -2656,9 +2660,6 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		listeners.mux, err = multiplexer.New(multiplexer.Config{
 			EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			Listener:            listener,
-			DisableTLS:          false,
-			DisableSSH:          true,
-			DisablePostgres:     cfg.Proxy.DisableDatabaseProxy || useSeparatePostgresListener,
 			ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
 		})
 		if err != nil {
@@ -2702,9 +2703,6 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 				listeners.mux, err = multiplexer.New(multiplexer.Config{
 					EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 					Listener:            listener,
-					DisableTLS:          false, // Web service is enabled or we wouldn't have gotten here.
-					DisableSSH:          true,  // Reverse tunnel is on a separate listener created above.
-					DisablePostgres:     false, // Database proxy is enabled or we wouldn't have gotten here.
 					ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
 				})
 				if err != nil {
@@ -3024,6 +3022,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	rcWatchLog := logrus.WithFields(logrus.Fields{
+		trace.Component: teleport.Component(teleport.ComponentReverseTunnelAgent, process.id),
+	})
+
 	// Create and register reverse tunnel AgentPool.
 	rcWatcher, err := reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
 		HostUUID:            conn.ServerIdentity.ID.HostUUID,
@@ -3034,16 +3036,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		KubeDialAddr:        utils.DialAddrFromListenAddr(kubeDialAddr(cfg.Proxy, clusterNetworkConfig.GetProxyListenerMode())),
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
+		Log:                 rcWatchLog,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	process.RegisterCriticalFunc("proxy.reversetunnel.watcher", func() error {
-		log := logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.Component(teleport.ComponentReverseTunnelAgent, process.id),
-		})
-		log.Infof("Starting reverse tunnel agent pool.")
+		rcWatchLog.Infof("Starting reverse tunnel agent pool.")
 		done := make(chan struct{})
 		go func() {
 			defer close(done)

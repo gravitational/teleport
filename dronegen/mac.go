@@ -87,6 +87,10 @@ curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning
 }
 
 func darwinTagPipeline() pipeline {
+	b := buildType{
+		arch: "amd64",
+		os:   "darwin",
+	}
 	p := newDarwinPipeline("build-darwin-amd64")
 	p.Trigger = triggerTag
 	p.Steps = []step{
@@ -106,8 +110,8 @@ func darwinTagPipeline() pipeline {
 			Environment: map[string]value{
 				"GOPATH":        {raw: path.Join(p.Workspace.Path, "/go")},
 				"GOCACHE":       {raw: path.Join(p.Workspace.Path, "/go/cache")},
-				"OS":            {raw: "darwin"},
-				"ARCH":          {raw: "amd64"},
+				"OS":            {raw: b.os},
+				"ARCH":          {raw: b.arch},
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 			},
 			Commands: darwinTagBuildCommands(),
@@ -129,6 +133,15 @@ func darwinTagPipeline() pipeline {
 				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
 			},
 			Commands: darwinUploadToS3Commands(),
+		},
+		{
+			Name:     "Register artifacts",
+			Commands: tagCreateReleaseAssetCommands(b),
+			Environment: map[string]value{
+				"WORKSPACE_DIR": {raw: p.Workspace.Path},
+				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
+				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
+			},
 		},
 		cleanUpToolchainsStep(p.Workspace.Path),
 		cleanUpExecStorageStep(p.Workspace.Path),
