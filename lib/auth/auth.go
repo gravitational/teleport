@@ -639,6 +639,9 @@ type certRequest struct {
 	mfaVerified string
 	// clientIP is an IP of the client requesting the certificate.
 	clientIP string
+	// disallowReissue flags that a cert should not be allowed to issue future
+	// certificates.
+	disallowReissue bool
 }
 
 // check verifies the cert request is valid.
@@ -914,6 +917,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		ActiveRequests:        req.activeRequests,
 		MFAVerified:           req.mfaVerified,
 		ClientIP:              req.clientIP,
+		DisallowReissue:       req.disallowReissue,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -985,12 +989,13 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			Username:    req.dbUser,
 			Database:    req.dbName,
 		},
-		DatabaseNames:  dbNames,
-		DatabaseUsers:  dbUsers,
-		MFAVerified:    req.mfaVerified,
-		ClientIP:       req.clientIP,
-		AWSRoleARNs:    roleARNs,
-		ActiveRequests: req.activeRequests.AccessRequests,
+		DatabaseNames:   dbNames,
+		DatabaseUsers:   dbUsers,
+		MFAVerified:     req.mfaVerified,
+		ClientIP:        req.clientIP,
+		AWSRoleARNs:     roleARNs,
+		ActiveRequests:  req.activeRequests.AccessRequests,
+		DisallowReissue: req.disallowReissue,
 	}
 	subject, err := identity.Subject()
 	if err != nil {

@@ -208,6 +208,12 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			}
 			require.NoError(t, err)
 
+			// Parse the Identity
+			impersonatedTlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+			require.NoError(t, err)
+			impersonatedIdent, err := tlsca.FromSubject(impersonatedTlsCert.Subject, impersonatedTlsCert.NotAfter)
+			require.NoError(t, err)
+
 			userCert, err := sshutils.ParseCertificate(certs.SSH)
 			require.NoError(t, err)
 
@@ -227,10 +233,17 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 				require.ElementsMatch(t, tt.roleRequests, parsedRoles, "granted roles must match requests")
 			}
 
+			_, disallowReissue := userCert.Extensions[teleport.CertExtensionDisallowReissue]
 			if len(tt.roleRequests) > 0 {
 				impersonator, ok := userCert.Extensions[teleport.CertExtensionImpersonator]
 				require.True(t, ok, "impersonator must be set if any role requests exist")
 				require.Equal(t, tt.username, impersonator, "certificate must show self-impersonation")
+
+				require.True(t, disallowReissue)
+				require.True(t, impersonatedIdent.DisallowReissue)
+			} else {
+				require.False(t, disallowReissue)
+				require.False(t, impersonatedIdent.DisallowReissue)
 			}
 		})
 	}
@@ -274,10 +287,8 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate cert with a role request.
-
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
-
 	priv, pub, err := srv.Auth().GenerateKeyPair("")
 	require.NoError(t, err)
 
@@ -319,7 +330,9 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
-	// Attempt to generate new certs with no role requests.
+	// Attempt to generate new certs with no role requests
+	// (If allowed, this might issue certs for the original user without role
+	// requests.)
 	_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		PublicKey: pub,
 		Username:  user.GetName(),
@@ -327,9 +340,6 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
-
-	// TODO: this is currently allowed and allows privilege re-escalation via
-	// a compromised cert.
 }
 
 // TestGenerateDatabaseCert makes sure users and services with appropriate

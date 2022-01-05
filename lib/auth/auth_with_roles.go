@@ -1574,6 +1574,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.AccessDenied("access denied: impersonation is not allowed")
 	}
 
+	if a.context.Identity.GetIdentity().DisallowReissue {
+		return nil, trace.AccessDenied("access denied: identity is now allowed to reissue certificates")
+	}
+
 	// Prohibit recursive impersonation behavior:
 	//
 	// Alice can impersonate Bob
@@ -1594,6 +1598,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			return nil, trace.AccessDenied("access denied: impersonated user can not request new roles")
 		}
 		if len(req.RoleRequests) > 0 {
+			// Note: technically this should never be needed as all role
+			// impersonated certs should have the DisallowReissue set.
 			return nil, trace.AccessDenied("access denied: impersonated roles can not request other roles")
 		}
 		if req.Username != a.context.User.GetName() {
@@ -1782,10 +1788,14 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AccessRequests: req.AccessRequests,
 		},
 	}
-	if user.GetName() != a.context.User.GetName() || len(req.RoleRequests) > 0 {
-		// impersonation should always set the impersonator field, even for
-		// role impersonation ("self impersonation")
+	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
+	} else if len(req.RoleRequests) > 0 {
+		// Role impersonation uses the user's own name as the impersonator value.
+		certReq.impersonator = a.context.User.GetName()
+
+		// Deny reissuing certs to prevent privilege re-escalation.
+		certReq.disallowReissue = true
 	} else if a.context.Identity != nil && a.context.Identity.GetIdentity().Impersonator != "" {
 		// impersonating users can receive new certs
 		certReq.impersonator = a.context.Identity.GetIdentity().Impersonator
