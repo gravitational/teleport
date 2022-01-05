@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
@@ -6,6 +20,10 @@ import (
 )
 
 func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
+	b := buildType{
+		arch: "amd64",
+		os:   "darwin",
+	}
 	p := newDarwinPipeline(name)
 	p.Trigger = triggerTag
 	p.DependsOn = []string{"build-darwin-amd64"}
@@ -40,8 +58,8 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
 				"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
 				"OSS_TARBALL_PATH":  {raw: "/tmp/build-darwin-amd64-pkg/go/artifacts"},
 				"ENT_TARBALL_PATH":  {raw: "/tmp/build-darwin-amd64-pkg/go/artifacts"},
-				"OS":                {raw: "darwin"},
-				"ARCH":              {raw: "amd64"},
+				"OS":                {raw: b.os},
+				"ARCH":              {raw: b.arch},
 			},
 			Commands: darwinTagPackageCommands(makeTarget),
 		},
@@ -65,6 +83,15 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
 				`set -u`,
 				`cd $WORKSPACE_DIR/go/artifacts`,
 				`aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}`,
+			},
+		},
+		{
+			Name:     "Register artifacts",
+			Commands: tagCreateReleaseAssetCommands(b),
+			Environment: map[string]value{
+				"WORKSPACE_DIR": {raw: p.Workspace.Path},
+				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
+				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
 			},
 		},
 		cleanUpExecStorageStep(p.Workspace.Path),

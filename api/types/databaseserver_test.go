@@ -23,11 +23,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestDatabaseServerGetDatabases verifies that older agents get adapted to
-// the new database list interface for backward compatibility.
+// TestDatabaseServerGetDatabase verifies that older agents get adapted to
+// the new database server interface for backward compatibility.
 //
 // DELETE IN 9.0.
-func TestDatabaseServerGetDatabases(t *testing.T) {
+func TestDatabaseServerGetDatabase(t *testing.T) {
 	server, err := NewDatabaseServerV3(Metadata{
 		Name:   "server-1",
 		Labels: map[string]string{"a": "b"},
@@ -57,5 +57,5 @@ func TestDatabaseServerGetDatabases(t *testing.T) {
 		GCP:           GCPCloudSQL{ProjectID: "project-1", InstanceID: "instance-1"},
 	})
 	require.NoError(t, err)
-	require.ElementsMatch(t, []Database{database}, server.GetDatabases())
+	require.Equal(t, database, server.GetDatabase())
 }

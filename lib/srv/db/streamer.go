@@ -59,7 +59,7 @@ func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWr
 		Clock:        s.cfg.Clock,
 		SessionID:    session.ID(sessionCtx.ID),
 		Namespace:    apidefaults.Namespace,
-		ServerID:     sessionCtx.Server.GetHostID(),
+		ServerID:     sessionCtx.HostID,
 		RecordOutput: recConfig.GetMode() != types.RecordOff,
 		Component:    teleport.ComponentDatabase,
 		ClusterName:  clusterName.GetClusterName(),

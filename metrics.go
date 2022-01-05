@@ -64,11 +64,20 @@ const (
 	// MetricHeartbeatConnectionsReceived counts heartbeat connections received by auth
 	MetricHeartbeatConnectionsReceived = "heartbeat_connections_received_total"
 
-	// MetricCertificateMistmatch counts login failures due to certificate mismatch
-	MetricCertificateMistmatch = "certificate_mismatch_total"
+	// MetricCertificateMismatch counts login failures due to certificate mismatch
+	MetricCertificateMismatch = "certificate_mismatch_total"
 
 	// MetricHeartbeatsMissed counts the nodes that failed to heartbeat
 	MetricHeartbeatsMissed = "heartbeats_missed_total"
+
+	// MetricWatcherEventsEmitted counts watcher events that are emitted
+	MetricWatcherEventsEmitted = "watcher_events"
+
+	// MetricWatcherEventSizes measures the size of watcher events that are emitted
+	MetricWatcherEventSizes = "watcher_event_sizes"
+
+	// MetricMissingSSHTunnels returns the number of missing SSH tunnels for this proxy.
+	MetricMissingSSHTunnels = "proxy_missing_ssh_tunnels"
 
 	// TagCluster is a metric tag for a cluster
 	TagCluster = "cluster"
@@ -168,6 +177,12 @@ const (
 	// MetricState tracks the state of the teleport process.
 	MetricState = "process_state"
 
+	// MetricNamespace defines the teleport prometheus namespace
+	MetricNamespace = "teleport"
+
+	// MetricBuildInfo tracks build information
+	MetricBuildInfo = "build_info"
+
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
 
@@ -179,4 +194,16 @@ const (
 
 	// TagFalse is a tag value to mark false values
 	TagFalse = "false"
+
+	// TagResource is a tag specifying the resource for an event
+	TagResource = "resource"
+
+	// TagVersion is a prometheus label for version of Teleport built
+	TagVersion = "version"
+
+	// TagGitref is a prometheus label for the gitref of Teleport built
+	TagGitref = "gitref"
+
+	// TagGoVersion is a prometheus label for version of Go used to build Teleport
+	TagGoVersion = "goversion"
 )

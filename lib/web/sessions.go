@@ -33,18 +33,18 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/sshutils"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -69,7 +69,7 @@ type SessionContext struct {
 	// This access point should only be used if the identity of the caller will
 	// not affect the result of the RPC. For example, never use it to call
 	// "GetNodes".
-	unsafeCachedAuthClient auth.ReadAccessPoint
+	unsafeCachedAuthClient auth.ReadProxyAccessPoint
 
 	parent *sessionCache
 	// resources is persistent resource store this context is bound to.
@@ -240,7 +240,7 @@ func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, er
 	}
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
-	tlsConfig.ServerName = auth.EncodeClusterName(c.parent.clusterName)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(c.parent.clusterName)
 	tlsConfig.Time = c.parent.clock.Now
 	return tlsConfig, nil
 }
@@ -304,9 +304,25 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 	return keyring, cert, nil
 }
 
+func (c *SessionContext) getCheckers() ([]ssh.PublicKey, error) {
+	cas, err := c.unsafeCachedAuthClient.GetCertAuthorities(types.HostCA, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var keys []ssh.PublicKey
+	for _, ca := range cas {
+		checkers, err := sshutils.GetCheckers(ca)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		keys = append(keys, checkers...)
+	}
+	return keys, nil
+}
+
 // GetSSHCertificate returns the *ssh.Certificate associated with this session.
 func (c *SessionContext) GetSSHCertificate() (*ssh.Certificate, error) {
-	return sshutils.ParseCertificate(c.session.GetPub())
+	return apisshutils.ParseCertificate(c.session.GetPub())
 }
 
 // GetX509Certificate returns the *x509.Certificate associated with this session.
@@ -325,7 +341,7 @@ func (c *SessionContext) GetUserRoles() (services.RoleSet, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles, traits, err := services.ExtractFromCertificate(c.clt, cert)
+	roles, traits, err := services.ExtractFromCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -334,6 +350,15 @@ func (c *SessionContext) GetUserRoles() (services.RoleSet, error) {
 		return nil, trace.Wrap(err)
 	}
 	return roleset, nil
+}
+
+// GetProxyListenerMode returns cluster proxy listener mode form cluster networking config.
+func (c *SessionContext) GetProxyListenerMode(ctx context.Context) (types.ProxyListenerMode, error) {
+	resp, err := c.unsafeCachedAuthClient.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return types.ProxyListenerMode_Separate, trace.Wrap(err)
+	}
+	return resp.GetProxyListenerMode(), nil
 }
 
 // GetIdentity returns identity parsed from the session's TLS certificate.
@@ -432,7 +457,7 @@ const cachedSessionLingeringThreshold = 2 * time.Minute
 
 type sessionCacheOptions struct {
 	proxyClient  auth.ClientI
-	accessPoint  auth.ReadAccessPoint
+	accessPoint  auth.ReadProxyAccessPoint
 	servers      []utils.NetAddr
 	cipherSuites []uint16
 	clock        clockwork.Clock
@@ -474,7 +499,7 @@ type sessionCache struct {
 	log         logrus.FieldLogger
 	proxyClient auth.ClientI
 	authServers []utils.NetAddr
-	accessPoint auth.ReadAccessPoint
+	accessPoint auth.ReadProxyAccessPoint
 	closer      *utils.CloseBroadcaster
 	clusterName string
 	clock       clockwork.Clock
@@ -554,17 +579,19 @@ func (s *sessionCache) AuthWithoutOTP(user, pass string) (types.WebSession, erro
 	})
 }
 
-func (s *sessionCache) GetMFAAuthenticateChallenge(user, pass string) (*auth.MFAAuthenticateChallenge, error) {
-	return s.proxyClient.GetMFAAuthenticateChallenge(user, []byte(pass))
-}
-
-func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.AuthenticateChallengeResponse) (types.WebSession, error) {
-	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
-		Username: user,
-		U2F: &auth.U2FSignResponseCreds{
-			SignResponse: *response,
-		},
-	})
+func (s *sessionCache) AuthenticateWebUser(req *client.AuthenticateWebUserRequest) (types.WebSession, error) {
+	authReq := auth.AuthenticateUserRequest{
+		Username: req.User,
+	}
+	if req.U2FSignResponse != nil {
+		authReq.U2F = &auth.U2FSignResponseCreds{
+			SignResponse: *req.U2FSignResponse,
+		}
+	}
+	if req.WebauthnAssertionResponse != nil {
+		authReq.Webauthn = req.WebauthnAssertionResponse
+	}
+	return s.proxyClient.AuthenticateWebUser(authReq)
 }
 
 // GetCertificateWithoutOTP returns a new user certificate for the specified request.
@@ -603,7 +630,7 @@ func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*auth.S
 	})
 }
 
-func (s *sessionCache) GetCertificateWithMFA(c client.CreateSSHCertWithMFAReq) (*auth.SSHLoginResponse, error) {
+func (s *sessionCache) AuthenticateSSHUser(c client.AuthenticateSSHUserRequest) (*auth.SSHLoginResponse, error) {
 	authReq := auth.AuthenticateUserRequest{
 		Username: c.User,
 	}
@@ -614,6 +641,9 @@ func (s *sessionCache) GetCertificateWithMFA(c client.CreateSSHCertWithMFAReq) (
 		authReq.U2F = &auth.U2FSignResponseCreds{
 			SignResponse: *c.U2FSignResponse,
 		}
+	}
+	if c.WebauthnChallengeResponse != nil {
+		authReq.Webauthn = c.WebauthnChallengeResponse
 	}
 	if c.TOTPCode != "" {
 		authReq.OTP = &auth.OTPCreds{
@@ -634,10 +664,6 @@ func (s *sessionCache) GetCertificateWithMFA(c client.CreateSSHCertWithMFAReq) (
 // Ping gets basic info about the auth server.
 func (s *sessionCache) Ping(ctx context.Context) (proto.PingResponse, error) {
 	return s.proxyClient.Ping(ctx)
-}
-
-func (s *sessionCache) GetUserInviteU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
-	return s.proxyClient.GetSignupU2FRegisterRequest(token)
 }
 
 func (s *sessionCache) ValidateTrustedCluster(validateRequest *auth.ValidateTrustedClusterRequest) (*auth.ValidateTrustedClusterResponse, error) {
@@ -828,7 +854,7 @@ func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
 	}
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
-	tlsConfig.ServerName = auth.EncodeClusterName(s.clusterName)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(s.clusterName)
 	tlsConfig.Time = s.clock.Now
 	return tlsConfig, nil
 }

@@ -62,7 +62,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	application, server, err := Match(ctx, accessPoint, MatchPublicAddr(identity.RouteToApp.PublicAddr))
+	server, err := Match(ctx, accessPoint, MatchPublicAddr(identity.RouteToApp.PublicAddr))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,7 +74,6 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		cipherSuites: h.c.CipherSuites,
 		identity:     identity,
 		server:       server,
-		app:          application,
 		ws:           ws,
 		clusterName:  h.clusterName,
 	})
@@ -82,6 +81,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		return nil, trace.Wrap(err)
 	}
 	fwd, err := forward.New(
+		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.Logger(h.log),
 		forward.PassHostHeader(true),

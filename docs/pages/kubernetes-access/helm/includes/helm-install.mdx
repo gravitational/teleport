@@ -15,11 +15,11 @@ Throughout this guide, we will assume that you have the `helm` and `kubectl` bin
 
 Verify that Helm and Kubernetes are installed and up to date:
 
-```bash
-helm version
+```code
+$ helm version
 # version.BuildInfo{Version:"v(=helm.version=)"}
 
-kubectl version
+$ kubectl version
 # Client Version: version.Info{Major:"(=kubernetes.major_version=)", Minor:"(=kubernetes.minor_version=)+"}
 # Server Version: version.Info{Major:"(=kubernetes.major_version=)", Minor:"(=kubernetes.minor_version=)+"}
 ```
@@ -28,12 +28,12 @@ kubectl version
 
 Allow Helm to install charts from hosted Teleport Helm repository by:
 
-```bash
-helm repo add teleport (=teleport.helm_repo_url=)
+```code
+$ helm repo add teleport (=teleport.helm_repo_url=)
 ```
 
 To update the cache of charts from the remote repository, use:
 
-```bash
-helm repo update
+```code
+$ helm repo update
 ```

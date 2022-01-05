@@ -68,9 +68,9 @@ VENDOR="Gravitational"
 DESCRIPTION="Teleport is a gateway for managing access to clusters of Linux servers via SSH or the Kubernetes API"
 DOCS_URL="https://goteleport.com/docs"
 
-# signing IDs to use for mac (must be pre-loaded into the keychain on the build box)
-DEVELOPER_ID_APPLICATION="Developer ID Application: Gravitational Inc." # used for signing binaries
-DEVELOPER_ID_INSTALLER="Developer ID Installer: Gravitational Inc." # used for signing packages
+# SHA1 fingerprints of certificates used for signing mac artifacts (certificates must be pre-loaded into the keychain on the build box)
+DEVELOPER_ID_APPLICATION="0FFD3E3413AB4C599C53FBB1D8CA690915E33D83" # used for signing binaries
+DEVELOPER_ID_INSTALLER="82B625AD327C241B378A54B4B254BB08CE71B5DF" # used for signing packages
 
 # download root for packages
 DOWNLOAD_ROOT="https://get.gravitational.com"

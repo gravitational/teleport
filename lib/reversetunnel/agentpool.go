@@ -50,8 +50,11 @@ type AgentPool struct {
 	log          *log.Entry
 	cfg          AgentPoolConfig
 	proxyTracker *track.Tracker
-	ctx          context.Context
-	cancel       context.CancelFunc
+
+	// ctx controls the lifespan of the agent pool, and is used to control
+	// all of the sub-processes it spawns.
+	ctx    context.Context
+	cancel context.CancelFunc
 	// spawnLimiter limits agent spawn rate
 	spawnLimiter utils.Retry
 
@@ -66,7 +69,7 @@ type AgentPoolConfig struct {
 	Client auth.ClientI
 	// AccessPoint is a lightweight access point
 	// that can optionally cache some values
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.AccessCache
 	// HostSigner is a host signer this agent presents itself as
 	HostSigner ssh.Signer
 	// HostUUID is a unique ID of this host
@@ -90,6 +93,8 @@ type AgentPoolConfig struct {
 	ProxyAddr string
 	// Cluster is a cluster name of the proxy.
 	Cluster string
+	// FIPS indicates if Teleport was started in FIPS mode.
+	FIPS bool
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -184,6 +189,10 @@ func (m *AgentPool) Wait() {
 	<-m.ctx.Done()
 }
 
+// processSeekEvents receives acquisition messages from the ProxyTracker
+// (i.e. "I've found a proxy that you may not know about") and routes the
+// new proxy address to the AgentPool, which will manage the connection
+// to that address.
 func (m *AgentPool) processSeekEvents() {
 	limiter := m.spawnLimiter.Clone()
 	for {
@@ -191,9 +200,14 @@ func (m *AgentPool) processSeekEvents() {
 		case <-m.ctx.Done():
 			m.log.Debugf("Halting seek event processing (pool closing)")
 			return
+
+		// The proxy tracker has given us permission to act on a given
+		// tunnel address
 		case lease := <-m.proxyTracker.Acquire():
 			m.log.Debugf("Seeking: %+v.", lease.Key())
 			m.withLock(func() {
+				// Note that ownership of the lease is transferred to agent
+				// pool for the lifetime of the connection
 				if err := m.addAgent(lease); err != nil {
 					m.log.WithError(err).Errorf("Failed to add agent.")
 				}
@@ -255,23 +269,38 @@ func (m *AgentPool) pollAndSyncAgents() {
 	}
 }
 
+// getReverseTunnelDetails gets the cached ReverseTunnelDetails obtained during the oldest cached agent.connect call.
+// This function should be called under a lock.
+func (m *AgentPool) getReverseTunnelDetails(addr utils.NetAddr) *reverseTunnelDetails {
+	agents, ok := m.agents[addr]
+	if !ok || len(agents) == 0 {
+		return nil
+	}
+	return agents[0].reverseTunnelDetails
+}
+
+// addAgent adds a new agent to the pool. Note that ownership of the lease
+// transfers into the AgentPool, and will be released when the AgentPool
+// is done with it.
 func (m *AgentPool) addAgent(lease track.Lease) error {
 	addr := lease.Key().(utils.NetAddr)
 	agent, err := NewAgent(AgentConfig{
-		Addr:                addr,
-		ClusterName:         m.cfg.Cluster,
-		Username:            m.cfg.HostUUID,
-		Signer:              m.cfg.HostSigner,
-		Client:              m.cfg.Client,
-		AccessPoint:         m.cfg.AccessPoint,
-		Context:             m.ctx,
-		KubeDialAddr:        m.cfg.KubeDialAddr,
-		Server:              m.cfg.Server,
-		ReverseTunnelServer: m.cfg.ReverseTunnelServer,
-		LocalClusterName:    m.cfg.LocalCluster,
-		Component:           m.cfg.Component,
-		Tracker:             m.proxyTracker,
-		Lease:               lease,
+		Addr:                 addr,
+		ClusterName:          m.cfg.Cluster,
+		Username:             m.cfg.HostUUID,
+		Signer:               m.cfg.HostSigner,
+		Client:               m.cfg.Client,
+		AccessPoint:          m.cfg.AccessPoint,
+		Context:              m.ctx,
+		KubeDialAddr:         m.cfg.KubeDialAddr,
+		Server:               m.cfg.Server,
+		ReverseTunnelServer:  m.cfg.ReverseTunnelServer,
+		LocalClusterName:     m.cfg.LocalCluster,
+		Component:            m.cfg.Component,
+		Tracker:              m.proxyTracker,
+		Lease:                lease,
+		FIPS:                 m.cfg.FIPS,
+		reverseTunnelDetails: m.getReverseTunnelDetails(addr),
 	})
 	if err != nil {
 		// ensure that lease has been released; OK to call multiple times.

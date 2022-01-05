@@ -259,7 +259,7 @@ func TestProxySSHConfig(t *testing.T) {
 		HostID:        "127.0.0.1",
 		NodeName:      "127.0.0.1",
 		ClusterName:   "host-cluster-name",
-		Roles:         types.SystemRoles{types.RoleNode},
+		Role:          types.RoleNode,
 	})
 	require.NoError(t, err)
 
@@ -273,7 +273,7 @@ func TestProxySSHConfig(t *testing.T) {
 		[]ssh.Signer{hostSigner},
 		sshutils.AuthMethods{
 			PublicKey: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-				certChecker := utils.CertChecker{
+				certChecker := apisshutils.CertChecker{
 					CertChecker: ssh.CertChecker{
 						IsUserAuthority: func(cert ssh.PublicKey) bool {
 							// Makes sure that user presented key signed by or with trusted authority.
@@ -351,6 +351,27 @@ hRdXE63PXwAfzj0P/H4qWsFfwdeCo/fuIQIDAQAB
 	blocks, err := s.store.GetTrustedCertsPEM(proxy)
 	require.Empty(t, blocks)
 	require.NoError(t, err)
+}
+
+func TestAddKey_withoutSSHCert(t *testing.T) {
+	s, cleanup := newTest(t)
+	defer cleanup()
+
+	// without ssh cert, db certs only
+	idx := KeyIndex{"host.a", "bob", "root"}
+	key := s.makeSignedKey(t, idx, false)
+	key.Cert = nil
+	require.NoError(t, s.addKey(key))
+
+	// ssh cert path should NOT exist
+	sshCertPath := s.store.sshCertPath(key.KeyIndex)
+	_, err := os.Stat(sshCertPath)
+	require.ErrorIs(t, err, os.ErrNotExist)
+
+	// check db certs
+	keyCopy, err := s.store.GetKey(idx, WithDBCerts{})
+	require.NoError(t, err)
+	require.Len(t, keyCopy.DBTLSCerts, 1)
 }
 
 type keyStoreTest struct {

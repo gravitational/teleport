@@ -43,6 +43,8 @@ type WebConfig struct {
 	CanJoinSessions bool `json:"canJoinSessions"`
 	// ProxyClusterName is the name of the local cluster
 	ProxyClusterName string `json:"proxyCluster,omitempty"`
+	// IsCloud is a flag that determines if cloud features are enabled.
+	IsCloud bool `json:"isCloud,omitempty"`
 }
 
 // WebConfigAuthProvider describes auth. provider
@@ -67,4 +69,8 @@ type WebConfigAuthSettings struct {
 	LocalAuthEnabled bool `json:"localAuthEnabled"`
 	// AuthType is the authentication type.
 	AuthType string `json:"authType"`
+	// PreferredLocalMFA is a server-side hint for clients to pick an MFA method
+	// when various options are available.
+	// It is empty if there is nothing to suggest.
+	PreferredLocalMFA constants.SecondFactorType `json:"preferredLocalMfa,omitempty"`
 }

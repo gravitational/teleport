@@ -58,7 +58,7 @@ func (h *hostPolicyChecker) checkHost(ctx context.Context, host string) error {
 		return nil
 	}
 
-	_, _, _, err := app.ResolveFQDN(ctx, h.cfg.clt, h.cfg.tun, h.dnsNames, host)
+	_, _, err := app.ResolveFQDN(ctx, h.cfg.clt, h.cfg.tun, h.dnsNames, host)
 	if err == nil {
 		return nil
 	}

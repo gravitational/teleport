@@ -60,6 +60,12 @@ const (
 	// MySQLListenPort is the default listen port for MySQL proxy.
 	MySQLListenPort = 3036
 
+	// PostgresListenPort is the default listen port for PostgreSQL proxy.
+	PostgresListenPort = 5432
+
+	// MongoListenPort is the default listen port for Mongo proxy.
+	MongoListenPort = 27017
+
 	// MetricsListenPort is the default listen port for the metrics service.
 	MetricsListenPort = 3081
 
@@ -159,6 +165,15 @@ const (
 	// ChangePasswordTokenTTL is a default password change token expiry time
 	ChangePasswordTokenTTL = 8 * time.Hour
 
+	// RecoveryStartTokenTTL is a default expiry time for a recovery start token.
+	RecoveryStartTokenTTL = 3 * time.Hour
+
+	// RecoveryApprovedTokenTTL is a default expiry time for a recovery approved token.
+	RecoveryApprovedTokenTTL = 15 * time.Minute
+
+	// PrivilegeTokenTTL is a default expiry time for a privilege token.
+	PrivilegeTokenTTL = 5 * time.Minute
+
 	// ResetPasswordLength is the length of the reset user password
 	ResetPasswordLength = 16
 
@@ -223,6 +238,10 @@ const (
 	// MaxLoginAttempts sets the max. number of allowed failed login attempts
 	// before a user account is locked for AccountLockInterval
 	MaxLoginAttempts int = 5
+
+	// MaxAccountRecoveryAttempts sets the max number of allowed failed recovery attempts
+	// before a user is locked from login and further recovery attempts for AccountLockInterval.
+	MaxAccountRecoveryAttempts = 3
 
 	// AccountLockInterval defines a time interval during which a user account
 	// is locked after MaxLoginAttempts
@@ -317,7 +336,7 @@ var (
 	NetworkBackoffDuration = time.Second * 30
 
 	// AuditBackoffTimeout is a time out before audit logger will
-	// start loosing events
+	// start losing events
 	AuditBackoffTimeout = 5 * time.Second
 
 	// NetworkRetryDuration is a standard retry on network requests
@@ -397,15 +416,31 @@ var (
 
 	// AsyncBufferSize is a default buffer size for async emitters
 	AsyncBufferSize = 1024
+
+	// ConnectionErrorMeasurementPeriod is the maximum age of a connection error
+	// to be considered when deciding to restart the process. The process will
+	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
+	// errors in the preceding `ConnectionErrorMeasurementPeriod`
+	ConnectionErrorMeasurementPeriod = 2 * time.Minute
+
+	// MaxConnectionErrorsBeforeRestart is the number or allowable network errors
+	// in the previous `ConnectionErrorMeasurementPeriod`. The process will
+	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
+	// errors in the preceding `ConnectionErrorMeasurementPeriod`
+	MaxConnectionErrorsBeforeRestart = 5
+
+	// MaxWatcherBackoff is the maximum retry time a watcher should use in
+	// the event of connection issues
+	MaxWatcherBackoff = time.Minute
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
 // services (SSH, auth, proxy)
 const (
-	// Number of max. simultaneous connections to a service
+	// LimiterMaxConnections Number of max. simultaneous connections to a service
 	LimiterMaxConnections = 15000
 
-	// Number of max. simultaneous connected users/logins
+	// LimiterMaxConcurrentUsers Number of max. simultaneous connected users/logins
 	LimiterMaxConcurrentUsers = 250
 
 	// LimiterMaxConcurrentSignatures limits maximum number of concurrently
@@ -451,6 +486,8 @@ const (
 	RoleApp = "app"
 	// RoleDatabase is a database proxy role.
 	RoleDatabase = "db"
+	// RoleWindowsDesktop is a Windows desktop service.
+	RoleWindowsDesktop = "windowsdesktop"
 )
 
 const (
@@ -460,6 +497,12 @@ const (
 	ProtocolMySQL = "mysql"
 	// ProtocolMongoDB is the MongoDB database protocol.
 	ProtocolMongoDB = "mongodb"
+	// ProtocolCockroachDB is the CockroachDB database protocol.
+	//
+	// Technically it's the same as the Postgres protocol but it's used to
+	// differentiate between Cockroach and Postgres databases e.g. when
+	// selecting a CLI client to use.
+	ProtocolCockroachDB = "cockroachdb"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -467,6 +510,7 @@ var DatabaseProtocols = []string{
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
+	ProtocolCockroachDB,
 }
 
 const (
@@ -528,6 +572,9 @@ const (
 const (
 	// U2FChallengeTimeout is hardcoded in the U2F library
 	U2FChallengeTimeout = 5 * time.Minute
+	// WebauthnChallengeTimeout is the timeout for ongoing Webauthn authentication
+	// or registration challenges.
+	WebauthnChallengeTimeout = 5 * time.Minute
 )
 
 const (
@@ -625,6 +672,9 @@ const (
 
 	// WebsocketU2FChallenge is sending a U2F challenge.
 	WebsocketU2FChallenge = "u"
+
+	// WebsocketWebauthnChallenge is sending a webauthn challenge.
+	WebsocketWebauthnChallenge = "n"
 )
 
 // The following are cryptographic primitives Teleport does not support in
@@ -735,3 +785,10 @@ func Transport() (*http.Transport, error) {
 
 	return tr, nil
 }
+
+const (
+	// TeleportConfigVersionV1 is the teleport proxy configuration v1 version.
+	TeleportConfigVersionV1 string = "v1"
+	// TeleportConfigVersionV2 is the teleport proxy configuration v2 version.
+	TeleportConfigVersionV2 string = "v2"
+)

@@ -65,6 +65,7 @@ auth_service:
   public_addr: ["auth.default.svc.cluster.local:3080"]
   disconnect_expired_cert: yes
   client_idle_timeout: 17s
+  routing_strategy: most_recent
 
 ssh_service:
   enabled: no
@@ -105,6 +106,7 @@ teleport:
       average: 170
       burst: 171
   diag_addr: 127.0.0.1:3000
+  ca_pin: ""
 auth_service:
   enabled: yes
   listen_addr: 10.5.5.1:3025
@@ -157,6 +159,8 @@ proxy_service:
   postgres_public_addr: postgres.example:5432
   mysql_listen_addr: webhost:3336
   mysql_public_addr: mysql.example:3306
+  mongo_listen_addr: webhost:27017
+  mongo_public_addr: mongo.example:27017
 `
 
 // NoServicesConfigString is a configuration file with no services enabled

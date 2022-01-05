@@ -1,0 +1,21 @@
+timeout: 25m
+options:
+  machineType: E2_HIGHCPU_32
+
+steps:
+  # GCB does a shallow checkout for a build, but if we want to check our changes
+  # against other branches we'll need to fetch the repo history.
+  - name: gcr.io/cloud-builders/git
+    id: fetch-history
+    args: ['fetch', '--unshallow']
+
+  # Run the integration tests. Actual content of this job depends on the changes 
+  # detected in the PR
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
+    id: run-tests
+    dir: /workspace/.cloudbuild/scripts
+    entrypoint: bash
+    args: 
+      - -c
+      - go run ./cmd/integration-tests -w=/workspace -t=$_BASE_BRANCH -c=HEAD
+    timeout: 20m

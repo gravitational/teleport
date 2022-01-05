@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -128,19 +129,16 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		Verified:       sessionCtx.Identity.MFAVerified != "",
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
-	// In MySQL, unlike Postgres, "database" and "schema" are the same thing
-	// and there's no good way to prevent users from performing cross-database
-	// queries once they're connected, apart from granting proper privileges
-	// in MySQL itself.
-	//
-	// As such, checking db_names for MySQL is quite pointless so we only
-	// check db_users. In future, if we implement some sort of access controls
-	// on queries, we might be able to restrict db_names as well e.g. by
-	// detecting full-qualified table names like db.table, until then the
-	// proper way is to use MySQL grants system.
-	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Database, mfaParams,
-		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Database.GetAllLabels()},
-		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
+	dbRoleMatchers := role.DatabaseRoleMatchers(
+		defaults.ProtocolMySQL,
+		sessionCtx.DatabaseUser,
+		sessionCtx.DatabaseName,
+	)
+	err = sessionCtx.Checker.CheckAccess(
+		sessionCtx.Database,
+		mfaParams,
+		dbRoleMatchers...,
+	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)
@@ -154,6 +152,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	user := sessionCtx.DatabaseUser
 	var password string
 	switch {
 	case sessionCtx.Database.IsRDS():
@@ -185,10 +184,18 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case sessionCtx.Database.IsAzure():
+		password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Azure requires database login to be <user>@<server-name> e.g.
+		// alice@mysql-server-name.
+		user = fmt.Sprintf("%v@%v", user, sessionCtx.Database.GetAzure().Name)
 	}
 	// TODO(r0mant): Set CLIENT_INTERACTIVE flag on the client?
 	conn, err := client.Connect(sessionCtx.Database.GetURI(),
-		sessionCtx.DatabaseUser,
+		user,
 		password,
 		sessionCtx.DatabaseName,
 		func(conn *client.Conn) {
@@ -201,10 +208,11 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
   %v
 
 Make sure that IAM auth is enabled for MySQL user %q and Teleport database
-agent's IAM policy has "rds-connect" permissions:
+agent's IAM policy has "rds-connect" permissions (note that IAM changes may
+take a few minutes to propagate):
 
 %v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, common.GetRDSPolicy(sessionCtx.Database.GetAWS().Region))
+`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -237,6 +245,17 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		switch pkt := packet.(type) {
 		case *protocol.Query:
 			e.Audit.OnQuery(e.Context, sessionCtx, common.Query{Query: pkt.Query()})
+		case *protocol.ChangeUser:
+			// MySQL protocol includes COM_CHANGE_USER command that allows to
+			// re-authenticate connection as a different user. It is not
+			// supported by mysql shell and most drivers but some drivers do
+			// provide it.
+			//
+			// We do not want to allow changing the connection user and instead
+			// force users to go through normal reconnect flow so log the
+			// attempt and close the client connection.
+			log.Warnf("Rejecting attempt to change user to %q for session %v.", pkt.User(), sessionCtx)
+			return
 		case *protocol.Quit:
 			return
 		}
@@ -262,7 +281,7 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 		close(serverErrCh)
 	}()
 	for {
-		packet, err := protocol.ParsePacket(serverConn)
+		packet, _, err := protocol.ReadPacket(serverConn)
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				log.Debug("Server connection closed.")
@@ -272,7 +291,7 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 			serverErrCh <- err
 			return
 		}
-		_, err = protocol.WritePacket(packet.Bytes(), clientConn)
+		_, err = protocol.WritePacket(packet, clientConn)
 		if err != nil {
 			log.WithError(err).Error("Failed to write client packet.")
 			serverErrCh <- err

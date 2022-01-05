@@ -925,16 +925,6 @@ func (s *TLSSuite) TestAuthPreference(c *check.C) {
 	suite.AuthPreference(c)
 }
 
-func (s *TLSSuite) TestClusterConfig(c *check.C) {
-	clt, err := s.server.NewClient(TestAdmin())
-	c.Assert(err, check.IsNil)
-
-	testSuite := &suite.ServicesTestSuite{
-		ConfigS: clt,
-	}
-	testSuite.ClusterConfig(c, suite.SkipDelete())
-}
-
 func (s *TLSSuite) TestTunnelConnectionsCRUD(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
@@ -1061,7 +1051,7 @@ func (s *TLSSuite) TestValidateUploadSessionRecording(c *check.C) {
 	serverID, err := s.server.Identity.ID.HostID()
 	c.Assert(err, check.IsNil)
 
-	var tests = []struct {
+	tests := []struct {
 		inServerID string
 		outError   bool
 	}{
@@ -1157,7 +1147,7 @@ func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
 	serverID, err := s.server.Identity.ID.HostID()
 	c.Assert(err, check.IsNil)
 
-	var tests = []struct {
+	tests := []struct {
 		inServerID string
 		outError   bool
 	}{
@@ -1542,7 +1532,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(err, check.IsNil)
 
 	// Roles extracted from cert should contain the initial role and the role assigned with access request.
-	roles, _, err := services.ExtractFromCertificate(clt, sshcert)
+	roles, _, err := services.ExtractFromCertificate(sshcert)
 	c.Assert(err, check.IsNil)
 	c.Assert(roles, check.HasLen, 2)
 
@@ -1557,6 +1547,19 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	_, hasRole = mappedRole["test-request-role"]
 	c.Assert(hasRole, check.Equals, true)
 
+	// certRequests extracts the active requests from a PEM encoded TLS cert.
+	certRequests := func(tlsCert []byte) []string {
+		cert, err := tlsca.ParseCertificatePEM(tlsCert)
+		c.Assert(err, check.IsNil)
+
+		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		c.Assert(err, check.IsNil)
+
+		return identity.ActiveRequests
+	}
+
+	c.Assert(certRequests(sess1.GetTLSCert()), check.DeepEquals, []string{accessReq.GetName()})
+
 	// Test switch back to default role and expiry.
 	sess2, err := web.ExtendWebSession(WebSessionReq{
 		User:          user,
@@ -1570,9 +1573,11 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	sshcert, err = sshutils.ParseCertificate(sess2.GetPub())
 	c.Assert(err, check.IsNil)
 
-	roles, _, err = services.ExtractFromCertificate(clt, sshcert)
+	roles, _, err = services.ExtractFromCertificate(sshcert)
 	c.Assert(err, check.IsNil)
 	c.Assert(roles, check.DeepEquals, []string{initialRole})
+
+	c.Assert(certRequests(sess2.GetTLSCert()), check.HasLen, 0)
 }
 
 // TestGetCertAuthority tests certificate authority permissions
@@ -1608,7 +1613,7 @@ func (s *TLSSuite) TestGetCertAuthority(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	role := services.RoleForUser(user)
-	role.SetLogins(services.Allow, []string{user.GetName()})
+	role.SetLogins(types.Allow, []string{user.GetName()})
 	err = s.server.Auth().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 
@@ -1719,6 +1724,17 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 		return apiutils.SliceContainsStr(identity.Groups, role)
 	}
 
+	// certRequests extracts the active requests from a PEM encoded TLS cert.
+	certRequests := func(tlsCert []byte) []string {
+		cert, err := tlsca.ParseCertificatePEM(tlsCert)
+		c.Assert(err, check.IsNil)
+
+		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		c.Assert(err, check.IsNil)
+
+		return identity.ActiveRequests
+	}
+
 	// certLogins extracts the logins from an ssh certificate
 	certLogins := func(sshCert []byte) []string {
 		cert, err := sshutils.ParseCertificate(sshCert)
@@ -1732,6 +1748,8 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	if certContainsRole(userCerts.TLS, role) {
 		c.Errorf("unexpected role %s", role)
 	}
+	// ensure that the default identity doesn't have any active requests
+	c.Assert(certRequests(userCerts.TLS), check.HasLen, 0)
 
 	// verify that cert for user with no static logins is generated with
 	// exactly one login and that it is an invalid unix login (indicated
@@ -1758,12 +1776,35 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	if !certContainsRole(userCerts.TLS, role) {
 		c.Errorf("missing requested role %s", role)
 	}
+	// ensure that the request is stored in the certs
+	c.Assert(certRequests(userCerts.TLS), check.DeepEquals, []string{req.GetName()})
 
 	// verify that dynamically applied role granted a login,
 	// which is is valid and has replaced the dummy login.
 	logins = certLogins(userCerts.SSH)
 	c.Assert(len(logins), check.Equals, 1)
 	c.Assert(rune(logins[0][0]), check.Not(check.Equals), '-')
+
+	elevatedCert, err := tls.X509KeyPair(userCerts.TLS, priv)
+	c.Assert(err, check.IsNil)
+	elevatedClient := s.server.NewClientWithCert(elevatedCert)
+
+	newCerts, err := elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey: pub,
+		Username:  user,
+		Expires:   time.Now().Add(time.Hour).UTC(),
+		Format:    constants.CertificateFormatStandard,
+		// no new access requests
+		AccessRequests: nil,
+	})
+	c.Assert(err, check.IsNil)
+
+	// in spite of having no access requests, we still have elevated roles...
+	if !certContainsRole(newCerts.TLS, role) {
+		c.Errorf("missing requested role %s", role)
+	}
+	// ...and the certificate shows the access request
+	c.Assert(certRequests(newCerts.TLS), check.DeepEquals, []string{req.GetName()})
 
 	// attempt to apply request in DENIED state (should fail)
 	c.Assert(s.server.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{RequestID: req.GetName(), State: types.RequestState_DENIED}), check.IsNil)
@@ -1775,6 +1816,17 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 
 	// ensure that once in the DENIED state, a request cannot be set back to APPROVED state.
 	c.Assert(s.server.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{RequestID: req.GetName(), State: types.RequestState_APPROVED}), check.NotNil)
+
+	// ensure that identities with requests in the DENIED state can't reissue new certs.
+	_, err = elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey: pub,
+		Username:  user,
+		Expires:   time.Now().Add(time.Hour).UTC(),
+		Format:    constants.CertificateFormatStandard,
+		// no new access requests
+		AccessRequests: nil,
+	})
+	c.Assert(err, check.NotNil)
 }
 
 func (s *TLSSuite) TestPluginData(c *check.C) {
@@ -1885,16 +1937,18 @@ func TestGenerateCerts(t *testing.T) {
 	hostClient, err := srv.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: types.RoleNode}})
 	require.NoError(t, err)
 
-	certs, err := hostClient.GenerateServerKeys(
-		GenerateServerKeysRequest{
+	certs, err := hostClient.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
 			HostID:               hostID,
 			NodeName:             srv.AuthServer.ClusterName,
-			Roles:                types.SystemRoles{types.RoleNode},
+			Role:                 types.RoleNode,
 			AdditionalPrincipals: []string{"example.com"},
+			PublicSSHKey:         pub,
+			PublicTLSKey:         pubTLS,
 		})
 	require.NoError(t, err)
 
-	hostCert, err := sshutils.ParseCertificate(certs.Cert)
+	hostCert, err := sshutils.ParseCertificate(certs.SSH)
 	require.NoError(t, err)
 	require.Contains(t, hostCert.ValidPrincipals, "example.com")
 
@@ -1903,37 +1957,42 @@ func TestGenerateCerts(t *testing.T) {
 	hostClient, err = srv.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: types.RoleNode}})
 	require.NoError(t, err)
 
-	certs, err = hostClient.GenerateServerKeys(
-		GenerateServerKeysRequest{
+	certs, err = hostClient.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
 			HostID:               hostID,
 			NodeName:             srv.AuthServer.ClusterName,
-			Roles:                types.SystemRoles{types.RoleNode},
+			Role:                 types.RoleNode,
 			AdditionalPrincipals: []string{"example.com"},
 			PublicSSHKey:         pub,
 			PublicTLSKey:         pubTLS,
 		})
 	require.NoError(t, err)
 
-	hostCert, err = sshutils.ParseCertificate(certs.Cert)
+	hostCert, err = sshutils.ParseCertificate(certs.SSH)
 	require.NoError(t, err)
 	require.Contains(t, hostCert.ValidPrincipals, "example.com")
 
 	t.Run("HostClients", func(t *testing.T) {
 		// attempt to elevate privileges by getting admin role in the certificate
-		_, err = hostClient.GenerateServerKeys(
-			GenerateServerKeysRequest{
-				HostID:   hostID,
-				NodeName: srv.AuthServer.ClusterName,
-				Roles:    types.SystemRoles{types.RoleAdmin},
+		_, err = hostClient.GenerateHostCerts(context.Background(),
+			&proto.HostCertsRequest{
+				HostID:       hostID,
+				NodeName:     srv.AuthServer.ClusterName,
+				Role:         types.RoleAdmin,
+				PublicSSHKey: pub,
+				PublicTLSKey: pubTLS,
 			})
 		require.True(t, trace.IsAccessDenied(err))
 
 		// attempt to get certificate for different host id
-		_, err = hostClient.GenerateServerKeys(GenerateServerKeysRequest{
-			HostID:   "some-other-host-id",
-			NodeName: srv.AuthServer.ClusterName,
-			Roles:    types.SystemRoles{types.RoleNode},
-		})
+		_, err = hostClient.GenerateHostCerts(context.Background(),
+			&proto.HostCertsRequest{
+				HostID:       "some-other-host-id",
+				NodeName:     srv.AuthServer.ClusterName,
+				Role:         types.RoleNode,
+				PublicSSHKey: pub,
+				PublicTLSKey: pubTLS,
+			})
 		require.True(t, trace.IsAccessDenied(err))
 	})
 
@@ -2260,7 +2319,7 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 	key, err := services.GetJWTSigner(signer, ca.GetClusterName(), s.clock)
 	c.Assert(err, check.IsNil)
 
-	var tests = []struct {
+	tests := []struct {
 		inMachineRole types.SystemRole
 		inComment     check.CommentInterface
 		outError      bool
@@ -2328,7 +2387,7 @@ func (s *TLSSuite) TestCertificateFormat(c *check.C) {
 	err = s.server.Auth().UpsertPassword(user.GetName(), pass)
 	c.Assert(err, check.IsNil)
 
-	var tests = []struct {
+	tests := []struct {
 		inRoleCertificateFormat   string
 		inClientCertificateFormat string
 		outCertContainsRole       bool
@@ -2394,7 +2453,7 @@ func (s *TLSSuite) TestClusterConfigContext(c *check.C) {
 	// at the nodes not at the proxy
 	_, err = proxy.GenerateHostCert(pub,
 		"a", "b", nil,
-		"localhost", types.SystemRoles{types.RoleProxy}, 0)
+		"localhost", types.RoleProxy, 0)
 	fixtures.ExpectAccessDenied(c, err)
 
 	// update cluster config to record at the proxy
@@ -2409,7 +2468,7 @@ func (s *TLSSuite) TestClusterConfigContext(c *check.C) {
 	// host cert because it's in recording mode.
 	_, err = proxy.GenerateHostCert(pub,
 		"a", "b", nil,
-		"localhost", types.SystemRoles{types.RoleProxy}, 0)
+		"localhost", types.RoleProxy, 0)
 	c.Assert(err, check.IsNil)
 }
 
@@ -2450,7 +2509,7 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	err = s.server.Auth().SetAuthPreference(ctx, authPreference)
 	c.Assert(err, check.IsNil)
 
-	// authentication attempt fails with wrong passwrod
+	// authentication attempt fails with wrong password
 	_, err = proxy.AuthenticateWebUser(AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: []byte("wrong123"), Token: validToken},
@@ -2537,7 +2596,7 @@ func (s *TLSSuite) TestLoginAttempts(c *check.C) {
 	c.Assert(loginAttempts, check.HasLen, 0)
 }
 
-func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
+func (s *TLSSuite) TestChangeUserAuthentication(c *check.C) {
 	ctx := context.Background()
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		AllowLocalAuth: types.NewBoolOption(true),
@@ -2564,22 +2623,27 @@ func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
 	_, _, err = CreateUserAndRole(clt, username, []string{"role1"})
 	c.Assert(err, check.IsNil)
 
-	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
+	token, err := s.server.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
 		Name: username,
 		TTL:  time.Hour,
 	})
 	c.Assert(err, check.IsNil)
 
-	secrets, err := s.server.Auth().RotateUserTokenSecrets(context.TODO(), token.GetName())
+	res, err := s.server.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:    token.GetName(),
+		DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+	})
 	c.Assert(err, check.IsNil)
 
-	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.server.Clock().Now())
+	otpToken, err := totp.GenerateCode(res.GetTOTP().GetSecret(), s.server.Clock().Now())
 	c.Assert(err, check.IsNil)
 
-	_, err = s.server.Auth().ChangePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
-		TokenID:           token.GetName(),
-		Password:          []byte("qweqweqwe"),
-		SecondFactorToken: otpToken,
+	_, err = s.server.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     token.GetName(),
+		NewPassword: []byte("qweqweqwe"),
+		NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: otpToken},
+		}},
 	})
 	c.Assert(err, check.IsNil)
 }
@@ -3055,9 +3119,13 @@ func (s *TLSSuite) TestEventsPermissions(c *check.C) {
 			watches:  []types.WatchKind{{Kind: types.KindCertAuthority, LoadSecrets: false}},
 		},
 		{
-			name:     "nop role is not authorized to watch cluster config",
+			name:     "nop role is not authorized to watch cluster config resources",
 			identity: TestBuiltin(types.RoleNop),
-			watches:  []types.WatchKind{{Kind: types.KindClusterConfig, LoadSecrets: false}},
+			watches: []types.WatchKind{
+				{Kind: types.KindClusterAuthPreference},
+				{Kind: types.KindClusterNetworkingConfig},
+				{Kind: types.KindSessionRecordingConfig},
+			},
 		},
 	}
 
@@ -3121,7 +3189,7 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindStaticTokens},
 		{Kind: types.KindToken},
-		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterName},
 	}})
 	c.Assert(err, check.IsNil)
@@ -3204,9 +3272,9 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	err = s.server.Auth().SetClusterAuditConfig(ctx, auditConfig)
 	c.Assert(err, check.IsNil)
 
-	clusterConfig, err := s.server.Auth().GetClusterConfig()
+	auditConfigResource, err := s.server.Auth().GetClusterAuditConfig(ctx)
 	c.Assert(err, check.IsNil)
-	suite.ExpectResource(c, w, 3*time.Second, clusterConfig)
+	suite.ExpectResource(c, w, 3*time.Second, auditConfigResource)
 
 	// update cluster name resource metadata
 	clusterNameResource, err := s.server.Auth().GetClusterName()

@@ -146,7 +146,7 @@ func (u *UserTokenSecretsV3) setStaticFields() {
 }
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
-func (u UserTokenSecretsV3) CheckAndSetDefaults() error {
+func (u *UserTokenSecretsV3) CheckAndSetDefaults() error {
 	u.setStaticFields()
 	if err := u.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -154,7 +154,7 @@ func (u UserTokenSecretsV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-// // String represents a human readable version of the token secrets
+// String represents a human readable version of the token secrets
 func (u *UserTokenSecretsV3) String() string {
 	return fmt.Sprintf("UserTokenSecretsV3(tokenID=%v, opt_key=%v, qr_code=%v)", u.GetName(), u.Spec.OTPKey, u.Spec.QRCode)
 }

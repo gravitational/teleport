@@ -39,10 +39,11 @@ proxy_service:
 
   kube_listen_addr: 0.0.0.0:3026
   # optional: set a different public address for kubernetes access
-  kube_public_addr: kube.example.com:3027
+  kube_public_addr: kube.example.com:3026
 ```
 
 You will also need to have a `kubernetes_service` section in your `teleport.yaml` file. This can be in your existing proxy, or a new separate teleport instance:
+
 
 ```yaml
 kubernetes_service:
@@ -55,8 +56,8 @@ kubernetes_service:
 
 After Teleport starts with the above config, you should be able to see all new clusters using:
 
-```bash
-tsh kube ls
+```code
+$ tsh kube ls
 # or
-sudo tctl get kube_service
+$ sudo tctl get kube_service
 ```

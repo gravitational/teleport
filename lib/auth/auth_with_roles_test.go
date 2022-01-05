@@ -24,9 +24,11 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
@@ -321,7 +323,10 @@ func TestListNodes(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
 	// listing nodes 0-4 should list first 5 nodes
-	nodes, _, err := clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	nodes, _, err := clt.ListNodes(ctx, proto.ListNodesRequest{
+		Namespace: defaults.Namespace,
+		Limit:     5,
+	})
 	require.NoError(t, err)
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes := testNodes[:5]
@@ -332,7 +337,10 @@ func TestListNodes(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
 	// listing nodes 0-4 should skip the third node and add the fifth to the end.
-	nodes, _, err = clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	nodes, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
+		Namespace: defaults.Namespace,
+		Limit:     5,
+	})
 	require.NoError(t, err)
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
@@ -366,13 +374,11 @@ func TestAPILockedOut(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, srv.Auth().UpsertLock(ctx, lock))
-	err = testOp()
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
+	require.Eventually(t, func() bool { return trace.IsAccessDenied(testOp()) }, time.Second, time.Second/10)
 
 	// Delete the lock.
 	require.NoError(t, srv.Auth().DeleteLock(ctx, lock.GetName()))
-	require.NoError(t, testOp())
+	require.Eventually(t, func() bool { return testOp() == nil }, time.Second, time.Second/10)
 
 	// Create a new lock targeting the user's role.
 	roleLock, err := types.NewLock("role-lock", types.LockSpecV2{
@@ -380,9 +386,7 @@ func TestAPILockedOut(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, srv.Auth().UpsertLock(ctx, roleLock))
-	err = testOp()
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
+	require.Eventually(t, func() bool { return trace.IsAccessDenied(testOp()) }, time.Second, time.Second/10)
 }
 
 func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.Rule) *ServerWithRoles {
@@ -431,7 +435,7 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 	// Prepare a couple of database resources.
 	devDatabase, err := types.NewDatabaseV3(types.Metadata{
 		Name:   "dev",
-		Labels: map[string]string{"env": "dev"},
+		Labels: map[string]string{"env": "dev", types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: libdefaults.ProtocolPostgres,
 		URI:      "localhost:5432",
@@ -439,7 +443,7 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 	require.NoError(t, err)
 	adminDatabase, err := types.NewDatabaseV3(types.Metadata{
 		Name:   "admin",
-		Labels: map[string]string{"env": "prod"},
+		Labels: map[string]string{"env": "prod", types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: libdefaults.ProtocolMySQL,
 		URI:      "localhost:3306",
@@ -467,10 +471,10 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 	require.NoError(t, err)
 
 	// Dev shouldn't be able to update labels on the prod database.
-	adminDatabase.SetStaticLabels(map[string]string{"env": "dev"})
+	adminDatabase.SetStaticLabels(map[string]string{"env": "dev", types.OriginLabel: types.OriginDynamic})
 	err = devClt.UpdateDatabase(ctx, adminDatabase)
 	require.True(t, trace.IsAccessDenied(err))
-	adminDatabase.SetStaticLabels(map[string]string{"env": "prod"}) // Reset.
+	adminDatabase.SetStaticLabels(map[string]string{"env": "prod", types.OriginLabel: types.OriginDynamic}) // Reset.
 
 	// Dev shouldn't be able to get prod database...
 	_, err = devClt.GetDatabase(ctx, adminDatabase.GetName())
@@ -548,37 +552,30 @@ func TestGetDatabaseServers(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test databases.
-	var dbs []*types.DatabaseV3
 	for i := 0; i < 5; i++ {
 		name := uuid.New()
-		db, err := types.NewDatabaseV3(types.Metadata{
+		db, err := types.NewDatabaseServerV3(types.Metadata{
 			Name:   name,
 			Labels: map[string]string{"name": name},
-		}, types.DatabaseSpecV3{
+		}, types.DatabaseServerSpecV3{
 			Protocol: "postgres",
 			URI:      "example.com",
+			Hostname: "host",
+			HostID:   "hostid",
 		})
 		require.NoError(t, err)
-		dbs = append(dbs, db)
+
+		_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
+		require.NoError(t, err)
 	}
-	name := uuid.New()
-	server, err := types.NewDatabaseServerV3(types.Metadata{
-		Name:   name,
-		Labels: map[string]string{"name": name},
-	}, types.DatabaseServerSpecV3{
-		Hostname:  "host",
-		HostID:    "hostid",
-		Databases: dbs,
-	})
-	require.NoError(t, err)
-	_, err = srv.Auth().UpsertDatabaseServer(ctx, server)
-	require.NoError(t, err)
 
 	testServers, err := srv.Auth().GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(testServers))
-	testDatabases := testServers[0].GetDatabases()
-	require.ElementsMatch(t, dbs, testDatabases)
+
+	testResources := make([]types.Resource, len(testServers))
+	for i, server := range testServers {
+		testResources[i] = server
+	}
 
 	// create user, role, and client
 	username := "user"
@@ -588,44 +585,153 @@ func TestGetDatabaseServers(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
+	listRequest := proto.ListResourcesRequest{
+		Namespace: defaults.Namespace,
+		// Guarantee that the list will all the servers.
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindDatabaseServer,
+	}
+
 	// permit user to get the first database
-	role.SetDatabaseLabels(types.Allow, types.Labels{"name": {testDatabases[0].GetName()}})
+	role.SetDatabaseLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	servers, err := clt.GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, len(servers))
-	databases := servers[0].GetDatabases()
-	require.Equal(t, 1, len(databases))
-	require.Empty(t, cmp.Diff(testDatabases[0:1], databases))
+	require.Empty(t, cmp.Diff(testServers[0:1], servers))
+	resources, _, err := clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
 
 	// permit user to get all databases
 	role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	servers, err = clt.GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(servers))
-	databases = servers[0].GetDatabases()
-	require.EqualValues(t, len(testDatabases), len(databases))
-	require.Empty(t, cmp.Diff(testDatabases, databases))
+	require.EqualValues(t, len(testServers), len(servers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resources))
 
 	// deny user to get the first database
-	role.SetDatabaseLabels(types.Deny, types.Labels{"name": {testDatabases[0].GetName()}})
+	role.SetDatabaseLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	servers, err = clt.GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(servers))
-	databases = servers[0].GetDatabases()
-	require.EqualValues(t, len(testDatabases[1:]), len(databases))
-	require.Empty(t, cmp.Diff(testDatabases[1:], databases))
+	require.EqualValues(t, len(testServers[1:]), len(servers))
+	require.Empty(t, cmp.Diff(testServers[1:], servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources[1:]))
+	require.Empty(t, cmp.Diff(testResources[1:], resources))
 
 	// deny user to get all databases
 	role.SetDatabaseLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	servers, err = clt.GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(servers))
-	databases = servers[0].GetDatabases()
-	require.EqualValues(t, 0, len(databases))
+	require.EqualValues(t, 0, len(servers))
+	require.Empty(t, cmp.Diff([]types.DatabaseServer{}, servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, 0)
+	require.Empty(t, cmp.Diff([]types.Resource{}, resources))
+}
+
+// TestGetApplicationServers verifies RBAC is applied when fetching app servers.
+func TestGetApplicationServers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test app servers.
+	for i := 0; i < 5; i++ {
+		name := fmt.Sprintf("app-%v", i)
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   name,
+			Labels: map[string]string{"name": name},
+		},
+			types.AppSpecV3{URI: "localhost"})
+		require.NoError(t, err)
+		server, err := types.NewAppServerV3FromApp(app, "host", "hostid")
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+		require.NoError(t, err)
+	}
+
+	testServers, err := srv.Auth().GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	testResources := make([]types.Resource, len(testServers))
+	for i, server := range testServers {
+		testResources[i] = server
+	}
+
+	listRequest := proto.ListResourcesRequest{
+		Namespace: defaults.Namespace,
+		// Guarantee that the list will all the servers.
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindAppServer,
+	}
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// permit user to get the first app
+	role.SetAppLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err := clt.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, len(servers))
+	require.Empty(t, cmp.Diff(testServers[0:1], servers))
+	resources, _, err := clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// permit user to get all apps
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers), len(servers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resources))
+
+	// deny user to get the first app
+	role.SetAppLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers[1:]), len(servers))
+	require.Empty(t, cmp.Diff(testServers[1:], servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources[1:]))
+	require.Empty(t, cmp.Diff(testResources[1:], resources))
+
+	// deny user to get all apps
+	role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, len(servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, 0)
+	require.Empty(t, cmp.Diff([]types.Resource{}, resources))
 }
 
 func TestGetAppServers(t *testing.T) {
@@ -643,6 +749,7 @@ func TestGetAppServers(t *testing.T) {
 				Apps: []*types.App{{
 					Name:         name,
 					StaticLabels: map[string]string{"name": name},
+					URI:          "localhost",
 				}},
 			},
 			nil,
@@ -713,6 +820,141 @@ func TestGetAppServers(t *testing.T) {
 	require.Empty(t, cmp.Diff(testServers, servers))
 }
 
+// TestApps verifies RBAC is applied to app resources.
+func TestApps(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Setup a couple of users:
+	// - "dev" only has access to apps with labels env=dev
+	// - "admin" has access to all apps
+	dev, devRole, err := CreateUserAndRole(srv.Auth(), "dev", nil)
+	require.NoError(t, err)
+	devRole.SetAppLabels(types.Allow, types.Labels{"env": {"dev"}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, devRole))
+	devClt, err := srv.NewClient(TestUser(dev.GetName()))
+	require.NoError(t, err)
+
+	admin, adminRole, err := CreateUserAndRole(srv.Auth(), "admin", nil)
+	require.NoError(t, err)
+	adminRole.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, adminRole))
+	adminClt, err := srv.NewClient(TestUser(admin.GetName()))
+	require.NoError(t, err)
+
+	// Prepare a couple of app resources.
+	devApp, err := types.NewAppV3(types.Metadata{
+		Name:   "dev",
+		Labels: map[string]string{"env": "dev", types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost1",
+	})
+	require.NoError(t, err)
+	adminApp, err := types.NewAppV3(types.Metadata{
+		Name:   "admin",
+		Labels: map[string]string{"env": "prod", types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost2",
+	})
+	require.NoError(t, err)
+
+	// Dev shouldn't be able to create prod app...
+	err = devClt.CreateApp(ctx, adminApp)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can create dev app.
+	err = devClt.CreateApp(ctx, devApp)
+	require.NoError(t, err)
+
+	// Admin can create prod app.
+	err = adminClt.CreateApp(ctx, adminApp)
+	require.NoError(t, err)
+
+	// Dev shouldn't be able to update prod app...
+	err = devClt.UpdateApp(ctx, adminApp)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can update dev app.
+	err = devClt.UpdateApp(ctx, devApp)
+	require.NoError(t, err)
+
+	// Dev shouldn't be able to update labels on the prod app.
+	adminApp.SetStaticLabels(map[string]string{"env": "dev", types.OriginLabel: types.OriginDynamic})
+	err = devClt.UpdateApp(ctx, adminApp)
+	require.True(t, trace.IsAccessDenied(err))
+	adminApp.SetStaticLabels(map[string]string{"env": "prod", types.OriginLabel: types.OriginDynamic}) // Reset.
+
+	// Dev shouldn't be able to get prod app...
+	_, err = devClt.GetApp(ctx, adminApp.GetName())
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can get dev app.
+	app, err := devClt.GetApp(ctx, devApp.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(devApp, app,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Admin can get both apps.
+	app, err = adminClt.GetApp(ctx, adminApp.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(adminApp, app,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+	app, err = adminClt.GetApp(ctx, devApp.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(devApp, app,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// When listing apps, dev should only see one.
+	apps, err := devClt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{devApp}, apps,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Admin should see both.
+	apps, err = adminClt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{adminApp, devApp}, apps,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Dev shouldn't be able to delete dev app...
+	err = devClt.DeleteApp(ctx, adminApp.GetName())
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can delete dev app.
+	err = devClt.DeleteApp(ctx, devApp.GetName())
+	require.NoError(t, err)
+
+	// Admin should be able to delete admin app.
+	err = adminClt.DeleteApp(ctx, adminApp.GetName())
+	require.NoError(t, err)
+
+	// Create both apps again to test "delete all" functionality.
+	require.NoError(t, devClt.CreateApp(ctx, devApp))
+	require.NoError(t, adminClt.CreateApp(ctx, adminApp))
+
+	// Dev should only be able to delete dev app.
+	err = devClt.DeleteAllApps(ctx)
+	require.NoError(t, err)
+	apps, err = adminClt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{adminApp}, apps,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Admin should be able to delete all.
+	err = adminClt.DeleteAllApps(ctx)
+	require.NoError(t, err)
+	apps, err = adminClt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Len(t, apps, 0)
+}
+
 // TestReplaceRemoteLocksRBAC verifies that only a remote proxy may replace the
 // remote locks associated with its cluster.
 func TestReplaceRemoteLocksRBAC(t *testing.T) {
@@ -771,4 +1013,312 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 			require.True(t, test.checkErr(err), trace.DebugReport(err))
 		})
 	}
+}
+
+// TestIsMFARequiredMFADB tests isMFARequest logic per database protocol where different role matchers are used.
+func TestIsMFARequiredMFADB(t *testing.T) {
+	const (
+		databaseName = "test-database"
+		userName     = "test-username"
+	)
+
+	type modifyRoleFunc func(role types.Role)
+	tests := []struct {
+		name               string
+		userRoleRequireMFA bool
+		checkMFA           require.BoolAssertionFunc
+		modifyRoleFunc     modifyRoleFunc
+		dbProtocol         string
+		req                *proto.IsMFARequiredRequest
+	}{
+		{
+			name:       "RequireSessionMFA enabled MySQL protocol doesn't match database name",
+			dbProtocol: libdefaults.ProtocolMySQL,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    libdefaults.ProtocolMySQL,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireSessionMFA = true
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, nil)
+			},
+			checkMFA: require.True,
+		},
+		{
+			name:       "RequireSessionMFA disabled",
+			dbProtocol: libdefaults.ProtocolMySQL,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    libdefaults.ProtocolMySQL,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireSessionMFA = false
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, nil)
+			},
+			checkMFA: require.False,
+		},
+		{
+			name:       "RequireSessionMFA enabled Postgres protocol database name doesn't match",
+			dbProtocol: libdefaults.ProtocolPostgres,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    libdefaults.ProtocolPostgres,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireSessionMFA = true
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, nil)
+			},
+			checkMFA: require.False,
+		},
+		{
+			name:       "RequireSessionMFA enabled Postgres protocol database name matches",
+			dbProtocol: libdefaults.ProtocolPostgres,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    libdefaults.ProtocolPostgres,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireSessionMFA = true
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, []string{"example"})
+			},
+			checkMFA: require.True,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			srv := newTestTLSServer(t)
+
+			// Enable MFA support.
+			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				U2F: &types.U2F{
+					AppID:  "teleport",
+					Facets: []string{"teleport"},
+				},
+			})
+			require.NoError(t, err)
+			err = srv.Auth().SetAuthPreference(ctx, authPref)
+			require.NoError(t, err)
+
+			database, err := types.NewDatabaseServerV3(
+				types.Metadata{
+					Name: databaseName,
+					Labels: map[string]string{
+						"env": "dev",
+					},
+				},
+				types.DatabaseServerSpecV3{
+					Protocol: tc.dbProtocol,
+					URI:      "example.com",
+					Hostname: "host",
+					HostID:   "hostID",
+				},
+			)
+			require.NoError(t, err)
+
+			_, err = srv.Auth().UpsertDatabaseServer(ctx, database)
+			require.NoError(t, err)
+
+			user, role, err := CreateUserAndRole(srv.Auth(), userName, []string{"test-role"})
+			require.NoError(t, err)
+
+			if tc.modifyRoleFunc != nil {
+				tc.modifyRoleFunc(role)
+			}
+			err = srv.Auth().UpsertRole(ctx, role)
+			require.NoError(t, err)
+
+			cl, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			resp, err := cl.IsMFARequired(ctx, tc.req)
+			require.NoError(t, err)
+			tc.checkMFA(t, resp.GetRequired())
+		})
+	}
+}
+
+// TestKindClusterConfig verifies that types.KindClusterConfig can be used
+// as an alternative privilege to provide access to cluster configuration
+// resources.
+func TestKindClusterConfig(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	getClusterConfigResources := func(ctx context.Context, user types.User) []error {
+		authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, TestUser(user.GetName()).I))
+		require.NoError(t, err, trace.DebugReport(err))
+		s := &ServerWithRoles{
+			authServer: srv.AuthServer,
+			sessions:   srv.SessionServer,
+			alog:       srv.AuditLog,
+			context:    *authContext,
+		}
+		_, err1 := s.GetClusterAuditConfig(ctx)
+		_, err2 := s.GetClusterNetworkingConfig(ctx)
+		_, err3 := s.GetSessionRecordingConfig(ctx)
+		return []error{err1, err2, err3}
+	}
+
+	t.Run("without KindClusterConfig privilege", func(t *testing.T) {
+		user, err := CreateUser(srv.AuthServer, "test-user")
+		require.NoError(t, err)
+		for _, err := range getClusterConfigResources(ctx, user) {
+			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err))
+		}
+	})
+
+	t.Run("with KindClusterConfig privilege", func(t *testing.T) {
+		role, err := types.NewRole("test-role", types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindClusterConfig, []string{types.VerbRead}),
+				},
+			},
+		})
+		require.NoError(t, err)
+		user, err := CreateUser(srv.AuthServer, "test-user", role)
+		require.NoError(t, err)
+		for _, err := range getClusterConfigResources(ctx, user) {
+			require.NoError(t, err)
+		}
+	})
+}
+
+func TestNoElevatedAccessRequestDeletion(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { srv.Close() })
+
+	deleterRole, err := types.NewRole("deleter", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{{
+				Resources: []string{"access_request"},
+				Verbs:     []string{"delete"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	deleterUser, err := CreateUser(srv.AuthServer, "deletey", deleterRole)
+	require.NoError(t, err)
+
+	requesterRole, err := types.NewRole("requester", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{deleterRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+	requesterUser, err := CreateUser(srv.AuthServer, "requesty", requesterRole)
+	require.NoError(t, err)
+
+	request, err := services.NewAccessRequest(requesterUser.GetName(), deleterRole.GetName())
+	require.NoError(t, err)
+	// the request must be for an allowed user/role combination or it will get rejected
+	err = srv.AuthServer.CreateAccessRequest(ctx, request)
+	require.NoError(t, err)
+
+	// requesty has used some other unspecified access request to get the
+	// deleter role in this identity
+	requesterAuthContext, err := srv.Authorizer.Authorize(context.WithValue(ctx,
+		ContextUser,
+		LocalUser{
+			Username: requesterUser.GetName(),
+			Identity: tlsca.Identity{
+				Username: requesterUser.GetName(),
+				Groups:   []string{requesterRole.GetName(), deleterRole.GetName()},
+				// a tlsca.Identity must have a nonempty Traits field or the
+				// roles will be reloaded from the backend during Authorize
+				Traits: map[string][]string{"nonempty": {}},
+			},
+		},
+	))
+	require.NoError(t, err)
+	requesterAuth := &ServerWithRoles{
+		authServer: srv.AuthServer,
+		sessions:   srv.SessionServer,
+		alog:       srv.AuditLog,
+		context:    *requesterAuthContext,
+	}
+
+	err = requesterAuth.DeleteAccessRequest(ctx, request.GetName())
+	require.True(t, trace.IsAccessDenied(err))
+	// matches the message in lib/auth/auth_with_roles.go:(*ServerWithRoles).DeleteAccessRequest()
+	require.Contains(t, err.Error(), "deletion through elevated roles")
+
+	deleterAuthContext, err := srv.Authorizer.Authorize(context.WithValue(ctx,
+		ContextUser,
+		LocalUser{
+			Username: deleterUser.GetName(),
+			Identity: tlsca.Identity{
+				Username: deleterUser.GetName(),
+				Groups:   []string{deleterRole.GetName()},
+				Traits:   map[string][]string{"nonempty": {}},
+			},
+		},
+	))
+	require.NoError(t, err)
+	deleterAuth := &ServerWithRoles{
+		authServer: srv.AuthServer,
+		sessions:   srv.SessionServer,
+		alog:       srv.AuditLog,
+		context:    *deleterAuthContext,
+	}
+
+	err = deleterAuth.DeleteAccessRequest(ctx, request.GetName())
+	require.NoError(t, err)
 }

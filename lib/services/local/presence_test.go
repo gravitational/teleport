@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -106,6 +108,106 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	_, err = presenceBackend.GetTrustedCluster(ctx, "foo")
 	c.Assert(err, check.NotNil)
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
+}
+
+// TestApplicationServersCRUD verifies backend operations on app servers.
+func TestApplicationServersCRUD(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	backend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+
+	presence := NewPresenceService(backend)
+
+	// Make an app and an app server.
+	appA, err := types.NewAppV3(types.Metadata{Name: "a"},
+		types.AppSpecV3{URI: "http://localhost:8080"})
+	require.NoError(t, err)
+	serverA, err := types.NewAppServerV3(types.Metadata{
+		Name: appA.GetName(),
+	}, types.AppServerSpecV3{
+		Hostname: "localhost",
+		HostID:   uuid.New(),
+		App:      appA,
+	})
+	require.NoError(t, err)
+
+	// Make a legacy app server.
+	appBLegacy := &types.App{Name: "b", URI: "http://localhost:8081"}
+	appB, err := types.NewAppV3FromLegacyApp(appBLegacy)
+	require.NoError(t, err)
+	serverBLegacy, err := types.NewServer(uuid.New(), types.KindAppServer,
+		types.ServerSpecV2{
+			Hostname: "localhost",
+			Apps:     []*types.App{appBLegacy},
+		})
+	require.NoError(t, err)
+	serverB, err := types.NewAppServerV3(types.Metadata{
+		Name: appBLegacy.Name,
+	}, types.AppServerSpecV3{
+		Hostname: "localhost",
+		HostID:   serverBLegacy.GetName(),
+		App:      appB,
+	})
+	require.NoError(t, err)
+
+	// No app servers should be registered initially
+	out, err := presence.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+
+	// Create app server.
+	lease, err := presence.UpsertApplicationServer(ctx, serverA)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{}, lease)
+
+	// Create legacy app server.
+	lease, err = presence.UpsertAppServer(ctx, serverBLegacy)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{}, lease)
+
+	// Make sure all app servers are registered.
+	out, err = presence.GetApplicationServers(ctx, serverA.GetNamespace())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Delete app server.
+	err = presence.DeleteApplicationServer(ctx, serverA.GetNamespace(), serverA.GetHostID(), serverA.GetName())
+	require.NoError(t, err)
+
+	// Expect only the legacy one to be returned.
+	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Upsert server with TTL.
+	serverA.SetExpiry(clock.Now().UTC().Add(time.Hour))
+	lease, err = presence.UpsertApplicationServer(ctx, serverA)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{
+		Type:      types.KeepAlive_APP,
+		LeaseID:   lease.LeaseID,
+		Name:      serverA.GetName(),
+		Namespace: serverA.GetNamespace(),
+		HostID:    serverA.GetHostID(),
+		Expires:   serverA.Expiry(),
+	}, lease)
+
+	// Delete all app servers.
+	err = presence.DeleteAllApplicationServers(ctx, serverA.GetNamespace())
+	require.NoError(t, err)
+
+	// Expect only legacy one to be returned.
+	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 }
 
 func TestDatabaseServersCRUD(t *testing.T) {
@@ -226,34 +328,52 @@ func TestNodeCRUD(t *testing.T) {
 		t.Run("List Nodes", func(t *testing.T) {
 			t.Parallel()
 			// list nodes one at a time, last page should be empty
-			nodes, nextKey, err := presence.ListNodes(ctx, apidefaults.Namespace, 1, "")
+			nodes, nextKey, err := presence.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     1,
+			})
 			require.NoError(t, err)
 			require.EqualValues(t, 1, len(nodes))
 			require.Empty(t, cmp.Diff([]types.Server{node1}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 			require.EqualValues(t, backend.NextPaginationKey(node1), nextKey)
 
-			nodes, nextKey, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
+			nodes, nextKey, err = presence.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     1,
+				StartKey:  nextKey,
+			})
 			require.NoError(t, err)
 			require.EqualValues(t, 1, len(nodes))
 			require.Empty(t, cmp.Diff([]types.Server{node2}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 			require.EqualValues(t, backend.NextPaginationKey(node2), nextKey)
 
-			nodes, nextKey, err = presence.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
+			nodes, nextKey, err = presence.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     1,
+				StartKey:  nextKey,
+			})
 			require.NoError(t, err)
 			require.EqualValues(t, 0, len(nodes))
 			require.EqualValues(t, "", nextKey)
 
 			// ListNodes should fail if namespace isn't provided
-			_, _, err = presence.ListNodes(ctx, "", 1, "")
+			_, _, err = presence.ListNodes(ctx, proto.ListNodesRequest{
+				Limit: 1,
+			})
 			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
 			// ListNodes should fail if limit is nonpositive
-			_, _, err = presence.ListNodes(ctx, apidefaults.Namespace, 0, "")
+			_, _, err = presence.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+			})
 			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
-			_, _, err = presence.ListNodes(ctx, apidefaults.Namespace, -1, "")
+			_, _, err = presence.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     -1,
+			})
 			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 		})
 		t.Run("GetNodes", func(t *testing.T) {
@@ -307,4 +427,184 @@ func TestNodeCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, len(nodes))
 	})
+}
+
+func TestListResources(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	backend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+
+	presence := NewPresenceService(backend)
+
+	tests := map[string]struct {
+		resourceType           string
+		createResourceFunc     func(context.Context, string) error
+		deleteAllResourcesFunc func(context.Context) error
+		expectedType           types.Resource
+	}{
+		"DatabaseServers": {
+			resourceType: types.KindDatabaseServer,
+			createResourceFunc: func(ctx context.Context, name string) error {
+				server, err := types.NewDatabaseServerV3(types.Metadata{
+					Name: name,
+				}, types.DatabaseServerSpecV3{
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "localhost:5432",
+					Hostname: "localhost",
+					HostID:   uuid.New(),
+				})
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertDatabaseServer(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context) error {
+				return presence.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
+			},
+		},
+		"DatabaseServersSameHost": {
+			resourceType: types.KindDatabaseServer,
+			createResourceFunc: func(ctx context.Context, name string) error {
+				server, err := types.NewDatabaseServerV3(types.Metadata{
+					Name: name,
+				}, types.DatabaseServerSpecV3{
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "localhost:5432",
+					Hostname: "localhost",
+					HostID:   "some-host",
+				})
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertDatabaseServer(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context) error {
+				return presence.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
+			},
+		},
+		"AppServers": {
+			resourceType: types.KindAppServer,
+			createResourceFunc: func(ctx context.Context, name string) error {
+				app, err := types.NewAppV3(types.Metadata{
+					Name: name,
+				}, types.AppSpecV3{
+					URI: "localhost",
+				})
+				if err != nil {
+					return err
+				}
+
+				server, err := types.NewAppServerV3(types.Metadata{
+					Name: name,
+				}, types.AppServerSpecV3{
+					Hostname: "localhost",
+					HostID:   uuid.New(),
+					App:      app,
+				})
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertApplicationServer(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context) error {
+				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+			},
+		},
+		"AppServersSameHost": {
+			resourceType: types.KindAppServer,
+			createResourceFunc: func(ctx context.Context, name string) error {
+				app, err := types.NewAppV3(types.Metadata{
+					Name: name,
+				}, types.AppSpecV3{
+					URI: "localhost",
+				})
+				if err != nil {
+					return err
+				}
+
+				server, err := types.NewAppServerV3(types.Metadata{
+					Name: name,
+				}, types.AppServerSpecV3{
+					Hostname: "localhost",
+					HostID:   "some-host",
+					App:      app,
+				})
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertApplicationServer(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context) error {
+				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+			},
+		},
+	}
+
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			resources, nextKey, err := presence.ListResources(ctx, proto.ListResourcesRequest{
+				Limit:        1,
+				Namespace:    apidefaults.Namespace,
+				ResourceType: test.resourceType,
+				StartKey:     "",
+			})
+			require.NoError(t, err)
+			require.Empty(t, resources)
+			require.Empty(t, nextKey)
+
+			resourcesPerPage := 4
+			totalResources := 15
+			for i := 0; i < totalResources; i++ {
+				err = test.createResourceFunc(ctx, fmt.Sprintf("foo-%d", i))
+				require.NoError(t, err)
+			}
+
+			var resultResources []types.Resource
+			for len(resultResources) < totalResources {
+				resources, nextKey, err = presence.ListResources(ctx, proto.ListResourcesRequest{
+					Limit:        int32(resourcesPerPage),
+					Namespace:    apidefaults.Namespace,
+					ResourceType: test.resourceType,
+					StartKey:     nextKey,
+				})
+				require.NoError(t, err)
+
+				resultResources = append(resultResources, resources...)
+			}
+
+			require.Empty(t, nextKey)
+
+			// delete everything
+			err = test.deleteAllResourcesFunc(ctx)
+			require.NoError(t, err)
+
+			resources, nextKey, err = presence.ListResources(ctx, proto.ListResourcesRequest{
+				Limit:        1,
+				Namespace:    apidefaults.Namespace,
+				ResourceType: test.resourceType,
+				StartKey:     "",
+			})
+			require.NoError(t, err)
+			require.Empty(t, nextKey)
+			require.Empty(t, resources)
+		})
+	}
+
 }

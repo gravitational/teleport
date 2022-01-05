@@ -46,10 +46,10 @@ type DatabaseServer interface {
 	String() string
 	// Copy returns a copy of this database server object.
 	Copy() DatabaseServer
-	// GetDatabases returns databases this database server proxies.
-	GetDatabases() []Database
-	// SetDatabases sets databases this database server proxies.
-	SetDatabases([]Database) error
+	// GetDatabase returns the database this database server proxies.
+	GetDatabase() Database
+	// SetDatabase sets the database this database server proxies.
+	SetDatabase(Database) error
 }
 
 // NewDatabaseServerV3 creates a new database server instance.
@@ -149,65 +149,74 @@ func (s *DatabaseServerV3) SetRotation(r Rotation) {
 	s.Spec.Rotation = r
 }
 
-// GetDatabases returns databases this database server proxies.
-func (s *DatabaseServerV3) GetDatabases() (databases []Database) {
-	if len(s.Spec.Databases) > 0 {
-		for _, database := range s.Spec.Databases {
-			databases = append(databases, database)
-		}
-	} else if s.Spec.URI != "" {
-		// Database server used to represent a single database in 7 and before,
-		// so in case any older database agents are still heartbeating back,
-		// adapt them to the current interface where server has a list of
-		// databases it proxies.
-		//
-		// DELETE IN 9.0.
-		databases = append(databases, &DatabaseV3{
-			Kind:    KindDatabase,
-			Version: V3,
-			Metadata: Metadata{
-				Name:        s.Metadata.Name,
-				Namespace:   s.Metadata.Namespace,
-				Description: s.Spec.Description,
-				Labels:      s.Metadata.Labels,
-			},
-			Spec: DatabaseSpecV3{
-				Protocol:      s.Spec.Protocol,
-				URI:           s.Spec.URI,
-				CACert:        string(s.Spec.CACert),
-				DynamicLabels: s.Spec.DynamicLabels,
-				AWS:           s.Spec.AWS,
-				GCP:           s.Spec.GCP,
-			},
-		})
+// GetDatabase returns the database this database server proxies.
+func (s *DatabaseServerV3) GetDatabase() Database {
+	if s.Spec.Database != nil {
+		return s.Spec.Database
 	}
-	return databases
+	// If any older database agents are still heartbeating back, they have
+	// fields like protocol, URI, etc. set in the DatabaseServer object
+	// itself, so construct the Database object from them.
+	//
+	// DELETE IN 9.0.
+	return &DatabaseV3{
+		Kind:    KindDatabase,
+		Version: V3,
+		Metadata: Metadata{
+			Name:        s.Metadata.Name,
+			Namespace:   s.Metadata.Namespace,
+			Description: s.Spec.Description,
+			Labels:      s.Metadata.Labels,
+		},
+		Spec: DatabaseSpecV3{
+			Protocol:      s.Spec.Protocol,
+			URI:           s.Spec.URI,
+			CACert:        string(s.Spec.CACert),
+			DynamicLabels: s.Spec.DynamicLabels,
+			AWS:           s.Spec.AWS,
+			GCP:           s.Spec.GCP,
+		},
+	}
 }
 
-// SetDatabases sets databases this database server proxies.
-func (s *DatabaseServerV3) SetDatabases(databases []Database) error {
-	databasesV3 := make([]*DatabaseV3, 0, len(databases))
-	for _, database := range databases {
-		databaseV3, ok := database.(*DatabaseV3)
-		if !ok {
-			return trace.BadParameter("expected *DatabaseV3, got %T", database)
-		}
-		databasesV3 = append(databasesV3, databaseV3)
+// SetDatabase sets the database this database server proxies.
+func (s *DatabaseServerV3) SetDatabase(database Database) error {
+	databaseV3, ok := database.(*DatabaseV3)
+	if !ok {
+		return trace.BadParameter("expected *DatabaseV3, got %T", database)
 	}
-	s.Spec.Databases = databasesV3
+	s.Spec.Database = databaseV3
 	return nil
 }
 
 // String returns the server string representation.
 func (s *DatabaseServerV3) String() string {
-	return fmt.Sprintf("DatabaseServer(Name=%v, Version=%v, Hostname=%v, HostID=%v, Databases=%v)",
-		s.GetName(), s.GetTeleportVersion(), s.GetHostname(), s.GetHostID(), s.GetDatabases())
+	return fmt.Sprintf("DatabaseServer(Name=%v, Version=%v, Hostname=%v, HostID=%v, Database=%v)",
+		s.GetName(), s.GetTeleportVersion(), s.GetHostname(), s.GetHostID(), s.GetDatabase())
 }
 
 // setStaticFields sets static resource header and metadata fields.
 func (s *DatabaseServerV3) setStaticFields() {
 	s.Kind = KindDatabaseServer
 	s.Version = V3
+}
+
+// setLegacyFields sets fields that database servers used to have before
+// Database resource became a separate field.
+//
+// This is required for backwards compatibility in case a database agent
+// connects back to a pre-8.0 auth server.
+//
+// DELETE IN 9.0.
+func (s *DatabaseServerV3) setLegacyFields(database *DatabaseV3) {
+	s.Metadata.Labels = database.Metadata.Labels
+	s.Spec.Description = database.Metadata.Description
+	s.Spec.Protocol = database.Spec.Protocol
+	s.Spec.URI = database.Spec.URI
+	s.Spec.CACert = []byte(database.Spec.CACert)
+	s.Spec.DynamicLabels = database.Spec.DynamicLabels
+	s.Spec.AWS = database.Spec.AWS
+	s.Spec.GCP = database.Spec.GCP
 }
 
 // CheckAndSetDefaults checks and sets default values for any missing fields.
@@ -225,10 +234,11 @@ func (s *DatabaseServerV3) CheckAndSetDefaults() error {
 	if s.Spec.Version == "" {
 		s.Spec.Version = api.Version
 	}
-	for i := range s.Spec.Databases {
-		if err := s.Spec.Databases[i].CheckAndSetDefaults(); err != nil {
+	if s.Spec.Database != nil {
+		if err := s.Spec.Database.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+		s.setLegacyFields(s.Spec.Database)
 	}
 	return nil
 }
@@ -238,16 +248,16 @@ func (s *DatabaseServerV3) Copy() DatabaseServer {
 	return proto.Clone(s).(*DatabaseServerV3)
 }
 
-// SortedDatabaseServers implements sorter for database servers.
-type SortedDatabaseServers []DatabaseServer
+// DatabaseServers represents a list of database servers.
+type DatabaseServers []DatabaseServer
 
 // Len returns the slice length.
-func (s SortedDatabaseServers) Len() int { return len(s) }
+func (s DatabaseServers) Len() int { return len(s) }
 
 // Less compares database servers by name and host ID.
-func (s SortedDatabaseServers) Less(i, j int) bool {
+func (s DatabaseServers) Less(i, j int) bool {
 	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
 }
 
 // Swap swaps two database servers.
-func (s SortedDatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s DatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }

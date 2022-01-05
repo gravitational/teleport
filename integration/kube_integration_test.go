@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -83,7 +82,6 @@ type KubeSuite struct {
 }
 
 func newKubeSuite(t *testing.T) *KubeSuite {
-
 	testEnabled := os.Getenv(teleport.KubeRunTests)
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {
 		t.Skip("Skipping Kubernetes test suite.")
@@ -145,7 +143,7 @@ type kubeIntegrationTest func(t *testing.T, suite *KubeSuite)
 
 func (s *KubeSuite) bind(test kubeIntegrationTest) func(t *testing.T) {
 	return func(t *testing.T) {
-		s.log = testlog.FailureOnly(t)
+		s.log = utils.NewLoggerForTests()
 		os.RemoveAll(profile.FullProfilePath(""))
 		t.Cleanup(func() { s.log = nil })
 		test(t, s)
@@ -170,7 +168,6 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        suite.priv,
 		Pub:         suite.pub,
 		log:         suite.log,
@@ -220,8 +217,8 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 		kubeUsers:  kubeUsers,
 		kubeGroups: kubeGroups,
 		impersonation: &rest.ImpersonationConfig{
-			UserName: role.GetKubeUsers(services.Allow)[0],
-			Groups:   role.GetKubeGroups(services.Allow),
+			UserName: role.GetKubeUsers(types.Allow)[0],
+			Groups:   role.GetKubeGroups(types.Allow),
 		},
 	})
 	require.NoError(t, err)
@@ -340,7 +337,6 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        suite.priv,
 		Pub:         suite.pub,
 		log:         suite.log,
@@ -393,7 +389,6 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        suite.priv,
 		Pub:         suite.pub,
 		log:         suite.log,
@@ -489,7 +484,6 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		ClusterName: clusterMain,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        suite.priv,
 		Pub:         suite.pub,
 		log:         suite.log,
@@ -513,7 +507,6 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		ClusterName: clusterAux,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        suite.priv,
 		Pub:         suite.pub,
 		log:         suite.log,
@@ -550,7 +543,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	err = main.Process.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
-	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, types.RoleMap{
+	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainRole.GetName(), Local: []string{auxRole.GetName()}},
 	})
 	require.NoError(t, err)
@@ -743,7 +736,6 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		ClusterName: clusterMain,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        suite.priv,
 		Pub:         suite.pub,
 		log:         suite.log,
@@ -767,7 +759,6 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		ClusterName: clusterAux,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        suite.priv,
 		Pub:         suite.pub,
 		log:         suite.log,
@@ -808,7 +799,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	err = main.Process.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
-	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, types.RoleMap{
+	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainRole.GetName(), Local: []string{auxRole.GetName()}},
 	})
 	require.NoError(t, err)
@@ -1024,7 +1015,6 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        suite.priv,
 		Pub:         suite.pub,
 		log:         suite.log,
@@ -1093,7 +1083,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 	}()
 
 	// lets type something followed by "enter" and then hang the session
-	enterInput(sessionCtx, t, term, "echo boring platapus\r\n", ".*boring platapus.*")
+	require.NoError(t, enterInput(sessionCtx, term, "echo boring platapus\r\n", ".*boring platapus.*"))
 	time.Sleep(tc.disconnectTimeout)
 	select {
 	case <-time.After(tc.disconnectTimeout):
@@ -1146,12 +1136,14 @@ func tlsClientConfig(cfg *rest.Config) (*tls.Config, error) {
 }
 
 type kubeProxyConfig struct {
-	t              *TeleInstance
-	username       string
-	kubeUsers      []string
-	kubeGroups     []string
-	impersonation  *rest.ImpersonationConfig
-	routeToCluster string
+	t                   *TeleInstance
+	username            string
+	kubeUsers           []string
+	kubeGroups          []string
+	impersonation       *rest.ImpersonationConfig
+	routeToCluster      string
+	customTLSServerName string
+	targetAddress       utils.NetAddr
 }
 
 // kubeProxyClient returns kubernetes client using local teleport proxy
@@ -1219,13 +1211,17 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 	}
 
 	tlsClientConfig := rest.TLSClientConfig{
-		CAData:   ca.GetActiveKeys().TLS[0].Cert,
-		CertData: cert,
-		KeyData:  privPEM,
+		CAData:     ca.GetActiveKeys().TLS[0].Cert,
+		CertData:   cert,
+		KeyData:    privPEM,
+		ServerName: cfg.customTLSServerName,
 	}
 	config := &rest.Config{
 		Host:            "https://" + cfg.t.Config.Proxy.Kube.ListenAddr.Addr,
 		TLSClientConfig: tlsClientConfig,
+	}
+	if !cfg.targetAddress.IsEmpty() {
+		config.Host = "https://" + cfg.targetAddress.Addr
 	}
 	if cfg.impersonation != nil {
 		config.Impersonate = *cfg.impersonation

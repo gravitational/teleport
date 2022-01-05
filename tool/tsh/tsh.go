@@ -34,6 +34,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -239,11 +240,33 @@ type CLIConf struct {
 	// unsetEnvironment unsets Teleport related environment variables.
 	unsetEnvironment bool
 
+	// overrideStdout allows to switch standard output source for resource command. Used in tests.
+	overrideStdout io.Writer
+
 	// mockSSOLogin used in tests to override sso login handler in teleport client.
 	mockSSOLogin client.SSOLoginFunc
 
 	// HomePath is where tsh stores profiles
 	HomePath string
+
+	// LocalProxyPort is a port used by local proxy listener.
+	LocalProxyPort string
+
+	// ConfigProxyTarget is the node which should be connected to in `tsh config-proxy`.
+	ConfigProxyTarget string
+
+	// AWSRole is Amazon Role ARN or role name that will be used for AWS CLI access.
+	AWSRole string
+	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
+	AWSCommandArgs []string
+}
+
+// Stdout returns the stdout writer.
+func (c *CLIConf) Stdout() io.Writer {
+	if c.overrideStdout != nil {
+		return c.overrideStdout
+	}
+	return os.Stdout
 }
 
 func main() {
@@ -266,12 +289,13 @@ func main() {
 }
 
 const (
-	authEnvVar     = "TELEPORT_AUTH"
-	clusterEnvVar  = "TELEPORT_CLUSTER"
-	loginEnvVar    = "TELEPORT_LOGIN"
-	bindAddrEnvVar = "TELEPORT_LOGIN_BIND_ADDR"
-	proxyEnvVar    = "TELEPORT_PROXY"
-	homeEnvVar     = "TELEPORT_HOME"
+	authEnvVar        = "TELEPORT_AUTH"
+	clusterEnvVar     = "TELEPORT_CLUSTER"
+	kubeClusterEnvVar = "TELEPORT_KUBE_CLUSTER"
+	loginEnvVar       = "TELEPORT_LOGIN"
+	bindAddrEnvVar    = "TELEPORT_LOGIN_BIND_ADDR"
+	proxyEnvVar       = "TELEPORT_PROXY"
+	homeEnvVar        = "TELEPORT_HOME"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
 	siteEnvVar             = "TELEPORT_SITE"
@@ -290,6 +314,8 @@ const (
 	// establishment of a TCP connection, rather than the full HTTP round-
 	// trip that we measure against, so some tweaking may be needed.
 	proxyDefaultResolutionTimeout = 2 * time.Second
+
+	teleportNamespace = "teleport.dev"
 )
 
 // cliOption is used in tests to inject/override configuration within Run
@@ -358,6 +384,11 @@ func Run(args []string, opts ...cliOption) error {
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
 
+	// AWS.
+	aws := app.Command("aws", "Access AWS API.")
+	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI").StringsVar(&cf.AWSCommandArgs)
+	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
+
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
 	lsApps := apps.Command("ls", "List available applications.")
@@ -365,6 +396,7 @@ func Run(args []string, opts ...cliOption) error {
 	lsApps.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
+	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 	appLogout := apps.Command("logout", "Remove app certificate.")
 	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
 	appConfig := apps.Command("config", "Print app connection information.")
@@ -372,11 +404,20 @@ func Run(args []string, opts ...cliOption) error {
 	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command.",
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL)).StringVar(&cf.Format)
 
+	// Local TLS proxy.
+	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")
+	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode")
+	proxySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	proxySSH.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
+	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode")
+	proxyDB.Arg("db", "The name of the database to start local proxy for").Required().StringVar(&cf.DatabaseService)
+	proxyDB.Flag("port", " Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
+
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
+	db.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	dbList := db.Command("ls", "List all available databases.")
 	dbList.Flag("verbose", "Show extra database fields.").Short('v').BoolVar(&cf.Verbose)
-	dbList.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	dbLogin := db.Command("login", "Retrieve credentials for a database.")
 	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").Required().StringVar(&cf.DatabaseService)
 	dbLogin.Flag("db-user", "Optional database user to configure as default.").StringVar(&cf.DatabaseUser)
@@ -506,17 +547,18 @@ func Run(args []string, opts ...cliOption) error {
 
 	config := app.Command("config", "Print OpenSSH configuration details")
 
+	// config-proxy is a wrapper to ensure Windows clients can properly use
+	// `tsh config`. As it's not intended to run by users directly and may
+	// not have a stable CLI interface, hide it.
+	// DELETE IN 9.0: The config-proxy logic was moved to the tsh proxy ssh command.
+	configProxy := app.Command("config-proxy", "ProxyCommand wrapper for SSH config as generated by `config`").Hidden()
+	configProxy.Arg("target", "Target node host:port").Required().StringVar(&cf.ConfigProxyTarget)
+	configProxy.Arg("cluster-name", "Target cluster name").Required().StringVar(&cf.SiteName)
+
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
 	if runtime.GOOS == constants.WindowsOS {
-		ssh.Hidden()
-		join.Hidden()
-		play.Hidden()
-		scp.Hidden()
 		bench.Hidden()
-
-		// Similarly, `config` for ssh depends on bash.
-		config.Hidden()
 	}
 
 	// parse CLI commands+flags:
@@ -566,11 +608,7 @@ func Run(args []string, opts ...cliOption) error {
 		return trace.Wrap(err)
 	}
 
-	// Read in cluster flag from CLI or environment.
-	readClusterFlag(&cf, os.Getenv)
-
-	// Read in home configured home directory from environment
-	readTeleportHome(&cf, os.Getenv)
+	setEnvFlags(&cf, os.Getenv)
 
 	switch command {
 	case ver.FullCommand():
@@ -614,6 +652,12 @@ func Run(args []string, opts ...cliOption) error {
 		err = kube.ls.run(&cf)
 	case kube.login.FullCommand():
 		err = kube.login.run(&cf)
+
+	case proxySSH.FullCommand():
+		err = onProxyCommandSSH(&cf)
+	case proxyDB.FullCommand():
+		err = onProxyCommandDB(&cf)
+
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
 	case dbLogin.FullCommand():
@@ -644,6 +688,10 @@ func Run(args []string, opts ...cliOption) error {
 		err = onRequestReview(&cf)
 	case config.FullCommand():
 		err = onConfig(&cf)
+	case configProxy.FullCommand():
+		err = onConfigProxy(&cf)
+	case aws.FullCommand():
+		err = onAWS(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
@@ -668,7 +716,7 @@ func onPlay(cf *CLIConf) error {
 			if err != nil {
 				return trace.ConvertSystemError(err)
 			}
-			if err := client.PlayFile(context.TODO(), tarFile, sid); err != nil {
+			if err := client.PlayFile(cf.Context, tarFile, sid); err != nil {
 				return trace.Wrap(err)
 			}
 		default:
@@ -676,14 +724,36 @@ func onPlay(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := tc.Play(context.TODO(), cf.Namespace, cf.SessionID); err != nil {
+			if err := tc.Play(cf.Context, cf.Namespace, cf.SessionID); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 	default:
-		err := exportFile(cf.SessionID, cf.Format)
-		if err != nil {
-			return trace.Wrap(err)
+		switch {
+		case path.Ext(cf.SessionID) == ".tar":
+			err := exportFile(cf.SessionID, cf.Format)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		default:
+			tc, err := makeClient(cf, true)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			events, err := tc.GetSessionEvents(context.TODO(), cf.Namespace, cf.SessionID)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			for _, event := range events {
+				// when playing from a file, id is not included, this
+				// makes the outputs otherwise identical
+				delete(event, "id")
+				e, err := utils.FastMarshal(event)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				fmt.Println(string(e))
+			}
 		}
 	}
 	return nil
@@ -747,7 +817,7 @@ func onLogin(cf *CLIConf) error {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
-			if err := updateKubeConfig(cf, tc); err != nil {
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			printProfiles(cf.Debug, profile, profiles)
@@ -755,7 +825,7 @@ func onLogin(cf *CLIConf) error {
 		// in case if parameters match, re-fetch kube clusters and print
 		// current status
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
-			if err := updateKubeConfig(cf, tc); err != nil {
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			printProfiles(cf.Debug, profile, profiles)
@@ -775,7 +845,7 @@ func onLogin(cf *CLIConf) error {
 			if err := tc.SaveProfile(cf.HomePath, true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc); err != nil {
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
@@ -786,7 +856,7 @@ func onLogin(cf *CLIConf) error {
 			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc); err != nil {
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
@@ -848,7 +918,7 @@ func onLogin(cf *CLIConf) error {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := updateKubeConfig(cf, tc); err != nil {
+		if err := updateKubeConfig(cf, tc, ""); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -913,12 +983,6 @@ func onLogin(cf *CLIConf) error {
 	// settings are picked up.
 	webProxyHost, _ := tc.WebProxyHostPort()
 	cf.Proxy = webProxyHost
-
-	// If the profile is already logged into any database services,
-	// refresh the creds.
-	if err := fetchDatabaseCreds(cf, tc); err != nil {
-		return trace.Wrap(err)
-	}
 
 	// Print status to show information of the logged in user.
 	return trace.Wrap(onStatus(cf))
@@ -988,7 +1052,10 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 			},
 		}
 		err := checker.CheckHostKey(hostname, remote, hostKey)
-		if err != nil && oldHostKeyCallback != nil {
+		if err != nil {
+			if oldHostKeyCallback == nil {
+				return trace.Wrap(err)
+			}
 			errOld := oldHostKeyCallback(hostname, remote, hostKey)
 			if errOld != nil {
 				return trace.NewAggregate(err, errOld)
@@ -1194,13 +1261,36 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		req.SetSuggestedReviewers(reviewers)
 	}
 
-	// Watch for resolution events on the given request. Start watcher before
-	// creating the request to avoid a potential race.
+	// Watch for resolution events on the given request. Start watcher and wait
+	// for it to be ready before creating the request to avoid a potential race.
 	errChan := make(chan error)
 	if !cf.NoWait {
+		log.Debug("Waiting for the access-request watcher to ready up...")
+		ready := make(chan struct{})
 		go func() {
-			errChan <- waitForRequestResolution(cf, tc, req)
+			var resolvedReq types.AccessRequest
+			err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+				var err error
+				resolvedReq, err = waitForRequestResolution(cf, clt, req, ready)
+				return trace.Wrap(err)
+			})
+
+			if err != nil {
+				errChan <- trace.Wrap(err)
+			} else {
+				errChan <- trace.Wrap(onRequestResolution(cf, tc, resolvedReq))
+			}
 		}()
+
+		select {
+		case err = <-errChan:
+			if err == nil {
+				return trace.Errorf("event watcher exited cleanly without readying up?")
+			}
+			return trace.Wrap(err)
+		case <-ready:
+			log.Debug("Access-request watcher is ready")
+		}
 	}
 
 	// Create request if it doesn't already exist
@@ -1273,68 +1363,119 @@ func printNodesAsText(nodes []types.Server, verbose bool) {
 	// In normal mode chunk the labels and print two per line and allow multiple
 	// lines per node.
 	case false:
-		t = asciitable.MakeTable([]string{"Node Name", "Address", "Labels"})
+		var rows [][]string
 		for _, n := range nodes {
-			labelChunks := chunkLabels(n.GetAllLabels(), 2)
-			for i, v := range labelChunks {
-				if i == 0 {
-					t.AddRow([]string{n.GetHostname(), getAddr(n), strings.Join(v, ", ")})
-				} else {
-					t.AddRow([]string{"", "", strings.Join(v, ", ")})
-				}
-			}
+			rows = append(rows,
+				[]string{n.GetHostname(), getAddr(n), sortedLabels(n.GetAllLabels())})
 		}
+		t = makeTableWithTruncatedFinalColumn([]string{"Node Name", "Address", "Labels"}, rows)
 	}
-
 	fmt.Println(t.AsBuffer().String())
 }
 
-func showApps(servers []types.Server, active []tlsca.RouteToApp, verbose bool) {
+func sortedLabels(labels map[string]string) string {
+	var teleportNamespaced []string
+	var namespaced []string
+	var result []string
+	for key, val := range labels {
+		if strings.HasPrefix(key, teleportNamespace+"/") {
+			teleportNamespaced = append(teleportNamespaced, key)
+			continue
+		}
+		if strings.Contains(key, "/") {
+			namespaced = append(namespaced, fmt.Sprintf("%s=%s", key, val))
+			continue
+		}
+		result = append(result, fmt.Sprintf("%s=%s", key, val))
+	}
+	sort.Strings(result)
+	sort.Strings(namespaced)
+	sort.Strings(teleportNamespaced)
+	namespaced = append(namespaced, teleportNamespaced...)
+	return strings.Join(append(result, namespaced...), ",")
+}
+
+func showApps(apps []types.Application, active []tlsca.RouteToApp, verbose bool) {
 	// In verbose mode, print everything on a single line and include host UUID.
 	// In normal mode, chunk the labels, print two per line and allow multiple
 	// lines per node.
 	if verbose {
-		t := asciitable.MakeTable([]string{"Application", "Description", "Host", "Public Address", "URI", "Labels"})
-		for _, server := range servers {
-			for _, app := range server.GetApps() {
-				name := app.Name
-				for _, a := range active {
-					if name == a.Name {
-						name = fmt.Sprintf("> %v", name)
-					}
+		t := asciitable.MakeTable([]string{"Application", "Description", "Public Address", "URI", "Labels"})
+		for _, app := range apps {
+			name := app.GetName()
+			for _, a := range active {
+				if name == a.Name {
+					name = fmt.Sprintf("> %v", name)
 				}
-				t.AddRow([]string{
-					name, app.Description, server.GetName(), app.PublicAddr, app.URI, types.LabelsAsString(app.StaticLabels, app.DynamicLabels),
-				})
 			}
+			t.AddRow([]string{
+				name,
+				app.GetDescription(),
+				app.GetPublicAddr(),
+				app.GetURI(),
+				sortedLabels(app.GetAllLabels()),
+			})
 		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
-		t := asciitable.MakeTable([]string{"Application", "Description", "Public Address", "Labels"})
-		for _, server := range servers {
-			for _, app := range server.GetApps() {
-				labelChunks := chunkLabels(types.CombineLabels(app.StaticLabels, app.DynamicLabels), 2)
-				for i, v := range labelChunks {
-					var name string
-					var addr string
-					if i == 0 {
-						name = app.Name
-						addr = app.PublicAddr
-					}
-					for _, a := range active {
-						if name == a.Name {
-							name = fmt.Sprintf("> %v", name)
-						}
-					}
-					t.AddRow([]string{name, app.Description, addr, strings.Join(v, ", ")})
+		var rows [][]string
+		for _, app := range apps {
+			name := app.GetName()
+			for _, a := range active {
+				if name == a.Name {
+					name = fmt.Sprintf("> %v", name)
 				}
 			}
+			desc := app.GetDescription()
+			addr := app.GetPublicAddr()
+			labels := sortedLabels(app.GetAllLabels())
+			rows = append(rows, []string{name, desc, addr, labels})
 		}
+		t := makeTableWithTruncatedFinalColumn(
+			[]string{"Application", "Description", "Public Address", "Labels"}, rows)
 		fmt.Println(t.AsBuffer().String())
 	}
 }
 
-func showDatabases(cluster string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
+func makeTableWithTruncatedFinalColumn(columnOrder []string, rows [][]string) asciitable.Table {
+	width, _, err := term.GetSize(int(os.Stdin.Fd()))
+	if err != nil {
+		width = 80
+	}
+	lastColMinSize := 16
+	maxColWidth := (width - lastColMinSize) / (len(columnOrder) - 1)
+	t := asciitable.MakeTable([]string{})
+	totalLen := 0
+	for collIndex, colName := range columnOrder[:len(columnOrder)-1] { // final column is handled separately
+		column := asciitable.Column{
+			Title:         colName,
+			MaxCellLength: len(colName),
+		}
+		for _, row := range rows {
+			cellLen := row[collIndex]
+			if len(cellLen) > column.MaxCellLength {
+				column.MaxCellLength = len(cellLen)
+			}
+		}
+		if column.MaxCellLength > maxColWidth {
+			column.MaxCellLength = maxColWidth
+			totalLen += column.MaxCellLength + 4 // "...<space>"
+		} else {
+			totalLen += column.MaxCellLength + 1 // +1 for column separator
+		}
+		t.AddColumn(column)
+	}
+	t.AddColumn(asciitable.Column{
+		Title:         columnOrder[len(columnOrder)-1],
+		MaxCellLength: width - totalLen - len("... "),
+	})
+	for _, row := range rows {
+		t.AddRow(row)
+	}
+	return t
+}
+
+func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
 	if verbose {
 		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Labels", "Connect", "Expires"})
 		for _, database := range databases {
@@ -1343,7 +1484,7 @@ func showDatabases(cluster string, databases []types.Database, active []tlsca.Ro
 			for _, a := range active {
 				if a.ServiceName == name {
 					name = formatActiveDB(a)
-					connect = formatConnectCommand(cluster, a)
+					connect = formatConnectCommand(clusterFlag, a)
 				}
 			}
 			t.AddRow([]string{
@@ -1366,13 +1507,13 @@ func showDatabases(cluster string, databases []types.Database, active []tlsca.Ro
 			for _, a := range active {
 				if a.ServiceName == name {
 					name = formatActiveDB(a)
-					connect = formatConnectCommand(cluster, a)
+					connect = formatConnectCommand(clusterFlag, a)
 				}
 			}
 			t.AddRow([]string{
 				name,
 				database.GetDescription(),
-				database.LabelsString(),
+				formatDatabaseLabels(database),
 				connect,
 			})
 		}
@@ -1380,18 +1521,30 @@ func showDatabases(cluster string, databases []types.Database, active []tlsca.Ro
 	}
 }
 
+func formatDatabaseLabels(database types.Database) string {
+	labels := database.GetAllLabels()
+	// Hide the origin label unless printing verbose table.
+	delete(labels, types.OriginLabel)
+	return types.LabelsAsString(labels, nil)
+}
+
 // formatConnectCommand formats an appropriate database connection command
 // for a user based on the provided database parameters.
-func formatConnectCommand(cluster string, active tlsca.RouteToDatabase) string {
-	switch {
-	case active.Username != "" && active.Database != "":
-		return fmt.Sprintf("tsh db connect %v", active.ServiceName)
-	case active.Username != "":
-		return fmt.Sprintf("tsh db connect --db-name=<name> %v", active.ServiceName)
-	case active.Database != "":
-		return fmt.Sprintf("tsh db connect --db-user=<user> %v", active.ServiceName)
+func formatConnectCommand(clusterFlag string, active tlsca.RouteToDatabase) string {
+	cmdTokens := []string{"tsh", "db", "connect"}
+
+	if clusterFlag != "" {
+		cmdTokens = append(cmdTokens, fmt.Sprintf("--cluster=%s", clusterFlag))
 	}
-	return fmt.Sprintf("tsh db connect --db-user=<user> --db-name=<name> %v", active.ServiceName)
+	if active.Username == "" {
+		cmdTokens = append(cmdTokens, "--db-user=<user>")
+	}
+	if active.Database == "" {
+		cmdTokens = append(cmdTokens, "--db-name=<name>")
+	}
+
+	cmdTokens = append(cmdTokens, active.ServiceName)
+	return strings.Join(cmdTokens, " ")
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase) string {
@@ -1404,26 +1557,6 @@ func formatActiveDB(active tlsca.RouteToDatabase) string {
 		return fmt.Sprintf("> %v (db: %v)", active.ServiceName, active.Database)
 	}
 	return fmt.Sprintf("> %v", active.ServiceName)
-}
-
-// chunkLabels breaks labels into sized chunks. Used to improve readability
-// of "tsh ls".
-func chunkLabels(labels map[string]string, chunkSize int) [][]string {
-	// First sort labels so they always occur in the same order.
-	sorted := make([]string, 0, len(labels))
-	for k, v := range labels {
-		sorted = append(sorted, fmt.Sprintf("%v=%v", k, v))
-	}
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
-
-	// Then chunk labels into sized chunks.
-	var chunks [][]string
-	for chunkSize < len(sorted) {
-		sorted, chunks = sorted[chunkSize:], append(chunks, sorted[0:chunkSize:chunkSize])
-	}
-	chunks = append(chunks, sorted)
-
-	return chunks
 }
 
 // onListClusters executes 'tsh clusters' command
@@ -1690,7 +1823,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		hostAuthFunc, err := key.HostKeyCallback()
+		hostAuthFunc, err := key.HostKeyCallback(cf.InsecureSkipVerify)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2011,6 +2144,9 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 
 	fmt.Printf("%vProfile URL:        %v\n", prefix, p.ProxyURL.String())
 	fmt.Printf("  Logged in as:       %v\n", p.Username)
+	if len(p.ActiveRequests.AccessRequests) != 0 {
+		fmt.Printf("  Active requests:    %v\n", strings.Join(p.ActiveRequests.AccessRequests, ", "))
+	}
 	if p.Cluster != "" {
 		fmt.Printf("  Cluster:            %v\n", p.Cluster)
 	}
@@ -2102,26 +2238,24 @@ func host(in string) string {
 	return out
 }
 
-// waitForRequestResolution waits for an access request to be resolved.
-func waitForRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.AccessRequest) error {
+// waitForRequestResolution waits for an access request to be resolved. On
+// approval, returns the updated request. `clt` must be a client to the root
+// cluster, such as the one returned by
+// `(*TeleportClient).WithRootClusterClient`. `ready` will be closed when the
+// event watcher used to wait for the request updates is ready.
+func waitForRequestResolution(cf *CLIConf, clt auth.ClientI, req types.AccessRequest, ready chan<- struct{}) (types.AccessRequest, error) {
 	filter := types.AccessRequestFilter{
 		User: req.GetUser(),
 	}
-	var err error
-	var watcher types.Watcher
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		watcher, err = tc.NewWatcher(cf.Context, types.Watch{
-			Name: "await-request-approval",
-			Kinds: []types.WatchKind{{
-				Kind:   types.KindAccessRequest,
-				Filter: filter.IntoMap(),
-			}},
-		})
-		return trace.Wrap(err)
+	watcher, err := clt.NewWatcher(cf.Context, types.Watch{
+		Name: "await-request-approval",
+		Kinds: []types.WatchKind{{
+			Kind:   types.KindAccessRequest,
+			Filter: filter.IntoMap(),
+		}},
 	})
-
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer watcher.Close()
 Loop:
@@ -2131,28 +2265,29 @@ Loop:
 			switch event.Type {
 			case types.OpInit:
 				log.Infof("Access-request watcher initialized...")
+				close(ready)
 				continue Loop
 			case types.OpPut:
 				r, ok := event.Resource.(*types.AccessRequestV3)
 				if !ok {
-					return trace.BadParameter("unexpected resource type %T", event.Resource)
+					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
 				}
 				if r.GetName() != req.GetName() || r.GetState().IsPending() {
 					log.Debugf("Skipping put event id=%s,state=%s.", r.GetName(), r.GetState())
 					continue Loop
 				}
-				return onRequestResolution(cf, tc, r)
+				return r, nil
 			case types.OpDelete:
 				if event.Resource.GetName() != req.GetName() {
 					log.Debugf("Skipping delete event id=%s", event.Resource.GetName())
 					continue Loop
 				}
-				return trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+				return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
 			default:
 				log.Warnf("Skipping unknown event type %s", event.Type)
 			}
 		case <-watcher.Done():
-			return trace.Wrap(watcher.Error())
+			return nil, trace.Wrap(watcher.Error())
 		}
 	}
 }
@@ -2197,10 +2332,10 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if err := tc.ReissueUserCerts(cf.Context, client.CertCacheDrop, params); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := tc.SaveProfile("", true); err != nil {
+	if err := tc.SaveProfile(cf.HomePath, true); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := updateKubeConfig(cf, tc); err != nil {
+	if err := updateKubeConfig(cf, tc, ""); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -2213,9 +2348,9 @@ func onApps(cf *CLIConf) error {
 	}
 
 	// Get a list of all applications.
-	var servers []types.Server
+	var apps []types.Application
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		servers, err = tc.ListAppServers(cf.Context)
+		apps, err = tc.ListApps(cf.Context)
 		return err
 	})
 	if err != nil {
@@ -2228,12 +2363,12 @@ func onApps(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// Sort by server host name.
-	sort.Slice(servers, func(i, j int) bool {
-		return servers[i].GetName() < servers[j].GetName()
+	// Sort by app name.
+	sort.Slice(apps, func(i, j int) bool {
+		return apps[i].GetName() < apps[j].GetName()
 	})
 
-	showApps(servers, profile.Apps, cf.Verbose)
+	showApps(apps, profile.Apps, cf.Verbose)
 	return nil
 }
 
@@ -2249,24 +2384,41 @@ func onEnvironment(cf *CLIConf) error {
 	case cf.unsetEnvironment:
 		fmt.Printf("unset %v\n", proxyEnvVar)
 		fmt.Printf("unset %v\n", clusterEnvVar)
+		fmt.Printf("unset %v\n", kubeClusterEnvVar)
+		fmt.Printf("unset %v\n", teleport.EnvKubeConfig)
 	case !cf.unsetEnvironment:
 		fmt.Printf("export %v=%v\n", proxyEnvVar, profile.ProxyURL.Host)
 		fmt.Printf("export %v=%v\n", clusterEnvVar, profile.Cluster)
+		if kubeName := selectedKubeCluster(profile.Cluster); kubeName != "" {
+			fmt.Printf("export %v=%v\n", kubeClusterEnvVar, kubeName)
+			fmt.Printf("# set %v to a standalone kubeconfig for the selected kube cluster\n", teleport.EnvKubeConfig)
+			fmt.Printf("export %v=%v\n", teleport.EnvKubeConfig, profile.KubeConfigPath(kubeName))
+		}
 	}
 
 	return nil
 }
 
-// readClusterFlag figures out the cluster the user is attempting to select.
-// Command line specification always has priority, after that TELEPORT_CLUSTER,
-// then the legacy terminology of TELEPORT_SITE.
-func readClusterFlag(cf *CLIConf, fn envGetter) {
-	// If the user specified something on the command line, prefer that.
-	if cf.SiteName != "" {
-		return
-	}
+// envGetter is used to read in the environment. In production "os.Getenv"
+// is used.
+type envGetter func(string) string
 
-	// Otherwise pick up cluster name from environment.
+// setEnvFlags sets flags that can be set via environment variables.
+func setEnvFlags(cf *CLIConf, fn envGetter) {
+	// prioritize CLI input
+	if cf.SiteName == "" {
+		setSiteNameFromEnv(cf, fn)
+	}
+	// prioritize CLI input
+	if cf.KubernetesCluster == "" {
+		setKubernetesClusterFromEnv(cf, fn)
+	}
+	setTeleportHomeFromEnv(cf, fn)
+}
+
+// setSiteNameFromEnv sets teleport site name from environment if configured.
+// First try reading TELEPORT_CLUSTER, then the legacy term TELEPORT_SITE.
+func setSiteNameFromEnv(cf *CLIConf, fn envGetter) {
 	if clusterName := fn(siteEnvVar); clusterName != "" {
 		cf.SiteName = clusterName
 	}
@@ -2275,9 +2427,19 @@ func readClusterFlag(cf *CLIConf, fn envGetter) {
 	}
 }
 
-// envGetter is used to read in the environment. In production "os.Getenv"
-// is used.
-type envGetter func(string) string
+// setTeleportHomeFromEnv sets home directory from environment if configured.
+func setTeleportHomeFromEnv(cf *CLIConf, fn envGetter) {
+	if homeDir := fn(homeEnvVar); homeDir != "" {
+		cf.HomePath = path.Clean(homeDir)
+	}
+}
+
+// setKubernetesClusterFromEnv sets teleport kube cluster from environment if configured.
+func setKubernetesClusterFromEnv(cf *CLIConf, fn envGetter) {
+	if kubeName := fn(kubeClusterEnvVar); kubeName != "" {
+		cf.KubernetesCluster = kubeName
+	}
+}
 
 func handleUnimplementedError(ctx context.Context, perr error, cf CLIConf) error {
 	const (
@@ -2295,11 +2457,4 @@ func handleUnimplementedError(ctx context.Context, perr error, cf CLIConf) error
 		return trace.WrapWithMessage(perr, errMsgFormat, unknownServerVersion, teleport.Version)
 	}
 	return trace.WrapWithMessage(perr, errMsgFormat, pr.ServerVersion, teleport.Version)
-}
-
-// readTeleportHome gets home directory from environment if configured.
-func readTeleportHome(cf *CLIConf, fn envGetter) {
-	if homeDir := fn(homeEnvVar); homeDir != "" {
-		cf.HomePath = path.Clean(homeDir)
-	}
 }

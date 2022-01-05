@@ -19,10 +19,11 @@ package mongodb
 import (
 	"context"
 	"net"
-	"strings"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -160,9 +161,11 @@ func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Ses
 	// Only the username is checked upon initial connection. MongoDB sends
 	// database name with each protocol message (for query, update, etc.)
 	// so it is checked when we receive a message from client.
-	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Database, mfaParams,
-		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Database.GetAllLabels()},
-		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
+	err = sessionCtx.Checker.CheckAccess(
+		sessionCtx.Database,
+		mfaParams,
+		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
+	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)
@@ -175,29 +178,43 @@ func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Ses
 // Each MongoDB command contains information about the database it's run in
 // so we check it against allowed databases in the user's role.
 func (e *Engine) authorizeClientMessage(sessionCtx *common.Session, message protocol.Message) error {
-	// Mongo uses OP_MSG for most operations now.
-	msg, ok := message.(*protocol.MessageOpMsg)
-	if !ok {
-		return nil
+	// Each client message should have database information in it.
+	database, err := message.GetDatabase()
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	// Each message has a database information in it.
-	database := msg.GetDatabase()
-	if database == "" {
-		e.Log.Warnf("No database info in message: %v.", message)
-		return nil
-	}
-	err := sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Database,
-		services.AccessMFAParams{Verified: true},
-		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Database.GetAllLabels()},
-		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
-		&services.DatabaseNameMatcher{Name: database})
-	e.Audit.OnQuery(e.Context, sessionCtx, common.Query{
-		Database: msg.GetDatabase(),
-		// Commands may consist of multiple bson documents.
-		Query: strings.Join(msg.GetDocumentsAsStrings(), ", "),
-		Error: err,
+	err = e.checkClientMessage(sessionCtx, message, database)
+	defer e.Audit.OnQuery(e.Context, sessionCtx, common.Query{
+		Database: database,
+		Query:    message.String(),
+		Error:    err,
 	})
 	return trace.Wrap(err)
+}
+
+func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol.Message, database string) error {
+	// Legacy OP_KILL_CURSORS command doesn't contain database information.
+	if _, ok := message.(*protocol.MessageOpKillCursors); ok {
+		return sessionCtx.Checker.CheckAccess(sessionCtx.Database,
+			services.AccessMFAParams{Verified: true},
+			&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
+	}
+	// Do not allow certain commands that deal with authentication.
+	command, err := message.GetCommand()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	switch command {
+	case "authenticate", "saslStart", "saslContinue", "logout":
+		return trace.AccessDenied("access denied")
+	}
+	// Otherwise authorize the command against allowed databases.
+	return sessionCtx.Checker.CheckAccess(sessionCtx.Database,
+		services.AccessMFAParams{Verified: true},
+		role.DatabaseRoleMatchers(
+			defaults.ProtocolMongoDB,
+			sessionCtx.DatabaseUser,
+			database)...)
 }
 
 func (e *Engine) replyError(clientConn net.Conn, replyTo protocol.Message, err error) {

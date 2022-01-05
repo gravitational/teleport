@@ -138,9 +138,12 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 	}
 
 	// Store per-cluster key data.
-	if err := fs.writeBytes(key.Cert, fs.sshCertPath(key.KeyIndex)); err != nil {
-		return trace.Wrap(err)
+	if len(key.Cert) > 0 {
+		if err := fs.writeBytes(key.Cert, fs.sshCertPath(key.KeyIndex)); err != nil {
+			return trace.Wrap(err)
+		}
 	}
+
 	// TODO(awly): unit test this.
 	for kubeCluster, cert := range key.KubeTLSCerts {
 		// Prevent directory traversal via a crafted kubernetes cluster name.
@@ -309,12 +312,14 @@ func (fs *FSLocalKeyStore) updateKeyWithCerts(o CertOption, key *Key) error {
 			return trace.ConvertSystemError(err)
 		}
 		for _, certFile := range certFiles {
-			data, err := ioutil.ReadFile(filepath.Join(certPath, certFile.Name()))
-			if err != nil {
-				return trace.ConvertSystemError(err)
-			}
 			name := keypaths.TrimCertPathSuffix(certFile.Name())
-			certDataMap[name] = data
+			if isCert := name != certFile.Name(); isCert {
+				data, err := ioutil.ReadFile(filepath.Join(certPath, certFile.Name()))
+				if err != nil {
+					return trace.ConvertSystemError(err)
+				}
+				certDataMap[name] = data
+			}
 		}
 		return o.updateKeyWithMap(key, certDataMap)
 	}

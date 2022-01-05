@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -36,7 +37,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/multiplexer/test"
@@ -317,7 +318,6 @@ func TestMux(t *testing.T) {
 		mux, err := New(Config{
 			Listener:            listener,
 			EnableProxyProtocol: true,
-			DisableSSH:          true,
 		})
 		require.Nil(t, err)
 		go mux.Serve()
@@ -370,14 +370,13 @@ func TestMux(t *testing.T) {
 		mux, err := New(Config{
 			Listener:            listener,
 			EnableProxyProtocol: true,
-			DisableTLS:          true,
 		})
 		require.Nil(t, err)
 		go mux.Serve()
 		defer mux.Close()
 
 		backend1 := &httptest.Server{
-			Listener: mux.TLS(),
+			Listener: &noopListener{addr: listener.Addr()},
 			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "backend 1")
 			}),
@@ -575,7 +574,7 @@ func TestMux(t *testing.T) {
 		certPool.AppendCertsFromPEM(caCert)
 
 		// Sign server certificate.
-		serverRSAKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+		serverRSAKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 		require.NoError(t, err)
 		serverPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 			Subject:   pkix.Name{CommonName: "localhost"},
@@ -588,7 +587,7 @@ func TestMux(t *testing.T) {
 		require.NoError(t, err)
 
 		// Sign client certificate with database access identity.
-		clientRSAKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+		clientRSAKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 		require.NoError(t, err)
 		subject, err := (&tlsca.Identity{
 			Username: "alice",
@@ -655,6 +654,18 @@ func TestMux(t *testing.T) {
 	})
 }
 
+func TestProtocolString(t *testing.T) {
+	for i := -1; i < len(protocolStrings)+1; i++ {
+		got := Protocol(i).String()
+		switch i {
+		case -1, len(protocolStrings) + 1:
+			require.Equal(t, "", got)
+		default:
+			require.Equal(t, protocolStrings[Protocol(i)], got)
+		}
+	}
+}
+
 // server is used to implement test.PingerServer
 type server struct {
 }
@@ -695,4 +706,20 @@ func pass(need string) sshutils.PasswordFunc {
 		}
 		return nil, fmt.Errorf("passwords don't match")
 	}
+}
+
+type noopListener struct {
+	addr net.Addr
+}
+
+func (noopListener) Accept() (net.Conn, error) {
+	return nil, errors.New("noop")
+}
+
+func (noopListener) Close() error {
+	return nil
+}
+
+func (l noopListener) Addr() net.Addr {
+	return l.addr
 }

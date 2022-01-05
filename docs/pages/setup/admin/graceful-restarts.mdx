@@ -22,7 +22,7 @@ upgrade of a binary and a rollback using signals.
 
 Locate a running teleport daemon PID:
 
-```bash
+```code
 # Locate teleport process PID
 $ pidof teleport
 235119
@@ -31,23 +31,23 @@ $ pidof teleport
 Unpack a new binary and replace a binary without stopping a server.
 Preserve the old binary, just in case if the upgrade goes wrong.
 
-```bash
-mv /usr/bin/teleport /usr/bin/teleport.bak
-cp /new/binary/teleport /usr/bin/teleport
+```code
+$ mv /usr/bin/teleport /usr/bin/teleport.bak
+$ cp /new/binary/teleport /usr/bin/teleport
 ```
 
 Fork a new teleport process:
 
-```bash
+```code
 $ kill -USR2 $(pidof teleport)
 ```
 
 The original teleport process forked a new child process and passed existing file descriptors
 to the child. You now have two processes handling requests on the same socket:
 
-```bash
+```code
 $ pidof teleport
-235276 235119
+# 235276 235119
 ```
 
 In our example, `235276` is a PID of the child process, and `235119` is a PID of the parent.
@@ -65,16 +65,16 @@ Examine the logs and use the system. You have two options:
 <Tabs>
   <TabItem label="Rollback">
   If the new binary behaves with errors, shut down the child process:
-  ```bash
-  kill -TERM 235276
+  ```code
+  $ kill -TERM 235276
   ```
   <Admonition
   type="danger"
   title="WARNING"
   >
     Do not forget to restore the original binary
-    ```bash
-    mv /usr/bin/teleport.bak /usr/bin/teleport
+    ```code
+    $ mv /usr/bin/teleport.bak /usr/bin/teleport
     ```
   </Admonition>
     
@@ -89,20 +89,20 @@ Examine the logs and use the system. You have two options:
      make sure to re-establish a new connection to the new teleport instance and launch shut down from it.
      You can always see which node process handles the connection by using `pstree`:
 
-    ```bash
-    pstree -aps $$
-    systemd,1 splash
-      └─systemd,6247 --user
-          └─teleport-,235276
-              └─bash,190718
-                  └─pstree,242371 -aps 190718
+    ```code
+    $ pstree -aps $$
+    # systemd,1 splash
+    #  └─systemd,6247 --user
+    #      └─teleport-,235276
+    #          └─bash,190718
+    #              └─pstree,242371 -aps 190718
     ```
     </Admonition>
      
     Shut down the parent process gracefully using `SIGQUIT`:
 
-    ```bash
-    kill -QUIT 235119
+    ```code
+    $ kill -QUIT 235119
     ```
 
     The parent process will log graceful shutdown:
@@ -113,16 +113,16 @@ Examine the logs and use the system. You have two options:
 
     In a couple of minutes all existing connections drain off and the parent will exit:
 
-    ```bash
-    pidof teleport
-    235276
+    ```code
+    $ pidof teleport
+    # 235276
     ```
     
     If for some reason, the parent process gets stuck, for example waiting on existing connections to finish,
     you can shut it down non-gracefully:
 
-    ```bash
-    kill -TERM 235119
+    ```code
+    $ kill -TERM 235119
     ```
 
     You are all set.

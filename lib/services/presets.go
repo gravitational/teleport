@@ -31,7 +31,7 @@ import (
 func NewPresetEditorRole() types.Role {
 	role := &types.RoleV4{
 		Kind:    types.KindRole,
-		Version: types.V3,
+		Version: types.V4,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetEditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -53,8 +53,12 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindOIDC, RW()),
 					types.NewRule(types.KindSAML, RW()),
 					types.NewRule(types.KindGithub, RW()),
+					types.NewRule(types.KindClusterAuditConfig, RW()),
 					types.NewRule(types.KindClusterAuthPreference, RW()),
-					types.NewRule(types.KindClusterConfig, RW()),
+					types.NewRule(types.KindAuthConnector, RW()),
+					types.NewRule(types.KindClusterName, RW()),
+					types.NewRule(types.KindClusterNetworkingConfig, RW()),
+					types.NewRule(types.KindSessionRecordingConfig, RW()),
 					types.NewRule(types.KindTrustedCluster, RW()),
 					types.NewRule(types.KindRemoteCluster, RW()),
 					types.NewRule(types.KindToken, RW()),
@@ -70,7 +74,7 @@ func NewPresetEditorRole() types.Role {
 func NewPresetAccessRole() types.Role {
 	role := &types.RoleV4{
 		Kind:    types.KindRole,
-		Version: types.V3,
+		Version: types.V4,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -85,22 +89,24 @@ func NewPresetAccessRole() types.Role {
 				BPF:               apidefaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
-				Namespaces:       []string{apidefaults.Namespace},
-				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
-				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
+				Namespaces:           []string{apidefaults.Namespace},
+				NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels:     types.Labels{types.Wildcard: []string{types.Wildcard}},
+				WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseNames:        []string{teleport.TraitInternalDBNamesVariable},
+				DatabaseUsers:        []string{teleport.TraitInternalDBUsersVariable},
 				Rules: []types.Rule{
 					types.NewRule(types.KindEvent, RO()),
 				},
 			},
 		},
 	}
-	role.SetLogins(Allow, []string{teleport.TraitInternalLoginsVariable})
-	role.SetKubeUsers(Allow, []string{teleport.TraitInternalKubeUsersVariable})
-	role.SetKubeGroups(Allow, []string{teleport.TraitInternalKubeGroupsVariable})
+	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable})
+	role.SetWindowsLogins(types.Allow, []string{teleport.TraitInternalWindowsLoginsVariable})
+	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
+	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	return role
 }
 
@@ -110,7 +116,7 @@ func NewPresetAccessRole() types.Role {
 func NewPresetAuditorRole() types.Role {
 	role := &types.RoleV4{
 		Kind:    types.KindRole,
-		Version: types.V3,
+		Version: types.V4,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAuditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -128,15 +134,8 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindEvent, RO()),
 				},
 			},
-			Deny: types.RoleConditions{
-				Namespaces:       []string{types.Wildcard},
-				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-			},
 		},
 	}
-	role.SetLogins(Allow, []string{"no-login-" + uuid.New()})
+	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New()})
 	return role
 }

@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // Package kubeconfig manages teleport entries in a local kubeconfig file.
 package kubeconfig
 
@@ -40,6 +54,9 @@ type Values struct {
 	// If not set, static key/cert from Credentials are written to kubeconfig
 	// instead.
 	Exec *ExecValues
+
+	// TLSServerName is SNI host value passed to the server.
+	TLSServerName string
 }
 
 // ExecValues contain values for configuring tsh as an exec auth plugin in
@@ -56,6 +73,8 @@ type ExecValues struct {
 	// exec plugin arguments. This is used when the proxy doesn't have a
 	// trusted TLS cert during login.
 	TshBinaryInsecure bool
+	// Env is a map of environment variables to forward.
+	Env map[string]string
 }
 
 // Update adds Teleport configuration to kubeconfig.
@@ -75,11 +94,19 @@ func Update(path string, v Values) error {
 	config.Clusters[v.TeleportClusterName] = &clientcmdapi.Cluster{
 		Server:                   v.ClusterAddr,
 		CertificateAuthorityData: cas,
+		TLSServerName:            v.TLSServerName,
 	}
 
 	if v.Exec != nil {
 		// Called from tsh, use the exec plugin model.
 		clusterName := v.TeleportClusterName
+		envVars := make([]clientcmdapi.ExecEnvVar, 0, len(v.Exec.Env))
+		if v.Exec.Env != nil {
+			for name, value := range v.Exec.Env {
+				envVars = append(envVars, clientcmdapi.ExecEnvVar{Name: name, Value: value})
+			}
+		}
+
 		for _, c := range v.Exec.KubeClusters {
 			contextName := ContextName(v.TeleportClusterName, c)
 			authName := contextName
@@ -95,6 +122,9 @@ func Update(path string, v Values) error {
 			}
 			if v.Exec.TshBinaryInsecure {
 				authInfo.Exec.Args = append(authInfo.Exec.Args, "--insecure")
+			}
+			if len(envVars) > 0 {
+				authInfo.Exec.Env = envVars
 			}
 			config.AuthInfos[authName] = authInfo
 
@@ -216,7 +246,7 @@ func Save(path string, config clientcmdapi.Config) error {
 // missing.
 func finalPath(customPath string) (string, error) {
 	if customPath == "" {
-		customPath = pathFromEnv()
+		customPath = PathFromEnv()
 	}
 	finalPath, err := utils.EnsureLocalPath(customPath, teleport.KubeConfigDir, teleport.KubeConfigFile)
 	if err != nil {
@@ -225,8 +255,8 @@ func finalPath(customPath string) (string, error) {
 	return finalPath, nil
 }
 
-// pathFromEnv extracts location of kubeconfig from the environment.
-func pathFromEnv() string {
+// PathFromEnv extracts location of kubeconfig from the environment.
+func PathFromEnv() string {
 	kubeconfig := os.Getenv(teleport.EnvKubeConfig)
 
 	// The KUBECONFIG environment variable is a list. On Windows it's

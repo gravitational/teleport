@@ -78,7 +78,7 @@ type server struct {
 	localAuthClient auth.ClientI
 	// localAccessPoint provides access to a cached subset of the Auth
 	// Server API.
-	localAccessPoint auth.AccessPoint
+	localAccessPoint auth.ProxyAccessPoint
 
 	// srv is the "base class" i.e. the underlying SSH server
 	srv     *sshutils.Server
@@ -96,7 +96,7 @@ type server struct {
 	clusterPeers map[string]*clusterPeers
 
 	// newAccessPoint returns new caching access point
-	newAccessPoint auth.NewCachingAccessPoint
+	newAccessPoint auth.NewRemoteProxyCachingAccessPoint
 
 	// cancel function will cancel the
 	cancel context.CancelFunc
@@ -145,10 +145,10 @@ type Config struct {
 	// AccessPoint provides access to a subset of AuthClient of the cluster.
 	// AccessPoint caches values and can still return results during connection
 	// problems.
-	LocalAccessPoint auth.AccessPoint
+	LocalAccessPoint auth.ProxyAccessPoint
 	// NewCachingAccessPoint returns new caching access points
 	// per remote cluster
-	NewCachingAccessPoint auth.NewCachingAccessPoint
+	NewCachingAccessPoint auth.NewRemoteProxyCachingAccessPoint
 	// DirectClusters is a list of clusters accessed directly
 	DirectClusters []DirectCluster
 	// Context is a signalling context
@@ -198,7 +198,7 @@ type Config struct {
 	// NewCachingAccessPointOldProxy is an access point that can be configured
 	// with the old access point policy until all clusters are migrated to 7.0.0
 	// and above.
-	NewCachingAccessPointOldProxy auth.NewCachingAccessPoint
+	NewCachingAccessPointOldProxy auth.NewRemoteProxyCachingAccessPoint
 
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
@@ -568,9 +568,10 @@ func (s *server) Close() error {
 }
 
 func (s *server) Shutdown(ctx context.Context) error {
-	s.cancel()
+	err := s.srv.Shutdown(ctx)
 	s.proxyWatcher.Close()
-	return s.srv.Shutdown(ctx)
+	s.cancel()
+	return trace.Wrap(err)
 }
 
 func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
@@ -629,7 +630,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 // TODO(awly): unit test this
 func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	s.log.Debugf("New tunnel from %v.", sconn.RemoteAddr())
-	if sconn.Permissions.Extensions[extCertType] != extCertTypeHost {
+	if sconn.Permissions.Extensions[utils.ExtIntCertType] != utils.ExtIntCertTypeHost {
 		s.log.Error(trace.BadParameter("can't retrieve certificate type in certType"))
 		return
 	}
@@ -760,7 +761,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		if !ok || certRole == "" {
 			return nil, trace.BadParameter("certificate missing %q extension; this SSH host certificate was not issued by Teleport or issued by an older version of Teleport; try upgrading your Teleport nodes/proxies", utils.CertExtensionRole)
 		}
-		certType = extCertTypeHost
+		certType = utils.ExtIntCertTypeHost
 		caType = types.HostCA
 	case ssh.UserCert:
 		var ok bool
@@ -780,7 +781,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 			return nil, trace.BadParameter("certificate missing roles in %q extension; make sure your user has some roles assigned (or ask your Teleport admin to) and log in again (or export an identity file, if that's what you used)", teleport.CertExtensionTeleportRoles)
 		}
 		certRole = roles[0]
-		certType = extCertTypeUser
+		certType = utils.ExtIntCertTypeUser
 		caType = types.UserCA
 	default:
 		return nil, trace.BadParameter("unsupported cert type: %v.", cert.CertType)
@@ -791,10 +792,10 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 	}
 	return &ssh.Permissions{
 		Extensions: map[string]string{
-			extHost:      conn.User(),
-			extCertType:  certType,
-			extCertRole:  certRole,
-			extAuthority: clusterName,
+			extHost:              conn.User(),
+			utils.ExtIntCertType: certType,
+			extCertRole:          certRole,
+			extAuthority:         clusterName,
 		},
 	}, nil
 }
@@ -824,7 +825,7 @@ func (s *server) checkClientCert(logger *log.Entry, user string, clusterName str
 		return trace.NotFound("cluster %v has no matching CA keys", clusterName)
 	}
 
-	checker := utils.CertChecker{
+	checker := apisshutils.CertChecker{
 		FIPS: s.FIPS,
 	}
 	if err := checker.CheckCert(user, cert); err != nil {
@@ -1035,19 +1036,17 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 	remoteSite.remoteClient = clt
 
-	// DELETE IN: 8.0.0
-	//
-	// Check if the cluster that is connecting is a pre-v7 cluster. If it is,
+	// Check if the cluster that is connecting is a pre-v8 cluster. If it is,
 	// don't assume the newer organization of cluster configuration resources
 	// (RFD 28) because older proxy servers will reject that causing the cache
 	// to go into a re-sync loop.
-	var accessPointFunc auth.NewCachingAccessPoint
-	ok, err := isPreV7Cluster(closeContext, sconn)
+	var accessPointFunc auth.NewRemoteProxyCachingAccessPoint
+	ok, err := isPreV8Cluster(closeContext, sconn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if ok {
-		log.Debugf("Pre-v7 cluster connecting, loading old cache policy.")
+		log.Debugf("Pre-v8 cluster connecting, loading old cache policy.")
 		accessPointFunc = srv.Config.NewCachingAccessPointOldProxy
 	} else {
 		accessPointFunc = srv.newAccessPoint
@@ -1077,10 +1076,8 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	return remoteSite, nil
 }
 
-// DELETE IN: 8.0.0.
-//
-// isPreV7Cluster checks if the cluster is older than 7.0.0.
-func isPreV7Cluster(ctx context.Context, conn ssh.Conn) (bool, error) {
+// isPreV8Cluster checks if the cluster is older than 8.0.0.
+func isPreV8Cluster(ctx context.Context, conn ssh.Conn) (bool, error) {
 	version, err := sendVersionRequest(ctx, conn)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -1090,11 +1087,11 @@ func isPreV7Cluster(ctx context.Context, conn ssh.Conn) (bool, error) {
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	minClusterVersion, err := semver.NewVersion(utils.VersionBeforeAlpha("7.0.0"))
+	minClusterVersion, err := semver.NewVersion(utils.VersionBeforeAlpha("8.0.0"))
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	// Return true if the version is older than 7.0.0
+	// Return true if the version is older than 8.0.0
 	if remoteClusterVersion.LessThan(*minClusterVersion) {
 		return true, nil
 	}
@@ -1133,12 +1130,9 @@ func sendVersionRequest(ctx context.Context, sconn ssh.Conn) (string, error) {
 }
 
 const (
-	extHost         = "host@teleport"
-	extCertType     = "certtype@teleport"
-	extAuthority    = "auth@teleport"
-	extCertTypeHost = "host"
-	extCertTypeUser = "user"
-	extCertRole     = "role"
+	extHost      = "host@teleport"
+	extAuthority = "auth@teleport"
+	extCertRole  = "role"
 
 	versionRequest = "x-teleport-version"
 )

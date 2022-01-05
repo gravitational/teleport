@@ -28,8 +28,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -40,12 +38,11 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
 )
 
@@ -813,7 +810,7 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
 	c.Assert(err, check.IsNil)
 
-	devs, err := s.WebS.GetMFADevices(ctx, user1)
+	devs, err := s.WebS.GetMFADevices(ctx, user1, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(devs, check.HasLen, 1)
 	// Raw registration output is not stored - it's not used for
@@ -832,7 +829,7 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	dev.Metadata.Name = "u2f-2"
 	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
 	c.Assert(err, check.IsNil)
-	devs, err = s.WebS.GetMFADevices(ctx, user1)
+	devs, err = s.WebS.GetMFADevices(ctx, user1, false)
 	c.Assert(err, check.IsNil)
 	c.Assert(devs, check.HasLen, 2)
 }
@@ -1154,44 +1151,6 @@ func CollectOptions(opts ...Option) Options {
 		o(&suiteOpts)
 	}
 	return suiteOpts
-}
-
-// ClusterConfig tests cluster configuration.
-// DELETE IN 8.0.0: Remove ClusterConfig and related tests
-// and test only the individual resources.
-func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
-	ctx := context.Background()
-
-	clusterName, err := s.ConfigS.GetClusterName()
-	c.Assert(err, check.IsNil)
-	clusterID := clusterName.GetClusterID()
-
-	auditConfig, err := s.ConfigS.GetClusterAuditConfig(ctx)
-	c.Assert(err, check.IsNil)
-
-	netConfig, err := s.ConfigS.GetClusterNetworkingConfig(ctx)
-	c.Assert(err, check.IsNil)
-
-	recConfig, err := s.ConfigS.GetSessionRecordingConfig(ctx)
-	c.Assert(err, check.IsNil)
-
-	authPref, err := s.ConfigS.GetAuthPreference(ctx)
-	c.Assert(err, check.IsNil)
-
-	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
-	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetClusterConfig(config)
-	c.Assert(err, check.IsNil)
-
-	gotConfig, err := s.ConfigS.GetClusterConfig()
-	c.Assert(err, check.IsNil)
-	config.SetResourceID(gotConfig.GetResourceID())
-	config.SetLegacyClusterID(clusterID)
-	config.SetAuditConfig(auditConfig)
-	config.SetNetworkingFields(netConfig)
-	config.SetSessionRecordingFields(recConfig)
-	config.SetAuthFields(authPref)
-	fixtures.DeepCompare(c, config, gotConfig)
 }
 
 // ClusterName tests cluster name.
@@ -1758,62 +1717,6 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 // EventsClusterConfig tests cluster config resource events
 func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 	testCases := []eventTest{
-		{
-			name: "Cluster config",
-			kind: types.WatchKind{
-				Kind: types.KindClusterConfig,
-			},
-			crud: func(ctx context.Context) types.Resource {
-				// DELETE IN 8.0.0
-				clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-					ClusterName: "example.com",
-				})
-				c.Assert(err, check.IsNil)
-				err = s.ConfigS.SetClusterName(clusterName)
-				c.Assert(err, check.IsNil)
-
-				// DELETE IN 8.0.0
-				err = s.ConfigS.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
-				c.Assert(err, check.IsNil)
-
-				// DELETE IN 8.0.0
-				err = s.ConfigS.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
-				c.Assert(err, check.IsNil)
-
-				// DELETE IN 8.0.0
-				err = s.ConfigS.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
-				c.Assert(err, check.IsNil)
-
-				// DELETE IN 8.0.0
-				err = s.ConfigS.SetAuthPreference(ctx, types.DefaultAuthPreference())
-				c.Assert(err, check.IsNil)
-
-				config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
-				c.Assert(err, check.IsNil)
-
-				err = s.ConfigS.SetClusterConfig(config)
-				c.Assert(err, check.IsNil)
-
-				out, err := s.ConfigS.GetClusterConfig()
-				c.Assert(err, check.IsNil)
-
-				// To ensure backward compatibility the ClusterConfig resource is not
-				// emitted in the same form as it is put into the backend, but instead
-				// the event handler performs an additional get of ClusterConfig from
-				// the backend.  Therefore, do not delete the resource immediately but
-				// wait until the event has been actually emitted.  DELETE IN 8.0.0
-				w, err := s.EventsS.NewWatcher(ctx, types.Watch{
-					Kinds: []types.WatchKind{{Kind: types.KindClusterConfig}},
-				})
-				c.Assert(err, check.IsNil)
-				defer w.Close()
-				ExpectResource(c, w, time.Second, out)
-
-				err = s.ConfigS.DeleteClusterConfig()
-				c.Assert(err, check.IsNil)
-				return out
-			},
-		},
 		{
 			name: "Cluster name",
 			kind: types.WatchKind{
