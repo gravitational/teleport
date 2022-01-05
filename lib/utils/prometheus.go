@@ -47,7 +47,7 @@ func BuildCollector() prometheus.Collector {
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      teleport.MetricBuildInfo,
-			Help:      "Provides build information of Teleport",
+			Help:      "Provides build information of Teleport including gitref (git describe --long --tags), Go version, and Teleport version. The value of this gauge will always be 1.",
 			ConstLabels: prometheus.Labels{
 				teleport.TagVersion:   teleport.Version,
 				teleport.TagGitref:    teleport.Gitref,
