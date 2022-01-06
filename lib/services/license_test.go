@@ -40,12 +40,13 @@ func (l *LicenseSuite) TestUnmarshal(c *check.C) {
 	testCases := []testCase{
 		{
 			description: "simple case",
-			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "Teleport Commercial"}, "spec": {"account_id": "accountID", "usage": true, "k8s": true, "app": true, "db": true, "aws_account": "123", "aws_pid": "4"}}`,
+			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "Teleport Commercial"}, "spec": {"account_id": "accountID", "usage": true, "k8s": true, "app": true, "db": true, "desktop": true, "aws_account": "123", "aws_pid": "4"}}`,
 			expected: MustNew("Teleport Commercial", types.LicenseSpecV3{
 				ReportsUsage:              types.NewBool(true),
 				SupportsKubernetes:        types.NewBool(true),
 				SupportsApplicationAccess: types.NewBoolP(true),
 				SupportsDatabaseAccess:    types.NewBool(true),
+				SupportsDesktopAccess:     types.NewBool(true),
 				Cloud:                     types.NewBool(false),
 				AWSAccountID:              "123",
 				AWSProductID:              "4",
@@ -54,12 +55,13 @@ func (l *LicenseSuite) TestUnmarshal(c *check.C) {
 		},
 		{
 			description: "simple case with string booleans",
-			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "license"}, "spec": {"account_id": "accountID", "usage": "yes", "k8s": "yes", "app": "yes", "db": "yes", "aws_account": "123", "aws_pid": "4"}}`,
+			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "license"}, "spec": {"account_id": "accountID", "usage": "yes", "k8s": "yes", "app": "yes", "db": "yes", "desktop": "yes", "aws_account": "123", "aws_pid": "4"}}`,
 			expected: MustNew("license", types.LicenseSpecV3{
 				ReportsUsage:              types.NewBool(true),
 				SupportsKubernetes:        types.NewBool(true),
 				SupportsApplicationAccess: types.NewBoolP(true),
 				SupportsDatabaseAccess:    types.NewBool(true),
+				SupportsDesktopAccess:     types.NewBool(true),
 				Cloud:                     types.NewBool(false),
 				AWSAccountID:              "123",
 				AWSProductID:              "4",
@@ -73,6 +75,7 @@ func (l *LicenseSuite) TestUnmarshal(c *check.C) {
 				ReportsUsage:           types.NewBool(true),
 				SupportsKubernetes:     types.NewBool(true),
 				SupportsDatabaseAccess: types.NewBool(false),
+				SupportsDesktopAccess:  types.NewBool(false),
 				Cloud:                  types.NewBool(true),
 				AWSAccountID:           "123",
 				AWSProductID:           "4",
