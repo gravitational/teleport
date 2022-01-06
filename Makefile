@@ -141,9 +141,9 @@ ROLETESTER_BUILDDIR := lib/datalog/roletester/Cargo.toml
 ifneq ("$(ARCH)","arm")
 # Do not build RDP client on ARM. The client includes OpenSSL which requires libatomic on ARM 32bit.
 with_rdpclient := yes
-endif
 RDPCLIENT_MESSAGE := "with Windows RDP client"
 RDPCLIENT_TAG := desktop_access_rdp
+endif
 endif
 endif
 
