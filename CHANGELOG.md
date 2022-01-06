@@ -11,6 +11,9 @@ This release of Teleport contains features and fixes.
 * Fixed an issue when connecting to an auth server over a tunnel when running in `proxy_listener_mode`. [#9498](https://github.com/gravitational/teleport/pull/9498)
 * Fixed an issue with Access Requests where the request reason was not being escaped when using `tctl`. [#9381](https://github.com/gravitational/teleport/pull/9381)
 * Fixed an issue where Teleport would incorrectly log `json: unsupported type: utils.Jitter`. [#9417](https://github.com/gravitational/teleport/pull/9417)
+* Fixed an issue with incorrect session ID being emitted in `session.leave` events. [#9651](https://github.com/gravitational/teleport/pull/9651)
+* Update `tctl lock` to allow locking a Windows Desktop. [#9543](https://github.com/gravitational/teleport/pull/9543)
+* Removed the libatomic dependency: Teleport 8.1.0 will run on systems without libatomic, but note that Desktop Access will not be enabled in 32-bit ARM builds. [#9667](https://github.com/gravitational/teleport/pull/9667)
 
 ## 8.0.7
 
@@ -422,7 +425,7 @@ Teleport 7.0 is a major release of Teleport that contains new features, improvem
 
 ### New Features
 
-#### MongoDB 
+#### MongoDB
 
 Added support for [MongoDB](https://www.mongodb.com) to Teleport Database Access. [#6600](https://github.com/gravitational/teleport/issues/6600).
 
