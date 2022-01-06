@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"strings"
 )
 
 var (
@@ -72,6 +73,71 @@ type buildType struct {
 	fips            bool
 	centos7         bool
 	windowsUnsigned bool
+}
+
+// Description provides a human-facing description of the artifact
+func (b *buildType) Description(packageType string) string {
+	var result string
+
+	var os string
+	var arch string
+	var bitness int
+	var qualifications []string
+
+	switch b.os {
+	case "linux":
+		os = "Linux"
+	case "darwin":
+		os = "MacOS"
+	case "windows":
+		os = "Windows"
+	default:
+		panic("unhandled OS")
+	}
+
+	switch b.arch {
+	case "arm64":
+		arch = "ARM64/ARMv8"
+		fallthrough
+	case "amd64":
+		bitness = 64
+
+	case "arm":
+		arch = "ARMv7"
+		fallthrough
+	case "386":
+		bitness = 32
+
+	default:
+		panic("unhandled arch")
+	}
+
+	if b.centos7 {
+		qualifications = append(qualifications, "RHEL/CentOS 7.x compatible")
+	}
+	if b.fips {
+		qualifications = append(qualifications, "FedRAMP/FIPS")
+	}
+
+	result = os
+
+	if b.os != "darwin" {
+		// arch is implicit for i386/amd64
+		if arch == "" {
+			result += fmt.Sprintf(" %d-bit", bitness)
+		} else {
+			result += fmt.Sprintf(" %s (%d-bit)", arch, bitness)
+		}
+	}
+
+	if packageType != "" {
+		result += fmt.Sprintf(" %s", packageType)
+	}
+
+	if len(qualifications) > 0 {
+		result += fmt.Sprintf(" (%s)", strings.Join(qualifications, ", "))
+	}
+	return result
 }
 
 // dockerService generates a docker:dind service
