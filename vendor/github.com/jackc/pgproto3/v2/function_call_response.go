@@ -81,3 +81,21 @@ func (src FunctionCallResponse) MarshalJSON() ([]byte, error) {
 		Result: formattedValue,
 	})
 }
+
+// UnmarshalJSON implements encoding/json.Unmarshaler.
+func (dst *FunctionCallResponse) UnmarshalJSON(data []byte) error {
+	// Ignore null, like in the main JSON package.
+	if string(data) == "null" {
+		return nil
+	}
+
+	var msg struct {
+		Result map[string]string
+	}
+	err := json.Unmarshal(data, &msg)
+	if err != nil {
+		return err
+	}
+	dst.Result, err = getValueFromJSON(msg.Result)
+	return err
+}

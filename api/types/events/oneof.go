@@ -225,6 +225,26 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_DatabaseSessionQuery{
 			DatabaseSessionQuery: e,
 		}
+	case *PostgresParse:
+		out.Event = &OneOf_PostgresParse{
+			PostgresParse: e,
+		}
+	case *PostgresBind:
+		out.Event = &OneOf_PostgresBind{
+			PostgresBind: e,
+		}
+	case *PostgresExecute:
+		out.Event = &OneOf_PostgresExecute{
+			PostgresExecute: e,
+		}
+	case *PostgresClose:
+		out.Event = &OneOf_PostgresClose{
+			PostgresClose: e,
+		}
+	case *PostgresFunctionCall:
+		out.Event = &OneOf_PostgresFunctionCall{
+			PostgresFunctionCall: e,
+		}
 	case *SessionUpload:
 		out.Event = &OneOf_SessionUpload{
 			SessionUpload: e,
@@ -376,6 +396,16 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 	} else if e := in.GetDatabaseSessionEnd(); e != nil {
 		return e, nil
 	} else if e := in.GetDatabaseSessionQuery(); e != nil {
+		return e, nil
+	} else if e := in.GetPostgresParse(); e != nil {
+		return e, nil
+	} else if e := in.GetPostgresBind(); e != nil {
+		return e, nil
+	} else if e := in.GetPostgresExecute(); e != nil {
+		return e, nil
+	} else if e := in.GetPostgresClose(); e != nil {
+		return e, nil
+	} else if e := in.GetPostgresFunctionCall(); e != nil {
 		return e, nil
 	} else if e := in.GetSessionUpload(); e != nil {
 		return e, nil
