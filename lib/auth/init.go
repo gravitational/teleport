@@ -152,7 +152,7 @@ type InitConfig struct {
 	SessionRecordingConfig types.SessionRecordingConfig
 
 	// SkipPeriodicOperations turns off periodic operations
-	// used in tests that don't need period operations.
+	// used in tests that don't need periodic operations.
 	SkipPeriodicOperations bool
 
 	// CipherSuites is a list of ciphersuites that the auth server supports.
