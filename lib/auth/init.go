@@ -362,12 +362,14 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			}
 		}
 	}
+	log.Infof("CA generation / checks complete.")
 
 	// Delete any unused keys from the keyStore. This is to avoid exhausting
 	// (or wasting) HSM resources.
 	if err := asrv.deleteUnusedKeys(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	log.Infof("Delete unused keys complete.")
 
 	if lib.IsInsecureDevMode() {
 		warningMessage := "Starting teleport in insecure mode. This is " +
@@ -376,17 +378,23 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		log.Warn(warningMessage)
 	}
 
+	log.Infof("insecure dev mode warning complete.")
+
 	// Migrate any legacy resources to new format.
 	err = migrateLegacyResources(ctx, asrv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	log.Infof("migrate legacy resources complete.")
+
 	// Create presets - convenience and example resources.
 	err = createPresets(asrv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	log.Infof("create presets complete.")
 
 	if !cfg.SkipPeriodicOperations {
 		log.Infof("Auth server is running periodic operations.")
