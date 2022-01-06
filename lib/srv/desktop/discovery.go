@@ -77,10 +77,10 @@ func (s *WindowsService) startDesktopDiscovery(ctx context.Context) error {
 	}
 
 	go func() {
-		// initialize lastDiscoverResults with any desktops from a previous run that were saved in the backend
+		// initialize lastDiscoveryResults with any desktops that already exist
 		initialDesktops, err := s.getDesktopsFromAuthServer(ctx)
 		if err != nil {
-			s.cfg.Log.Errorf("initial fetch of previously discovered desktops from auth server failed : %v", err)
+			s.cfg.Log.Errorf("initial fetch of desktops from auth server failed: %v", err)
 		}
 
 		s.lastDiscoveryResults = initialDesktops
