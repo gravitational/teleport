@@ -26,7 +26,6 @@ import "github.com/gravitational/teleport/api/types/events/events.proto";
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = true;
-option go_package = "github.com/gravitational/teleport/api/client/proto";
 
 // Operation identifies type of operation
 enum Operation {

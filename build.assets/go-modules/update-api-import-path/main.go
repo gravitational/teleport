@@ -44,7 +44,7 @@ func init() {
 }
 
 // This script should only be run through the make target `make update-api-module-path`
-// since it relies on relative paths to the api and root directories.
+// since it relies on relative paths to the /api and root directories.
 func main() {
 	var buildFlags []string
 	if len(os.Args) > 1 {

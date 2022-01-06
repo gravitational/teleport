@@ -749,18 +749,19 @@ buildbox-grpc:
 		lib/multiplexer/test/ping.proto \
 		lib/web/envelope.proto
 
-	# protoc is not aware of go modules, so generated go files fail to read
-	# from the correct api import path unless explicitly told where to look.
+	# proto files within the api module must be passed with the 'M' flag. This way
+	# protoc will generate files with the correct import paths in the case where
+	# the import path has a version suffix, e.g. github.com/gravitational/teleport/api/v8
 	$(eval API_IMPORT_PATH=$(shell go run build.assets/go-modules/print-api-import-path/main.go))
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/client/proto \
 		--gogofast_out=plugins=grpc,\
 Mgithub.com/gravitational/teleport/api/types/types.proto=$$API_IMPORT_PATH/types,\
-Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$$API_IMPORT_PATH/types/webauthn,\
+Mgithub.com/gravitational/teleport/api/types/events/events.proto=$$API_IMPORT_PATH/types/events,\
 Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$$API_IMPORT_PATH/types/wrappers,\
-Mgithub.com/gravitational/teleport/api/types/events/events.proto=$$API_IMPORT_PATH/types/events:\
-$$GOPATH/src \
+Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$$API_IMPORT_PATH/types/webauthn:\
+api/client/proto \
 		authservice.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
@@ -772,7 +773,7 @@ $$GOPATH/src \
 		--proto_path=api/types \
 		--gogofast_out=plugins=grpc,\
 Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$$API_IMPORT_PATH/types/wrappers:\
-$$GOPATH/src \
+api/types \
 		types.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \

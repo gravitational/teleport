@@ -72,9 +72,7 @@ import (
 func TestUpdateProtoFiles(t *testing.T) {
 	protoFile := `syntax = "proto3";
 package proto;
-
 import "mod/path/types.proto";
-
 message Example {
 	types.Type field1 = 1 [
 		(gogoproto.casttype) = "mod/path/types.Traits"
@@ -88,9 +86,7 @@ message Example {
 	// Only update casttype and customtype options.
 	updatedProtoFile := `syntax = "proto3";
 package proto;
-
 import "mod/path/types.proto";
-
 message Example {
 	types.Type field1 = 1 [
 		(gogoproto.casttype) = "mod/path/v2/types.Traits"

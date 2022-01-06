@@ -22,7 +22,6 @@ import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
-option go_package = "github.com/gravitational/teleport/api/types";
 
 message KeepAlive {
     // Name of the resource to keep alive.

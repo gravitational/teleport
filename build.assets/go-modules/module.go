@@ -19,7 +19,7 @@ func GetImportPath(dir string) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if modFile.Module.Mod.Path == "" {
+	if modFile.Module == nil || modFile.Module.Mod.Path == "" {
 		return "", trace.NotFound("could not find mod path for %v", dir)
 	}
 	return modFile.Module.Mod.Path, nil
