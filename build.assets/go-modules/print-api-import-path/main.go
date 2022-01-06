@@ -11,32 +11,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Command print-api-module-version prints the version that should appear
-// in Go import paths to stdout. The version will be empty for API major
-// versions 0 or 1, and "/vX" for major versions greater than 1.
+// Command print-api-import-path prints the import path that
+// should appear in Go import paths to stdout.
 package main
 
 import (
 	"fmt"
+	"log"
 
-	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/build.assets/go-modules"
+	"github.com/gravitational/trace"
 )
 
-// printVersion writes the version that should appear in Go import
-// paths to standard out
-func printVersion(v string) {
-	if ver := semver.New(v); ver.Major >= 2 {
-		fmt.Printf("/v%d", ver.Major)
-	}
-}
-
+// prints the import path of the api module
 func main() {
-	sv := semver.New(api.Version)
-	if sv.PreRelease != "" {
-		return
+	modPath, err := modules.GetImportPath("./api")
+	if err != nil {
+		log.Fatal(trace.Wrap(err))
 	}
-	if sv.Major >= 2 {
-		fmt.Printf("/v%d", sv.Major)
-	}
+	fmt.Println(modPath)
 }

@@ -642,7 +642,7 @@ version: $(VERSRC)
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 	# Update api module path, but don't fail on error.
-	$(MAKE) update-api-module-path || true
+	$(MAKE) update-api-import-path || true
 
 # This rule updates the api module path to be in sync with the current api release version.
 # e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
@@ -654,9 +654,9 @@ $(VERSRC): Makefile
 #    - v0.0.0 -> v1.0.0 - both have no version suffix - github.com/gravitational/teleport/api
 #
 # Note: any build flags needed to compile go files (such as build tags) should be provided below.
-.PHONY: update-api-module-path
-update-api-module-path:
-	go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
+.PHONY: update-api-import-path
+update-api-import-path:
+	go run build.assets/go-modules/update-api-import-path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
 	$(MAKE) grpc
 
 # make tag - prints a tag to use with git for the current version
@@ -749,15 +749,17 @@ buildbox-grpc:
 		lib/multiplexer/test/ping.proto \
 		lib/web/envelope.proto
 
-	$(eval APIVERSION=$(shell go run build.assets/print_api_module_version/main.go))
+	# protoc is not aware of go modules, so generated go files fail to read
+	# from the correct api import path unless explicitly told where to look.
+	$(eval API_IMPORT_PATH=$(shell go run build.assets/go-modules/print-api-import-path/main.go))
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/client/proto \
 		--gogofast_out=plugins=grpc,\
-Mgithub.com/gravitational/teleport/api/types/types.proto=github.com/gravitational/teleport/api$$APIVERSION/types,\
-Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=github.com/gravitational/teleport/api$$APIVERSION/types/webauthn,\
-Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=github.com/gravitational/teleport/api$$APIVERSION/types/wrappers,\
-Mgithub.com/gravitational/teleport/api/types/events/events.proto=github.com/gravitational/teleport/api$$APIVERSION/types/events:\
+Mgithub.com/gravitational/teleport/api/types/types.proto=$$API_IMPORT_PATH/types,\
+Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$$API_IMPORT_PATH/types/webauthn,\
+Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$$API_IMPORT_PATH/types/wrappers,\
+Mgithub.com/gravitational/teleport/api/types/events/events.proto=$$API_IMPORT_PATH/types/events:\
 $$GOPATH/src \
 		authservice.proto
 
@@ -769,7 +771,7 @@ $$GOPATH/src \
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types \
 		--gogofast_out=plugins=grpc,\
-Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=github.com/gravitational/teleport/api$$APIVERSION/types/wrappers:\
+Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$$API_IMPORT_PATH/types/wrappers:\
 $$GOPATH/src \
 		types.proto
 
