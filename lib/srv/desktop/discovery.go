@@ -66,11 +66,10 @@ func (s *WindowsService) startDesktopDiscovery(ctx context.Context) error {
 
 		GetCurrentResources: func() types.ResourcesWithLabels { return s.lastDiscoveryResults },
 		GetNewResources:     s.getDesktopsFromLDAP,
-		// On the first run of the reconcile loop, a desktop may exist in the database
-		OnCreate: s.createDesktop,
-		OnUpdate: s.updateDesktop,
-		OnDelete: s.deleteDesktop,
-		Log:      s.cfg.Log,
+		OnCreate:            s.createDesktop,
+		OnUpdate:            s.updateDesktop,
+		OnDelete:            s.deleteDesktop,
+		Log:                 s.cfg.Log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -84,7 +83,7 @@ func (s *WindowsService) startDesktopDiscovery(ctx context.Context) error {
 		}
 
 		s.lastDiscoveryResults = initialDesktops
-		s.cfg.Log.Debugf("desktop discovery starting with initial discovery results of %v", s.lastDiscoveryResults)
+		s.cfg.Log.Debugf("desktop discovery starting with %v initial desktops", len(s.lastDiscoveryResults))
 
 		// reconcile once before starting the ticker, so that desktops show up immediately
 		if err := reconciler.Reconcile(ctx); err != nil && err != context.Canceled {
