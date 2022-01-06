@@ -90,9 +90,12 @@ with_roletester := yes
 ROLETESTER_ENT_MESSAGE := "with access tester"
 ROLETESTER_TAG := roletester
 
+ifneq ("$(ARCH)","arm")
+# Do not build RDP client on ARM. The client includes OpenSSL which requires libatomic on ARM 32bit.
 with_rdpclient := yes
 RDPCLIENT_ENT_MESSAGE := "with Windows RDP client"
 RDPCLIENT_TAG := desktop_access_rdp
+endif
 endif
 endif
 
