@@ -25,7 +25,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/sirupsen/logrus"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
@@ -230,27 +229,18 @@ func tagsToLabels(tags []*rds.Tag) map[string]string {
 
 // IsRDSClusterSupported checks whether the aurora cluster is supported and logs
 // related info if not.
-func IsRDSClusterSupported(cluster *rds.DBCluster, log logrus.FieldLogger) bool {
+func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 	switch aws.StringValue(cluster.EngineMode) {
 	// Aurora Serverless (v1 and v2) does not support IAM authentication
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless.html#aurora-serverless.limitations
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-2.limitations.html
 	case RDSEngineModeServerless:
-		log.Infof("Aurora cluster %q is %s which doesn't support IAM authentication. Skipping.",
-			aws.StringValue(cluster.DBClusterIdentifier),
-			aws.StringValue(cluster.EngineMode),
-		)
 		return false
 
 	// Aurora MySQL 1.22.2, 1.20.1, 1.19.6, and 5.6.10a only: Parallel query doesn't support AWS Identity and Access Management (IAM) database authentication.
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-mysql-parallel-query.html#aurora-mysql-parallel-query-limitations
 	case RDSEngineModeParallelQuery:
 		if apiutils.SliceContainsStr([]string{"1.22.2", "1.20.1", "1.19.6", "5.6.10a"}, auroraMySQLVersion(cluster)) {
-			log.Infof("Aurora cluster %q (engine mode %v, engine version %v) doesn't support IAM authentication. Skipping.",
-				aws.StringValue(cluster.DBClusterIdentifier),
-				aws.StringValue(cluster.EngineMode),
-				aws.StringValue(cluster.EngineVersion),
-			)
 			return false
 		}
 	}

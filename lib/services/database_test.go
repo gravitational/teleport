@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/pborman/uuid"
-	"github.com/sirupsen/logrus"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -193,24 +192,61 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 }
 
 func TestAuroraMySQLVersion(t *testing.T) {
-	require.Equal(t, "5.6.10a", auroraMySQLVersion(&rds.DBCluster{EngineVersion: aws.String("5.6.10a")}))
-	require.Equal(t, "1.22.1", auroraMySQLVersion(&rds.DBCluster{EngineVersion: aws.String("5.6.mysql_aurora.1.22.1")}))
-	require.Equal(t, "1.22.1.3", auroraMySQLVersion(&rds.DBCluster{EngineVersion: aws.String("5.6.mysql_aurora.1.22.1.3")}))
+	tests := []struct {
+		engineVersion        string
+		expectedMySQLVersion string
+	}{
+		{
+			engineVersion:        "5.6.10a",
+			expectedMySQLVersion: "5.6.10a",
+		},
+		{
+			engineVersion:        "5.6.mysql_aurora.1.22.1",
+			expectedMySQLVersion: "1.22.1",
+		},
+		{
+			engineVersion:        "5.6.mysql_aurora.1.22.1.3",
+			expectedMySQLVersion: "1.22.1.3",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.engineVersion, func(t *testing.T) {
+			require.Equal(t, test.expectedMySQLVersion, auroraMySQLVersion(&rds.DBCluster{EngineVersion: aws.String(test.engineVersion)}))
+		})
+	}
 }
 
 func TestIsRDSClusterSupported(t *testing.T) {
-	logger := logrus.WithField("test", t.Name())
-
 	tests := []struct {
 		name          string
 		engineMode    string
 		engineVersion string
 		isSupported   bool
 	}{
-		{name: "provisioned", engineMode: RDSEngineModeProvisioned, engineVersion: "5.6.mysql_aurora.1.22.0", isSupported: true},
-		{name: "serverless", engineMode: RDSEngineModeServerless, engineVersion: "5.6.mysql_aurora.1.22.0", isSupported: false},
-		{name: "parallel query supported", engineMode: RDSEngineModeParallelQuery, engineVersion: "5.6.mysql_aurora.1.22.0", isSupported: true},
-		{name: "parallel query unsupported", engineMode: RDSEngineModeParallelQuery, engineVersion: "5.6.mysql_aurora.1.19.6", isSupported: false},
+		{
+			name:          "provisioned",
+			engineMode:    RDSEngineModeProvisioned,
+			engineVersion: "5.6.mysql_aurora.1.22.0",
+			isSupported:   true,
+		},
+		{
+			name:          "serverless",
+			engineMode:    RDSEngineModeServerless,
+			engineVersion: "5.6.mysql_aurora.1.22.0",
+			isSupported:   false,
+		},
+		{
+			name:          "parallel query supported",
+			engineMode:    RDSEngineModeParallelQuery,
+			engineVersion: "5.6.mysql_aurora.1.22.0",
+			isSupported:   true,
+		},
+		{
+			name:          "parallel query unsupported",
+			engineMode:    RDSEngineModeParallelQuery,
+			engineVersion: "5.6.mysql_aurora.1.19.6",
+			isSupported:   false,
+		},
 	}
 
 	for _, test := range tests {
@@ -224,7 +260,7 @@ func TestIsRDSClusterSupported(t *testing.T) {
 				EngineVersion:       aws.String(test.engineVersion),
 			}
 
-			require.Equal(t, test.isSupported, IsRDSClusterSupported(cluster, logger))
+			require.Equal(t, test.isSupported, IsRDSClusterSupported(cluster))
 
 		})
 	}

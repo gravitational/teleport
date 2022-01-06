@@ -142,7 +142,11 @@ func (f *rdsFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, e
 	}
 	databases := make(types.Databases, 0, len(clusters))
 	for _, cluster := range clusters {
-		if !services.IsRDSClusterSupported(cluster, f.log) {
+		if !services.IsRDSClusterSupported(cluster) {
+			f.log.Debugf("Aurora cluster %q (engine mode %v, engine version %v) doesn't support IAM authentication. Skipping.",
+				aws.StringValue(cluster.DBClusterIdentifier),
+				aws.StringValue(cluster.EngineMode),
+				aws.StringValue(cluster.EngineVersion))
 			continue
 		}
 
