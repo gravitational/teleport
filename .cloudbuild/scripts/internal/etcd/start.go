@@ -57,8 +57,8 @@ func (etcd *Instance) Stop() {
 
 	case *exec.ExitError:
 		// we expect a return code of -1 because we've just killed the process
-		// above. If we get something else then etcd failed for some reason and
-		// we should print diagnostic output
+		// above. If we get something else then etcd failed earlier for some 
+		// reason and we should print diagnostic output
 		if err.ExitCode() != -1 {
 			log.Printf("Etcd exited with unexpected status %d", err.ExitCode())
 			log.Printf("stderr:\n%s", etcd.stderr.String())
