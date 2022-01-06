@@ -12,28 +12,35 @@ type Backend struct {
 	w  io.Writer
 
 	// Frontend message flyweights
-	bind            Bind
-	cancelRequest   CancelRequest
-	_close          Close
-	copyFail        CopyFail
-	copyData        CopyData
-	copyDone        CopyDone
-	describe        Describe
-	execute         Execute
-	flush           Flush
-	gssEncRequest   GSSEncRequest
-	parse           Parse
-	passwordMessage PasswordMessage
-	query           Query
-	sslRequest      SSLRequest
-	startupMessage  StartupMessage
-	sync            Sync
-	terminate       Terminate
+	bind           Bind
+	cancelRequest  CancelRequest
+	_close         Close
+	copyFail       CopyFail
+	copyData       CopyData
+	copyDone       CopyDone
+	describe       Describe
+	execute        Execute
+	flush          Flush
+	functionCall   FunctionCall
+	gssEncRequest  GSSEncRequest
+	parse          Parse
+	query          Query
+	sslRequest     SSLRequest
+	startupMessage StartupMessage
+	sync           Sync
+	terminate      Terminate
 
-	bodyLen    int
-	msgType    byte
-	partialMsg bool
+	bodyLen      int
+	msgType      byte
+	partialMsg   bool
+	authType     uint32
+	
 }
+
+const (
+	minStartupPacketLen = 4     // minStartupPacketLen is a single 32-bit int version or code.
+	maxStartupPacketLen = 10000 // maxStartupPacketLen is MAX_STARTUP_PACKET_LENGTH from PG source.
+)
 
 // NewBackend creates a new Backend.
 func NewBackend(cr ChunkReader, w io.Writer) *Backend {
@@ -56,9 +63,13 @@ func (b *Backend) ReceiveStartupMessage() (FrontendMessage, error) {
 	}
 	msgSize := int(binary.BigEndian.Uint32(buf) - 4)
 
+	if msgSize < minStartupPacketLen || msgSize > maxStartupPacketLen {
+		return nil, fmt.Errorf("invalid length of startup packet: %d", msgSize)
+	}
+
 	buf, err = b.cr.Next(msgSize)
 	if err != nil {
-		return nil, err
+		return nil, translateEOFtoErrUnexpectedEOF(err)
 	}
 
 	code := binary.BigEndian.Uint32(buf)
@@ -98,7 +109,7 @@ func (b *Backend) Receive() (FrontendMessage, error) {
 	if !b.partialMsg {
 		header, err := b.cr.Next(5)
 		if err != nil {
-			return nil, err
+			return nil, translateEOFtoErrUnexpectedEOF(err)
 		}
 
 		b.msgType = header[0]
@@ -116,6 +127,8 @@ func (b *Backend) Receive() (FrontendMessage, error) {
 		msg = &b.describe
 	case 'E':
 		msg = &b.execute
+	case 'F':
+		msg = &b.functionCall
 	case 'f':
 		msg = &b.copyFail
 	case 'd':
@@ -127,7 +140,19 @@ func (b *Backend) Receive() (FrontendMessage, error) {
 	case 'P':
 		msg = &b.parse
 	case 'p':
-		msg = &b.passwordMessage
+		switch b.authType {
+		case AuthTypeSASL:
+			msg = &SASLInitialResponse{}
+		case AuthTypeSASLContinue:
+			msg = &SASLResponse{}
+		case AuthTypeSASLFinal:
+			msg = &SASLResponse{}
+		case AuthTypeCleartextPassword, AuthTypeMD5Password:
+			fallthrough
+		default:
+			// to maintain backwards compatability
+			msg = &PasswordMessage{}
+		}
 	case 'Q':
 		msg = &b.query
 	case 'S':
@@ -140,11 +165,44 @@ func (b *Backend) Receive() (FrontendMessage, error) {
 
 	msgBody, err := b.cr.Next(b.bodyLen)
 	if err != nil {
-		return nil, err
+		return nil, translateEOFtoErrUnexpectedEOF(err)
 	}
 
 	b.partialMsg = false
 
 	err = msg.Decode(msgBody)
 	return msg, err
+}
+
+// SetAuthType sets the authentication type in the backend.
+// Since multiple message types can start with 'p', SetAuthType allows
+// contextual identification of FrontendMessages. For example, in the
+// PG message flow documentation for PasswordMessage:
+//
+// 		Byte1('p')
+//
+//      Identifies the message as a password response. Note that this is also used for
+//		GSSAPI, SSPI and SASL response messages. The exact message type can be deduced from
+//		the context.
+//
+// Since the Frontend does not know about the state of a backend, it is important
+// to call SetAuthType() after an authentication request is received by the Frontend.
+func (b *Backend) SetAuthType(authType uint32) error {
+	switch authType {
+	case AuthTypeOk,
+		AuthTypeCleartextPassword,
+		AuthTypeMD5Password,
+		AuthTypeSCMCreds,
+		AuthTypeGSS,
+		AuthTypeGSSCont,
+		AuthTypeSSPI,
+		AuthTypeSASL,
+		AuthTypeSASLContinue,
+		AuthTypeSASLFinal:
+		b.authType = authType
+	default:
+		return fmt.Errorf("authType not recognized: %d", authType)
+	}
+
+	return nil
 }
