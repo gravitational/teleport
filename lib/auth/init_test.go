@@ -599,7 +599,7 @@ func TestMigrateCertAuthorities(t *testing.T) {
 			SigningKeys:  [][]byte{[]byte(fixtures.SSHCAPrivateKey)},
 			TLSKeyPairs:  []types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
 			Rotation:     nil, // Rotation was never performed.
-		}, //TODO(JN) DB CA
+		},
 		{
 			Type:         types.UserCA,
 			ClusterName:  "localhost",
