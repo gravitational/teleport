@@ -679,7 +679,7 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 			}
 		case types.KindWindowsDesktopService:
 			if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
+				return nil, trace.Wrap(errt)
 			}
 		default:
 			if err := a.action(apidefaults.Namespace, kind.Kind, types.VerbRead); err != nil {
@@ -3293,31 +3293,6 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 func (a *ServerWithRoles) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	ap, err := a.authServer.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, isService := a.context.Checker.(BuiltinRoleSet)
-	isMFAVerified := a.context.Identity.GetIdentity().MFAVerified != ""
-	mfaParams := services.AccessMFAParams{
-		// MFA requirement only applies to users.
-		//
-		// Builtin services (like proxy_service and kube_service) are not gated
-		// on MFA and only need to pass the RBAC action check above.
-		Verified:       isService || isMFAVerified,
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
-
-	for _, kube := range s.GetKubernetesClusters() {
-		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), kube)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := a.context.Checker.CheckAccess(k8sV3, mfaParams); err != nil {
-			return nil, utils.OpaqueAccessDenied(err)
-		}
 	}
 	return a.authServer.UpsertKubeServiceV2(ctx, s)
 }
