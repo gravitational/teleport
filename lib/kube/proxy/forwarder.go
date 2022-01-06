@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"io"
 	mathrand "math/rand"
 	"net"
 	"net/http"
@@ -879,8 +880,8 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 	if recorder != nil {
 		// capture stderr and stdout writes to session recorder
-		streamOptions.Stdout = utils.NewBroadcastWriter(streamOptions.Stdout, recorder)
-		streamOptions.Stderr = utils.NewBroadcastWriter(streamOptions.Stderr, recorder)
+		streamOptions.Stdout = io.MultiWriter(streamOptions.Stdout, recorder)
+		streamOptions.Stderr = io.MultiWriter(streamOptions.Stderr, recorder)
 	}
 
 	// Defer a cleanup handler that will mark the stream as complete on exit, regardless of

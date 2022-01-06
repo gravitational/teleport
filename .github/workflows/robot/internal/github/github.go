@@ -45,6 +45,9 @@ type Client interface {
 	// ListFiles is used to list all the files within a PR.
 	ListFiles(ctx context.Context, organization string, repository string, number int) ([]string, error)
 
+	// AddLabels will add labels to an Issue or Pull Request.
+	AddLabels(ctx context.Context, organization string, repository string, number int, labels []string) error
+
 	// ListWorkflows lists all workflows within a repository.
 	ListWorkflows(ctx context.Context, organization string, repository string) ([]Workflow, error)
 
@@ -213,6 +216,20 @@ func (c *client) ListFiles(ctx context.Context, organization string, repository 
 	}
 
 	return files, nil
+}
+
+// AddLabels will add labels to an Issue or Pull Request.
+func (c *client) AddLabels(ctx context.Context, organization string, repository string, number int, labels []string) error {
+	_, _, err := c.client.Issues.AddLabelsToIssue(ctx,
+		organization,
+		repository,
+		number,
+		labels)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // Workflow contains information about a workflow.
