@@ -51,3 +51,21 @@ func (src CommandComplete) MarshalJSON() ([]byte, error) {
 		CommandTag: string(src.CommandTag),
 	})
 }
+
+// UnmarshalJSON implements encoding/json.Unmarshaler.
+func (dst *CommandComplete) UnmarshalJSON(data []byte) error {
+	// Ignore null, like in the main JSON package.
+	if string(data) == "null" {
+		return nil
+	}
+
+	var msg struct {
+		CommandTag string
+	}
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return err
+	}
+
+	dst.CommandTag = []byte(msg.CommandTag)
+	return nil
+}

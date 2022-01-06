@@ -115,3 +115,28 @@ func (src DataRow) MarshalJSON() ([]byte, error) {
 		Values: formattedValues,
 	})
 }
+
+// UnmarshalJSON implements encoding/json.Unmarshaler.
+func (dst *DataRow) UnmarshalJSON(data []byte) error {
+	// Ignore null, like in the main JSON package.
+	if string(data) == "null" {
+		return nil
+	}
+
+	var msg struct {
+		Values []map[string]string
+	}
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return err
+	}
+
+	dst.Values = make([][]byte, len(msg.Values))
+	for n, parameter := range msg.Values {
+		var err error
+		dst.Values[n], err = getValueFromJSON(parameter)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

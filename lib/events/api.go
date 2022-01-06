@@ -399,6 +399,22 @@ const (
 	// to execute a database query/command was unsuccessful.
 	DatabaseSessionQueryFailedEvent = "db.session.query.failed"
 
+	// DatabaseSessionPostgresParseEvent is emitted when a Postgres client
+	// creates a prepared statement using extended query protocol.
+	DatabaseSessionPostgresParseEvent = "db.session.postgres.parse"
+	// DatabaseSessionPostgresBindEvent is emitted when a Postgres client
+	// readies a prepared statement for execution and binds it to parameters.
+	DatabaseSessionPostgresBindEvent = "db.session.postgres.bind"
+	// DatabaseSessionPostgresExecuteEvent is emitted when a Postgres client
+	// executes a previously bound prepared statement.
+	DatabaseSessionPostgresExecuteEvent = "db.session.postgres.execute"
+	// DatabaseSessionPostgresCloseEvent is emitted when a Postgres client
+	// closes an existing prepared statement.
+	DatabaseSessionPostgresCloseEvent = "db.session.postgres.close"
+	// DatabaseSessionPostgresFunctionEvent is emitted when a Postgres client
+	// calls an internal function.
+	DatabaseSessionPostgresFunctionEvent = "db.session.postgres.function"
+
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
 	SessionRejectedReasonMaxConnections = "max_connections limit reached"
