@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 )
 
 const (
@@ -273,7 +274,7 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:     "Register artifacts",
 			Image:    "docker",
-			Commands: tagCreateReleaseAssetCommands(b),
+			Commands: tagCreateReleaseAssetCommands(b, ""),
 			Environment: map[string]value{
 				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
 				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
@@ -320,7 +321,7 @@ func tagCopyPackageArtifactCommands(b buildType, packageType string) []string {
 }
 
 // createReleaseAssetCommands generates a set of commands to create release & asset in release management service
-func tagCreateReleaseAssetCommands(b buildType) []string {
+func tagCreateReleaseAssetCommands(b buildType, packageType string) []string {
 	commands := []string{
 		`WORKSPACE_DIR=$${WORKSPACE_DIR:-/}`,
 		`VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")`,
@@ -344,9 +345,9 @@ for file in $(find . -type f ! -iname '*.sha256'); do
     cat $WORKSPACE_DIR/curl_out.txt
     exit 1
   fi
-  curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="%s" -F arch="%s" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+  curl $CREDENTIALS --fail -o /dev/null -F description="%s" -F os="%s" -F arch="%s" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
 done`,
-			b.os, b.arch /* TODO: fips */),
+			b.Description(packageType), b.os, b.arch),
 	}
 	return commands
 }
@@ -465,7 +466,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		{
 			Name:     "Register artifacts",
 			Image:    "docker",
-			Commands: tagCreateReleaseAssetCommands(b),
+			Commands: tagCreateReleaseAssetCommands(b, strings.ToUpper(packageType)),
 			Environment: map[string]value{
 				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
 				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
