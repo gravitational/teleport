@@ -656,9 +656,8 @@ $(VERSRC): Makefile
 # Note: any build flags needed to compile go files (such as build tags) should be provided below.
 .PHONY: update-api-module-path
 update-api-module-path:
-	# update-api-module-path is temporarily disabled because currently `make grpc` does not know how to deal with v2+ go modules.
-	# go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
-	# $(MAKE) grpc
+	go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
+	$(MAKE) grpc
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
@@ -750,9 +749,16 @@ buildbox-grpc:
 		lib/multiplexer/test/ping.proto \
 		lib/web/envelope.proto
 
+	$(eval APIVERSION=$(shell go run build.assets/print_api_module_version/main.go))
+
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/client/proto \
-		--gogofast_out=plugins=grpc:api/client/proto \
+		--gogofast_out=plugins=grpc,\
+Mgithub.com/gravitational/teleport/api/types/types.proto=github.com/gravitational/teleport/api$$APIVERSION/types,\
+Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=github.com/gravitational/teleport/api$$APIVERSION/types/webauthn,\
+Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=github.com/gravitational/teleport/api$$APIVERSION/types/wrappers,\
+Mgithub.com/gravitational/teleport/api/types/events/events.proto=github.com/gravitational/teleport/api$$APIVERSION/types/events:\
+$$GOPATH/src \
 		authservice.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
@@ -762,7 +768,9 @@ buildbox-grpc:
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types \
-		--gogofast_out=plugins=grpc:api/types \
+		--gogofast_out=plugins=grpc,\
+Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=github.com/gravitational/teleport/api$$APIVERSION/types/wrappers:\
+$$GOPATH/src \
 		types.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \

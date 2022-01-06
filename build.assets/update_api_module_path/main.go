@@ -231,8 +231,8 @@ func updateGoModFile(dir, oldPath, newPath, newVersion string, addRollBackFunc a
 	return nil
 }
 
-// updateProtoFiles updates instances of the currentPath with
-// the newPath in .proto files within the given directory
+// updateProtoFiles updates gogoproto cast types and custom types in .proto files
+// within the given directory to use the new api module path.
 func updateProtoFiles(rootDir, currentPath, newPath string, addRollBackFunc addRollBackFunc) error {
 	return filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -244,7 +244,16 @@ func updateProtoFiles(rootDir, currentPath, newPath string, addRollBackFunc addR
 				return trace.Wrap(err)
 			}
 
-			updatedData := bytes.ReplaceAll(data, []byte(currentPath), []byte(newPath))
+			// Replace all instances of the api module path in gogoproto casttypes with the new module path
+			currentCastTypes := fmt.Sprintf(`(gogoproto.casttype) = "%v`, currentPath)
+			newCastTypes := fmt.Sprintf(`(gogoproto.casttype) = "%v`, newPath)
+			updatedData := bytes.ReplaceAll(data, []byte(currentCastTypes), []byte(newCastTypes))
+
+			// Replace all instances of the api module path in gogoproto customtypes with the new module path
+			currentCustomTypes := fmt.Sprintf(`(gogoproto.customtype) = "%v`, currentPath)
+			newCustomTypes := fmt.Sprintf(`(gogoproto.customtype) = "%v`, newPath)
+			updatedData = bytes.ReplaceAll(updatedData, []byte(currentCustomTypes), []byte(newCustomTypes))
+
 			fileMode := d.Type().Perm()
 			if err := os.WriteFile(path, updatedData, fileMode); err != nil {
 				return trace.Wrap(err)
