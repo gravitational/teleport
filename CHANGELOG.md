@@ -1,5 +1,17 @@
 # Changelog
 
+## 8.1.0
+
+This release of Teleport contains features and fixes.
+
+* Added RBAC for sessions. It is now possible to further limit access to [shared sessions](https://goteleport.com/docs/server-access/guides/tsh/#sharing-sessions) and [session recordings](https://goteleport.com/docs/architecture/nodes/#session-recording). See the [RBAC for sessions](https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions) documentation for more details.
+* Added ability to specify level of TLS verification for database connections. [#9197](https://github.com/gravitational/teleport/pull/9197)
+* Added `--cluster` and `--diag_addr` to `tsh db` and `teleport` respectively. [#9220](https://github.com/gravitational/teleport/pull/9220)
+* Fixed an issue with user specification with `tsh db connect` and MongoDB. [#9196](https://github.com/gravitational/teleport/pull/9196)
+* Fixed an issue when connecting to an auth server over a tunnel when running in `proxy_listener_mode`. [#9498](https://github.com/gravitational/teleport/pull/9498)
+* Fixed an issue with Access Requests where the request reason was not being escaped when using `tctl`. [#9381](https://github.com/gravitational/teleport/pull/9381)
+* Fixed an issue where Teleport would incorrectly log `json: unsupported type: utils.Jitter`. [#9417](https://github.com/gravitational/teleport/pull/9417)
+
 ## 8.0.7
 
 This release of Teleport contains multiple features and bug fixes.
