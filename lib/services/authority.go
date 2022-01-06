@@ -89,6 +89,8 @@ func checkUserOrHostCA(cai types.CertAuthority) error {
 	return trace.Wrap(err)
 }
 
+// checkDatabaseCA checks if provided certificate authority contains a valid TLS key pair.
+// This function is used to verify Database CA.
 func checkDatabaseCA(cai types.CertAuthority) error {
 	ca, ok := cai.(*types.CertAuthorityV2)
 	if !ok {
