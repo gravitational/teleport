@@ -2,6 +2,7 @@ package pgproto3
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 
 	"github.com/jackc/pgio"
@@ -13,6 +14,9 @@ type AuthenticationCleartextPassword struct {
 
 // Backend identifies this message as sendable by the PostgreSQL backend.
 func (*AuthenticationCleartextPassword) Backend() {}
+
+// Backend identifies this message as an authentication response.
+func (*AuthenticationCleartextPassword) AuthenticationResponse() {}
 
 // Decode decodes src into dst. src must contain the complete message with the exception of the initial 1 byte message
 // type identifier and 4 byte message length.
@@ -36,4 +40,13 @@ func (src *AuthenticationCleartextPassword) Encode(dst []byte) []byte {
 	dst = pgio.AppendInt32(dst, 8)
 	dst = pgio.AppendUint32(dst, AuthTypeCleartextPassword)
 	return dst
+}
+
+// MarshalJSON implements encoding/json.Marshaler.
+func (src AuthenticationCleartextPassword) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type string
+	}{
+		Type: "AuthenticationCleartextPassword",
+	})
 }

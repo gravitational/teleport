@@ -2,6 +2,7 @@ package pgproto3
 
 import (
 	"encoding/json"
+	"errors"
 )
 
 type ReadyForQuery struct {
@@ -37,4 +38,24 @@ func (src ReadyForQuery) MarshalJSON() ([]byte, error) {
 		Type:     "ReadyForQuery",
 		TxStatus: string(src.TxStatus),
 	})
+}
+
+// UnmarshalJSON implements encoding/json.Unmarshaler.
+func (dst *ReadyForQuery) UnmarshalJSON(data []byte) error {
+	// Ignore null, like in the main JSON package.
+	if string(data) == "null" {
+		return nil
+	}
+
+	var msg struct {
+		TxStatus string
+	}
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return err
+	}
+	if len(msg.TxStatus) != 1 {
+		return errors.New("invalid length for ReadyForQuery.TxStatus")
+	}
+	dst.TxStatus = msg.TxStatus[0]
+	return nil
 }

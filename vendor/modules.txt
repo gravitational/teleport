@@ -492,7 +492,7 @@ github.com/jackc/pgio
 # github.com/jackc/pgpassfile v1.0.0
 ## explicit; go 1.12
 github.com/jackc/pgpassfile
-# github.com/jackc/pgproto3/v2 v2.0.7
+# github.com/jackc/pgproto3/v2 v2.2.0
 ## explicit; go 1.12
 github.com/jackc/pgproto3/v2
 # github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b

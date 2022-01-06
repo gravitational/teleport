@@ -3,6 +3,7 @@ package pgproto3
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 
 	"github.com/jackc/pgio"
 )
@@ -61,4 +62,28 @@ func (src Close) MarshalJSON() ([]byte, error) {
 		ObjectType: string(src.ObjectType),
 		Name:       src.Name,
 	})
+}
+
+// UnmarshalJSON implements encoding/json.Unmarshaler.
+func (dst *Close) UnmarshalJSON(data []byte) error {
+	// Ignore null, like in the main JSON package.
+	if string(data) == "null" {
+		return nil
+	}
+
+	var msg struct {
+		ObjectType string
+		Name       string
+	}
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return err
+	}
+
+	if len(msg.ObjectType) != 1 {
+		return errors.New("invalid length for Close.ObjectType")
+	}
+
+	dst.ObjectType = byte(msg.ObjectType[0])
+	dst.Name = msg.Name
+	return nil
 }
