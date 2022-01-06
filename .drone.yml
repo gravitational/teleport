@@ -1018,7 +1018,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:235
+# Generated at dronegen/tag.go:236
 ################################################
 
 kind: pipeline
@@ -1136,7 +1136,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (RHEL/CentOS 7.x compatible)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -1159,7 +1159,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:235
+# Generated at dronegen/tag.go:236
 ################################################
 
 kind: pipeline
@@ -1276,7 +1276,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (RHEL/CentOS 7.x compatible, FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -1299,7 +1299,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:235
+# Generated at dronegen/tag.go:236
 ################################################
 
 kind: pipeline
@@ -1414,7 +1414,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -1437,7 +1437,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:235
+# Generated at dronegen/tag.go:236
 ################################################
 
 kind: pipeline
@@ -1552,7 +1552,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -1575,7 +1575,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:235
+# Generated at dronegen/tag.go:236
 ################################################
 
 kind: pipeline
@@ -1693,7 +1693,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (RHEL/CentOS 6.x compatible)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -1716,7 +1716,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:419
+# Generated at dronegen/tag.go:420
 ################################################
 
 kind: pipeline
@@ -1854,7 +1854,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit RPM" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -1882,7 +1882,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:419
+# Generated at dronegen/tag.go:420
 ################################################
 
 kind: pipeline
@@ -2017,7 +2017,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit RPM (FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -2045,7 +2045,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:419
+# Generated at dronegen/tag.go:420
 ################################################
 
 kind: pipeline
@@ -2174,7 +2174,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit DEB" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -2197,7 +2197,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:419
+# Generated at dronegen/tag.go:420
 ################################################
 
 kind: pipeline
@@ -2323,7 +2323,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit DEB (FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -2346,7 +2346,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:235
+# Generated at dronegen/tag.go:236
 ################################################
 
 kind: pipeline
@@ -2461,7 +2461,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 32-bit" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -2484,7 +2484,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:419
+# Generated at dronegen/tag.go:420
 ################################################
 
 kind: pipeline
@@ -2622,7 +2622,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 32-bit RPM" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -2650,7 +2650,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:419
+# Generated at dronegen/tag.go:420
 ################################################
 
 kind: pipeline
@@ -2779,7 +2779,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 32-bit DEB" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -2947,7 +2947,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="MacOS" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -3136,7 +3136,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="MacOS .pkg installer" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -3307,7 +3307,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="MacOS .pkg installer" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -3328,7 +3328,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:235
+# Generated at dronegen/tag.go:236
 ################################################
 
 kind: pipeline
@@ -3443,7 +3443,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARMv7 (32-bit)" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -3466,7 +3466,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:235
+# Generated at dronegen/tag.go:236
 ################################################
 
 kind: pipeline
@@ -3581,7 +3581,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARM64/ARMv8 (64-bit)" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -3604,7 +3604,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:419
+# Generated at dronegen/tag.go:420
 ################################################
 
 kind: pipeline
@@ -3733,7 +3733,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARM64/ARMv8 (64-bit) DEB" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -3756,7 +3756,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:419
+# Generated at dronegen/tag.go:420
 ################################################
 
 kind: pipeline
@@ -3885,7 +3885,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARMv7 (32-bit) DEB" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -3908,7 +3908,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:419
+# Generated at dronegen/tag.go:420
 ################################################
 
 kind: pipeline
@@ -4046,7 +4046,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARM64/ARMv8 (64-bit) RPM" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -4074,7 +4074,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:419
+# Generated at dronegen/tag.go:420
 ################################################
 
 kind: pipeline
@@ -4212,7 +4212,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARMv7 (32-bit) RPM" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -4240,7 +4240,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:235
+# Generated at dronegen/tag.go:236
 ################################################
 
 kind: pipeline
@@ -4358,7 +4358,7 @@ steps:
         cat $WORKSPACE_DIR/curl_out.txt
         exit 1
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="windows" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="Windows 64-bit" -F os="windows" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -5192,6 +5192,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: de9a57c9cc45a6cb1bea96a04a1b177f95fe2f35f8603e05e58b819dae1b84e0
+hmac: f783be55967b1caff3592ae8d6f330701769e9aeb532cf5ecfa607f5760a649d
 
 ...
