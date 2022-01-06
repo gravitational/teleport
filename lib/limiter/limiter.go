@@ -98,12 +98,12 @@ func (l *Limiter) WrapHandle(h http.Handler) {
 func (l *Limiter) RegisterRequestAndConnection(token string) (func(), error) {
 	// Apply rate limiting.
 	if err := l.RegisterRequest(token); err != nil {
-		return func() {}, trace.LimitExceeded("rate limit exceeded")
+		return func() {}, trace.LimitExceeded("rate limit exceeded for %q", token)
 	}
 
 	// Apply connection limiting.
 	if err := l.AcquireConnection(token); err != nil {
-		return func() {}, trace.LimitExceeded("exceeded connection limit")
+		return func() {}, trace.LimitExceeded("exceeded connection limit for %q", token)
 	}
 
 	return func() { l.ReleaseConnection(token) }, nil

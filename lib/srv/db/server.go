@@ -675,10 +675,21 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 			}
 		}()
 	}()
-	engine, err := s.dispatch(sessionCtx, streamWriter)
+	engine, err := s.dispatch(sessionCtx, streamWriter, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			s.log.Warnf("Recovered while handling DB connection from %v: %v.", clientConn.RemoteAddr(), r)
+			err = trace.BadParameter("failed to handle client connection")
+		}
+		if err != nil {
+			engine.SendError(err)
+		}
+	}()
+
 	// Wrap a client connection into monitor that auto-terminates
 	// idle connection and connection with expired cert.
 	clientConn, err = monitorConn(ctx, monitorConnConfig{
@@ -698,20 +709,6 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	if err := engine.InitializeConnection(clientConn, sessionCtx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			s.log.Warnf("Recovered while handling DB connection from %v: %v.", clientConn.RemoteAddr(), r)
-			err = trace.BadParameter("failed to handle client connection")
-		}
-		if err != nil {
-			engine.SendError(err)
-		}
-	}()
 
 	// TODO(jakule): ClientIP should be required starting from 10.0.
 	clientIP := sessionCtx.Identity.ClientIP
@@ -735,14 +732,29 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 	return nil
 }
 
-// dispatch returns an appropriate database engine for the session.
-func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter) (common.Engine, error) {
+// dispatch creates and initialize an appropriate database engine for the session.
+func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter, clientConn net.Conn) (common.Engine, error) {
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
 		Emitter: streamWriter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	engine, err := s.createEngine(sessionCtx, audit)
+	if err != nil {
+		return engine, trace.Wrap(err)
+	}
+
+	if err := engine.InitializeConnection(clientConn, sessionCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return engine, nil
+}
+
+// createEngine creates a new database engine base on the database protocol. An error is returned when
+// a protocol is not supported.
+func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (common.Engine, error) {
 	switch sessionCtx.Database.GetProtocol() {
 	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		return &postgres.Engine{
@@ -770,6 +782,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 			Log:     sessionCtx.Log,
 		}, nil
 	}
+
 	return nil, trace.BadParameter("unsupported database protocol %q",
 		sessionCtx.Database.GetProtocol())
 }

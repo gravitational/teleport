@@ -125,7 +125,7 @@ func (c *ProxyServerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing LockWatcher")
 	}
 	if c.Limiter == nil {
-		// Empty config means no connection limit and ... .
+		// Empty config means no connection limit.
 		connLimiter, err := limiter.NewLimiter(limiter.Config{})
 		if err != nil {
 			return trace.Wrap(err)

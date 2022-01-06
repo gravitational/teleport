@@ -56,6 +56,7 @@ type Engine struct {
 	client *pgproto3.Backend
 }
 
+// InitializeConnection initializes the client connection.
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.client = pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
 
