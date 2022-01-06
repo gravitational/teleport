@@ -53,6 +53,8 @@ type Features struct {
 	Cloud bool
 	// HSM enables PKCS#11 HSM support
 	HSM bool
+	// Desktop enables desktop access product
+	Desktop bool
 }
 
 // ToProto converts Features into proto.Features
@@ -67,6 +69,7 @@ func (f Features) ToProto() *proto.Features {
 		AdvancedAccessWorkflows: f.AdvancedAccessWorkflows,
 		Cloud:                   f.Cloud,
 		HSM:                     f.HSM,
+		Desktop:                 f.Desktop,
 	}
 }
 
@@ -147,6 +150,7 @@ func (p *defaultModules) Features() Features {
 		Kubernetes: true,
 		DB:         true,
 		App:        true,
+		Desktop:    true,
 	}
 }
 
