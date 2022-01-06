@@ -62,6 +62,14 @@ auth_service:
 This setting will indicate to the clients (such as `tsh` or reverse tunnel
 agents) that they should connect to the web proxy port using TLS routing.
 
+<Admonition type="note" title="Compatibility">
+  Turning multiplexing on will not affect existing connections of trusted
+  clusters, reverse tunnel agents and tsh/ssh clients. As long as the legacy
+  listeners are enabled (see [step 7](#step-77-disable-legacy-listeners) below),
+  all clients will keep connecting in the backwards compatibility mode until
+  restarted or relogged in/reconfigured in case of tsh/ssh as described below.
+</Admonition>
+
 ## Step 3/7. Reconnect trusted clusters
 
 If you're already multiplexing trusted cluster connections on the web proxy port
