@@ -659,8 +659,9 @@ $(VERSRC): Makefile
 # Note: any build flags needed to compile go files (such as build tags) should be provided below.
 .PHONY: update-api-module-path
 update-api-module-path:
-	go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
-	$(MAKE) grpc
+	# update-api-module-path is temporarily disabled because currently `make grpc` does not know how to deal with v2+ go modules.
+	# go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
+	# $(MAKE) grpc
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
