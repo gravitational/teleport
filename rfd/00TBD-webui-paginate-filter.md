@@ -7,7 +7,7 @@ state: draft
 
 ## What
 
-Provide server-side pagination and filtering capabilities for the web UI for select resources: nodes, apps, dbs, and kubes.
+Provide server-side pagination and filtering capabilities for the web UI for select resources: nodes, apps, dbs, kubes, and desktops.
 
 ## Why
 
@@ -21,11 +21,187 @@ There is already pagination support for resources: nodes, apps, dbs. Kubes is [p
 
 ### Filter
 
-There will be filters that will be applied in order of precedence: RBAC > label + search > sort. RBAC will not be discussed since this check existed before. 
+There will be filters that will be applied in order of precedence: RBAC > label > search > sort. RBAC will not be discussed since this check existed before. 
 
-We will need to account for the query language used for other client tools. Currently, only `tsh ls` for listing nodes has support for filter. The language used for `tsh` will need to be deprecated to support for other filters like `search values` and to keep the user query language the same throughout the web UI and CLI (discussed later).
+### Filter: Label Query Language
 
-Listing of current pagination + filter support. Methods with `ListXXX` supports pagination and filter, while `GetXXX` does not (it retrieves entire list).
+The query language for labels will be modeled after [kubernetes labels](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/). Kubernetes uses `set based` filtering which matches a label `key` against a set of `values` as shown in examples below.
+
+The language will be the same across the web ui and cli tools.
+
+Supported operators:
+- Comma between labels acts as an `AND` operator (same interpretation as current `tsh ls <label1>,<label2>`)
+- Pipe between label `values` denotes a set and acts as a `OR` operator
+- Minus before a label acts as a `NOT` operator
+
+Additionally, an empty right-hand side of the `equals` char means `any values`.
+
+| Format                        | Operator  | Example          | Description                                 |
+|-------------------------------|-----------|------------------|---------------------------------------------|
+| `key=value`                   | exists    | `env=prod`       | rows with label `env=prod`                  |
+| `key=value1\|value2\|value*`  | exists    | `env=prod\|dev`  | rows with labels `env=prod` or `env=dev`    |
+| `-key=value`                  | notexists | `-env=prod`      | rows without label `env=prod`               |
+| `-key=value1\|value2\|value*` | notexists | `-env=prod\|dev` | rows without labels `env=prod` or `env=dev` |
+
+<br/>
+
+| Example Combos                    | Description                                                              |
+|-----------------------------------|--------------------------------------------------------------------------|
+| `env=prod\|dev,os=mac\|linux`     | rows with labels (`env=prod` or `env=dev`) and (`os=mac` or `os=linux`)  |
+| `env=prod\|dev,os=mac,country=us` | rows with labels (`env=prod` or `env=dev`) and `os=mac` and `country=us` |
+| `-env=prod,os=mac`                | rows without label `env=prod` and with label `os=mac`                    |
+| `foo=`                            | rows with a label with key `foo` with any values                         |
+| `-foo=`                           | rows without a label with key `foo` with any values                      |
+| `foo=,-foo=bar`                   | rows with a label with key `foo` with any values except `bar`            |
+
+<br/>
+
+In a label query, every key and its set will be translated into a list of expression objects, which will then be iterated and matched against the resource labels:
+
+```go
+type Operator int
+
+const (
+	Exists Operator = iota
+	NotExists
+)
+
+type Expr struct {
+	Key    string
+	Op     Operator
+	Values []string
+}
+```
+
+**Support for Grouping and OR operator**
+
+Kubernetes does not support grouping (other than the basic shown in examples) and does not support OR operator between different labels ie `env=prod || os=mac`. On research, I could not find any user request or complaints about these features and concluded that it must not be too applicable enough to support.
+
+<br/>
+
+### Filter: Sort
+
+Sorting can be accomplished by retrieving the entire list of resources and then applying filtering/pagination against it, but this works against how pagination + filtering currently works which is:
+
+ - retrieve a subset from list (page)
+ - apply matchers against this page
+ - repeat until we reach the desired page limit
+
+This technique does not support sorting, but provides faster performance and is used for [tsh](https://github.com/gravitational/teleport/blob/master/api/client/client.go#L1554) with nodes, where an entire list of nodes is retrieved upfront by getting chunks on a loop until `startKey` returns empty.
+
+The web UI will not request for the entire list of resources upfront, but will provide a user with a `fetch more` button if a user desires to see the next page if any.
+
+We can branch off into two functions with current `ListResources` based on if sorting was requested (orting will be disabled for `tsh`, so that `tsh` performance will not be affected):
+
+  - `listResources` (keeps current behavior)
+  - `listResourcesWithSort`
+
+`listResourcesWithSort` will:
+
+1. retrieve the entire list of resources ie: `GetNodes` (operating on cache)
+1. apply filters (rbac > label + search)
+1. sort
+1. paginate
+
+Similarly to how we did on the web UI, we have to decide which fields of a resource will be sortable. There will be a sort data type that stores the sort column (field const of a resource) and the sort direction (asc or desc). Custom sort function will be used for each resource type. The column name will be defined as const strings that will be used by clients and server.
+
+```go
+type Direction int
+
+const (
+	Asc Direction = iota
+	Desc
+)
+
+type Sort struct {
+	Column    string
+	Dir     Direction
+}
+
+```
+
+**Current sortable fields in the web ui:**
+
+| Server Columns       | Const String |
+|----------------------|--------------|
+| Server.Spec.Hostname | "hostname"   |
+| Server.Spec.Addr     | "address"    |
+
+<br />
+
+| App Server Columns       | Const String  |
+|--------------------------|---------------|
+| App.Metadata.Name        | "name"        |
+| App.Metadata.Description | "description" |
+| App.Spec.PublicAddr      | "address"     |
+
+<br />
+
+| Db Server Columns         | Const String  |
+|---------------------------|---------------|
+| DB.Metadata.Name          | "name"        |
+| DB.Metadata.Description   | "description" |
+| DB.Spec.(AWS,Azure...)... | "type"        |
+
+<br />
+
+| Kube Cluster Columns | Const String |
+|----------------------|--------------|
+| KubeCluster.Name     | "name"       |
+
+<br/>
+
+| Desktops Columns      | Const String |
+|-----------------------|--------------|
+| Desktop.Metadata.Name | "name"       |
+| Desktop.Spec.Addr     | "address"    |
+
+<br/>
+
+### Filter: Search
+
+The fields we allow for searching should be mostly the same as sorting. Search values will be stored as simple list of strings that will be iterated through resource fields to look for match ignoring order. If a user wants to search a phrase, they must supply the phrase within paranthesis.
+
+| Search values | Interpretation     |
+|---------------|--------------------|
+| foo bar       | ["foo", "bar"]     |
+| "foo bar"     | ["foo bar"]        |
+| "foo bar" baz | ["foo bar", "baz"] |
+
+
+The below are the current searchable fields in the web ui, minus labels in which the label filtering should be used instead:
+
+- `Server Fields`: [hostname, addr, tunnel]
+- `App Fields`: [name, publicAddr, description]
+- `DB Fields`: [name, description, protocol, type]
+- `Kube Fields`: [name]
+- `Desktop Fields`: [name, address]
+
+**Some things to consider:**
+
+Sometimes the UI will format a field to be displayed differently ie: if a server does not have a addr, we display `tunnel` to the user, a user may search for `tunnel`, expecting to get all tunnels. Or for app types, we display `cloud sql` instead of `gcp`. To handle this, we could extend search functionality for these special cases to check for these values.
+
+<br/>
+
+### List of Unique Labels
+
+A user needs to be able to see a list of available labels as a dropdown, and so we need to create a new rpc and a new web api endpoint to retrieve them.
+
+```
+rpc GetResourceLabels(resourceType string) returns []Labels
+
+GET /webabpi/sites/:sites/<nodes|apps|databases|kubernetes>/labels
+```
+
+The new rpc will return a list of unique labels by going through a list of resources that is first ran through rbac checks (so users don't see labels to a resource they don't have access to).
+
+There is an edge case where each resource in a list, can have unique labels which can result in a large list, ie. with 30k items in list, one unique label will result in 30k+ labels, two unique labels will result in 60k+ labels and so on. I don't think listing one time labels are particularly useful to the user. We can only return labels that have at least 2 occurences by keeping track of how often labels appear as we process the list to dramatically cut down the length.
+
+<br/>
+
+### Client: tsh and tctl
+
+Tables below are listing of current pagination + filter support. Methods with `ListXXX` supports pagination and filter, while `GetXXX` does not (it retrieves entire list).
 
 | tctl  | Method Used Currently | Current Query Language |
 |-------|-----------------------|------------------------|
@@ -44,16 +220,32 @@ Listing of current pagination + filter support. Methods with `ListXXX` supports 
 
 <br/>
 
-### Filter: Query Language
+Currently, only `tsh ls` for listing nodes has support for filter. The command will be extended for advanced label querying and searching (sorting will be disabled as discussed earlier for performance reasons).
 
-There will be three types of query language:
-1. **User query language**: language the user uses to convey a query, applicable to `UI search bar` and `CLI tools`
-1. **URL query language**: just a slightly modified version of the user query language to make it URL friendly and bookmarkable (mainly replacing spaces with plus symbol)
-1. **Server side query language**: `vulcand/predicate` verbs like `contains` and `equals` and logical operators: `&&`, `||`, and `!`. Paranthesis can be used for grouping statements. The `user/url query language` will be converted to this language in the server.
+**Backwards Compatibility**
 
-**Allowed characters in the query param**
+Because we keep the original meaning of `comma` the same, extending will not be a problem. Fallbacks will be used when we switch from `ListNodes` and `GetXXX` to `ListResources`.
 
-According to [rfc 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-3.4), query parameters are allowed to have the following characters unencoded in the URL. Delimiters were chosen following these rules:
+**Proposed Flags**
+
+`tsh` will keep the current behavior where it can define labels without any flags, in addition:
+
+| Long flag | Description   | Example                                 |
+|-----------|---------------|-----------------------------------------|
+| --labels  | label query   | `tsh ls --labels=env=prod\|dev,os=mac`  |
+| --search  | search values | `tsh ls --search=foo,bar,"some phrase"` |
+
+<br/>
+
+### Client: Web UI
+
+#### URL 
+
+URL query params will store the required fields necessary for pagination and filter. The URL will be made bookmarkable (minus some query params only relevant to server).
+
+**Allowed characters in the URL query param**
+
+According to [rfc 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-3.4), query parameters are allowed to have the following characters unencoded in the URL. Characters and delimiters were chosen following these rules:
 
 | Category     | Description                                                      |
 |--------------|------------------------------------------------------------------|
@@ -64,272 +256,89 @@ According to [rfc 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-3.
 
 <br/>
 
-**Proposed User/URL Query language (inspired by github)**
+**Proposed Query Params and Delimiters**
 
-| Query Params (URL) | Description                                                                                   |
-|--------------------|-----------------------------------------------------------------------------------------------|
-| `limit`            | Maximum number of rows to return on each fetch.                                               |
-| `startKey`         | Resume row search from the last row received. Empty string means start search from beginning. |
-| `q`                | Start of filter query.                                                                        |
-
-<br/>
-
-| Filter Identifier | Description                                                       |
-|-------------------|-------------------------------------------------------------------|
-| `l=<key>:<value>` | Identifies `<key>:<value>` as a label filter.                     |
-| `s=<col>:<dir>`   | Identifies `<col>:<dir>` as a sort filter.                        |
-| `<value>`         | Values with no identifiers will be interpreted as a search value. |
+| Query Params | Description                                                                                   |
+|--------------|-----------------------------------------------------------------------------------------------|
+| `limit`      | Maximum number of rows to return on each fetch.                                               |
+| `startKey`   | Resume row search from the last row received. Empty string means start search from beginning. |
+| `labels`     | Start of label query.                                                                         |
+| `sort`       | Sort column and direction.                                                                    |
+| `search`     | Search values.                                                                                |
 
 <br/>
 
-| Delimiters  | Description                                                                                 |
-|-------------|---------------------------------------------------------------------------------------------|
-| `:` (colon) | Delimiter in a filter identifier to mean separate values.                                   |
-| `+` (plus)  | A filter delimiter `AND` to mean inclusion of filter values. Only used in URL.              |
-| ` ` (space) | A filter delimiter `AND` to mean inclusion of filter values. Only used in CLI or search bar |
-| `-` (minus) | A filter delimiter `NOT` to mean exclusion of filter value.                                 |
-| `,` (comma) | A filter delimiter `OR` to mean match any filter values.                                    |
+| URL Delimiters  | Description                                                                                          |
+|-----------------|------------------------------------------------------------------------------------------------------|
+| `=` (equal)     | Delimiter to mean separate values, `key=value` or `column=direction`                                 |
+| `-` (minus)     | Acts as a `NOT` operator specifically used to mean excluding a label                                 |
+| `,` (comma)     | Acts as a `AND` operator between values.                                                             |
+| `;` (semicolon) | Denotes a label `values` as a set, and acts as a `OR` operator. Pipe cannot be part of URL unencoded |
 
 <br/>
 
 **Examples**
 
-| URL Query Examples                  | Description                                                                    |
-|-------------------------------------|--------------------------------------------------------------------------------|
-| `?q=l=env:prod+l=country:US`        | rows must contain labels `env:prod` and `country:US`                           |
-| `?q=l=os:mac,os:linux+-l=env:prod`  | rows can contain labels `os:mac` or `os:linux` but not `env:prod`              |
-| `?q=-l=os:mac+banana`               | rows cannot contain label `os:mac` but contain search value `banana`           |
-| `?q=l=os:mac+s=colName:desc+banana` | rows must contain `os:mac` and `banana` and sorted by column `name` descending |
-
-<br/>
-
-| User Query Equivalent                    | Description                                                                    |
-|------------------------------------------|--------------------------------------------------------------------------------|
-| `tsh ls l=env:prod l=country:US`         | rows must contain labels `env:prod` and `country:US`                           |
-| `tsh ls l=os:mac,l=os:linux -l=env:prod` | rows can contain labels `os:mac` or `os:linux` but not `env:prod`              |
-| `tsh ls -l=os:mac banana`                | rows cannot contain label `os:mac` but contain search value `banana`           |
-| `l=os:mac s=colName:desc banana` *       | rows must contain `os:mac` and `banana` and sorted by column `name` descending |
-
-\* sorting will be disabled for `tsh` for performance reasons (discussed later)
-
-<br/>
-
-| Server Query Equivalent                                                | Description                                                          |
-|------------------------------------------------------------------------|----------------------------------------------------------------------|
-| `equals(env, "prod") && equals(country, "US")`                         | rows must contain labels `env:prod` and `country:US`                 |
-| `(equals(os, "mac") \|\| equals(os, "linux")) && !equals(env, "prod")` | rows can contain labels `os:mac` or `os:linux` but not `env:prod`    |
-| `!equals(os, "mac") && (equals(<searchField>, "banana"))`              | rows cannot contain label `os:mac` but contain search value `banana` |
-
-<br/>
-
-**Complex Query Support**
-
-We can support very basic grouping (similar to github):
-
-| Complex Query Examples                     | Description                                                                          |
-|--------------------------------------------|--------------------------------------------------------------------------------------|
-| `l=env:prod,l=env:dev l=os:mac,os:windows` | rows must contain labels `env:prod` or `env:dev` AND labels `os:mac` or `os:windows` |
-
-If we want to support flexible grouping, we could define another filter identifier `g=(<values>)` meaning whatever is contained in this identifier should be grouped, contrived example: `-l=env:dev,g=(l=os:mac l=os:windows)` which is saying `!a || (b && c)`
+| Bookmarkable Query Examples      | Description                                                       |
+|----------------------------------|-------------------------------------------------------------------|
+| `?labels=env=prod,country=US`    | rows must contain labels `env:prod` and `country:US`              |
+| `?labels=os=mac;linux,-env=prod` | rows can contain labels `os:mac` or `os:linux` but not `env:prod` |
+| `?search=foo,bar`                | rows contain search values `foo` and `bar`                        |
+| `?sort=hostname=desc`            | rows sorted by column `hostname`in `descending` order             |
 
 <br/>
 
 **Complete URL Example:**
 
 ```
-https://cloud.dev/v1/webapi/sites/clusterName/nodes?limit=10&startKey=abc&q=l=os:windows+-l=env:prod+s=colName:asc+foo+bar
+https://cloud.dev/v1/webapi/sites/clusterName/nodes?limit=10&startKey=abc&labels=os=mac;linux,-env=prod&sort=hostname=desc&search=foo,bar
 
 // Parsed in proxy for the following data, which will be sent to auth server:
 - Limit: 10 per page
 - StartKey: abc
-- Sort: {col: `colName`, dir: `asc`}
-- Query: equals(os, "windows") && !equals(env, "prod") && (contains(<searcheableField>, "foo") && contains(<searcheableField>, "bar"))
+- Sort: {col: `hostname`, dir: `desc`}
+- Search: ["foo", "bar"]
+- LabelExpr: Expr[{Key: "os", Values: ["mac", "linux"], Op: Exists},   {Key: "env", Values: ["prod"], Op: NotExists}]
 ```
 
-### Filter: Sort
+**Things to consider**
 
-Sorting can be accomplished by retrieving the entire list of resources and then applying filtering/pagination against it, but this works against how pagination + filtering currently works which is:
+- We need to account for unexpected query changes when user's login with SSO. The redirect URL will get parsed in the back which will convert (as an example) unencoded `+` to blank space, so all unencoded delimiters should be tested.
 
- - retrieve a subset from list (page)
- - apply matchers against this page
- - repeat until we reach the desired page limit
-
-This technique does not support sorting, but provides faster performance and is used for [tsh](https://github.com/gravitational/teleport/blob/master/api/client/client.go#L1554) with nodes, where an entire list of nodes is retrieved upfront by getting chunks on a loop until `startKey` returns empty.
-
-The web UI will not request for the entire list of resources upfront, but will provide a user with a `fetch more` button if a user desires to see the next page if any.
-
-We can branch off into two functions with current `ListResources` based on if sorting was requested. Sorting will be disabled for `tsh`, so that `tsh` performance will not be affected:
-
-  - `listResources` (keeps current behavior)
-  - `listResourcesWithSort`
-
-`listResourcesWithSort` will:
-
-1. retrieve the entire list of resources ie: `GetNodes` (operating on cache)
-1. apply filters (rbac > label + search)
-1. sort
-1. paginate
-
-Similarly to how we did on the web UI, we have to decide which fields of a resource will be sortable. There will be a sort data type that stores the sort column (field const of a resource) and the sort direction (asc or desc). Custom sort function will be used for each resource type. The column name will be defined as const strings that will be used by both client and server side:
-
-**Example:**
-
-| Server Columns       | Const String  |
-|----------------------|---------------|
-| Server.Spec.Hostname | "colHostname" |
-| Server.Spec.Addr     | "colAddr"     |
-
-<br />
-
-| App Server Columns       | Const String     |
-|--------------------------|------------------|
-| App.Metadata.Name        | "colName"        |
-| App.Metadata.Description | "colDescription" |
-| App.Spec.PublicAddr      | "colPublicAddr"  |
-
-<br />
-
-| Db Server Columns         | Const String     |
-|---------------------------|------------------|
-| DB.Metadata.Name          | "colName"        |
-| DB.Metadata.Description   | "colDescription" |
-| DB.Spec.(AWS,Azure...)... | "colType"        |
-
-<br />
-
-| Kube Cluster Columns | Const String |
-|----------------------|--------------|
-| KubeCluster.Name     | "colName"    |
+- Since teleport does not put restrictions on label characters, the URL delimiters and label key and value can clash. To prevent this, we will encode labels. (`tsh` handles this by using quotation marks ie: if label contains a equal sign then `tsh ls "key=has=equal=sign"=foo`)
 
 <br/>
 
-### Filter: Label + Search
-
-Currently, only node resource has the capability to be matched against labels (other resources are [pending](https://github.com/gravitational/teleport/pull/9096#issuecomment-989291135)). The matching needs to be extended to also support filtering by search values and support for `NOT` and `OR` label matching.
-
-In order to expand filtering to support NOT and OR, we can use the `vulcand/predicate` library.
-
-Assuming the query string is in the form the `vulcand/predicate` library expects:
-1. Create a custom predicate parser that on parse `query string` ouputs an expression tree (similar to [newParserForIdentifierSubcondition](https://github.com/gravitational/teleport/blob/master/lib/services/parser.go#L416))
-1. Feed this expression tree to [ToFieldsCondition](https://github.com/gravitational/teleport/blob/master/lib/utils/fields.go#L100) that returns boolean function to apply on fields.
-1. For each row, create a `Fields` map that contains all the field values we want to test against the conditions created from previous step. [(example of a similar usage done in teleport)](https://github.com/gravitational/teleport/blob/master/lib/utils/fields_test.go#L52)
-
-**Example:**
-
-Given these searcheable columns for an app (same as sort fields):
-
-| App Server Columns       | Const String     |
-|--------------------------|------------------|
-| App.Metadata.Name        | "colName"        |
-| App.Metadata.Description | "colDescription" |
-| App.Spec.PublicAddr      | "colPublicAddr"  |
-
-Given a query string, build an expression tree to create field conditions:
-```go
-// row must contain labels `env:prod` and `os:mac` and search value `searchValue`
-equals(env, "prod") && equals(os, "mac") && (contains(colName, "searchValue") || contains(colDescription, "searchValue") || contains(colPublicAddr, "searchValue"))
-```
-
-For each row, construct a `map[string]string` that contains all fields and values we want to test against our field conditions:
-```go
-Fields{
-  // Static Labels, already in map[string]string format
-  ...App.Metadata.labels,
-  // Dynamic labels, already in map[string]string format
-  ...App.Spec.CmdLabels
-  // Searcheable fields
-  "colName": App.Metadata.Name,
-  "colDescription": App.Metadata.Description,
-  "colPublicAddr": App.Spec.PublicAddr
-}
-```
-
-**Some things to consider:**
-
-Sometimes the UI will format a field to be displayed differently ie: if a server does not have a addr, we display `tunnel` to the user, a user may search for `tunnel`, expecting to get all tunnels. Or for app types, we display `cloud sql` instead of the actual value `gcp`.
-
-I'm not entirely sure how to handle this, other than to display actual values to user (tunnel column and display `gcp` instead of `cloud sql`). Or if filtering by tunnels is important, we can make `isTunnel` to be a type of filter a user can specify, and if specified returns servers that uses tunnels.
-
-<br/>
-
-### List of Unique Labels
-
-A user needs to be able to see a list of available labels as a dropdown, and so we need to create a new rpc and a new web api endpoint to retrieve them.
-
-```
-rpc GetResourceLabels(resourceType string) returns []Labels
-
-GET /webabpi/sites/:sites/<nodes|apps|databases|kubernetes>/labels
-```
-
-The new rpc will return a list of unique labels by going through a list of resources that is first ran through rbac checks (so users don't see labels to a resource they don't have access to).
-
-There is an edge case where each resource in a list, can have unique labels which can result in a large list, ie. with 30k items in list, one unique label will result in 30k+ labels, two unique labels will result in 60k+ labels and so on. I don't think listing one time labels are particularly useful to the user. We can only return labels that have at least 2 occurences by keeping track of how often labels appear as we process the list to dramatically cut down the length.
-
-There are two types of labels: `static` and `dynamic` ie:
-
-```
-ssh_service:
-  enabled: yes
-
-  # static
-  labels:
-    env: dev
-
-  # dynamic
-  commands:
-  - name: uptime
-    command: ["uptime", "-p"]
-    period: 1m0s
-```
-
-Some `dynamic` labels are time sensitive, as shown in the example. Such `dyanmic` labels with non zero `duration` will not be part of the list.
-
-<br/>
-
-## Web UI Changes
-
-### Pagination
-
-Paginating and fetching for more rows will behave the same as how audit logs are currently working.
-
-### Sorting
-
-Sort buttons on table columns will stay the same.
-
-### Label Filtering
-
-There will be a button `Select Filter` that once clicked, makes a call to fetch the list of labels (if not already fetched), and then renders a drop down menu of the list of filters (paginated if the list exceeds 100).
-
-There are some edge cases that neesd to be considered for this filter:
-
-- disallow user selecting more than one type of label for `AND` operator. Label keys are unique, and can't appear twice in a row, so the following won't make sense: `env:prod && env:staging`
-
-### Search
+#### Search
 
 The behavior of the search input box will be different in that the user must be intentional and press the `enter` key to make a request (similar to github search behavior). 
 
 We should also place an `x` button at the end of the search bar where if clicked, clears the search bar and updates URL query.
 
-In future work, this search bar should also allow users to type user query language (similar to github). 
+In future work, this search bar should also be extended to allow users to type the same label query as done in the CLI.
 
-### URL 
+#### Label Filtering
 
-URL query param will be updated per user changes filter, which will trigger a fetch.
+There will be a button `Select Filter` that once clicked, makes a call to fetch the list of labels (if not already fetched), and then renders a drop down menu of the list of filters (paginated if the list exceeds 100).
 
-**Note**
+In future work, this drop down will be extended to allow selecting sets, and `NOT`ing a label through use of shortcut keys (as done in github).
 
-We need to account for unexpected query changes when user's login with SSO. The redirect URL will get parsed in the back which will convert unencoded `+` to blank space (other delimiters should also be tested).
+#### Pagination
 
-<br/>
+Paginating and fetching for more rows will behave the same as how audit logs are currently working.
+
+#### Sorting
+
+Sort buttons on table columns will stay the same, but on click will update the query param with sort field, which will trigger a fetch.
 
 ## Phases of Work
 
-- Phase 1: 
-  - pagination
-  - filtering by AND labels, search values, and sort
-  - label drop down and allow click on labels from table rows
+- Phase 1: will focus on bringing server side pagination and filtering to nodes only in the web UI to match `tsh`.
+  - filtering by labels (only `AND`), search values, and sort
+  - label drop down menu and allow click on labels from table rows
   - search bar will be soley used for search values in this phase
 - Phase 2: 
-  - add support for OR and NOT labels
-  - extend our search bar to allow users to type query
+  - add support for label value set and `NOT` operator
+  - extend web ui search bar to allow users to type label query
+- Phase 3:
+  - bring pagination + filter support to rest of resources for tsh, tctl and web ui
