@@ -183,6 +183,9 @@ const (
 	// MetricBuildInfo tracks build information
 	MetricBuildInfo = "build_info"
 
+	// MetricReverseSSHTunnels defines the number of connected SSH reverse tunnels to the proxy
+	MetricReverseSSHTunnels = "reverse_tunnels_connected"
+
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
 
@@ -206,4 +209,7 @@ const (
 
 	// TagGoVersion is a prometheus label for version of Go used to build Teleport
 	TagGoVersion = "goversion"
+
+	// TagType is a prometheus label for type of resource or tunnel connected
+	TagType = "type"
 )

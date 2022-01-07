@@ -420,6 +420,8 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 				if len(current) > 0 {
 					rconn.updateProxies(current)
 				}
+				reverseSSHTunnels.WithLabelValues(rconn.tunnelType).Inc()
+				defer reverseSSHTunnels.WithLabelValues(rconn.tunnelType).Dec()
 				firstHeartbeat = false
 			}
 			var timeSent time.Time
@@ -558,6 +560,14 @@ var (
 			Help: "Number of missing SSH tunnels",
 		},
 	)
+	reverseSSHTunnels = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricReverseSSHTunnels,
+			Help:      "Number of reverse SSH tunnels connected to proxy by Teleport instances",
+		},
+		[]string{teleport.TagType},
+	)
 
-	localClusterCollectors = []prometheus.Collector{missingSSHTunnels}
+	localClusterCollectors = []prometheus.Collector{missingSSHTunnels, reverseSSHTunnels}
 )
