@@ -732,7 +732,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 	return nil
 }
 
-// dispatch creates and initialize an appropriate database engine for the session.
+// dispatch creates and initializes an appropriate database engine for the session.
 func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter, clientConn net.Conn) (common.Engine, error) {
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
 		Emitter: streamWriter,
@@ -742,7 +742,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 	}
 	engine, err := s.createEngine(sessionCtx, audit)
 	if err != nil {
-		return engine, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if err := engine.InitializeConnection(clientConn, sessionCtx); err != nil {
