@@ -271,6 +271,16 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, types.Databases{expectedMyEndpoint1, expectedMyEndpoint2}, databases)
 	})
+
+	t.Run("bad custom endpoints ", func(t *testing.T) {
+		badCluster := *cluster
+		badCluster.CustomEndpoints = []*string{
+			aws.String("badendpoint1"),
+			aws.String("badendpoint2"),
+		}
+		_, err := NewDatabasesFromRDSClusterCustomEndpoints(&badCluster)
+		require.Error(t, err)
+	})
 }
 
 func TestParseRDSCustomEndpoint(t *testing.T) {

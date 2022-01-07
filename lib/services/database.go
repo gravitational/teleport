@@ -163,13 +163,6 @@ func NewDatabaseFromRDSClusterReaderEndpoint(cluster *rds.DBCluster) (types.Data
 		Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
 		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ReaderEndpoint), aws.Int64Value(cluster.Port)),
 		AWS:      *metadata,
-
-		// overwrite server name with the primary endpoint name as the rds
-		// instances may not have up-to-date certs that contains reader/custom
-		// endpoints
-		TLS: types.DatabaseTLS{
-			ServerName: aws.StringValue(cluster.Endpoint),
-		},
 	})
 }
 
@@ -179,11 +172,14 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var errors []error
 	var databases types.Databases
 	for _, endpoint := range cluster.CustomEndpoints {
 		endpointName, err := parseRDSCustomEndpoint(aws.StringValue(endpoint))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			errors = append(errors, trace.Wrap(err))
+			continue
 		}
 
 		database, err := types.NewDatabaseV3(types.Metadata{
@@ -195,20 +191,21 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 			URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint), aws.Int64Value(cluster.Port)),
 			AWS:      *metadata,
 
-			// overwrite server name with the primary endpoint name as the rds
-			// instances may not have up-to-date certs that contains reader/custom
-			// endpoints
+			// Aurora instances update their certificates upon restart, and thus custom endpoint SAN may not be available right
+			// away. Using primary endpoint instead as server name since it's always available.
 			TLS: types.DatabaseTLS{
 				ServerName: aws.StringValue(cluster.Endpoint),
 			},
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			errors = append(errors, trace.Wrap(err))
+			continue
 		}
 
 		databases = append(databases, database)
 	}
-	return databases, nil
+
+	return databases, trace.NewAggregate(errors...)
 }
 
 // MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
