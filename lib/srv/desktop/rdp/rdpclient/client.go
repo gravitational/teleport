@@ -194,7 +194,7 @@ func (c *Client) readClientSize() error {
 }
 
 func (c *Client) connect(ctx context.Context) error {
-	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username)
+	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username, c.cfg.CertTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
