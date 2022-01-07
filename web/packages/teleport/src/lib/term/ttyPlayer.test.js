@@ -25,88 +25,80 @@ describe('lib/term/ttyPlayer/eventProvider', () => {
     jest.clearAllMocks();
   });
 
-  describe('new()', () => {
-    it('should create an instance', () => {
-      const provider = new EventProvider({ url: 'sample.com' });
-      expect(provider.events).toEqual([]);
-    });
+  it('should create an instance', () => {
+    const provider = new EventProvider({ url: 'sample.com' });
+    expect(provider.events).toEqual([]);
   });
 
-  describe('init()', () => {
-    it('should load events and initialize itself', async () => {
-      const provider = new EventProvider({ url: 'sample.com' });
+  it('should load events and initialize itself', async () => {
+    const provider = new EventProvider({ url: 'sample.com' });
 
-      jest.spyOn(api, 'get').mockImplementation(() => Promise.resolve(sample));
-      jest.spyOn(provider, '_createEvents');
-      jest.spyOn(provider, '_normalizeEventsByTime');
-      jest
-        .spyOn(provider, '_fetchContent')
-        .mockImplementation(() => Promise.resolve());
-      jest.spyOn(provider, '_populatePrintEvents').mockImplementation();
+    jest.spyOn(api, 'get').mockImplementation(() => Promise.resolve(sample));
+    jest.spyOn(provider, '_createEvents');
+    jest.spyOn(provider, '_normalizeEventsByTime');
+    jest
+      .spyOn(provider, '_fetchContent')
+      .mockImplementation(() => Promise.resolve());
+    jest.spyOn(provider, '_populatePrintEvents').mockImplementation();
 
-      await provider.init();
+    await provider.init();
 
-      expect(api.get).toHaveBeenCalledWith('sample.com/events');
-      expect(provider._createEvents).toHaveBeenCalledWith(sample.events);
-      expect(provider._normalizeEventsByTime).toHaveBeenCalled();
-      expect(provider._fetchContent).toHaveBeenCalled();
-      expect(provider._populatePrintEvents).toHaveBeenCalled();
-    });
+    expect(api.get).toHaveBeenCalledWith('sample.com/events');
+    expect(provider._createEvents).toHaveBeenCalledWith(sample.events);
+    expect(provider._normalizeEventsByTime).toHaveBeenCalled();
+    expect(provider._fetchContent).toHaveBeenCalled();
+    expect(provider._populatePrintEvents).toHaveBeenCalled();
   });
 
-  describe('_createEvents()', () => {
-    it('should create event objects', () => {
-      const provider = new EventProvider({ url: 'sample.com' });
-      const events = provider._createEvents(sample.events);
-      const eventObj = {
-        eventType: 'print',
-        displayTime: '00:45',
-        ms: 4523,
-        bytes: 6516,
-        offset: 137723,
-        data: null,
-        w: 115,
-        h: 23,
-        time: new Date('2016-05-09T14:57:51.238Z'),
-        msNormalized: 1744,
-      };
+  it('should create event objects', () => {
+    const provider = new EventProvider({ url: 'sample.com' });
+    const events = provider._createEvents(sample.events);
+    const eventObj = {
+      eventType: 'print',
+      displayTime: '00:45',
+      ms: 4523,
+      bytes: 6516,
+      offset: 137723,
+      data: null,
+      w: 115,
+      h: 23,
+      time: new Date('2016-05-09T14:57:51.238Z'),
+      msNormalized: 1744,
+    };
 
-      expect(events).toHaveLength(32);
-      expect(events[30]).toEqual(eventObj);
-    });
+    expect(events).toHaveLength(32);
+    expect(events[30]).toEqual(eventObj);
   });
 
-  describe('fetchContent()', () => {
-    it('should fetch session content', async () => {
-      const provider = new EventProvider({ url: 'sample.com' });
+  it('should fetch session content', async () => {
+    const provider = new EventProvider({ url: 'sample.com' });
 
-      jest
-        .spyOn(provider, '_fetchEvents')
-        .mockImplementation(() =>
-          Promise.resolve(provider._createEvents(sample.events))
-        );
-
-      jest
-        .spyOn(api, 'fetch')
-        .mockImplementation(() => Promise.resolve({ text: () => sample.data }));
-
-      await provider.init();
-
-      expect(api.fetch).toHaveBeenCalledWith(
-        `sample.com/stream?offset=0&bytes=${MAX_SIZE}`,
-        {
-          Accept: 'text/plain',
-          'Content-Type': 'text/plain; charset=utf-8',
-        }
+    jest
+      .spyOn(provider, '_fetchEvents')
+      .mockImplementation(() =>
+        Promise.resolve(provider._createEvents(sample.events))
       );
 
-      const buf = new Buffer(sample.data);
-      const lastEvent = provider.events[provider.events.length - 2];
-      const expectedChunk = buf
-        .slice(lastEvent.offset, lastEvent.offset + lastEvent.bytes)
-        .toString('utf8');
-      expect(lastEvent.data).toEqual(expectedChunk);
-    });
+    jest
+      .spyOn(api, 'fetch')
+      .mockImplementation(() => Promise.resolve({ text: () => sample.data }));
+
+    await provider.init();
+
+    expect(api.fetch).toHaveBeenCalledWith(
+      `sample.com/stream?offset=0&bytes=${MAX_SIZE}`,
+      {
+        Accept: 'text/plain',
+        'Content-Type': 'text/plain; charset=utf-8',
+      }
+    );
+
+    const buf = new Buffer(sample.data);
+    const lastEvent = provider.events[provider.events.length - 2];
+    const expectedChunk = buf
+      .slice(lastEvent.offset, lastEvent.offset + lastEvent.bytes)
+      .toString('utf8');
+    expect(lastEvent.data).toEqual(expectedChunk);
   });
 });
 
@@ -115,52 +107,48 @@ describe('lib/ttyPlayer', () => {
     jest.clearAllMocks();
   });
 
-  describe('new()', () => {
-    it('should create an instance', () => {
-      const ttyPlayer = new TtyPlayer({ url: 'testSid' });
-      expect(ttyPlayer.isReady()).toBe(false);
-      expect(ttyPlayer.isPlaying()).toBe(false);
-      expect(ttyPlayer.isError()).toBe(false);
-      expect(ttyPlayer.isLoading()).toBe(true);
-      expect(ttyPlayer.duration).toBe(0);
-      expect(ttyPlayer.current).toBe(0);
-    });
+  it('should create an instance', () => {
+    const ttyPlayer = new TtyPlayer({ url: 'testSid' });
+    expect(ttyPlayer.isReady()).toBe(false);
+    expect(ttyPlayer.isPlaying()).toBe(false);
+    expect(ttyPlayer.isError()).toBe(false);
+    expect(ttyPlayer.isLoading()).toBe(true);
+    expect(ttyPlayer.duration).toBe(0);
+    expect(ttyPlayer.current).toBe(0);
   });
 
-  describe('connect()', () => {
-    it('should connect using event provider', async () => {
-      const ttyPlayer = new TtyPlayer(new EventProvider({ url: 'testSid' }));
+  it('should connect using event provider', async () => {
+    const ttyPlayer = new TtyPlayer(new EventProvider({ url: 'testSid' }));
 
-      jest.spyOn(api, 'get').mockImplementation(() => Promise.resolve(sample));
-      jest
-        .spyOn(ttyPlayer._eventProvider, '_fetchContent')
-        .mockImplementation(() => Promise.resolve(sample.data));
+    jest.spyOn(api, 'get').mockImplementation(() => Promise.resolve(sample));
+    jest
+      .spyOn(ttyPlayer._eventProvider, '_fetchContent')
+      .mockImplementation(() => Promise.resolve(sample.data));
 
-      await ttyPlayer.connect();
+    await ttyPlayer.connect();
 
-      expect(ttyPlayer.isReady()).toBe(true);
-      expect(ttyPlayer.getEventCount()).toBe(32);
-    });
+    expect(ttyPlayer.isReady()).toBe(true);
+    expect(ttyPlayer.getEventCount()).toBe(32);
+  });
 
-    it('should indicate its loading status', async () => {
-      const ttyPlayer = new TtyPlayer(new EventProvider({ url: 'testSid' }));
-      jest
-        .spyOn(api, 'get')
-        .mockImplementation(() => Promise.resolve({ events: [] }));
+  it('should indicate its loading status', async () => {
+    const ttyPlayer = new TtyPlayer(new EventProvider({ url: 'testSid' }));
+    jest
+      .spyOn(api, 'get')
+      .mockImplementation(() => Promise.resolve({ events: [] }));
 
-      ttyPlayer.connect();
-      expect(ttyPlayer.isLoading()).toBe(true);
-    });
+    ttyPlayer.connect();
+    expect(ttyPlayer.isLoading()).toBe(true);
+  });
 
-    it('should indicate its error status', async () => {
-      jest.spyOn(console, 'error').mockImplementation(() => {});
-      jest.spyOn(api, 'get').mockImplementation(() => Promise.reject('!!'));
+  it('should indicate its error status', async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(api, 'get').mockImplementation(() => Promise.reject('!!'));
 
-      const ttyPlayer = new TtyPlayer(new EventProvider({ url: 'testSid' }));
+    const ttyPlayer = new TtyPlayer(new EventProvider({ url: 'testSid' }));
 
-      await ttyPlayer.connect();
-      expect(ttyPlayer.isError()).toBe(true);
-    });
+    await ttyPlayer.connect();
+    expect(ttyPlayer.isError()).toBe(true);
   });
 
   describe('move()', () => {
@@ -202,6 +190,7 @@ describe('lib/ttyPlayer', () => {
 
       tty.on(TermEventEnum.DATA, data => {
         renderedDataLength.push(data.length);
+        tty.resumeFlow();
       });
 
       tty.move(478);

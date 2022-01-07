@@ -42,7 +42,7 @@ export default function Player() {
         <ActionBar onLogout={onLogout} />
       </Flex>
       <Flex
-        bg={colors.primary.dark}
+        bg={colors.bgTerminal}
         flex="1"
         style={{
           overflow: 'auto',
@@ -60,12 +60,6 @@ const StyledPlayer = styled.div`
   width: 100%;
   position: absolute;
   flex-direction: column;
-
-  // always render cursor as focused
-  .terminal:not(.focus) .terminal-cursor {
-    outline: none !important;
-    background-color: #fff;
-  }
 
   .terminal .xterm-viewport {
     overflow-y: hidden !important;

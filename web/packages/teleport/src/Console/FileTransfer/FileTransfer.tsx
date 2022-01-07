@@ -25,24 +25,17 @@ import useScpContext, { ScpContextProvider } from './scpContextProvider';
 import { Scp } from './scpContext';
 
 export default function FileTransferDialogs(props: FileTransferDialogsProps) {
-  const {
-    isDownloadOpen,
-    isUploadOpen,
-    onClose,
-    clusterId,
-    serverId,
-    login,
-  } = props;
+  const { isDownloadOpen, isUploadOpen, onClose, clusterId, serverId, login } =
+    props;
   const isOpen = isDownloadOpen || isUploadOpen;
   if (!isOpen) {
     return null;
   }
 
-  const ctx = React.useMemo(() => new Scp({ clusterId, serverId, login }), [
-    clusterId,
-    serverId,
-    login,
-  ]);
+  const ctx = React.useMemo(
+    () => new Scp({ clusterId, serverId, login }),
+    [clusterId, serverId, login]
+  );
 
   return (
     <ScpContextProvider value={ctx}>
@@ -142,5 +135,5 @@ const StyledFileTransfer = styled.div`
   right: 0;
   top: 0;
   width: 496px;
-  z-index: 2;
+  z-index: 3;
 `;

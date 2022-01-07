@@ -15,25 +15,33 @@ limitations under the License.
 */
 
 import React from 'react';
+import { ThemeContext } from 'styled-components';
 import { Flex } from 'design';
 import Tty from 'teleport/lib/term/tty';
 import XTermCtrl from 'teleport/lib/term/terminal';
 import { getMappedAction } from 'teleport/Console/useKeyboardNav';
+import { getPlatform } from 'design/theme/utils';
 import StyledXterm from '../../StyledXterm';
 
 export default class Terminal extends React.Component<{ tty: Tty }> {
+  static contextType = ThemeContext;
+
   terminal: XTermCtrl;
 
-  refTermContainer = React.createRef();
+  refTermContainer = React.createRef<HTMLElement>();
 
   componentDidMount() {
+    const platform = getPlatform();
+    const fontSize = platform.isMac ? 12 : 14;
+
     this.terminal = new XTermCtrl(this.props.tty, {
       el: this.refTermContainer.current,
+      fontFamily: this.context.fonts.mono,
+      fontSize,
     });
 
     this.terminal.open();
 
-    // TODO deprecated, use attachCustomKeyEventHandler when we upgrade xterm
     this.terminal.term.attachCustomKeyEventHandler(event => {
       const { tabSwitch } = getMappedAction(event);
       if (tabSwitch) {

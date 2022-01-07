@@ -30,7 +30,9 @@ class Tty extends EventEmitter {
 
   _buffered = true;
   _attachSocketBufferTimer;
+  _attachSocketBuffer: string;
   _addressResolver = null;
+  _proto = new Protobuf();
 
   constructor(addressResolver, props = {}) {
     super();
@@ -41,7 +43,6 @@ class Tty extends EventEmitter {
 
     this._addressResolver = addressResolver;
     this._buffered = options.buffered;
-    this._proto = new Protobuf();
     this._onOpenConnection = this._onOpenConnection.bind(this);
     this._onCloseConnection = this._onCloseConnection.bind(this);
     this._onMessage = this._onMessage.bind(this);
@@ -53,7 +54,7 @@ class Tty extends EventEmitter {
     }
   }
 
-  connect(w, h) {
+  connect(w: number, h: number) {
     const connStr = this._addressResolver.getConnStr(w, h);
     this.socket = new WebSocket(connStr);
     this.socket.binaryType = 'arraybuffer';
@@ -72,7 +73,13 @@ class Tty extends EventEmitter {
     this.socket.send(bytearray.buffer);
   }
 
-  requestResize(w, h) {
+  // part of the flow control
+  pauseFlow() {}
+
+  // part of the flow control
+  resumeFlow() {}
+
+  requestResize(w: number, h: number) {
     if (!this.socket) {
       return;
     }
@@ -145,7 +152,7 @@ class Tty extends EventEmitter {
           }
           break;
         default:
-          throw Error('unknown message type', msg.type);
+          throw Error(`unknown message type: ${msg.type}`);
       }
     } catch (err) {
       logger.error('failed to parse incoming message.', err);

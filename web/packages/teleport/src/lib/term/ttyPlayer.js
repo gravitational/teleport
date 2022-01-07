@@ -40,8 +40,14 @@ export default class TtyPlayer extends Tty {
     this.duration = 0;
     this.status = StatusEnum.LOADING;
     this.statusText = '';
+
     this._posToEventIndexMap = [];
     this._eventProvider = eventProvider;
+
+    // _chunkQueue is a list of data chunks waiting to be rendered by the term.
+    this._chunkQueue = [];
+    // _writeInFlight prevents sending more data to xterm while a prior render has not finished yet.
+    this._writeInFlight = false;
   }
 
   // override
@@ -59,21 +65,18 @@ export default class TtyPlayer extends Tty {
       })
       .catch(err => {
         logger.error('unable to init event provider', err);
-        this.handleError(err);
+        this._handleError(err);
       })
       .finally(this._change.bind(this));
   }
 
-  handleError(err) {
-    this.status = StatusEnum.ERROR;
-    this.statusText = err.message;
+  pauseFlow() {
+    this._writeInFlight = true;
   }
 
-  _init() {
-    this.duration = this._eventProvider.getDuration();
-    this._eventProvider.events.forEach(item =>
-      this._posToEventIndexMap.push(item.msNormalized)
-    );
+  resumeFlow() {
+    this._writeInFlight = false;
+    this._chunkDequeue();
   }
 
   move(newPos) {
@@ -109,6 +112,7 @@ export default class TtyPlayer extends Tty {
       // 2. tell terminal to render 1 huge chunk that has everything up to current
       // location.
       if (isRewind) {
+        this._chunkQueue = [];
         this.emit(TermEventEnum.RESET);
       }
 
@@ -117,13 +121,13 @@ export default class TtyPlayer extends Tty {
       const events = this._eventProvider.events.slice(from, to);
       const printEvents = events.filter(onlyPrintEvents);
 
-      this._display(printEvents);
+      this._render(printEvents);
       this.currentEventIndex = newEventIndex;
       this.current = newPos;
       this._change();
     } catch (err) {
       logger.error('move', err);
-      this.handleError(err);
+      this._handleError(err);
     }
   }
 
@@ -139,7 +143,7 @@ export default class TtyPlayer extends Tty {
     }
 
     this.status = StatusEnum.PLAYING;
-    // start from the beginning if at the end
+    // start from the beginning if reached the end of the session
     if (this.current >= this.duration) {
       this.current = STREAM_START_INDEX;
       this.emit(TermEventEnum.RESET);
@@ -151,9 +155,8 @@ export default class TtyPlayer extends Tty {
 
   getCurrentTime() {
     if (this.currentEventIndex) {
-      let { displayTime } = this._eventProvider.events[
-        this.currentEventIndex - 1
-      ];
+      let { displayTime } =
+        this._eventProvider.events[this.currentEventIndex - 1];
       return displayTime;
     } else {
       return '--:--';
@@ -186,7 +189,25 @@ export default class TtyPlayer extends Tty {
     // do nothing
   }
 
-  _display(events) {
+  _init() {
+    this.duration = this._eventProvider.getDuration();
+    this._eventProvider.events.forEach(item =>
+      this._posToEventIndexMap.push(item.msNormalized)
+    );
+  }
+
+  _chunkDequeue() {
+    const chunk = this._chunkQueue.shift();
+    if (!chunk) {
+      return;
+    }
+
+    const str = chunk.data.join('');
+    this.emit(TermEventEnum.RESIZE, { h: chunk.h, w: chunk.w });
+    this.emit(TermEventEnum.DATA, str);
+  }
+
+  _render(events) {
     if (!events || events.length === 0) {
       return;
     }
@@ -216,14 +237,9 @@ export default class TtyPlayer extends Tty {
       }
     }
 
-    // render each group
-    for (let i = 0; i < groups.length; i++) {
-      const str = groups[i].data.join('');
-      const { h, w } = groups[i];
-      if (str.length > 0) {
-        this.emit(TermEventEnum.RESIZE, { h, w });
-        this.emit(TermEventEnum.DATA, str);
-      }
+    this._chunkQueue = [...this._chunkQueue, ...groups];
+    if (!this._writeInFlight) {
+      this._chunkDequeue();
     }
   }
 
@@ -250,5 +266,10 @@ export default class TtyPlayer extends Tty {
 
   _change() {
     this.emit('change');
+  }
+
+  _handleError(err) {
+    this.status = StatusEnum.ERROR;
+    this.statusText = err.message;
   }
 }

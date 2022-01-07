@@ -16,34 +16,18 @@ limitations under the License.
 
 import styled from 'styled-components';
 import { Box } from 'design';
-import 'xterm/dist/xterm.css';
+import 'xterm/css/xterm.css';
 import { colors } from 'teleport/Console/colors';
 
 const StyledXterm = styled(Box)(
-  props => `
+  () => `
   height: 100%;
   width: 100%;
-  font-size: 14px;
-  line-height: normal;
-  overflow: auto;
-  background-color: ${colors.bgTerminal};
-  .terminal {
-    font-family: ${props.theme.fonts.mono};
-    border: none;
-    font-size: inherit;
-    line-height: normal;
-    position: relative;
-  }
+  overflow: hidden;
+
   .terminal .xterm-viewport {
-    background-color: ${colors.bgTerminal};
+    background-color: ${colors.bgTerminal} !important;
   }
-
-  .terminal * {
-    font-weight: normal !important;
-  }
-
-}
-
 `
 );
 
