@@ -63,6 +63,13 @@ const (
 	// deliberately set to a small value to give enough time to establish a
 	// single desktop session.
 	windowsDesktopCertTTL = 5 * time.Minute
+
+	// windowsDesktopServiceCertTTL is the TTL for certificates issued to the
+	// Windows Desktop Service in order to authenticate with the LDAP server.
+	// It is set longer than the Windows certificates for users because it is
+	// not used for interactive login and is only used when issuing certs for
+	// a restrictive service account.
+	windowsDesktopServiceCertTTL = 8 * time.Hour
 )
 
 // WindowsService implements the RDP-based Windows desktop access service.
@@ -139,9 +146,6 @@ type LDAPConfig struct {
 	// Username is an LDAP username, like "EXAMPLE\Administrator", where
 	// "EXAMPLE" is the NetBIOS version of Domain.
 	Username string
-	// Password is an LDAP password. Usually it's the same user password used
-	// for local logins on the Domain Controller.
-	Password string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
@@ -157,9 +161,6 @@ func (cfg LDAPConfig) check() error {
 	}
 	if cfg.Username == "" {
 		return trace.BadParameter("missing Username in LDAPConfig")
-	}
-	if cfg.Password == "" {
-		return trace.BadParameter("missing Password in LDAPConfig")
 	}
 	return nil
 }
@@ -272,14 +273,20 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := cfg.AccessPoint.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching cluster name: %v", err)
+	// It's possible to provide a CA certificate for the LDAP server
+	// and to skip TLS valdiation, though this may be an error, so try
+	// to warn the user.
+	// (You may need this configuration in order to use certificates to
+	// authenticate with LDAP when the LDAP server name is not correct
+	// in the certificate).
+	if cfg.LDAPConfig.CA != nil && cfg.LDAPConfig.InsecureSkipVerify {
+		cfg.Log.Warn("LDAP configuration specifies both der_ca_file and insecure_skip_verify." +
+			"TLS connections to the LDAP server will not be verified. If this is intentional, disregard this warning.")
 	}
 
-	lc, err := newLDAPClient(cfg.LDAPConfig)
+	clusterName, err := cfg.AccessPoint.GetClusterName()
 	if err != nil {
-		return nil, trace.Wrap(err, "connecting to LDAP server: %v", err)
+		return nil, trace.Wrap(err, "fetching cluster name")
 	}
 
 	// Here we assume the LDAP server is an Active Directory Domain Controller,
@@ -307,10 +314,14 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 				return d.DialContext(ctx, network, dnsAddr)
 			},
 		},
-		lc:          lc,
+		lc:          &ldapClient{cfg: cfg.LDAPConfig},
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,
+	}
+
+	if err := s.initializeLDAP(); err != nil {
+		s.cfg.Log.WithError(err).Error("initializing LDAP client")
 	}
 
 	// Note: admin still needs to import our CA into the Group Policy following
@@ -353,6 +364,75 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	}
 
 	return s, nil
+}
+
+func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
+	// trim NETBIOS name from username
+	user := s.cfg.Username
+	if i := strings.LastIndex(s.cfg.Username, `\`); i != -1 {
+		user = user[i+1:]
+	}
+
+	certDER, keyDER, err := s.generateCredentials(s.closeCtx, user, s.cfg.Domain, windowsDesktopServiceCertTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing cert DER")
+	}
+
+	key, err := x509.ParsePKCS1PrivateKey(keyDER)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing key DER")
+	}
+
+	tc := &tls.Config{
+		Certificates: []tls.Certificate{
+			{
+				Certificate: [][]byte{cert.Raw},
+				PrivateKey:  key,
+			},
+		},
+		InsecureSkipVerify: s.cfg.InsecureSkipVerify,
+	}
+
+	if s.cfg.CA != nil {
+		pool := x509.NewCertPool()
+		pool.AddCert(s.cfg.CA)
+		tc.RootCAs = pool
+	}
+
+	return tc, nil
+}
+
+func (s *WindowsService) initializeLDAP() error {
+	tc, err := s.tlsConfigForLDAP()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	conn, err := ldap.DialURL("ldaps://"+s.cfg.Addr, ldap.DialWithTLSConfig(tc))
+	if err != nil {
+		return trace.Wrap(err, "dial")
+	}
+
+	s.lc.setClient(conn)
+
+	// ensure that we refresh our LDAP cert well before expiration
+	go func() {
+		select {
+		case <-time.After(windowsDesktopServiceCertTTL / 3):
+			if err := s.initializeLDAP(); err != nil {
+				s.cfg.Log.WithError(err).Error("couldn't renew certificate for LDAP auth")
+			}
+		case <-s.closeCtx.Done():
+			return
+		}
+	}()
+
+	return nil
 }
 
 func (s *WindowsService) startServiceHeartbeat() error {
@@ -544,9 +624,10 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	tdpConn := tdp.NewConn(proxyConn)
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
 		Log: log,
-		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
-			return s.generateCredentials(ctx, username, desktop.GetDomain())
+		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
+			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl)
 		},
+		CertTTL:     windowsDesktopCertTTL,
 		Addr:        desktop.GetAddr(),
 		Conn:        tdpConn,
 		AuthorizeFn: authorize,
@@ -814,7 +895,7 @@ func (s *WindowsService) crlContainerDN() string {
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string) (certDER, keyDER []byte, err error) {
+func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string, ttl time.Duration) (certDER, keyDER []byte, err error) {
 	// Important: rdpclient currently only supports 2048-bit RSA keys.
 	// If you switch the key type here, update handle_general_authentication in
 	// rdp/rdpclient/src/piv.rs accordingly.
@@ -869,7 +950,7 @@ func (s *WindowsService) generateCredentials(ctx context.Context, username, doma
 		// domain_controller_addr) will cause Windows to fetch the CRL from any
 		// of its current domain controllers.
 		CRLEndpoint: fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN),
-		TTL:         proto.Duration(windowsDesktopCertTTL),
+		TTL:         proto.Duration(ttl),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
