@@ -8,7 +8,6 @@ import (
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/auth"
-	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 
 	"github.com/gravitational/reporting/types"
@@ -57,7 +56,7 @@ type Plugin struct {
 	// cloudClient is a client of the Cloud API server
 	cloudClient cloudapi.TenantsServiceClient
 	// authorizer authorizes identity and returns auth context
-	authorizer libauth.Authorizer
+	authorizer auth.Authorizer
 	// emitter is events emitter, used to submit discrete events.
 	emitter apievents.Emitter
 }
@@ -84,7 +83,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 
 // RegisterAuthServices registers Auth Services (GRPC)
 func (p *Plugin) RegisterAuthServices(server interface{}) error {
-	authServer, ok := server.(*libauth.GRPCServer)
+	authServer, ok := server.(*auth.GRPCServer)
 	if !ok {
 		return trace.BadParameter("unsupported auth server type %T", server)
 	}

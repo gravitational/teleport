@@ -11,7 +11,6 @@ import (
 	"github.com/gravitational/trace/trail"
 
 	"google.golang.org/grpc"
-	grpcapi "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
 
@@ -43,7 +42,7 @@ func NewClient(cfg ClientConfig) (Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	conn, err := grpcapi.Dial(cfg.Hostname, grpcapi.WithTransportCredentials(credentials.NewTLS(cfg.TLSConfig)))
+	conn, err := grpc.Dial(cfg.Hostname, grpc.WithTransportCredentials(credentials.NewTLS(cfg.TLSConfig)))
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
