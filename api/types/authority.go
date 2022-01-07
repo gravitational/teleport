@@ -402,10 +402,8 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	switch ca.GetType() {
-	case UserCA, HostCA, DatabaseCA, JWTSigner:
-	default:
-		return trace.BadParameter("invalid CA type %q", ca.GetType())
+	if err := ca.GetType().Check(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
