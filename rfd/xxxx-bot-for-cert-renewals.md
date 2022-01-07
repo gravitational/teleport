@@ -88,13 +88,29 @@ This command will:
 - Generate a special invite token that bot must use to join the cluster. This
   token is scoped to the new user that was created for the bot.
 
-Next, the `tbot` agent will be started using the generated token (full set of options
-omitted here for brevity):
+For security purposes, end users should deploy the bot across multiple Unix
+users:
+1. A dedicated `tbot` user to run the bot itself.
+2. One or more service users, e.g. `ci`, where end-user certificates will be
+   used to access resources.
+
+As the destination user, the user initializes the certificate directory:
+```
+ci $ tbot init --bot-user=tbot /home/ci/tbot
+```
+
+This creates the destination directory with empty certificate files and grants
+the bot user the minimum set of permissions to update the files using POSIX
+ACLs (where supported). In this example, the `ci` user maintains full ownership
+of all files.
+
+Next, the `tbot` agent will be started under its isolated Unix user with the
+generated token (full set of options omitted here for brevity):
 
 ```
-$ tbot start \
+tbot $ tbot start \
   --name=foo \
-  --directory=/home/ubuntu/tbot \
+  --directory=/home/ci/tbot \
   --auth-server=proxy.example.com:3080 \
   --token=13b74f49d27536dd5c514073097c197b \
   --ca-pin=sha256:...
@@ -117,7 +133,7 @@ certificate from the auth server. These certificates are stored in a restricted
 location, such as `/var/lib/teleport/bot`, and renewed continuously. They are
 exclusively used by the bot for renewal and to issue secondary end-user
 certificates. Secondary certificates are written to the user-specified location
-and are useful for connecting to resources.
+and are used to access cluster resources.
 
 Note: the join token can only be used once, and is invalidated after first use
 or when its TTL expires (whichever comes first). If the bot fails to renew its
@@ -140,10 +156,10 @@ $ tctl bots add --name=example --roles=a,b,c
 
 ```yaml
 destinations:
-  - directory: /home/alice/.tbot
+  - directory: /home/alice/tbot
     roles: [a, b, c]
 
-  - directory: /home/bob/.tbot
+  - directory: /home/bob/tbot
     roles: [b, c]
 ```
 
@@ -154,17 +170,11 @@ $ tbot start -c /etc/tbot.yaml
 ```
 
 Once the bot fetches its own certificate, it then fetches additional
-impersonated certificates for each specified certificate destinations and
+impersonated certificates for each specified certificate destination and
 writes them via the appropriate backend implementation. This may be
 particularly useful for CI/CD use cases where untrusted workers run as a
 particular user that should not be granted the full set of the bot's
 privileges.
-
-(TODO: how will we handle the advanced file permissions needed to make split
-certificates useful? We can't recommend running the bot as root, but also need
-each set of certificates to be scoped to just a single Unix user otherwise the
-entire point is moot. Plus, destination files need appropriate Unix permissions
-to keep tools like SSH happy. Perhaps Linux ACLs can help?)
 
 ### Security
 
@@ -233,8 +243,8 @@ adding the ability to, when requesting user certificates, allow the bot to
 "impersonate" its own `User`, but with a set of additional roles as specified
 in its certificate. This would enable use of the previously-described
 `tctl bots add --roles=...` UX. If desired, this UX remains compatible with
-other-user impersonation should we wish to add an additional `--users=...`
-flag.
+other-user impersonation should we later wish to add an additional
+`--users=...` flag.
 
 #### Renewals
 
@@ -271,7 +281,7 @@ difficult to detect.
 As a mitigation strategy, we propose adding a new certificate generation
 counter (as a certificate extension) that increments each time a certificate
 is renewed. This latest generation count is additionally stored on the auth
-server as metadata for the bot [user? resource?].
+server as a system annotation on the bot user.
 
 On subsequent renewals, while generating user certificates on the auth server,
 the current certificate is inspected and its current generation is compared to
@@ -279,32 +289,15 @@ the stored version on the auth server. If this generation counter is less than
 the auth server's stored counter, this implies that multiple bots are competing
 for renewals of the same certificate lineage.
 
-Exact behavior for what to do next remains undetermined (TODO), but we have
-several possible courses of action:
- * Immediately lock the bot. This has the downside of also breaking
-   legitimate-but-accidental double-starts of a bot, if for example a user
-   accidentally misconfigures their system. Users would then need to manually
-   unlock the bot.
- * Simply deny the renewal. In practice, we can't know (short of some future
-   HSM support) whether a particular renewal is malicious or not. This means
-   that regardless of whether or not we lock the bot, the first client to renew
-   the certificate gains access to the system for a fairly long period of time
-   (and malicious users would of course do so immediately). One might speculate
-   that a malicious user would not need a full hour to spawn a remote shell on
-   every node the bot user can access.
+Running bot instances will establish a filesystem lock on the bot data
+directory to ensure only a single local instance can be started at any time.
+Additional renewal attempts using the same credentials with a mismatched
+certificate generation counter are presumed to be malicious and will
+immediately lock the bot user, preventing further renewal.
 
-   Presumably, legitimate users should notice that their certificate bot has
-   failed to renew (this should be a very loud error). If they accidentally
-   started the bot twice, there's at least a 50% chance that no further
-   action is required on their end to resolve the issue (if the correct bot
-   wins or if the start ordering didn't matter).
-
-Another traceability enhancement would be to ensure renewable certificates
-have a unique serial number. Upon renewal, we can embed the previous
-certificate serial as another metadata / extension field. Should a certificate
-be compromised, it will then be possible to trace the the tree of certificate
-renewals. (*TODO (Tim): I suppose in practice the generation counter ensures
-a flat hierarchy, so this may not be useful.*)
+Additionally, to further restrict renewals, impersonated certificates will be
+generated with a "disallow-reissue" flag to entirely prevent malicious
+renewals of a compromised secondary / end-user certificate.
 
 Lastly, regardless of the initial certificate's TTL, we can have the auth
 server ensure that, when renewing, renewed certificate TTLs may only decrease
@@ -368,11 +361,20 @@ templates).
 | TLS CA certificates    | `tlscacerts`  | Teleport CA certificates (both)         | TLS  | Always
 | TLS client certificate | `tlscert`     | Signed by Teleport `UserCA`             | TLS  | Always
 
+In the case of `directory` destinations, we encourage the use of POSIX ACLs.
+This is meant to ensure that the primary (renewable) credentials are
+exclusively readable to the bot while the secondary (non-renewable)
+credentials are readable only to the target user but still writable by the
+bot. The `tbot init` subcommand can be used to configure ACLs automatically
+where supported.
+
 Notes:
  * Users may optionally decide to disable persistence of the renewable
    certificate using the `memory` storage backend. This has security benefits
    but prevents the bot from recovering if stopped as the renewable credentials
    would only exist in memory.
+    * Future joining methods (e.g. EC2 identity document) may mitigate this
+      downside.
  * The Teleport auth server's CA certificates are verified at first connect
    using CA pins, following Teleport's usual node joining procedure.
  * Unneeded certificate types/formats could be optionally disabled in
@@ -383,35 +385,30 @@ Notes:
    situations where certificates should not be written to disk (Webhooks or
    other IPC?)
 
-#### Reload Command
+#### Reload Events
 
-The reload command is an optional command that `tbot` will execute after a
-successful renewal. This can be used, for example, to restart an OpenSSH server
-after new certificates are written to disk. Note: this command is executed with
-Go's `os/exec` package, meaning that a system shell is not invoked, so shell
-features such as glob patterns, redirection, or environment variable expansion
-are not supported.
+To enforce security best practices, the bot itself provides no builtin methods
+for signalling or otherwise executing user code when a certificate rotation
+occurs. Instead, end users are encouraged to use filesystem watches (e.g.
+`inotify`) to watch for changes directly using a least-privileged system user.
+We will include a helper command, `tbot watch`, to perform simple actions on
+various update events, such as executing a user script.
 
-We will list a few example reload commands for common use cases (OpenSSH, NGINX)
-in our docs.
+A number of alternative notification types were considered and found to have
+limitations:
 
-*TODO (Tim)*: How will we ensure the bot is able to send signals / execute
-commands in a way that doesn't require it to run as the target Unix user or as
-root? Simple command exec is less useful than it appears when all the system 
-components are deployed securely.
-
-A few alternative / additional notification methods:
- * Filesystem watches (inotify, etc). Offloads complexity to the user and still
-   requires solving the FS permission problem (Linux ACLs?).
- * Webhooks. Need to evaluate security.
- * Shell scripts. Will need to evaluate how useful this really is.
- * Unix signals. Require either same user, root, or `CAP_KILL`, or SUID, plus
-   needs a way to query for the correct process. Not very practical for largely
-   the same reason shell scripts aren't.
- * D-Bus? (grasping at straws)
-
-We should implement as many of these as makes sense (minimally shell scripts,
-and FS watches are a no-op on our end.)
+ * User scripts: either forces the bot to run as `root` to execute scripts
+   as another user, or executes as the bot's user. The latter case simply
+   offloads the problem (how will the user script then securely interact with
+   the app to reload?)
+ * Unix signals: requires either the same user, root, `CAP_KILL`, or SUID, plus
+   requires a way to query for the correct process. Impractical for the same
+   reasons as shell scripts aren't.
+ * D-Bus: complex, unclear permission semantics, relatively poor OS
+   compatibility.
+ * Webhooks: complex and poses challenges implementing securely.
+ * Unix sockets: challenging permissions semantics (still relies on ACLs and
+   `libc` has related edge cases).
 
 #### Join Script
 
@@ -420,7 +417,7 @@ join script that exists in Teleport enterprise. While not required, this will
 make it even easier to install and run the bot as a systemd service on the
 target machine.
 
-TODO: support for auto-join on AWS without token
+TODO: support for auto-join on AWS without token using EC2 identity documents
 
 ### Implementation
 
@@ -437,7 +434,6 @@ into other parts of Teleport (ie database access) in the future.
 On the backend, registering a new bot (via `tctl`) creates a set of related API
 objects:
 
-- an object representing the bot itself
 - a non-interactive User for the bot to act as (when user certs are requested)
 - a role for the bot, which will contain the minimum set of permissions
   necessary to watch for CA rotations, as well as the ability to impersonate
@@ -603,10 +599,9 @@ re-issued during CA rotations).
 #### Initial User Certificates
 
 In order for the bot to obtain its first set of user certificates, a new
-endpoint will be added to the API server at `tokens/register/user`. This
-endpoint will mimic the host registration flow, accepting a pre-generated token
-and a public key to sign, but will use user tokens instead of provisioning
-tokens.
+gRPC endpoint will be added to the API server which will mimic the host
+registration flow, accepting a pre-generated token and a public key to sign,
+but will use user tokens instead of provisioning tokens.
 
 Today, user tokens can be used to initiate the user invite flow, handle password
 resets, and manage the account recovery process. In order to generate initial
@@ -616,8 +611,10 @@ renewal bots.
 When the backend receives the request to generate new user credentials, it validates
 the token, ensuring that the token is of the correct type and has not expired.
 
-*TODO (Tim): Investigate adding a new gRPC endpoint for this functionality instead
-of introducing a new endpoint on the deprecated HTTP API.*
+This flow can be extended to support other auth methods beyond simple token
+registration; for example, we could additionally accept an EC2 identity
+document as is currently done for
+[Simplified Node Joining for AWS](0041-aws-node-join.md).
 
 #### Renewable User Certificates
 
