@@ -2,9 +2,9 @@
 
 This checklist is to be run prior to cutting the release branch.
 
-- [ ] Bump Golang vendor dependencies
+- [ ] Bump Golang dependencies
 - [ ] Review forked dependencies for upstream security patches
-- [ ] Bump Web UI vendor dependencies
+- [ ] Bump Web UI dependencies
 - [ ] Make a new docs/VERSION folder
 - [ ] Update VERSION in Makefile to next dev tag
 - [ ] Update TELEPORT_VERSION in assets/aws/Makefile
