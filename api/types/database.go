@@ -57,6 +57,8 @@ type Database interface {
 	SetURI(string)
 	// GetCA returns the database CA certificate.
 	GetCA() string
+	// GetTLS returns the database TLS configuration.
+	GetTLS() DatabaseTLS
 	// SetStatusCA sets the database CA certificate in the status field.
 	SetStatusCA(string)
 	// GetAWS returns the database AWS metadata.
@@ -83,6 +85,8 @@ type Database interface {
 	IsCloudSQL() bool
 	// IsAzure returns true if this is an Azure database.
 	IsAzure() bool
+	// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
+	IsCloudHosted() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
 }
@@ -222,12 +226,22 @@ func (d *DatabaseV3) SetURI(uri string) {
 	d.Spec.URI = uri
 }
 
-// GetCA returns the database CA certificate.
+// GetCA returns the database CA certificate. If more than one CA is set, then
+// the user provided CA is returned first (Spec field).
+// Auto-downloaded CA certificate is returned otherwise.
 func (d *DatabaseV3) GetCA() string {
-	if d.Status.CACert != "" {
-		return d.Status.CACert
+	if d.Spec.TLS.CACert != "" {
+		return d.Spec.TLS.CACert
 	}
-	return d.Spec.CACert
+	if d.Spec.CACert != "" {
+		return d.Spec.CACert
+	}
+	return d.Status.CACert
+}
+
+// GetTLS returns Database TLS configuration.
+func (d *DatabaseV3) GetTLS() DatabaseTLS {
+	return d.Spec.TLS
 }
 
 // SetStatusCA sets the database CA certificate in the status field.
@@ -263,7 +277,7 @@ func (d *DatabaseV3) GetAzure() Azure {
 	return d.Spec.Azure
 }
 
-// IsRDS returns true if this is a AWS RDS/Aurora instance.
+// IsRDS returns true if this is an AWS RDS/Aurora instance.
 func (d *DatabaseV3) IsRDS() bool {
 	return d.GetType() == DatabaseTypeRDS
 }
@@ -281,6 +295,11 @@ func (d *DatabaseV3) IsCloudSQL() bool {
 // IsAzure returns true if this is Azure hosted database.
 func (d *DatabaseV3) IsAzure() bool {
 	return d.GetType() == DatabaseTypeAzure
+}
+
+// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
+func (d *DatabaseV3) IsCloudHosted() bool {
+	return d.IsRDS() || d.IsRedshift() || d.IsCloudSQL() || d.IsAzure()
 }
 
 // GetType returns the database type.

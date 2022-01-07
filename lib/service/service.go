@@ -319,9 +319,6 @@ type TeleportProcess struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
-
-	// connectFailureC is a channel to notify of failures to connect to auth (used in tests).
-	connectFailureC chan time.Duration
 }
 
 type keyPairKey struct {
@@ -713,7 +710,6 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		id:                  processID,
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
-		connectFailureC:     make(chan time.Duration),
 	}
 
 	process.registerAppDepend()
@@ -3124,6 +3120,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		connLimiter, err := limiter.NewLimiter(process.Config.Databases.Limiter)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		dbProxyServer, err := db.NewProxyServer(process.ExitContext(),
 			db.ProxyServerConfig{
 				AuthClient:  conn.Client,
@@ -3131,6 +3131,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Authorizer:  authorizer,
 				Tunnel:      tsrv,
 				TLSConfig:   tlsConfig,
+				Limiter:     connLimiter,
 				Emitter:     asyncEmitter,
 				Clock:       process.Clock,
 				ServerID:    cfg.HostUUID,
