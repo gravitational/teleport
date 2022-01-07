@@ -46,6 +46,8 @@ const (
 	mongoshBin = "mongosh"
 	// mongoBin is the Mongo client binary name.
 	mongoBin = "mongo"
+
+	redisBin = "redis-cli"
 )
 
 // execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -122,6 +124,9 @@ func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolMongoDB:
 		return c.getMongoCommand(), nil
+
+	case defaults.ProtocolRedis:
+		return c.getRedisCommand(), nil
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -311,4 +316,17 @@ func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
 
 	// fall back to `mongo` if `mongosh` isn't found
 	return exec.Command(mongoBin, args...)
+}
+
+func (c *cliCommandBuilder) getRedisCommand() *exec.Cmd {
+	args := []string{
+		"--tls",
+		"-h", c.options.localProxyHost,
+		"-p", strconv.Itoa(c.options.localProxyPort),
+		"--cacert", c.options.caPath,
+		"--key", c.profile.KeyPath(),
+		"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+	}
+
+	return exec.Command(redisBin, args...)
 }
