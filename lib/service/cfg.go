@@ -612,6 +612,8 @@ type DatabasesConfig struct {
 	ResourceMatchers []services.ResourceMatcher
 	// AWSMatchers match AWS hosted databases.
 	AWSMatchers []services.AWSMatcher
+	// Limiter limits the connection and request rates.
+	Limiter limiter.Config
 }
 
 // Database represents a single database that's being proxied.
@@ -1103,6 +1105,7 @@ func ApplyDefaults(cfg *Config) {
 
 	// Databases proxy service is disabled by default.
 	cfg.Databases.Enabled = false
+	defaults.ConfigureLimiter(&cfg.Databases.Limiter)
 
 	// Metrics service defaults.
 	cfg.Metrics.Enabled = false
