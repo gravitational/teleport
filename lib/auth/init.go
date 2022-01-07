@@ -1042,13 +1042,12 @@ func migrateDBAuthority(asrv *Server) error {
 	dbCaID := types.CertAuthID{Type: types.DatabaseCA, DomainName: clusterName.GetClusterName()}
 	_, err = asrv.GetCertAuthority(dbCaID, false)
 	if err == nil {
-		return nil // no migration needed. Cert is already here
+		return nil // no migration needed. DB cert already exists.
 	}
 	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err) // something bad happen, break
+		return trace.Wrap(err)
 	}
-	// cert not found, copy Host CA as Database CA.
-
+	// Database CA doesn't exist, check for Host.
 	hostCaID := types.CertAuthID{Type: types.HostCA, DomainName: clusterName.GetClusterName()}
 	hostCA, err := asrv.GetCertAuthority(hostCaID, true)
 	if trace.IsNotFound(err) {
@@ -1059,15 +1058,14 @@ func migrateDBAuthority(asrv *Server) error {
 		return trace.Wrap(err)
 	}
 
-	// Database CA is missing, but Host CA has been found. Copy the Host CA.
+	// Database CA is missing, but Host CA has been found. Database was created with pre v9.
+	// Copy the Host CA as Database CA.
 	log.Infof("Migrating Database CA")
 
 	cav2, ok := hostCA.(*types.CertAuthorityV2)
 	if !ok {
 		return trace.Errorf("Failed to cast Host CA to concrete type.")
 	}
-
-	hostCA.GetTrustedTLSKeyPairs()
 
 	// Copy the Host CA with a different type.
 	cav2.Spec.Type = types.DatabaseCA
