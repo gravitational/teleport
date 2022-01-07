@@ -401,9 +401,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.106"
+version = "0.2.110"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a60553f9a9e039a333b4e9b20573b9e9b9c0bb3a11e201ccc48ef4283456d673"
+checksum = "b58a4469763e4e3a906c4ed786e1c70512d16aa88f84dded826da42640fc6a1c"
 
 [[package]]
 name = "lock_api"
@@ -755,7 +755,7 @@ dependencies = [
 [[package]]
 name = "rdp-rs"
 version = "0.1.0"
-source = "git+https://github.com/gravitational/rdp-rs?rev=755e950dcff0fc6965aa518c4596b995ede3417d#755e950dcff0fc6965aa518c4596b995ede3417d"
+source = "git+https://github.com/gravitational/rdp-rs?rev=cb61119d2803f647b60e6c9b2ef05ab587cc1966#cb61119d2803f647b60e6c9b2ef05ab587cc1966"
 dependencies = [
  "bufstream",
  "byteorder",
