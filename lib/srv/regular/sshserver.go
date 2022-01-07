@@ -263,8 +263,7 @@ func (s *Server) isAuditedAtProxy() bool {
 // ServerOption is a functional option passed to the server
 type ServerOption func(s *Server) error
 
-// Close closes listening socket and stops accepting connections
-func (s *Server) Close() error {
+func (s *Server) close() {
 	s.cancel()
 	s.reg.Close()
 	if s.heartbeat != nil {
@@ -273,6 +272,14 @@ func (s *Server) Close() error {
 		}
 		s.heartbeat = nil
 	}
+	if s.dynamicLabels != nil {
+		s.dynamicLabels.Close()
+	}
+}
+
+// Close closes listening socket and stops accepting connections
+func (s *Server) Close() error {
+	s.close()
 	return s.srv.Close()
 }
 
@@ -280,14 +287,7 @@ func (s *Server) Close() error {
 func (s *Server) Shutdown(ctx context.Context) error {
 	// wait until connections drain off
 	err := s.srv.Shutdown(ctx)
-	s.cancel()
-	s.reg.Close()
-	if s.heartbeat != nil {
-		if err := s.heartbeat.Close(); err != nil {
-			s.Warningf("Failed to close heartbeat: %v.", err)
-		}
-		s.heartbeat = nil
-	}
+	s.close()
 	return err
 }
 

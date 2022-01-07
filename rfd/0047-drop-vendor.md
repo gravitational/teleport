@@ -1,6 +1,6 @@
 ---
 authors: Zac Bergquist <zac@goteleport.com
-state: draft
+state: Implemented
 ---
 
 # RFD 47 - Drop the vendor directory
