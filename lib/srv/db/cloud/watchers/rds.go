@@ -176,9 +176,9 @@ func (f *rdsFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, e
 			if err != nil {
 				f.log.Infof("Could not convert RDS cluster %q custom endpoints to database resources: %v.",
 					aws.StringValue(cluster.DBClusterIdentifier), err)
-			} else {
-				databases = append(databases, customEndpointDatabases...)
 			}
+
+			databases = append(databases, customEndpointDatabases...)
 		}
 	}
 	return databases, nil
