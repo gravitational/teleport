@@ -550,7 +550,6 @@ lint-go:
 	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
 
 # api is no longer part of the teleport package, so golangci-lint skips it by default
-# GOMODCACHE needs to be set here as api downloads dependencies and cannot write to /go/pkg/mod/cache
 .PHONY: lint-api
 lint-api: GO_LINT_API_FLAGS ?=
 lint-api:
