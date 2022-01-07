@@ -147,7 +147,7 @@ func TestProxyRateLimiting(t *testing.T) {
 		// Set rates low, so we can easily hit them.
 		Rates: []limiter.Rate{
 			{
-				Period:  1 * time.Second,
+				Period:  10 * time.Second,
 				Average: 3,
 				Burst:   3,
 			},
