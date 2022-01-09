@@ -793,7 +793,19 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 // CAs that are eligible to issue smart card login certificates and perform client
 // private key archival.
 //
-// This is equivalent to running `certutil –dspublish –f <PathToCertFile.cer> NTAuthCA`
+// This function is equivalent to running:
+//     certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
+//
+// You can confirm the cert is present by running:
+//     certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com>?caCertificate"
+//
+// Once the CA is published to LDAP, it should eventually sync and be present in the
+// machine's enterprise NTAuth store. You can check that with:
+//     certutil -viewstore -enterprise NTAuth
+//
+// You can expedite the synchronization by running:
+//     certutil -pulse
+//
 func (s *WindowsService) updateCAInNTAuthStore(ctx context.Context, caDER []byte) error {
 	// Check if our CA is already in the store. The LDAP entry for NTAuth store
 	// is constant and it should always exist.
