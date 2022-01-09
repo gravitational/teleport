@@ -218,4 +218,6 @@ replace (
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/gravitational/teleport/api => ./api
 	github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77
+	// Pin logrus to v1.7.0 as the next release introduced a race condition in write(): https://github.com/sirupsen/logrus/commit/ac6e35b4c213b54a2086b831179b9c324f519695
+	github.com/sirupsen/logrus => github.com/sirupsen/logrus v1.7.0
 )
