@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import React from 'react';
-import { render, screen } from 'design/utils/testing';
+import { render, screen, fireEvent } from 'design/utils/testing';
 import { databases } from '../fixtures';
 import DatabaseList from './DatabaseList';
 
@@ -29,10 +29,12 @@ test('search filter works', () => {
       clusterId="test"
       authType="local"
       databases={databases}
-      search={searchValue}
-      onSearchChange={() => null}
     />
   );
+
+  fireEvent.change(screen.getByPlaceholderText(/SEARCH.../i), {
+    target: { value: searchValue },
+  });
 
   expect(screen.queryByText(expectedToBeVisible)).toBeInTheDocument();
   expect(screen.queryByText(notExpectedToBeVisible)).toBeNull();

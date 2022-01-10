@@ -527,7 +527,7 @@ exports[`open source loaded 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c16 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -555,22 +555,22 @@ exports[`open source loaded 1`] = `
   padding: 0px 16px;
 }
 
-.c16:active {
+.c15:active {
   opacity: 0.56;
 }
 
-.c16:hover,
-.c16:focus {
+.c15:hover,
+.c15:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c16:active {
+.c15:active {
   opacity: 0.24;
 }
 
-.c16:disabled {
+.c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -582,13 +582,13 @@ exports[`open source loaded 1`] = `
   font-size: 16px;
 }
 
-.c14 {
+.c13 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c15 {
+.c14 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -612,17 +612,19 @@ exports[`open source loaded 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
+  margin-right: 8px;
   color: #FFFFFF;
 }
 
 .c6 {
   box-sizing: border-box;
+  width: 100%;
   display: flex;
+  justify-content: end;
 }
 
 .c7 {
   box-sizing: border-box;
-  margin-right: 8px;
   display: flex;
   align-items: center;
 }
@@ -676,8 +678,10 @@ exports[`open source loaded 1`] = `
   border-radius: 8px;
   font-size: 12px;
   width: 100%;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .c12 > thead > tr > th,
@@ -749,6 +753,43 @@ exports[`open source loaded 1`] = `
   border-bottom-right-radius: 8px;
 }
 
+.c4 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c9 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c9 .c10 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c9:hover .c10,
+.c9:focus .c10 {
+  opacity: 1;
+}
+
+.c9:disabled {
+  cursor: default;
+}
+
+.c9:disabled .c10 {
+  opacity: 0.1;
+}
+
 .c5 {
   box-sizing: border-box;
   font-size: 12px;
@@ -757,21 +798,17 @@ exports[`open source loaded 1`] = `
   border: none;
   border-radius: 200px;
   height: 32px;
-  transition: all 0.2s;
+  transition: all .2s;
+  color: rgba(255,255,255,0.87);
   background: #111B48;
-  margin-right: 16px;
   padding-left: 16px;
   padding-right: 16px;
-  color: rgba(255,255,255,0.87);
 }
 
-.c5:hover {
-  background: #2C3A73;
-}
-
+.c5:hover,
 .c5:focus,
 .c5:active {
-  background: #2C3A73;
+  background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
@@ -779,56 +816,6 @@ exports[`open source loaded 1`] = `
 .c5::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
-}
-
-.c9 {
-  box-sizing: border-box;
-  display: flex;
-}
-
-.c9 button {
-  background: none;
-  border: none;
-  border-radius: 200px;
-  cursor: pointer;
-  padding: 0;
-  margin: 0 0 0 8px;
-  outline: none;
-  transition: all 0.3s;
-  text-align: center;
-}
-
-.c9 button:hover,
-.c9 button:focus {
-  background: #1C254D;
-}
-
-.c9 button:hover .c10,
-.c9 button:focus .c10 {
-  opacity: 1;
-}
-
-.c9 button .c10 {
-  opacity: 0.4;
-  font-size: 20px;
-  transition: all 0.3s;
-}
-
-.c4 {
-  padding: 12px 16px;
-  display: flex;
-  height: 24px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: end;
-  background: #222C59;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  justify-content: space-between;
-}
-
-.c13 > tbody > tr > td {
-  vertical-align: baseline;
 }
 
 <div
@@ -851,216 +838,210 @@ exports[`open source loaded 1`] = `
       Add Database
     </button>
   </div>
-  <div
-    style="min-width: min-content;"
+  <nav
+    class="c4"
   >
-    <nav
-      class="c4"
+    <input
+      class="c5"
+      placeholder="SEARCH..."
+      value=""
+    />
+    <div
+      class="c6"
+      width="100%"
     >
-      <input
-        class="c5"
-        color="text.primary"
-        placeholder="SEARCH..."
-        value=""
-      />
       <div
-        class="c6"
+        class="c7"
       >
         <div
-          class="c7"
+          class="c8"
+          color="primary.contrastText"
         >
-          <div
-            class="c8"
-            color="primary.contrastText"
-          >
-            SHOWING 
-            <strong>
-              1
-            </strong>
-             - 
-            <strong>
-              3
-            </strong>
-             
-            of 
-            <strong>
-              3
-            </strong>
-          </div>
+          SHOWING 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            3
+          </strong>
+           of
+           
+          <strong>
+            3
+          </strong>
         </div>
-        <div
+        <button
           class="c9"
+          disabled=""
+          title="Previous page"
+        >
+          <span
+            class="c10 c11 icon icon-arrow-left-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+        <button
+          class="c9"
+          disabled=""
+          title="Next page"
+        >
+          <span
+            class="c10 c11 icon icon-arrow-right-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+      </div>
+    </div>
+  </nav>
+  <table
+    class="c12"
+  >
+    <thead>
+      <tr>
+        <th>
+          <a>
+            Name
+            <span
+              class="c10 c13 icon icon-chevron-up "
+              color="light"
+            />
+          </a>
+        </th>
+        <th>
+          <a>
+            Description
+            <span
+              class="c10 c13 icon icon-chevrons-expand-vertical "
+              color="light"
+            />
+          </a>
+        </th>
+        <th>
+          <a>
+            Type
+            <span
+              class="c10 c13 icon icon-chevrons-expand-vertical "
+              color="light"
+            />
+          </a>
+        </th>
+        <th>
+          Labels
+        </th>
+        <th />
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          aurora
+        </td>
+        <td>
+          PostgreSQL 11.6: AWS Aurora 
+        </td>
+        <td>
+          RDS PostgreSQL
+        </td>
+        <td>
+          <div
+            class="c14"
+            kind="secondary"
+          >
+            cluster: root
+          </div>
+          <div
+            class="c14"
+            kind="secondary"
+          >
+            env: aws
+          </div>
+        </td>
+        <td
+          align="right"
         >
           <button
-            disabled=""
-            title="Previous Page"
+            class="c15"
+            kind="border"
           >
-            <span
-              class="c10 c11 icon icon-arrow-left-circle "
-              color="light"
-              font-size="3"
-            />
+            Connect
           </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          mysql-aurora-56
+        </td>
+        <td>
+          MySQL 5.6: AWS Aurora Longname For SQL
+        </td>
+        <td>
+          Self-hosted MySQL
+        </td>
+        <td>
+          <div
+            class="c14"
+            kind="secondary"
+          >
+            cluster: root
+          </div>
+          <div
+            class="c14"
+            kind="secondary"
+          >
+            env: aws
+          </div>
+        </td>
+        <td
+          align="right"
+        >
           <button
-            disabled=""
-            title="Next Page"
+            class="c15"
+            kind="border"
           >
-            <span
-              class="c10 c11 icon icon-arrow-right-circle "
-              color="light"
-              font-size="3"
-            />
+            Connect
           </button>
-        </div>
-      </div>
-    </nav>
-    <table
-      class="c12 c13"
-    >
-      <thead>
-        <tr>
-          <th>
-            <a>
-              Name
-              <span
-                class="c10 c14 icon icon-chevron-down "
-                color="light"
-              />
-            </a>
-          </th>
-          <th>
-            <a>
-              Description
-              <span
-                class="c10 c14 icon icon-chevrons-expand-vertical "
-                color="light"
-              />
-            </a>
-          </th>
-          <th>
-            <a>
-              Type
-              <span
-                class="c10 c14 icon icon-chevrons-expand-vertical "
-                color="light"
-              />
-            </a>
-          </th>
-          <th>
-            Labels
-          </th>
-          <th />
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>
-            aurora
-          </td>
-          <td>
-            PostgreSQL 11.6: AWS Aurora 
-          </td>
-          <td>
-            RDS PostgreSQL
-          </td>
-          <td>
-            <div
-              class="c15"
-              kind="secondary"
-            >
-              cluster: root
-            </div>
-            <div
-              class="c15"
-              kind="secondary"
-            >
-              env: aws
-            </div>
-          </td>
-          <td
-            align="right"
+        </td>
+      </tr>
+      <tr>
+        <td>
+          postgres-gcp
+        </td>
+        <td>
+          PostgreSQL 9.6: Google Cloud SQL
+        </td>
+        <td>
+          Cloud SQL PostgreSQL
+        </td>
+        <td>
+          <div
+            class="c14"
+            kind="secondary"
           >
-            <button
-              class="c16"
-              kind="border"
-            >
-              Connect
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            mysql-aurora-56
-          </td>
-          <td>
-            MySQL 5.6: AWS Aurora Longname For SQL
-          </td>
-          <td>
-            Self-hosted MySQL
-          </td>
-          <td>
-            <div
-              class="c15"
-              kind="secondary"
-            >
-              cluster: root
-            </div>
-            <div
-              class="c15"
-              kind="secondary"
-            >
-              env: aws
-            </div>
-          </td>
-          <td
-            align="right"
+            cluster: env
+          </div>
+          <div
+            class="c14"
+            kind="secondary"
           >
-            <button
-              class="c16"
-              kind="border"
-            >
-              Connect
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            postgres-gcp
-          </td>
-          <td>
-            PostgreSQL 9.6: Google Cloud SQL
-          </td>
-          <td>
-            Cloud SQL PostgreSQL
-          </td>
-          <td>
-            <div
-              class="c15"
-              kind="secondary"
-            >
-              cluster: env
-            </div>
-            <div
-              class="c15"
-              kind="secondary"
-            >
-              value: gcp
-            </div>
-          </td>
-          <td
-            align="right"
+            value: gcp
+          </div>
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c15"
+            kind="border"
           >
-            <button
-              class="c16"
-              kind="border"
-            >
-              Connect
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+            Connect
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
 </div>
 `;
 

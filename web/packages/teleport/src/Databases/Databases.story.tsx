@@ -55,6 +55,4 @@ const props: State = {
   username: 'sam',
   version: '6.1.3',
   authType: 'local',
-  searchValue: '',
-  setSearchValue: () => null,
 };

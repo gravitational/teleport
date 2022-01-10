@@ -16,18 +16,8 @@ limitations under the License.
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { sortBy } from 'lodash';
 import { ButtonBorder } from 'design';
-import {
-  Column,
-  SortHeaderCell,
-  Cell,
-  renderLabelCell,
-  TextCell,
-  SortTypes,
-} from 'design/DataTable';
-import Table from 'design/DataTable/Paged';
-import isMatch from 'design/utils/match';
+import Table, { Cell, LabelCell } from 'design/DataTableNext';
 import { AuthType } from 'teleport/services/user';
 import { Database, DbProtocol } from 'teleport/services/databases';
 import ConnectDialog from 'teleport/Databases/ConnectDialog';
@@ -39,89 +29,53 @@ function DatabaseList(props: Props) {
     username,
     clusterId,
     authType,
-    search,
-    onSearchChange,
   } = props;
-
-  const [sortDir, setSortDir] = useState<Record<string, string>>({
-    name: SortTypes.DESC,
-  });
 
   const [dbConnectInfo, setDbConnectInfo] = useState<{
     name: string;
     protocol: DbProtocol;
   }>(null);
 
-  function sortAndFilter(search) {
-    const filtered = databases.filter(obj =>
-      isMatch(obj, search, {
-        searchableProps: ['name', 'desc', 'title', 'tags'],
-        cb: searchAndFilterCb,
-      })
-    );
-
-    const columnKey = Object.getOwnPropertyNames(sortDir)[0];
-    const sorted = sortBy(filtered, columnKey);
-    if (sortDir[columnKey] === SortTypes.ASC) {
-      return sorted.reverse();
-    }
-
-    return sorted;
-  }
-
-  function onSortChange(columnKey: string, sortDir: string) {
-    setSortDir({ [columnKey]: sortDir });
-  }
-
-  const data = sortAndFilter(search);
-
   return (
     <>
       <StyledTable
-        pageSize={pageSize}
-        data={data}
-        search={search}
-        onSearchChange={onSearchChange}
-      >
-        <Column
-          columnKey="name"
-          header={
-            <SortHeaderCell
-              sortDir={sortDir.name}
-              onSortChange={onSortChange}
-              title="Name"
-            />
-          }
-          cell={<TextCell />}
-        />
-        <Column
-          columnKey="desc"
-          header={
-            <SortHeaderCell
-              sortDir={sortDir.desc}
-              onSortChange={onSortChange}
-              title="Description"
-            />
-          }
-          cell={<TextCell />}
-        />
-        <Column
-          columnKey="title"
-          header={
-            <SortHeaderCell
-              sortDir={sortDir.title}
-              onSortChange={onSortChange}
-              title="Type"
-            />
-          }
-          cell={<TextCell />}
-        />
-        <Column header={<Cell>Labels</Cell>} cell={<LabelCell />} />
-        <Column
-          header={<Cell />}
-          cell={<ConnectButton setDbConnectInfo={setDbConnectInfo} />}
-        />
-      </StyledTable>
+        data={databases}
+        columns={[
+          {
+            key: 'name',
+            headerText: 'Name',
+            isSortable: true,
+          },
+          {
+            key: 'desc',
+            headerText: 'Description',
+            isSortable: true,
+          },
+          {
+            key: 'title',
+            headerText: 'Type',
+            isSortable: true,
+          },
+          {
+            key: 'tags',
+            headerText: 'Labels',
+            render: ({ tags }) => <LabelCell data={tags} />,
+          },
+          {
+            altKey: 'connect-btn',
+            render: ({ name, protocol }) => (
+              <ConnectButton
+                name={name}
+                protocol={protocol}
+                setDbConnectInfo={setDbConnectInfo}
+              />
+            ),
+          },
+        ]}
+        pagination={{ pageSize }}
+        isSearchable
+        emptyText="No Databases Found"
+      />
       {dbConnectInfo && (
         <ConnectDialog
           username={username}
@@ -136,16 +90,18 @@ function DatabaseList(props: Props) {
   );
 }
 
-function LabelCell(props) {
-  const { rowIndex, data } = props;
-  const { tags = [] } = data[rowIndex];
-  return renderLabelCell(tags);
-}
-
-function ConnectButton(props) {
-  const { setDbConnectInfo, rowIndex, data } = props;
-  const { name, protocol } = data[rowIndex];
-
+function ConnectButton({
+  name,
+  protocol,
+  setDbConnectInfo,
+}: Partial<Database> & {
+  setDbConnectInfo: React.Dispatch<
+    React.SetStateAction<{
+      name: string;
+      protocol: DbProtocol;
+    }>
+  >;
+}) {
   return (
     <Cell align="right">
       <ButtonBorder
@@ -164,19 +120,7 @@ const StyledTable = styled(Table)`
   & > tbody > tr > td {
     vertical-align: baseline;
   }
-`;
-
-function searchAndFilterCb(
-  targetValue: any[],
-  searchValue: string,
-  propName: string
-) {
-  if (propName === 'tags') {
-    return targetValue.some(item => {
-      return item.toLocaleUpperCase().indexOf(searchValue) !== -1;
-    });
-  }
-}
+` as typeof Table;
 
 type Props = {
   databases: Database[];
@@ -184,8 +128,6 @@ type Props = {
   username: string;
   clusterId: string;
   authType: AuthType;
-  search: string;
-  onSearchChange: React.Dispatch<React.SetStateAction<string>>;
 };
 
 export default DatabaseList;

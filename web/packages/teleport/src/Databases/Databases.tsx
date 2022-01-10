@@ -48,8 +48,6 @@ export function Databases(props: State) {
     version,
     clusterId,
     authType,
-    searchValue,
-    setSearchValue,
   } = props;
 
   const isEmpty = attempt.status === 'success' && databases.length === 0;
@@ -78,8 +76,6 @@ export function Databases(props: State) {
             username={username}
             clusterId={clusterId}
             authType={authType}
-            search={searchValue}
-            onSearchChange={setSearchValue}
           />
         </>
       )}
