@@ -19,6 +19,7 @@ package redis
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net"
 
 	"github.com/go-redis/redis/v8"
@@ -69,6 +70,7 @@ func process(ctx context.Context, clientConn net.Conn, redisClient *redis.Client
 	clientReader := redis.NewReader(clientConn)
 	buf := &bytes.Buffer{}
 	wr := redis.NewWriter(buf)
+	var redisErr redis.Error
 
 	for {
 		cmd := &redis.Cmd{}
@@ -76,26 +78,27 @@ func process(ctx context.Context, clientConn net.Conn, redisClient *redis.Client
 			return trace.Wrap(err)
 		}
 
-		//fmt.Printf("client cmd: %v\n", cmd)
-
 		val := cmd.Val().([]interface{})
 		nCmd := redis.NewCmd(ctx, val...)
 
 		err := redisClient.Process(ctx, nCmd)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 
-		vals, err := nCmd.Result()
-		if err != nil {
+		var vals interface{}
+
+		if errors.As(err, &redisErr) {
+			vals = err
+		} else if err != nil {
 			return trace.Wrap(err)
+		} else {
+			vals, err = nCmd.Result()
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 
 		if err := writeCmd(wr, vals); err != nil {
 			return trace.Wrap(err)
 		}
-
-		//fmt.Printf("redis err: %v args: %v\n", err, buf)
 
 		if _, err := clientConn.Write(buf.Bytes()); err != nil {
 			return trace.Wrap(err)
@@ -107,18 +110,31 @@ func process(ctx context.Context, clientConn net.Conn, redisClient *redis.Client
 
 func writeCmd(wr *redis.Writer, vals interface{}) error {
 	switch val := vals.(type) {
+	case error:
+		if err := wr.WriteByte('-'); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if _, err := wr.WriteString(val.Error()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if _, err := wr.Write([]byte("\r\n")); err != nil {
+			return trace.Wrap(err)
+		}
+
 	case []interface{}:
 		if err := wr.WriteByte(redis.ArrayReply); err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 		n := len(val)
 		if err := wr.WriteLen(n); err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 
 		for _, v0 := range val {
 			if err := writeCmd(wr, v0); err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 		}
 	case interface{}:
