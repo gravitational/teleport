@@ -151,13 +151,13 @@ supported under Windows 10 1607+ as of Teleport v7.2. We support running
     $ curl https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip.sha256
     # <checksum> <filename>
     $ curl -O teleport-v(=teleport.version=)-windows-amd64-bin.zip https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip
-    $ echo %PATH% # Edit %PATH% if necessary
+    $ echo $Env:Path # Edit PATH if necessary
     $ certUtil -hashfile teleport-v(=teleport.version=)-windows-amd64-bin.zip SHA256
     # SHA256 hash of teleport-v(=teleport.version=)-windows-amd64-bin.zip:
     # <checksum> <filename>
     # CertUtil: -hashfile command completed successfully.
     # Verify that the checksums match
-    # Move `tsh` to your %PATH%
+    # Move `tsh` to your PATH
     ```
   </TabItem>
 </Tabs>
