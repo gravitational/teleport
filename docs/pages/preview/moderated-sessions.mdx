@@ -8,11 +8,11 @@ This is an upcoming feature expected to land in Teleport 8.2.
 
 ## Introduction
 
-Moderated sessions is a feature that allows Teleport administrators to define policies
-that define requirements for other users to be present in a Server or Kubernetes Access session.
+Moderated sessions allows Teleport administrators to
+define requirements for other users to be present in a Server or Kubernetes Access session.
 
 Moderated Sessions is useful in the following scenarios:
-- When you have stringent security requirements and need to have people watching over sessions to production.
+- When you have stringent security requirements and need to have people watching over user-initiated sessions to a set of servers.
 - When you want to share a terminal with someone else to be able to instruct or collaborate.
 
 ## Core Features
@@ -20,12 +20,17 @@ Moderated Sessions is useful in the following scenarios:
 With Moderated Sessions you can:
 - Join SSH and Kubernetes sessions from the terminal as an observer, moderator or peer.
 - Require auditors to be present in certain sessions.
-- Allow people to join your session to observe what you are doing in real-time.
+- Allow people to join your session to observe what you are doing in real time.
 
 ## Getting Started
 
-In this guide we'll be using Moderated Sessions to required participants for a Kubernetes session.
+In this guide we'll be using Moderated Sessions to define required participants for a Kubernetes session.
 This guide assumes an already running Teleport cluster with a connected Kubernetes cluster named `minikube`.
+
+<Admonition type="tip">
+  If you don't have a cluster that meets the aforementioned requirements,
+  you can create one by following [this guide](https://goteleport.com/docs/kubernetes-access/getting-started/).
+</Admonition>
 
 ### Step 1/4: Create the prod-access role
 
@@ -79,6 +84,8 @@ tctl users add bob --roles=auditor
 
 ### Step 4/4: Try it out
 
+Please substitute `$SESSION_ID` with the UUID shown when starting the session.
+
 ```sh
 # adam
 
@@ -95,32 +102,17 @@ tsh kube join $SESSION_ID
 ## RBAC
 
 Moderated Sessions makes use of RBAC policies to allow for fine grained control over
-who can join a session and whom are required to be present to start one.
+who can join a session and who are required to be present to start one.
 
-The system is based around *require policies* and *allow policies*. Require policies define a set of conditions
-that must be a met for a session to start/run. The allow policies that matter for a given session
-are always those of user that initiated the session. Allow policies are used to define
-what users a session may join and under what conditions.
+The system is based around **require policies** and allow policies. Require policies define a set of conditions
+that must be a met for a session to start/run.
 
-### Participant Modes
-
-A participant joining a session will always have one of three modes:
-- Peers can join and collaborate in a session. They can view output and send input.
-- Moderators can join and watch a session, they can view output and forcefully terminate the session at will.
-- Observers can join and watch a session. They cannot control the session in any way.
-
-When joining a session with `tsh join` or `tsh kube join`, a mode can be specified with `--mode <mode>`
-where mode is one of `peer`, `moderator` or `observer`. By default, the mode is `peer` for SSH and
-`moderator` for Kubernetes sessions.
-
-A participant may leave a session with the shortcut `c` while in observer or moderator mode.
-When in moderator mode, a participant may also forcefully terminate the session at any point in time
-with the shortcut `t`.
+**Allow policies** are used to define what a user can do. In essence, what sessions they can join
+and under what conditions they may join the session.
 
 ### Session kinds
 
-Require and allow policies have to specify which sessions they apply to. Currently, only `ssh` and `k8s`
-are valid alternatives.
+Require and allow policies have to specify which sessions they apply to. Valid options are `ssh` and `k8s`.
 
 ### Filters
 
@@ -130,10 +122,10 @@ which the set fields `roles`, `traits` and `name`.
 
 ### Backwards compatibility with Server Access
 
-Previously, Server Access did not have access control for whom can join a session.
-To work around this, RBAC are ignored for users that only have V4 roles.
-New and modified roles are created as V5 roles any having any attached V5 role will
-cause the new RBAC checks to be applied to a session started by them.
+Previously, Server Access did not include controls over which users can join a session.
+To work around this, RBAC rules are ignored for users that only have V4 roles.
+New roles are created as V5 and V4 roles are also upgraded when they are modified in the UI.
+If a user has any attached V5 roles, the new RBAC access checks will be enforced.
 
 ### Example require policy
 
@@ -142,7 +134,7 @@ must have a minimum of two users with the role `auditor` and the mode `moderator
 to start it. The policy applies to SSH and Kubernetes sessions only.
 
 When a user with this require policy starts a session, it will be pending
-until the policy is fulfilled, only then does the session start.
+until the policy is fulfilled.
 
 ```yaml
 kind: role
@@ -151,7 +143,7 @@ metadata:
 spec:
   allow:
     require_session_join:
-      - name: Audtor oversight
+      - name: Auditor oversight
         filter: 'contains(user.roles, "auditor")'
         kinds: ['k8s', 'ssh']
         modes: ['moderator']
@@ -177,15 +169,31 @@ spec:
 
 ## MFA-based presence
 
-When `mfa_required` is set to `true` via role or cluster settings. Teleport enforces
+When `mfa_required` is set to `true` via role or cluster settings, Teleport enforces
 MFA-based presence checks for moderators.
+This requires that all moderators wishing to join have a configured U2F or WebAuthn MFA token.
 
-This requires that all moderators wishing to join have a configured U2F or Webauthn MFA token.
 Every 30 seconds, Teleport will issue a prompt to the user in the terminal, asking them
 to press their MFA token in the next 15 seconds. This will happen continously during the session
-and exists so that moderators are always present and watching a given session. If no MFA input
-is received within 60 seconds, the user is kicked from the session which may pause it, if RBAC
-policies are no longer met.
+and exists so that moderators are always present and watching a given session.
+
+If no MFA input is received within 60 seconds, the user is kicked
+from the session which may pause it, if RBAC policies are no longer met.
+
+### Participant Modes
+
+A participant joining a session will always have one of three modes:
+- Peers can join and collaborate in a session. They can view output and send input.
+- Moderators can join and watch a session. They can view output and forcefully terminate the session at will.
+- Observers can join and watch a session. They cannot control the session in any way.
+
+When joining a session with `tsh join` or `tsh kube join`, a mode can be specified with `--mode <mode>`
+where mode is one of `peer`, `moderator` or `observer`. By default, the mode is `peer` for SSH and
+`moderator` for Kubernetes sessions.
+
+A participant may leave a session with the shortcut `c` while in observer or moderator mode.
+When in moderator mode, a participant may also forcefully terminate the session at any point in time
+with the shortcut `t`.
 
 ## RFD
 
