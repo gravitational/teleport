@@ -43,8 +43,6 @@ const props: State = {
   attempt: { status: 'success' },
   username: 'user',
   clusterId: 'im-a-cluster',
-  searchValue: '',
-  setSearchValue: () => {},
   getWindowsLoginOptions: () => [{ login: '', url: '' }],
   openRemoteDesktopTab: () => {},
 };

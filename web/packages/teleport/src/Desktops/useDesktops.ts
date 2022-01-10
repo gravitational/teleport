@@ -28,8 +28,6 @@ export default function useDesktops(ctx: Ctx) {
   const username = ctx.storeUser.state.username;
   const windowsLogins = ctx.storeUser.getWindowsLogins();
 
-  const [searchValue, setSearchValue] = useState<string>('');
-
   const [desktops, setDesktops] = useState<Desktop[]>([]);
 
   const getWindowsLoginOptions = (desktopName: string) =>
@@ -54,8 +52,6 @@ export default function useDesktops(ctx: Ctx) {
     attempt,
     username,
     clusterId,
-    searchValue,
-    setSearchValue,
     getWindowsLoginOptions,
     openRemoteDesktopTab,
   };

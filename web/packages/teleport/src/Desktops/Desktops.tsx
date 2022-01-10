@@ -37,8 +37,6 @@ export function Desktops(props: State) {
     attempt,
     username,
     clusterId,
-    searchValue,
-    setSearchValue,
     desktops,
     getWindowsLoginOptions,
     openRemoteDesktopTab,
@@ -61,8 +59,6 @@ export function Desktops(props: State) {
             desktops={desktops}
             username={username}
             clusterId={clusterId}
-            search={searchValue}
-            onSearchChange={setSearchValue}
             onLoginMenuOpen={getWindowsLoginOptions}
             onLoginSelect={openRemoteDesktopTab}
           />
