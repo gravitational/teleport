@@ -15,24 +15,26 @@ limitations under the License.
 */
 
 import React from 'react';
-import { render, screen } from 'design/utils/testing';
+import { render, screen, fireEvent } from 'design/utils/testing';
 import { nodes } from './fixtures';
 import NodeList from 'teleport/components/NodeList';
 
 test('search filter works', () => {
-  const searchValue = 'fujedu';
-  const expectedToBeVisible = /172.10.1.20:3022/i;
-  const notExpectedToBeVisible = /172.10.1.1:3022/i;
-
   render(
     <NodeList
       onLoginMenuOpen={() => null}
       onLoginSelect={() => null}
       nodes={nodes}
-      search={searchValue}
-      onSearchChange={() => null}
     />
   );
+
+  const searchValue = 'fujedu';
+  const expectedToBeVisible = /172.10.1.20:3022/i;
+  const notExpectedToBeVisible = /172.10.1.1:3022/i;
+
+  fireEvent.change(screen.getByPlaceholderText(/SEARCH.../i), {
+    target: { value: searchValue },
+  });
 
   expect(screen.queryByText(expectedToBeVisible)).toBeInTheDocument();
   expect(screen.queryByText(notExpectedToBeVisible)).toBeNull();

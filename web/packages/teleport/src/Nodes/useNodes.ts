@@ -25,7 +25,6 @@ import { openNewTab } from 'teleport/lib/util';
 export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
   const { isLeafCluster, clusterId } = stickyCluster;
   const [nodes, setNodes] = useState<Node[]>([]);
-  const [searchValue, setSearchValue] = useState('');
   const { attempt, run, setAttempt } = useAttempt('processing');
   const [isAddNodeVisible, setIsAddNodeVisible] = useState(false);
   const canCreate = ctx.storeUser.getTokenAccess().create;
@@ -77,8 +76,6 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
     clusterId,
     hideAddNode,
     showAddNode,
-    searchValue,
-    setSearchValue,
   };
 }
 

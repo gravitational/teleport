@@ -50,8 +50,6 @@ export function Nodes(props: State) {
     isLeafCluster,
     isAddNodeVisible,
     clusterId,
-    searchValue,
-    setSearchValue,
   } = props;
 
   function onLoginSelect(e: React.MouseEvent, login: string, serverId: string) {
@@ -91,8 +89,6 @@ export function Nodes(props: State) {
         <>
           <NodeList
             nodes={nodes}
-            search={searchValue}
-            onSearchChange={setSearchValue}
             onLoginMenuOpen={getNodeLoginOptions}
             onLoginSelect={onLoginSelect}
           />

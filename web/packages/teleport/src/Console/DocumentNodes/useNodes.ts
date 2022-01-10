@@ -22,7 +22,6 @@ import * as stores from './../stores';
 
 export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   const consoleCtx = useConsoleContext();
-  const [searchValue, setSearchValue] = useState('');
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const [state, setState] = useState<{ nodes: Node[]; logins: string[] }>({
     nodes: [],
@@ -74,7 +73,5 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
     createSshSession,
     changeCluster,
     getNodeSshLogins,
-    searchValue,
-    setSearchValue,
   };
 }

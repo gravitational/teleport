@@ -16,126 +16,64 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { sortBy } from 'lodash';
-import isMatch from 'design/utils/match';
-import {
-  Column,
-  SortHeaderCell,
-  Cell,
-  TextCell,
-  SortTypes,
-  renderLabelCell,
-} from 'design/DataTable';
-import Table from 'design/DataTable/Paged';
+import Table, { Cell, LabelCell } from 'design/DataTableNext';
 import MenuSshLogin, { LoginItem } from 'shared/components/MenuSshLogin';
 import { Node } from 'teleport/services/nodes';
 
 function NodeList(props: Props) {
-  const {
-    nodes = [],
-    search,
-    onSearchChange,
-    onLoginMenuOpen,
-    onLoginSelect,
-    pageSize = 100,
-  } = props;
-  const [sortDir, setSortDir] = React.useState<Record<string, string>>({
-    hostname: SortTypes.DESC,
-  });
-
-  function sortAndFilter(search) {
-    const filtered = nodes.filter(obj =>
-      isMatch(obj, search, {
-        searchableProps: ['hostname', 'addr', 'tags', 'tunnel'],
-        cb: searchAndFilterCb,
-      })
-    );
-
-    const columnKey = Object.getOwnPropertyNames(sortDir)[0];
-    const sorted = sortBy(filtered, columnKey);
-    if (sortDir[columnKey] === SortTypes.ASC) {
-      return sorted.reverse();
-    }
-
-    return sorted;
-  }
-
-  function onSortChange(columnKey: string, sortDir: string) {
-    setSortDir({ [columnKey]: sortDir });
-  }
-
-  const data = sortAndFilter(search);
+  const { nodes = [], onLoginMenuOpen, onLoginSelect, pageSize = 100 } = props;
 
   return (
-    <div>
-      <StyledTable
-        pageSize={pageSize}
-        data={data}
-        search={search}
-        onSearchChange={onSearchChange}
-      >
-        <Column
-          columnKey="hostname"
-          header={
-            <SortHeaderCell
-              sortDir={sortDir.hostname}
-              onSortChange={onSortChange}
-              title="Hostname"
+    <StyledTable
+      columns={[
+        {
+          key: 'hostname',
+          headerText: 'Hostname',
+          isSortable: true,
+        },
+        {
+          key: 'addr',
+          headerText: 'Address',
+          isSortable: true,
+          render: ({ addr, tunnel }) => (
+            <AddressCell addr={addr} tunnel={tunnel} />
+          ),
+        },
+        {
+          key: 'tags',
+          headerText: 'Labels',
+          render: ({ tags }) => <LabelCell data={tags} />,
+        },
+        {
+          altKey: 'connect-btn',
+          render: ({ id }) => (
+            <LoginCell
+              onOpen={onLoginMenuOpen}
+              onSelect={onLoginSelect}
+              serverId={id}
             />
-          }
-          cell={<TextCell />}
-        />
-        <Column
-          columnKey="addr"
-          header={
-            <SortHeaderCell
-              sortDir={sortDir.addr}
-              onSortChange={onSortChange}
-              title="Address"
-            />
-          }
-          cell={<AddressCell />}
-        />
-        <Column header={<Cell>Labels</Cell>} cell={<LabelCell />} />
-        <Column
-          header={<Cell />}
-          cell={<LoginCell onOpen={onLoginMenuOpen} onSelect={onLoginSelect} />}
-        />
-      </StyledTable>
-    </div>
+          ),
+        },
+      ]}
+      emptyText="No Nodes Found"
+      data={nodes}
+      pagination={{
+        pageSize,
+      }}
+      isSearchable
+    />
   );
 }
 
-function searchAndFilterCb(
-  targetValue: any[],
-  searchValue: string,
-  propName: string
-) {
-  if (propName === 'tunnel') {
-    return 'TUNNEL'.indexOf(searchValue) !== -1;
-  }
-
-  if (propName === 'tags') {
-    return targetValue.some(item => {
-      return item.toLocaleUpperCase().indexOf(searchValue) !== -1;
-    });
-  }
-}
-
-const LoginCell: React.FC<
-  Required<{
-    onSelect?: (
-      e: React.SyntheticEvent,
-      login: string,
-      serverId: string
-    ) => void;
-    onOpen: (serverId: string) => LoginItem[];
-    [key: string]: any;
-  }>
-> = props => {
-  const { rowIndex, data, onOpen, onSelect } = props;
-  const { id } = data[rowIndex] as Node;
-  const serverId = id;
+const LoginCell = ({
+  onSelect,
+  onOpen,
+  serverId,
+}: {
+  onSelect?: (e: React.SyntheticEvent, login: string, serverId: string) => void;
+  onOpen: (serverId: string) => LoginItem[];
+  serverId: string;
+}) => {
   function handleOnOpen() {
     return onOpen(serverId);
   }
@@ -166,11 +104,9 @@ const LoginCell: React.FC<
   );
 };
 
-function AddressCell(props) {
-  const { rowIndex, data, ...rest } = props;
-  const { addr, tunnel } = data[rowIndex] as Node;
-  return <Cell {...rest}>{tunnel ? renderTunnel() : addr}</Cell>;
-}
+export const AddressCell = ({ addr, tunnel }) => (
+  <Cell>{tunnel ? renderTunnel() : addr}</Cell>
+);
 
 function renderTunnel() {
   return (
@@ -181,25 +117,17 @@ function renderTunnel() {
   );
 }
 
-function LabelCell(props) {
-  const { rowIndex, data } = props;
-  const { tags = [] } = data[rowIndex];
-  return renderLabelCell(tags);
-}
-
 const StyledTable = styled(Table)`
   & > tbody > tr > td {
     vertical-align: baseline;
   }
-`;
+` as typeof Table;
 
 type Props = {
   nodes: Node[];
   onLoginMenuOpen(serverId: string): { login: string; url: string }[];
   onLoginSelect(e: React.SyntheticEvent, login: string, serverId: string): void;
   pageSize?: number;
-  search: string;
-  onSearchChange: React.Dispatch<React.SetStateAction<string>>;
 };
 
 export default NodeList;

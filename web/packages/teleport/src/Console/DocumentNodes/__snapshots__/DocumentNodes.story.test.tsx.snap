@@ -7,7 +7,7 @@ exports[`render DocumentNodes 1`] = `
   width: 336px;
 }
 
-.c23 {
+.c22 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -36,22 +36,22 @@ exports[`render DocumentNodes 1`] = `
   height: 24px;
 }
 
-.c23:active {
+.c22:active {
   opacity: 0.56;
 }
 
-.c23:hover,
-.c23:focus {
+.c22:hover,
+.c22:focus {
   background: #092F52;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c23:active {
+.c22:active {
   opacity: 0.24;
 }
 
-.c23:disabled {
+.c22:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -63,13 +63,13 @@ exports[`render DocumentNodes 1`] = `
   font-size: 16px;
 }
 
-.c21 {
+.c20 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c24 {
+.c23 {
   display: inline-block;
   transition: color .3s;
   margin-left: 8px;
@@ -78,7 +78,7 @@ exports[`render DocumentNodes 1`] = `
   font-size: 14px;
 }
 
-.c22 {
+.c21 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -112,6 +112,7 @@ exports[`render DocumentNodes 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
+  margin-right: 8px;
   color: #FFFFFF;
 }
 
@@ -140,12 +141,13 @@ exports[`render DocumentNodes 1`] = `
 
 .c13 {
   box-sizing: border-box;
+  width: 100%;
   display: flex;
+  justify-content: end;
 }
 
 .c14 {
   box-sizing: border-box;
-  margin-right: 8px;
   display: flex;
   align-items: center;
 }
@@ -158,8 +160,10 @@ exports[`render DocumentNodes 1`] = `
   border-radius: 8px;
   font-size: 12px;
   width: 100%;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .c19 > thead > tr > th,
@@ -231,6 +235,43 @@ exports[`render DocumentNodes 1`] = `
   border-bottom-right-radius: 8px;
 }
 
+.c11 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #03203C;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c16 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c16 .c17 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c16:hover .c17,
+.c16:focus .c17 {
+  opacity: 1;
+}
+
+.c16:disabled {
+  cursor: default;
+}
+
+.c16:disabled .c17 {
+  opacity: 0.1;
+}
+
 .c12 {
   box-sizing: border-box;
   font-size: 12px;
@@ -239,21 +280,17 @@ exports[`render DocumentNodes 1`] = `
   border: none;
   border-radius: 200px;
   height: 32px;
-  transition: all 0.2s;
+  transition: all .2s;
+  color: rgba(255,255,255,0.87);
   background: #01172C;
-  margin-right: 16px;
   padding-left: 16px;
   padding-right: 16px;
-  color: rgba(255,255,255,0.87);
 }
 
-.c12:hover {
-  background: #092F52;
-}
-
+.c12:hover,
 .c12:focus,
 .c12:active {
-  background: #092F52;
+  background: #010B1C;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
@@ -261,56 +298,6 @@ exports[`render DocumentNodes 1`] = `
 .c12::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
-}
-
-.c16 {
-  box-sizing: border-box;
-  display: flex;
-}
-
-.c16 button {
-  background: none;
-  border: none;
-  border-radius: 200px;
-  cursor: pointer;
-  padding: 0;
-  margin: 0 0 0 8px;
-  outline: none;
-  transition: all 0.3s;
-  text-align: center;
-}
-
-.c16 button:hover,
-.c16 button:focus {
-  background: #010B1C;
-}
-
-.c16 button:hover .c17,
-.c16 button:focus .c17 {
-  opacity: 1;
-}
-
-.c16 button .c17 {
-  opacity: 0.4;
-  font-size: 20px;
-  transition: all 0.3s;
-}
-
-.c11 {
-  padding: 12px 16px;
-  display: flex;
-  height: 24px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: end;
-  background: #03203C;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  justify-content: space-between;
-}
-
-.c20 > tbody > tr > td {
-  vertical-align: baseline;
 }
 
 .c8 {
@@ -757,328 +744,320 @@ exports[`render DocumentNodes 1`] = `
           />
         </div>
       </div>
-      <div>
+      <nav
+        class="c11"
+      >
+        <input
+          class="c12"
+          placeholder="SEARCH..."
+          value=""
+        />
         <div
-          style="min-width: min-content;"
+          class="c13"
+          width="100%"
         >
-          <nav
-            class="c11"
+          <div
+            class="c14"
           >
-            <input
-              class="c12"
-              color="text.primary"
-              placeholder="SEARCH..."
-              value=""
-            />
             <div
-              class="c13"
+              class="c15"
+              color="primary.contrastText"
             >
-              <div
-                class="c14"
-              >
-                <div
-                  class="c15"
-                  color="primary.contrastText"
-                >
-                  SHOWING 
-                  <strong>
-                    1
-                  </strong>
-                   - 
-                  <strong>
-                    5
-                  </strong>
-                   
-                  of 
-                  <strong>
-                    5
-                  </strong>
-                </div>
-              </div>
-              <div
-                class="c16"
-              >
-                <button
-                  disabled=""
-                  title="Previous Page"
-                >
-                  <span
-                    class="c17 c18 icon icon-arrow-left-circle "
-                    color="light"
-                    font-size="3"
-                  />
-                </button>
-                <button
-                  disabled=""
-                  title="Next Page"
-                >
-                  <span
-                    class="c17 c18 icon icon-arrow-right-circle "
-                    color="light"
-                    font-size="3"
-                  />
-                </button>
-              </div>
+              SHOWING 
+              <strong>
+                1
+              </strong>
+               - 
+              <strong>
+                5
+              </strong>
+               of
+               
+              <strong>
+                5
+              </strong>
             </div>
-          </nav>
-          <table
-            class="c19 c20"
-          >
-            <thead>
-              <tr>
-                <th>
-                  <a>
-                    Hostname
-                    <span
-                      class="c17 c21 icon icon-chevron-down "
-                      color="light"
-                    />
-                  </a>
-                </th>
-                <th>
-                  <a>
-                    Address
-                    <span
-                      class="c17 c21 icon icon-chevrons-expand-vertical "
-                      color="light"
-                    />
-                  </a>
-                </th>
-                <th>
-                  Labels
-                </th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  duzsevkig
-                </td>
-                <td>
-                  <span
-                    style="cursor: default;"
-                    title="This node is connected to cluster through reverse tunnel"
-                  >
-                    ⟵ tunnel
-                  </span>
-                </td>
-                <td>
-                  <div
-                    class="c22"
-                    kind="secondary"
-                  >
-                    cluster: one
-                  </div>
-                  <div
-                    class="c22"
-                    kind="secondary"
-                  >
-                    kernel: 4.15.0-51-generic
-                  </div>
-                </td>
-                <td
-                  align="right"
-                >
-                  <button
-                    class="c23"
-                    height="24px"
-                    kind="border"
-                  >
-                    CONNECT
-                    <span
-                      class="c17 c24 icon icon-caret-down "
-                      color="text.secondary"
-                      font-size="2"
-                    />
-                  </button>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  facuzguv
-                </td>
-                <td>
-                  172.10.1.42:3022
-                </td>
-                <td>
-                  <div
-                    class="c22"
-                    kind="secondary"
-                  >
-                    cluster: one
-                  </div>
-                  <div
-                    class="c22"
-                    kind="secondary"
-                  >
-                    kernel: 4.15.0-51-generic
-                  </div>
-                </td>
-                <td
-                  align="right"
-                >
-                  <button
-                    class="c23"
-                    height="24px"
-                    kind="border"
-                  >
-                    CONNECT
-                    <span
-                      class="c17 c24 icon icon-caret-down "
-                      color="text.secondary"
-                      font-size="2"
-                    />
-                  </button>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  fujedu
-                </td>
-                <td>
-                  172.10.1.20:3022
-                </td>
-                <td>
-                  <div
-                    class="c22"
-                    kind="secondary"
-                  >
-                    cluster: one
-                  </div>
-                  <div
-                    class="c22"
-                    kind="secondary"
-                  >
-                    kernel: 4.15.0-51-generic
-                  </div>
-                </td>
-                <td
-                  align="right"
-                >
-                  <button
-                    class="c23"
-                    height="24px"
-                    kind="border"
-                  >
-                    CONNECT
-                    <span
-                      class="c17 c24 icon icon-caret-down "
-                      color="text.secondary"
-                      font-size="2"
-                    />
-                  </button>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  kuhinur
-                </td>
-                <td>
-                  <span
-                    style="cursor: default;"
-                    title="This node is connected to cluster through reverse tunnel"
-                  >
-                    ⟵ tunnel
-                  </span>
-                </td>
-                <td>
-                  <div
-                    class="c22"
-                    kind="secondary"
-                  >
-                    cluster: one
-                  </div>
-                  <div
-                    class="c22"
-                    kind="secondary"
-                  >
-                    kernel: 4.15.0-51-generic
-                  </div>
-                </td>
-                <td
-                  align="right"
-                >
-                  <button
-                    class="c23"
-                    height="24px"
-                    kind="border"
-                  >
-                    CONNECT
-                    <span
-                      class="c17 c24 icon icon-caret-down "
-                      color="text.secondary"
-                      font-size="2"
-                    />
-                  </button>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  zebpecda
-                </td>
-                <td>
-                  172.10.1.24:3022
-                </td>
-                <td>
-                  <div
-                    class="c22"
-                    kind="secondary"
-                  >
-                    cluster: one
-                  </div>
-                  <div
-                    class="c22"
-                    kind="secondary"
-                  >
-                    kernel: 4.15.0-51-generic
-                  </div>
-                  <div
-                    class="c22"
-                    kind="secondary"
-                  >
-                    lortavma: one
-                  </div>
-                  <div
-                    class="c22"
-                    kind="secondary"
-                  >
-                    lenisret: 4.15.0-51-generic
-                  </div>
-                  <div
-                    class="c22"
-                    kind="secondary"
-                  >
-                    lofdevod: one
-                  </div>
-                  <div
-                    class="c22"
-                    kind="secondary"
-                  >
-                    llhurlaz: 4.15.0-51-generic
-                  </div>
-                </td>
-                <td
-                  align="right"
-                >
-                  <button
-                    class="c23"
-                    height="24px"
-                    kind="border"
-                  >
-                    CONNECT
-                    <span
-                      class="c17 c24 icon icon-caret-down "
-                      color="text.secondary"
-                      font-size="2"
-                    />
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+            <button
+              class="c16"
+              disabled=""
+              title="Previous page"
+            >
+              <span
+                class="c17 c18 icon icon-arrow-left-circle "
+                color="light"
+                font-size="3"
+              />
+            </button>
+            <button
+              class="c16"
+              disabled=""
+              title="Next page"
+            >
+              <span
+                class="c17 c18 icon icon-arrow-right-circle "
+                color="light"
+                font-size="3"
+              />
+            </button>
+          </div>
         </div>
-      </div>
+      </nav>
+      <table
+        class="c19"
+      >
+        <thead>
+          <tr>
+            <th>
+              <a>
+                Hostname
+                <span
+                  class="c17 c20 icon icon-chevron-up "
+                  color="light"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                Address
+                <span
+                  class="c17 c20 icon icon-chevrons-expand-vertical "
+                  color="light"
+                />
+              </a>
+            </th>
+            <th>
+              Labels
+            </th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              duzsevkig
+            </td>
+            <td>
+              <span
+                style="cursor: default;"
+                title="This node is connected to cluster through reverse tunnel"
+              >
+                ⟵ tunnel
+              </span>
+            </td>
+            <td>
+              <div
+                class="c21"
+                kind="secondary"
+              >
+                cluster: one
+              </div>
+              <div
+                class="c21"
+                kind="secondary"
+              >
+                kernel: 4.15.0-51-generic
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c22"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c17 c23 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              facuzguv
+            </td>
+            <td>
+              172.10.1.42:3022
+            </td>
+            <td>
+              <div
+                class="c21"
+                kind="secondary"
+              >
+                cluster: one
+              </div>
+              <div
+                class="c21"
+                kind="secondary"
+              >
+                kernel: 4.15.0-51-generic
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c22"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c17 c23 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              fujedu
+            </td>
+            <td>
+              172.10.1.20:3022
+            </td>
+            <td>
+              <div
+                class="c21"
+                kind="secondary"
+              >
+                cluster: one
+              </div>
+              <div
+                class="c21"
+                kind="secondary"
+              >
+                kernel: 4.15.0-51-generic
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c22"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c17 c23 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              kuhinur
+            </td>
+            <td>
+              <span
+                style="cursor: default;"
+                title="This node is connected to cluster through reverse tunnel"
+              >
+                ⟵ tunnel
+              </span>
+            </td>
+            <td>
+              <div
+                class="c21"
+                kind="secondary"
+              >
+                cluster: one
+              </div>
+              <div
+                class="c21"
+                kind="secondary"
+              >
+                kernel: 4.15.0-51-generic
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c22"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c17 c23 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              zebpecda
+            </td>
+            <td>
+              172.10.1.24:3022
+            </td>
+            <td>
+              <div
+                class="c21"
+                kind="secondary"
+              >
+                cluster: one
+              </div>
+              <div
+                class="c21"
+                kind="secondary"
+              >
+                kernel: 4.15.0-51-generic
+              </div>
+              <div
+                class="c21"
+                kind="secondary"
+              >
+                lortavma: one
+              </div>
+              <div
+                class="c21"
+                kind="secondary"
+              >
+                lenisret: 4.15.0-51-generic
+              </div>
+              <div
+                class="c21"
+                kind="secondary"
+              >
+                lofdevod: one
+              </div>
+              <div
+                class="c21"
+                kind="secondary"
+              >
+                llhurlaz: 4.15.0-51-generic
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c22"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c17 c23 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </div>

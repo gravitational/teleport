@@ -53,6 +53,4 @@ const props: State = {
   hideAddNode: () => null,
   showAddNode: () => null,
   clusterId: 'im-a-cluster',
-  searchValue: '',
-  setSearchValue: () => null,
 };

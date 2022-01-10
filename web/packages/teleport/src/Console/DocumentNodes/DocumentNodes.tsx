@@ -33,15 +33,8 @@ type Props = {
 
 export default function DocumentNodes(props: Props) {
   const { doc, visible } = props;
-  const {
-    nodes,
-    attempt,
-    searchValue,
-    setSearchValue,
-    createSshSession,
-    changeCluster,
-    getNodeSshLogins,
-  } = useNodes(doc);
+  const { nodes, attempt, createSshSession, changeCluster, getNodeSshLogins } =
+    useNodes(doc);
   const { isProcessing, isSuccess, isFailed, message } = attempt;
 
   function onLoginMenuSelect(
@@ -91,8 +84,6 @@ export default function DocumentNodes(props: Props) {
           {isFailed && <Alerts.Danger>{message}</Alerts.Danger>}
           {isSuccess && (
             <NodeList
-              search={searchValue}
-              onSearchChange={setSearchValue}
               onLoginMenuOpen={onLoginMenuOpen}
               onLoginSelect={onLoginMenuSelect}
               nodes={nodes}
