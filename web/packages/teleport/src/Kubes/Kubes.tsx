@@ -44,8 +44,6 @@ export function Kubes(props: State) {
     isLeafCluster,
     clusterId,
     canCreate,
-    searchValue,
-    setSearchValue,
   } = props;
 
   const isEmpty = attempt.status === 'success' && kubes.length === 0;
@@ -73,13 +71,7 @@ export function Kubes(props: State) {
       )}
       {hasKubes && (
         <>
-          <KubeList
-            kubes={kubes}
-            username={username}
-            authType={authType}
-            search={searchValue}
-            onSearchChange={setSearchValue}
-          />
+          <KubeList kubes={kubes} username={username} authType={authType} />
         </>
       )}
       {isEmpty && (

@@ -26,7 +26,6 @@ export default function useKubes(ctx: TeleportContext) {
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const { run, attempt } = useAttempt('processing');
   const [kubes, setKubes] = useState([] as Kube[]);
-  const [searchValue, setSearchValue] = useState('');
 
   useEffect(() => {
     run(() => ctx.kubeService.fetchKubernetes(clusterId).then(setKubes));
@@ -40,8 +39,6 @@ export default function useKubes(ctx: TeleportContext) {
     isLeafCluster,
     clusterId,
     canCreate,
-    searchValue,
-    setSearchValue,
   };
 }
 

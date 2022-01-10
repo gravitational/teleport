@@ -51,6 +51,4 @@ const props: State = {
   clusterId: 'im-a-cluster',
   isLeafCluster: false,
   canCreate: true,
-  searchValue: '',
-  setSearchValue: () => null,
 };
