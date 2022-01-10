@@ -41,9 +41,32 @@ type Engine struct {
 	Clock clockwork.Clock
 	// Log is used for logging.
 	Log logrus.FieldLogger
+	// proxyConn is a client connection.
+	proxyConn net.Conn
 }
 
-func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session, conn net.Conn) error {
+func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
+	e.proxyConn = clientConn
+
+	return nil
+}
+
+func (e *Engine) SendError(redisErr error) {
+	buf := &bytes.Buffer{}
+	wr := redis.NewWriter(buf)
+
+	if err := writeCmd(wr, redisErr); err != nil {
+		e.Log.Errorf("Failed to convert error to a message: %v", err)
+		return
+	}
+
+	if _, err := e.proxyConn.Write(buf.Bytes()); err != nil {
+		e.Log.Errorf("Failed to send message to the client: %v", err)
+		return
+	}
+}
+
+func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -59,7 +82,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	if err := process(ctx, conn, redisConn); err != nil {
+	if err := process(ctx, e.proxyConn, redisConn); err != nil {
 		return trace.Wrap(err)
 	}
 
