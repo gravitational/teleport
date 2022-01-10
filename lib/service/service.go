@@ -649,7 +649,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			case JoinMethodToken:
 				cfg.HostUUID = uuid.New()
 			case JoinMethodEC2:
-				cfg.HostUUID, err = getEC2NodeID()
+				cfg.HostUUID, err = utils.GetEC2NodeID()
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
