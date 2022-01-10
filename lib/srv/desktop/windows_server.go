@@ -457,27 +457,24 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log := s.cfg.Log
 	tdpConn := tdp.NewConn(proxyConn)
 
-	// logFn should be something like s.cfg.Log.WithError(err).Warning or s.cfg.Log.Error
-	logAndSendTdpError := func(message string, logFn func(args ...interface{})) {
-		if logFn == nil {
-			logFn = s.cfg.Log.Error
-		}
-
-		logFn(message)
+	// Inline function to enforce that we are centralizing TDP Error sending in this function.
+	sendTdpError := func(message string) {
 		if err := tdpConn.OutputMessage(tdp.Error{Message: message}); err != nil {
-			s.cfg.Log.Error(fmt.Sprintf("Failed to send TDP error message %v: %v", tdp.Error{Message: message}, err))
+			s.cfg.Log.Errorf("Failed to send TDP error message %v: %v", tdp.Error{Message: message}, err)
 		}
 	}
 
 	// Check connection limits.
 	remoteAddr, _, err := net.SplitHostPort(proxyConn.RemoteAddr().String())
 	if err != nil {
-		logAndSendTdpError(fmt.Sprintf("Could not parse client IP from %q", proxyConn.RemoteAddr().String()), log.WithError(err).Error)
+		log.WithError(err).Errorf("Could not parse client IP from %q", proxyConn.RemoteAddr().String())
+		sendTdpError("Internal error.")
 		return
 	}
 	log = log.WithField("client-ip", remoteAddr)
 	if err := s.cfg.ConnLimiter.AcquireConnection(remoteAddr); err != nil {
-		logAndSendTdpError("Connection limit exceeded, rejecting connection", log.WithError(err).Warning)
+		log.WithError(err).Warning("Connection limit exceeded, rejecting connection")
+		sendTdpError("Connection limit exceeded.")
 		return
 	}
 	defer s.cfg.ConnLimiter.ReleaseConnection(remoteAddr)
@@ -485,14 +482,16 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	// Authenticate the client.
 	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, proxyConn)
 	if err != nil {
-		logAndSendTdpError("mTLS authentication failed for incoming connection", log.WithError(err).Warning)
+		log.WithError(err).Warning("mTLS authentication failed for incoming connection")
+		sendTdpError("Connection authentication failed.")
 		return
 	}
 	log.Debug("Authenticated Windows desktop connection")
 
 	authContext, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
-		logAndSendTdpError("authorization failed for Windows desktop connection", log.WithError(err).Warning)
+		log.WithError(err).Warning("authorization failed for Windows desktop connection")
+		sendTdpError("Connection authorization failed.")
 		return
 	}
 
@@ -502,7 +501,8 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopName)
 	if err != nil {
-		logAndSendTdpError("Failed to fetch desktop by name", log.WithError(err).Warning)
+		log.WithError(err).Warningf("Failed to fetch desktop by name: %v", desktopName)
+		sendTdpError("Teleport failed to find the requested desktop in its database.")
 		return
 	}
 
@@ -511,7 +511,8 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	defer log.Debug("Windows desktop disconnected")
 
 	if err := s.connectRDP(ctx, log, proxyConn, desktop, authContext); err != nil {
-		logAndSendTdpError(fmt.Sprintf("RDP connection failed: %v", err), log.Error)
+		log.Errorf("RDP connection failed: %v", err)
+		sendTdpError("RDP connection failed.")
 		return
 	}
 }
