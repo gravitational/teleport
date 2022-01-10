@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.2.25
+
+This release of Teleport contains a bug fix.
+
+* Fixed an issue with incorrect session ID being emitted in `session.leave` events. [#9651](https://github.com/gravitational/teleport/pull/9651)
+
 ## 6.2.24
 
 This release of Teleport contains a feature and multiple fixes.
