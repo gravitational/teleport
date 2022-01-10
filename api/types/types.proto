@@ -243,7 +243,9 @@ message DatabaseSpecV3 {
     // URI is the database connection endpoint.
     string URI = 2 [ (gogoproto.jsontag) = "uri" ];
     // CACert is the PEM-encoded database CA certificate.
-    string CACert = 3 [ (gogoproto.jsontag) = "ca_cert,omitempty" ];
+    //
+    // DEPRECATED: Moved to TLS.CACert. DELETE IN 10.0.
+    string CACert = 3 [ (gogoproto.jsontag) = "ca_cert,omitempty", deprecated = true ];
     // DynamicLabels is the database dynamic labels.
     map<string, CommandLabelV2> DynamicLabels = 4
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
@@ -253,6 +255,9 @@ message DatabaseSpecV3 {
     GCPCloudSQL GCP = 6 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty" ];
     // Azure contains Azure specific database metadata.
     Azure Azure = 7 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "azure,omitempty" ];
+    // TLS is the TLS configuration used when establishing connection to target database.
+    // Allows to provide custom CA cert or override server name.
+    DatabaseTLS TLS = 8 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "tls,omitempty" ];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.
@@ -306,6 +311,29 @@ message GCPCloudSQL {
 message Azure {
     // Name is the Azure database server name.
     string Name = 1 [ (gogoproto.jsontag) = "name,omitempty" ];
+}
+
+// DatabaseTLSMode represents the level of TLS verification performed by
+// DB agent when connecting to a database.
+enum DatabaseTLSMode {
+    // VERIFY_FULL performs full certificate validation.
+    VERIFY_FULL = 0;
+    // VERIFY_CA works the same as VERIFY_FULL, but it skips the hostname check.
+    VERIFY_CA = 1;
+    // INSECURE accepts any certificate provided by server. This is the least secure option.
+    INSECURE = 2;
+}
+
+// DatabaseTLS contains TLS configuration options.
+message DatabaseTLS {
+    // Mode is a TLS connection mode. See DatabaseTLSMode for details.
+    DatabaseTLSMode Mode = 1 [ (gogoproto.jsontag) = "mode" ];
+    // CACert is an optional user provided CA certificate used for verifying
+    // database TLS connection.
+    string CACert = 2 [ (gogoproto.jsontag) = "ca_cert,omitempty" ];
+    // ServerName allows to provide custom hostname. This value will override the
+    // servername/hostname on a certificate during validation.
+    string ServerName = 3 [ (gogoproto.jsontag) = "server_name,omitempty" ];
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
@@ -622,7 +650,7 @@ message CAKeySet {
     repeated JWTKeyPair JWT = 3 [ (gogoproto.jsontag) = "jwt,omitempty" ];
 }
 
-// RoleMappping provides mapping of remote roles to local roles
+// RoleMapping provides mapping of remote roles to local roles
 // for trusted clusters
 message RoleMapping {
     // Remote specifies remote role name to map from
@@ -828,7 +856,7 @@ message ClusterNetworkingConfigSpecV2 {
     int64 ClientIdleTimeout = 1
         [ (gogoproto.jsontag) = "client_idle_timeout", (gogoproto.casttype) = "Duration" ];
 
-    // KeepAliveInterval is the interval at which the server sends keep-alive messsages
+    // KeepAliveInterval is the interval at which the server sends keep-alive messages
     // to the client.
     int64 KeepAliveInterval = 2
         [ (gogoproto.jsontag) = "keep_alive_interval", (gogoproto.casttype) = "Duration" ];
@@ -2558,6 +2586,9 @@ message LockTarget {
 
     // MFADevice specifies the UUID of a user MFA device.
     string MFADevice = 5 [ (gogoproto.jsontag) = "mfa_device,omitempty" ];
+
+    // WindowsDesktop specifies the name of a Windows desktop.
+    string WindowsDesktop = 6 [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specfied
