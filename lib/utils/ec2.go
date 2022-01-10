@@ -66,16 +66,16 @@ func GetEC2NodeID() (string, error) {
 	return NodeIDFromIID(&output.InstanceIdentityDocument), nil
 }
 
+// EC2 Node IDs are {AWS account ID}-{EC2 resource ID} eg:
+//   123456789012-i-1234567890abcdef0
+// AWS account ID is always a 12 digit number, see
+//   https://docs.aws.amazon.com/general/latest/gr/acct-identifiers.html
+// EC2 resource ID is i-{8 or 17 hex digits}, see
+//   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
 var ec2NodeIDRE = regexp.MustCompile("^[0-9]{12}-i-[0-9a-f]{8,}$")
 
 // IsEC2NodeID returns true if the given ID looks like an EC2 node ID
 func IsEC2NodeID(id string) bool {
-	// EC2 Node IDs are {AWS account ID}-{EC2 resource ID} eg:
-	//   123456789012-i-1234567890abcdef0
-	// AWS account ID is always a 12 digit number, see
-	//   https://docs.aws.amazon.com/general/latest/gr/acct-identifiers.html
-	// EC2 resource ID is i-{8 or 17 hex digits}, see
-	//   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
 	return ec2NodeIDRE.MatchString(id)
 }
 
