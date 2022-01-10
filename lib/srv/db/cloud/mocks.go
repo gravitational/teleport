@@ -222,7 +222,7 @@ func (m *RedshiftMock) DescribeClustersWithContext(ctx aws.Context, input *redsh
 	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.ClusterIdentifier))
 }
 
-// rdsMockUnath is a mock RDS client that returns access denied to each call.
+// RDSMockUnauth is a mock RDS client that returns access denied to each call.
 type RDSMockUnauth struct {
 	rdsiface.RDSAPI
 }
@@ -248,6 +248,21 @@ func (m *RDSMockUnauth) DescribeDBInstancesPagesWithContext(ctx aws.Context, inp
 }
 
 func (m *RDSMockUnauth) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
+	return trace.AccessDenied("unauthorized")
+}
+
+// RDSMockDBClustersUnauth is a mock RDS client that returns access denied to *DBClusters* calls.
+type RDSMockDBClustersUnauth struct {
+	RDSMock
+}
+
+func (m *RDSMockDBClustersUnauth) DescribeDBClustersWithContext(ctx aws.Context, input *rds.DescribeDBClustersInput, options ...request.Option) (*rds.DescribeDBClustersOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+func (m *RDSMockDBClustersUnauth) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyDBClusterInput, options ...request.Option) (*rds.ModifyDBClusterOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+func (m *RDSMockDBClustersUnauth) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
 	return trace.AccessDenied("unauthorized")
 }
 

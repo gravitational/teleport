@@ -42,6 +42,7 @@ func TestWatcher(t *testing.T) {
 	rdsInstance1, rdsDatabase1 := makeRDSInstance(t, "instance-1", "us-east-1", map[string]string{"env": "prod"})
 	rdsInstance2, _ := makeRDSInstance(t, "instance-2", "us-east-2", map[string]string{"env": "prod"})
 	rdsInstance3, _ := makeRDSInstance(t, "instance-3", "us-east-1", map[string]string{"env": "dev"})
+	rdsInstance4, rdsDatabase4 := makeRDSInstance(t, "instance-4", "us-west-1", nil)
 
 	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
 	auroraCluster2, auroraDatabase2 := makeRDSCluster(t, "cluster-2", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "dev"})
@@ -52,7 +53,7 @@ func TestWatcher(t *testing.T) {
 		AWSMatchers: []services.AWSMatcher{
 			{
 				Types:   []string{services.AWSMatcherRDS},
-				Regions: []string{"us-east-1", "ca-central-1"},
+				Regions: []string{"us-east-1"},
 				Tags:    types.Labels{"env": []string{"prod"}},
 			},
 			{
@@ -60,10 +61,20 @@ func TestWatcher(t *testing.T) {
 				Regions: []string{"us-east-2"},
 				Tags:    types.Labels{"env": []string{"dev"}},
 			},
+			{
+				Types:   []string{services.AWSMatcherRDS},
+				Regions: []string{"ca-central-1", "us-west-1"},
+				Tags:    types.Labels{"*": []string{"*"}},
+			},
 		},
 		Clients: &common.TestCloudClients{
 			RDSPerRegion: map[string]rdsiface.RDSAPI{
-				"ca-central-1": &cloud.RDSMockUnauth{},
+				"ca-central-1": &cloud.RDSMockUnauth{}, // everything is unauthorized
+				"us-west-1": &cloud.RDSMockDBClustersUnauth{ // Aurora is unauthorized
+					RDSMock: cloud.RDSMock{
+						DBInstances: []*rds.DBInstance{rdsInstance4},
+					},
+				},
 				"us-east-1": &cloud.RDSMock{
 					DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstance3},
 					DBClusters:  []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
@@ -81,7 +92,7 @@ func TestWatcher(t *testing.T) {
 	select {
 	case databases := <-watcher.DatabasesC():
 		require.Equal(t, types.Databases{
-			rdsDatabase1, auroraDatabase1, auroraDatabase2}, databases)
+			rdsDatabase1, auroraDatabase1, auroraDatabase2, rdsDatabase4}, databases)
 	case <-time.After(time.Second):
 		t.Fatal("didn't receive databases after 1 second")
 	}

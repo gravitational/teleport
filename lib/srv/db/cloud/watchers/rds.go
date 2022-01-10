@@ -56,34 +56,36 @@ func (c *rdsFetcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// rdsFetcher retrieves RDS databases.
-type rdsFetcher struct {
+// rdsDBInstancesFetcher retrieves RDS DB instances.
+type rdsDBInstancesFetcher struct {
 	cfg rdsFetcherConfig
 	log logrus.FieldLogger
 }
 
-// newRDSFetcher returns a new RDS databases fetcher instance.
-func newRDSFetcher(config rdsFetcherConfig) (Fetcher, error) {
+// newRDSDBInstancesFetcher returns a new RDS DB instances fetcher instance.
+func newRDSDBInstancesFetcher(config rdsFetcherConfig) (Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &rdsFetcher{
+	return &rdsDBInstancesFetcher{
 		cfg: config,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "rds-watcher",
+			trace.Component: "watcher:rds:instances",
 			"labels":        config.Labels,
 			"region":        config.Region,
 		}),
 	}, nil
 }
 
-// Get returns RDS and Aurora databases matching the watcher's selectors.
-func (f *rdsFetcher) Get(ctx context.Context) (types.Databases, error) {
-	rdsDatabases, rdsErr := f.getRDSDatabases(ctx)
-	auroraDatabases, auroraErr := f.getAuroraDatabases(ctx)
+// Get returns RDS DB instances matching the watcher's selectors.
+func (f *rdsDBInstancesFetcher) Get(ctx context.Context) (types.Databases, error) {
+	rdsDatabases, err := f.getRDSDatabases(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	var result types.Databases
-	for _, database := range append(rdsDatabases, auroraDatabases...) {
+	for _, database := range rdsDatabases {
 		match, _, err := services.MatchLabels(f.cfg.Labels, database.GetAllLabels())
 		if err != nil {
 			f.log.Warnf("Failed to match %v against selector: %v.", database, err)
@@ -93,11 +95,11 @@ func (f *rdsFetcher) Get(ctx context.Context) (types.Databases, error) {
 			f.log.Debugf("%v doesn't match selector.", database)
 		}
 	}
-	return result, trace.NewAggregate(rdsErr, auroraErr)
+	return result, nil
 }
 
 // getRDSDatabases returns a list of database resources representing RDS instances.
-func (f *rdsFetcher) getRDSDatabases(ctx context.Context) (types.Databases, error) {
+func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Databases, error) {
 	instances, err := getAllDBInstances(ctx, f.cfg.RDS, maxPages)
 	if err != nil {
 		return nil, common.ConvertError(err)
@@ -129,8 +131,56 @@ func getAllDBInstances(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages 
 	return instances, common.ConvertError(err)
 }
 
+// String returns the fetcher's string description.
+func (f *rdsDBInstancesFetcher) String() string {
+	return fmt.Sprintf("rdsDBInstancesFetcher(Region=%v, Labels=%v)",
+		f.cfg.Region, f.cfg.Labels)
+}
+
+// rdsAuroraClustersFetcher retrieves RDS Aurora clusters.
+type rdsAuroraClustersFetcher struct {
+	cfg rdsFetcherConfig
+	log logrus.FieldLogger
+}
+
+// newRDSAuroraClustersFetcher returns a new RDS Aurora fetcher instance.
+func newRDSAuroraClustersFetcher(config rdsFetcherConfig) (Fetcher, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &rdsAuroraClustersFetcher{
+		cfg: config,
+		log: logrus.WithFields(logrus.Fields{
+			trace.Component: "watcher:rds:aurora",
+			"labels":        config.Labels,
+			"region":        config.Region,
+		}),
+	}, nil
+}
+
+// Get returns Aurora clusters matching the watcher's selectors.
+func (f *rdsAuroraClustersFetcher) Get(ctx context.Context) (types.Databases, error) {
+	auroraDatabases, err := f.getAuroraDatabases(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var result types.Databases
+	for _, database := range auroraDatabases {
+		match, _, err := services.MatchLabels(f.cfg.Labels, database.GetAllLabels())
+		if err != nil {
+			f.log.Warnf("Failed to match %v against selector: %v.", database, err)
+		} else if match {
+			result = append(result, database)
+		} else {
+			f.log.Debugf("%v doesn't match selector.", database)
+		}
+	}
+	return result, nil
+}
+
 // getAuroraDatabases returns a list of database resources representing RDS clusters.
-func (f *rdsFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, error) {
+func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, error) {
 	clusters, err := getAllDBClusters(ctx, f.cfg.RDS, maxPages)
 	if err != nil {
 		return nil, common.ConvertError(err)
@@ -171,8 +221,8 @@ func getAllDBClusters(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages i
 }
 
 // String returns the fetcher's string description.
-func (f *rdsFetcher) String() string {
-	return fmt.Sprintf("rdsFetcher(Region=%v, Labels=%v)",
+func (f *rdsAuroraClustersFetcher) String() string {
+	return fmt.Sprintf("rdsAuroraClustersFetcher(Region=%v, Labels=%v)",
 		f.cfg.Region, f.cfg.Labels)
 }
 
