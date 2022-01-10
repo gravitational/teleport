@@ -138,12 +138,14 @@ Leaf clusters will continue to use the mesh agent pool, connecting to all proxie
 ### Cluster Upgrade
 Upgrading a cluster to support proxy tunneling and single point agents should be no more disruptive than restarting each proxy. Users can expect a short period of degraded service as node agents reconnect and routes to each node are updated in the node tracker.
 
-TODO: Research complexity of automatically detecting the type of agent pool to use for the node agent. This would reduce the work required for an upgrade.
-
 Upgrading proxies will work as follows:
 1. Deploy a node tracker.
 2. Update proxy configurations to use node tracking.
 3. Begin rolling update of proxies.
+
+During an upgrade there could be a mixed set of proxies, some expecting agents to use a mesh pool, we'll call mesh proxies, and others expecting agents to use a single point pool, we'll call single point proxies.
+
+A node agent will send a request to a proxy to figure out whether it is a mesh or single point proxy. If the proxy rejects the discovery request it is safe to assume it is a mesh proxy. The agent will use a mesh pool until it is no longer connected to any mesh proxies. At which point it will disconnect from all but one single point proxy. The agent will maintain a single point pool until it connects to any mesh proxy at which point it will switch back to a mesh pool.
 
 ### Failure Scenarios
 This design introduces several new points of failure on the path from a client to a node agent.
@@ -161,6 +163,3 @@ These failures will be presented to the client as follows:
 
 ## Alternative Considerations
 An alternative approach was considered to redirect clients to the corresponding node-proxy. This was ultimately disregarded for a couple of reasons. It increases the time to establish a session for the client as a client would need to dial and authenticate with two proxies. Proxies would need to be individually addressible by the client which makes them an easier targets for DDOS attacks.
-
-TODO: IDEA
-Mesh and Single point pools are maintained. Proxy sends type of pool down to the agent. The mesh pool is closed when no proxies are in mesh pool mode. The mesh pool will be reenabled when a single point agent discovers a proxy in mesh pool mode.
