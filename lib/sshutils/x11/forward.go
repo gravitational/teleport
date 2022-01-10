@@ -41,7 +41,8 @@ type ServerConfig struct {
 	// for an open X11 Server reverse tunnel port (6000 + offset).
 	DisplayOffset int `yaml:"display_offset,omitempty"`
 	// UseLocalhost controls whether the server's localhost will be used
-	// to create a fake X11 server when forwarding. ... TODO
+	// to create a fake X11 server when forwarding. When false, the server's
+	// hostname will be used instead.
 	UseLocalhost bool `yaml:"use_localhost,omitempty"`
 }
 
