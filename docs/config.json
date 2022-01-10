@@ -257,7 +257,8 @@
       "icon": "wand",
       "title": "Preview",
       "entries": [
-        { "title": "Upcoming Releases", "slug": "/preview/upcoming-releases/" }
+        { "title": "Upcoming Releases", "slug": "/preview/upcoming-releases/" },
+        { "title": "Moderated Sessions", "slug": "/preview/moderated-sessions/" }
       ]
     },
     {
