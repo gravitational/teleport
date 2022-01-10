@@ -101,12 +101,14 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
 	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
 	a.authSign.Flag("out", "identity output").Short('o').Required().StringVar(&a.output)
-	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, %q, %q, %q or %q",
+	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, %q, %q, %q, %q, %q or %q",
 		identityfile.FormatFile,
 		identityfile.FormatOpenSSH,
 		identityfile.FormatTLS,
 		identityfile.FormatKubernetes,
 		identityfile.FormatDatabase,
+		identityfile.FormatCockroach,
+		identityfile.FormatRedis,
 		identityfile.FormatMongo)).
 		Default(string(identityfile.DefaultFormat)).
 		StringVar((*string)(&a.outputFormat))
@@ -324,7 +326,7 @@ func (a *AuthCommand) GenerateKeys() error {
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(clusterAPI auth.ClientI) error {
 	switch a.outputFormat {
-	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach:
+	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach, identityfile.FormatRedis:
 		return a.generateDatabaseKeys(clusterAPI)
 	}
 	switch {
@@ -501,6 +503,11 @@ func (a *AuthCommand) generateDatabaseKeysForKey(clusterAPI auth.ClientI, key *c
 			"files":  strings.Join(filesWritten, ", "),
 			"output": a.output,
 		})
+	case identityfile.FormatRedis:
+		redisAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+			"files":  strings.Join(filesWritten, ", "),
+			"output": a.output,
+		})
 	}
 	return nil
 }
@@ -546,6 +553,16 @@ directory using --certs-dir flag:
 cockroach start \
   --certs-dir={{.output}} \
   # other flags...
+`))
+	// TODO(jakule): do we need to support TLS v1.2???
+	redisAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your Redis server, add the following to your redis.conf:
+
+tls-ca-cert-file /path/to/{{.output}}.cas
+tls-cert-file /path/to/{{.output}}.crt 
+tls-key-file /path/to/{{.output}}.key
+tls-protocols "TLSv1.2 TLSv1.3"
 `))
 )
 

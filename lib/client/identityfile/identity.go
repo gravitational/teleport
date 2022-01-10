@@ -66,12 +66,17 @@ const (
 	// configuring a CockroachDB database for mutual TLS.
 	FormatCockroach Format = "cockroachdb"
 
+	// FormatRedis produces CA and key pair in the format suitable for
+	// configuring a Redis database for mutual TLS.
+	FormatRedis Format = "redis"
+
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
 )
 
 // KnownFormats is a list of all above formats.
-var KnownFormats = []Format{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo, FormatCockroach}
+var KnownFormats = []Format{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
+	FormatCockroach, FormatRedis}
 
 // WriteConfig holds the necessary information to write an identity file.
 type WriteConfig struct {
@@ -152,7 +157,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-	case FormatTLS, FormatDatabase, FormatCockroach:
+	case FormatTLS, FormatDatabase, FormatCockroach, FormatRedis:
 		keyPath := cfg.OutputPath + ".key"
 		certPath := cfg.OutputPath + ".crt"
 		casPath := cfg.OutputPath + ".cas"
