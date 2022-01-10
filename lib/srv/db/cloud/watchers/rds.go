@@ -111,7 +111,7 @@ func (f *rdsFetcher) getRDSDatabases(ctx context.Context) (types.Databases, erro
 	for _, instance := range instances {
 		database, err := services.NewDatabaseFromRDSInstance(instance)
 		if err != nil {
-			f.log.Infof("Could not convert RDS instance %q to database resource: %v.",
+			f.log.Warnf("Could not convert RDS instance %q to database resource: %v.",
 				aws.StringValue(instance.DBInstanceIdentifier), err)
 		} else {
 			databases = append(databases, database)
@@ -153,7 +153,7 @@ func (f *rdsFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, e
 		// add a database from primary endpoint
 		database, err := services.NewDatabaseFromRDSCluster(cluster)
 		if err != nil {
-			f.log.Infof("Could not convert RDS cluster %q to database resource: %v.",
+			f.log.Warnf("Could not convert RDS cluster %q to database resource: %v.",
 				aws.StringValue(cluster.DBClusterIdentifier), err)
 		} else {
 			databases = append(databases, database)
@@ -163,7 +163,7 @@ func (f *rdsFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, e
 		if cluster.ReaderEndpoint != nil {
 			database, err := services.NewDatabaseFromRDSClusterReaderEndpoint(cluster)
 			if err != nil {
-				f.log.Infof("Could not convert RDS cluster %q reader endpoint to database resource: %v.",
+				f.log.Warnf("Could not convert RDS cluster %q reader endpoint to database resource: %v.",
 					aws.StringValue(cluster.DBClusterIdentifier), err)
 			} else {
 				databases = append(databases, database)
@@ -174,7 +174,7 @@ func (f *rdsFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, e
 		if len(cluster.CustomEndpoints) > 0 {
 			customEndpointDatabases, err := services.NewDatabasesFromRDSClusterCustomEndpoints(cluster)
 			if err != nil {
-				f.log.Infof("Could not convert RDS cluster %q custom endpoints to database resources: %v.",
+				f.log.Warnf("Could not convert RDS cluster %q custom endpoints to database resources: %v.",
 					aws.StringValue(cluster.DBClusterIdentifier), err)
 			}
 
