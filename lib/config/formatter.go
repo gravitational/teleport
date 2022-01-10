@@ -342,7 +342,7 @@ func formatCallerWithPathAndLine() (path string) {
 	return ""
 }
 
-var frameIgnorePattern = regexp.MustCompile(`github\.com/(gravitational|(S|s)irupsen)/logrus`)
+var frameIgnorePattern = regexp.MustCompile(`github\.com/((S|s)irupsen)/logrus`)
 
 // findFrames positions the stack pointer to the first
 // function that does not match the frameIngorePattern
