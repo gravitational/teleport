@@ -361,7 +361,14 @@ This is meant to ensure that the primary (renewable) credentials are
 exclusively readable to the bot while the secondary (non-renewable)
 credentials are readable only to the target user but still writable by the
 bot. The `tbot init` subcommand can be used to configure ACLs automatically
-where supported.
+where supported. At runtime, the bot will verify destination permissions and
+warn if ACLs are not configured correctly when writing or updating
+certificates.
+
+As an additional security measure for `directory` destinations, a warning will
+be emitted if the destination path does not resolve to the configured path,
+i.e. if symlinks are used. This may be innocuous, but may indicate an attempt
+to steal credentials.
 
 Notes:
  * Users may optionally decide to disable persistence of the renewable
@@ -622,12 +629,47 @@ In order to mark a certificate as renewable, we'll include a new extension in
 the certificate's subject field. This attribute will only be set by teleport
 when the certificates are first issued using the new endpoint and user token.
 
-#### Audit Log
+## Appendix: Audit Log Events
 
 The auth server will emit new events to the audit log when:
 
+- a new bot user is created
 - a new renewable certificate is issued for the first time
 - a certificate is renewed
 - a bot is locked
 - a bot is removed (likely due to failed heartbeating or expired certificates)
 - a certificate generation counter conflict is detected (certificate possibly compromised)
+
+## Appendix: Internal Teleport Changes Summary
+
+* Changes to existing functionality:
+  * Role requests: impersonation is extended to no longer require a target user;
+    users may be granted permission to impersonate individual roles:
+    ```yaml
+    allow:
+      impersonate: 
+        roles: ['foo', 'bar']
+    ```
+
+    Users may then request a subset of allowed roles using a new certificate
+    request field, `RoleRequests`. The returned certificate will show the user
+    as impersonating themselves, with a _replaced_ (not appended) list of
+    roles.
+  * Renewable certs: certain certificates may be renewed beyond their original
+    TTL.
+* New auth gRPC endpoints:
+  * `CreateBotToken()`: creates a new bot join token
+  * `GenerateInitialRenewableUserCerts()`: exchanges a bot token for an initial
+    set of renewable certificates, to be rate-limited similarly to other
+    token-accepting endpoints (`StartAccountRecovery`, etc)
+* New TLS certificate extensions:
+  * `disallow-reissue`: entirely prevents an identity from interacting with
+    `generateUserCerts`, used to prevent privilege re-escalation with role
+    impersonated certificates
+  * `renewable`: if set, allows certificates to be renewed beyond their
+    original expiration date
+  * `generation`: a certificate generation counter incremented for each
+    renewal of a certificate, used to detect stolen certificates
+  * `role-requests`: a list of roles to request using role impersonation which
+    will replace the requestor's existing Teleport roles, used to generate
+    reduced-privilege certificates
