@@ -1029,6 +1029,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 		AccessPoint:         proxyClient,
 		ReverseTunnelServer: reverseTunnelServer,
 		LocalCluster:        f.testSrv.ClusterName(),
+		Log:                 logger,
 	})
 	require.NoError(t, err)
 
