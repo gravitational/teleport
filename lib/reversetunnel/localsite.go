@@ -663,7 +663,7 @@ var (
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      teleport.MetricRegisteredAgents,
-			Help:      "The number of Teleport agents with their version that have connected to the Teleport cluster. After disconnecting, a Teleport agent has a TTL of 10 minutes so this value will reflect agents that have disconnected but have not reached their TTL.",
+			Help:      "The number of Teleport agents with their version that have connected to the Teleport cluster. After disconnecting, a Teleport agent has a TTL of 10 minutes so this value will include agents that have recently disconnected but have not reached their TTL.",
 		},
 		[]string{teleport.TagVersion},
 	)
