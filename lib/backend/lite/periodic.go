@@ -153,7 +153,6 @@ func (l *Backend) pollEvents(rowid int64) (int64, error) {
 			return rowid, trace.Wrap(err)
 		}
 		l.Debugf("Initialized event ID iterator to %v", rowid)
-		l.signalWatchStart()
 		l.buf.SetInit()
 	}
 

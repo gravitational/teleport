@@ -225,6 +225,26 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_DatabaseSessionQuery{
 			DatabaseSessionQuery: e,
 		}
+	case *PostgresParse:
+		out.Event = &OneOf_PostgresParse{
+			PostgresParse: e,
+		}
+	case *PostgresBind:
+		out.Event = &OneOf_PostgresBind{
+			PostgresBind: e,
+		}
+	case *PostgresExecute:
+		out.Event = &OneOf_PostgresExecute{
+			PostgresExecute: e,
+		}
+	case *PostgresClose:
+		out.Event = &OneOf_PostgresClose{
+			PostgresClose: e,
+		}
+	case *PostgresFunctionCall:
+		out.Event = &OneOf_PostgresFunctionCall{
+			PostgresFunctionCall: e,
+		}
 	case *SessionUpload:
 		out.Event = &OneOf_SessionUpload{
 			SessionUpload: e,
@@ -272,6 +292,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *WindowsDesktopSessionEnd:
 		out.Event = &OneOf_WindowsDesktopSessionEnd{
 			WindowsDesktopSessionEnd: e,
+		}
+	case *AccessRequestDelete:
+		out.Event = &OneOf_AccessRequestDelete{
+			AccessRequestDelete: e,
 		}
 	default:
 		return nil, trace.BadParameter("event type %T is not supported", in)
@@ -377,6 +401,16 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 		return e, nil
 	} else if e := in.GetDatabaseSessionQuery(); e != nil {
 		return e, nil
+	} else if e := in.GetPostgresParse(); e != nil {
+		return e, nil
+	} else if e := in.GetPostgresBind(); e != nil {
+		return e, nil
+	} else if e := in.GetPostgresExecute(); e != nil {
+		return e, nil
+	} else if e := in.GetPostgresClose(); e != nil {
+		return e, nil
+	} else if e := in.GetPostgresFunctionCall(); e != nil {
+		return e, nil
 	} else if e := in.GetSessionUpload(); e != nil {
 		return e, nil
 	} else if e := in.GetMFADeviceAdd(); e != nil {
@@ -400,6 +434,8 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 	} else if e := in.GetWindowsDesktopSessionStart(); e != nil {
 		return e, nil
 	} else if e := in.GetWindowsDesktopSessionEnd(); e != nil {
+		return e, nil
+	} else if e := in.GetAccessRequestDelete(); e != nil {
 		return e, nil
 	} else {
 		if in.Event == nil {
