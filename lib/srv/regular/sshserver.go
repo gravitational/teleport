@@ -1550,8 +1550,8 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 		return trace.AccessDenied("x11 forwarding is not enabled")
 	}
 
-	if _, ok := ctx.GetEnv(x11.DisplayEnv); ok {
-		return trace.AlreadyExists("x11 display is already set for this session")
+	if ctx.GetXAuthEntry() != nil {
+		return trace.AlreadyExists("x11 forwarding is already set up for this session")
 	}
 
 	// Check if the user's RBAC role allows X11 forwarding.
@@ -1569,11 +1569,17 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 		return trace.Wrap(err)
 	}
 
-	// Create a new xauth entry for the received auth protocol and cookie.
-	// This way any forwarded XServer connections will be populated with
-	// the auth data expected by the client.
-	if err := x11.UpdateXAuthEntry(ctx.CancelContext(), display, x11Req.AuthProtocol, x11Req.AuthCookie); err != nil {
-		return trace.Wrap(err)
+	// Create a new xauth entry for the received auth protocol and cookie
+	// and the x11 listener display value. This way any XServer connections
+	// forwarded to the x11 listener will be populated with the auth data
+	// expected by the client.
+	ok := ctx.SetXAuthEntry(&x11.XAuthEntry{
+		Display: display,
+		Proto:   x11Req.AuthProtocol,
+		Cookie:  x11Req.AuthCookie,
+	})
+	if !ok {
+		return trace.AlreadyExists("x11 auth data is already set for this session")
 	}
 
 	// The XServer listener should be closed once the
@@ -1608,9 +1614,6 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 		}
 	}()
 
-	// Set $DISPLAY on the server session so that XServer
-	// requests are sent to the X11 server listener.
-	ctx.SetEnv(x11.DisplayEnv, display)
 	return nil
 }
 

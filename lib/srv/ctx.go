@@ -42,6 +42,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
@@ -319,6 +320,10 @@ type ServerContext struct {
 	// port to connect to in a "direct-tcpip" request. This value is only
 	// populated for port forwarding requests.
 	DstAddr string
+
+	// xauthEntry is the xauth data which should be used for x11 forwarding
+	// in this server session.
+	xauthEntry *x11.XAuthEntry
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -584,6 +589,24 @@ func (c *ServerContext) getSession() *session {
 	return c.session
 }
 
+// SetXAuthEntry sets an xauth entry or returns false if the value is already set.
+func (c *ServerContext) SetXAuthEntry(entry *x11.XAuthEntry) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.xauthEntry != nil {
+		return false
+	}
+	c.xauthEntry = entry
+	return true
+}
+
+// GetXAuthEntry gets the set xauth entry.
+func (c *ServerContext) GetXAuthEntry() *x11.XAuthEntry {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.xauthEntry
+}
+
 // takeClosers returns all resources that should be closed and sets the properties to null
 // we do this to avoid calling Close() under lock to avoid potential deadlocks
 func (c *ServerContext) takeClosers() []io.Closer {
@@ -833,6 +856,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
+		XAuthEntry:            c.GetXAuthEntry(),
 	}, nil
 }
 
@@ -854,6 +878,12 @@ func buildEnvironment(ctx *ServerContext) []string {
 	ctx.VisitEnv(func(key, val string) {
 		env = append(env, fmt.Sprintf("%s=%s", key, val))
 	})
+
+	// If x11 forwarding is set up for the session, set $DISPLAY
+	// so that XServer requests are sent to the X11 server listener.
+	if entry := ctx.GetXAuthEntry(); entry != nil {
+		env = append(env, fmt.Sprintf("%s=%s", x11.DisplayEnv, entry.Display))
+	}
 
 	// Parse the local and remote addresses to build SSH_CLIENT and
 	// SSH_CONNECTION environment variables.

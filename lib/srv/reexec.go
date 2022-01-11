@@ -18,6 +18,7 @@ package srv
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/sirupsen/logrus"
@@ -89,6 +91,9 @@ type ExecCommand struct {
 
 	// UaccMetadata contains metadata needed for user accounting.
 	UaccMetadata UaccMetadata `json:"uacc_meta"`
+
+	// XAuthEntry contains an xauth entry to be added to the command user's xauthority.
+	XAuthEntry *x11.XAuthEntry `json:"xauth_entry,omitempty"`
 }
 
 // PAMConfig represents all the configuration data that needs to be passed to the child.
@@ -231,6 +236,32 @@ func RunCommand() (io.Writer, int, error) {
 	err = waitForContinue(contfd)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	// If requested, update the user's xauthority with the provided xauth entry
+	// using the same cmd variables as the shell command.
+	if c.XAuthEntry != nil {
+		removeCmd := x11.NewXAuthCommand(context.Background(), "")
+		removeCmd.SysProcAttr = cmd.SysProcAttr
+		removeCmd.Stdout = cmd.Stdout
+		removeCmd.Stdin = cmd.Stdin
+		removeCmd.Stderr = cmd.Stderr
+		removeCmd.Env = cmd.Env
+		removeCmd.Dir = cmd.Dir
+		if err := removeCmd.RemoveEntries(c.XAuthEntry.Display); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+
+		addCmd := x11.NewXAuthCommand(context.Background(), "")
+		addCmd.SysProcAttr = cmd.SysProcAttr
+		addCmd.Stdout = cmd.Stdout
+		addCmd.Stdin = cmd.Stdin
+		addCmd.Stderr = cmd.Stderr
+		addCmd.Env = cmd.Env
+		addCmd.Dir = cmd.Dir
+		if err := addCmd.AddEntry(c.XAuthEntry); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
 	}
 
 	// Start the command.

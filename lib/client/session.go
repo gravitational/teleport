@@ -294,7 +294,7 @@ func (ns *NodeSession) setX11Parameters(ctx context.Context) error {
 	// If in trusted mode, attempt to retrieve the auth protocol and cookie for
 	// the set display from client's local xauthority.
 	if ns.nodeClient.TC.X11ForwardingTrusted {
-		xauthEntry, err = x11.GetXauthEntry(ctx, ns.x11Display)
+		xauthEntry, err = x11.NewXAuthCommand(ctx, "").ReadEntry(ns.x11Display)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -303,9 +303,33 @@ func (ns *NodeSession) setX11Parameters(ctx context.Context) error {
 	// If we failed to find an xauth entry above, or the client requested
 	// untrusted x11 forwarding, create a new xauth entry for the given display.
 	if xauthEntry == nil {
-		xauthEntry, err = x11.CreateXauthEntry(ctx, ns.x11Display, ns.nodeClient.TC.X11ForwardingTrusted, ns.nodeClient.TC.X11ForwardingTimeout)
-		if err != nil {
-			return trace.Wrap(err)
+		if ns.nodeClient.TC.X11ForwardingTrusted {
+			xauthEntry, err = x11.NewXauthEntry(ns.x11Display)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			// Generate the xauth entry in a temporary file to prevent it from
+			// living outside the context of this request.
+			xauthDir, err := os.MkdirTemp(os.TempDir(), "tsh-*")
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer os.RemoveAll(xauthDir)
+			xauthFile, err := os.CreateTemp(xauthDir, "xauthfile")
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			cmd := x11.NewXAuthCommand(ctx, xauthFile.Name())
+			if err := cmd.GenerateUntrustedCookie(ns.x11Display, ns.x11Proto, ns.nodeClient.TC.X11ForwardingTimeout); err != nil {
+				return trace.Wrap(err)
+			}
+
+			xauthEntry, err = x11.NewXAuthCommand(ctx, xauthFile.Name()).ReadEntry(ns.x11Display)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
