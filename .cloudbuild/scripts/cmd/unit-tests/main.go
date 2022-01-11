@@ -19,20 +19,14 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
 	"github.com/gravitational/trace"
-)
-
-const (
-	gomodcacheDir = ".gomodcache-ci"
 )
 
 // main is just a stub that prints out an error message and sets a nonzero exit
@@ -119,11 +113,9 @@ func innerMain() error {
 }
 
 func runUnitTests(workspace string) error {
-	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(workspace, gomodcacheDir))
-
 	cmd := exec.Command("make", "test")
 	cmd.Dir = workspace
-	cmd.Env = append(os.Environ(), gomodcache, "TELEPORT_ETCD_TEST=yes")
+	cmd.Env = append(os.Environ(), "TELEPORT_ETCD_TEST=yes")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

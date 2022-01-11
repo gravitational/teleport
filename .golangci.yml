@@ -32,7 +32,5 @@ output:
   uniq-by-line: false
 
 run:
-  skip-dirs:
-    - vendor
   skip-dirs-use-default: false
   timeout: 5m

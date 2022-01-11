@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,24 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package utils
 
 import (
-	"math/rand"
-	"os"
-	"time"
+	"net"
 
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/teleport/common"
+	"github.com/gravitational/trace"
 )
 
-func init() {
-	utils.RegisterPrometheusCollectors(utils.BuildCollector())
-	rand.Seed(time.Now().UnixNano())
-}
+// ClientIPFromConn extracts host from provided remote address.
+func ClientIPFromConn(conn net.Conn) (string, error) {
+	clientRemoteAddr := conn.RemoteAddr()
 
-func main() {
-	common.Run(common.Options{
-		Args: os.Args[1:],
-	})
+	clientIP, _, err := net.SplitHostPort(clientRemoteAddr.String())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return clientIP, nil
 }
