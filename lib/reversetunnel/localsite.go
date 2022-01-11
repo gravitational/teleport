@@ -502,82 +502,100 @@ func (s *localSite) periodicFunctions() {
 	}
 }
 
+// agentStats leverages the accessPoint cache to report all agents/proxies/auth servers connected to the
+// teleport cluster via prometheus metrics
 func (s *localSite) agentStats() {
 	hostID := make(map[string]struct{})
 	versionCount := make(map[string]int)
 
+	// Nodes, Proxies, Auths, KubeServices, and WindowsDesktopServers use the UUID as the name field where
+	// DB and App store it in the spec. Check expiry due to DynamoDB taking up to 48hr to expire from backend
+	// and then store hostID and version count information.
+	serverCheck := func(server interface{}) {
+		type serverKubeWindows interface {
+			Expiry() time.Time
+			GetName() string
+			GetTeleportVersion() string
+		}
+		type appDB interface {
+			serverKubeWindows
+			GetHostID() string
+		}
+
+		ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
+
+		// appDB needs to be first as it also matches the serverKubeWindows interface
+		switch server.(type) {
+		case appDB:
+			if server.(appDB).Expiry().Before(ttl) {
+				return
+			}
+			if _, present := hostID[server.(appDB).GetHostID()]; !present {
+				hostID[server.(appDB).GetHostID()] = struct{}{}
+				versionCount[server.(appDB).GetTeleportVersion()]++
+			}
+		case serverKubeWindows:
+			if server.(serverKubeWindows).Expiry().Before(ttl) {
+				return
+			}
+			if _, present := hostID[server.(serverKubeWindows).GetName()]; !present {
+				hostID[server.(serverKubeWindows).GetName()] = struct{}{}
+				versionCount[server.(serverKubeWindows).GetTeleportVersion()]++
+			}
+		}
+	}
+
+	proxyServers, err := s.accessPoint.GetProxies()
+	if err == nil {
+		for _, proxyServer := range proxyServers {
+			serverCheck(proxyServer)
+		}
+	}
+
+	authServers, err := s.accessPoint.GetAuthServers()
+	if err == nil {
+		for _, authServer := range authServers {
+			serverCheck(authServer)
+		}
+	}
+
 	servers, err := s.accessPoint.GetNodes(s.srv.ctx, apidefaults.Namespace)
 	if err == nil {
 		for _, server := range servers {
-			ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
-			if server.Expiry().Before(ttl) {
-				continue
-			}
-			hostID[server.GetName()] = struct{}{}
-			versionCount[server.GetTeleportVersion()]++
+			serverCheck(server)
 		}
 	}
 
 	dbs, err := s.accessPoint.GetDatabaseServers(s.srv.ctx, apidefaults.Namespace)
 	if err == nil {
 		for _, db := range dbs {
-			ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
-			if db.Expiry().Before(ttl) {
-				continue
-			}
-			if _, present := hostID[db.GetName()]; !present {
-				hostID[db.GetName()] = struct{}{}
-				versionCount[db.GetTeleportVersion()]++
-			}
+			serverCheck(db)
 		}
 	}
 
 	apps, err := s.accessPoint.GetApplicationServers(s.srv.ctx, apidefaults.Namespace)
 	if err == nil {
 		for _, app := range apps {
-			ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
-			if app.Expiry().Before(ttl) {
-				continue
-			}
-			if _, present := hostID[app.GetName()]; !present {
-				hostID[app.GetName()] = struct{}{}
-				versionCount[app.GetTeleportVersion()]++
-			}
+			serverCheck(app)
 		}
 	}
 
-	kubes, err := s.accessPoint.GetKubeServices(s.srv.ctx)
+	kubeServices, err := s.accessPoint.GetKubeServices(s.srv.ctx)
 	if err == nil {
-		for _, kube := range kubes {
-			ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
-			if kube.Expiry().Before(ttl) {
-				continue
-			}
-			if _, present := hostID[kube.GetName()]; !present {
-				hostID[kube.GetName()] = struct{}{}
-				versionCount[kube.GetTeleportVersion()]++
-			}
+		for _, kubeService := range kubeServices {
+			serverCheck(kubeService)
 		}
 	}
 
-	// have to use the client the accessPoint interface doesn't implement the GetWindows* funcs
+	// Have to use the client the accessPoint interface doesn't implement the GetWindows* funcs
 	windowsServices, err := s.client.GetWindowsDesktopServices(s.srv.ctx)
-	if err != nil {
-	}
 	if err == nil {
 		for _, windowsService := range windowsServices {
-			ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
-			if windowsService.Expiry().Before(ttl) {
-				continue
-			}
-			if _, present := hostID[windowsService.GetName()]; !present {
-				hostID[windowsService.GetName()] = struct{}{}
-				versionCount[windowsService.GetTeleportVersion()]++
-			}
+			serverCheck(windowsService)
 		}
 	}
 
-	// reset the gauges so that any versions that fall off are removed
+	// reset the gauges so that any versions that fall off are removed from exported metrics
 	registeredAgents.Reset()
 	for version, count := range versionCount {
 		registeredAgents.WithLabelValues(version).Set(float64(count))
