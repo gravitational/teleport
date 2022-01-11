@@ -205,6 +205,20 @@ While out of scope for the initial implementation, the security of this approach
 can be further improved in the future by pinning the certificates to a certain
 machine.
 
+#### Locking
+
+Bot locking is functionally identical to user locking as bots are just
+specialized users. We will provide a helper command to automatically add the
+`bot-` prefix to the underlying user account:
+
+```
+$ tctl bots lock example
+# ... is functionally equivalent to this:
+$ tctl lock --user=bot-example
+```
+
+A similar helper will be provided for unlocking, `tctl bots unlock ...`
+
 #### Impersonation
 
 In a naive implementation, the bot might receive a single set of certificates
@@ -268,6 +282,14 @@ matching the primary certificate. It may be possible in the future to have
 secondary certificates with a shorter TTL than the primary (probably 1/n
 durations) but this is out of scope for the initial implementation.
 
+To help ensure renewals complete successfully, when a `SIGTERM` signal is
+received, the bot will delay exiting until any ongoing rotation completes.
+Where possible, we should aim to avoid any of the following situations:
+ * Writing invalid certificates to disk (especially those that might prevent
+   future renewals from succeeding if the bot is restarted)
+ * Generating valid certificates but failing to save them (which might result
+   in a certificate generation counter mismatch; see below for more info)
+
 #### Preventing Certificate Propagation
 
 Renewable certificates present an obvious security concern as they can be
@@ -304,33 +326,6 @@ server ensure that, when renewing, renewed certificate TTLs may only decrease
 in length. This would prevent an attacker from stealing a renewable certificate
 and immediately requesting a new certificate with the auth server's max
 renewable TTL.
-
-#### API Client Refresh
-
-As of now, our [API client](./0010-api.md) is initialized with a set of TLS
-credentials and expects those credentials be valid for the lifetime of the
-client.
-
-In order to continue communicating with the cluster, the bot will need to
-inform the API client of the new credentials after a renewal. As part of this
-effort, the client will be updated to allow for refreshing itself. This process
-initializes a new client that attempts to connect with the new credentials, and
-closes the original client when the new client is successfully connected with
-the cluster.
-
-```go
-func (c *Client) Refresh(ctx context.Context) error {
-    // use the existing config to generate a new client
-    newClient, err := connect(ctx, c.c)
-
-    c.Close() // close the original client
-
-    *c = newClient
-}
-```
-
-It will be the responsibility of the caller of `Refresh` to reinitialize any
-watches or streams that the client may have been running prior to the refresh.
 
 #### Artifacts
 
