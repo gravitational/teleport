@@ -560,6 +560,24 @@ func (s *localSite) agentStats() {
 		}
 	}
 
+	// have to use the client the accessPoint interface doesn't implement the GetWindows* funcs
+	windowsServices, err := s.client.GetWindowsDesktopServices(s.srv.ctx)
+	if err != nil {
+	}
+	if err == nil {
+		for _, windowsService := range windowsServices {
+			ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
+			if windowsService.Expiry().Before(ttl) {
+				continue
+			}
+			if _, present := hostID[windowsService.GetName()]; !present {
+				hostID[windowsService.GetName()] = struct{}{}
+				versionCount[windowsService.GetTeleportVersion()]++
+			}
+		}
+	}
+
+	// reset the gauges so that any versions that fall off are removed
 	registeredAgents.Reset()
 	for version, count := range versionCount {
 		registeredAgents.WithLabelValues(version).Set(float64(count))

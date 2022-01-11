@@ -309,8 +309,8 @@ const (
 )
 
 var (
-	// ResyncInterval is how often tunnels are resynced.
-	ResyncInterval = 5 * time.Second
+	// ResyncInterval is how often tunnels are resynced. This lines up with default prometheus scrape interval
+	ResyncInterval = 15 * time.Second
 
 	// AuthServersRefreshPeriod is a period for clients to refresh their
 	// their stored list of auth servers
