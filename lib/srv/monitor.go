@@ -223,8 +223,9 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 				lock, ok := lockEvent.Resource.(types.Lock)
 				if !ok {
 					w.Entry.Warnf("Skipping unexpected lock event resource type %T.", lockEvent.Resource)
+				} else {
+					lockErr = services.LockInForceAccessDenied(lock)
 				}
-				lockErr = services.LockInForceAccessDenied(lock)
 			case types.OpDelete:
 				// Lock deletion can be ignored.
 			case types.OpUnreliable:
