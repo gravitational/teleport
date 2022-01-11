@@ -1575,7 +1575,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 
 	if a.context.Identity.GetIdentity().DisallowReissue {
-		return nil, trace.AccessDenied("access denied: identity is now allowed to reissue certificates")
+		return nil, trace.AccessDenied("access denied: identity is not allowed to reissue certificates")
 	}
 
 	// Prohibit recursive impersonation behavior:
