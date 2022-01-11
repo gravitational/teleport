@@ -60,6 +60,11 @@ export const eventCodes = {
   DATABASE_CREATED: 'TDB03I',
   DATABASE_UPDATED: 'TDB04I',
   DATABASE_DELETED: 'TDB05I',
+  POSTGRES_PARSE: 'TPG00I',
+  POSTGRES_BIND: 'TPG01I',
+  POSTGRES_EXECUTE: 'TPG02I',
+  POSTGRES_CLOSE: 'TPG03I',
+  POSTGRES_FUNCTION_CALL: 'TPG04I',
   DESKTOP_SESSION_STARTED: 'TDP00I',
   DESKTOP_SESSION_STARTED_FAILED: 'TDP00W',
   DESKTOP_SESSION_ENDED: 'TDP01I',
@@ -416,6 +421,49 @@ export type RawEvents = {
     typeof eventCodes.DATABASE_DELETED,
     {
       name: string;
+    }
+  >;
+  [eventCodes.POSTGRES_PARSE]: RawEvent<
+    typeof eventCodes.POSTGRES_PARSE,
+    {
+      name: string;
+      db_service: string;
+      statement_name: string;
+      query: string;
+    }
+  >;
+  [eventCodes.POSTGRES_BIND]: RawEvent<
+    typeof eventCodes.POSTGRES_BIND,
+    {
+      name: string;
+      db_service: string;
+      statement_name: string;
+      portal_name: string;
+    }
+  >;
+  [eventCodes.POSTGRES_EXECUTE]: RawEvent<
+    typeof eventCodes.POSTGRES_EXECUTE,
+    {
+      name: string;
+      db_service: string;
+      portal_name: string;
+    }
+  >;
+  [eventCodes.POSTGRES_CLOSE]: RawEvent<
+    typeof eventCodes.POSTGRES_CLOSE,
+    {
+      name: string;
+      db_service: string;
+      statement_name: string;
+      portal_name: string;
+    }
+  >;
+  [eventCodes.POSTGRES_FUNCTION_CALL]: RawEvent<
+    typeof eventCodes.POSTGRES_FUNCTION_CALL,
+    {
+      name: string;
+      db_service: string;
+      function_oid: string;
     }
   >;
   [eventCodes.MFA_DEVICE_ADD]: RawEvent<

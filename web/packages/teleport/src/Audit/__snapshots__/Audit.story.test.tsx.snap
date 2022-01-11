@@ -341,12 +341,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            55
+            60
           </strong>
            
           of 
           <strong>
-            55
+            60
           </strong>
         </div>
         <button
@@ -411,6 +411,181 @@ exports[`list of all events 1`] = `
       </tr>
     </thead>
     <tbody>
+      <tr>
+        <td>
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-database c7 c12"
+              color="light"
+              font-size="3"
+            />
+            PostgreSQL Function Call
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice] has executed function with OID [123] on [local]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2021-12-16 00:40:37
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-database c7 c12"
+              color="light"
+              font-size="3"
+            />
+            PostgreSQL Statement Close
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice] has closed statement [test-ps] on [local]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2021-12-16 00:40:37
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-database c7 c12"
+              color="light"
+              font-size="3"
+            />
+            PostgreSQL Statement Execute
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice] has executed portal [] on [local]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2021-12-16 00:40:37
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-database c7 c12"
+              color="light"
+              font-size="3"
+            />
+            PostgreSQL Statement Bind
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice] has readied statement [test-ps] for execution as portal [] on [local]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2021-12-16 00:40:37
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-database c7 c12"
+              color="light"
+              font-size="3"
+            />
+            PostgreSQL Statement Parse
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice] has prepared [select id from test where id = $1::varchar] as statement [test-ps] on [local]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2021-12-16 00:40:37
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
       <tr>
         <td>
           <div

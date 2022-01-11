@@ -390,6 +390,40 @@ export const formatters: Formatters = {
     desc: 'Database Deleted',
     format: ({ user, name }) => `User [${user}] deleted database [${name}]`,
   },
+  [eventCodes.POSTGRES_PARSE]: {
+    type: 'db.session.postgres.parse',
+    desc: 'PostgreSQL Statement Parse',
+    format: ({ user, db_service, statement_name, query }) =>
+      `User [${user}] has prepared [${truncateStr(query, 80)}] as statement [${statement_name}] on [${db_service}]`,
+  },
+  [eventCodes.POSTGRES_BIND]: {
+    type: 'db.session.postgres.bind',
+    desc: 'PostgreSQL Statement Bind',
+    format: ({ user, db_service, statement_name, portal_name }) =>
+      `User [${user}] has readied statement [${statement_name}] for execution as portal [${portal_name}] on [${db_service}]`,
+  },
+  [eventCodes.POSTGRES_EXECUTE]: {
+    type: 'db.session.postgres.execute',
+    desc: 'PostgreSQL Statement Execute',
+    format: ({ user, db_service, portal_name }) =>
+      `User [${user}] has executed portal [${portal_name}] on [${db_service}]`,
+  },
+  [eventCodes.POSTGRES_CLOSE]: {
+    type: 'db.session.postgres.close',
+    desc: 'PostgreSQL Statement Close',
+    format: e => {
+      if (e.portal_name) {
+        return `User [${e.user}] has closed portal [${e.portal_name}] on [${e.db_service}]`
+      }
+      return `User [${e.user}] has closed statement [${e.statement_name}] on [${e.db_service}]`
+    }
+  },
+  [eventCodes.POSTGRES_FUNCTION_CALL]: {
+    type: 'db.session.postgres.function',
+    desc: 'PostgreSQL Function Call',
+    format: ({ user, db_service, function_oid }) =>
+      `User [${user}] has executed function with OID [${function_oid}] on [${db_service}]`,
+  },
   [eventCodes.MFA_DEVICE_ADD]: {
     type: 'mfa.add',
     desc: 'MFA Device Added',
