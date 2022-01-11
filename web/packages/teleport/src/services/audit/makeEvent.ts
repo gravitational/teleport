@@ -36,6 +36,12 @@ export const formatters: Formatters = {
     format: ({ id, reviewer }) =>
       `User [${reviewer}] reviewed access request [${id}]`,
   },
+  [eventCodes.ACCESS_REQUEST_DELETED]: {
+    type: 'access_request.delete',
+    desc: 'Access Request Deleted',
+    format: ({ id }) =>
+      `Access request [${id}] has been deleted`,
+  },
   [eventCodes.SESSION_COMMAND]: {
     type: 'session.command',
     desc: 'Session Command',

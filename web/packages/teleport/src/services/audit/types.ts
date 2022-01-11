@@ -43,6 +43,7 @@ export const eventCodes = {
   ACCESS_REQUEST_CREATED: 'T5000I',
   ACCESS_REQUEST_REVIEWED: 'T5002I',
   ACCESS_REQUEST_UPDATED: 'T5001I',
+  ACCESS_REQUEST_DELETED: 'T5003I',
   APP_SESSION_CHUNK: 'T2008I',
   APP_SESSION_START: 'T2007I',
   AUTH_ATTEMPT_FAILURE: 'T3007W',
@@ -128,6 +129,9 @@ export type RawEvents = {
   >;
   [eventCodes.ACCESS_REQUEST_REVIEWED]: RawEventAccess<
     typeof eventCodes.ACCESS_REQUEST_REVIEWED
+  >;
+  [eventCodes.ACCESS_REQUEST_DELETED]: RawEventAccess<
+    typeof eventCodes.ACCESS_REQUEST_DELETED
   >;
   [eventCodes.AUTH_ATTEMPT_FAILURE]: RawEventAuthFailure<
     typeof eventCodes.AUTH_ATTEMPT_FAILURE
