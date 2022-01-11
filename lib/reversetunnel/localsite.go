@@ -546,6 +546,9 @@ func (s *localSite) agentStats() {
 	}
 
 	proxyServers, err := s.accessPoint.GetProxies()
+	if err != nil {
+		log.Debugf("Failed to get Proxies for prometheus metric update: %v", err)
+	}
 	if err == nil {
 		for _, proxyServer := range proxyServers {
 			serverCheck(proxyServer)
@@ -553,46 +556,52 @@ func (s *localSite) agentStats() {
 	}
 
 	authServers, err := s.accessPoint.GetAuthServers()
-	if err == nil {
-		for _, authServer := range authServers {
-			serverCheck(authServer)
-		}
+	if err != nil {
+		log.Debugf("Failed to get Auth servers for prometheus metric update: %v", err)
+	}
+	for _, authServer := range authServers {
+		serverCheck(authServer)
 	}
 
 	servers, err := s.accessPoint.GetNodes(s.srv.ctx, apidefaults.Namespace)
-	if err == nil {
-		for _, server := range servers {
-			serverCheck(server)
-		}
+	if err != nil {
+		log.Debugf("Failed to get Nodes for prometheus metric update: %v", err)
+	}
+	for _, server := range servers {
+		serverCheck(server)
 	}
 
 	dbs, err := s.accessPoint.GetDatabaseServers(s.srv.ctx, apidefaults.Namespace)
-	if err == nil {
-		for _, db := range dbs {
-			serverCheck(db)
-		}
+	if err != nil {
+		log.Debugf("Failed to get Database servers for prometheus metric update: %v", err)
+	}
+	for _, db := range dbs {
+		serverCheck(db)
 	}
 
 	apps, err := s.accessPoint.GetApplicationServers(s.srv.ctx, apidefaults.Namespace)
-	if err == nil {
-		for _, app := range apps {
-			serverCheck(app)
-		}
+	if err != nil {
+		log.Debugf("Failed to get Application servers for prometheus metric update: %v", err)
+	}
+	for _, app := range apps {
+		serverCheck(app)
 	}
 
 	kubeServices, err := s.accessPoint.GetKubeServices(s.srv.ctx)
-	if err == nil {
-		for _, kubeService := range kubeServices {
-			serverCheck(kubeService)
-		}
+	if err != nil {
+		log.Debugf("Failed to get Kube services for prometheus metric update: %v", err)
+	}
+	for _, kubeService := range kubeServices {
+		serverCheck(kubeService)
 	}
 
 	// Have to use the client the accessPoint interface doesn't implement the GetWindows* funcs
 	windowsServices, err := s.client.GetWindowsDesktopServices(s.srv.ctx)
-	if err == nil {
-		for _, windowsService := range windowsServices {
-			serverCheck(windowsService)
-		}
+	if err != nil {
+		log.Debugf("Failed to get Window Desktop Services for prometheus metric update: %v", err)
+	}
+	for _, windowsService := range windowsServices {
+		serverCheck(windowsService)
 	}
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
