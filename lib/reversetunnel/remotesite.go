@@ -576,10 +576,13 @@ func (s *remoteSite) watchLocks() error {
 		case <-s.ctx.Done():
 			s.WithError(s.ctx.Err()).Debug("Context is closing.")
 			return trace.Wrap(s.ctx.Err())
-		case <-watcher.Events():
-			locks := s.srv.LockWatcher.GetCurrent()
-			if err := s.remoteClient.ReplaceRemoteLocks(s.ctx, s.srv.ClusterName, locks); err != nil {
-				return trace.Wrap(err)
+		case evt := <-watcher.Events():
+			switch evt.Type {
+			case types.OpPut, types.OpDelete:
+				locks := s.srv.LockWatcher.GetCurrent()
+				if err := s.remoteClient.ReplaceRemoteLocks(s.ctx, s.srv.ClusterName, locks); err != nil {
+					return trace.Wrap(err)
+				}
 			}
 		}
 	}
