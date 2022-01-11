@@ -122,7 +122,7 @@ func (w *Watcher) fetchAndSend() {
 			// DB agent may have permissions to fetch some databases but not
 			// others. This is acceptable, thus continue to other fetchers.
 			if trace.IsAccessDenied(err) {
-				w.log.Debugf("Skipping fetcher %v with error %v.", fetcher, err)
+				w.log.WithError(err).Debugf("Skipping fetcher %v.", fetcher)
 				continue
 			}
 

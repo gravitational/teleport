@@ -49,53 +49,95 @@ func TestWatcher(t *testing.T) {
 	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
 	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", services.RDSEngineModeServerless, map[string]string{"env": "prod"})
 
-	watcher, err := NewWatcher(ctx, WatcherConfig{
-		AWSMatchers: []services.AWSMatcher{
-			{
-				Types:   []string{services.AWSMatcherRDS},
-				Regions: []string{"us-east-1"},
-				Tags:    types.Labels{"env": []string{"prod"}},
+	tests := []struct {
+		name              string
+		awsMatchers       []services.AWSMatcher
+		clients           common.CloudClients
+		expectedDatabases types.Databases
+	}{
+		{
+			name: "rds labels matching",
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{services.AWSMatcherRDS},
+					Regions: []string{"us-east-1"},
+					Tags:    types.Labels{"env": []string{"prod"}},
+				},
+				{
+					Types:   []string{services.AWSMatcherRDS},
+					Regions: []string{"us-east-2"},
+					Tags:    types.Labels{"env": []string{"dev"}},
+				},
 			},
-			{
-				Types:   []string{services.AWSMatcherRDS},
-				Regions: []string{"us-east-2"},
-				Tags:    types.Labels{"env": []string{"dev"}},
-			},
-			{
-				Types:   []string{services.AWSMatcherRDS},
-				Regions: []string{"ca-central-1", "us-west-1"},
-				Tags:    types.Labels{"*": []string{"*"}},
-			},
-		},
-		Clients: &common.TestCloudClients{
-			RDSPerRegion: map[string]rdsiface.RDSAPI{
-				"ca-central-1": &cloud.RDSMockUnauth{}, // everything is unauthorized
-				"us-west-1": &cloud.RDSMockDBClustersUnauth{ // Aurora is unauthorized
-					RDSMock: cloud.RDSMock{
-						DBInstances: []*rds.DBInstance{rdsInstance4},
+			clients: &common.TestCloudClients{
+				RDSPerRegion: map[string]rdsiface.RDSAPI{
+					"us-east-1": &cloud.RDSMock{
+						DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstance3},
+						DBClusters:  []*rds.DBCluster{auroraCluster1},
+					},
+					"us-east-2": &cloud.RDSMock{
+						DBInstances: []*rds.DBInstance{rdsInstance2},
+						DBClusters:  []*rds.DBCluster{auroraCluster2, auroraCluster3},
 					},
 				},
-				"us-east-1": &cloud.RDSMock{
-					DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstance3},
-					DBClusters:  []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
-				},
-				"us-east-2": &cloud.RDSMock{
-					DBInstances: []*rds.DBInstance{rdsInstance2},
-					DBClusters:  []*rds.DBCluster{auroraCluster2, auroraCluster3},
+			},
+			expectedDatabases: types.Databases{rdsDatabase1, auroraDatabase1, auroraDatabase2},
+		},
+		{
+			name: "rds aurora unsupported",
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRDS},
+				Regions: []string{"us-east-1"},
+				Tags:    types.Labels{"*": []string{"*"}},
+			}},
+			clients: &common.TestCloudClients{
+				RDSPerRegion: map[string]rdsiface.RDSAPI{
+					"us-east-1": &cloud.RDSMock{
+						DBClusters: []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
+					},
 				},
 			},
+			expectedDatabases: types.Databases{auroraDatabase1},
 		},
-	})
-	require.NoError(t, err)
-
-	go watcher.fetchAndSend()
-	select {
-	case databases := <-watcher.DatabasesC():
-		require.Equal(t, types.Databases{
-			rdsDatabase1, auroraDatabase1, auroraDatabase2, rdsDatabase4}, databases)
-	case <-time.After(time.Second):
-		t.Fatal("didn't receive databases after 1 second")
+		{
+			name: "skip access denied errors",
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRDS},
+				Regions: []string{"ca-central-1", "us-west-1", "us-east-1"},
+				Tags:    types.Labels{"*": []string{"*"}},
+			}},
+			clients: &common.TestCloudClients{
+				RDSPerRegion: map[string]rdsiface.RDSAPI{
+					"ca-central-1": &cloud.RDSMockUnauth{},
+					"us-west-1": &cloud.RDSMockByDBType{
+						DBInstances: &cloud.RDSMock{DBInstances: []*rds.DBInstance{rdsInstance4}},
+						DBClusters:  &cloud.RDSMockUnauth{},
+					},
+					"us-east-1": &cloud.RDSMockByDBType{
+						DBInstances: &cloud.RDSMockUnauth{},
+						DBClusters:  &cloud.RDSMock{DBClusters: []*rds.DBCluster{auroraCluster1}},
+					},
+				},
+			},
+			expectedDatabases: types.Databases{rdsDatabase4, auroraDatabase1},
+		},
 	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			watcher, err := NewWatcher(ctx, WatcherConfig{AWSMatchers: test.awsMatchers, Clients: test.clients})
+			require.NoError(t, err)
+
+			go watcher.fetchAndSend()
+			select {
+			case databases := <-watcher.DatabasesC():
+				require.Equal(t, test.expectedDatabases, databases)
+			case <-time.After(time.Second):
+				t.Fatal("didn't receive databases after 1 second")
+			}
+		})
+	}
+
 }
 
 func makeRDSInstance(t *testing.T, name, region string, labels map[string]string) (*rds.DBInstance, types.Database) {
