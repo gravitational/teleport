@@ -53,7 +53,7 @@ func TestProxyWatcher_Backoff(t *testing.T) {
 		Clock:          clock,
 		MaxRetryPeriod: defaults.MaxWatcherBackoff,
 		Client:         &errorWatcher{},
-		ProxiesC:       make(chan []types.Server, 1),
+		ProxiesC:       make(chan []types.Server, 5),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, w.Close()) })
@@ -68,8 +68,12 @@ func TestProxyWatcher_Backoff(t *testing.T) {
 
 			require.GreaterOrEqual(t, duration, stepMin)
 			require.LessOrEqual(t, duration, stepMax)
+
+			// wait for watcher to get to retry.After
+			clock.BlockUntil(1)
+
 			// add some extra to the duration to ensure the retry occurs
-			clock.Advance(duration * 3)
+			clock.Advance(w.MaxRetryPeriod)
 		case <-time.After(time.Minute):
 			t.Fatalf("timeout waiting for reset")
 		}

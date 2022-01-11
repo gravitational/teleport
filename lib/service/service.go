@@ -298,9 +298,6 @@ type TeleportProcess struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
-
-	// connectFailureC is a channel to notify of failures to connect to auth (used in tests).
-	connectFailureC chan time.Duration
 }
 
 type keyPairKey struct {
@@ -671,7 +668,6 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		id:                  processID,
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
-		connectFailureC:     make(chan time.Duration),
 	}
 
 	process.registerAppDepend()

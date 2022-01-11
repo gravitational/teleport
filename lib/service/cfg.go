@@ -211,6 +211,9 @@ type Config struct {
 
 	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
 	MaxRetryPeriod time.Duration
+
+	// ConnectFailureC is a channel to notify of failures to connect to auth (used in tests).
+	ConnectFailureC chan time.Duration
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -292,7 +295,7 @@ type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
 	Enabled bool
 
-	//DisableTLS is enabled if we don't want self-signed certs
+	// DisableTLS is enabled if we don't want self-signed certs
 	DisableTLS bool
 
 	// DisableWebInterface allows to turn off serving the Web UI interface
@@ -853,6 +856,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Databases.Enabled = false
 
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
+	cfg.ConnectFailureC = make(chan time.Duration, 1)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

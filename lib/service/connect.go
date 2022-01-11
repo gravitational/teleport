@@ -80,7 +80,7 @@ func (process *TeleportProcess) reconnectToAuthService(role teleport.Role) (*Con
 
 		// Used for testing that auth service will attempt to reconnect in the provided duration.
 		select {
-		case process.connectFailureC <- retry.Duration():
+		case process.Config.ConnectFailureC <- retry.Duration():
 		default:
 		}
 
