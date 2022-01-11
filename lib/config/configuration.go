@@ -471,7 +471,7 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 
 		logger.SetFormatter(formatter)
 	case "json":
-		formatter := &utils.JsonFormatter{
+		formatter := &utils.JSONFormatter{
 			ExtraFields: loggerConfig.Format.ExtraFields,
 		}
 

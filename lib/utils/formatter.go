@@ -192,9 +192,9 @@ func (tf *TextFormatter) Format(e *log.Entry) ([]byte, error) {
 	return data, nil
 }
 
-// JsonFormatter implements the logrus.Formatter interface and adds extra
+// JSONFormatter implements the logrus.Formatter interface and adds extra
 // fields to log entries
-type JsonFormatter struct {
+type JSONFormatter struct {
 	log.JSONFormatter
 
 	ExtraFields []string
@@ -204,7 +204,7 @@ type JsonFormatter struct {
 }
 
 // CheckAndSetDefaults checks and sets log format configuration
-func (j *JsonFormatter) CheckAndSetDefaults() error {
+func (j *JSONFormatter) CheckAndSetDefaults() error {
 	// set log formatting
 	if j.ExtraFields == nil {
 		j.ExtraFields = KnownFormatFields.names()
@@ -241,7 +241,7 @@ func (j *JsonFormatter) CheckAndSetDefaults() error {
 }
 
 // Format implements logrus.Formatter interface
-func (j *JsonFormatter) Format(e *log.Entry) ([]byte, error) {
+func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
 	if j.callerEnabled {
 		path := formatCallerWithPathAndLine()
 		e.Data[callerField] = path
