@@ -497,7 +497,72 @@ func (s *localSite) periodicFunctions() {
 			if err := s.sshTunnelStats(); err != nil {
 				s.log.Warningf("Failed to report SSH tunnel statistics for: %v: %v.", s.domainName, err)
 			}
+			s.agentStats()
 		}
+	}
+}
+
+func (s *localSite) agentStats() {
+	hostID := make(map[string]struct{})
+	versionCount := make(map[string]int)
+
+	servers, err := s.accessPoint.GetNodes(s.srv.ctx, apidefaults.Namespace)
+	if err == nil {
+		for _, server := range servers {
+			ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
+			if server.Expiry().Before(ttl) {
+				continue
+			}
+			hostID[server.GetName()] = struct{}{}
+			versionCount[server.GetTeleportVersion()]++
+		}
+	}
+
+	dbs, err := s.accessPoint.GetDatabaseServers(s.srv.ctx, apidefaults.Namespace)
+	if err == nil {
+		for _, db := range dbs {
+			ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
+			if db.Expiry().Before(ttl) {
+				continue
+			}
+			if _, present := hostID[db.GetName()]; !present {
+				hostID[db.GetName()] = struct{}{}
+				versionCount[db.GetTeleportVersion()]++
+			}
+		}
+	}
+
+	apps, err := s.accessPoint.GetApplicationServers(s.srv.ctx, apidefaults.Namespace)
+	if err == nil {
+		for _, app := range apps {
+			ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
+			if app.Expiry().Before(ttl) {
+				continue
+			}
+			if _, present := hostID[app.GetName()]; !present {
+				hostID[app.GetName()] = struct{}{}
+				versionCount[app.GetTeleportVersion()]++
+			}
+		}
+	}
+
+	kubes, err := s.accessPoint.GetKubeServices(s.srv.ctx)
+	if err == nil {
+		for _, kube := range kubes {
+			ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
+			if kube.Expiry().Before(ttl) {
+				continue
+			}
+			if _, present := hostID[kube.GetName()]; !present {
+				hostID[kube.GetName()] = struct{}{}
+				versionCount[kube.GetTeleportVersion()]++
+			}
+		}
+	}
+
+	registeredAgents.Reset()
+	for version, count := range versionCount {
+		registeredAgents.WithLabelValues(version).Set(float64(count))
 	}
 }
 
@@ -558,6 +623,14 @@ var (
 			Help: "Number of missing SSH tunnels",
 		},
 	)
+	registeredAgents = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricRegisteredAgents,
+			Help:      "The number of Teleport agents with their version that have connected to the Teleport cluster. After disconnecting, a Teleport agent has a TTL of 10 minutes so this value will reflect agents that have disconnected but have not reached their TTL.",
+		},
+		[]string{teleport.TagVersion},
+	)
 
-	localClusterCollectors = []prometheus.Collector{missingSSHTunnels}
+	localClusterCollectors = []prometheus.Collector{missingSSHTunnels, registeredAgents}
 )
