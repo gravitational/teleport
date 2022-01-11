@@ -50,8 +50,6 @@ const props: State = {
   isEnterprise: false,
   isAddAppVisible: false,
   canCreate: true,
-  searchValue: '',
-  setSearchValue: () => null,
   hideAddApp: () => null,
   showAddApp: () => null,
 };

@@ -45,8 +45,6 @@ export function Apps(props: State) {
     canCreate,
     attempt,
     apps,
-    searchValue,
-    setSearchValue,
   } = props;
 
   const isEmpty = attempt.status === 'success' && apps.length === 0;
@@ -68,13 +66,7 @@ export function Apps(props: State) {
         </Box>
       )}
       {attempt.status === 'failed' && <Danger>{attempt.statusText} </Danger>}
-      {hasApps && (
-        <AppList
-          apps={apps}
-          search={searchValue}
-          onSearchChange={setSearchValue}
-        />
-      )}
+      {hasApps && <AppList apps={apps} />}
       {isEmpty && (
         <Empty
           clusterId={clusterId}

@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useState } from 'react';
+import React from 'react';
 import styled from 'styled-components';
-import { sortBy } from 'lodash';
 import { Flex, Text, ButtonBorder } from 'design';
+import Table, { Cell, LabelCell } from 'design/DataTableNext';
 import {
   pink,
   teal,
@@ -30,111 +30,63 @@ import {
   deepOrange,
   blueGrey,
 } from 'design/theme/palette';
-import {
-  Column,
-  SortHeaderCell,
-  Cell,
-  renderLabelCell,
-  TextCell,
-  SortTypes,
-} from 'design/DataTable';
 import { AmazonAws } from 'design/Icon';
-import Table from 'design/DataTable/Paged';
-import isMatch from 'design/utils/match';
 import { App } from 'teleport/services/apps';
 import AwsLaunchButton from './AwsLaunchButton';
 
 export default function AppList(props: Props) {
-  const { apps = [], pageSize = 100, search, onSearchChange } = props;
-  const [sortDir, setSortDir] = useState<Record<string, string>>({
-    name: SortTypes.DESC,
-  });
-
-  function sortAndFilter(search) {
-    const filtered = apps.filter(obj =>
-      isMatch(obj, search, {
-        searchableProps: ['name', 'publicAddr', 'description', 'tags'],
-        cb: searchAndFilterCb,
-      })
-    );
-
-    const columnKey = Object.getOwnPropertyNames(sortDir)[0];
-    const sorted = sortBy(filtered, columnKey);
-    if (sortDir[columnKey] === SortTypes.ASC) {
-      return sorted.reverse();
-    }
-
-    return sorted;
-  }
-
-  function onSortChange(columnKey: string, sortDir: string) {
-    setSortDir({ [columnKey]: sortDir });
-  }
-
-  const data = sortAndFilter(search);
+  const { apps = [], pageSize = 100 } = props;
 
   return (
     <StyledTable
-      pageSize={pageSize}
-      data={data}
-      search={search}
-      onSearchChange={onSearchChange}
-    >
-      <Column header={<Cell />} cell={<AppIconCell />} />
-      <Column
-        columnKey="name"
-        header={
-          <SortHeaderCell
-            sortDir={sortDir.name}
-            onSortChange={onSortChange}
-            title="Name"
-          />
-        }
-        cell={<TextCell />}
-      />
-      <Column
-        columnKey="description"
-        header={
-          <SortHeaderCell
-            sortDir={sortDir.description}
-            onSortChange={onSortChange}
-            title="Description"
-          />
-        }
-        cell={<TextCell />}
-      />
-      <Column
-        columnKey="publicAddr"
-        header={
-          <SortHeaderCell
-            sortDir={sortDir.publicAddr}
-            onSortChange={onSortChange}
-            title="Address"
-          />
-        }
-        cell={<AddressCell />}
-      />
-      <Column header={<Cell>Labels</Cell>} cell={<LabelCell />} />
-      <Column header={<Cell />} cell={<LaunchButtonCell />} />
-    </StyledTable>
+      data={apps}
+      columns={[
+        {
+          altKey: 'app-icon',
+          render: ({ name, awsConsole }) => (
+            <AppIconCell name={name} awsConsole={awsConsole} />
+          ),
+        },
+        {
+          key: 'name',
+          headerText: 'Name',
+          isSortable: true,
+        },
+        {
+          key: 'description',
+          headerText: 'Description',
+          isSortable: true,
+        },
+        {
+          key: 'publicAddr',
+          headerText: 'Address',
+          render: ({ publicAddr }) => <AddressCell publicAddr={publicAddr} />,
+          isSortable: true,
+        },
+        {
+          key: 'tags',
+          headerText: 'Labels',
+          render: ({ tags }) => <LabelCell data={tags} />,
+        },
+        {
+          altKey: 'launch-btn',
+          render: ({ ...data }) => <LaunchButtonCell {...data} />,
+        },
+      ]}
+      emptyText="No Applications Found"
+      pagination={{
+        pageSize,
+      }}
+      isSearchable
+    />
   );
 }
 
-function LabelCell(props) {
-  const { rowIndex, data } = props;
-  const { tags = [] } = data[rowIndex];
-  return renderLabelCell(tags);
-}
-
-function AddressCell(props) {
-  const { rowIndex, data } = props;
-  const { publicAddr } = data[rowIndex];
+function AddressCell({ publicAddr }: Partial<App>) {
   return <Cell>https://{publicAddr}</Cell>;
 }
 
-function AppIconCell(props) {
-  const { rowIndex, data } = props;
-  const { name, awsConsole } = data[rowIndex];
+function AppIconCell({ name, awsConsole }: Partial<App>) {
   return (
     <Cell style={{ userSelect: 'none' }}>
       <Flex
@@ -157,11 +109,14 @@ function AppIconCell(props) {
   );
 }
 
-function LaunchButtonCell(props) {
-  const { rowIndex, data } = props;
-  const { launchUrl, awsConsole, awsRoles, fqdn, clusterId, publicAddr } =
-    data[rowIndex];
-
+function LaunchButtonCell({
+  launchUrl,
+  awsConsole,
+  awsRoles,
+  fqdn,
+  clusterId,
+  publicAddr,
+}: Partial<App>) {
   const $btn = awsConsole ? (
     <AwsLaunchButton
       awsRoles={awsRoles}
@@ -207,27 +162,13 @@ function getIconColor(appName: string) {
   return colors[stringValue % 10];
 }
 
-function searchAndFilterCb(
-  targetValue: any[],
-  searchValue: string,
-  propName: string
-) {
-  if (propName === 'tags') {
-    return targetValue.some(item => {
-      return item.toLocaleUpperCase().indexOf(searchValue) !== -1;
-    });
-  }
-}
-
 type Props = {
   apps: App[];
   pageSize?: number;
-  search: string;
-  onSearchChange: React.Dispatch<React.SetStateAction<string>>;
 };
 
 const StyledTable = styled(Table)`
   & > tbody > tr > td {
     vertical-align: middle;
   }
-`;
+` as typeof Table;

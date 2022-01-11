@@ -529,7 +529,7 @@ exports[`loaded state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c18 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -558,22 +558,22 @@ exports[`loaded state 1`] = `
   width: 88px;
 }
 
-.c18:active {
+.c17:active {
   opacity: 0.56;
 }
 
-.c18:hover,
-.c18:focus {
+.c17:hover,
+.c17:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c18:active {
+.c17:active {
   opacity: 0.24;
 }
 
-.c18:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -585,20 +585,20 @@ exports[`loaded state 1`] = `
   font-size: 16px;
 }
 
-.c14 {
+.c13 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c22 {
+.c15 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
   font-size: 22px;
 }
 
-.c23 {
+.c18 {
   display: inline-block;
   transition: color .3s;
   margin-left: 4px;
@@ -606,7 +606,7 @@ exports[`loaded state 1`] = `
   font-size: 14px;
 }
 
-.c17 {
+.c16 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -630,10 +630,11 @@ exports[`loaded state 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
+  margin-right: 8px;
   color: #FFFFFF;
 }
 
-.c16 {
+.c20 {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -644,28 +645,18 @@ exports[`loaded state 1`] = `
 
 .c6 {
   box-sizing: border-box;
+  width: 100%;
   display: flex;
+  justify-content: end;
 }
 
 .c7 {
   box-sizing: border-box;
-  margin-right: 8px;
   display: flex;
   align-items: center;
 }
 
-.c15 {
-  box-sizing: border-box;
-  height: 32px;
-  width: 32px;
-  background-color: #e64a19;
-  border-radius: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c19 {
+.c21 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -676,7 +667,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c20 {
+.c22 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -687,7 +678,18 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c21 {
+.c19 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #e64a19;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c14 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -747,8 +749,10 @@ exports[`loaded state 1`] = `
   border-radius: 8px;
   font-size: 12px;
   width: 100%;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .c12 > thead > tr > th,
@@ -820,6 +824,43 @@ exports[`loaded state 1`] = `
   border-bottom-right-radius: 8px;
 }
 
+.c4 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c9 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c9 .c10 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c9:hover .c10,
+.c9:focus .c10 {
+  opacity: 1;
+}
+
+.c9:disabled {
+  cursor: default;
+}
+
+.c9:disabled .c10 {
+  opacity: 0.1;
+}
+
 .c5 {
   box-sizing: border-box;
   font-size: 12px;
@@ -828,21 +869,17 @@ exports[`loaded state 1`] = `
   border: none;
   border-radius: 200px;
   height: 32px;
-  transition: all 0.2s;
+  transition: all .2s;
+  color: rgba(255,255,255,0.87);
   background: #111B48;
-  margin-right: 16px;
   padding-left: 16px;
   padding-right: 16px;
-  color: rgba(255,255,255,0.87);
 }
 
-.c5:hover {
-  background: #2C3A73;
-}
-
+.c5:hover,
 .c5:focus,
 .c5:active {
-  background: #2C3A73;
+  background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
@@ -850,56 +887,6 @@ exports[`loaded state 1`] = `
 .c5::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
-}
-
-.c9 {
-  box-sizing: border-box;
-  display: flex;
-}
-
-.c9 button {
-  background: none;
-  border: none;
-  border-radius: 200px;
-  cursor: pointer;
-  padding: 0;
-  margin: 0 0 0 8px;
-  outline: none;
-  transition: all 0.3s;
-  text-align: center;
-}
-
-.c9 button:hover,
-.c9 button:focus {
-  background: #1C254D;
-}
-
-.c9 button:hover .c10,
-.c9 button:focus .c10 {
-  opacity: 1;
-}
-
-.c9 button .c10 {
-  opacity: 0.4;
-  font-size: 20px;
-  transition: all 0.3s;
-}
-
-.c4 {
-  padding: 12px 16px;
-  display: flex;
-  height: 24px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: end;
-  background: #222C59;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  justify-content: space-between;
-}
-
-.c13 > tbody > tr > td {
-  vertical-align: middle;
 }
 
 <div>
@@ -923,343 +910,337 @@ exports[`loaded state 1`] = `
         Add Application
       </button>
     </div>
-    <div
-      style="min-width: min-content;"
+    <nav
+      class="c4"
     >
-      <nav
-        class="c4"
+      <input
+        class="c5"
+        placeholder="SEARCH..."
+        value=""
+      />
+      <div
+        class="c6"
+        width="100%"
       >
-        <input
-          class="c5"
-          color="text.primary"
-          placeholder="SEARCH..."
-          value=""
-        />
         <div
-          class="c6"
+          class="c7"
         >
           <div
-            class="c7"
+            class="c8"
+            color="primary.contrastText"
+          >
+            SHOWING 
+            <strong>
+              1
+            </strong>
+             - 
+            <strong>
+              4
+            </strong>
+             of
+             
+            <strong>
+              4
+            </strong>
+          </div>
+          <button
+            class="c9"
+            disabled=""
+            title="Previous page"
+          >
+            <span
+              class="c10 c11 icon icon-arrow-left-circle "
+              color="light"
+              font-size="3"
+            />
+          </button>
+          <button
+            class="c9"
+            disabled=""
+            title="Next page"
+          >
+            <span
+              class="c10 c11 icon icon-arrow-right-circle "
+              color="light"
+              font-size="3"
+            />
+          </button>
+        </div>
+      </div>
+    </nav>
+    <table
+      class="c12"
+    >
+      <thead>
+        <tr>
+          <th />
+          <th>
+            <a>
+              Name
+              <span
+                class="c10 c13 icon icon-chevron-up "
+                color="light"
+              />
+            </a>
+          </th>
+          <th>
+            <a>
+              Description
+              <span
+                class="c10 c13 icon icon-chevrons-expand-vertical "
+                color="light"
+              />
+            </a>
+          </th>
+          <th>
+            <a>
+              Address
+              <span
+                class="c10 c13 icon icon-chevrons-expand-vertical "
+                color="light"
+              />
+            </a>
+          </th>
+          <th>
+            Labels
+          </th>
+          <th />
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td
+            style="user-select: none;"
           >
             <div
-              class="c8"
-              color="primary.contrastText"
+              class="c14"
+              height="32px"
+              width="32px"
             >
-              SHOWING 
-              <strong>
-                1
-              </strong>
-               - 
-              <strong>
-                4
-              </strong>
-               
-              of 
-              <strong>
-                4
-              </strong>
+              <span
+                class="c10 c15 icon icon-amazonaws "
+                color="light"
+                font-size="6"
+              />
             </div>
-          </div>
-          <div
-            class="c9"
+          </td>
+          <td>
+            aws-console-1
+          </td>
+          <td>
+            This is an AWS Console app
+          </td>
+          <td>
+            https://
+            awsconsole-1.teleport-proxy.com
+          </td>
+          <td>
+            <div
+              class="c16"
+              kind="secondary"
+            >
+              aws_account_id: A1234
+            </div>
+            <div
+              class="c16"
+              kind="secondary"
+            >
+              env: dev
+            </div>
+            <div
+              class="c16"
+              kind="secondary"
+            >
+              cluster: two
+            </div>
+          </td>
+          <td
+            align="right"
           >
             <button
-              disabled=""
-              title="Previous Page"
+              class="c17"
+              kind="border"
+              width="88px"
             >
+              LAUNCH
               <span
-                class="c10 c11 icon icon-arrow-left-circle "
-                color="light"
-                font-size="3"
+                class="c10 c18 icon icon-caret-down "
+                color="text.secondary"
+                font-size="2"
               />
             </button>
-            <button
-              disabled=""
-              title="Next Page"
-            >
-              <span
-                class="c10 c11 icon icon-arrow-right-circle "
-                color="light"
-                font-size="3"
-              />
-            </button>
-          </div>
-        </div>
-      </nav>
-      <table
-        class="c12 c13"
-      >
-        <thead>
-          <tr>
-            <th />
-            <th>
-              <a>
-                Name
-                <span
-                  class="c10 c14 icon icon-chevron-down "
-                  color="light"
-                />
-              </a>
-            </th>
-            <th>
-              <a>
-                Description
-                <span
-                  class="c10 c14 icon icon-chevrons-expand-vertical "
-                  color="light"
-                />
-              </a>
-            </th>
-            <th>
-              <a>
-                Address
-                <span
-                  class="c10 c14 icon icon-chevrons-expand-vertical "
-                  color="light"
-                />
-              </a>
-            </th>
-            <th>
-              Labels
-            </th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td
-              style="user-select: none;"
-            >
-              <div
-                class="c15"
-                height="32px"
-                width="32px"
-              >
-                <div
-                  class="c16"
-                  font-size="3"
-                >
-                  G
-                </div>
-              </div>
-            </td>
-            <td>
-              Grafana
-            </td>
-            <td>
-              This is a Grafana app
-            </td>
-            <td>
-              https://
-              grafana.teleport-proxy.com
-            </td>
-            <td>
-              <div
-                class="c17"
-                kind="secondary"
-              >
-                env: dev
-              </div>
-              <div
-                class="c17"
-                kind="secondary"
-              >
-                cluster: one
-              </div>
-            </td>
-            <td
-              align="right"
-            >
-              <a
-                class="c18"
-                href="/web/launch/grafana.one/one/grafana.teleport-proxy.com"
-                kind="border"
-                rel="noreferrer"
-                target="_blank"
-                width="88px"
-              >
-                LAUNCH
-              </a>
-            </td>
-          </tr>
-          <tr>
-            <td
-              style="user-select: none;"
-            >
-              <div
-                class="c19"
-                height="32px"
-                width="32px"
-              >
-                <div
-                  class="c16"
-                  font-size="3"
-                >
-                  J
-                </div>
-              </div>
-            </td>
-            <td>
-              Jenkins
-            </td>
-            <td>
-              This is a Jenkins app
-            </td>
-            <td>
-              https://
-              jenkins.teleport-proxy.com
-            </td>
-            <td>
-              <div
-                class="c17"
-                kind="secondary"
-              >
-                env: prod
-              </div>
-              <div
-                class="c17"
-                kind="secondary"
-              >
-                cluster: one
-              </div>
-            </td>
-            <td
-              align="right"
-            >
-              <a
-                class="c18"
-                href="/web/launch/jenkins.one/one/jenkins.teleport-proxy.com"
-                kind="border"
-                rel="noreferrer"
-                target="_blank"
-                width="88px"
-              >
-                LAUNCH
-              </a>
-            </td>
-          </tr>
-          <tr>
-            <td
-              style="user-select: none;"
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="user-select: none;"
+          >
+            <div
+              class="c19"
+              height="32px"
+              width="32px"
             >
               <div
                 class="c20"
-                height="32px"
-                width="32px"
+                font-size="3"
               >
-                <div
-                  class="c16"
-                  font-size="3"
-                >
-                  M
-                </div>
+                G
               </div>
-            </td>
-            <td>
-              Mattermost1
-            </td>
-            <td>
-              This is a Mattermost app
-            </td>
-            <td>
-              https://
-              mattermost.teleport-proxy.com
-            </td>
-            <td>
-              <div
-                class="c17"
-                kind="secondary"
-              >
-                env: dev
-              </div>
-              <div
-                class="c17"
-                kind="secondary"
-              >
-                cluster: two
-              </div>
-            </td>
-            <td
-              align="right"
+            </div>
+          </td>
+          <td>
+            Grafana
+          </td>
+          <td>
+            This is a Grafana app
+          </td>
+          <td>
+            https://
+            grafana.teleport-proxy.com
+          </td>
+          <td>
+            <div
+              class="c16"
+              kind="secondary"
             >
-              <a
-                class="c18"
-                href="/web/launch/mattermost.one/one/mattermost.teleport-proxy.com"
-                kind="border"
-                rel="noreferrer"
-                target="_blank"
-                width="88px"
-              >
-                LAUNCH
-              </a>
-            </td>
-          </tr>
-          <tr>
-            <td
-              style="user-select: none;"
+              env: dev
+            </div>
+            <div
+              class="c16"
+              kind="secondary"
+            >
+              cluster: one
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c17"
+              href="/web/launch/grafana.one/one/grafana.teleport-proxy.com"
+              kind="border"
+              rel="noreferrer"
+              target="_blank"
+              width="88px"
+            >
+              LAUNCH
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="user-select: none;"
+          >
+            <div
+              class="c21"
+              height="32px"
+              width="32px"
             >
               <div
-                class="c21"
-                height="32px"
-                width="32px"
+                class="c20"
+                font-size="3"
               >
-                <span
-                  class="c10 c22 icon icon-amazonaws "
-                  color="light"
-                  font-size="6"
-                />
+                J
               </div>
-            </td>
-            <td>
-              aws-console-1
-            </td>
-            <td>
-              This is an AWS Console app
-            </td>
-            <td>
-              https://
-              awsconsole-1.teleport-proxy.com
-            </td>
-            <td>
-              <div
-                class="c17"
-                kind="secondary"
-              >
-                aws_account_id: A1234
-              </div>
-              <div
-                class="c17"
-                kind="secondary"
-              >
-                env: dev
-              </div>
-              <div
-                class="c17"
-                kind="secondary"
-              >
-                cluster: two
-              </div>
-            </td>
-            <td
-              align="right"
+            </div>
+          </td>
+          <td>
+            Jenkins
+          </td>
+          <td>
+            This is a Jenkins app
+          </td>
+          <td>
+            https://
+            jenkins.teleport-proxy.com
+          </td>
+          <td>
+            <div
+              class="c16"
+              kind="secondary"
             >
-              <button
-                class="c18"
-                kind="border"
-                width="88px"
+              env: prod
+            </div>
+            <div
+              class="c16"
+              kind="secondary"
+            >
+              cluster: one
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c17"
+              href="/web/launch/jenkins.one/one/jenkins.teleport-proxy.com"
+              kind="border"
+              rel="noreferrer"
+              target="_blank"
+              width="88px"
+            >
+              LAUNCH
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="user-select: none;"
+          >
+            <div
+              class="c22"
+              height="32px"
+              width="32px"
+            >
+              <div
+                class="c20"
+                font-size="3"
               >
-                LAUNCH
-                <span
-                  class="c10 c23 icon icon-caret-down "
-                  color="text.secondary"
-                  font-size="2"
-                />
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+                M
+              </div>
+            </div>
+          </td>
+          <td>
+            Mattermost1
+          </td>
+          <td>
+            This is a Mattermost app
+          </td>
+          <td>
+            https://
+            mattermost.teleport-proxy.com
+          </td>
+          <td>
+            <div
+              class="c16"
+              kind="secondary"
+            >
+              env: dev
+            </div>
+            <div
+              class="c16"
+              kind="secondary"
+            >
+              cluster: two
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c17"
+              href="/web/launch/mattermost.one/one/mattermost.teleport-proxy.com"
+              kind="border"
+              rel="noreferrer"
+              target="_blank"
+              width="88px"
+            >
+              LAUNCH
+            </a>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </div>
 `;
