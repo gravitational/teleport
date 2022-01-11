@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.2.26
+
+This release of Teleport contains performance improvements.
+
+* Add jitter and backoff to various operations to improve perf under high load. [#9133](https://github.com/gravitational/teleport/pull/9133)
+
 ## 6.2.25
 
 This release of Teleport contains a bug fix.
