@@ -298,6 +298,9 @@ type TeleportProcess struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
+
+	// connectFailureC is a channel to notify of failures to connect to auth (used in tests).
+	connectFailureC chan time.Duration
 }
 
 type keyPairKey struct {
@@ -542,7 +545,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 	defer cancel()
 	srv.Shutdown(timeoutCtx)
 	if timeoutCtx.Err() == context.DeadlineExceeded {
-		// The new serivce can start initiating connections to the old service
+		// The new service can start initiating connections to the old service
 		// keeping it from shutting down gracefully, or some external
 		// connections can keep hanging the old auth service and prevent
 		// the services from shutting down, so abort the graceful way
@@ -668,6 +671,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		id:                  processID,
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
+		connectFailureC:     make(chan time.Duration),
 	}
 
 	process.registerAppDepend()
@@ -2695,6 +2699,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return nil
 	})
 
+	rcWatchLog := logrus.WithFields(logrus.Fields{
+		trace.Component: teleport.Component(teleport.ComponentReverseTunnelAgent, process.id),
+	})
+
 	// Create and register reverse tunnel AgentPool.
 	rcWatcher, err := reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
 		HostUUID:            conn.ServerIdentity.ID.HostUUID,
@@ -2705,16 +2713,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		KubeDialAddr:        utils.DialAddrFromListenAddr(cfg.Proxy.Kube.ListenAddr),
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
+		Log:                 rcWatchLog,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	process.RegisterCriticalFunc("proxy.reversetunnel.watcher", func() error {
-		log := logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.Component(teleport.ComponentReverseTunnelAgent, process.id),
-		})
-		log.Infof("Starting reverse tunnel agent pool.")
+		rcWatchLog.Infof("Starting reverse tunnel agent pool.")
 		done := make(chan struct{})
 		go func() {
 			defer close(done)

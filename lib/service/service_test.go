@@ -21,11 +21,13 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -447,4 +449,50 @@ func waitForStatus(diagAddr string, statusCodes ...int) error {
 			return trace.BadParameter("timeout waiting for status: %v; last status: %v", statusCodes, lastStatus)
 		}
 	}
+}
+
+func TestTeleportProcess_reconnectToAuth(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	// Create and configure a default Teleport configuration.
+	cfg := MakeDefaultConfig()
+	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.Clock = clock
+	cfg.DataDir = t.TempDir()
+	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
+	cfg.SSH.Enabled = true
+	process, err := NewTeleport(cfg)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		c, err := process.reconnectToAuthService(types.RoleAdmin)
+		require.Equal(t, ErrTeleportExited, err)
+		require.Nil(t, c)
+	}()
+
+	step := cfg.MaxRetryPeriod / 5.0
+	for i := 0; i < 5; i++ {
+		// wait for connection to fail
+		select {
+		case duration := <-process.connectFailureC:
+			stepMin := step * time.Duration(i) / 2
+			stepMax := step * time.Duration(i+1)
+
+			require.GreaterOrEqual(t, duration, stepMin)
+			require.LessOrEqual(t, duration, stepMax)
+			// add some extra to the duration to ensure the retry occurs
+			clock.Advance(duration * 3)
+		case <-time.After(time.Minute):
+			t.Fatalf("timeout waiting for failure")
+		}
+	}
+
+	supervisor, ok := process.Supervisor.(*LocalSupervisor)
+	require.True(t, ok)
+	supervisor.signalExit()
+	wg.Wait()
 }

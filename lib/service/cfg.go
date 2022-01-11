@@ -208,6 +208,9 @@ type Config struct {
 
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
+
+	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
+	MaxRetryPeriod time.Duration
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -848,6 +851,8 @@ func ApplyDefaults(cfg *Config) {
 
 	// Databases proxy service is disabled by default.
 	cfg.Databases.Enabled = false
+
+	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

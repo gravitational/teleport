@@ -214,6 +214,9 @@ func (r *Linear) Duration() time.Duration {
 	if a <= r.Max {
 		return a
 	}
+	if r.Jitter != nil {
+		return r.Jitter(r.Max)
+	}
 	return r.Max
 }
 
@@ -233,7 +236,7 @@ func (r *Linear) String() string {
 	return fmt.Sprintf("Linear(attempt=%v, duration=%v)", r.attempt, r.Duration())
 }
 
-// RetryFastFor retries a function repeatedly for a set amount of
+// RetryStaticFor retries a function repeatedly for a set amount of
 // time before returning an error.
 //
 // Intended mostly for tests.

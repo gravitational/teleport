@@ -588,6 +588,7 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	}
 
 	tconf.Keygen = testauthority.New()
+	tconf.MaxRetryPeriod = defaults.HighResPollingPeriod
 	i.Config = tconf
 	return tconf, nil
 }

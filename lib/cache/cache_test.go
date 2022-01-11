@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -121,6 +122,12 @@ func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) 
 	return pack
 }
 
+func newTestPack(t *testing.T, setupConfig SetupConfigFn) *testPack {
+	pack, err := newPack(t.TempDir(), setupConfig)
+	require.NoError(t, err)
+	return pack
+}
+
 type packCfg struct {
 	memoryBackend bool
 }
@@ -134,7 +141,7 @@ func memoryBackend(bool) packOption {
 }
 
 // newPackWithoutCache returns a new test pack without creating cache
-func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn, opts ...packOption) (*testPack, error) {
+func newPackWithoutCache(dir string, setupConfig SetupConfigFn, opts ...packOption) (*testPack, error) {
 	ctx := context.Background()
 	var cfg packCfg
 	for _, opt := range opts {
@@ -197,21 +204,21 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 	}
 
 	p.cache, err = New(setupConfig(Config{
-		Context:       ctx,
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:        ctx,
+		Backend:        p.cacheBackend,
+		Events:         p.eventsS,
+		ClusterConfig:  p.clusterConfigS,
+		Provisioner:    p.provisionerS,
+		Trust:          p.trustS,
+		Users:          p.usersS,
+		Access:         p.accessS,
+		DynamicAccess:  p.dynamicAccessS,
+		Presence:       p.presenceS,
+		AppSession:     p.appSessionS,
+		WebSession:     p.webSessionS,
+		WebToken:       p.webTokenS,
+		MaxRetryPeriod: 200 * time.Millisecond,
+		EventsC:        p.eventsC,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -352,7 +359,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 }
 
 func waitForRestart(c *check.C, eventsC <-chan Event) {
-	waitForEvent(c, eventsC, WatcherStarted, WatcherFailed)
+	waitForEvent(c, eventsC, WatcherStarted, Reloading, WatcherFailed)
 }
 
 func waitForEvent(c *check.C, eventsC <-chan Event, expectedEvent string, skipEvents ...string) {
@@ -401,21 +408,21 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 		p.eventsS.closeWatchers()
 
 		p.cache, err = New(ForAuth(Config{
-			Context:       context.TODO(),
-			Backend:       p.cacheBackend,
-			Events:        p.eventsS,
-			ClusterConfig: p.clusterConfigS,
-			Provisioner:   p.provisionerS,
-			Trust:         p.trustS,
-			Users:         p.usersS,
-			Access:        p.accessS,
-			DynamicAccess: p.dynamicAccessS,
-			Presence:      p.presenceS,
-			AppSession:    p.appSessionS,
-			WebSession:    p.webSessionS,
-			WebToken:      p.webTokenS,
-			RetryPeriod:   200 * time.Millisecond,
-			EventsC:       p.eventsC,
+			Context:        context.TODO(),
+			Backend:        p.cacheBackend,
+			Events:         p.eventsS,
+			ClusterConfig:  p.clusterConfigS,
+			Provisioner:    p.provisionerS,
+			Trust:          p.trustS,
+			Users:          p.usersS,
+			Access:         p.accessS,
+			DynamicAccess:  p.dynamicAccessS,
+			Presence:       p.presenceS,
+			AppSession:     p.appSessionS,
+			WebSession:     p.webSessionS,
+			WebToken:       p.webTokenS,
+			MaxRetryPeriod: 200 * time.Millisecond,
+			EventsC:        p.eventsC,
 		}))
 		c.Assert(err, check.IsNil)
 
@@ -454,21 +461,21 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:       context.TODO(),
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:        context.TODO(),
+		Backend:        p.cacheBackend,
+		Events:         p.eventsS,
+		ClusterConfig:  p.clusterConfigS,
+		Provisioner:    p.provisionerS,
+		Trust:          p.trustS,
+		Users:          p.usersS,
+		Access:         p.accessS,
+		DynamicAccess:  p.dynamicAccessS,
+		Presence:       p.presenceS,
+		AppSession:     p.appSessionS,
+		WebSession:     p.webSessionS,
+		WebToken:       p.webTokenS,
+		MaxRetryPeriod: 200 * time.Millisecond,
+		EventsC:        p.eventsC,
 	}))
 	c.Assert(err, check.IsNil)
 
@@ -512,21 +519,21 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:       context.TODO(),
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:        context.TODO(),
+		Backend:        p.cacheBackend,
+		Events:         p.eventsS,
+		ClusterConfig:  p.clusterConfigS,
+		Provisioner:    p.provisionerS,
+		Trust:          p.trustS,
+		Users:          p.usersS,
+		Access:         p.accessS,
+		DynamicAccess:  p.dynamicAccessS,
+		Presence:       p.presenceS,
+		AppSession:     p.appSessionS,
+		WebSession:     p.webSessionS,
+		WebToken:       p.webTokenS,
+		MaxRetryPeriod: 200 * time.Millisecond,
+		EventsC:        p.eventsC,
 	}))
 	c.Assert(err, check.IsNil)
 
@@ -543,21 +550,21 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 	p.eventsS.closeWatchers()
 
 	p.cache, err = New(ForAuth(Config{
-		Context:       context.TODO(),
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:        context.TODO(),
+		Backend:        p.cacheBackend,
+		Events:         p.eventsS,
+		ClusterConfig:  p.clusterConfigS,
+		Provisioner:    p.provisionerS,
+		Trust:          p.trustS,
+		Users:          p.usersS,
+		Access:         p.accessS,
+		DynamicAccess:  p.dynamicAccessS,
+		Presence:       p.presenceS,
+		AppSession:     p.appSessionS,
+		WebSession:     p.webSessionS,
+		WebToken:       p.webTokenS,
+		MaxRetryPeriod: 200 * time.Millisecond,
+		EventsC:        p.eventsC,
 	}))
 	c.Assert(err, check.IsNil)
 
@@ -689,22 +696,22 @@ func TestListNodesTTLVariant(t *testing.T) {
 	defer p.Close()
 
 	p.cache, err = New(ForAuth(Config{
-		Context:       ctx,
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
-		neverOK:       true, // ensure reads are never healthy
+		Context:        ctx,
+		Backend:        p.cacheBackend,
+		Events:         p.eventsS,
+		ClusterConfig:  p.clusterConfigS,
+		Provisioner:    p.provisionerS,
+		Trust:          p.trustS,
+		Users:          p.usersS,
+		Access:         p.accessS,
+		DynamicAccess:  p.dynamicAccessS,
+		Presence:       p.presenceS,
+		AppSession:     p.appSessionS,
+		WebSession:     p.webSessionS,
+		WebToken:       p.webTokenS,
+		MaxRetryPeriod: 200 * time.Millisecond,
+		EventsC:        p.eventsC,
+		neverOK:        true, // ensure reads are never healthy
 	}))
 	require.NoError(t, err)
 
@@ -753,21 +760,21 @@ func (s *CacheSuite) initStrategy(c *check.C) {
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:       context.TODO(),
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:        context.TODO(),
+		Backend:        p.cacheBackend,
+		Events:         p.eventsS,
+		ClusterConfig:  p.clusterConfigS,
+		Provisioner:    p.provisionerS,
+		Trust:          p.trustS,
+		Users:          p.usersS,
+		Access:         p.accessS,
+		DynamicAccess:  p.dynamicAccessS,
+		Presence:       p.presenceS,
+		AppSession:     p.appSessionS,
+		WebSession:     p.webSessionS,
+		WebToken:       p.webTokenS,
+		MaxRetryPeriod: 200 * time.Millisecond,
+		EventsC:        p.eventsC,
 	}))
 	c.Assert(err, check.IsNil)
 
@@ -803,7 +810,7 @@ func (s *CacheSuite) initStrategy(c *check.C) {
 	// wait for the watcher to fail
 	// there could be optional event processed event,
 	// see NOTE 1 above
-	waitForEvent(c, p.eventsC, WatcherFailed, EventProcessed)
+	waitForEvent(c, p.eventsC, WatcherFailed, EventProcessed, Reloading)
 
 	// backend is out, but old value is available
 	out2, err := p.cache.GetCertAuthority(ca.GetID(), false)
@@ -821,7 +828,7 @@ func (s *CacheSuite) initStrategy(c *check.C) {
 
 	// wait for watcher to restart successfully; ignoring any failed
 	// attempts which occurred before backend became healthy again.
-	waitForEvent(c, p.eventsC, WatcherStarted, WatcherFailed)
+	waitForEvent(c, p.eventsC, WatcherStarted, WatcherFailed, Reloading)
 
 	// new value is available now
 	out, err = p.cache.GetCertAuthority(ca.GetID(), false)
@@ -849,13 +856,7 @@ func (s *CacheSuite) TestRecovery(c *check.C) {
 	c.Assert(watchers, check.HasLen, 1)
 	p.eventsS.closeWatchers()
 
-	// wait for watcher to restart
-	select {
-	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, WatcherStarted)
-	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
-	}
+	waitForRestart(c, p.eventsC)
 
 	// add modification and expect the resource to recover
 	ca2 := suite.NewTestCA(services.UserCA, "example2.com")
@@ -1787,6 +1788,52 @@ func TestDatabaseServers(t *testing.T) {
 	out, err = p.cache.GetDatabaseServers(context.Background(), defaults.Namespace)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
+}
+
+func TestCache_Backoff(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	p := newTestPack(t, func(c Config) Config {
+		c.MaxRetryPeriod = defaults.MaxWatcherBackoff
+		c.Clock = clock
+		return ForNode(c)
+	})
+	t.Cleanup(p.Close)
+
+	// close watchers to trigger a reload event
+	watchers := p.eventsS.getWatchers()
+	require.Len(t, watchers, 1)
+	p.eventsS.closeWatchers()
+	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
+
+	step := p.cache.Config.MaxRetryPeriod / 5.0
+	for i := 0; i < 5; i++ {
+		// wait for cache to reload
+		select {
+		case event := <-p.eventsC:
+			require.Equal(t, Reloading, event.Type)
+			duration, err := time.ParseDuration(event.Event.Resource.GetKind())
+			require.NoError(t, err)
+
+			stepMin := step * time.Duration(i) / 2
+			stepMax := step * time.Duration(i+1)
+
+			require.GreaterOrEqual(t, duration, stepMin)
+			require.LessOrEqual(t, duration, stepMax)
+
+			// add some extra to the duration to ensure the retry occurs
+			clock.Advance(duration * 3)
+		case <-time.After(time.Minute):
+			t.Fatalf("timeout waiting for event")
+		}
+
+		// wait for cache to fail again - backend will still produce a ConnectionProblem error
+		select {
+		case event := <-p.eventsC:
+			require.Equal(t, WatcherFailed, event.Type)
+		case <-time.After(30 * time.Second):
+			t.Fatalf("timeout waiting for event")
+		}
+	}
 }
 
 type proxyEvents struct {
