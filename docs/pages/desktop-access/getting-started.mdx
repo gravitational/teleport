@@ -290,8 +290,11 @@ windows_desktop_service:
   # instead.
   public_addr: "desktop-access.example.com:3028"
   ldap:
-    # Address of the Domain Controller for LDAP connections. Usually, this
-    # address will use port 636, like: domain-controller.example.com:636.
+    # Address of the LDAP server for secure LDAP connections.
+    # Usually, this address will use port 636, like: ldap.example.com:636.
+    # For best results, this address should point to a highly-available
+    # endpoint (a load balancer, VIP, or round-robin DNS) rather than
+    # a single domain controller.
     addr: "$LDAP_SERVER_ADDRESS"
     # Active Directory domain name you are connecting to, like: domain-controller.example.com.
     domain: "$LDAP_DOMAIN_NAME"
