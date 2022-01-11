@@ -123,11 +123,6 @@ func (tf *TextFormatter) CheckAndSetDefaults() error {
 // Format formats each log line as configured in teleport config file
 func (tf *TextFormatter) Format(e *log.Entry) ([]byte, error) {
 	var data []byte
-
-	//if tf.FormatCaller == nil {
-	//	tf.FormatCaller = formatCallerWithPathAndLine
-	//}
-
 	caller := tf.FormatCaller()
 	w := &writer{}
 
