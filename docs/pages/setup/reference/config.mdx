@@ -324,17 +324,11 @@ auth_service:
 
     # Optional setting for configuring session recording. Possible values are:
     #    "node"  : sessions will be recorded on the node level  (the default)
+    #    "node-sync" : session recordings will be streamed from node -> auth -> storage service without being stored on disk at all.
     #    "proxy" : recording on the proxy level, see "Recording Proxy Mode"
     #              (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
+    #    "proxy-sync : session recordings will be streamed from proxy -> auth -> storage service without being stored on disk at all.
     #    "off"   : session recording is turned off
-    #
-    # EXPERIMENTAL *-sync modes
-    # Proxy and node send logs directly to S3 or other storage without
-    # storing the records on disk at all. *-sync requires all nodes to be
-    # upgraded to 4.4.
-    #
-    #    "node-sync" : session recordings will be streamed from node -> auth -> storage service
-    #    "proxy-sync : session recordings will be streamed from proxy -> auth -> storage service
     #
     session_recording: "node"
 
@@ -650,7 +644,7 @@ kubernetes_service:
       command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
       period: 1m0s
 
-# This section configures the database service.
+# This section configures the 'database service'.
 db_service:
   # Enables the database service. Default is "no".
   enabled: "yes"
@@ -665,8 +659,19 @@ db_service:
     protocol: "postgres"
     # Database connection endpoint. Must be reachable from Database Service.
     uri: "postgres.example.com:5432"
-    # Optional path to the CA used to validate the database certificate.
-    ca_cert_file: /path/to/ca.pem
+    # Optional TLS configuration.
+    tls:
+      # TLS verification mode. Valid options are:
+      # 'verify-full' - performs full certificate validation (default).
+      # 'verify-ca' - the same as `verify-full`, but skips the server name validation.
+      # 'insecure' - accepts any certificate provided by database (not recommended).
+      mode: verify-full
+      # Optional database DNS server name. It allows to override the DNS name on
+      # a client certificate when connecting to a database.
+      # Use only with 'verify-full' mode.
+      server_name: db.example.com
+      # Optional path to the CA used to validate the database certificate.
+      ca_cert_file: /path/to/pem
     # AWS specific configuration, only required for RDS/Aurora/Redshift.
     aws:
       # Region the database is deployed in.
@@ -689,4 +694,52 @@ db_service:
     - name: "hostname"
       command: ["hostname"]
       period: 1m0s
+
+# This section configures the 'windows desktop service'
+windows_desktop_service:
+  enabled: yes
+  # This is the address that windows_desktop_service will listen on.
+  listen_addr: "localhost:3028"
+  # (optional) This is the address that windows_desktop_service will advertise
+  # to the rest of Teleport for incoming connections. Only proxy_service should
+  # connect to windows_desktop_service, users connect to the proxy's web UI
+  # instead.
+  public_addr: "desktop-access.example.com:3028"
+  ldap:
+    # Address of the Domain Controller for LDAP connections. Usually, this
+    # address will use port 389, like: domain-controller.example.com:389.
+    addr:     '$LDAP_SERVER_ADDRESS'
+    # Active Directory domain name you are connecting to.
+    domain:   '$LDAP_DOMAIN_NAME'
+    # LDAP username for authentication. This username must include the domain
+    # NetBIOS name.
+    #
+    # For example, if your domain is "example.com", the NetBIOS name for it is
+    # likely "EXAMPLE". When connecting as the "Administrator" user, you should
+    # use the format: "EXAMPLE\Administrator".
+    username: '$LDAP_USERNAME'
+    # Plain text file containing the LDAP password for authentication.
+    # This is usually the same password you use to login to the Domain Controller.
+    password_file: /var/lib/ldap-pass
+  # (optional) settings for enabling automatic desktop discovery via LDAP
+  discovery:
+    # The wildcard '*' character tells Teleport to discover all the hosts in
+    # the Active Directory Domain. To refine the search, specify a custom DN.
+    # To disable automatic discovery, leave this field blank.
+    base_dn: '*'
+    # (optional) LDAP filters for further customizing the LDAP search.
+    # See https://ldap.com/ldap-filters for details on LDAP filter syntax.
+    filters:
+    - '(location=Oakland)'
+    - '(!(primaryGroupID=516))' # exclude domain controllers
+  # Rules for applying labels to Windows hosts based on regular expressions
+  # matched against the host name. If multiple rules match, the desktop will
+  # get the union of all matching labels.
+  host_labels:
+  - match: '^.*\.dev\.example\.com$'
+    labels:
+      environment: dev
+  - match: '^.*\.prod\.example\.com$'
+    labels:
+      environment: prod
 ```
