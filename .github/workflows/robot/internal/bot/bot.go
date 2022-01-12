@@ -94,6 +94,9 @@ func (b *Bot) parseChanges(ctx context.Context) (bool, bool, error) {
 }
 
 func hasDocs(filename string) bool {
+	if strings.HasPrefix(filename, "vendor/") {
+		return false
+	}
 	return strings.HasPrefix(filename, "docs/") ||
 		strings.HasSuffix(filename, ".md") ||
 		strings.HasSuffix(filename, ".mdx") ||
