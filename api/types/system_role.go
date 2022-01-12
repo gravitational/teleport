@@ -17,7 +17,6 @@ limitations under the License.
 package types
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -181,7 +180,7 @@ func (r *SystemRole) String() string {
 	case RoleTrustedCluster, LegacyClusterTokenType:
 		return "trusted_cluster"
 	default:
-		return fmt.Sprintf("%v", string(*r))
+		return string(*r)
 	}
 }
 

@@ -17,6 +17,8 @@ package types
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestRolesCheck(t *testing.T) {
@@ -60,5 +62,68 @@ func TestRolesEqual(t *testing.T) {
 		if got := tt.a.Equals(tt.b); got != tt.want {
 			t.Errorf("%v.Equals(%v): got %v, want %v", tt.a, tt.b, got, tt.want)
 		}
+	}
+}
+
+func TestParseTeleportRoles(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		in      string
+		out     SystemRoles
+		wantErr bool
+	}{
+		{
+			// system role constant
+			in:      string(RoleNode),
+			out:     SystemRoles{RoleNode},
+			wantErr: false,
+		},
+		{
+			// alternate capitalization
+			in:      "node",
+			out:     SystemRoles{RoleNode},
+			wantErr: false,
+		},
+		{
+			// multiple comma-separated roles
+			in:      "Auth,Proxy",
+			out:     SystemRoles{RoleAuth, RoleProxy},
+			wantErr: false,
+		},
+		{
+			// extra whitespace handled properly
+			in:      "Auth , Proxy,WindowsDesktop",
+			out:     SystemRoles{RoleAuth, RoleProxy, RoleWindowsDesktop},
+			wantErr: false,
+		},
+		{
+			// duplicate roles is an error
+			in:      "Auth,Auth",
+			wantErr: true,
+		},
+		{
+			in:      "Auth, auth",
+			wantErr: true,
+		},
+		{
+			// invalid role errors
+			in:      "invalidrole",
+			wantErr: true,
+		},
+		{
+			// valid + invalid role errors
+			in:      "Admin,invalidrole",
+			wantErr: true,
+		},
+	} {
+		t.Run(test.in, func(t *testing.T) {
+			roles, err := ParseTeleportRoles(test.in)
+			if test.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.out, roles)
+			}
+		})
 	}
 }
