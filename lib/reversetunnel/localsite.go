@@ -486,7 +486,7 @@ func (s *localSite) chanTransportConn(rconn *remoteConn, dreq *sshutils.DialReq)
 
 // periodicFunctions runs functions periodic functions for the local cluster.
 func (s *localSite) periodicFunctions() {
-	ticker := time.NewTicker(defaults.ResyncInterval)
+	ticker := time.NewTicker(defaults.PrometheusScrapeInterval)
 	defer ticker.Stop()
 
 	for {
@@ -522,12 +522,12 @@ func (s *localSite) agentStats() {
 			GetHostID() string
 		}
 
-		ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
+		expiration := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
 
 		// appDB needs to be first as it also matches the serverKubeWindows interface
 		switch server.(type) {
 		case appDB:
-			if server.(appDB).Expiry().Before(ttl) {
+			if server.(appDB).Expiry().Before(expiration) {
 				return
 			}
 			if _, present := hostID[server.(appDB).GetHostID()]; !present {
@@ -535,7 +535,7 @@ func (s *localSite) agentStats() {
 				versionCount[server.(appDB).GetTeleportVersion()]++
 			}
 		case serverKubeWindows:
-			if server.(serverKubeWindows).Expiry().Before(ttl) {
+			if server.(serverKubeWindows).Expiry().Before(expiration) {
 				return
 			}
 			if _, present := hostID[server.(serverKubeWindows).GetName()]; !present {
@@ -549,10 +549,8 @@ func (s *localSite) agentStats() {
 	if err != nil {
 		log.Debugf("Failed to get Proxies for teleport_registered_agent metric: %v", err)
 	}
-	if err == nil {
-		for _, proxyServer := range proxyServers {
-			serverCheck(proxyServer)
-		}
+	for _, proxyServer := range proxyServers {
+		serverCheck(proxyServer)
 	}
 
 	authServers, err := s.accessPoint.GetAuthServers()
@@ -595,7 +593,6 @@ func (s *localSite) agentStats() {
 		serverCheck(kubeService)
 	}
 
-	// Have to use the client the accessPoint interface doesn't implement the GetWindows* funcs
 	windowsServices, err := s.accessPoint.GetWindowsDesktopServices(s.srv.ctx)
 	if err != nil {
 		log.Debugf("Failed to get Window Desktop Services for agent metric: %v", err)
