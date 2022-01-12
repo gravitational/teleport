@@ -481,6 +481,21 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		return nil, trace.AccessDenied("access denied: remote user can not access remote cluster")
 	}
 
+	kubeCluster := identity.KubernetesCluster
+	if !isRemoteCluster {
+		kc, err := kubeutils.CheckOrSetKubeCluster(req.Context(), f.cfg.CachingAuthClient, identity.KubernetesCluster, teleportClusterName)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			// Fallback for old clusters and old user certs. Assume that the
+			// user is trying to access the default cluster name.
+			kubeCluster = teleportClusterName
+		} else {
+			kubeCluster = kc
+		}
+	}
+
 	var kubeUsers, kubeGroups []string
 	// Only check k8s principals for local clusters.
 	//
@@ -488,8 +503,8 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// leaf and checked there.
 	if !isRemoteCluster {
 		var err error
-		// check signing TTL and return a list of allowed logins
-		kubeGroups, kubeUsers, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false)
+		// check signing TTL and return a list of allowed logins.
+		kubeGroups, kubeUsers, err = f.getKubeGroupsAndUsers(roles, kubeCluster, sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -577,6 +592,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		kubeGroups:        utils.StringsSet(kubeGroups),
 		kubeUsers:         utils.StringsSet(kubeUsers),
 		recordingConfig:   recordingConfig,
+		kubeCluster:       kubeCluster,
 		teleportCluster: teleportClusterClient{
 			name:           teleportClusterName,
 			remoteAddr:     utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -584,20 +600,6 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 			isRemote:       isRemoteCluster,
 			isRemoteClosed: isRemoteClosed,
 		},
-	}
-
-	authCtx.kubeCluster = identity.KubernetesCluster
-	if !isRemoteCluster {
-		kubeCluster, err := kubeutils.CheckOrSetKubeCluster(req.Context(), f.cfg.CachingAuthClient, identity.KubernetesCluster, teleportClusterName)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			// Fallback for old clusters and old user certs. Assume that the
-			// user is trying to access the default cluster name.
-			kubeCluster = teleportClusterName
-		}
-		authCtx.kubeCluster = kubeCluster
 	}
 
 	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(req.Context())
@@ -611,6 +613,33 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	}
 
 	return authCtx, nil
+}
+
+func (f *Forwarder) getKubeGroupsAndUsers(
+	roles services.AccessChecker,
+	kubeClusterName string,
+	sessionTTL time.Duration) (groups []string, users []string, err error) {
+
+	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	for _, s := range kubeServices {
+		for _, c := range s.GetKubernetesClusters() {
+			if c.Name != kubeClusterName {
+				continue
+			}
+
+			labels := types.CombineLabels(c.StaticLabels, c.DynamicLabels)
+			labelsMatcher := services.NewKubernetesClusterLabelMatcher(labels)
+			groups, users, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			return
+		}
+	}
+	return
 }
 
 func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
