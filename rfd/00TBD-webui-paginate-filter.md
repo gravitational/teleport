@@ -23,25 +23,28 @@ There is already pagination support for resources: nodes, apps, dbs. Kubes is [p
 
 There will be filters that will be applied in order of precedence: RBAC > label > search > sort. RBAC will not be discussed since this check existed before. 
 
-### Filter: Label Query Language
+### Filter: User Label Query Language
 
 The query language for labels will be modeled after [kubernetes labels](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/). Kubernetes uses `set based` filtering which matches a label `key` against a set of `values` as shown in examples below.
 
 The language will be the same across the web ui and cli tools.
 
 Supported operators:
-- Comma between labels acts as an `AND` operator (same interpretation as current `tsh ls <label1>,<label2>`)
-- Pipe between label `values` denotes a set and acts as a `OR` operator
-- Minus before a label acts as a `NOT` operator
+- `,`: Comma between labels acts as an `AND` operator (same interpretation as current `tsh ls <label1>,<label2>`)
+- `|`: Pipe between label `values` denotes a set and acts as a `OR` operator
+- `!`: Exclamation point before a label acts as a `NOT` operator
+- `=` or `==`: Both are used between a label key and value and can be used interchangeably
 
 Additionally, an empty right-hand side of the `equals` char means `any values`.
 
-| Format                        | Operator  | Example          | Description                                 |
-|-------------------------------|-----------|------------------|---------------------------------------------|
-| `key=value`                   | exists    | `env=prod`       | rows with label `env=prod`                  |
-| `key=value1\|value2\|value*`  | exists    | `env=prod\|dev`  | rows with labels `env=prod` or `env=dev`    |
-| `-key=value`                  | notexists | `-env=prod`      | rows without label `env=prod`               |
-| `-key=value1\|value2\|value*` | notexists | `-env=prod\|dev` | rows without labels `env=prod` or `env=dev` |
+| Format                        | Operator | Example          | Description                                                      |
+|-------------------------------|----------|------------------|------------------------------------------------------------------|
+| `key=value`                   | in       | `env=prod`       | rows with label `env=prod`                                       |
+| `key==value`                  | in       | `env==prod`      | same as prior, just using `==` instead of `=`, both will be okay |
+| `key=value1\|value2\|value*`  | in       | `env=prod\|dev`  | rows with labels `env=prod` or `env=dev`                         |
+| `key==value1\|value2\|value*` | in       | `env==prod\|dev` | same as prior, just using `==` instead of `=`, both will be okay |
+| `key!=value`                  | notin    | `env!=prod`      | rows without label `env=prod`                                    |
+| `key!=value1\|value2\|value*` | notin    | `env!=prod\|dev` | rows without labels `env=prod` or `env=dev`                      |
 
 <br/>
 
@@ -49,10 +52,10 @@ Additionally, an empty right-hand side of the `equals` char means `any values`.
 |-----------------------------------|--------------------------------------------------------------------------|
 | `env=prod\|dev,os=mac\|linux`     | rows with labels (`env=prod` or `env=dev`) and (`os=mac` or `os=linux`)  |
 | `env=prod\|dev,os=mac,country=us` | rows with labels (`env=prod` or `env=dev`) and `os=mac` and `country=us` |
-| `-env=prod,os=mac`                | rows without label `env=prod` and with label `os=mac`                    |
-| `foo=`                            | rows with a label with key `foo` with any values                         |
-| `-foo=`                           | rows without a label with key `foo` with any values                      |
-| `foo=,-foo=bar`                   | rows with a label with key `foo` with any values except `bar`            |
+| `env!=prod,os=mac`                | rows without label `env=prod` and with label `os=mac`                    |
+| `foo=*`                           | rows with a label with key `foo`; values unchecked                       |
+| `foo!=*`                          | rows without a label with key `foo`; values unchecked                    |
+| `foo=*,foo!=bar`                  | rows with a label with key `foo` with any values except `bar`            |
 
 <br/>
 
@@ -62,8 +65,8 @@ In a label query, every key and its set will be translated into a list of expres
 type Operator int
 
 const (
-	Exists Operator = iota
-	NotExists
+	In Operator = iota
+	NotIn
 )
 
 type Expr struct {
@@ -239,13 +242,13 @@ Because we keep the original meaning of `comma` the same, extending will not be 
 
 ### Client: Web UI
 
-#### URL 
+#### Bookmarkable URL 
 
-URL query params will store the required fields necessary for pagination and filter. The URL will be made bookmarkable (minus some query params only relevant to server).
+The URL will be made bookmarkable and contain
 
 **Allowed characters in the URL query param**
 
-According to [rfc 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-3.4), query parameters are allowed to have the following characters unencoded in the URL. Characters and delimiters were chosen following these rules:
+According to [rfc 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-3.4), query parameters are allowed to have the following characters unencoded in the URL. We will keep delimiters unencoded for a cleaner looking url. Characters and delimiters were chosen following these rules:
 
 | Category     | Description                                                      |
 |--------------|------------------------------------------------------------------|
@@ -258,22 +261,20 @@ According to [rfc 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-3.
 
 **Proposed Query Params and Delimiters**
 
-| Query Params | Description                                                                                   |
-|--------------|-----------------------------------------------------------------------------------------------|
-| `limit`      | Maximum number of rows to return on each fetch.                                               |
-| `startKey`   | Resume row search from the last row received. Empty string means start search from beginning. |
-| `labels`     | Start of label query.                                                                         |
-| `sort`       | Sort column and direction.                                                                    |
-| `search`     | Search values.                                                                                |
+| Query Params | Description                |
+|--------------|----------------------------|
+| `labels`     | Start of label query.      |
+| `sort`       | Sort column and direction. |
+| `search`     | Search values.             |
 
 <br/>
 
-| URL Delimiters  | Description                                                                                          |
-|-----------------|------------------------------------------------------------------------------------------------------|
-| `=` (equal)     | Delimiter to mean separate values, `key=value` or `column=direction`                                 |
-| `-` (minus)     | Acts as a `NOT` operator specifically used to mean excluding a label                                 |
-| `,` (comma)     | Acts as a `AND` operator between values.                                                             |
-| `;` (semicolon) | Denotes a label `values` as a set, and acts as a `OR` operator. Pipe cannot be part of URL unencoded |
+| URL Delimiters | Description                                                          |
+|----------------|----------------------------------------------------------------------|
+| `=` (equal)    | Delimiter to mean separate values, `key=value` or `column=direction` |
+| `-` (minus)    | Acts as a `NOT` operator specifically used to mean excluding a label |
+| `+` (plus)     | Acts as a `AND` operator between values.                             |
+| `,` (comma)    | Denotes a label `values` as a set, and acts as a `OR` operator.      |
 
 <br/>
 
@@ -281,9 +282,9 @@ According to [rfc 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-3.
 
 | Bookmarkable Query Examples      | Description                                                       |
 |----------------------------------|-------------------------------------------------------------------|
-| `?labels=env=prod,country=US`    | rows must contain labels `env:prod` and `country:US`              |
-| `?labels=os=mac;linux,-env=prod` | rows can contain labels `os:mac` or `os:linux` but not `env:prod` |
-| `?search=foo,bar`                | rows contain search values `foo` and `bar`                        |
+| `?labels=env=prod+country=US`    | rows must contain labels `env:prod` and `country:US`              |
+| `?labels=os=mac,linux+-env=prod` | rows can contain labels `os:mac` or `os:linux` but not `env:prod` |
+| `?search=foo+bar`                | rows contain search values `foo` and `bar`                        |
 | `?sort=hostname=desc`            | rows sorted by column `hostname`in `descending` order             |
 
 <br/>
@@ -291,14 +292,13 @@ According to [rfc 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-3.
 **Complete URL Example:**
 
 ```
-https://cloud.dev/v1/webapi/sites/clusterName/nodes?limit=10&startKey=abc&labels=os=mac;linux,-env=prod&sort=hostname=desc&search=foo,bar
+https://cloud.dev/v1/webapi/sites/clusterName/nodes?labels=os=mac,linux+-env=prod&sort=hostname=desc&search=foo+bar
 
-// Parsed in proxy for the following data, which will be sent to auth server:
-- Limit: 10 per page
-- StartKey: abc
+// Parsed in web client for the following data,
+// which will then be sent to proxy server as POST request (with limit and startKey):
 - Sort: {col: `hostname`, dir: `desc`}
 - Search: ["foo", "bar"]
-- LabelExpr: Expr[{Key: "os", Values: ["mac", "linux"], Op: Exists},   {Key: "env", Values: ["prod"], Op: NotExists}]
+- LabelExpr: Expr[{Key: "os", Values: ["mac", "linux"], Op: In},   {Key: "env", Values: ["prod"], Op: NotIn}]
 ```
 
 **Things to consider**
