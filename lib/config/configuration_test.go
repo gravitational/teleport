@@ -2029,7 +2029,7 @@ func TestTextFormatter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
-			formatter := &textFormatter{
+			formatter := &utils.TextFormatter{
 				ExtraFields: tt.formatConfig,
 			}
 			tt.assertErr(t, formatter.CheckAndSetDefaults())
@@ -2057,8 +2057,8 @@ func TestJSONFormatter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
-			formatter := &jsonFormatter{
-				extraFields: tt.extraFields,
+			formatter := &utils.JSONFormatter{
+				ExtraFields: tt.extraFields,
 			}
 			tt.assertErr(t, formatter.CheckAndSetDefaults())
 		})
