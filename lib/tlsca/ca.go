@@ -609,8 +609,9 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 
 func (id Identity) GetUserMetadata() events.UserMetadata {
 	return events.UserMetadata{
-		User:         id.Username,
-		Impersonator: id.Impersonator,
+		User:           id.Username,
+		Impersonator:   id.Impersonator,
+		AccessRequests: id.ActiveRequests,
 	}
 }
 
