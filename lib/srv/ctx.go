@@ -834,9 +834,10 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 
 func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	return apievents.UserMetadata{
-		Login:        id.Login,
-		User:         id.TeleportUser,
-		Impersonator: id.Impersonator,
+		Login:          id.Login,
+		User:           id.TeleportUser,
+		Impersonator:   id.Impersonator,
+		AccessRequests: id.ActiveRequests,
 	}
 }
 
