@@ -204,11 +204,9 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			user, err := CreateUser(srv.Auth(), tt.username)
 			require.NoError(t, err)
-			defer func() {
-				if err := srv.Auth().DeleteUser(context.TODO(), tt.username); err != nil {
-					t.Errorf("failed cleaning up testing user: %+v", err)
-				}
-			}()
+			t.Cleanup(func() {
+				require.NoError(t, srv.Auth().DeleteUser(ctx, tt.username), "failed cleaning up testing user: %s", tt.username)
+			})
 			for _, role := range tt.roles {
 				user.AddRole(role)
 			}

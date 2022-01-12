@@ -1311,7 +1311,7 @@ func (set RoleSet) CheckImpersonate(currentUser, impersonateUser types.User, imp
 	return trace.AccessDenied("access denied to '%s' to impersonate user '%s' and roles '%s'", currentUser.GetName(), impersonateUser.GetName(), roleNames(impersonateRoles))
 }
 
-// CheckImpersonateRoles validates that the current user can perform role-only
+// CheckImpersonateRoles validates that the current user can perform role-only impersonation
 // of the given roles. Role-only impersonation requires an allow rule with
 // roles but no users (and no user-less deny rules). All requested roles must
 // be allowed for the check to succeed.

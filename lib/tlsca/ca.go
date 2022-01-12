@@ -296,7 +296,7 @@ var (
 	// DisallowReissueASN1ExtensionOID is an extension OID used to flag that a
 	// requests to generate new certificates using this certificate should be
 	// denied.
-	DisallowReissueASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 999, 2, 9}
+	DisallowReissueASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 9}
 )
 
 // Subject converts identity to X.509 subject name
