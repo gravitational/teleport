@@ -31,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // DatabaseGetter defines interface for fetching database resources.
@@ -225,9 +226,13 @@ func rdsTagsToLabels(tags []*rds.Tag) map[string]string {
 		// An AWS tag key has a pattern of "^([\p{L}\p{Z}\p{N}_.:/=+\-@]*)$",
 		// which can make invalid labels (for example "aws:cloudformation:stack-id").
 		// Omit those to avoid resource creation failures.
+		//
+		// https://docs.aws.amazon.com/directoryservice/latest/devguide/API_Tag.html
 		key := aws.StringValue(tag.Key)
 		if types.IsValidLabelKey(key) {
 			labels[key] = aws.StringValue(tag.Value)
+		} else {
+			log.Debugf("Skipping RDS tag %q, not a valid label key.", key)
 		}
 	}
 	return labels
