@@ -109,6 +109,22 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	dummyUserRole, err := types.NewRole("dummy-user-role", types.RoleSpecV4{})
+	require.NoError(t, err)
+
+	dummyUser, err := CreateUser(srv.Auth(), "dummy-user", dummyUserRole)
+	require.NoError(t, err)
+
+	dummyUserImpersonatorRole, err := CreateRole(srv.Auth(), "dummy-user-impersonator", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Impersonate: &types.ImpersonateConditions{
+				Users: []string{dummyUser.GetName()},
+				Roles: []string{dummyUserRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	tests := []struct {
 		desc             string
 		username         string
@@ -170,6 +186,15 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			username:     "geoff",
 			roles:        []string{emptyRole.GetName(), impersonatorRole.GetName(), denyBarRole.GetName()},
 			roleRequests: []string{accessBarRole.GetName()},
+			expectError: func(err error) bool {
+				return err != nil && trace.IsAccessDenied(err)
+			},
+		},
+		{
+			desc:         "misusing a role intended for user impersonation",
+			username:     "helen",
+			roles:        []string{emptyRole.GetName(), dummyUserImpersonatorRole.GetName()},
+			roleRequests: []string{dummyUserRole.GetName()},
 			expectError: func(err error) bool {
 				return err != nil && trace.IsAccessDenied(err)
 			},
@@ -249,7 +274,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	}
 }
 
-// TestRoleRequestReimpersonation make sure role requests can't be used to
+// TestRoleRequestDenyReimpersonation make sure role requests can't be used to
 // re-escalate privileges using a (perhaps compromised) set of role
 // impersonated certs.
 func TestRoleRequestDenyReimpersonation(t *testing.T) {
