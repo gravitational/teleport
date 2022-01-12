@@ -935,9 +935,6 @@ type X11 struct {
 	// DisplayOffset tells the server what display to start searching from
 	// for an open X11 Server reverse tunnel port (6000 + offset).
 	DisplayOffset *uint `yaml:"display_offset,omitempty"`
-	// UseLocalhost controls whether the server's localhost will be used
-	// to create a fake X11 server when forwarding.
-	UseLocalhost *string `yaml:"use_localhost,omitempty"`
 }
 
 // Parse will parse the enhanced session recording configuration.
@@ -947,23 +944,14 @@ func (x *X11) Parse() (*x11.ServerConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Follow openssh defaults for x11UseLocalHost and x11DisplayOffset if not set
+	// Follow openssh default for x11DisplayOffset if not set
 	displayOffset := x11.DefaultDisplayOffset
-	useLocalhost := true
-
 	if x.DisplayOffset != nil {
 		displayOffset = int(*x.DisplayOffset)
-	}
-	if x.UseLocalhost != nil {
-		useLocalhost, err = apiutils.ParseBool(*x.UseLocalhost)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	return &x11.ServerConfig{
 		Enabled:       enabled,
-		UseLocalhost:  useLocalhost,
 		DisplayOffset: displayOffset,
 	}, nil
 }

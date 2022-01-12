@@ -29,11 +29,12 @@ type XAuthEntry struct {
 	Cookie string `json:"cookie"`
 }
 
-// NewXauthEntry generates a new trusted xauth entry.
-func NewXauthEntry(display string) (*XAuthEntry, error) {
-	// the client's local XAuthority will treat this
-	// random cookie the same as one generated with
-	// `xauth generate trusted <display> MIT-MAGIC-COOKIE-1`
+// NewTrustedXauthEntry creates a new xauth entry with a trusted xauth cookie.
+func NewTrustedXauthEntry(display string) (*XAuthEntry, error) {
+	// For trusted x11 forwarding, we can use a fake cookie as it is only
+	// used to validate the server-client connection. Locally, the client's
+	// XServer will ignore the trusted cookie regardless of its origin and
+	// use whatever authentication mechanisms it was going to use.
 	cookie, err := newFakeCookie(mitMagicCookieSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -82,10 +83,12 @@ func NewXAuthCommand(ctx context.Context, xauthFile string) *XAuthCommand {
 // ReadEntry runs "xauth list" to read the first xauth entry for the given display.
 func (x *XAuthCommand) ReadEntry(display string) (*XAuthEntry, error) {
 	x.Cmd.Args = append(x.Cmd.Args, "list", display)
-	out, err := x.CombinedOutput()
+	out, err := x.output()
 	if err != nil {
-		return nil, trace.Wrap(err, string(out))
-	} else if len(out) == 0 {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(out) == 0 {
 		return nil, trace.NotFound("no xauth entry found")
 	}
 
@@ -108,19 +111,21 @@ func (x *XAuthCommand) ReadEntry(display string) (*XAuthEntry, error) {
 // RemoveEntries runs "xauth remove" to remove any xauth entries for the given display.
 func (x *XAuthCommand) RemoveEntries(display string) error {
 	x.Cmd.Args = append(x.Cmd.Args, "remove", display)
-	return trace.Wrap(x.Run())
+	return trace.Wrap(x.run())
 }
 
 // AddEntry runs "xauth add" to add the given xauth entry.
 func (x *XAuthCommand) AddEntry(entry *XAuthEntry) error {
 	x.Cmd.Args = append(x.Cmd.Args, "add", entry.Display, entry.Proto, entry.Cookie)
-	return trace.Wrap(x.Run())
+	return trace.Wrap(x.run())
 }
 
 // GenerateUntrustedCookie runs "xauth generate untrusted" to create a new untrusted xauth
-// entry for the given display. A timeout can optionally be set for the xauth entry. This
-// untrusted cookie will provide fewer X privileges than a trusted cookie to prevent
-// attackers from using the cookie to perform actions like keystroke monitoring.
+// entry for the given display. A timeout can optionally be set for the xauth entry.
+//
+// An untrusted cookie will signal to the XServer that fewer X privileges should be provided
+// when opening local connections with this cookie. This prevents attackers from using the
+// cookie to perform actions like keystroke monitoring.
 func (x *XAuthCommand) GenerateUntrustedCookie(display, proto string, timeout uint) error {
 	x.Cmd.Args = append(x.Cmd.Args, "generate", "untrusted", display, proto)
 	if timeout != 0 {
@@ -129,5 +134,27 @@ func (x *XAuthCommand) GenerateUntrustedCookie(display, proto string, timeout ui
 		var timeoutSlack uint = 60
 		x.Cmd.Args = append(x.Cmd.Args, "timeout", fmt.Sprint(timeout+timeoutSlack))
 	}
-	return trace.Wrap(x.Run())
+	return trace.Wrap(x.run())
+}
+
+// run Run and wrap error with stderr.
+func (x *XAuthCommand) run() error {
+	err := x.Cmd.Run()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return trace.Wrap(err, "stderr: %q", exitErr.Stderr)
+		}
+	}
+	return trace.Wrap(err)
+}
+
+// run Output and wrap error with stderr.
+func (x *XAuthCommand) output() ([]byte, error) {
+	out, err := x.Cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return nil, trace.Wrap(err, "stderr: %q", exitErr.Stderr)
+		}
+	}
+	return out, trace.Wrap(err)
 }

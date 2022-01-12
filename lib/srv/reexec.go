@@ -92,8 +92,8 @@ type ExecCommand struct {
 	// UaccMetadata contains metadata needed for user accounting.
 	UaccMetadata UaccMetadata `json:"uacc_meta"`
 
-	// XAuthEntry contains an xauth entry to be added to the command user's xauthority.
-	XAuthEntry *x11.XAuthEntry `json:"xauth_entry,omitempty"`
+	// X11Config contains an xauth entry to be added to the command user's xauthority.
+	X11Config *X11Config `json:"x11_config,omitempty"`
 }
 
 // PAMConfig represents all the configuration data that needs to be passed to the child.
@@ -107,6 +107,14 @@ type PAMConfig struct {
 
 	// Environment represents env variables to pass to PAM.
 	Environment map[string]string `json:"environment"`
+}
+
+// X11Config contains information needed for the child process to set up x11 forwarding.
+type X11Config struct {
+	// XAuthEntry contains x11 xauth data used for x11 forwarding.
+	XAuthEntry *x11.XAuthEntry `json:"xauth_entry,omitempty"`
+	// XServerUnixSocket is the name of an open x11 unix socket for x11 forwarding.
+	XServerUnixSocket string `json:"xserver_unix_socket"`
 }
 
 // UaccMetadata contains information the child needs from the parent for user accounting.
@@ -158,7 +166,7 @@ func RunCommand() (io.Writer, int, error) {
 	var pty *os.File
 	uaccEnabled := false
 
-	// If a terminal was requested, file descriptor 4 and 5 always point to the
+	// If a terminal was requested, file descriptors 5 and 6 always point to the
 	// PTY and TTY. Extract them and set the controlling TTY. Otherwise, connect
 	// std{in,out,err} directly.
 	if c.Terminal {
@@ -238,30 +246,42 @@ func RunCommand() (io.Writer, int, error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	// If requested, update the user's xauthority with the provided xauth entry
-	// using the same cmd variables as the shell command.
-	if c.XAuthEntry != nil {
+	if c.X11Config != nil {
+		// Set the open xserver unix socket's owner to the localuser
+		// to prevent a possible privilege escalation vulnerability.
+		if err := os.Chown(c.X11Config.XServerUnixSocket, int(cmd.SysProcAttr.Credential.Uid), int(cmd.SysProcAttr.Credential.Gid)); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+
+		// Update localUser's xauth database to include the xauth
+		// entry expected for x11 forwarding.
 		removeCmd := x11.NewXAuthCommand(context.Background(), "")
+		addCmd := x11.NewXAuthCommand(context.Background(), "")
+
+		// Update the commands' user credentials and other parameters
+		// to match that of the re-exec command created above.
 		removeCmd.SysProcAttr = cmd.SysProcAttr
 		removeCmd.Stdout = cmd.Stdout
 		removeCmd.Stdin = cmd.Stdin
 		removeCmd.Stderr = cmd.Stderr
 		removeCmd.Env = cmd.Env
 		removeCmd.Dir = cmd.Dir
-		if err := removeCmd.RemoveEntries(c.XAuthEntry.Display); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-
-		addCmd := x11.NewXAuthCommand(context.Background(), "")
 		addCmd.SysProcAttr = cmd.SysProcAttr
 		addCmd.Stdout = cmd.Stdout
 		addCmd.Stdin = cmd.Stdin
 		addCmd.Stderr = cmd.Stderr
 		addCmd.Env = cmd.Env
 		addCmd.Dir = cmd.Dir
-		if err := addCmd.AddEntry(c.XAuthEntry); err != nil {
+
+		if err := removeCmd.RemoveEntries(c.X11Config.XAuthEntry.Display); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
+		if err := addCmd.AddEntry(c.X11Config.XAuthEntry); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+
+		// Set $DISPLAY so that XServer requests are sent to the X11 socket opened above.
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", x11.DisplayEnv, c.X11Config.XAuthEntry.Display))
 	}
 
 	// Start the command.

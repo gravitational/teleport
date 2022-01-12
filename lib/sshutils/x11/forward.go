@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,25 +26,23 @@ const (
 	// local display should be connected to during x11 forwarding.
 	DisplayEnv = "DISPLAY"
 
-	// x11BasePort is the base port used when searching
-	// for an open XServer tunnel.
+	// x11BasePort is the base port used for xserver tcp addresses.
+	// e.g. DISPLAY=localhost:10 -> net.Dial("tcp", "localhost:6010")
+	// Used by some XServer clients, such as openSSH and MobaXTerm.
 	x11BasePort = 6000
 	// x11MaxDisplays is the number of displays which the
 	// server will support concurrent x11 forwarding for.
 	x11MaxDisplays = 1000
+	// x11SocketDir is the name of the directory where x11 unix sockets are kept.
+	x11SocketDir = ".X11-unix"
 )
 
 // ServerConfig is a server configuration for x11 forwarding
 type ServerConfig struct {
 	// Enabled controls whether x11 forwarding requests can be granted by the server.
 	Enabled bool `yaml:"enabled"`
-	// DisplayOffset tells the server what display to start searching from
-	// for an open X11 Server reverse tunnel port (6000 + offset).
+	// DisplayOffset tells the server what x11 display number to start from.
 	DisplayOffset int `yaml:"display_offset,omitempty"`
-	// UseLocalhost controls whether the server's localhost will be used
-	// to create a fake X11 server when forwarding. When false, the server's
-	// hostname will be used instead.
-	UseLocalhost bool `yaml:"use_localhost,omitempty"`
 }
 
 // ForwardRequestPayload according to http://www.ietf.org/rfc/rfc4254.txt
@@ -124,27 +123,16 @@ func ServeX11ChannelRequests(ctx context.Context, clt *ssh.Client, handler x11Ch
 	return nil
 }
 
-// OpenNewXServerListener opens a new local XServer listener with first unused display
-// number between 10 and 1010. The XServer listener's corresponding X display will be returned.
-func OpenNewXServerListener(displayOffset int, useLocalhost bool, screen uint32) (l net.Listener, display string, err error) {
-	host := "localhost"
-	if !useLocalhost {
-		var err error
-		if host, err = os.Hostname(); err != nil {
-			return nil, "", trace.Wrap(err)
+// OpenNewXServerListener opens a new XServer unix socket with the first unused display
+// number. The unix socket's corresponding XServer display value will also be returned.
+func OpenNewXServerListener(displayOffset int, screen uint32) (net.Listener, string, error) {
+	for displayNumber := displayOffset; displayNumber < displayOffset+x11MaxDisplays; displayNumber++ {
+		if l, err := net.Listen("unix", xserverUnixSocket(displayNumber)); err == nil {
+			return l, unixXDisplay(displayNumber), nil
 		}
 	}
 
-	for display := displayOffset; display < displayOffset+x11MaxDisplays; display++ {
-		port := strconv.Itoa(x11BasePort + display)
-		l, err := net.Listen("tcp", net.JoinHostPort(host, port))
-		if err == nil {
-			display := fmt.Sprintf("%s:%d.%d", host, display, screen)
-			return l, display, nil
-		}
-	}
-
-	return nil, "", trace.LimitExceeded("No more x11 ports are available")
+	return nil, "", trace.LimitExceeded("No more x11 sockets are available")
 }
 
 // ForwardToX11Channel begins x11 forwarding between the given
@@ -176,7 +164,7 @@ func ForwardToX11Channel(conn net.Conn, sc *ssh.ServerConn) error {
 
 // ForwardToXDisplay opens up an x11 channel listener and serves any channel
 // requests by beginning X11Forwarding between the channel and given display.
-// the x11 channel's intial auth packet is scanned for the given fakeCookie.
+// the x11 channel's initial auth packet is scanned for the given fakeCookie.
 // If the cookie is present, it will be replaced with the real cookie.
 // Otherwise, an access denied error will be returned.
 func ForwardToXDisplay(sch ssh.Channel, display, authProto, fakeCookie, realCookie string) error {
@@ -317,26 +305,21 @@ func parseDisplay(display string) (string, int, int, error) {
 	return host, displayNumber, screenNumber, nil
 }
 
-// dialDisplay connects to the set $DISPLAY variable. If it looks like a
-// unix socket, we dial to the default /temp/.X11-unix/X* socket.
-// Otherwise, we dial a tcp connection to it.
+// dialDisplay connects to the xserver socket for the set $DISPLAY variable.
 func dialDisplay(display string) (net.Conn, error) {
 	hostname, displayNumber, _, err := parseDisplay(display)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// If display is a unix socket, dial the default x11 unix socket
-	// "/tmp/.X11-unix/X[display_number]" for the display number found in $DISPLAY.
+	// If display is a unix socket, dial the address as an x11 unix socket
 	if hostname == "unix" || hostname == "" {
-		sock := fmt.Sprintf("%s/.X11-unix/X%d", os.TempDir(), displayNumber)
-		return net.Dial("unix", sock)
+		return net.Dial("unix", xserverUnixSocket(displayNumber))
 	}
 
-	// If hostname can be parsed as an IP address, dial tcp with port 6000+display.
-	// MobaXTerm expects x11 forwarding to dial "localhost:6000+display".
+	// If hostname can be parsed as an IP address, dial the address as an x11 tcp socket
 	if ip := net.ParseIP(hostname); ip != nil {
-		conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", hostname, x11BasePort+displayNumber))
+		conn, err := net.Dial("tcp", xserverTCPSocket(hostname, displayNumber))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -345,4 +328,22 @@ func dialDisplay(display string) (net.Conn, error) {
 
 	// dial display as generic socket address
 	return net.Dial("unix", display)
+}
+
+// xserverUnixSocket returns the display's associated
+// unix socket - "/tmp/.X11-unix/X<display_number>"
+func xserverUnixSocket(display int) string {
+	return filepath.Join(os.TempDir(), x11SocketDir, fmt.Sprintf("X%d", display))
+}
+
+// xserverTCPSocket returns the display's associated tcp socket
+// with the given hostname - "hostname:<6000+display_number>"
+func xserverTCPSocket(hostname string, display int) string {
+	return fmt.Sprintf("%s:%d", hostname, x11BasePort+display)
+}
+
+// unixXDisplay returns the xserver display value for an xserver
+// unix socket with the given display number - "unix:<display_number"
+func unixXDisplay(displayNumber int) string {
+	return fmt.Sprintf("unix:%d", displayNumber)
 }

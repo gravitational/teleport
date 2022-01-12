@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -321,9 +322,10 @@ type ServerContext struct {
 	// populated for port forwarding requests.
 	DstAddr string
 
-	// xauthEntry is the xauth data which should be used for x11 forwarding
-	// in this server session.
-	xauthEntry *x11.XAuthEntry
+	// x11Ready
+	x11Ready chan struct{}
+	//x11Config
+	x11Config *X11Config
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -589,22 +591,91 @@ func (c *ServerContext) getSession() *session {
 	return c.session
 }
 
-// SetXAuthEntry sets an xauth entry or returns false if the value is already set.
-func (c *ServerContext) SetXAuthEntry(entry *x11.XAuthEntry) bool {
+// OpenXServerListener opens a new xserver unix socket listener to
+// be used by this server session to perform x11 forwarding.
+func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, displayOffset int) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.xauthEntry != nil {
-		return false
+
+	if c.x11Config != nil {
+		return trace.AlreadyExists("x11 forwarding is already set up for this session")
 	}
-	c.xauthEntry = entry
-	return true
+
+	l, display, err := x11.OpenNewXServerListener(displayOffset, x11Req.ScreenNumber)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO (Joerger): If the teleport process is terminated, then these closers
+	// don't actually run. They only run when the client session is terminated.
+	// This is either a bug, or we need to use a different mechanism.
+	c.closers = append(c.closers, l)
+	c.x11Ready = make(chan struct{})
+	c.x11Config = &X11Config{
+		XServerUnixSocket: l.Addr().String(),
+		XAuthEntry: &x11.XAuthEntry{
+			Display: display,
+			Proto:   x11Req.AuthProtocol,
+			Cookie:  x11Req.AuthCookie,
+		},
+	}
+
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err == syscall.EINVAL {
+				// listener is closed
+				return
+			} else if err != nil {
+				continue
+			}
+
+			// If the session has not signaled that x11 forwarding is
+			// fully set up yet, then ignore any incoming connections.
+			// The client's session hasn't been fully set up yet so this
+			// could potentially be an attack attempt.
+			select {
+			case <-c.x11Ready:
+			default:
+				conn.Close()
+				continue
+			}
+
+			go func() {
+				defer conn.Close()
+				if err := x11.ForwardToX11Channel(conn, c.ServerConn); err != nil {
+					log.WithError(err).Debug("Failed to start x11 forwarding for the incoming XServer connection")
+				}
+			}()
+
+			// Stop forwarding connections after the first connection is forwarded.
+			if x11Req.SingleConnection {
+				l.Close()
+				return
+			}
+		}
+	}()
+
+	return nil
 }
 
-// GetXAuthEntry gets the set xauth entry.
-func (c *ServerContext) GetXAuthEntry() *x11.XAuthEntry {
+// startX11Forwarding signals to the xserver listener that the
+// session is ready to accept incoming xserver connections.
+func (c *ServerContext) startX11Forwarding() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.xauthEntry
+	// x11forwarding is not set up for this session, ignore this request.
+	if c.x11Ready == nil {
+		return
+	}
+	close(c.x11Ready)
+}
+
+// GetX11Config gets the x11 config for this server session.
+func (c *ServerContext) GetX11Config() *X11Config {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.x11Config
 }
 
 // takeClosers returns all resources that should be closed and sets the properties to null
@@ -856,7 +927,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
-		XAuthEntry:            c.GetXAuthEntry(),
+		X11Config:             c.GetX11Config(),
 	}, nil
 }
 
@@ -878,12 +949,6 @@ func buildEnvironment(ctx *ServerContext) []string {
 	ctx.VisitEnv(func(key, val string) {
 		env = append(env, fmt.Sprintf("%s=%s", key, val))
 	})
-
-	// If x11 forwarding is set up for the session, set $DISPLAY
-	// so that XServer requests are sent to the X11 server listener.
-	if entry := ctx.GetXAuthEntry(); entry != nil {
-		env = append(env, fmt.Sprintf("%s=%s", x11.DisplayEnv, entry.Display))
-	}
 
 	// Parse the local and remote addresses to build SSH_CLIENT and
 	// SSH_CONNECTION environment variables.

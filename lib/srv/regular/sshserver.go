@@ -31,7 +31,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 
 	"golang.org/x/crypto/ssh"
 
@@ -1550,8 +1549,8 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 		return trace.AccessDenied("x11 forwarding is not enabled")
 	}
 
-	if ctx.GetXAuthEntry() != nil {
-		return trace.AlreadyExists("x11 forwarding is already set up for this session")
+	if ctx.GetX11Config() != nil {
+		return trace.AlreadyExists("x11 forwarding has already been requested for this session")
 	}
 
 	// Check if the user's RBAC role allows X11 forwarding.
@@ -1564,55 +1563,9 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 		return trace.Wrap(err)
 	}
 
-	l, display, err := x11.OpenNewXServerListener(s.x11.DisplayOffset, s.x11.UseLocalhost, x11Req.ScreenNumber)
-	if err != nil {
+	if err := ctx.OpenXServerListener(x11Req, s.x11.DisplayOffset); err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Create a new xauth entry for the received auth protocol and cookie
-	// and the x11 listener display value. This way any XServer connections
-	// forwarded to the x11 listener will be populated with the auth data
-	// expected by the client.
-	ok := ctx.SetXAuthEntry(&x11.XAuthEntry{
-		Display: display,
-		Proto:   x11Req.AuthProtocol,
-		Cookie:  x11Req.AuthCookie,
-	})
-	if !ok {
-		return trace.AlreadyExists("x11 auth data is already set for this session")
-	}
-
-	// The XServer listener should be closed once the
-	// client's server connection closes.
-	go func() {
-		ctx.ServerConn.Wait()
-		l.Close()
-	}()
-
-	// serve any x11 server listener connections, which may be initiated
-	// from the client's session.
-	go func() {
-		for {
-			conn, err := l.Accept()
-			if err == syscall.EINVAL {
-				// listener is closed
-				return
-			} else if err != nil {
-				continue
-			}
-
-			go func() {
-				defer conn.Close()
-				if err := x11.ForwardToX11Channel(conn, ctx.ServerConn); err != nil {
-					log.WithError(err).Debug("Failed to start x11 forwarding for the incoming XServer connection")
-				}
-			}()
-
-			if x11Req.SingleConnection {
-				return
-			}
-		}
-	}()
 
 	return nil
 }
