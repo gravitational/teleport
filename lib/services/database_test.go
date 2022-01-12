@@ -189,3 +189,22 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
+
+func TestRDSTagsToLabels(t *testing.T) {
+	rdsTags := []*rds.Tag{
+		&rds.Tag{
+			Key:   aws.String("Env"),
+			Value: aws.String("dev"),
+		},
+		&rds.Tag{
+			Key:   aws.String("aws:cloudformation:stack-id"),
+			Value: aws.String("some-id"),
+		},
+		&rds.Tag{
+			Key:   aws.String("Name"),
+			Value: aws.String("test"),
+		},
+	}
+	labels := rdsTagsToLabels(rdsTags)
+	require.Equal(t, map[string]string{"Name": "test", "Env": "dev"}, labels)
+}
