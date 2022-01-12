@@ -85,6 +85,17 @@ func TestParseTeleportRoles(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			in:      "windowsdesktop",
+			out:     SystemRoles{RoleWindowsDesktop},
+			wantErr: false,
+		},
+		{
+			// allow underscores for camelcase roles
+			in:      "windows_desktop,trusted_cluster,remote_proxy",
+			out:     SystemRoles{RoleWindowsDesktop, RoleTrustedCluster, RoleRemoteProxy},
+			wantErr: false,
+		},
+		{
 			// multiple comma-separated roles
 			in:      "Auth,Proxy",
 			out:     SystemRoles{RoleAuth, RoleProxy},
