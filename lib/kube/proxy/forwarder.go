@@ -328,6 +328,14 @@ func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
 	}
 }
 
+func (c *authContext) eventUserMeta() apievents.UserMetadata {
+	return apievents.UserMetadata{
+		User:         c.User.GetName(),
+		Login:        c.User.GetName(),
+		Impersonator: c.Identity.GetIdentity().Impersonator,
+	}
+}
+
 type dialFunc func(ctx context.Context, network, addr, serverID string) (net.Conn, error)
 
 // teleportClusterClient is a client for either a k8s endpoint in local cluster or a
@@ -782,11 +790,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: apievents.UserMetadata{
-					User:         ctx.User.GetName(),
-					Login:        ctx.User.GetName(),
-					Impersonator: ctx.Identity.GetIdentity().Impersonator,
-				},
+				UserMetadata:              ctx.eventUserMeta(),
 				TerminalSize:              params.Serialize(),
 				KubernetesClusterMetadata: ctx.eventClusterMeta(),
 				KubernetesPodMetadata:     eventPodMeta,
@@ -825,11 +829,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				SessionID: string(sessionID),
 				WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 			},
-			UserMetadata: apievents.UserMetadata{
-				User:         ctx.User.GetName(),
-				Login:        ctx.User.GetName(),
-				Impersonator: ctx.Identity.GetIdentity().Impersonator,
-			},
+			UserMetadata: ctx.eventUserMeta(),
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				RemoteAddr: req.RemoteAddr,
 				LocalAddr:  sess.kubeAddress,
@@ -907,11 +907,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: apievents.UserMetadata{
-					User:         ctx.User.GetName(),
-					Login:        ctx.User.GetName(),
-					Impersonator: ctx.Identity.GetIdentity().Impersonator,
-				},
+				UserMetadata: ctx.eventUserMeta(),
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: req.RemoteAddr,
 					LocalAddr:  sess.kubeAddress,
@@ -939,11 +935,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: apievents.UserMetadata{
-					User:         ctx.User.GetName(),
-					Login:        ctx.User.GetName(),
-					Impersonator: ctx.Identity.GetIdentity().Impersonator,
-				},
+				UserMetadata: ctx.eventUserMeta(),
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: req.RemoteAddr,
 					LocalAddr:  sess.kubeAddress,
@@ -977,11 +969,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: apievents.UserMetadata{
-					User:         ctx.User.GetName(),
-					Login:        ctx.User.GetName(),
-					Impersonator: ctx.Identity.GetIdentity().Impersonator,
-				},
+				UserMetadata: ctx.eventUserMeta(),
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: req.RemoteAddr,
 					LocalAddr:  sess.kubeAddress,
@@ -1046,11 +1034,7 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 				Type: events.PortForwardEvent,
 				Code: events.PortForwardCode,
 			},
-			UserMetadata: apievents.UserMetadata{
-				Login:        ctx.User.GetName(),
-				User:         ctx.User.GetName(),
-				Impersonator: ctx.Identity.GetIdentity().Impersonator,
-			},
+			UserMetadata: ctx.eventUserMeta(),
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  sess.kubeAddress,
 				RemoteAddr: req.RemoteAddr,
@@ -1245,11 +1229,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 			Type: events.KubeRequestEvent,
 			Code: events.KubeRequestCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ctx.User.GetName(),
-			Login:        ctx.User.GetName(),
-			Impersonator: ctx.Identity.GetIdentity().Impersonator,
-		},
+		UserMetadata: ctx.eventUserMeta(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: req.RemoteAddr,
 			LocalAddr:  sess.kubeAddress,
