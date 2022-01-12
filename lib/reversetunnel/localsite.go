@@ -508,7 +508,7 @@ func (s *localSite) agentStats() {
 	hostID := make(map[string]struct{})
 	versionCount := make(map[string]int)
 
-	// Nodes, Proxies, Auths, KubeServices, and WindowsDesktopServers use the UUID as the name field where
+	// Nodes, Proxies, Auths, KubeServices, and WindowsDesktopServices use the UUID as the name field where
 	// DB and App store it in the spec. Check expiry due to DynamoDB taking up to 48hr to expire from backend
 	// and then store hostID and version count information.
 	serverCheck := func(server interface{}) {
