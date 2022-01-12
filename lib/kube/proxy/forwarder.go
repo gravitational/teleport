@@ -288,11 +288,11 @@ func (c *authContext) eventClusterMeta() events.KubernetesClusterMetadata {
 }
 
 func (c *authContext) eventUserMeta() events.UserMetadata {
-	return events.UserMetadata{
-		User:         c.User.GetName(),
-		Login:        c.User.GetName(),
-		Impersonator: c.Identity.GetIdentity().Impersonator,
-	}
+	name := c.User.GetName()
+	meta := c.Identity.GetIdentity().GetUserMetadata()
+	meta.User = name
+	meta.Login = name
+	return meta
 }
 
 type dialFunc func(ctx context.Context, network, addr, serverID string) (net.Conn, error)
