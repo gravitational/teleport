@@ -141,11 +141,7 @@ func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(ctx.SessionID()),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ctx.Identity.TeleportUser,
-			Login:        ctx.Identity.Login,
-			Impersonator: ctx.Identity.Impersonator,
-		},
+		UserMetadata: ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
@@ -411,11 +407,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(sid),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ctx.Identity.TeleportUser,
-			Login:        ctx.Identity.Login,
-			Impersonator: ctx.Identity.Impersonator,
-		},
+		UserMetadata: ctx.Identity.GetUserMetadata(),
 		TerminalSize: params.Serialize(),
 	}
 
@@ -761,11 +753,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ctx.Identity.TeleportUser,
-			Login:        ctx.Identity.Login,
-			Impersonator: ctx.Identity.Impersonator,
-		},
+		UserMetadata: ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
@@ -909,11 +897,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ctx.Identity.TeleportUser,
-			Login:        ctx.Identity.Login,
-			Impersonator: ctx.Identity.Impersonator,
-		},
+		UserMetadata: ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
@@ -1010,11 +994,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			SessionMetadata: apievents.SessionMetadata{
 				SessionID: string(s.id),
 			},
-			UserMetadata: apievents.UserMetadata{
-				User:         ctx.Identity.TeleportUser,
-				Login:        ctx.Identity.Login,
-				Impersonator: ctx.Identity.Impersonator,
-			},
+			UserMetadata:      ctx.Identity.GetUserMetadata(),
 			EnhancedRecording: s.hasEnhancedRecording,
 			Interactive:       false,
 			Participants: []string{

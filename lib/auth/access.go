@@ -37,9 +37,7 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) error {
 			Type: events.RoleCreatedEvent,
 			Code: events.RoleCreatedCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: ClientUsername(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: role.GetName(),
 		},
@@ -92,10 +90,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 			Type: events.RoleDeletedEvent,
 			Code: events.RoleDeletedCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
@@ -116,10 +111,7 @@ func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
 			Type: events.LockCreatedEvent,
 			Code: events.LockCreatedCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: lock.GetName(),
 		},
@@ -140,10 +132,7 @@ func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
 			Type: events.LockDeletedEvent,
 			Code: events.LockDeletedCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: lockName,
 		},
