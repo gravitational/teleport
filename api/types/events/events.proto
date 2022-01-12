@@ -66,6 +66,9 @@ message UserMetadata {
 
     // AWSRoleARN is AWS IAM role user assumes when accessing AWS console.
     string AWSRoleARN = 4 [ (gogoproto.jsontag) = "aws_role_arn,omitempty" ];
+
+    // AccessRequests are the IDs of access requests created by the user
+    repeated string AccessRequests = 5 [ (gogoproto.jsontag) = "access_requests,omitempty" ];
 }
 
 // Server is a server metadata
@@ -131,6 +134,9 @@ message KubernetesPodMetadata {
 
 // SessionStart is a session start event
 message SessionStart {
+    reserved 11;
+    reserved "AccessRequests";
+
     // Metadata is a common event metadata
     Metadata Metadata = 1
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
@@ -168,9 +174,6 @@ message SessionStart {
 
     // SessionRecording is the type of session recording.
     string SessionRecording = 10 [ (gogoproto.jsontag) = "session_recording,omitempty" ];
-
-    // AccessRequests are the IDs of access requests created by the user
-    repeated string AccessRequests = 11 [ (gogoproto.jsontag) = "access_requests,omitempty" ];
 }
 
 // SessionJoin emitted when another user joins a session
