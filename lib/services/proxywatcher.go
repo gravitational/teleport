@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -39,8 +40,11 @@ func NewProxyWatcher(cfg ProxyWatcherConfig) (*ProxyWatcher, error) {
 		return nil, trace.Wrap(err)
 	}
 	retry, err := utils.NewLinear(utils.LinearConfig{
-		Step: cfg.RetryPeriod / 10,
-		Max:  cfg.RetryPeriod,
+		First:  utils.HalfJitter(cfg.MaxRetryPeriod / 10),
+		Step:   cfg.MaxRetryPeriod / 5,
+		Max:    cfg.MaxRetryPeriod,
+		Jitter: utils.NewHalfJitter(),
+		Clock:  cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -51,7 +55,6 @@ func NewProxyWatcher(cfg ProxyWatcherConfig) (*ProxyWatcher, error) {
 		cancel:             cancel,
 		RWMutex:            &sync.RWMutex{},
 		retry:              retry,
-		resetC:             make(chan struct{}),
 		ProxyWatcherConfig: cfg,
 		FieldLogger:        cfg.Entry,
 	}
@@ -65,8 +68,6 @@ type ProxyWatcher struct {
 	*sync.RWMutex
 	log.FieldLogger
 	ProxyWatcherConfig
-
-	resetC chan struct{}
 
 	// retry is used to manage backoff logic for watches
 	retry utils.Retry
@@ -86,8 +87,10 @@ type ProxyWatcherConfig struct {
 	Context context.Context
 	// Component is a component used in logs
 	Component string
-	// RetryPeriod is a retry period on failed watchers
-	RetryPeriod time.Duration
+	// Clock is used to control time.
+	Clock clockwork.Clock
+	// MaxRetryPeriod is the maximum retry period on failed watchers.
+	MaxRetryPeriod time.Duration
 	// ReloadPeriod is a failed period on failed watches
 	ReloadPeriod time.Duration
 	// Client is used by changeset to monitor proxy updates
@@ -100,6 +103,8 @@ type ProxyWatcherConfig struct {
 	// and the subsequent list of new values
 	// whenever an addition or deletion to the list is detected
 	ProxiesC chan []Server
+	// ResetC is a channel to notify of internal watcher reset (used in tests).
+	ResetC chan time.Duration
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -119,11 +124,17 @@ func (cfg *ProxyWatcherConfig) CheckAndSetDefaults() error {
 	if cfg.Entry == nil {
 		cfg.Entry = log.StandardLogger()
 	}
-	if cfg.RetryPeriod == 0 {
-		cfg.RetryPeriod = defaults.HighResPollingPeriod
+	if cfg.MaxRetryPeriod == 0 {
+		cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	}
 	if cfg.ReloadPeriod == 0 {
 		cfg.ReloadPeriod = defaults.LowResPollingPeriod
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
+	}
+	if cfg.ResetC == nil {
+		cfg.ResetC = make(chan time.Duration, 1)
 	}
 	return nil
 }
@@ -158,12 +169,6 @@ type ProxyWatcherClient interface {
 	Events
 }
 
-// Reset returns a channel which notifies of internal
-// watcher resets (used in tests).
-func (p *ProxyWatcher) Reset() <-chan struct{} {
-	return p.resetC
-}
-
 // Done returns a channel that signals
 // proxy watcher closure
 func (p *ProxyWatcher) Done() <-chan struct{} {
@@ -188,13 +193,19 @@ func (p *ProxyWatcher) watchProxies() {
 		if err != nil {
 			p.Warningf("Re-init the watcher on error: %v.", trace.Unwrap(err))
 		}
-		p.Debugf("Reloading %v.", p.retry)
+
+		// Used for testing that the watch routine has exited and is about
+		// to be restarted.
 		select {
-		case p.resetC <- struct{}{}:
+		case p.ResetC <- p.retry.Duration():
 		default:
 		}
+
+		p.Debugf("Reloading %v.", p.retry)
+		startedWaiting := p.Clock.Now()
 		select {
-		case <-p.retry.After():
+		case t := <-p.retry.After():
+			p.Debugf("Attempting to restart watch after waiting %v.", t.Sub(startedWaiting))
 			p.retry.Inc()
 		case <-p.ctx.Done():
 			p.Debugf("Closed, returning from update loop.")
