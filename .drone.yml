@@ -3983,6 +3983,31 @@ steps:
     - yum -y install createrepo
     - createrepo --cachedir /rpmrepo/teleport/cache --update /rpmrepo/teleport
 
+  # This step requires centos:8 to get gpg 2.2+
+  # centos:7's gpg 2.0 doesn't understand the format of GPG_RPM_SIGNING_ARCHIVE
+  - name: Sign RPM repository metadata
+    image: centos:8
+    volumes:
+      - name: rpmrepo
+        path: /rpmrepo
+      # for in-memory tmpfs for key material
+      - name: tmpfs
+        path: /tmpfs
+    environment:
+      GNUPGHOME: /tmpfs/gnupg
+      GPG_RPM_SIGNING_ARCHIVE:
+        from_secret: GPG_RPM_SIGNING_ARCHIVE
+    commands:
+      - |
+        # extract signing key
+        mkdir -m0700 $GNUPGHOME
+        echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+        chown -R root:root $GNUPGHOME
+      # Sign rpm repo metadata (yum clients will automatically look for and verify repodata/repomd.xml.asc)
+      - gpg --batch --yes --detach-sign --armor /rpmrepo/teleport/repodata/repomd.xml
+      - cat /rpmrepo/teleport/repodata/repomd.xml.asc
+      - rm -rf $GNUPGHOME
+
   - name: Sync RPM repo changes to S3
     image: amazon/aws-cli
     environment:
@@ -4095,6 +4120,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 8aa5f7317d3c2d1bde25ae393c09b3be705ec5021dac7dd5d32e08b6e7006cef
+hmac: 88359bb820fc8e66baad0afa8489a4117e2220eee72fef64febbd40b03631bb9
 
 ...

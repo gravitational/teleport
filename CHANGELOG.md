@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.3.10
+
+This release of Teleport contains a feature and a bug fix.
+
+* Updated `tsh play -f json` to support fetching session recordings from cluster. [#9446](https://github.com/gravitational/teleport/pull/9446)
+* Fixed an issue with incorrect session ID being emitted in `session.leave` events. [#9650](https://github.com/gravitational/teleport/pull/9650)
+* Fixed an issue with `tsh ssh` failing when user's home directory doesn't exist. [#9413](https://github.com/gravitational/teleport/pull/9413)
+
 ## 7.3.9
 
 This release of Teleport contains features and fixes.
