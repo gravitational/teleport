@@ -1,29 +1,32 @@
 /*
-Copyright 2021 Gravitational, Inc.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+ Copyright 2022 Gravitational, Inc.
 
-    http://www.apache.org/licenses/LICENSE-2.0
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+
+
 */
 
-package config
+package utils
 
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -32,7 +35,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type textFormatter struct {
+type TextFormatter struct {
 	// ComponentPadding is a padding to pick when displaying
 	// and formatting component field, defaults to DefaultComponentPadding
 	ComponentPadding int
@@ -66,8 +69,25 @@ const (
 	messageField   = "message"
 )
 
+func NewDefaultTextFormatter(enableColors bool) *TextFormatter {
+	return &TextFormatter{
+		ComponentPadding: trace.DefaultComponentPadding,
+		FormatCaller:     formatCallerWithPathAndLine,
+		ExtraFields:      KnownFormatFields.names(),
+		EnableColors:     enableColors,
+		callerEnabled:    true,
+		timestampEnabled: false,
+	}
+}
+
+func NewTestTextFormatter() *TextFormatter {
+	formatter := NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
+	formatter.timestampEnabled = true
+	return formatter
+}
+
 // CheckAndSetDefaults checks and sets log format configuration
-func (tf *textFormatter) CheckAndSetDefaults() error {
+func (tf *TextFormatter) CheckAndSetDefaults() error {
 	// set padding
 	if tf.ComponentPadding == 0 {
 		tf.ComponentPadding = trace.DefaultComponentPadding
@@ -100,8 +120,8 @@ func (tf *textFormatter) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Format formats each log line as confiured in teleport config file
-func (tf *textFormatter) Format(e *log.Entry) ([]byte, error) {
+// Format formats each log line as configured in teleport config file
+func (tf *TextFormatter) Format(e *log.Entry) ([]byte, error) {
 	var data []byte
 	caller := tf.FormatCaller()
 	w := &writer{}
@@ -172,26 +192,26 @@ func (tf *textFormatter) Format(e *log.Entry) ([]byte, error) {
 	return data, nil
 }
 
-// jsonFormatter implements the logrus.Formatter interface and adds extra
+// JSONFormatter implements the logrus.Formatter interface and adds extra
 // fields to log entries
-type jsonFormatter struct {
+type JSONFormatter struct {
 	log.JSONFormatter
 
-	extraFields []string
+	ExtraFields []string
 
 	callerEnabled    bool
 	componentEnabled bool
 }
 
 // CheckAndSetDefaults checks and sets log format configuration
-func (j *jsonFormatter) CheckAndSetDefaults() error {
+func (j *JSONFormatter) CheckAndSetDefaults() error {
 	// set log formatting
-	if j.extraFields == nil {
-		j.extraFields = KnownFormatFields.names()
+	if j.ExtraFields == nil {
+		j.ExtraFields = KnownFormatFields.names()
 	}
 
 	// parse input
-	res, err := parseInputFormat(j.extraFields)
+	res, err := parseInputFormat(j.ExtraFields)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -221,7 +241,7 @@ func (j *jsonFormatter) CheckAndSetDefaults() error {
 }
 
 // Format implements logrus.Formatter interface
-func (j *jsonFormatter) Format(e *log.Entry) ([]byte, error) {
+func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
 	if j.callerEnabled {
 		path := formatCallerWithPathAndLine()
 		e.Data[callerField] = path
@@ -259,15 +279,6 @@ func (w *writer) writeField(value interface{}, color int) {
 		w.WriteByte(' ')
 	}
 	w.writeValue(value, color)
-}
-
-func needsQuoting(text string) bool {
-	for _, r := range text {
-		if !strconv.IsPrint(r) {
-			return true
-		}
-	}
-	return false
 }
 
 func (w *writer) writeKeyValue(key string, value interface{}) {
@@ -342,7 +353,7 @@ func formatCallerWithPathAndLine() (path string) {
 	return ""
 }
 
-var frameIgnorePattern = regexp.MustCompile(`github\.com/(gravitational|(S|s)irupsen)/logrus`)
+var frameIgnorePattern = regexp.MustCompile(`github\.com/sirupsen/logrus`)
 
 // findFrames positions the stack pointer to the first
 // function that does not match the frameIngorePattern
@@ -359,7 +370,7 @@ func findFrame() *frameCursor {
 	frames := runtime.CallersFrames(pcs)
 	for i := 0; i < n; i++ {
 		frame, _ := frames.Next()
-		if !frameIgnorePattern.MatchString(frame.File) {
+		if !frameIgnorePattern.MatchString(frame.Function) {
 			return &frameCursor{
 				current: &frame,
 				rest:    frames,
