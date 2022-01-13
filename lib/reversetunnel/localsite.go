@@ -522,12 +522,10 @@ func (s *localSite) agentStats() {
 			GetHostID() string
 		}
 
-		expiration := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
-
 		// appDB needs to be first as it also matches the serverKubeWindows interface
 		switch server.(type) {
 		case appDB:
-			if server.(appDB).Expiry().Before(expiration) {
+			if server.(appDB).Expiry().Before(time.Now()) {
 				return
 			}
 			if _, present := hostID[server.(appDB).GetHostID()]; !present {
@@ -535,7 +533,7 @@ func (s *localSite) agentStats() {
 				versionCount[server.(appDB).GetTeleportVersion()]++
 			}
 		case serverKubeWindows:
-			if server.(serverKubeWindows).Expiry().Before(expiration) {
+			if server.(serverKubeWindows).Expiry().Before(time.Now()) {
 				return
 			}
 			if _, present := hostID[server.(serverKubeWindows).GetName()]; !present {
