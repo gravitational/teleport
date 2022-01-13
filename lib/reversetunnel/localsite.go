@@ -593,7 +593,7 @@ func (s *localSite) agentStats() {
 
 	windowsServices, err := s.accessPoint.GetWindowsDesktopServices(s.srv.ctx)
 	if err != nil {
-		log.Debugf("Failed to get Window Desktop Services for agent metric: %v", err)
+		log.Debugf("Failed to get Window Desktop Services for teleport_registered_agent metric: %v", err)
 	}
 	for _, windowsService := range windowsServices {
 		serverCheck(windowsService)
