@@ -4976,8 +4976,8 @@ steps:
   - name: Check if tag is prerelease
     image: golang:1.17-alpine
     commands:
-      - cd build.assets/version-check-prerelease
-      - go run . -tag ${DRONE_TAG} || (echo '---> Not publishing ${DRONE_REPO} packages to RPM and DEB repos' && exit 78)
+      - cd build.assets/version-check
+      - go run . -tag ${DRONE_TAG} -check prerelease || (echo '---> Not publishing ${DRONE_REPO} packages to RPM and DEB repos' && exit 78)
 
   - name: Download RPM repo contents
     image: amazon/aws-cli
@@ -5057,8 +5057,8 @@ steps:
   - name: Check if tag is latest
     image: golang:1.17-alpine
     commands:
-      - cd build.assets/version-check-latest
-      - go run . -tag ${DRONE_TAG} || (echo '---> Not publishing ${DRONE_REPO} packages to DEB repo' && exit 78)
+      - cd build.assets/version-check
+      - go run . -tag ${DRONE_TAG} -check latest || (echo '---> Not publishing ${DRONE_REPO} packages to DEB repo' && exit 78)
 
   - name: Download DEB repo contents
     image: amazon/aws-cli
@@ -5170,6 +5170,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: cd8bb03730e22e269e72acb4b3f3eccee01a1fc26fd3a85772575c42e15c121e
+hmac: 698a7e7554027d5c3c875c3c5e26bc6dcf955506df1bb8e3869ff4d52774f74a
 
 ...

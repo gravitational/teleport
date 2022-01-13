@@ -25,6 +25,7 @@ import (
 	"flag"
 	"log"
 	"sort"
+	"strings"
 	"time"
 
 	"golang.org/x/mod/semver"
@@ -35,31 +36,53 @@ import (
 )
 
 func main() {
-	tag, err := parseFlags()
+	tag, check, err := parseFlags()
 	if err != nil {
-		log.Fatalf("Failed to parse flags; %v.", err)
+		log.Fatalf("Failed to parse flags: %v.", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := check(ctx, newGitHub(), "gravitational", "teleport", tag); err != nil {
+	switch check {
+	case "latest":
+		err = checkLatest(ctx, tag, newGitHub())
+	case "prerelease":
+		err = checkPrerelease(tag)
+	default:
+		log.Fatalf("invalid check: %v", check)
+	}
+
+	if err != nil {
 		log.Fatalf("Check failed: %v.", err)
 	}
 }
 
-func parseFlags() (string, error) {
+func parseFlags() (string, string, error) {
 	tag := flag.String("tag", "", "tag to validate")
+	check := flag.String("check", "", "check to run [latest, prerelease]")
 	flag.Parse()
 
 	if *tag == "" {
-		return "", trace.BadParameter("tag missing")
+		return "", "", trace.BadParameter("tag missing")
 	}
-	return *tag, nil
+	if *check == "" {
+		return "", "", trace.BadParameter("check missing")
+	}
+	switch *check {
+	case "latest":
+		break
+	case "prerelease":
+		break
+	default:
+		return "", "", trace.BadParameter("invalid check: %v", *check)
+	}
+
+	return *tag, *check, nil
 }
 
-func check(ctx context.Context, gh github, organization string, repository string, tag string) error {
-	releases, err := gh.ListReleases(context.Background(), "gravitational", "teleport")
+func checkLatest(ctx context.Context, tag string, gh github) error {
+	releases, err := gh.ListReleases(ctx, "gravitational", "teleport")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -74,6 +97,16 @@ func check(ctx context.Context, gh github, organization string, repository strin
 		return trace.BadParameter("found newer version of release, not releasing. Latest release: %v, tag: %v", releases[0], tag)
 	}
 
+	return nil
+}
+
+func checkPrerelease(tag string) error {
+	if strings.Contains(tag, "-") { // https://semver.org/#spec-item-9
+		return trace.BadParameter("version is pre-release: %v", tag)
+	}
+	if strings.Contains(tag, "+") { // https://semver.org/#spec-item-10
+		return trace.BadParameter("version contains build metadata: %v", tag)
+	}
 	return nil
 }
 
