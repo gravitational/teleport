@@ -43,9 +43,10 @@ func TestWatcher(t *testing.T) {
 	rdsInstance2, _ := makeRDSInstance(t, "instance-2", "us-east-2", map[string]string{"env": "prod"})
 	rdsInstance3, _ := makeRDSInstance(t, "instance-3", "us-east-1", map[string]string{"env": "dev"})
 
-	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", map[string]string{"env": "prod"})
-	auroraCluster2, auroraDatabase2 := makeRDSCluster(t, "cluster-2", "us-east-2", map[string]string{"env": "dev"})
-	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", map[string]string{"env": "prod"})
+	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
+	auroraCluster2, auroraDatabase2 := makeRDSCluster(t, "cluster-2", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "dev"})
+	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
+	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", services.RDSEngineModeServerless, map[string]string{"env": "prod"})
 
 	watcher, err := NewWatcher(ctx, WatcherConfig{
 		AWSMatchers: []services.AWSMatcher{
@@ -64,7 +65,7 @@ func TestWatcher(t *testing.T) {
 			RDSPerRegion: map[string]rdsiface.RDSAPI{
 				"us-east-1": &cloud.RDSMock{
 					DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstance3},
-					DBClusters:  []*rds.DBCluster{auroraCluster1},
+					DBClusters:  []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
 				},
 				"us-east-2": &cloud.RDSMock{
 					DBInstances: []*rds.DBInstance{rdsInstance2},
@@ -102,12 +103,13 @@ func makeRDSInstance(t *testing.T, name, region string, labels map[string]string
 	return instance, database
 }
 
-func makeRDSCluster(t *testing.T, name, region string, labels map[string]string) (*rds.DBCluster, types.Database) {
+func makeRDSCluster(t *testing.T, name, region, engineMode string, labels map[string]string) (*rds.DBCluster, types.Database) {
 	cluster := &rds.DBCluster{
 		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:cluster:%v", region, name)),
 		DBClusterIdentifier: aws.String(name),
 		DbClusterResourceId: aws.String(uuid.New()),
 		Engine:              aws.String(services.RDSEngineAuroraMySQL),
+		EngineMode:          aws.String(engineMode),
 		Endpoint:            aws.String("localhost"),
 		Port:                aws.Int64(3306),
 		TagList:             labelsToTags(labels),

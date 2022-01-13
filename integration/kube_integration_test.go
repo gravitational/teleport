@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -144,7 +143,7 @@ type kubeIntegrationTest func(t *testing.T, suite *KubeSuite)
 
 func (s *KubeSuite) bind(test kubeIntegrationTest) func(t *testing.T) {
 	return func(t *testing.T) {
-		s.log = testlog.FailureOnly(t)
+		s.log = utils.NewLoggerForTests()
 		os.RemoveAll(profile.FullProfilePath(""))
 		t.Cleanup(func() { s.log = nil })
 		test(t, s)

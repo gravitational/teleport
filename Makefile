@@ -138,9 +138,12 @@ ROLETESTER_MESSAGE := "with access tester"
 ROLETESTER_TAG := roletester
 ROLETESTER_BUILDDIR := lib/datalog/roletester/Cargo.toml
 
+ifneq ("$(ARCH)","arm")
+# Do not build RDP client on ARM. The client includes OpenSSL which requires libatomic on ARM 32bit.
 with_rdpclient := yes
 RDPCLIENT_MESSAGE := "with Windows RDP client"
 RDPCLIENT_TAG := desktop_access_rdp
+endif
 endif
 endif
 
@@ -301,6 +304,7 @@ clean:
 	rm -rf *.gz
 	rm -rf *.zip
 	rm -f gitref.go
+	rm -rf build.assets/tooling/bin
 
 #
 # make release - Produces a binary release tarball.
@@ -436,7 +440,15 @@ docs-test-whitespace:
 	fi
 
 
-ifeq (${DISABLE_TEST_TARGETS},)
+
+
+#
+# Builds some tooling for filtering and displaying test progress/output/etc
+#
+RENDER_TESTS := ./build.assets/tooling/bin/render-tests
+$(RENDER_TESTS): $(wildcard ./build.assets/tooling/cmd/render-tests/*.go)
+	go build -o "$@" ./build.assets/tooling/cmd/render-tests
+
 #
 # Runs all Go/shell tests, called by CI/CD.
 #
@@ -448,15 +460,15 @@ test: test-sh test-api test-go
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 #
 .PHONY: test-go
-test-go: ensure-webassets bpf-bytecode roletester rdpclient
+test-go: ensure-webassets bpf-bytecode roletester rdpclient $(RENDER_TESTS)
 test-go: FLAGS ?= '-race'
-test-go: PACKAGES := $(shell go list ./... | grep -v integration)
-test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
+test-go: PACKAGES = $(shell go list ./... | grep -v integration)
+test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
-		| go run build.assets/render-tests/main.go
+		| ${RENDER_TESTS}
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
-		| go run build.assets/render-tests/main.go
+		| ${RENDER_TESTS}
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
@@ -465,7 +477,7 @@ UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
 test-go-root: ensure-webassets bpf-bytecode roletester rdpclient
 test-go-root: FLAGS ?= '-race'
-test-go-root: PACKAGES := $(shell go list $(ADDFLAGS) ./... | grep -v integration)
+test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
@@ -474,7 +486,7 @@ test-go-root: $(VERSRC)
 .PHONY: test-api
 test-api:
 test-api: FLAGS ?= '-race'
-test-api: PACKAGES := $(shell cd api && go list ./...)
+test-api: PACKAGES = $(shell cd api && go list ./...)
 test-api: $(VERSRC)
 	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
@@ -498,10 +510,11 @@ run-etcd:
 #
 .PHONY: integration
 integration: FLAGS ?= -v -race
-integration: PACKAGES := $(shell go list ./... | grep integration)
-integration:
+integration: PACKAGES = $(shell go list ./... | grep integration)
+integration: $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -timeout 30m -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
+		| $(RENDER_TESTS) -report-by test
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -510,10 +523,10 @@ integration:
 INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
 integration-root: FLAGS ?= -v -race
-integration-root: PACKAGES := $(shell go list ./... | grep integration)
-integration-root:
-	$(CGOFLAG) go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
-endif
+integration-root: PACKAGES = $(shell go list ./... | grep integration)
+integration-root: $(RENDER_TESTS)
+	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
+		| $(RENDER_TESTS) -report-by test
 
 #
 # Lint the source code.
@@ -535,7 +548,6 @@ lint-go:
 	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
 
 # api is no longer part of the teleport package, so golangci-lint skips it by default
-# GOMODCACHE needs to be set here as api downloads dependencies and cannot write to /go/pkg/mod/cache
 .PHONY: lint-api
 lint-api: GO_LINT_API_FLAGS ?=
 lint-api:
@@ -545,7 +557,7 @@ lint-api:
 .PHONY: lint-sh
 lint-sh: SH_LINT_FLAGS ?=
 lint-sh:
-	find . -type f -name '*.sh' | grep -v vendor | xargs \
+	find . -type f -name '*.sh' | xargs \
 		shellcheck \
 		--exclude=SC2086 \
 		$(SH_LINT_FLAGS)
@@ -605,11 +617,11 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'e/**' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/web/build/**' \
-		-ignore 'vendor/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme' \
-		-ignore lib/srv/desktop/rdp/rdpclient/target
+		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
+		-ignore 'lib/datalog/roletester/target/**'
 
 .PHONY: lint-license
 lint-license: $(ADDLICENSE)
@@ -644,9 +656,9 @@ $(VERSRC): Makefile
 # Note: any build flags needed to compile go files (such as build tags) should be provided below.
 .PHONY: update-api-module-path
 update-api-module-path:
-	go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
-	$(MAKE) update-vendor
-	$(MAKE) grpc
+	# update-api-module-path is temporarily disabled because currently `make grpc` does not know how to deal with v2+ go modules.
+	# go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
+	# $(MAKE) grpc
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
@@ -695,7 +707,7 @@ profile:
 
 .PHONY: sloccount
 sloccount:
-	find . -path ./vendor -prune -o -name "*.go" -print0 | xargs -0 wc -l
+	find . -o -name "*.go" -print0 | xargs -0 wc -l
 
 .PHONY: remove-temp-files
 remove-temp-files:
@@ -925,31 +937,6 @@ init-webapps-submodules-e:
 init-submodules-e: init-webapps-submodules-e
 	git submodule init e
 	git submodule update
-
-# Update go.mod and vendor files.
-.PHONY: update-vendor
-update-vendor:
-	# update modules in api/
-	cd api && go mod tidy
-	# update modules in root directory
-	go mod tidy
-	go mod vendor
-	$(MAKE) vendor-api
-
-# When teleport vendors its dependencies, Go also vendors the local api sub module. To get
-# around this issue, we replace the vendored api package with a symlink to the
-# local module. The symlink should be in vendor/.../api or vendor/.../api/vX if X >= 2.
-.PHONY: vendor-api
-vendor-api: API_VENDOR_PATH := vendor/$(shell head -1 api/go.mod | awk '{print $$2;}')
-vendor-api:
-	rm -rf vendor/github.com/gravitational/teleport/api
-	mkdir -p $(shell dirname $(API_VENDOR_PATH))
-	# make a relative link to the true api dir (without using `ln -r` for non-linux OS compatibility)
-	if [ -d $(shell dirname $(API_VENDOR_PATH))/../../../../../api/ ]; then \
-		ln -s ../../../../../api $(API_VENDOR_PATH); \
-	else \
-		ln -s ../../../../api $(API_VENDOR_PATH); \
-	fi;
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.
