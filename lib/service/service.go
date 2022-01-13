@@ -1388,7 +1388,7 @@ func (process *TeleportProcess) initAuthService() error {
 			srv.SetExpiry(process.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 			return &srv, nil
 		},
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
@@ -2658,6 +2658,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		proxyLimiter.WrapHandle(webHandler)
 		if !process.Config.Proxy.DisableTLS {
+
 			var tlsConfig *tls.Config
 			acmeCfg := process.Config.Proxy.ACME
 			if !acmeCfg.Enabled {
@@ -2702,6 +2703,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 
 			tlsConfig.GetConfigForClient = func(*tls.ClientHelloInfo) (*tls.Config, error) {
+				var err error
+
 				tlsClone := tlsConfig.Clone()
 
 				// Set client auth to "verify client cert if given" to support

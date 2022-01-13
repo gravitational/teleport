@@ -1,5 +1,90 @@
 # Changelog
 
+## 7.3.10
+
+This release of Teleport contains a feature and a bug fix.
+
+* Updated `tsh play -f json` to support fetching session recordings from cluster. [#9446](https://github.com/gravitational/teleport/pull/9446)
+* Fixed an issue with incorrect session ID being emitted in `session.leave` events. [#9650](https://github.com/gravitational/teleport/pull/9650)
+* Fixed an issue with `tsh ssh` failing when user's home directory doesn't exist. [#9413](https://github.com/gravitational/teleport/pull/9413)
+
+## 7.3.9
+
+This release of Teleport contains features and fixes.
+
+* Added support for clearing the users terminal when a session ends. [#8850](https://github.com/gravitational/teleport/pull/8850)
+* Added jitter and backoff to prevent thundering herd situations when reconnecting to auth. [#9393](https://github.com/gravitational/teleport/pull/9393)
+* Fixed an issue with Access Requests where the request reason was not being escaped when using `tctl`. [#9381](https://github.com/gravitational/teleport/pull/9381)
+* Fixed an issue where Teleport would incorrectly log `json: unsupported type: utils.Jitter`. [#9417](https://github.com/gravitational/teleport/pull/9417)
+* Fixed an issue that would cause `tsh login` to hang indefinitely. [#9193](https://github.com/gravitational/teleport/pull/9193)
+* Fixed an issue where a null route could cause high latency when connecting to hosts. [#9254](https://github.com/gravitational/teleport/pull/9254)
+* Fixed an issue with Database Access where running `show tables` MySQL would result in an error. [#9411](https://github.com/gravitational/teleport/pull/9411)
+
+## 7.3.8
+
+This release of Teleport contains multiple security fixes.
+
+### Security fixes
+
+As part of a routine security audit of Teleport, several security
+vulnerabilities and miscellaneous issues were discovered. Below are the issues
+found, their impact, and the components of Teleport they affect.
+
+#### Insufficient authorization check in self-hosted MySQL database access
+
+Teleport MySQL proxy engine did not handle internal MySQL protocol command that
+allows to reauthenticate the active connection.
+
+This could allow an attacker with a valid client certificate for a particular
+database user to reauthenticate as a different MySQL user created using
+`require x509` clause.
+
+#### Insufficient authorization check in MongoDB database access
+
+Teleport MongoDB proxy engine did not implement processing for all possible
+MongoDB wire protocol messages.
+
+This could allow an attacker with a valid client certificate to connect to the
+database in a way that would prevent Teleport from enforcing authorization
+check on the database names.
+
+#### Authorization bypass in application access
+
+When proxying a websocket connection, Teleport did not check for a successful
+connection upgrade response from the target application.
+
+In scenarios where Teleport proxy is located behind a load balancer, this could
+result in the load balancer reusing the cached authenticated connection for
+future unauthenticated requests.
+
+#### Missing password confirmation on password change
+
+Teleport did not check the old password if the cluster had "optional" second
+factor and user had no registered MFA devices.
+
+This could allow an attacker with access to user's authenticated browser
+session to change their password.
+
+#### Actions
+
+For all Teleport users, we recommend upgrading auth servers.
+
+For Database Access users we recommend upgrading database agents that handle
+connections to self-hosted MySQL servers and MongoDB clusters.
+
+For Application Access users we recommend upgrading application agents.
+
+Upgrades should follow the normal Teleport upgrade procedure:
+https://goteleport.com/teleport/docs/admin-guide/#upgrading-teleport.
+
+## 7.3.6
+
+This release of Teleport contains a security fix.
+
+* Mitigated [CVE-2021-43565](https://groups.google.com/g/golang-announce/c/2AR1sKiM-Qs) by updating golang.org/x/crypto. [#9204](https://github.com/gravitational/teleport/pull/9204)
+
+## 7.3.5
+
 This release of Teleport contains a fix.
 
 * Fixed issue in Database Access that could cause MySQL listeners to crash. [#9163](https://github.com/gravitational/teleport/pull/9163)

@@ -2,352 +2,6 @@
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tests.go:70
-################################################
-
-kind: pipeline
-type: kubernetes
-name: test
-environment:
-  GID: "1000"
-  RUNTIME: go1.16.2
-  UID: "1000"
-trigger:
-  event:
-    include:
-    - pull_request
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /go
-clone:
-  disable: true
-steps:
-- name: Check out code
-  image: docker:git
-  commands:
-  - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport /tmpfs/go/cache
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - git init && git remote add origin ${DRONE_REMOTE_URL}
-  - |
-    # handle pull requests
-    if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
-      git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-      git checkout ${DRONE_COMMIT_BRANCH}
-      git fetch origin ${DRONE_COMMIT_REF}:
-      git merge ${DRONE_COMMIT}
-    # handle tags
-    elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-      git fetch origin +refs/tags/${DRONE_TAG}:
-      git checkout -qf FETCH_HEAD
-    # handle pushes/other events
-    else
-      if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
-        git fetch origin
-        git checkout -qf ${DRONE_COMMIT_SHA}
-      else
-        git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-        git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
-      fi
-    fi
-  - git submodule update --init webassets || true
-  - |
-    if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
-      apk add --no-cache curl jq
-      export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/${DRONE_REPO_NAME}/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
-      echo "---> Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
-      # if the source repo for the PR matches DRONE_REPO, then this is not a PR raised from a fork
-      if [ "$${PR_REPO}" = "${DRONE_REPO}" ] || [ "${DRONE_REPO}" = "gravitational/teleport-private" ]; then
-        mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-        ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-        git submodule update --init e
-        # do a recursive submodule checkout to get both webassets and webassets/e
-        # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-        git submodule update --init --recursive webassets || true
-        rm -f /root/.ssh/id_rsa
-      fi
-    fi
-  environment:
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-- name: Wait for docker
-  image: docker
-  commands:
-  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  volumes:
-  - name: dockersock
-    path: /var/run
-- name: Build buildbox
-  image: docker
-  commands:
-  - apk add --no-cache make
-  - chown -R $UID:$GID /tmpfs/go
-  - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - make -C build.assets buildbox
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: dockersock
-    path: /var/run
-- name: Run linter
-  image: docker
-  commands:
-  - apk add --no-cache make
-  - chown -R $UID:$GID /tmpfs/go
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - make -C build.assets lint
-  environment:
-    GOCACHE: /tmpfs/go/cache
-    GOPATH: /tmpfs/go
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: dockersock
-    path: /var/run
-- name: Optionally skip tests
-  image: docker:git
-  commands:
-  - |
-    cd /tmpfs/go/src/github.com/gravitational/teleport
-    echo -e "\n---> git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}\n"
-    git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
-    git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.mdx$' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
-    export CHANGE_COUNT=$(cat /tmp/.change_count.txt | tr -d '\n')
-    echo -e "\n---> Non-docs changes detected: $$CHANGE_COUNT"
-    if [ $$CHANGE_COUNT -gt 0 ]; then
-      echo "---> Teleport tests will run normally"
-    else
-      echo "---> Skipping Teleport tests and exiting early"
-      exit 78
-    fi
-    echo ""
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-- name: Run unit and chaos tests
-  image: docker
-  commands:
-  - apk add --no-cache make
-  - chown -R $UID:$GID /tmpfs/go
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - make -C build.assets test
-  environment:
-    GOCACHE: /tmpfs/go/cache
-    GOPATH: /tmpfs/go
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: dockersock
-    path: /var/run
-- name: Run root-only integration tests
-  image: docker
-  commands:
-  - apk add --no-cache make
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - make -C build.assets integration-root
-  environment:
-    GOCACHE: /tmpfs/go/cache
-    GOPATH: /tmpfs/go
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: tmp-integration
-    path: /tmp
-  - name: dockersock
-    path: /var/run
-- name: Run integration tests
-  image: docker
-  commands:
-  - apk add --no-cache make
-  - echo "$INTEGRATION_CI_KUBECONFIG" > "$KUBECONFIG"
-  - chown -R $UID:$GID /tmpfs/go
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - make -C build.assets integration
-  - rm -f "$KUBECONFIG"
-  environment:
-    GOCACHE: /tmpfs/go/cache
-    GOPATH: /tmpfs/go
-    INTEGRATION_CI_KUBECONFIG:
-      from_secret: INTEGRATION_CI_KUBECONFIG
-    KUBECONFIG: /tmpfs/go/kubeconfig.ci
-    TEST_KUBE: "true"
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: tmp-integration
-    path: /tmp
-  - name: dockersock
-    path: /var/run
-services:
-- name: Start Docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: dockertmpfs
-    path: /var/lib/docker
-  - name: tmp-integration
-    path: /tmp
-  - name: dockersock
-    path: /var/run
-volumes:
-- name: tmpfs
-  temp:
-    medium: memory
-- name: tmp-integration
-  temp: {}
-- name: dockertmpfs
-  temp: {}
-- name: dockersock
-  temp: {}
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/tests.go:212
-################################################
-
-kind: pipeline
-type: kubernetes
-name: test-docs
-trigger:
-  event:
-    include:
-    - pull_request
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /go
-clone:
-  disable: true
-steps:
-- name: Check out code
-  image: docker:git
-  commands:
-  - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport /tmpfs/go/cache
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - git init && git remote add origin ${DRONE_REMOTE_URL}
-  - |
-    # handle pull requests
-    if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
-      git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-      git checkout ${DRONE_COMMIT_BRANCH}
-      git fetch origin ${DRONE_COMMIT_REF}:
-      git merge ${DRONE_COMMIT}
-    # handle tags
-    elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-      git fetch origin +refs/tags/${DRONE_TAG}:
-      git checkout -qf FETCH_HEAD
-    # handle pushes/other events
-    else
-      if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
-        git fetch origin
-        git checkout -qf ${DRONE_COMMIT_SHA}
-      else
-        git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-        git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
-      fi
-    fi
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-- name: Wait for docker
-  image: docker
-  commands:
-  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  volumes:
-  - name: dockersock
-    path: /var/run
-- name: Run docs tests
-  image: docker:git
-  commands:
-  - apk add --no-cache make
-  - cd /tmpfs/go/src/github.com/gravitational/teleport
-  - chown -R $UID:$GID /tmpfs/go
-  - git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print
-    $6}' | grep -E '^docs' | { grep -v ^$ || true; } > /tmp/docs-changes.txt
-  - |
-    if [ $(cat /tmp/docs-changes.txt | wc -l) -gt 0 ]; then
-      echo "---> Changes to docs detected"
-      cat /tmp/docs-changes.txt
-      echo "---> Checking for trailing whitespace"
-      make docs-test-whitespace
-      echo "---> Checking for dead links"
-      make -C build.assets test-docs
-    else
-      echo "---> No changes to docs detected, not running tests"
-    fi
-  environment:
-    GID: "1000"
-    GOCACHE: /tmpfs/go/cache
-    UID: "1000"
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: dockersock
-    path: /var/run
-services:
-- name: Start Docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: dockertmpfs
-    path: /var/lib/docker
-  - name: dockersock
-    path: /var/run
-volumes:
-- name: tmpfs
-  temp:
-    medium: memory
-- name: dockertmpfs
-  temp: {}
-- name: dockersock
-  temp: {}
-
----
-kind: pipeline
-type: kubernetes
-name: update-docs-webhook
-
-trigger:
-  event:
-    include:
-      - push
-    exclude:
-      - pull_request
-  branch:
-    include:
-      - master
-      - branch/*
-  repo:
-    include:
-      - gravitational/teleport
-
-clone:
-  disable: true
-
-steps:
-  - name: Trigger docs deployment
-    image: plugins/webhook
-    settings:
-      urls:
-        from_secret: DOCS_DEPLOY_HOOK
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/push.go:90
 ################################################
 
 kind: pipeline
@@ -4284,6 +3938,10 @@ steps:
     image: docker
     commands:
       - |
+        if [ "${DRONE_REPO}" != "gravitational/teleport" ]; then
+          echo "---> Not publishing ${DRONE_REPO} packages to repos"
+          exit 78
+        fi
         # length will be 0 after filtering if this is a pre-release, >0 otherwise
         FILTERED_TAG_LENGTH=$(echo ${DRONE_TAG} | egrep -v '(alpha|beta|dev|rc)' | wc -c)
         if [ $$FILTERED_TAG_LENGTH -eq 0 ]; then
@@ -4324,6 +3982,31 @@ steps:
     commands:
     - yum -y install createrepo
     - createrepo --cachedir /rpmrepo/teleport/cache --update /rpmrepo/teleport
+
+  # This step requires centos:8 to get gpg 2.2+
+  # centos:7's gpg 2.0 doesn't understand the format of GPG_RPM_SIGNING_ARCHIVE
+  - name: Sign RPM repository metadata
+    image: centos:8
+    volumes:
+      - name: rpmrepo
+        path: /rpmrepo
+      # for in-memory tmpfs for key material
+      - name: tmpfs
+        path: /tmpfs
+    environment:
+      GNUPGHOME: /tmpfs/gnupg
+      GPG_RPM_SIGNING_ARCHIVE:
+        from_secret: GPG_RPM_SIGNING_ARCHIVE
+    commands:
+      - |
+        # extract signing key
+        mkdir -m0700 $GNUPGHOME
+        echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+        chown -R root:root $GNUPGHOME
+      # Sign rpm repo metadata (yum clients will automatically look for and verify repodata/repomd.xml.asc)
+      - gpg --batch --yes --detach-sign --armor /rpmrepo/teleport/repodata/repomd.xml
+      - cat /rpmrepo/teleport/repodata/repomd.xml.asc
+      - rm -rf $GNUPGHOME
 
   - name: Sync RPM repo changes to S3
     image: amazon/aws-cli
@@ -4409,20 +4092,7 @@ steps:
         # copy artifacts to PVC
         cp -r /go/reprepro/teleport /debrepo/
 
-  - name: Sync DEB repo changes to S3
-    image: amazon/aws-cli
-    environment:
-      AWS_S3_BUCKET:
-        from_secret: DEBREPO_AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
-        from_secret: DEBREPO_AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: DEBREPO_AWS_SECRET_ACCESS_KEY
-    volumes:
-      - name: debrepo
-        path: /debrepo
-    commands:
-    - aws s3 sync /debrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
+  # Deb repo publish disabled for https://github.com/gravitational/teleport/issues/8166
 
 services:
   - name: Start Docker
@@ -4450,6 +4120,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 447d9e6b60cc9a9042d18613e2973263ea68e09e9d0da8ec04bdc4ee8bb625d6
+hmac: 88359bb820fc8e66baad0afa8489a4117e2220eee72fef64febbd40b03631bb9
 
 ...

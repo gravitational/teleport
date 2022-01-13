@@ -144,8 +144,12 @@ func (s *Suite) SetUpSuite(c *check.C) {
 }
 
 func (s *Suite) TearDownSuite(c *check.C) {
-	err := s.tlsServer.Close()
-	c.Assert(err, check.IsNil)
+	if s.tlsServer != nil {
+		err := s.tlsServer.Close()
+		c.Assert(err, check.IsNil)
+	}
+
+	s.authServer.Close()
 }
 
 var (
