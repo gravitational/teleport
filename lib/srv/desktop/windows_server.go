@@ -501,7 +501,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopName)
 	if err != nil {
-		log.WithError(err).Warningf("Failed to fetch desktop by name: %v", desktopName)
+		log.WithError(err).Warning("Failed to fetch desktop by name")
 		sendTdpError("Teleport failed to find the requested desktop in its database.")
 		return
 	}
