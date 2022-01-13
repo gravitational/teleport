@@ -174,3 +174,8 @@ const (
 	// ALPNSNIProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ALPNSNIProtocolReverseTunnel = "teleport-reversetunnel"
 )
+
+const (
+	// KubeSNIPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
+	KubeSNIPrefix = "kube."
+)
