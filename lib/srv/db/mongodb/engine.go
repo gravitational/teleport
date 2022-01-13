@@ -50,6 +50,21 @@ type Engine struct {
 	Clock clockwork.Clock
 	// Log is used for logging.
 	Log logrus.FieldLogger
+	// clientConn is an incoming client connection.
+	clientConn net.Conn
+}
+
+// InitializeConnection initializes the client connection.
+func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
+	e.clientConn = clientConn
+	return nil
+}
+
+// SendError sends an error to the connected client in MongoDB understandable format.
+func (e *Engine) SendError(err error) {
+	if err != nil && !utils.IsOKNetworkError(err) {
+		e.replyError(e.clientConn, nil, err)
+	}
 }
 
 // HandleConnection processes the connection from MongoDB proxy coming
@@ -58,14 +73,9 @@ type Engine struct {
 // It handles all necessary startup actions, authorization and acts as a
 // middleman between the proxy and the database intercepting and interpreting
 // all messages i.e. doing protocol parsing.
-func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session, clientConn net.Conn) (err error) {
-	defer func() {
-		if err != nil && !utils.IsOKNetworkError(err) {
-			e.replyError(clientConn, nil, err)
-		}
-	}()
+func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	// Check that the user has access to the database.
-	err = e.authorizeConnection(ctx, sessionCtx)
+	err := e.authorizeConnection(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err, "error authorizing database access")
 	}
@@ -84,11 +94,11 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 	// Start reading client messages and sending them to server.
 	for {
-		clientMessage, err := protocol.ReadMessage(clientConn)
+		clientMessage, err := protocol.ReadMessage(e.clientConn)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		err = e.handleClientMessage(ctx, sessionCtx, clientMessage, clientConn, serverConn)
+		err = e.handleClientMessage(ctx, sessionCtx, clientMessage, e.clientConn, serverConn)
 		if err != nil {
 			return trace.Wrap(err)
 		}

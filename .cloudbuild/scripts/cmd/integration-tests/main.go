@@ -24,7 +24,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"syscall"
 	"time"
@@ -94,7 +93,8 @@ func innerMain() error {
 		return trace.Wrap(err)
 	}
 
-	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(args.workspace, gomodcacheDir))
+	moduleCacheDir := filepath.Join(os.TempDir(), gomodcacheDir)
+	gomodcache := fmt.Sprintf("GOMODCACHE=%s", moduleCacheDir)
 
 	log.Println("Analysing code changes")
 	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
@@ -114,14 +114,23 @@ func innerMain() error {
 		return trace.Wrap(err, "Root-only integration tests failed")
 	}
 	log.Println("Root-only integration tests passed.")
+
 	if !args.skipChown {
 		// We run some build steps as root and others as a non user, and we
 		// want the nonroot user to be able to manipulate the artifacts
-		// created by root, so we `chown -R` the whole workspace to allow it.
+		// created by root, so we `chown -R` the whole workspace & module
+		// cache to allow it.
+
 		log.Printf("Reconfiguring workspace for nonroot user")
 		err = chownR(args.workspace, nonrootUID, nonrootGID)
 		if err != nil {
 			return trace.Wrap(err, "failed reconfiguring workspace")
+		}
+
+		log.Printf("Reconfiguring module cache for nonroot user")
+		err = chownR(moduleCacheDir, nonrootUID, nonrootGID)
+		if err != nil {
+			return trace.Wrap(err, "failed reconfiguring module cache")
 		}
 	}
 

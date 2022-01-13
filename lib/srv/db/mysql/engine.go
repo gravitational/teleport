@@ -58,6 +58,22 @@ type Engine struct {
 	Clock clockwork.Clock
 	// Log is used for logging.
 	Log logrus.FieldLogger
+	// proxyConn is a client connection.
+	proxyConn server.Conn
+}
+
+// InitializeConnection initializes the engine with client connection.
+func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
+	// Make server conn to get access to protocol's WriteOK/WriteError methods.
+	e.proxyConn = server.Conn{Conn: packet.NewConn(clientConn)}
+	return nil
+}
+
+// SendError sends an error to connected client in the MySQL understandable format.
+func (e *Engine) SendError(err error) {
+	if writeErr := e.proxyConn.WriteError(err); writeErr != nil {
+		e.Log.WithError(writeErr).Debugf("Failed to send error %q to MySQL client.", err)
+	}
 }
 
 // HandleConnection processes the connection from MySQL proxy coming
@@ -66,18 +82,9 @@ type Engine struct {
 // It handles all necessary startup actions, authorization and acts as a
 // middleman between the proxy and the database intercepting and interpreting
 // all messages i.e. doing protocol parsing.
-func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session, clientConn net.Conn) (err error) {
-	// Make server conn to get access to protocol's WriteOK/WriteError methods.
-	proxyConn := server.Conn{Conn: packet.NewConn(clientConn)}
-	defer func() {
-		if err != nil {
-			if writeErr := proxyConn.WriteError(err); writeErr != nil {
-				e.Log.WithError(writeErr).Debugf("Failed to send error %q to MySQL client.", err)
-			}
-		}
-	}()
+func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	// Perform authorization checks.
-	err = e.checkAccess(ctx, sessionCtx)
+	err := e.checkAccess(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -97,7 +104,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}()
 	// Send back OK packet to indicate auth/connect success. At this point
 	// the original client should consider the connection phase completed.
-	err = proxyConn.WriteOK(nil)
+	err = e.proxyConn.WriteOK(nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -106,8 +113,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	// Copy between the connections.
 	clientErrCh := make(chan error, 1)
 	serverErrCh := make(chan error, 1)
-	go e.receiveFromClient(clientConn, serverConn, clientErrCh, sessionCtx)
-	go e.receiveFromServer(serverConn, clientConn, serverErrCh)
+	go e.receiveFromClient(e.proxyConn.Conn, serverConn, clientErrCh, sessionCtx)
+	go e.receiveFromServer(serverConn, e.proxyConn.Conn, serverErrCh)
 	select {
 	case err := <-clientErrCh:
 		e.Log.WithError(err).Debug("Client done.")
