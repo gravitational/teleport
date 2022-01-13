@@ -1342,7 +1342,7 @@ func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRole
 		}
 	}
 
-	// check allow: if all match, allow impersonation
+	// check allow: if any one Role satisfies all the role requests, allow impersonation
 	for _, role := range set {
 		cond := role.GetImpersonateConditions(types.Allow)
 		matched, err := matchAllowRoleImpersonateCondition(ctx, whereParser, cond, impersonateRoles)
