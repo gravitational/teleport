@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 
@@ -39,10 +38,6 @@ import (
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/gravitational/trace"
-	"golang.org/x/oauth2/google"
-	directory "google.golang.org/api/admin/directory/v1"
-	"google.golang.org/api/cloudidentity/v1"
-	"google.golang.org/api/option"
 )
 
 func (a *Server) getOrCreateOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
@@ -690,147 +685,12 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 		return nil, trace.Wrap(err, "unable to merge OIDC claims")
 	}
 
-	// For Google Workspace users, fetch extra data from the proprietary Google groups API.
-	//
-	// If google_service_account_uri and google_service_account are not set, we
-	// assume that this is a non-GWorkspace OIDC provider using the same
-	// issuer URL as Google Workspace (e.g.
-	// https://developers.google.com/identity/protocols/oauth2/openid-connect).
-	if connector.GetIssuerURL() == teleport.GSuiteIssuerURL && (connector.GetGoogleServiceAccountURI() != "" || connector.GetGoogleServiceAccount() != "") {
-		email, exists, err := claims.StringClaim("email")
-		if err != nil || !exists {
-			return nil, trace.BadParameter("no email in oauth claims for Google Workspace account")
-		}
-
-		var jsonCredentials []byte
-		var credentialLoadingMethod string
-		if connector.GetGoogleServiceAccountURI() != "" {
-			// load the google service account from URI
-			credentialLoadingMethod = "google_service_account_uri"
-
-			uri, err := utils.ParseSessionsURI(connector.GetGoogleServiceAccountURI())
-			if err != nil {
-				return nil, trace.BadParameter("failed to parse google_service_account_uri: %v", err)
-			}
-			jsonCredentials, err = ioutil.ReadFile(uri.Path)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		} else if connector.GetGoogleServiceAccount() != "" {
-			// load the google service account from string
-			credentialLoadingMethod = "google_service_account"
-			jsonCredentials = []byte(connector.GetGoogleServiceAccount())
-		}
-
-		// The "Admin SDK Directory API" needs admin delegation (see
-		// https://developers.google.com/admin-sdk/directory/v1/guides/delegation
-		// and
-		// https://developers.google.com/identity/protocols/oauth2/service-account#delegatingauthority )
-		// but the "Cloud Identity API" can work as a user as long as the user
-		// can view all their transitive groups.
-		var credentialsParams google.CredentialsParams
-		if connector.GetGoogleTransitiveGroups() {
-			credentialsParams.Scopes = []string{cloudidentity.CloudIdentityGroupsReadonlyScope}
-			if connector.GetGoogleAdminEmail() != "" {
-				log.Debugf("Will attempt to fetch transitive groups as admin")
-				credentialsParams.Subject = connector.GetGoogleAdminEmail()
-			} else {
-				log.Debugf("Will attempt to fetch transitive groups as user")
-				credentialsParams.Subject = email
-			}
-		} else {
-			log.Debugf("Will attempt to fetch direct groups as admin")
-			credentialsParams.Scopes = []string{directory.AdminDirectoryGroupReadonlyScope}
-			credentialsParams.Subject = connector.GetGoogleAdminEmail()
-		}
-
-		credentials, err := google.CredentialsFromJSONWithParams(a.closeCtx, jsonCredentials, credentialsParams)
-		if err != nil {
-			return nil, trace.BadParameter("unable to parse google service account from %v: %v", credentialLoadingMethod, err)
-		}
-
-		var gsuiteGroups []string
-		if connector.GetGoogleTransitiveGroups() {
-			gsuiteGroups, err = groupsFromGsuiteCloudidentity(a.closeCtx, credentials, email)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		} else {
-			gsuiteGroups, err = groupsFromGsuiteDirectory(a.closeCtx, credentials, email)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-
-		if len(gsuiteGroups) > 0 {
-			gsuiteClaims := jose.Claims{"groups": gsuiteGroups}
-			log.Debugf("Got gsuiteClaims claims from Google Workspace: %v.", gsuiteClaims)
-			claims, err = mergeClaims(claims, gsuiteClaims)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		} else {
-			log.Debugf("Found no Google Workspace claims.")
-		}
+	claims, err = mergeGoogleClaims(a.closeCtx, connector, claims)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return claims, nil
-}
-
-func groupsFromGsuiteDirectory(ctx context.Context, credentials *google.Credentials, email string) ([]string, error) {
-	service, err := directory.NewService(ctx, option.WithCredentials(credentials))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var groups []string
-	err = service.Groups.List().
-		UserKey(email).
-		Pages(ctx, func(resp *directory.Groups) error {
-			if resp == nil {
-				return nil
-			}
-			for _, g := range resp.Groups {
-				if g != nil && g.Email != "" {
-					groups = append(groups, g.Email)
-				}
-			}
-			return nil
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return groups, nil
-}
-
-func groupsFromGsuiteCloudidentity(ctx context.Context, credentials *google.Credentials, email string) ([]string, error) {
-	service, err := cloudidentity.NewService(ctx, option.WithCredentials(credentials))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var groups []string
-	err = service.Groups.Memberships.SearchTransitiveGroups("groups/-").
-		// the google API docs claim that the query string is a CEL expression
-		// (https://opensource.google/projects/cel) but the call will fail if
-		// you use double quotes instead of single quotes in spite of them being
-		// equivalent according to the CEL specs
-		Query(fmt.Sprintf("member_key_id == '%s' && 'cloudidentity.googleapis.com/groups.discussion_forum' in labels", email)).
-		Pages(ctx, func(resp *cloudidentity.SearchTransitiveGroupsResponse) error {
-			if resp == nil {
-				return nil
-			}
-			for _, g := range resp.Memberships {
-				if g != nil && g.GroupKey != nil && g.GroupKey.Id != "" {
-					groups = append(groups, g.GroupKey.Id)
-				}
-			}
-			return nil
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return groups, nil
 }
 
 // getOAuthClient returns a Oauth2 client from the oidc.Client.  If the connector is set as a Ping provider sets the Client Secret Post auth method

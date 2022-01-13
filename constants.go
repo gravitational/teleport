@@ -550,11 +550,6 @@ const (
 	TraitInternalDBUsersVariable = "{{internal.db_users}}"
 )
 
-const (
-	// GSuiteIssuerURL is issuer URL used for GSuite provider
-	GSuiteIssuerURL = "https://accounts.google.com"
-)
-
 // SCP is Secure Copy.
 const SCP = "scp"
 
