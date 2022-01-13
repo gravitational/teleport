@@ -236,7 +236,7 @@ The `--set` CLI method is more appropriate for quick test deployments.
     region: us-west-2                               # AWS region
     backendTable: teleport-helm-backend             # DynamoDB table to use for the Teleport backend
     auditLogTable: teleport-helm-events             # DynamoDB table to use for the Teleport audit log (must be different to the backend table)
-    auditLogMirrorToStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
+    auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
     sessionRecordingBucket: teleport-helm-sessions  # S3 bucket to use for Teleport session recordings
     backups: true                                   # Whether or not to turn on DynamoDB backups
   highAvailability:
