@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=8.0.7
+VERSION=8.1.0
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -145,9 +145,12 @@ ROLETESTER_MESSAGE := "with access tester"
 ROLETESTER_TAG := roletester
 ROLETESTER_BUILDDIR := lib/datalog/roletester/Cargo.toml
 
+ifneq ("$(ARCH)","arm")
+# Do not build RDP client on ARM. The client includes OpenSSL which requires libatomic on ARM 32bit.
 with_rdpclient := yes
 RDPCLIENT_MESSAGE := "with Windows RDP client"
 RDPCLIENT_TAG := desktop_access_rdp
+endif
 endif
 endif
 
@@ -614,7 +617,8 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme' \
-		-ignore lib/srv/desktop/rdp/rdpclient/target
+		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
+		-ignore 'lib/datalog/roletester/target/**'
 
 .PHONY: lint-license
 lint-license: $(ADDLICENSE)
