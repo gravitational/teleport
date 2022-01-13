@@ -95,7 +95,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr
 		opts = append(opts, proxy.WithALPNDialer())
 	}
 
-	dialer := proxy.DialerFromEnvironment(addr, opts...)
+	dialer := proxy.DialerFromEnvironment(t.ProxyAddr, opts...)
 	sconn, err := dialer.Dial("tcp", t.ProxyAddr, t.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -246,10 +246,11 @@ func (p *transport) start() {
 			p.log.Debugf("Forwarding connection to %q", p.kubeDialAddr.Addr)
 			servers = append(servers, p.kubeDialAddr.Addr)
 		}
+
 	// LocalNode requests are for the single server running in the agent pool.
-	case LocalNode:
+	case LocalNode, LocalWindowsDesktop:
 		// Transport is allocated with both teleport.ComponentReverseTunnelAgent
-		// and teleport.ComponentReverseTunneServer. However, dialing to this address
+		// and teleport.ComponentReverseTunnelServer. However, dialing to this address
 		// only makes sense when running within a teleport.ComponentReverseTunnelAgent.
 		if p.component == teleport.ComponentReverseTunnelServer {
 			p.reply(req, false, []byte("connection rejected: no local node"))
@@ -375,7 +376,7 @@ func (p *transport) getConn(servers []string, r *sshutils.DialReq) (net.Conn, bo
 		p.log.Debugf("Attempting to dial directly %v.", servers)
 		conn, err = directDial(servers)
 		if err != nil {
-			return nil, false, trace.ConnectionProblem(err, "failed dialing through tunnel (%v) or directly (%v)", err, errTun)
+			return nil, false, trace.ConnectionProblem(err, "failed dialing through tunnel (%v) or directly (%v)", errTun, err)
 		}
 
 		p.log.Debugf("Returning direct dialed connection to %v.", servers)

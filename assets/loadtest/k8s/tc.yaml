@@ -23,7 +23,7 @@ spec:
           secret:
             secretName: license
       containers:
-        - image: quay.io/gravitational/teleport-ent:8.0.0
+        - image: ${TELEPORT_IMAGE}
           args: ["-d", "--insecure"]
           name: tc
           ports:

@@ -24,6 +24,12 @@ This guide will explain how to:
 - IAM permissions in the AWS account you want to connect.
 - AWS EC2 or other instance where you can assign a IAM Security Role for the Teleport Agent.
 
+<Admonition type="note">
+If using the Teleport agent deployed in AWS EKS, you cannot use Helm chart
+annotations to specify the IAM permissions;
+you must associate the policy with the cluster role for the worker nodes.
+Otherwise, you will receive "400 Bad Request" errors from AWS.
+</Admonition>
 
 ## Step 1. [Optional] Configure Read Only and Power User roles
 

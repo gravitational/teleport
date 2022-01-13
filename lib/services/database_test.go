@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/pborman/uuid"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -188,4 +189,98 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 	actual, err := NewDatabaseFromRDSCluster(cluster)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
+}
+
+func TestAuroraMySQLVersion(t *testing.T) {
+	tests := []struct {
+		engineVersion        string
+		expectedMySQLVersion string
+	}{
+		{
+			engineVersion:        "5.6.10a",
+			expectedMySQLVersion: "5.6.10a",
+		},
+		{
+			engineVersion:        "5.6.mysql_aurora.1.22.1",
+			expectedMySQLVersion: "1.22.1",
+		},
+		{
+			engineVersion:        "5.6.mysql_aurora.1.22.1.3",
+			expectedMySQLVersion: "1.22.1.3",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.engineVersion, func(t *testing.T) {
+			require.Equal(t, test.expectedMySQLVersion, auroraMySQLVersion(&rds.DBCluster{EngineVersion: aws.String(test.engineVersion)}))
+		})
+	}
+}
+
+func TestIsRDSClusterSupported(t *testing.T) {
+	tests := []struct {
+		name          string
+		engineMode    string
+		engineVersion string
+		isSupported   bool
+	}{
+		{
+			name:          "provisioned",
+			engineMode:    RDSEngineModeProvisioned,
+			engineVersion: "5.6.mysql_aurora.1.22.0",
+			isSupported:   true,
+		},
+		{
+			name:          "serverless",
+			engineMode:    RDSEngineModeServerless,
+			engineVersion: "5.6.mysql_aurora.1.22.0",
+			isSupported:   false,
+		},
+		{
+			name:          "parallel query supported",
+			engineMode:    RDSEngineModeParallelQuery,
+			engineVersion: "5.6.mysql_aurora.1.22.0",
+			isSupported:   true,
+		},
+		{
+			name:          "parallel query unsupported",
+			engineMode:    RDSEngineModeParallelQuery,
+			engineVersion: "5.6.mysql_aurora.1.19.6",
+			isSupported:   false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cluster := &rds.DBCluster{
+				DBClusterArn:        aws.String("arn:aws:rds:us-east-1:1234567890:cluster:test"),
+				DBClusterIdentifier: aws.String(test.name),
+				DbClusterResourceId: aws.String(uuid.New()),
+				Engine:              aws.String(RDSEngineAuroraMySQL),
+				EngineMode:          aws.String(test.engineMode),
+				EngineVersion:       aws.String(test.engineVersion),
+			}
+
+			require.Equal(t, test.isSupported, IsRDSClusterSupported(cluster))
+
+		})
+	}
+}
+
+func TestRDSTagsToLabels(t *testing.T) {
+	rdsTags := []*rds.Tag{
+		&rds.Tag{
+			Key:   aws.String("Env"),
+			Value: aws.String("dev"),
+		},
+		&rds.Tag{
+			Key:   aws.String("aws:cloudformation:stack-id"),
+			Value: aws.String("some-id"),
+		},
+		&rds.Tag{
+			Key:   aws.String("Name"),
+			Value: aws.String("test"),
+		},
+	}
+	labels := rdsTagsToLabels(rdsTags)
+	require.Equal(t, map[string]string{"Name": "test", "Env": "dev"}, labels)
 }

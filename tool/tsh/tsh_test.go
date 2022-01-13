@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
@@ -42,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -430,6 +433,169 @@ func TestMakeClient(t *testing.T) {
 	agentKeys, err := tc.LocalAgent().Agent.List()
 	require.NoError(t, err)
 	require.Greater(t, len(agentKeys), 0)
+}
+
+func TestAccessRequestOnLeaf(t *testing.T) {
+	tmpHomePath := t.TempDir()
+
+	isInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(isInsecure)
+	})
+
+	requester, err := types.NewRole("requester", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"requester"})
+
+	rootAuth, rootProxy := makeTestServers(t,
+		withBootstrap(requester, connector, alice),
+	)
+
+	rootAuthServer := rootAuth.GetAuthServer()
+	require.NotNil(t, rootAuthServer)
+	rootProxyAddr, err := rootProxy.ProxyWebAddr()
+	require.NoError(t, err)
+	rootTunnelAddr, err := rootProxy.ProxyTunnelAddr()
+	require.NoError(t, err)
+
+	trustedCluster, err := types.NewTrustedCluster("localhost", types.TrustedClusterSpecV2{
+		Enabled:              true,
+		Roles:                []string{},
+		Token:                staticToken,
+		ProxyAddress:         rootProxyAddr.String(),
+		ReverseTunnelAddress: rootTunnelAddr.String(),
+		RoleMap: []types.RoleMapping{
+			{
+				Remote: "access",
+				Local:  []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	leafAuth, _ := makeTestServers(t, withClusterName(t, "leafcluster"))
+	tryCreateTrustedCluster(t, leafAuth.GetAuthServer(), trustedCluster)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", rootProxyAddr.String(),
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, rootAuthServer, alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--proxy", rootProxyAddr.String(),
+		"leafcluster",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--proxy", rootProxyAddr.String(),
+		"localhost",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--proxy", rootProxyAddr.String(),
+		"leafcluster",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	errChan := make(chan error)
+	go func() {
+		errChan <- Run([]string{
+			"request",
+			"new",
+			"--insecure",
+			"--debug",
+			"--proxy", rootProxyAddr.String(),
+			"--roles=access",
+		}, setHomePath(tmpHomePath))
+	}()
+
+	var request types.AccessRequest
+	for i := 0; i < 5; i++ {
+		log.Debugf("Waiting for access request %d", i)
+		requests, err := rootAuth.GetAuthServer().GetAccessRequests(rootAuth.ExitContext(), types.AccessRequestFilter{})
+		require.NoError(t, err)
+		require.LessOrEqual(t, len(requests), 1)
+		if len(requests) == 1 {
+			request = requests[0]
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	require.NotNil(t, request)
+
+	err = rootAuth.GetAuthServer().SetAccessRequestState(
+		rootAuth.ExitContext(),
+		types.AccessRequestUpdate{
+			RequestID: request.GetName(),
+			State:     types.RequestState_APPROVED,
+		},
+	)
+	require.NoError(t, err)
+
+	select {
+	case err := <-errChan:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Minute):
+		t.Fatal("access request wasn't resolved after 2 minutes")
+	}
+}
+
+// tryCreateTrustedCluster performs several attempts to create a trusted cluster,
+// retries on connection problems and access denied errors to let caches
+// propagate and services to start
+//
+// Duplicated in integration/integration_test.go
+func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
+	ctx := context.TODO()
+	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
+		_, err := authServer.UpsertTrustedCluster(ctx, trustedCluster)
+		if err == nil {
+			return
+		}
+		if trace.IsConnectionProblem(err) {
+			log.Debugf("Retrying on connection problem: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if trace.IsAccessDenied(err) {
+			log.Debugf("Retrying on access denied: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
+	}
+	require.FailNow(t, "Timeout creating trusted cluster")
 }
 
 func TestIdentityRead(t *testing.T) {
@@ -829,6 +995,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 					TshBinaryPath: "/bin/tsh",
 					KubeClusters:  []string{"dev", "prod"},
 					SelectCluster: "dev",
+					Env:           make(map[string]string),
 				},
 			},
 		},
@@ -853,6 +1020,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 					TshBinaryPath: "/bin/tsh",
 					KubeClusters:  []string{"dev", "prod"},
 					SelectCluster: "",
+					Env:           make(map[string]string),
 				},
 			},
 		},
@@ -923,6 +1091,58 @@ func TestKubeConfigUpdate(t *testing.T) {
 	}
 }
 
+func TestMakeTableWithTruncatedColumn(t *testing.T) {
+	// os.Stdin.Fd() fails during go test, so width is defaulted to 80
+	columns := []string{"column1", "column2", "column3"}
+	rows := [][]string{[]string{strings.Repeat("cell1", 6), strings.Repeat("cell2", 6), strings.Repeat("cell3", 6)}}
+
+	testCases := []struct {
+		truncatedColumn string
+		expectedWidth   int
+		expectedOutput  []string
+	}{
+		{
+			truncatedColumn: "column2",
+			expectedWidth:   80,
+			expectedOutput: []string{
+				"column1                        column2           column3                        ",
+				"------------------------------ ----------------- ------------------------------ ",
+				"cell1cell1cell1cell1cell1cell1 cell2cell2cell... cell3cell3cell3cell3cell3cell3 ",
+				"",
+			},
+		},
+		{
+			truncatedColumn: "column3",
+			expectedWidth:   80,
+			expectedOutput: []string{
+				"column1                        column2                        column3           ",
+				"------------------------------ ------------------------------ ----------------- ",
+				"cell1cell1cell1cell1cell1cell1 cell2cell2cell2cell2cell2cell2 cell3cell3cell... ",
+				"",
+			},
+		},
+		{
+			truncatedColumn: "no column match",
+			expectedWidth:   93,
+			expectedOutput: []string{
+				"column1                        column2                        column3                        ",
+				"------------------------------ ------------------------------ ------------------------------ ",
+				"cell1cell1cell1cell1cell1cell1 cell2cell2cell2cell2cell2cell2 cell3cell3cell3cell3cell3cell3 ",
+				"",
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.truncatedColumn, func(t *testing.T) {
+			table := makeTableWithTruncatedColumn(columns, rows, testCase.truncatedColumn)
+			rows := strings.Split(table.AsBuffer().String(), "\n")
+			require.Len(t, rows, 4)
+			require.Len(t, rows[2], testCase.expectedWidth)
+			require.Equal(t, testCase.expectedOutput, rows)
+		})
+	}
+}
+
 type testServersOpts struct {
 	bootstrap      []types.Resource
 	authConfigFunc func(cfg *service.AuthConfig)
@@ -940,6 +1160,17 @@ func withAuthConfig(fn func(cfg *service.AuthConfig)) testServerOptFunc {
 	return func(o *testServersOpts) {
 		o.authConfigFunc = fn
 	}
+}
+
+func withClusterName(t *testing.T, n string) testServerOptFunc {
+	return withAuthConfig(func(cfg *service.AuthConfig) {
+		clusterName, err := services.NewClusterNameWithRandomID(
+			types.ClusterNameSpecV2{
+				ClusterName: n,
+			})
+		require.NoError(t, err)
+		cfg.ClusterName = clusterName
+	})
 }
 
 func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
@@ -962,7 +1193,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
-			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase},
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,
 		}},

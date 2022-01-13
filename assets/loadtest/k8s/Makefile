@@ -3,6 +3,7 @@ CERT_MANAGER_VERSION ?= 1.6.0
 SOAK_TEST_DURATION ?= 30m
 BACKEND ?= etcd
 USE_CERT_MANAGER ?= yes
+TELEPORT_IMAGE ?= quay.io/gravitational/teleport-ent:8.0.0
 
 # performs initialization needed for cluster
 # 1) generates etcd certs
@@ -12,6 +13,13 @@ USE_CERT_MANAGER ?= yes
 # 4) creates and applies secrets
 .PHONY: setup
 setup:
+	@if [ -z ${TELEPORT_IMAGE} ]; then \
+		echo "TELEPORT_IMAGE is not set, cannot apply cluster."; \
+		exit 1; \
+	fi
+
+
+	@echo "applying image: ${TELEPORT_IMAGE}"
 ifeq ($(BACKEND), etcd)
 	make -C ../etcd/certs all
 endif
@@ -170,7 +178,8 @@ setup-auth:
 		--from-file=user.yaml=../teleport/soaktest-user.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 
-	kubectl apply -f auth-etcd.yaml
+	@make expand-yaml FILENAME=auth-etcd
+	kubectl apply -f auth-etcd-gen.yaml
 else ifeq ($(BACKEND), firestore)
 .PHONY: setup-auth
 setup-auth:
@@ -184,7 +193,8 @@ setup-auth:
 		--from-file=user.yaml=../teleport/soaktest-user.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 
-	kubectl apply -f auth-firestore.yaml
+	@make expand-yaml FILENAME=auth-firestore
+	kubectl apply -f auth-firestore-gen.yaml
 else
 .PHONY: setup-auth
 setup-auth:
@@ -195,8 +205,8 @@ endif
 # deletes auth deployment, services and configmaps
 .PHONY: delete-auth
 delete-auth:
-	kubectl delete -f auth-etcd.yaml --ignore-not-found
-	kubectl delete -f auth-firestore.yaml --ignore-not-found
+	kubectl delete -f auth-etcd-gen.yaml --ignore-not-found
+	kubectl delete -f auth-firestore-gen.yaml --ignore-not-found
 	kubectl delete configmap auth-config -n loadtest --ignore-not-found
 
 # install proxy
@@ -225,13 +235,13 @@ delete-nodes: delete-node delete-iot-node
 # deletes all non-IoT nodes
 .PHONY: delete-node
 delete-node:
-	kubectl delete -f node.yaml --ignore-not-found
+	kubectl delete -f node-gen.yaml --ignore-not-found
 	kubectl delete configmap node-config -n loadtest --ignore-not-found
 
 # deletes all IoT nodes
 .PHONY: delete-iot-node
 delete-iot-node:
-	kubectl delete -f iot-node.yaml --ignore-not-found
+	kubectl delete -f iot-node-gen.yaml --ignore-not-found
 	kubectl delete configmap iot-node-config -n loadtest --ignore-not-found
 
 # install one IoT node and one non-IoT node
@@ -246,7 +256,8 @@ install-iot-node:
 		--from-file=teleport.yaml=../teleport/teleport-iot-node-gen.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 
-	kubectl apply -f iot-node.yaml
+	@make expand-yaml FILENAME=iot-node
+	kubectl apply -f iot-node-gen.yaml
 
 # install a non-IoT mode node
 .PHONY: install-node
@@ -255,8 +266,9 @@ install-node:
 	kubectl create configmap node-config -n loadtest \
 		--from-file=teleport.yaml=../teleport/teleport-node-gen.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
-	
-	kubectl apply -f node.yaml
+
+	@make expand-yaml FILENAME=node
+	kubectl apply -f node-gen.yaml
 
 # installs a trusted cluster
 .PHONY: install-tc
@@ -267,7 +279,8 @@ install-tc:
 		--from-file=cluster.yaml=../teleport/tc-gen.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 
-	kubectl apply -f tc.yaml
+	@make expand-yaml FILENAME=tc
+	kubectl apply -f tc-gen.yaml
 
 # deletes all rc resources from teleport and deletes trusted cluster deployments and configmaps
 .PHONY: delete-tc
@@ -345,7 +358,9 @@ install-soaktest:
 		--from-file=auth=./secrets/soaktest-auth \
 		--dry-run=client -o yaml | kubectl apply -f -
 
-	kubectl create -f soaktest.yaml
+
+	@make expand-yaml FILENAME=soaktest
+	kubectl create -f soaktest-gen.yaml
 
 # deploys a job to run the soak tests
 .PHONY: run-soak-tests

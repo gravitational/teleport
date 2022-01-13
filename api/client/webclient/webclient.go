@@ -254,12 +254,18 @@ type SSHProxySettings struct {
 
 // DBProxySettings contains database access specific proxy settings.
 type DBProxySettings struct {
+	// PostgresListenAddr is Postgres proxy listen address.
+	PostgresListenAddr string `json:"postgres_listen_addr,omitempty"`
 	// PostgresPublicAddr is advertised to Postgres clients.
 	PostgresPublicAddr string `json:"postgres_public_addr,omitempty"`
 	// MySQLListenAddr is MySQL proxy listen address.
 	MySQLListenAddr string `json:"mysql_listen_addr,omitempty"`
 	// MySQLPublicAddr is advertised to MySQL clients.
 	MySQLPublicAddr string `json:"mysql_public_addr,omitempty"`
+	// MongoListenAddr is Mongo proxy listen address.
+	MongoListenAddr string `json:"mongo_listen_addr,omitempty"`
+	// MongoPublicAddr is advertised to Mongo clients.
+	MongoPublicAddr string `json:"mongo_public_addr,omitempty"`
 }
 
 // AuthenticationSettings contains information about server authentication
@@ -356,18 +362,18 @@ func tunnelAddr(proxyAddr string, settings ProxySettings) (string, error) {
 	// public address has been set, extract the hostname but use the port from
 	// the tunnel listen address.
 	if sshSettings.SSHPublicAddr != "" {
-		if host, err := extractHost(sshSettings.SSHPublicAddr); err == nil {
+		if host, err := ExtractHost(sshSettings.SSHPublicAddr); err == nil {
 			return net.JoinHostPort(host, tunnelPort), nil
 		}
 	}
 	if sshSettings.PublicAddr != "" {
-		if host, err := extractHost(sshSettings.PublicAddr); err == nil {
+		if host, err := ExtractHost(sshSettings.PublicAddr); err == nil {
 			return net.JoinHostPort(host, tunnelPort), nil
 		}
 	}
 
 	// If nothing is set, fallback to the address dialed with tunnel port.
-	host, err := extractHost(proxyAddr)
+	host, err := ExtractHost(proxyAddr)
 	if err != nil {
 		return "", trace.Wrap(err, "failed to parse the given proxy address")
 	}
@@ -387,7 +393,7 @@ func tunnelAddrForTLSRouting(proxyAddr string, settings ProxySettings) (string, 
 			port = webPort
 		}
 
-		if host, err := extractHost(settings.SSH.PublicAddr); err == nil {
+		if host, err := ExtractHost(settings.SSH.PublicAddr); err == nil {
 			return net.JoinHostPort(host, port), nil
 		}
 	}
@@ -396,7 +402,7 @@ func tunnelAddrForTLSRouting(proxyAddr string, settings ProxySettings) (string, 
 	if _, err := extractPort(proxyAddr); err == nil {
 		return proxyAddr, nil
 	}
-	host, err := extractHost(proxyAddr)
+	host, err := ExtractHost(proxyAddr)
 	if err != nil {
 		return "", trace.Wrap(err, "failed to parse the given proxy address")
 	}
@@ -427,8 +433,8 @@ func extractHostPort(addr string) (string, error) {
 	}
 }
 
-// extractHost takes addresses like "tcp://host:port/path" and returns "host".
-func extractHost(addr string) (ra string, err error) {
+// ExtractHost takes addresses like "tcp://host:port/path" and returns "host".
+func ExtractHost(addr string) (ra string, err error) {
 	parsed, err := extractHostPort(addr)
 	if err != nil {
 		return "", trace.Wrap(err)

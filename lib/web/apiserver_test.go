@@ -1177,10 +1177,6 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
 	c.Assert(err, IsNil)
 
-	// flush out raw event (pty texts)
-	err = s.waitForRawEvent(ws, 5*time.Second)
-	c.Assert(err, IsNil)
-
 	var numPings int
 	start := time.Now()
 	for {
@@ -1194,8 +1190,8 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 		if numPings > 1 {
 			break
 		}
-		if time.Since(start) > 5*time.Second {
-			c.Fatalf("received %d ping frames within 5s of opening a socket, expected at least 2", numPings)
+		if deadline := 15 * time.Second; time.Since(start) > deadline {
+			c.Fatalf("Received %v ping frames within %v of opening a socket, expected at least 2", numPings, deadline)
 		}
 	}
 

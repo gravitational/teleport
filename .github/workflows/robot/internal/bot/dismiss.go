@@ -32,7 +32,7 @@ import (
 //
 // This is needed because GitHub appends each "Check" workflow run to the status
 // of a PR instead of replacing the "Check" status of the previous run.
-func (b *Bot) Dimiss(ctx context.Context) error {
+func (b *Bot) Dismiss(ctx context.Context) error {
 	pulls, err := b.c.GitHub.ListPullRequests(ctx,
 		b.c.Environment.Organization,
 		b.c.Environment.Repository,
