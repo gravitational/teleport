@@ -55,10 +55,21 @@ func TestAuditPostgres(t *testing.T) {
 	require.NoError(t, err)
 	requireQueryEvent(t, testCtx, libevents.DatabaseSessionQueryCode, "select 1")
 
-	// Prepared statement execution should also trigger a query event.
-	result := psql.ExecParams(ctx, "select now()", nil, nil, nil, nil).Read()
-	require.NoError(t, result.Err)
-	requireQueryEvent(t, testCtx, libevents.DatabaseSessionQueryCode, "select now()")
+	// Execute unnamed prepared statement.
+	resultUnnamed := psql.ExecParams(ctx, "select now()", nil, nil, nil, nil).Read()
+	require.NoError(t, resultUnnamed.Err)
+	requireEvent(t, testCtx, libevents.PostgresParseCode)
+	requireEvent(t, testCtx, libevents.PostgresBindCode)
+	requireEvent(t, testCtx, libevents.PostgresExecuteCode)
+
+	// Execute named prepared statement.
+	_, err = psql.Prepare(ctx, "test-stmt", "select 1", nil)
+	require.NoError(t, err)
+	resultNamed := psql.ExecPrepared(ctx, "test-stmt", nil, nil, nil)
+	require.NoError(t, resultNamed.Read().Err)
+	requireEvent(t, testCtx, libevents.PostgresParseCode)
+	requireEvent(t, testCtx, libevents.PostgresBindCode)
+	requireEvent(t, testCtx, libevents.PostgresExecuteCode)
 
 	// Closing connection should trigger session end event.
 	err = psql.Close(ctx)

@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -290,7 +291,7 @@ func TestNew(t *testing.T) {
 				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 			},
 			DialOpts: []grpc.DialOption{
-				grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+				grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 			},
 		},
 		assertErr: require.NoError,
@@ -304,7 +305,7 @@ func TestNew(t *testing.T) {
 				&tlsConfigCreds{nil},
 			},
 			DialOpts: []grpc.DialOption{
-				grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+				grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 			},
 		},
 		assertErr: require.NoError,
@@ -317,7 +318,7 @@ func TestNew(t *testing.T) {
 				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 			},
 			DialOpts: []grpc.DialOption{
-				grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+				grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 			},
 		},
 		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
@@ -331,7 +332,7 @@ func TestNew(t *testing.T) {
 				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 			},
 			DialOpts: []grpc.DialOption{
-				grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+				grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 			},
 		},
 		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
@@ -372,7 +373,7 @@ func TestNewDialBackground(t *testing.T) {
 			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 		},
 		DialOpts: []grpc.DialOption{
-			grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 		},
 	})
 	require.NoError(t, err)
@@ -410,7 +411,7 @@ func TestWaitForConnectionReady(t *testing.T) {
 			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 		},
 		DialOpts: []grpc.DialOption{
-			grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 		},
 	})
 	require.NoError(t, err)
@@ -443,7 +444,7 @@ func TestLimitExceeded(t *testing.T) {
 			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 		},
 		DialOpts: []grpc.DialOption{
-			grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 		},
 	})
 	require.NoError(t, err)
@@ -495,7 +496,7 @@ func TestListResources(t *testing.T) {
 			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 		},
 		DialOpts: []grpc.DialOption{
-			grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 		},
 	})
 	require.NoError(t, err)
@@ -536,7 +537,7 @@ func TestGetResources(t *testing.T) {
 			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 		},
 		DialOpts: []grpc.DialOption{
-			grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 		},
 	})
 	require.NoError(t, err)
