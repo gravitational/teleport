@@ -81,7 +81,7 @@ func newRDSDBInstancesFetcher(config rdsFetcherConfig) (Fetcher, error) {
 func (f *rdsDBInstancesFetcher) Get(ctx context.Context) (types.Databases, error) {
 	rdsDatabases, err := f.getRDSDatabases(ctx)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	var result types.Databases
@@ -162,7 +162,7 @@ func newRDSAuroraClustersFetcher(config rdsFetcherConfig) (Fetcher, error) {
 func (f *rdsAuroraClustersFetcher) Get(ctx context.Context) (types.Databases, error) {
 	auroraDatabases, err := f.getAuroraDatabases(ctx)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	var result types.Databases
