@@ -81,9 +81,6 @@ var roleMappings = map[string]SystemRole{
 	"windows_desktop": RoleWindowsDesktop,
 }
 
-// LegacyClusterTokenType exists for backwards compatibility reasons, needed to upgrade to 2.3
-const LegacyClusterTokenType SystemRole = "Trustedcluster"
-
 // NewTeleportRoles return a list of teleport roles from slice of strings
 func NewTeleportRoles(in []string) (SystemRoles, error) {
 	var roles SystemRoles
@@ -200,7 +197,7 @@ func (r *SystemRole) String() string {
 	switch *r {
 	case RoleSignup:
 		return "Password"
-	case RoleTrustedCluster, LegacyClusterTokenType:
+	case RoleTrustedCluster:
 		return "trusted_cluster"
 	default:
 		return string(*r)
@@ -209,14 +206,13 @@ func (r *SystemRole) String() string {
 
 // Check checks if this a a valid teleport role value, returns nil
 // if it's ok, false otherwise
+// Check checks if this a a valid teleport role value, returns nil
+// if it's ok, false otherwise
 func (r *SystemRole) Check() error {
-	switch *r {
-	case RoleAuth, RoleNode, RoleApp, RoleDatabase,
-		RoleAdmin, RoleProvisionToken,
-		RoleTrustedCluster, LegacyClusterTokenType,
-		RoleSignup, RoleProxy, RoleRemoteProxy,
-		RoleNop, RoleKube, RoleWindowsDesktop:
+	sr, ok := roleMappings[strings.ToLower(string(*r))]
+	if ok && string(*r) == string(sr) {
 		return nil
 	}
+
 	return trace.BadParameter("role %v is not registered", *r)
 }
