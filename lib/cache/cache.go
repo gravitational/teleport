@@ -142,6 +142,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabase},
+		{Kind: types.KindWindowsDesktopService},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
