@@ -300,6 +300,7 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *SessionConnect:
 		out.Event = &OneOf_SessionConnect{
 			SessionConnect: e,
+		}
 	case *AccessRequestDelete:
 		out.Event = &OneOf_AccessRequestDelete{
 			AccessRequestDelete: e,
