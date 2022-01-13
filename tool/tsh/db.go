@@ -21,16 +21,13 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"os/exec"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
-	"github.com/gravitational/teleport/lib/client/db/postgres"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -137,7 +134,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	}
 	// Print after-connect message.
 	if !quiet {
-		fmt.Println(formatDatabaseConnnectMessage(cf.SiteName, db))
+		fmt.Println(formatDatabaseConnectMessage(cf.SiteName, db))
 		return nil
 	}
 	return nil
@@ -250,7 +247,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	}
 	switch cf.Format {
 	case dbFormatCommand:
-		cmd, err := getConnectCommand(cf, tc, profile, database)
+		cmd, err := newCmdBuilder(tc, profile, database).getConnectCommand()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -332,7 +329,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 		host := "localhost"
 		opts = append(opts, WithLocalProxy(host, addr.Port(0), profile.CACertPath()))
 	}
-	cmd, err := getConnectCommand(cf, tc, profile, database, opts...)
+	cmd, err := newCmdBuilder(tc, profile, database, opts...).getConnectCommand()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -488,7 +485,7 @@ func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, databas
 // pickActiveDatabase returns the database the current profile is logged into.
 //
 // If logged into multiple databases, returns an error unless one specified
-// explicily via --db flag.
+// explicitly via --db flag.
 func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
@@ -547,94 +544,6 @@ func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
 	}
 }
 
-func getConnectCommand(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, opts ...ConnectCommandFunc) (*exec.Cmd, error) {
-	var options connectionCommandOpts
-	for _, opt := range opts {
-		opt(&options)
-	}
-
-	// In TLS routing mode a local proxy is started on demand so connect to it.
-	host, port := tc.DatabaseProxyHostPort(*db)
-	if options.localProxyPort != 0 && options.localProxyHost != "" {
-		host = options.localProxyHost
-		port = options.localProxyPort
-	}
-
-	switch db.Protocol {
-	case defaults.ProtocolPostgres:
-		return getPostgresCommand(tc, profile, db, host, port, options), nil
-
-	case defaults.ProtocolCockroachDB:
-		return getCockroachCommand(tc, profile, db, host, port, options), nil
-
-	case defaults.ProtocolMySQL:
-		return getMySQLCommand(tc, profile, db, options), nil
-
-	case defaults.ProtocolMongoDB:
-		return getMongoCommand(tc, profile, db, host, port, options), nil
-	}
-
-	return nil, trace.BadParameter("unsupported database protocol: %v", db)
-}
-
-func getPostgresCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
-	return exec.Command(postgresBin,
-		postgres.GetConnString(dbprofile.New(tc, *db, *profile, host, port)))
-}
-
-func getCockroachCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
-	// If cockroach CLI client is not available, fallback to psql.
-	if _, err := exec.LookPath(cockroachBin); err != nil {
-		log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
-			cockroachBin, postgresBin, err)
-		return exec.Command(postgresBin,
-			postgres.GetConnString(dbprofile.New(tc, *db, *profile, host, port)))
-	}
-	return exec.Command(cockroachBin, "sql", "--url",
-		postgres.GetConnString(dbprofile.New(tc, *db, *profile, host, port)))
-}
-
-func getMySQLCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) *exec.Cmd {
-	args := []string{fmt.Sprintf("--defaults-group-suffix=_%v-%v", tc.SiteName, db.ServiceName)}
-	if db.Username != "" {
-		args = append(args, "--user", db.Username)
-	}
-	if db.Database != "" {
-		args = append(args, "--database", db.Database)
-	}
-
-	if options.localProxyPort != 0 {
-		args = append(args, "--port", strconv.Itoa(options.localProxyPort))
-		args = append(args, "--host", options.localProxyHost)
-		// MySQL CLI treats localhost as a special value and tries to use Unix Domain Socket for connection
-		// To enforce TCP connection protocol needs to be explicitly specified.
-		if options.localProxyHost == "localhost" {
-			args = append(args, "--protocol", "TCP")
-		}
-	}
-
-	return exec.Command(mysqlBin, args...)
-}
-
-func getMongoCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
-	args := []string{
-		"--host", host,
-		"--port", strconv.Itoa(port),
-		"--ssl",
-		"--sslPEMKeyFile", profile.DatabaseCertPathForCluster(tc.SiteName, db.ServiceName),
-	}
-
-	if options.caPath != "" {
-		// caPath is set only if mongo connects to the Teleport Proxy via ALPN SNI Local Proxy
-		// and connection is terminated by proxy identity certificate.
-		args = append(args, []string{"--sslCAFile", options.caPath}...)
-	}
-	if db.Database != "" {
-		args = append(args, db.Database)
-	}
-	return exec.Command(mongoBin, args...)
-}
-
 func formatDatabaseListCommand(clusterFlag string) string {
 	if clusterFlag == "" {
 		return "tsh db ls"
@@ -649,7 +558,7 @@ func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) s
 	return fmt.Sprintf("tsh db config --cluster=%v --format=cmd %v", clusterFlag, db.ServiceName)
 }
 
-func formatDatabaseConnnectMessage(clusterFlag string, db tlsca.RouteToDatabase) string {
+func formatDatabaseConnectMessage(clusterFlag string, db tlsca.RouteToDatabase) string {
 	connectCommand := formatConnectCommand(clusterFlag, db)
 	configCommand := formatDatabaseConfigCommand(clusterFlag, db)
 
@@ -675,15 +584,4 @@ const (
 	dbFormatText = "text"
 	// dbFormatCommand prints database connection command.
 	dbFormatCommand = "cmd"
-)
-
-const (
-	// postgresBin is the Postgres client binary name.
-	postgresBin = "psql"
-	// cockroachBin is the Cockroach client binary name.
-	cockroachBin = "cockroach"
-	// mysqlBin is the MySQL client binary name.
-	mysqlBin = "mysql"
-	// mongoBin is the Mongo client binary name.
-	mongoBin = "mongo"
 )
