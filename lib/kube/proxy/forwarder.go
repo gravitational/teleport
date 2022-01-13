@@ -503,7 +503,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// leaf and checked there.
 	if !isRemoteCluster {
 		var err error
-		// check signing TTL and return a list of allowed logins.
+		// check signing TTL and return a list of allowed logins for local cluster based on Kubernetes service labels.
 		kubeGroups, kubeUsers, err = f.getKubeGroupsAndUsers(roles, kubeCluster, sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -615,6 +615,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	return authCtx, nil
 }
 
+// getKubeGroupsAndUsers returns the allowed kube groups/users names for a local kube cluster.
 func (f *Forwarder) getKubeGroupsAndUsers(
 	roles services.AccessChecker,
 	kubeClusterName string,
@@ -624,21 +625,25 @@ func (f *Forwarder) getKubeGroupsAndUsers(
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	// Find requested kubernetes cluster name and get allowed kube users/groups names.
 	for _, s := range kubeServices {
 		for _, c := range s.GetKubernetesClusters() {
 			if c.Name != kubeClusterName {
 				continue
 			}
 
+			// Get list of allowed kube user/groups based on kubernetes service labels.
 			labels := types.CombineLabels(c.StaticLabels, c.DynamicLabels)
 			labelsMatcher := services.NewKubernetesClusterLabelMatcher(labels)
 			groups, users, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
-			return
+			return groups, users, nil
 		}
 	}
+	// kubeClusterName not found. Empty list of allowed kube users/groups is returned.
 	return
 }
 
