@@ -9,7 +9,6 @@ trigger:
     - branch/*
   event:
     include:
-      - pull_request
       - push
 
 workspace:
@@ -93,6 +92,6 @@ volumes:
 
 ---
 kind: signature
-hmac: cf7f027d958179ede614619d974e2e177ce87fb009cc74f091084f3e7d15d6c8
+hmac: 11cc48c9df3830e257866c94bca190496d6a402941641553981ff6269b8667ab
 
 ...
