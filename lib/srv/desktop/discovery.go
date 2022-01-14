@@ -66,7 +66,7 @@ func (s *WindowsService) startDesktopDiscovery(ctx context.Context) error {
 
 		GetCurrentResources: func() types.ResourcesWithLabels { return s.lastDiscoveryResults },
 		GetNewResources:     s.getDesktopsFromLDAP,
-		OnCreate:            s.createDesktop,
+		OnCreate:            s.upsertDesktop,
 		OnUpdate:            s.updateDesktop,
 		OnDelete:            s.deleteDesktop,
 		Log:                 s.cfg.Log,
@@ -138,12 +138,12 @@ func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabels {
 	return result
 }
 
-func (s *WindowsService) createDesktop(ctx context.Context, r types.ResourceWithLabels) error {
+func (s *WindowsService) upsertDesktop(ctx context.Context, r types.ResourceWithLabels) error {
 	d, ok := r.(types.WindowsDesktop)
 	if !ok {
 		return trace.Errorf("create: expected a WindowsDesktop, got %T", r)
 	}
-	return s.cfg.AccessPoint.CreateWindowsDesktop(ctx, d)
+	return s.cfg.AuthClient.UpsertWindowsDesktop(ctx, d)
 }
 
 func (s *WindowsService) updateDesktop(ctx context.Context, r types.ResourceWithLabels) error {
