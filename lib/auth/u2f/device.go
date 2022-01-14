@@ -21,9 +21,9 @@ import (
 	"crypto/x509"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/tstranex/u2f"
 )
 

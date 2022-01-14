@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 
 	"cloud.google.com/go/storage"
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"google.golang.org/api/iterator"
 
 	"github.com/gravitational/trace"

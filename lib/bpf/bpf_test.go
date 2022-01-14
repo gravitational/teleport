@@ -41,7 +41,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"gopkg.in/check.v1"
 )
 

@@ -19,7 +19,7 @@ package utils
 import (
 	"github.com/gravitational/teleport/lib/fixtures"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 )
 
 // UID provides an interface for generating unique identifiers.

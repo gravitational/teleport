@@ -47,8 +47,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 

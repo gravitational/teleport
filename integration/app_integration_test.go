@@ -53,9 +53,9 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/websocket"
 )

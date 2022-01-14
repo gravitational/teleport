@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 )
 
 // NewClusterNameWithRandomID creates a ClusterName, supplying a random

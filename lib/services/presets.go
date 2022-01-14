@@ -23,7 +23,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 )
 
 // NewPresetEditorRole returns a new pre-defined role for cluster

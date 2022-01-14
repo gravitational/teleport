@@ -40,8 +40,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"

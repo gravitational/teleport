@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 )
 
 func main() {

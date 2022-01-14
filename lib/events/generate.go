@@ -20,9 +20,9 @@ import (
 	"bytes"
 	"time"
 
+	"github.com/google/uuid"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 )
 
 // SessionParams specifies optional parameters
