@@ -1692,6 +1692,20 @@ message WindowsDesktopSessionEnd {
     string WindowsUser = 7 [ (gogoproto.jsontag) = "windows_user" ];
     // DesktopLabels are the labels on the desktop resource.
     map<string, string> DesktopLabels = 8 [ (gogoproto.jsontag) = "desktop_labels" ];
+    // StartTime is the timestamp at which the session began.
+    google.protobuf.Timestamp StartTime = 9 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "session_start,omitempty"
+    ];
+    // EndTime is the timestamp at which the session ended.
+    google.protobuf.Timestamp EndTime = 10 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "session_stop,omitempty"
+    ];
+    // DesktopName is the name of the desktop resource.
+    string DesktopName = 11 [ (gogoproto.jsontag) = "desktop_name" ];
 }
 
 // CertificateCreate is emitted when a certificate is issued.
