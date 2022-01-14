@@ -40,8 +40,6 @@ export function Recordings({
   range,
   setRange,
   rangeOptions,
-  searchValue,
-  setSearchValue,
   attempt,
   clusterId,
 }: State) {
@@ -64,11 +62,8 @@ export function Recordings({
       )}
       {attempt.status === 'success' && (
         <RecordingsList
-          search={searchValue}
-          onSearchChange={setSearchValue}
           recordings={recordings}
           clusterId={clusterId}
-          pageSize={50}
           fetchMore={fetchMore}
           fetchStatus={fetchStatus}
         />

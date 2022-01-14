@@ -11,7 +11,6 @@ import { Recording } from 'teleport/services/recordings';
 export default function useRecordings(ctx: Ctx) {
   const { clusterId } = useStickyClusterId();
   const rangeOptions = useMemo(() => getRangeOptions(), []);
-  const [searchValue, setSearchValue] = useState('');
   const [range, setRange] = useState<EventRange>(rangeOptions[0]);
   const { attempt, setAttempt, run } = useAttempt('processing');
   const [results, setResults] = useState<RecordingsResult>({
@@ -68,9 +67,7 @@ export default function useRecordings(ctx: Ctx) {
     range,
     rangeOptions,
     setRange,
-    searchValue,
     clusterId,
-    setSearchValue,
     fetchMore,
   };
 }

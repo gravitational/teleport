@@ -43,6 +43,7 @@ export default function RoleList({
       ]}
       emptyText="No Roles Found"
       pagination={{ pageSize }}
+      isSearchable
     />
   );
 }

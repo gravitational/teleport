@@ -66,17 +66,19 @@ exports[`rendering of Session Recordings 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
+  margin-right: 8px;
   color: #FFFFFF;
 }
 
 .c7 {
   box-sizing: border-box;
+  width: 100%;
   display: flex;
+  justify-content: end;
 }
 
 .c8 {
   box-sizing: border-box;
-  margin-right: 8px;
   display: flex;
   align-items: center;
 }
@@ -130,8 +132,10 @@ exports[`rendering of Session Recordings 1`] = `
   border-radius: 8px;
   font-size: 12px;
   width: 100%;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .c13 > thead > tr > th,
@@ -160,6 +164,10 @@ exports[`rendering of Session Recordings 1`] = `
 .c13 > tbody > tr > td:last-child,
 .c13 > tfoot > tr > td:last-child {
   padding-right: 24px;
+}
+
+.c13 > tbody > tr > td {
+  vertical-align: baseline;
 }
 
 .c13 > thead > tr > th {
@@ -203,6 +211,43 @@ exports[`rendering of Session Recordings 1`] = `
   border-bottom-right-radius: 8px;
 }
 
+.c5 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c10 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c10 .c11 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c10:hover .c11,
+.c10:focus .c11 {
+  opacity: 1;
+}
+
+.c10:disabled {
+  cursor: default;
+}
+
+.c10:disabled .c11 {
+  opacity: 0.1;
+}
+
 .c6 {
   box-sizing: border-box;
   font-size: 12px;
@@ -211,21 +256,17 @@ exports[`rendering of Session Recordings 1`] = `
   border: none;
   border-radius: 200px;
   height: 32px;
-  transition: all 0.2s;
+  transition: all .2s;
+  color: rgba(255,255,255,0.87);
   background: #111B48;
-  margin-right: 16px;
   padding-left: 16px;
   padding-right: 16px;
-  color: rgba(255,255,255,0.87);
 }
 
-.c6:hover {
-  background: #2C3A73;
-}
-
+.c6:hover,
 .c6:focus,
 .c6:active {
-  background: #2C3A73;
+  background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
@@ -233,52 +274,6 @@ exports[`rendering of Session Recordings 1`] = `
 .c6::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
-}
-
-.c10 {
-  box-sizing: border-box;
-  display: flex;
-}
-
-.c10 button {
-  background: none;
-  border: none;
-  border-radius: 200px;
-  cursor: pointer;
-  padding: 0;
-  margin: 0 0 0 8px;
-  outline: none;
-  transition: all 0.3s;
-  text-align: center;
-}
-
-.c10 button:hover,
-.c10 button:focus {
-  background: #1C254D;
-}
-
-.c10 button:hover .c11,
-.c10 button:focus .c11 {
-  opacity: 1;
-}
-
-.c10 button .c11 {
-  opacity: 0.4;
-  font-size: 20px;
-  transition: all 0.3s;
-}
-
-.c5 {
-  padding: 12px 16px;
-  display: flex;
-  height: 24px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: end;
-  background: #222C59;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  justify-content: space-between;
 }
 
 .c4 .react-select-container {
@@ -600,222 +595,218 @@ exports[`rendering of Session Recordings 1`] = `
         </div>
       </div>
     </div>
-    <div
-      style="min-width: min-content;"
+    <nav
+      class="c5"
     >
-      <nav
-        class="c5"
+      <input
+        class="c6"
+        placeholder="SEARCH..."
+        value=""
+      />
+      <div
+        class="c7"
+        width="100%"
       >
-        <input
-          class="c6"
-          color="text.primary"
-          placeholder="SEARCH..."
-          value=""
-        />
         <div
-          class="c7"
+          class="c8"
         >
           <div
-            class="c8"
+            class="c9"
+            color="primary.contrastText"
           >
-            <div
-              class="c9"
-              color="primary.contrastText"
-            >
-              SHOWING 
-              <strong>
-                1
-              </strong>
-               - 
-              <strong>
-                4
-              </strong>
-               
-              of 
-              <strong>
-                4
-              </strong>
-            </div>
+            SHOWING 
+            <strong>
+              1
+            </strong>
+             - 
+            <strong>
+              4
+            </strong>
+             of
+             
+            <strong>
+              4
+            </strong>
           </div>
-          <div
+          <button
             class="c10"
+            disabled=""
+            title="Previous page"
           >
-            <button
-              disabled=""
-              title="Previous Page"
-            >
-              <span
-                class="c11 c12 icon icon-arrow-left-circle "
-                color="light"
-                font-size="3"
-              />
-            </button>
-            <button
-              disabled=""
-              title="Next Page"
-            >
-              <span
-                class="c11 c12 icon icon-arrow-right-circle "
-                color="light"
-                font-size="3"
-              />
-            </button>
-          </div>
+            <span
+              class="c11 c12 icon icon-arrow-left-circle "
+              color="light"
+              font-size="3"
+            />
+          </button>
+          <button
+            class="c10"
+            disabled=""
+            title="Next page"
+          >
+            <span
+              class="c11 c12 icon icon-arrow-right-circle "
+              color="light"
+              font-size="3"
+            />
+          </button>
         </div>
-      </nav>
-      <table
-        class="c13"
-      >
-        <thead>
-          <tr>
-            <th>
-              Node
-            </th>
-            <th>
-              User(s)
-            </th>
-            <th>
-              <a>
-                Duration
-                <span
-                  class="c11 c14 icon icon-chevrons-expand-vertical "
-                  color="light"
-                />
-              </a>
-            </th>
-            <th>
-              <a>
-                Created
-                <span
-                  class="c11 c14 icon icon-chevron-up "
-                  color="light"
-                />
-              </a>
-            </th>
-            <th>
-              Session ID
-            </th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>
-              im-a-nodename
-            </td>
-            <td
-              style="word-break: break-word;"
+      </div>
+    </nav>
+    <table
+      class="c13"
+    >
+      <thead>
+        <tr>
+          <th>
+            Node
+          </th>
+          <th>
+            User(s)
+          </th>
+          <th>
+            <a>
+              Duration
+              <span
+                class="c11 c14 icon icon-chevrons-expand-vertical "
+                color="light"
+              />
+            </a>
+          </th>
+          <th>
+            <a>
+              Created
+              <span
+                class="c11 c14 icon icon-chevron-down "
+                color="light"
+              />
+            </a>
+          </th>
+          <th>
+            Session ID
+          </th>
+          <th />
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            im-a-nodename
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            test
+          </td>
+          <td>
+            10 minutes
+          </td>
+          <td>
+            2021-07-27 23:20:05
+          </td>
+          <td>
+            d183ca84-dd94-434a-afee5c2c5f38
+          </td>
+          <td
+            align="right"
+            style="color: rgb(159, 159, 159);"
+          >
+            recording disabled
+          </td>
+        </tr>
+        <tr>
+          <td>
+            ip-172-31-30-254
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            foo
+          </td>
+          <td>
+            a few seconds
+          </td>
+          <td>
+            2021-05-21 22:54:27
+          </td>
+          <td>
+            9d92ad96-a45c-4add-463cc7bc48b1
+          </td>
+          <td
+            align="right"
+            style="color: rgb(159, 159, 159);"
+          >
+            non-interactive
+          </td>
+        </tr>
+        <tr>
+          <td>
+            peach-node
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            one, two
+          </td>
+          <td>
+            a few seconds
+          </td>
+          <td>
+            2019-04-22 00:00:51
+          </td>
+          <td>
+            377875-6491-11e9-80a1-427cfde50f5a
+          </td>
+          <td
+            align="right"
+            style=""
+          >
+            <a
+              class="c15"
+              href="/web/cluster/localhost/session/377875-6491-11e9-80a1-427cfde50f5a"
+              kind="primary"
+              target="_blank"
+              width="80px"
             >
-              test
-            </td>
-            <td>
-              10 minutes
-            </td>
-            <td>
-              2021-07-27 23:20:05
-            </td>
-            <td>
-              d183ca84-dd94-434a-afee5c2c5f38
-            </td>
-            <td
-              align="right"
-              style="color: rgb(159, 159, 159);"
+              Play
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            apple-node
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            one, two
+          </td>
+          <td>
+            19 minutes
+          </td>
+          <td>
+            2019-04-22 00:00:51
+          </td>
+          <td>
+            426485-6491-11e9-80a1-427cfde50f5a
+          </td>
+          <td
+            align="right"
+            style=""
+          >
+            <a
+              class="c15"
+              href="/web/cluster/localhost/session/426485-6491-11e9-80a1-427cfde50f5a"
+              kind="primary"
+              target="_blank"
+              width="80px"
             >
-              recording disabled
-            </td>
-          </tr>
-          <tr>
-            <td>
-              ip-172-31-30-254
-            </td>
-            <td
-              style="word-break: break-word;"
-            >
-              foo
-            </td>
-            <td>
-              a few seconds
-            </td>
-            <td>
-              2021-05-21 22:54:27
-            </td>
-            <td>
-              9d92ad96-a45c-4add-463cc7bc48b1
-            </td>
-            <td
-              align="right"
-              style="color: rgb(159, 159, 159);"
-            >
-              non-interactive
-            </td>
-          </tr>
-          <tr>
-            <td>
-              peach-node
-            </td>
-            <td
-              style="word-break: break-word;"
-            >
-              one, two
-            </td>
-            <td>
-              a few seconds
-            </td>
-            <td>
-              2019-04-22 00:00:51
-            </td>
-            <td>
-              377875-6491-11e9-80a1-427cfde50f5a
-            </td>
-            <td
-              align="right"
-            >
-              <a
-                class="c15"
-                href="/web/cluster/localhost/session/377875-6491-11e9-80a1-427cfde50f5a"
-                kind="primary"
-                target="_blank"
-                width="80px"
-              >
-                Play
-              </a>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              apple-node
-            </td>
-            <td
-              style="word-break: break-word;"
-            >
-              one, two
-            </td>
-            <td>
-              19 minutes
-            </td>
-            <td>
-              2019-04-22 00:00:51
-            </td>
-            <td>
-              426485-6491-11e9-80a1-427cfde50f5a
-            </td>
-            <td
-              align="right"
-            >
-              <a
-                class="c15"
-                href="/web/cluster/localhost/session/426485-6491-11e9-80a1-427cfde50f5a"
-                kind="primary"
-                target="_blank"
-                width="80px"
-              >
-                Play
-              </a>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+              Play
+            </a>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </div>
 `;
