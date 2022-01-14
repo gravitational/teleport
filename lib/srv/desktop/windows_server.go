@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
@@ -45,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -81,7 +83,8 @@ type WindowsService struct {
 	cfg        WindowsServiceConfig
 	middleware *auth.Middleware
 
-	lc *ldapClient
+	ldapInitialized int32
+	lc              *ldapClient
 
 	// lastDisoveryResults stores the results of the most recent LDAP search
 	// when desktop discovery is enabled
@@ -320,25 +323,23 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		close:       close,
 	}
 
-	if err := s.initializeLDAP(); err != nil {
-		s.cfg.Log.WithError(err).Error("initializing LDAP client")
-	}
-
-	// Note: admin still needs to import our CA into the Group Policy following
-	// https://docs.vmware.com/en/VMware-Horizon-7/7.13/horizon-installation/GUID-7966AE16-D98F-430E-A916-391E8EAAFE18.html
-	//
-	// We can find the group policy object via LDAP, but it only contains an
-	// SMB file path with the actual policy. See
-	// https://en.wikipedia.org/wiki/Group_Policy
-	//
-	// In theory, we could update the policy file(s) over SMB following
-	// https://docs.microsoft.com/en-us/previous-versions/windows/desktop/policy/registry-policy-file-format,
-	// but I'm leaving this for later.
-	//
-	// TODO(zmb3): do these periodically
-	if err := s.updateCA(ctx); err != nil {
+	// run LDAP initialization in a retry loop - this prevents the service
+	// from crashing and taking the entire Teleport process with it if
+	// we cannot connect to LDAP
+	l, err := utils.NewLinear(utils.LinearConfig{
+		First: 5 * time.Second,
+		Step:  30 * time.Second,
+		Max:   30 * time.Minute,
+		Clock: s.cfg.Clock,
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	go func() {
+		if retryErr := l.For(s.closeCtx, s.initializeLDAP); retryErr != nil {
+			s.cfg.Log.WithError(retryErr).Error("attempting to initialize LDAP client")
+		}
+	}()
 
 	// TODO(zmb3): session recording.
 
@@ -353,7 +354,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	}
 
 	if len(s.cfg.DiscoveryBaseDN) > 0 {
-		if err := s.startDesktopDiscovery(ctx); err != nil {
+		if err := s.startDesktopDiscovery(); err != nil {
 			s.Close()
 			return nil, trace.Wrap(err)
 		}
@@ -409,18 +410,41 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 
 func (s *WindowsService) initializeLDAP() error {
 	tc, err := s.tlsConfigForLDAP()
+	if trace.IsAccessDenied(err) && modules.GetModules().BuildType() == modules.BuildEnterprise {
+		s.cfg.Log.Warn("Could not generate certificate for LDAPS. Ensure that the auth server is licensed for desktop access.")
+	}
 	if err != nil {
+		atomic.StoreInt32(&s.ldapInitialized, 0)
 		return trace.Wrap(err)
 	}
 
 	conn, err := ldap.DialURL("ldaps://"+s.cfg.Addr, ldap.DialWithTLSConfig(tc))
 	if err != nil {
+		atomic.StoreInt32(&s.ldapInitialized, 0)
 		return trace.Wrap(err, "dial")
 	}
 
 	s.lc.setClient(conn)
 
-	// ensure that we refresh our LDAP cert well before expiration
+	// Note: admin still needs to import our CA into the Group Policy following
+	// https://docs.vmware.com/en/VMware-Horizon-7/7.13/horizon-installation/GUID-7966AE16-D98F-430E-A916-391E8EAAFE18.html
+	//
+	// We can find the group policy object via LDAP, but it only contains an
+	// SMB file path with the actual policy. See
+	// https://en.wikipedia.org/wiki/Group_Policy
+	//
+	// In theory, we could update the policy file(s) over SMB following
+	// https://docs.microsoft.com/en-us/previous-versions/windows/desktop/policy/registry-policy-file-format,
+	// but I'm leaving this for later.
+	//
+	if err := s.updateCA(s.closeCtx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	atomic.StoreInt32(&s.ldapInitialized, 1)
+
+	// if we were successful in initializing the client, schedule a renewal
+	// so that we get a new cert prior to expiration
 	go func() {
 		select {
 		case <-time.After(windowsDesktopServiceCertTTL / 3):
@@ -542,6 +566,14 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 		if err := tdpConn.OutputMessage(tdp.Error{Message: message}); err != nil {
 			s.cfg.Log.Errorf("Failed to send TDP error message %v: %v", tdp.Error{Message: message}, err)
 		}
+	}
+
+	// don't handle connections until the LDAP initialization retry loop has succeeded
+	// (it would fail anyway, but this presents a better error to the user)
+	if atomic.LoadInt32(&s.ldapInitialized) != 1 {
+		// TODO(zmb3): send TDP error message
+		log.Error("This service cannot accept connections until LDAP initialization has completed.")
+		return
 	}
 
 	// Check connection limits.

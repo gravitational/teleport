@@ -86,7 +86,7 @@ func init() {
 	// on the logrus log level
 	// (unless RUST_LOG is already explicitly set, then we
 	// assume the user knows what they want)
-	if rl := os.Getenv("RUST_LOG"); rl != "" {
+	if rl := os.Getenv("RUST_LOG"); rl == "" {
 		var rustLogLevel string
 		switch l := logrus.GetLevel(); l {
 		case logrus.TraceLevel:
