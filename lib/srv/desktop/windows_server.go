@@ -612,6 +612,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 
 	delay := timer()
 	tdpConn := tdp.NewConn(conn)
+	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
 	tdpConn.OnSend = func(m tdp.Message, b []byte) {
 		switch b[0] {
 		case byte(tdp.TypePNGFrame), byte(tdp.TypeClientScreenSpec), byte(tdp.TypeClipboardData), byte(tdp.TypeMouseButton):
@@ -638,7 +639,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		AuthorizeFn:   authorize,
 	})
 	if err != nil {
-		s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err)
+		s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
@@ -666,13 +667,13 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
 		rdpc.Close()
-		s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err)
+		s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
-	s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, nil)
+	s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, nil)
 	err = rdpc.Wait()
-	s.onSessionEnd(ctx, &identity, windowsUser, string(sessionID), desktop)
+	s.onSessionEnd(ctx, &identity, sessionStartTime, s.cfg.Clock, windowsUser, string(sessionID), desktop)
 
 	return trace.Wrap(err)
 }
