@@ -15,9 +15,14 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Box, Text, Flex, Indicator, ButtonPrimary } from 'design';
+import { Box, Indicator, ButtonPrimary } from 'design';
 import { Danger } from 'design/Alert';
 import useTeleport from 'teleport/useTeleport';
+import {
+  FeatureBox,
+  FeatureHeader,
+  FeatureHeaderTitle,
+} from 'teleport/components/Layout';
 import MfaDeviceList, { RemoveDialog } from 'teleport/components/MfaDeviceList';
 import AddDevice from './AddDevice';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
@@ -50,7 +55,20 @@ export function ManageDevices({
 }: State) {
   return (
     <>
-      <Box width="900px">
+      <FeatureBox style={{ width: '904px', padding: 0, overflow: 'hidden' }}>
+        <FeatureHeader alignItems="center" justifyContent="space-between">
+          <FeatureHeaderTitle>Two-Factor Devices</FeatureHeaderTitle>
+          <ButtonPrimary
+            onClick={onAddDevice}
+            disabled={
+              createRestrictedTokenAttempt.status === 'processing' ||
+              mfaDisabled
+            }
+            title={mfaDisabled ? 'Two-factor authentication is disabled' : ''}
+          >
+            Add two-factor device
+          </ButtonPrimary>
+        </FeatureHeader>
         {fetchDevicesAttempt.status === 'processing' && (
           <Box textAlign="center">
             <Indicator />
@@ -63,43 +81,15 @@ export function ManageDevices({
           <Danger mb={3}>{fetchDevicesAttempt.statusText}</Danger>
         )}
         {fetchDevicesAttempt.status === 'success' && (
-          <>
-            <Flex
-              px={4}
-              py={4}
-              bg="primary.light"
-              borderTopRightRadius={3}
-              borderTopLeftRadius={3}
-              justifyContent="space-between"
-            >
-              <Text typography="h4" bold>
-                Two-Factor Devices
-              </Text>
-              <ButtonPrimary
-                onClick={onAddDevice}
-                disabled={
-                  createRestrictedTokenAttempt.status === 'processing' ||
-                  mfaDisabled
-                }
-                title={
-                  mfaDisabled ? 'Two-factor authentication is disabled' : ''
-                }
-              >
-                Add two-factor device
-              </ButtonPrimary>
-            </Flex>
-            <MfaDeviceList
-              devices={devices}
-              remove={onRemoveDevice}
-              mfaDisabled={mfaDisabled}
-              style={{
-                borderTopRightRadius: '0px',
-                borderTopLeftRadius: '0px',
-              }}
-            />
-          </>
+          <MfaDeviceList
+            devices={devices}
+            remove={onRemoveDevice}
+            mfaDisabled={mfaDisabled}
+            style={{ maxWidth: '100%' }}
+            isSearchable
+          />
         )}
-      </Box>
+      </FeatureBox>
       {isReAuthenticateVisible && (
         <ReAuthenticate
           onAuthenticated={setToken}

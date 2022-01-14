@@ -36,7 +36,7 @@ export default function Container() {
 export function Account({ isSso }: Props) {
   return (
     <FeatureBox>
-      <FeatureHeader alignItems="center">
+      <FeatureHeader alignItems="center" mb={0}>
         <FeatureHeaderTitle>
           {!isSso && (
             <TabItem as={NavLink} to={cfg.routes.accountPassword}>
@@ -48,7 +48,7 @@ export function Account({ isSso }: Props) {
           </TabItem>
         </FeatureHeaderTitle>
       </FeatureHeader>
-      <Box mt={3}>
+      <Box>
         <Switch>
           {!isSso && (
             <Route
