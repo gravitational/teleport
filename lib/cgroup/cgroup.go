@@ -83,7 +83,7 @@ func New(config *Config) (*Service, error) {
 
 	s := &Service{
 		Config:       config,
-		teleportRoot: path.Join(config.MountPath, teleportRoot, uuid.New()),
+		teleportRoot: path.Join(config.MountPath, teleportRoot, uuid.New().String()),
 	}
 
 	// Mount the cgroup2 filesystem.
@@ -224,8 +224,8 @@ func (s *Service) cleanupHierarchy() error {
 		if len(parts) != 5 {
 			return nil
 		}
-		sessionID := uuid.Parse(parts[3])
-		if sessionID == nil {
+		sessionID, err := uuid.Parse(parts[3])
+		if err != nil {
 			return nil
 		}
 

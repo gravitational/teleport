@@ -46,7 +46,7 @@ func TestThirdpartyStreams(t *testing.T) {
 		Credentials:                 credentials.NewStaticCredentials("YOUR-ACCESSKEYID", "YOUR-SECRETACCESSKEY", ""),
 		Region:                      "us-west-1",
 		Path:                        "/test/",
-		Bucket:                      fmt.Sprintf("teleport-test-%v", uuid.New()),
+		Bucket:                      fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 		Endpoint:                    server.URL,
 		DisableServerSideEncryption: true,
 	})

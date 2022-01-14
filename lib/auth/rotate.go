@@ -468,7 +468,7 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 	gracePeriod := req.gracePeriod
 
 	rotation := ca.GetRotation()
-	id := uuid.New()
+	id := uuid.New().String()
 
 	rotation.Mode = req.mode
 	rotation.Schedule = req.schedule

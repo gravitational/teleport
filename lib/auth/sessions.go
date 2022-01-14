@@ -75,7 +75,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
-		appSessionID:   uuid.New(),
+		appSessionID:   uuid.New().String(),
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
 		awsRoleARN:     req.AWSRoleARN,

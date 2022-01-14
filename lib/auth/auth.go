@@ -728,7 +728,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	}
 	sessionID := req.SessionID
 	if sessionID == "" {
-		sessionID = uuid.New()
+		sessionID = uuid.New().String()
 	}
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
@@ -739,7 +739,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
 		traits: wrappers.Traits(map[string][]string{
-			teleport.TraitLogins: {uuid.New()},
+			teleport.TraitLogins: {uuid.New().String()},
 		}),
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},

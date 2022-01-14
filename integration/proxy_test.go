@@ -583,7 +583,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 
 	rc := NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
 		log:         utils.NewLoggerForTests(),
 		Ports:       singleProxyPortSetup(),
@@ -636,7 +636,7 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 
 	rc := NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
 		Priv:        privateKey,
 		Pub:         publicKey,
@@ -700,7 +700,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 
 	rc := NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
 		log:         utils.NewLoggerForTests(),
 		Ports:       singleProxyPortSetup(),

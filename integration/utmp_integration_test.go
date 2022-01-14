@@ -226,7 +226,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	s.signer, err = sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
-	s.nodeID = uuid.New()
+	s.nodeID = uuid.New().String()
 	s.nodeClient, err = s.server.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     types.RoleNode,

@@ -452,7 +452,8 @@ func (t *proxySubsys) proxyToHost(
 func (t *proxySubsys) getMatchingServer(servers []types.Server, strategy types.RoutingStrategy) (types.Server, error) {
 	// check if hostname is a valid uuid.  If it is, we will preferentially match
 	// by node ID over node hostname.
-	hostIsUUID := uuid.Parse(t.host) != nil
+	_, err := uuid.Parse(t.host)
+	hostIsUUID := err != nil
 
 	ips, _ := net.LookupHost(t.host)
 

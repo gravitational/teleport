@@ -73,7 +73,7 @@ func (s *suiteBase) SetUpSuite(c *check.C) {
 	fakeClock := clockwork.NewFakeClock()
 	log, err := New(context.Background(), Config{
 		Region:       "eu-north-1",
-		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New()),
+		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 		Clock:        fakeClock,
 		UIDGenerator: utils.NewFakeUID(),
 	}, backend)
@@ -184,7 +184,7 @@ func TestDateRangeGenerator(t *testing.T) {
 
 func (s *DynamoeventsSuite) TestRFD24Migration(c *check.C) {
 	eventTemplate := preRFD24event{
-		SessionID:      uuid.New(),
+		SessionID:      uuid.New().String(),
 		EventIndex:     -1,
 		EventType:      "test.event",
 		Fields:         "{}",
@@ -231,7 +231,7 @@ type preRFD24event struct {
 func (s *DynamoeventsSuite) TestFieldsMapMigration(c *check.C) {
 	ctx := context.Background()
 	eventTemplate := eventWithJSONFields{
-		SessionID:      uuid.New(),
+		SessionID:      uuid.New().String(),
 		EventIndex:     -1,
 		EventType:      "test.event",
 		Fields:         "{}",

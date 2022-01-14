@@ -1179,7 +1179,7 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
-	hostID := uuid.New()
+	hostID := uuid.New().String()
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)

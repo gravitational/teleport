@@ -254,7 +254,7 @@ func TestIsRDSClusterSupported(t *testing.T) {
 			cluster := &rds.DBCluster{
 				DBClusterArn:        aws.String("arn:aws:rds:us-east-1:1234567890:cluster:test"),
 				DBClusterIdentifier: aws.String(test.name),
-				DbClusterResourceId: aws.String(uuid.New()),
+				DbClusterResourceId: aws.String(uuid.New().String()),
 				Engine:              aws.String(RDSEngineAuroraMySQL),
 				EngineMode:          aws.String(test.engineMode),
 				EngineVersion:       aws.String(test.engineVersion),

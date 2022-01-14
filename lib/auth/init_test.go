@@ -911,7 +911,7 @@ func TestIdentityChecker(t *testing.T) {
 
 			identity, err := GenerateIdentity(authServer, IdentityID{
 				Role:     types.RoleNode,
-				HostUUID: uuid.New(),
+				HostUUID: uuid.New().String(),
 				NodeName: "node-1",
 			}, nil, nil)
 			require.NoError(t, err)

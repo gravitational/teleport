@@ -232,7 +232,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 					Metadata: apievents.Metadata{
 						Type:        events.SessionUploadEvent,
 						Code:        events.SessionUploadCode,
-						ID:          uuid.New(),
+						ID:          uuid.New().String(),
 						Index:       events.SessionUploadIndex,
 						ClusterName: clusterName.GetClusterName(),
 					},

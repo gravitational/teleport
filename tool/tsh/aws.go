@@ -120,8 +120,8 @@ func onAWS(cf *CLIConf) error {
 // genAndSetAWSCredentials generates and returns fake AWS credential that are used
 // for signing an AWS request during aws CLI call and verified on local AWS proxy side.
 func genAndSetAWSCredentials() (*credentials.Credentials, error) {
-	id := uuid.NewUUID().String()
-	secret := uuid.NewUUID().String()
+	id := uuid.New().String()
+	secret := uuid.New().String()
 	if err := setFakeAWSEnvCredentials(id, secret); err != nil {
 		return nil, trace.Wrap(err)
 	}

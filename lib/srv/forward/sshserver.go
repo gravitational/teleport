@@ -271,7 +271,7 @@ func New(c ServerConfig) (*Server, error) {
 				"dst-addr": c.DstAddr.String(),
 			},
 		}),
-		id:              uuid.New(),
+		id:              uuid.New().String(),
 		targetConn:      c.TargetConn,
 		serverConn:      utils.NewTrackingConn(serverConn),
 		clientConn:      clientConn,

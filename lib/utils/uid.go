@@ -38,7 +38,7 @@ func NewRealUID() UID {
 
 // New generates a new UUID4.
 func (u *realUID) New() string {
-	return uuid.New()
+	return uuid.New().String()
 }
 
 // fakeUID is a fake UID generator used in tests.

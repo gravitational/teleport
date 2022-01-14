@@ -850,7 +850,7 @@ func (c *testContext) Close() error {
 func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDatabaseOption) *testContext {
 	testCtx := &testContext{
 		clusterName: "root.example.com",
-		hostID:      uuid.New(),
+		hostID:      uuid.New().String(),
 		postgres:    make(map[string]testPostgres),
 		mysql:       make(map[string]testMySQL),
 		mongo:       make(map[string]testMongoDB),

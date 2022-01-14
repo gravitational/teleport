@@ -92,7 +92,7 @@ func (s *LabelSuite) TestInvalidCommand(c *check.C) {
 		Labels: map[string]types.CommandLabel{
 			"foo": &types.CommandLabelV2{
 				Period:  types.NewDuration(1 * time.Second),
-				Command: []string{uuid.New()}},
+				Command: []string{uuid.New().String()}},
 		},
 	})
 	c.Assert(err, check.IsNil)

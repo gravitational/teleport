@@ -58,7 +58,7 @@ func ValidateLocalAuthSecrets(l *types.LocalAuthSecrets) error {
 
 // NewTOTPDevice creates a TOTP MFADevice from the given key.
 func NewTOTPDevice(name, key string, addedAt time.Time) (*types.MFADevice, error) {
-	d := types.NewMFADevice(name, uuid.New(), addedAt)
+	d := types.NewMFADevice(name, uuid.New().String(), addedAt)
 	d.Device = &types.MFADevice_Totp{Totp: &types.TOTPDevice{
 		Key: key,
 	}}

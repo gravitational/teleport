@@ -88,7 +88,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 
 	rc := NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		log:         utils.NewLoggerForTests(),
 		Ports:       options.rootClusterPorts,
@@ -97,7 +97,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	// Create leaf cluster.
 	lc := NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        rc.Secrets.PrivKey,
 		Pub:         rc.Secrets.PubKey,

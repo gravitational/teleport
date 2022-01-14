@@ -562,7 +562,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	// Create root cluster.
 	p.root.cluster = NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
@@ -573,7 +573,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	// Create leaf cluster.
 	p.leaf.cluster = NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    opts.nodeName,
 		Ports:       opts.instancePortsFunc(),
 		Priv:        privateKey,

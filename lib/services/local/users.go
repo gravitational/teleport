@@ -468,7 +468,7 @@ func (s *IdentityService) AddUserLoginAttempt(user string, attempt services.Logi
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, attemptsPrefix, uuid.New()),
+		Key:     backend.Key(webPrefix, usersPrefix, user, attemptsPrefix, uuid.New().String()),
 		Value:   value,
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
@@ -1257,7 +1257,7 @@ func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user st
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix, uuid.New()),
+		Key:     backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix, uuid.New().String()),
 		Value:   value,
 		Expires: attempt.Expires,
 	}

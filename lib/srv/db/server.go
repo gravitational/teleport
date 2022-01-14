@@ -817,7 +817,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	}
 	s.log.Debugf("Will connect to database %q at %v.", database.GetName(),
 		database.GetURI())
-	id := uuid.New()
+	id := uuid.New().String()
 	return &common.Session{
 		ID:                id,
 		ClusterName:       identity.RouteToCluster,

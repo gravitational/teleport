@@ -90,7 +90,7 @@ func makeRDSInstance(t *testing.T, name, region string, labels map[string]string
 	instance := &rds.DBInstance{
 		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:db:%v", region, name)),
 		DBInstanceIdentifier: aws.String(name),
-		DbiResourceId:        aws.String(uuid.New()),
+		DbiResourceId:        aws.String(uuid.New().String()),
 		Engine:               aws.String(services.RDSEnginePostgres),
 		Endpoint: &rds.Endpoint{
 			Address: aws.String("localhost"),
@@ -107,7 +107,7 @@ func makeRDSCluster(t *testing.T, name, region, engineMode string, labels map[st
 	cluster := &rds.DBCluster{
 		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:cluster:%v", region, name)),
 		DBClusterIdentifier: aws.String(name),
-		DbClusterResourceId: aws.String(uuid.New()),
+		DbClusterResourceId: aws.String(uuid.New().String()),
 		Engine:              aws.String(services.RDSEngineAuroraMySQL),
 		EngineMode:          aws.String(engineMode),
 		Endpoint:            aws.String("localhost"),

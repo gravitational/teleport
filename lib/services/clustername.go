@@ -29,7 +29,7 @@ import (
 // ClusterID if the field is not provided in spec.
 func NewClusterNameWithRandomID(spec types.ClusterNameSpecV2) (types.ClusterName, error) {
 	if spec.ClusterID == "" {
-		spec.ClusterID = uuid.New()
+		spec.ClusterID = uuid.New().String()
 	}
 	return types.NewClusterName(spec)
 }

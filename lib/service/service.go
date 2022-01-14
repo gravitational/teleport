@@ -647,7 +647,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		} else {
 			switch cfg.JoinMethod {
 			case JoinMethodToken:
-				cfg.HostUUID = uuid.New()
+				cfg.HostUUID = uuid.New().String()
 			case JoinMethodEC2:
 				cfg.HostUUID, err = getEC2NodeID()
 				if err != nil {
@@ -663,7 +663,8 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	}
 
-	if uuid.Parse(cfg.HostUUID) == nil {
+	_, err = uuid.Parse(cfg.HostUUID)
+	if err != nil {
 		cfg.Log.Warnf("Host UUID %q is not a true UUID (not eligible for UUID-based proxying)", cfg.HostUUID)
 	}
 

@@ -2093,7 +2093,7 @@ func TestListResources(t *testing.T) {
 					Protocol: defaults.ProtocolPostgres,
 					URI:      "localhost:5432",
 					Hostname: "localhost",
-					HostID:   uuid.New(),
+					HostID:   uuid.New().String(),
 				})
 				if err != nil {
 					return err
@@ -2119,7 +2119,7 @@ func TestListResources(t *testing.T) {
 					Name: name,
 				}, types.AppServerSpecV3{
 					Hostname: "localhost",
-					HostID:   uuid.New(),
+					HostID:   uuid.New().String(),
 					App:      app,
 				})
 				if err != nil {

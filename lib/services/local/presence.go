@@ -818,7 +818,7 @@ func (s *PresenceService) AcquireSemaphore(ctx context.Context, req types.Acquir
 		return nil, trace.BadParameter("cannot acquire expired semaphore lease")
 	}
 
-	leaseID := uuid.New()
+	leaseID := uuid.New().String()
 
 	// key is not modified, so allocate it once
 	key := backend.Key(semaphoresPrefix, req.SemaphoreKind, req.SemaphoreName)

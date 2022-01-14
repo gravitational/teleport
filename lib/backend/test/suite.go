@@ -987,7 +987,7 @@ func requireWaitGroupToFinish(ctx context.Context, t *testing.T, waitGroup *sync
 // MakePrefix returns function that appends unique prefix
 // to any key, used to make test suite concurrent-run proof
 func MakePrefix() func(k string) []byte {
-	id := "/" + uuid.New()
+	id := "/" + uuid.New().String()
 	return func(k string) []byte {
 		return []byte(id + k)
 	}

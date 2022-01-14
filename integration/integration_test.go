@@ -5484,7 +5484,7 @@ func TestWebProxyInsecure(t *testing.T) {
 
 	rc := NewInstance(InstanceConfig{
 		ClusterName: "example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
@@ -5528,7 +5528,7 @@ func TestTraitsPropagation(t *testing.T) {
 	// Create root cluster.
 	rc := NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
@@ -5538,7 +5538,7 @@ func TestTraitsPropagation(t *testing.T) {
 	// Create leaf cluster.
 	lc := NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
@@ -5632,7 +5632,7 @@ func TestTraitsPropagation(t *testing.T) {
 // testSessionStreaming tests streaming events from session recordings.
 func testSessionStreaming(t *testing.T, suite *integrationTestSuite) {
 	ctx := context.Background()
-	sessionID := session.ID(uuid.New())
+	sessionID := session.ID(uuid.New().String())
 	teleport := suite.newTeleport(t, nil, true)
 	defer teleport.StopAll()
 

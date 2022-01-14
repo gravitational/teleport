@@ -62,7 +62,7 @@ func (s *Suite) TestCreate(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Create fake session ID and cgroup.
-	sessionID := uuid.New()
+	sessionID := uuid.New().String()
 	err = service.Create(sessionID)
 	c.Assert(err, check.IsNil)
 
@@ -115,7 +115,7 @@ func (s *Suite) TestCleanup(c *check.C) {
 	defer service.Close()
 
 	// Create fake session ID and cgroup.
-	sessionID := uuid.New()
+	sessionID := uuid.New().String()
 	err = service.Create(sessionID)
 	c.Assert(err, check.IsNil)
 

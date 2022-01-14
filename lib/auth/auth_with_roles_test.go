@@ -294,7 +294,7 @@ func TestListNodes(t *testing.T) {
 
 	// Create test nodes.
 	for i := 0; i < 10; i++ {
-		name := uuid.New()
+		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
 			types.KindNode,
@@ -553,7 +553,7 @@ func TestGetDatabaseServers(t *testing.T) {
 
 	// Create test databases.
 	for i := 0; i < 5; i++ {
-		name := uuid.New()
+		name := uuid.New().String()
 		db, err := types.NewDatabaseServerV3(types.Metadata{
 			Name:   name,
 			Labels: map[string]string{"name": name},
@@ -741,7 +741,7 @@ func TestGetAppServers(t *testing.T) {
 
 	// Create test apps.
 	for i := 0; i < 5; i++ {
-		name := uuid.New()
+		name := uuid.New().String()
 		app, err := types.NewServerWithLabels(
 			name,
 			types.KindAppServer,

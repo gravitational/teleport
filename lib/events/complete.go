@@ -155,7 +155,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			Metadata: apievents.Metadata{
 				Type:  SessionUploadEvent,
 				Code:  SessionUploadCode,
-				ID:    uuid.New(),
+				ID:    uuid.New().String(),
 				Index: SessionUploadIndex,
 			},
 			SessionMetadata: apievents.SessionMetadata{

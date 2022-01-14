@@ -37,7 +37,7 @@ type mockUserAndRoleGetter struct {
 
 // user inserts a new user with the specified roles and returns the username.
 func (m *mockUserAndRoleGetter) user(t *testing.T, roles ...string) string {
-	name := uuid.New()
+	name := uuid.New().String()
 	user, err := types.NewUser(name)
 	require.NoError(t, err)
 

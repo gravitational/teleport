@@ -136,6 +136,6 @@ func NewPresetAuditorRole() types.Role {
 			},
 		},
 	}
-	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New()})
+	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
 	return role
 }
