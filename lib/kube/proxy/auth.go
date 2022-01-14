@@ -174,6 +174,15 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate TLS config from kubeconfig: %v", err)
 	}
+	if tlsConfig == nil {
+		messageArgs := "c.HasCA, " +
+			"c.HasCertAuth, " +
+			"c.HasCertCallback, " +
+			"c.TLS.Insecure, " +
+			"len(c.TLS.ServerName) > 0, " +
+			"len(c.TLS.NextProtos) > 0 "
+		return nil, trace.BadParameter("failed to generate TLS config from kubeConfig. All of %s were false", messageArgs)
+	}
 	transportConfig, err := clientCfg.TransportConfig()
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate transport config from kubeconfig: %v", err)

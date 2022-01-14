@@ -31,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
 )
 
@@ -269,4 +270,18 @@ current-context: foo
 			))
 		})
 	}
+}
+
+func TestExtractKubeCreds(t *testing.T) {
+	t.Parallel()
+	_, err := extractKubeCreds(context.TODO(),
+		"cluster",
+		&rest.Config{},
+		KubeService,
+		"",
+		utils.NewLoggerForTests(),
+		func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
+			return nil
+		})
+	require.Contains(t, err.Error(), "failed to generate TLS config from kubeConfig. All of")
 }
