@@ -18,12 +18,14 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"testing"
 	"time"
 
-	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -32,7 +34,13 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 
+	"github.com/coreos/go-oidc/jose"
+	"github.com/coreos/go-oidc/oauth2"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	directory "google.golang.org/api/admin/directory/v1"
+	"google.golang.org/api/cloudidentity/v1"
+	"google.golang.org/api/option"
 	"gopkg.in/check.v1"
 )
 
@@ -175,4 +183,115 @@ func (s *fakeIDP) configurationHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintln(w, resp)
+}
+
+func TestOIDCGoogle(t *testing.T) {
+	directGroups := map[string][]string{
+		"alice@foo.example": {"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
+		"bob@foo.example":   {"group1@foo.example"},
+	}
+
+	// group2@sub.foo.example is in group3@bar.example and group3@bar.example is in group4@bar.example
+	strictDirectGroups := map[string][]string{
+		"alice@foo.example": {"group1@foo.example", "group2@sub.foo.example"},
+		"bob@foo.example":   {"group1@foo.example"},
+	}
+	directIndirectGroups := map[string][]string{
+		"alice@foo.example": {"group3@bar.example"},
+		"bob@foo.example":   {},
+	}
+	indirectGroups := map[string][]string{
+		"alice@foo.example": {"group4@bar.example"},
+		"bob@foo.example":   {},
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/admin/directory/v1/groups", func(rw http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "GET", r.Method)
+
+		email := r.URL.Query().Get("userKey")
+		require.NotEmpty(t, email)
+		require.Contains(t, directGroups, email)
+
+		resp := &directory.Groups{}
+		for _, groupEmail := range directGroups[email] {
+			resp.Groups = append(resp.Groups, &directory.Group{Email: groupEmail})
+		}
+
+		b, err := json.Marshal(resp)
+		require.NoError(t, err)
+
+		rw.Write(b)
+	})
+	mux.HandleFunc("/v1/groups/-/memberships:searchTransitiveGroups", func(rw http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "GET", r.Method)
+		q := r.URL.Query().Get("query")
+
+		// hacky solution but the query parameter of searchTransitiveGroups is also pretty hacky
+		prefix := "member_key_id == '"
+		suffix := "' && 'cloudidentity.googleapis.com/groups.discussion_forum' in labels"
+		require.True(t, strings.HasPrefix(q, prefix))
+		require.True(t, strings.HasSuffix(q, suffix))
+		email := strings.TrimSuffix(strings.TrimPrefix(q, prefix), suffix)
+		require.NotEmpty(t, email)
+		require.Contains(t, directGroups, email)
+
+		resp := &cloudidentity.SearchTransitiveGroupsResponse{}
+
+		for relationType, groupEmails := range map[string][]string{
+			"DIRECT":              strictDirectGroups[email],
+			"DIRECT_AND_INDIRECT": directIndirectGroups[email],
+			"INDIRECT":            indirectGroups[email],
+		} {
+			for _, groupEmail := range groupEmails {
+				resp.Memberships = append(resp.Memberships, &cloudidentity.GroupRelation{
+					GroupKey: &cloudidentity.EntityKey{
+						Id: groupEmail,
+					},
+					Labels: map[string]string{
+						"cloudidentity.googleapis.com/groups.discussion_forum": "",
+					},
+					RelationType: relationType,
+				})
+			}
+		}
+
+		b, err := json.Marshal(resp)
+		require.NoError(t, err)
+
+		rw.Write(b)
+	})
+
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+	testOptions := []option.ClientOption{option.WithEndpoint(ts.URL), option.WithoutAuthentication()}
+
+	ctx := context.Background()
+
+	connector, err := types.NewOIDCConnector("googleoidc", types.OIDCConnectorSpecV2{
+		IssuerURL:            "https://accounts.google.com",
+		ClientID:             "unused",
+		GoogleServiceAccount: "unused",
+		GoogleAdminEmail:     "unused",
+	})
+	require.NoError(t, err)
+
+	for _, testCase := range []struct {
+		email      string
+		transitive bool
+		groups     []string
+	}{
+		{"alice@foo.example", true, []string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example", "group4@bar.example"}},
+		{"alice@foo.example", false, []string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"}},
+		{"bob@foo.example", false, []string{"group1@foo.example"}},
+		{"bob@foo.example", true, []string{"group1@foo.example"}},
+	} {
+		connector.(*types.OIDCConnectorV2).Spec.GoogleTransitiveGroups = testCase.transitive
+		claims, err := addGsuiteClaims(ctx, connector, jose.Claims{"email": testCase.email}, testOptions...)
+		require.NoError(t, err)
+		require.Equal(t, testCase.email, claims["email"])
+
+		groupsClaim, _, _ := claims.StringsClaim("groups")
+		require.ElementsMatch(t, testCase.groups, groupsClaim)
+	}
 }
