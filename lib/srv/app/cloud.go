@@ -157,10 +157,19 @@ func (c *cloud) GetAWSSigninURL(req AWSSigninRequest) (*AWSSigninResponse, error
 		duration = maxSessionDuration
 	}
 
+	// Using "SessionDuration" parameter with temporary credentials will cause
+	// the API call to fail. See user guide linked above for more details.
+	durationParamKey := "SessionDuration"
+	if useDurationSeconds, err := c.isSessionUsingTemporaryCredentials(); err != nil {
+		c.log.WithError(err).Debugf("failed to check if aws session is using temporary credentials")
+	} else if useDurationSeconds {
+		durationParamKey = "DurationSeconds"
+	}
+
 	tokenURL.RawQuery = url.Values{
-		"Action":          []string{"getSigninToken"},
-		"SessionDuration": []string{fmt.Sprintf("%d", int(duration.Seconds()))},
-		"Session":         []string{string(sessionBytes)},
+		"Action":         []string{"getSigninToken"},
+		durationParamKey: []string{fmt.Sprintf("%d", int(duration.Seconds()))},
+		"Session":        []string{string(sessionBytes)},
 	}.Encode()
 
 	resp, err := http.Get(tokenURL.String())
@@ -199,6 +208,40 @@ func (c *cloud) GetAWSSigninURL(req AWSSigninRequest) (*AWSSigninResponse, error
 	return &AWSSigninResponse{
 		SigninURL: signinURL.String(),
 	}, nil
+}
+
+// isSessionUsingTemporaryCredentials checks if the current aws session is
+// using temporary credentials.
+//
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html
+func (c *cloud) isSessionUsingTemporaryCredentials() (bool, error) {
+	if c.cfg.Session.Config == nil || c.cfg.Session.Config.Credentials == nil {
+		return false, trace.NotFound("session credentials not found")
+	}
+
+	// Credentials.Get can potentially make external API calls to retrieve
+	// credentials. However, if the session credentials are used for something
+	// else sucessfully right before this Credentials.Get call, it should
+	// return the cached credentials.
+	credentials, err := c.cfg.Session.Config.Credentials.Get()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	// Token is only required for temporary security credentials retrieved via STS.
+	// https://docs.aws.amazon.com/sdk-for-go/api/aws/credentials/#NewStaticCredentials
+	//
+	// Token can be staticially provided through profile, environment, etc., or retrieved by the following providers:
+	// - stscreds.AssumeRoleProvider retrieves temporary credentials from the STS service, and keeps track of their expiration time.
+	//   https://docs.aws.amazon.com/sdk-for-go/api/aws/credentials/stscreds/#AssumeRoleProvider
+	// - stscreds.WebIdentityRoleProvider is used to retrieve credentials using an OIDC token.
+	//   https://docs.aws.amazon.com/sdk-for-go/api/aws/credentials/stscreds/#WebIdentityRoleProvider
+	// - ssocreds.Provider is an AWS credential provider that retrieves temporary AWS credentials by exchanging an SSO login token.
+	//   https://docs.aws.amazon.com/sdk-for-go/api/aws/credentials/ssocreds/#Provider
+	//
+	// Note that IAM roles for EKS service accounts are granted through the OIDC tokens.
+	// https://aws.amazon.com/blogs/opensource/introducing-fine-grained-iam-roles-service-accounts/
+	return credentials.SessionToken != "", nil
 }
 
 // stsSession combines parameters describing session built from temporary credentials.
