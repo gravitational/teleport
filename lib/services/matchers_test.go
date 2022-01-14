@@ -48,8 +48,8 @@ func TestMatchResourceLabels(t *testing.T) {
 				{Labels: types.Labels{types.Wildcard: []string{types.Wildcard}}},
 			},
 			databaseLabels: map[string]string{
-				uuid.New(): uuid.New().String(),
-				uuid.New(): uuid.New().String(),
+				uuid.New().String(): uuid.New().String(),
+				uuid.New().String(): uuid.New().String(),
 			},
 			match: true,
 		},
