@@ -14,115 +14,73 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import styled from 'styled-components';
-import { sortBy } from 'lodash';
 import { Label } from 'design';
-import {
-  Cell,
-  Column,
-  TextCell,
-  SortHeaderCell,
-  SortTypes,
-} from 'design/DataTable';
-import PagedTable from 'design/DataTable/Paged';
-import isMatch from 'design/utils/match';
+import Table, { Cell } from 'design/DataTableNext';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { User } from 'teleport/services/user';
 
 export default function UserList({
-  users,
-  pageSize,
+  users = [],
+  pageSize = 20,
   onEdit,
   onDelete,
   onReset,
 }: Props) {
-  const [searchValue, setSearchValue] = useState('');
-  const [sort, setSort] = useState<Record<string, string>>({
-    key: 'name',
-    dir: SortTypes.ASC,
-  });
-
-  function onSortChange(key: string, dir: string) {
-    setSort({ key, dir });
-  }
-
-  function onSearchChange(value: string) {
-    setSearchValue(value);
-  }
-
-  function sortAndFilter(searchValue: string) {
-    const searchableProps = ['name', 'roles', 'authType'];
-    const filtered = users.filter(user =>
-      isMatch(user, searchValue, { searchableProps, cb: null })
-    );
-
-    // Apply sorting to filtered list.
-    const sorted = sortBy(filtered, sort.key);
-    if (sort.dir === SortTypes.DESC) {
-      return sorted.reverse();
-    }
-
-    return sorted;
-  }
-
-  const data = sortAndFilter(searchValue);
-  const tableProps = { pageSize, data, search: searchValue, onSearchChange };
-
   return (
-    <StyledTable {...tableProps}>
-      <Column
-        columnKey="name"
-        cell={<TextCell />}
-        header={
-          <SortHeaderCell
-            sortDir={sort.key === 'name' ? sort.dir : null}
-            onSortChange={onSortChange}
-            title="Username"
-          />
-        }
-      />
-      <Column
-        columnKey="roles"
-        cell={<RolesCell />}
-        header={
-          <SortHeaderCell
-            sortDir={sort.key === 'roles' ? sort.dir : null}
-            onSortChange={onSortChange}
-            title="Roles"
-          />
-        }
-      />
-      <Column
-        columnKey="authType"
-        cell={<TextCell style={{ textTransform: 'capitalize' }} />}
-        header={
-          <SortHeaderCell
-            sortDir={sort.key === 'authType' ? sort.dir : null}
-            onSortChange={onSortChange}
-            title="Type"
-          />
-        }
-      />
-      <Column
-        header={<Cell />}
-        cell={
-          <ActionCell
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onResetPassword={onReset}
-          />
-        }
-      />
-    </StyledTable>
+    <StyledTable
+      data={users}
+      columns={[
+        {
+          key: 'name',
+          headerText: 'Name',
+          isSortable: true,
+        },
+        {
+          key: 'roles',
+          headerText: 'Roles',
+          isSortable: true,
+          render: ({ roles }) => <RolesCell roles={roles} />,
+        },
+        {
+          key: 'authType',
+          headerText: 'Type',
+          isSortable: true,
+          render: ({ authType }) => (
+            <Cell style={{ textTransform: 'capitalize' }}>{authType}</Cell>
+          ),
+        },
+        {
+          altKey: 'options-btn',
+          render: user => (
+            <ActionCell
+              user={user}
+              onEdit={onEdit}
+              onReset={onReset}
+              onDelete={onDelete}
+            />
+          ),
+        },
+      ]}
+      emptyText="No Users Found"
+      isSearchable
+      pagination={{ pageSize }}
+    />
   );
 }
 
-const ActionCell = props => {
-  const { rowIndex, data, onEdit, onResetPassword, onDelete } = props;
-
-  const user: User = data[rowIndex];
-
+const ActionCell = ({
+  user,
+  onEdit,
+  onReset,
+  onDelete,
+}: {
+  user: User;
+  onEdit: (user: User) => void;
+  onReset: (user: User) => void;
+  onDelete: (user: User) => void;
+}) => {
   if (!user.isLocal) {
     return <Cell align="right" />;
   }
@@ -131,18 +89,14 @@ const ActionCell = props => {
     <Cell align="right">
       <MenuButton>
         <MenuItem onClick={() => onEdit(user)}>Edit...</MenuItem>
-        <MenuItem onClick={() => onResetPassword(user)}>
-          Reset Password...
-        </MenuItem>
+        <MenuItem onClick={() => onReset(user)}>Reset Password...</MenuItem>
         <MenuItem onClick={() => onDelete(user)}>Delete...</MenuItem>
       </MenuButton>
     </Cell>
   );
 };
 
-const RolesCell = props => {
-  const { rowIndex, data } = props;
-  const { roles } = data[rowIndex];
+const RolesCell = ({ roles }: Pick<User, 'roles'>) => {
   const $roles = roles.sort().map(role => (
     <Label mb="1" mr="1" key={role} kind="secondary">
       {role}
@@ -154,14 +108,14 @@ const RolesCell = props => {
 
 type Props = {
   users: User[];
-  pageSize: number;
+  pageSize?: number;
   onEdit(user: User): void;
   onDelete(user: User): void;
   onReset(user: User): void;
 };
 
-const StyledTable = styled(PagedTable)`
+const StyledTable = styled(Table)`
   & > tbody > tr > td {
     vertical-align: baseline;
   }
-`;
+` as typeof Table;

@@ -68,7 +68,6 @@ export function Users(props: State) {
       {attempt.isSuccess && (
         <UserList
           users={users}
-          pageSize={20}
           onEdit={onStartEdit}
           onDelete={onStartDelete}
           onReset={onStartReset}

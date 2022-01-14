@@ -59,6 +59,7 @@ export default class AwsLaunchButton extends React.Component<Props> {
             fqdn={fqdn}
             clusterId={clusterId}
             publicAddr={publicAddr}
+            closeMenu={this.onClose}
           />
         </Menu>
       </>
@@ -66,7 +67,13 @@ export default class AwsLaunchButton extends React.Component<Props> {
   }
 }
 
-function RoleItemList({ awsRoles, fqdn, clusterId, publicAddr }: Props) {
+function RoleItemList({
+  awsRoles,
+  fqdn,
+  clusterId,
+  publicAddr,
+  closeMenu,
+}: Props & { closeMenu: () => void }) {
   const awsRoleItems = awsRoles.map((item, key) => {
     const { display, arn } = item;
     const launchUrl = cfg.getAppLauncherRoute({
@@ -84,6 +91,7 @@ function RoleItemList({ awsRoles, fqdn, clusterId, publicAddr }: Props) {
         href={launchUrl}
         target="_blank"
         title={display}
+        onClick={closeMenu}
       >
         <Text style={{ maxWidth: '25ch' }}>{display}</Text>
       </StyledMenuItem>

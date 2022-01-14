@@ -47,7 +47,7 @@ exports[`success state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c16 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -76,22 +76,22 @@ exports[`success state 1`] = `
   height: 24px;
 }
 
-.c16:active {
+.c15:active {
   opacity: 0.56;
 }
 
-.c16:hover,
-.c16:focus {
+.c15:hover,
+.c15:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c16:active {
+.c15:active {
   opacity: 0.24;
 }
 
-.c16:disabled {
+.c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -103,13 +103,13 @@ exports[`success state 1`] = `
   font-size: 16px;
 }
 
-.c14 {
+.c13 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c17 {
+.c16 {
   display: inline-block;
   transition: color .3s;
   margin-left: 8px;
@@ -118,7 +118,7 @@ exports[`success state 1`] = `
   font-size: 14px;
 }
 
-.c15 {
+.c14 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -142,17 +142,19 @@ exports[`success state 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
+  margin-right: 8px;
   color: #FFFFFF;
 }
 
 .c6 {
   box-sizing: border-box;
+  width: 100%;
   display: flex;
+  justify-content: end;
 }
 
 .c7 {
   box-sizing: border-box;
-  margin-right: 8px;
   display: flex;
   align-items: center;
 }
@@ -205,8 +207,10 @@ exports[`success state 1`] = `
   border-radius: 8px;
   font-size: 12px;
   width: 100%;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .c12 > thead > tr > th,
@@ -278,6 +282,43 @@ exports[`success state 1`] = `
   border-bottom-right-radius: 8px;
 }
 
+.c4 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c9 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c9 .c10 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c9:hover .c10,
+.c9:focus .c10 {
+  opacity: 1;
+}
+
+.c9:disabled {
+  cursor: default;
+}
+
+.c9:disabled .c10 {
+  opacity: 0.1;
+}
+
 .c5 {
   box-sizing: border-box;
   font-size: 12px;
@@ -286,21 +327,17 @@ exports[`success state 1`] = `
   border: none;
   border-radius: 200px;
   height: 32px;
-  transition: all 0.2s;
+  transition: all .2s;
+  color: rgba(255,255,255,0.87);
   background: #111B48;
-  margin-right: 16px;
   padding-left: 16px;
   padding-right: 16px;
-  color: rgba(255,255,255,0.87);
 }
 
-.c5:hover {
-  background: #2C3A73;
-}
-
+.c5:hover,
 .c5:focus,
 .c5:active {
-  background: #2C3A73;
+  background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
@@ -308,56 +345,6 @@ exports[`success state 1`] = `
 .c5::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
-}
-
-.c9 {
-  box-sizing: border-box;
-  display: flex;
-}
-
-.c9 button {
-  background: none;
-  border: none;
-  border-radius: 200px;
-  cursor: pointer;
-  padding: 0;
-  margin: 0 0 0 8px;
-  outline: none;
-  transition: all 0.3s;
-  text-align: center;
-}
-
-.c9 button:hover,
-.c9 button:focus {
-  background: #1C254D;
-}
-
-.c9 button:hover .c10,
-.c9 button:focus .c10 {
-  opacity: 1;
-}
-
-.c9 button .c10 {
-  opacity: 0.4;
-  font-size: 20px;
-  transition: all 0.3s;
-}
-
-.c4 {
-  padding: 12px 16px;
-  display: flex;
-  height: 24px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: end;
-  background: #222C59;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  justify-content: space-between;
-}
-
-.c13 > tbody > tr > td {
-  vertical-align: baseline;
 }
 
 <div>
@@ -380,327 +367,321 @@ exports[`success state 1`] = `
         Create New User
       </button>
     </div>
-    <div
-      style="min-width: min-content;"
+    <nav
+      class="c4"
     >
-      <nav
-        class="c4"
+      <input
+        class="c5"
+        placeholder="SEARCH..."
+        value=""
+      />
+      <div
+        class="c6"
+        width="100%"
       >
-        <input
-          class="c5"
-          color="text.primary"
-          placeholder="SEARCH..."
-          value=""
-        />
         <div
-          class="c6"
+          class="c7"
         >
           <div
-            class="c7"
+            class="c8"
+            color="primary.contrastText"
           >
-            <div
-              class="c8"
-              color="primary.contrastText"
-            >
-              SHOWING 
-              <strong>
-                1
-              </strong>
-               - 
-              <strong>
-                6
-              </strong>
-               
-              of 
-              <strong>
-                6
-              </strong>
-            </div>
+            SHOWING 
+            <strong>
+              1
+            </strong>
+             - 
+            <strong>
+              6
+            </strong>
+             of
+             
+            <strong>
+              6
+            </strong>
           </div>
-          <div
+          <button
             class="c9"
+            disabled=""
+            title="Previous page"
+          >
+            <span
+              class="c10 c11 icon icon-arrow-left-circle "
+              color="light"
+              font-size="3"
+            />
+          </button>
+          <button
+            class="c9"
+            disabled=""
+            title="Next page"
+          >
+            <span
+              class="c10 c11 icon icon-arrow-right-circle "
+              color="light"
+              font-size="3"
+            />
+          </button>
+        </div>
+      </div>
+    </nav>
+    <table
+      class="c12"
+    >
+      <thead>
+        <tr>
+          <th>
+            <a>
+              Name
+              <span
+                class="c10 c13 icon icon-chevron-up "
+                color="light"
+              />
+            </a>
+          </th>
+          <th>
+            <a>
+              Roles
+              <span
+                class="c10 c13 icon icon-chevrons-expand-vertical "
+                color="light"
+              />
+            </a>
+          </th>
+          <th>
+            <a>
+              Type
+              <span
+                class="c10 c13 icon icon-chevrons-expand-vertical "
+                color="light"
+              />
+            </a>
+          </th>
+          <th />
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            azesotil@jevig.org
+          </td>
+          <td>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              tugu
+            </div>
+          </td>
+          <td
+            style="text-transform: capitalize;"
+          >
+            teleport local user
+          </td>
+          <td
+            align="right"
           >
             <button
-              disabled=""
-              title="Previous Page"
+              class="c15"
+              height="24px"
+              kind="border"
             >
+              OPTIONS
               <span
-                class="c10 c11 icon icon-arrow-left-circle "
-                color="light"
-                font-size="3"
+                class="c10 c16 icon icon-caret-down "
+                color="text.secondary"
+                font-size="2"
               />
             </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            cikar@egaposci.me
+          </td>
+          <td>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              admin
+            </div>
+          </td>
+          <td
+            style="text-transform: capitalize;"
+          >
+            teleport local user
+          </td>
+          <td
+            align="right"
+          >
             <button
-              disabled=""
-              title="Next Page"
+              class="c15"
+              height="24px"
+              kind="border"
             >
+              OPTIONS
               <span
-                class="c10 c11 icon icon-arrow-right-circle "
-                color="light"
-                font-size="3"
+                class="c10 c16 icon icon-caret-down "
+                color="text.secondary"
+                font-size="2"
               />
             </button>
-          </div>
-        </div>
-      </nav>
-      <table
-        class="c12 c13"
-      >
-        <thead>
-          <tr>
-            <th>
-              <a>
-                Username
-                <span
-                  class="c10 c14 icon icon-chevron-up "
-                  color="light"
-                />
-              </a>
-            </th>
-            <th>
-              <a>
-                Roles
-                <span
-                  class="c10 c14 icon icon-chevrons-expand-vertical "
-                  color="light"
-                />
-              </a>
-            </th>
-            <th>
-              <a>
-                Type
-                <span
-                  class="c10 c14 icon icon-chevrons-expand-vertical "
-                  color="light"
-                />
-              </a>
-            </th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>
-              azesotil@jevig.org
-            </td>
-            <td>
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                tugu
-              </div>
-            </td>
-            <td
-              style="text-transform: capitalize;"
+          </td>
+        </tr>
+        <tr>
+          <td>
+            hi@nen.pa
+          </td>
+          <td>
+            <div
+              class="c14"
+              kind="secondary"
             >
-              teleport local user
-            </td>
-            <td
-              align="right"
+              admin
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
             >
-              <button
-                class="c16"
-                height="24px"
-                kind="border"
-              >
-                OPTIONS
-                <span
-                  class="c10 c17 icon icon-caret-down "
-                  color="text.secondary"
-                  font-size="2"
-                />
-              </button>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              cikar@egaposci.me
-            </td>
-            <td>
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                admin
-              </div>
-            </td>
-            <td
-              style="text-transform: capitalize;"
+              ruhh
+            </div>
+          </td>
+          <td
+            style="text-transform: capitalize;"
+          >
+            teleport local user
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c15"
+              height="24px"
+              kind="border"
             >
-              teleport local user
-            </td>
-            <td
-              align="right"
+              OPTIONS
+              <span
+                class="c10 c16 icon icon-caret-down "
+                color="text.secondary"
+                font-size="2"
+              />
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            jap@kosusfaw.mp
+          </td>
+          <td>
+            <div
+              class="c14"
+              kind="secondary"
             >
-              <button
-                class="c16"
-                height="24px"
-                kind="border"
-              >
-                OPTIONS
-                <span
-                  class="c10 c17 icon icon-caret-down "
-                  color="text.secondary"
-                  font-size="2"
-                />
-              </button>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              hi@nen.pa
-            </td>
-            <td>
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                admin
-              </div>
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                ruhh
-              </div>
-            </td>
-            <td
-              style="text-transform: capitalize;"
+              abc
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
             >
-              teleport local user
-            </td>
-            <td
-              align="right"
+              anavebikilonim
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
             >
-              <button
-                class="c16"
-                height="24px"
-                kind="border"
-              >
-                OPTIONS
-                <span
-                  class="c10 c17 icon icon-caret-down "
-                  color="text.secondary"
-                  font-size="2"
-                />
-              </button>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              jap@kosusfaw.mp
-            </td>
-            <td>
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                abc
-              </div>
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                anavebikilonim
-              </div>
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                dupiwuzocafe
-              </div>
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                duzjadj
-              </div>
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                ubip
-              </div>
-            </td>
-            <td
-              style="text-transform: capitalize;"
+              dupiwuzocafe
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
             >
-              oidc
-            </td>
-            <td
-              align="right"
-            />
-          </tr>
-          <tr>
-            <td>
-              pamkad@ukgir.ki
-            </td>
-            <td>
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                valvapel
-              </div>
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                vedkonm
-              </div>
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                vuit
-              </div>
-            </td>
-            <td
-              style="text-transform: capitalize;"
+              duzjadj
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
             >
-              saml
-            </td>
-            <td
-              align="right"
-            />
-          </tr>
-          <tr>
-            <td>
-              ziat@uthatebo.sl
-            </td>
-            <td>
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                admin
-              </div>
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                kaco
-              </div>
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                ziuzzow
-              </div>
-            </td>
-            <td
-              style="text-transform: capitalize;"
+              ubip
+            </div>
+          </td>
+          <td
+            style="text-transform: capitalize;"
+          >
+            oidc
+          </td>
+          <td
+            align="right"
+          />
+        </tr>
+        <tr>
+          <td>
+            pamkad@ukgir.ki
+          </td>
+          <td>
+            <div
+              class="c14"
+              kind="secondary"
             >
-              github
-            </td>
-            <td
-              align="right"
-            />
-          </tr>
-        </tbody>
-      </table>
-    </div>
+              valvapel
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              vedkonm
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              vuit
+            </div>
+          </td>
+          <td
+            style="text-transform: capitalize;"
+          >
+            saml
+          </td>
+          <td
+            align="right"
+          />
+        </tr>
+        <tr>
+          <td>
+            ziat@uthatebo.sl
+          </td>
+          <td>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              admin
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              kaco
+            </div>
+            <div
+              class="c14"
+              kind="secondary"
+            >
+              ziuzzow
+            </div>
+          </td>
+          <td
+            style="text-transform: capitalize;"
+          >
+            github
+          </td>
+          <td
+            align="right"
+          />
+        </tr>
+      </tbody>
+    </table>
   </div>
 </div>
 `;
