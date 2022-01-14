@@ -20,14 +20,15 @@ import (
 	"context"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -45,6 +46,7 @@ func setup() (*WindowsService, *tlsca.Identity, *libevents.MockEmitter) {
 			Heartbeat: HeartbeatConfig{
 				HostUUID: "test-host-id",
 			},
+			Clock: clockwork.NewFakeClockAt(time.Now()),
 		},
 	}
 
@@ -79,6 +81,7 @@ func TestSessionStartEvent(t *testing.T) {
 			ClusterName: s.clusterName,
 			Type:        libevents.WindowsDesktopSessionStartEvent,
 			Code:        libevents.DesktopSessionStartCode,
+			Time:        s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		},
 		UserMetadata: events.UserMetadata{
 			User:         id.Username,
@@ -130,6 +133,7 @@ func TestSessionStartEvent(t *testing.T) {
 			s.onSessionStart(
 				context.Background(),
 				id,
+				s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 				"Administrator",
 				"sessionID",
 				desktop,
@@ -142,9 +146,7 @@ func TestSessionStartEvent(t *testing.T) {
 			startEvent, ok := event.(*events.WindowsDesktopSessionStart)
 			require.True(t, ok)
 
-			require.Empty(t, cmp.Diff(test.exp(), *startEvent,
-				cmpopts.IgnoreFields(events.Metadata{}, "Time"),
-			))
+			require.Empty(t, cmp.Diff(test.exp(), *startEvent))
 		})
 	}
 }
@@ -165,9 +167,15 @@ func TestSessionEndEvent(t *testing.T) {
 		},
 	}
 
+	c := clockwork.NewFakeClockAt(time.Now())
+	s.cfg.Clock = c
+	startTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
+	c.Advance(30 * time.Second)
+
 	s.onSessionEnd(
 		context.Background(),
 		id,
+		startTime,
 		"Administrator",
 		"sessionID",
 		desktop,
@@ -187,6 +195,7 @@ func TestSessionEndEvent(t *testing.T) {
 		UserMetadata: events.UserMetadata{
 			User:         id.Username,
 			Impersonator: id.Impersonator,
+			Login:        "Administrator",
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: "sessionID",
@@ -197,6 +206,9 @@ func TestSessionEndEvent(t *testing.T) {
 		Domain:                desktop.GetDomain(),
 		WindowsUser:           "Administrator",
 		DesktopLabels:         map[string]string{"env": "production"},
+		StartTime:             startTime,
+		EndTime:               c.Now().UTC().Round(time.Millisecond),
+		DesktopName:           desktop.GetName(),
 	}
 	require.Empty(t, cmp.Diff(expected, endEvent))
 }
