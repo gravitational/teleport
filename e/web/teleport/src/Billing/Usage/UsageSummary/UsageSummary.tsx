@@ -1,11 +1,10 @@
 import React from 'react';
 import styled from 'styled-components';
 import { Box, Text } from 'design';
-import { Cell, Column, TextCell, Table } from 'design/DataTable';
+import Table from 'design/DataTableNext';
 import { MonthlyItem } from '../useUsage';
 
 export default function UsageSummary({ items, mt = 0 }: Props) {
-  const tableProps = { data: items };
   return (
     <Box maxWidth="900px" mt={mt}>
       <Box
@@ -19,25 +18,64 @@ export default function UsageSummary({ items, mt = 0 }: Props) {
           Usage Summary
         </Text>
       </Box>
-      <StyledTable {...tableProps}>
-        <Column
-          columnKey="resource"
-          cell={<TextCell />}
-          header={<Cell>SERVICES</Cell>}
-        />
-        <Column columnKey="jan" cell={<TextCell />} header={<Cell>JAN</Cell>} />
-        <Column columnKey="feb" cell={<TextCell />} header={<Cell>FEB</Cell>} />
-        <Column columnKey="mar" cell={<TextCell />} header={<Cell>MAR</Cell>} />
-        <Column columnKey="apr" cell={<TextCell />} header={<Cell>APR</Cell>} />
-        <Column columnKey="may" cell={<TextCell />} header={<Cell>MAY</Cell>} />
-        <Column columnKey="jun" cell={<TextCell />} header={<Cell>JUN</Cell>} />
-        <Column columnKey="jul" cell={<TextCell />} header={<Cell>JUL</Cell>} />
-        <Column columnKey="aug" cell={<TextCell />} header={<Cell>AUG</Cell>} />
-        <Column columnKey="sep" cell={<TextCell />} header={<Cell>SEP</Cell>} />
-        <Column columnKey="oct" cell={<TextCell />} header={<Cell>OCT</Cell>} />
-        <Column columnKey="nov" cell={<TextCell />} header={<Cell>NOV</Cell>} />
-        <Column columnKey="dec" cell={<TextCell />} header={<Cell>DEC</Cell>} />
-      </StyledTable>
+      <StyledTable
+        data={items}
+        columns={[
+          {
+            key: 'resource',
+            headerText: 'SERVICES',
+          },
+          {
+            key: 'jan',
+            headerText: 'JAN',
+          },
+          {
+            key: 'feb',
+            headerText: 'FEB',
+          },
+          {
+            key: 'mar',
+            headerText: 'MAR',
+          },
+          {
+            key: 'apr',
+            headerText: 'APR',
+          },
+          {
+            key: 'may',
+            headerText: 'MAY',
+          },
+          {
+            key: 'jun',
+            headerText: 'JUN',
+          },
+          {
+            key: 'jul',
+            headerText: 'JUL',
+          },
+          {
+            key: 'aug',
+            headerText: 'AUG',
+          },
+          {
+            key: 'sep',
+            headerText: 'SEP',
+          },
+          {
+            key: 'oct',
+            headerText: 'OCT',
+          },
+          {
+            key: 'nov',
+            headerText: 'NOV',
+          },
+          {
+            key: 'dec',
+            headerText: 'DEC',
+          },
+        ]}
+        emptyText="No Usage Data Found"
+      />
     </Box>
   );
 }
@@ -57,7 +95,7 @@ const StyledTable = styled(Table)`
       text-align: left;
     }
   }
-`;
+` as typeof Table;
 
 type Props = {
   items: MonthlyItem[];
