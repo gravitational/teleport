@@ -15,43 +15,52 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Cell, Column } from 'design/DataTable';
-import Table from 'design/DataTable/Paged';
+import Table, { Cell } from 'design/DataTableNext';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { State as ResourceState } from 'teleport/components/useResources';
 import { State as RolesState } from '../useRoles';
 
-export default function RoleList({ items, onEdit, onDelete }: Props) {
-  items = items || [];
-  const tableProps = { pageSize: 20, data: items };
+export default function RoleList({
+  items = [],
+  pageSize = 20,
+  onEdit,
+  onDelete,
+}: Props) {
   return (
-    <Table {...tableProps}>
-      <Column header={<Cell>Name</Cell>} cell={<RoleNameCell />} />
-      <Column
-        header={<Cell />}
-        cell={<ActionCell onEdit={onEdit} onDelete={onDelete} />}
-      />
-    </Table>
+    <Table
+      data={items}
+      columns={[
+        {
+          key: 'name',
+          headerText: 'Name',
+        },
+        {
+          altKey: 'options-btn',
+          render: ({ id }) => (
+            <ActionCell id={id} onEdit={onEdit} onDelete={onDelete} />
+          ),
+        },
+      ]}
+      emptyText="No Roles Found"
+      pagination={{ pageSize }}
+    />
   );
 }
 
-const RoleNameCell = props => {
-  const { rowIndex, data } = props;
-  const { name } = data[rowIndex];
-  return <Cell>{name}</Cell>;
-};
-
-const ActionCell = props => {
-  const { rowIndex, onEdit, onDelete, data } = props;
-  const { id, owner } = data[rowIndex];
-
+const ActionCell = ({
+  id,
+  onEdit,
+  onDelete,
+}: {
+  id: string;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
+}) => {
   return (
     <Cell align="right">
       <MenuButton>
         <MenuItem onClick={() => onEdit(id)}>Edit...</MenuItem>
-        <MenuItem disabled={owner} onClick={() => onDelete(id)}>
-          Delete...
-        </MenuItem>
+        <MenuItem onClick={() => onDelete(id)}>Delete...</MenuItem>
       </MenuButton>
     </Cell>
   );
@@ -61,4 +70,5 @@ type Props = {
   items: RolesState['items'];
   onEdit: ResourceState['edit'];
   onDelete: ResourceState['remove'];
+  pageSize?: number;
 };
