@@ -19,7 +19,7 @@ import Table, { Cell } from 'design/DataTableNext';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import cfg from 'teleport/config';
 import { Session } from 'teleport/services/ssh';
-import DescCell from './DescCell';
+import renderDescCell from './DescCell';
 
 export default function SessionList(props: Props) {
   const { sessions, pageSize = 100 } = props;
@@ -31,14 +31,7 @@ export default function SessionList(props: Props) {
         {
           altKey: 'description',
           headerText: 'Description',
-          render: ({ login, sid, clusterId, hostname }) => (
-            <DescCell
-              login={login}
-              hostname={hostname}
-              sid={sid}
-              clusterId={clusterId}
-            />
-          ),
+          render: renderDescCell,
         },
         {
           key: 'sid',
@@ -47,14 +40,12 @@ export default function SessionList(props: Props) {
         {
           altKey: 'users',
           headerText: 'Users',
-          render: ({ parties }) => <UsersCell parties={parties} />,
+          render: renderUsersCell,
         },
         {
           altKey: 'node',
           headerText: 'Node',
-          render: ({ hostname, addr }) => (
-            <NodeCell hostname={hostname} addr={addr} />
-          ),
+          render: renderNodeCell,
         },
         {
           key: 'durationText',
@@ -62,9 +53,7 @@ export default function SessionList(props: Props) {
         },
         {
           altKey: 'options-btn',
-          render: ({ sid, clusterId }) => (
-            <ActionCell sid={sid} clusterId={clusterId} />
-          ),
+          render: renderActionCell,
         },
       ]}
       emptyText="No Active Sessions Found"
@@ -74,7 +63,7 @@ export default function SessionList(props: Props) {
   );
 }
 
-function ActionCell({ sid, clusterId }: Pick<Session, 'sid' | 'clusterId'>) {
+function renderActionCell({ sid, clusterId }: Session) {
   const url = cfg.getSshSessionRoute({ sid, clusterId });
 
   return (
@@ -88,7 +77,7 @@ function ActionCell({ sid, clusterId }: Pick<Session, 'sid' | 'clusterId'>) {
   );
 }
 
-function NodeCell({ hostname, addr }: Pick<Session, 'hostname' | 'addr'>) {
+function renderNodeCell({ hostname, addr }: Session) {
   const nodeAddr = addr ? `[${addr}]` : '';
 
   return (
@@ -98,7 +87,7 @@ function NodeCell({ hostname, addr }: Pick<Session, 'hostname' | 'addr'>) {
   );
 }
 
-function UsersCell({ parties }: Pick<Session, 'parties'>) {
+function renderUsersCell({ parties }: Session) {
   const users = parties
     .map(({ user, remoteAddr }) => `${user} [${remoteAddr}]`)
     .join(', ');

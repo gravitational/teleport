@@ -105,13 +105,7 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.PRIVILEGE_TOKEN_CREATED]: Icons.Info,
 };
 
-export default function TypeCell({
-  event,
-  clusterId,
-}: {
-  event: Event;
-  clusterId: string;
-}) {
+export default function renderTypeCell(event: Event, clusterId: string) {
   const IconType = EventIconMap[event.code] || Icons.List;
 
   const iconProps = {

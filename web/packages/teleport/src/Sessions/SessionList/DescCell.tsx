@@ -21,12 +21,12 @@ import { Session } from 'teleport/services/ssh';
 import * as Icons from 'design/Icon/Icon';
 import cfg from 'teleport/config';
 
-export default function DescCell({
+export default function renderDescCell({
   sid,
   login,
   hostname,
   clusterId,
-}: Pick<Session, 'sid' | 'login' | 'hostname' | 'clusterId'>) {
+}: Session) {
   const url = cfg.getSshSessionRoute({ sid, clusterId });
   const theme = useTheme();
   const text = `Session is in progress [${login}@${hostname}]`;

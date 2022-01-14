@@ -43,12 +43,7 @@ function KubeList(props: Props) {
           },
           {
             altKey: 'connect-btn',
-            render: ({ name }) => (
-              <ConnectButtonCell
-                name={name}
-                setKubeConnectName={setKubeConnectName}
-              />
-            ),
+            render: kube => renderConnectButtonCell(kube, setKubeConnectName),
           },
         ]}
         isSearchable
@@ -67,13 +62,10 @@ function KubeList(props: Props) {
   );
 }
 
-export const ConnectButtonCell = ({
-  name,
-  setKubeConnectName,
-}: {
-  name: string;
-  setKubeConnectName: React.Dispatch<React.SetStateAction<string>>;
-}) => {
+export const renderConnectButtonCell = (
+  { name }: Kube,
+  setKubeConnectName: React.Dispatch<React.SetStateAction<string>>
+) => {
   return (
     <Cell align="right">
       <ButtonBorder size="small" onClick={() => setKubeConnectName(name)}>

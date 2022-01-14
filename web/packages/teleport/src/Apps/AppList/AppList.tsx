@@ -43,9 +43,7 @@ export default function AppList(props: Props) {
       columns={[
         {
           altKey: 'app-icon',
-          render: ({ name, awsConsole }) => (
-            <AppIconCell name={name} awsConsole={awsConsole} />
-          ),
+          render: renderAppIcon,
         },
         {
           key: 'name',
@@ -60,7 +58,7 @@ export default function AppList(props: Props) {
         {
           key: 'publicAddr',
           headerText: 'Address',
-          render: ({ publicAddr }) => <AddressCell publicAddr={publicAddr} />,
+          render: renderAddressCell,
           isSortable: true,
         },
         {
@@ -70,7 +68,7 @@ export default function AppList(props: Props) {
         },
         {
           altKey: 'launch-btn',
-          render: ({ ...data }) => <LaunchButtonCell {...data} />,
+          render: renderLaunchButtonCell,
         },
       ]}
       emptyText="No Applications Found"
@@ -82,11 +80,11 @@ export default function AppList(props: Props) {
   );
 }
 
-function AddressCell({ publicAddr }: Partial<App>) {
+function renderAddressCell({ publicAddr }: App) {
   return <Cell>https://{publicAddr}</Cell>;
 }
 
-function AppIconCell({ name, awsConsole }: Partial<App>) {
+function renderAppIcon({ name, awsConsole }: App) {
   return (
     <Cell style={{ userSelect: 'none' }}>
       <Flex
@@ -109,14 +107,14 @@ function AppIconCell({ name, awsConsole }: Partial<App>) {
   );
 }
 
-function LaunchButtonCell({
+function renderLaunchButtonCell({
   launchUrl,
   awsConsole,
   awsRoles,
   fqdn,
   clusterId,
   publicAddr,
-}: Partial<App>) {
+}: App) {
   const $btn = awsConsole ? (
     <AwsLaunchButton
       awsRoles={awsRoles}

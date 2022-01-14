@@ -21,7 +21,7 @@ import { displayDateTime } from 'shared/services/loc';
 import { Event } from 'teleport/services/audit';
 import { State } from '../useAuditEvents';
 import EventDialog from '../EventDialog';
-import TypeCell from './EventTypeCell';
+import renderTypeCell from './EventTypeCell';
 
 export default function EventList(props: Props) {
   const {
@@ -42,24 +42,22 @@ export default function EventList(props: Props) {
             key: 'codeDesc',
             headerText: 'Type',
             isSortable: true,
-            render: event => <TypeCell event={event} clusterId={clusterId} />,
+            render: event => renderTypeCell(event, clusterId),
           },
           {
             key: 'message',
             headerText: 'Description',
-            render: ({ message }) => <DescCell message={message} />,
+            render: renderDescCell,
           },
           {
             key: 'time',
             headerText: 'Created',
             isSortable: true,
-            render: ({ time }) => <TimeCell time={time} />,
+            render: renderTimeCell,
           },
           {
             altKey: 'show-details-btn',
-            render: event => (
-              <ActionCell event={event} onShowDetails={setDetailsToShow} />
-            ),
+            render: event => renderActionCell(event, setDetailsToShow),
           },
         ]}
         emptyText={'No Events Found'}
@@ -81,13 +79,10 @@ export default function EventList(props: Props) {
   );
 }
 
-export const ActionCell = ({
-  event,
-  onShowDetails,
-}: {
-  event: Event;
-  onShowDetails: (e: Event) => void;
-}) => (
+export const renderActionCell = (
+  event: Event,
+  onShowDetails: (e: Event) => void
+) => (
   <Cell align="right">
     <ButtonBorder
       size="small"
@@ -99,11 +94,11 @@ export const ActionCell = ({
   </Cell>
 );
 
-export const TimeCell = ({ time }: Pick<Event, 'time'>) => (
+export const renderTimeCell = ({ time }: Event) => (
   <Cell style={{ minWidth: '120px' }}>{displayDateTime(time)}</Cell>
 );
 
-export function DescCell({ message }: Pick<Event, 'message'>) {
+export function renderDescCell({ message }: Event) {
   return <Cell style={{ wordBreak: 'break-word' }}>{message}</Cell>;
 }
 

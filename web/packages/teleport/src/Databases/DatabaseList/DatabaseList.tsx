@@ -62,13 +62,7 @@ function DatabaseList(props: Props) {
           },
           {
             altKey: 'connect-btn',
-            render: ({ name, protocol }) => (
-              <ConnectButton
-                name={name}
-                protocol={protocol}
-                setDbConnectInfo={setDbConnectInfo}
-              />
-            ),
+            render: database => renderConnectButton(database, setDbConnectInfo),
           },
         ]}
         pagination={{ pageSize }}
@@ -89,18 +83,15 @@ function DatabaseList(props: Props) {
   );
 }
 
-function ConnectButton({
-  name,
-  protocol,
-  setDbConnectInfo,
-}: Partial<Database> & {
+function renderConnectButton(
+  { name, protocol }: Database,
   setDbConnectInfo: React.Dispatch<
     React.SetStateAction<{
       name: string;
       protocol: DbProtocol;
     }>
-  >;
-}) {
+  >
+) {
   return (
     <Cell align="right">
       <ButtonBorder

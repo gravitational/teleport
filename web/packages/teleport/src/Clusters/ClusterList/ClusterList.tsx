@@ -32,7 +32,7 @@ export default function ClustersList(props: Props) {
       columns={[
         {
           altKey: 'root-label',
-          render: ({ clusterId }) => <RootLabelCell clusterId={clusterId} />,
+          render: renderRootLabelCell,
         },
         {
           key: 'clusterId',
@@ -41,9 +41,7 @@ export default function ClustersList(props: Props) {
         },
         {
           altKey: 'menu-btn',
-          render: ({ clusterId }) => (
-            <ActionCell flags={menuFlags} clusterId={clusterId} />
-          ),
+          render: cluster => renderActionCell(cluster, menuFlags),
         },
       ]}
       emptyText="No Clusters Found"
@@ -56,20 +54,14 @@ export default function ClustersList(props: Props) {
   );
 }
 
-function RootLabelCell({ clusterId }: { clusterId: string }) {
+function renderRootLabelCell({ clusterId }: Cluster) {
   const isRoot = cfg.proxyCluster === clusterId;
   return (
     <Cell style={{ width: '40px' }}>{isRoot && <Primary>ROOT</Primary>}</Cell>
   );
 }
 
-function ActionCell({
-  flags,
-  clusterId,
-}: {
-  flags: MenuFlags;
-  clusterId: string;
-}) {
+function renderActionCell({ clusterId }: Cluster, flags: MenuFlags) {
   const $items = [] as React.ReactNode[];
 
   if (flags.showNodes) {

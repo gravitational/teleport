@@ -57,13 +57,8 @@ function DesktopList(props: Props) {
         },
         {
           altKey: 'login-cell',
-          render: ({ name }) => (
-            <LoginCell
-              desktopName={name}
-              onOpen={onLoginMenuOpen}
-              onSelect={onDesktopSelect}
-            />
-          ),
+          render: desktop =>
+            renderLoginCell(desktop, onLoginMenuOpen, onDesktopSelect),
         },
       ]}
       pagination={{
@@ -79,22 +74,17 @@ function DesktopList(props: Props) {
   );
 }
 
-// TODO(isaiah): may be able to be abstracted out from here/NodeList.tsx
-function LoginCell({
-  desktopName,
-  onOpen,
-  onSelect,
-}: {
-  desktopName: string;
-  onOpen: (serverUuid: string) => LoginItem[];
+function renderLoginCell(
+  { name }: Desktop,
+  onOpen: (serverUuid: string) => LoginItem[],
   onSelect: (
     e: React.SyntheticEvent,
     username: string,
     desktopName: string
-  ) => void;
-}) {
+  ) => void
+) {
   function handleOnOpen() {
-    return onOpen(desktopName);
+    return onOpen(name);
   }
 
   function handleOnSelect(e: React.SyntheticEvent, login: string) {
@@ -102,7 +92,7 @@ function LoginCell({
       return [];
     }
 
-    return onSelect(e, login, desktopName);
+    return onSelect(e, login, name);
   }
 
   return (
