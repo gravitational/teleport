@@ -675,6 +675,65 @@ func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
 	}
 }
 
+func TestCAFiltering(t *testing.T) {
+	ctx := context.Background()
+
+	p, err := newPack(t.TempDir(), ForAuth, memoryBackend(true))
+	require.NoError(t, err)
+	defer p.Close()
+
+	mkWatcher := func(wctx context.Context) services.Watcher {
+		w, err := p.cache.NewWatcher(wctx, services.Watch{Kinds: []services.WatchKind{
+			{
+				Kind: services.KindCertAuthority,
+			},
+		}})
+		require.NoError(t, err)
+
+		select {
+		case e := <-w.Events():
+			if e.Type != types.OpInit {
+				panic("non-init event")
+			}
+		case <-w.Done():
+			panic("watcher exited early")
+		}
+
+		return w
+	}
+
+	nodeCtx := context.WithValue(ctx, "watch-component", "node")
+
+	nodeWatcher := mkWatcher(nodeCtx)
+
+	normalWatcher := mkWatcher(ctx)
+
+	rcName := "leaf.example.com"
+
+	rc, err := services.NewRemoteCluster(rcName)
+	require.NoError(t, err)
+	require.NoError(t, p.presenceS.CreateRemoteCluster(rc))
+
+	remoteCA := suite.NewTestCA(services.HostCA, rcName)
+	require.NoError(t, p.trustS.UpsertCertAuthority(remoteCA))
+
+	select {
+	case e := <-normalWatcher.Events():
+		_, ok := e.Resource.(types.CertAuthority)
+		require.True(t, ok)
+	case <-normalWatcher.Done():
+		panic("normal watcher exited")
+	}
+
+	select {
+	case <-nodeWatcher.Events():
+		panic("unexpected event!")
+	case <-nodeWatcher.Done():
+		panic("normal watcher exited")
+	case <-time.After(time.Second):
+	}
+}
+
 // TestListNodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
 // using ttl-based caching works as expected.
 func TestListNodesTTLVariant(t *testing.T) {
