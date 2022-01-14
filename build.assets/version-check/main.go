@@ -98,7 +98,7 @@ func checkLatest(ctx context.Context, tag string, gh github) error {
 }
 
 func checkPrerelease(tag string) error {
-	if strings.Contains(tag, "-") { // https://semver.org/#spec-item-9
+	if semver.Prerelease(tag) != "" { // https://semver.org/#spec-item-9
 		return trace.BadParameter("version is pre-release: %v", tag)
 	}
 	if strings.Contains(tag, "+") { // https://semver.org/#spec-item-10
