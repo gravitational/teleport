@@ -32,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -52,7 +53,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/pborman/uuid"
 
 	"github.com/gravitational/oxy/forward"
 	fwdutils "github.com/gravitational/oxy/utils"
@@ -815,7 +815,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				Type:        events.SessionStartEvent,
 				Code:        events.SessionStartCode,
 				ClusterName: f.cfg.ClusterName,
-				ID:          uuid.New(),
+				ID:          uuid.New().String(),
 			},
 			ServerMetadata: apievents.ServerMetadata{
 				ServerID:        f.cfg.ServerID,
