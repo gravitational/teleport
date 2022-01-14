@@ -8,6 +8,7 @@ export default function useTable<T>({
   data,
   columns,
   pagination,
+  showFirst,
   ...props
 }: TableProps<T>) {
   const [state, setState] = useState(() => {
@@ -42,7 +43,8 @@ export default function useTable<T>({
       data,
       searchValue,
       sort,
-      columns.map(column => column.key)
+      columns.map(column => column.key),
+      showFirst
     );
 
     if (pagination) {
@@ -122,7 +124,8 @@ function sortAndFilter<T>(
   data: T[] = [],
   searchValue = '',
   sort: State<T>['state']['sort'],
-  columnKeys: string[]
+  columnKeys: string[],
+  showFirst?: TableProps<T>['showFirst']
 ) {
   const output = data.filter(obj =>
     isMatch(obj, searchValue, {
@@ -149,6 +152,15 @@ function sortAndFilter<T>(
 
     if (sort.dir === 'DESC') {
       output.reverse();
+    }
+  }
+
+  if (showFirst) {
+    const index = output.indexOf(showFirst(data));
+    if (index !== -1) {
+      const item = output[index];
+      output.splice(index, 1);
+      output.unshift(item);
     }
   }
 

@@ -6,6 +6,7 @@ export type TableProps<T> = {
   isSearchable?: boolean;
   initialSort?: InitialSort<T>;
   fetching?: FetchingConfig;
+  showFirst?: (data: T[]) => T;
 };
 
 type TableColumnBase<T> = {

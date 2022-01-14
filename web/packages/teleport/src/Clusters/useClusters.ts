@@ -20,7 +20,6 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import * as Features from 'teleport/features';
 
 export default function useClusters(ctx: Ctx) {
-  const [searchValue, setSearchValue] = useState('');
   const [clusters, setClusters] = useState([]);
   const { attempt, run } = useAttempt();
 
@@ -38,8 +37,6 @@ export default function useClusters(ctx: Ctx) {
     init,
     initAttempt: attempt,
     clusters,
-    searchValue,
-    setSearchValue,
     enabledFeatures,
   };
 }

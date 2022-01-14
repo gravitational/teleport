@@ -33,13 +33,7 @@ export default function Container() {
 }
 
 export function Clusters(props: ReturnType<typeof useClusters>) {
-  const {
-    clusters,
-    enabledFeatures,
-    searchValue,
-    setSearchValue,
-    initAttempt,
-  } = props;
+  const { clusters, enabledFeatures, initAttempt } = props;
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
@@ -56,8 +50,6 @@ export function Clusters(props: ReturnType<typeof useClusters>) {
       {initAttempt.status === 'success' && (
         <ClusterList
           clusters={clusters}
-          search={searchValue}
-          onSearchChange={setSearchValue}
           menuFlags={{
             showNodes: enabledFeatures.nodes,
             showAudit: enabledFeatures.audit,
