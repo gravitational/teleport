@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
-import { sortBy } from 'lodash';
 import {
   Text,
   Label,
@@ -12,9 +11,7 @@ import {
   Alert,
   Indicator,
 } from 'design';
-import { Cell, Column, SortHeaderCell, SortTypes } from 'design/DataTable';
-import PagedTable from 'design/DataTable/Paged';
-import isMatch from 'design/utils/match';
+import Table, { Cell } from 'design/DataTableNext';
 import useTeleportE from 'e-teleport/useTeleportE';
 import useRequestList, { State, Row } from './useRequestList';
 import cfg from 'e-teleport/config';
@@ -25,60 +22,18 @@ export default function Container() {
   return <RequestList {...state} />;
 }
 
-export function RequestList({ attempt, requests, assumeRole }: State) {
+export function RequestList({ attempt, requests = [], assumeRole }: State) {
   // Delaying indicator is default behavior.
   // This flag is used to show indicator immedidately after
   // user clicks "assume" button, which removes the awkward blank
   // moment where nothing seems to be happening for
   // the duration of the default delay moment.
   const [delayIndicator, setDelayIndicator] = useState(true);
-  const [searchValue, setSearchValue] = useState('');
-  const [sort, setSort] = useState<Record<string, string>>({
-    key: 'created',
-    dir: SortTypes.DESC,
-  });
-
-  function onSortChange(key: string, dir: string) {
-    setSort({ key, dir });
-  }
-
-  function onSearchChange(value: string) {
-    setSearchValue(value);
-  }
-
-  function sortAndFilter(searchValue: string) {
-    const searchableProps = [
-      'user',
-      'roles',
-      'requestReason',
-      'createdDuration',
-      'state',
-    ];
-    const filtered = requests.filter(req =>
-      isMatch(req, searchValue, { searchableProps, cb: null })
-    );
-
-    // Apply sorting to filtered list.
-    const sorted = sortBy(filtered, sort.key);
-    if (sort.dir === SortTypes.DESC) {
-      return sorted.reverse();
-    }
-
-    return sorted;
-  }
 
   function onAssumeRole(request: Row) {
     setDelayIndicator(false);
     assumeRole(request);
   }
-
-  const data = requests ? sortAndFilter(searchValue) : [];
-  const tableProps = {
-    pageSize: 20,
-    data,
-    search: searchValue,
-    onSearchChange,
-  };
 
   return (
     <>
@@ -91,78 +46,55 @@ export function RequestList({ attempt, requests, assumeRole }: State) {
         <Alert kind="danger" children={attempt.statusText} />
       )}
       {attempt.status === 'success' && (
-        <>
-          <StyledTable {...tableProps}>
-            <Column
-              columnKey="state"
-              cell={<StatusCell />}
-              header={
-                <SortHeaderCell
-                  sortDir={sort.key === 'state' ? sort.dir : null}
-                  onSortChange={onSortChange}
-                  title="Status"
-                />
-              }
-            />
-            <Column
-              columnKey="user"
-              cell={<UserCell />}
-              header={
-                <SortHeaderCell
-                  sortDir={sort.key === 'user' ? sort.dir : null}
-                  onSortChange={onSortChange}
-                  title="User"
-                />
-              }
-            />
-            <Column
-              columnKey="roles"
-              cell={<RolesCell />}
-              header={
-                <SortHeaderCell
-                  sortDir={sort.key === 'roles' ? sort.dir : null}
-                  onSortChange={onSortChange}
-                  title="Roles"
-                />
-              }
-            />
-            <Column
-              columnKey="requestReason"
-              cell={<ReasonCell />}
-              header={
-                <SortHeaderCell
-                  sortDir={sort.key === 'requestReason' ? sort.dir : null}
-                  onSortChange={onSortChange}
-                  title="Request Reason"
-                />
-              }
-            />
-            <Column
-              columnKey="created"
-              cell={<CreatedCell />}
-              header={
-                <SortHeaderCell
-                  sortDir={sort.key === 'created' ? sort.dir : null}
-                  onSortChange={onSortChange}
-                  title="Created"
-                />
-              }
-            />
-            <Column
-              header={<Cell />}
-              cell={<ActionCell assumeRole={onAssumeRole} />}
-            />
-          </StyledTable>
-        </>
+        <StyledTable
+          data={requests}
+          columns={[
+            {
+              key: 'state',
+              headerText: 'Status',
+              isSortable: true,
+              render: renderStatusCell,
+            },
+            {
+              key: 'user',
+              headerText: 'User',
+              isSortable: true,
+              render: renderUserCell,
+            },
+            {
+              key: 'roles',
+              headerText: 'Roles',
+              render: ({ roles }) => <RolesCell roles={roles} />,
+              isSortable: true,
+            },
+            {
+              key: 'requestReason',
+              headerText: 'Request Reason',
+              isSortable: true,
+              render: renderReasonCell,
+            },
+            {
+              key: 'created',
+              headerText: 'Created',
+              isSortable: true,
+              render: ({ createdDuration }) => <Cell>{createdDuration}</Cell>,
+            },
+            {
+              altKey: 'view-btn',
+              render: request => renderActionCell(request as Row, onAssumeRole),
+            },
+          ]}
+          emptyText="No Requests Found"
+          isSearchable
+          pagination={{ pageSize: 20 }}
+          initialSort={{ key: 'created', dir: 'DESC' }}
+        />
       )}
     </>
   );
 }
 
-const UserCell = props => {
-  const { rowIndex, data } = props;
-  const { user } = data[rowIndex] as Row;
-
+const renderUserCell = ({ user }: Row) => {
   return (
     <Cell
       style={{
@@ -178,10 +110,7 @@ const UserCell = props => {
   );
 };
 
-const ReasonCell = props => {
-  const { rowIndex, data } = props;
-  const { requestReason } = data[rowIndex] as Row;
-
+const renderReasonCell = ({ requestReason }: Row) => {
   return (
     <Cell
       style={{
@@ -197,16 +126,7 @@ const ReasonCell = props => {
   );
 };
 
-const CreatedCell = props => {
-  const { rowIndex, data } = props;
-  const { createdDuration } = data[rowIndex] as Row;
-  return <Cell>{createdDuration}</Cell>;
-};
-
-const StatusCell = props => {
-  const { rowIndex, data } = props;
-  const { state } = data[rowIndex] as Row;
-
+const renderStatusCell = ({ state }: Row) => {
   let kind = 'warning';
   if (state === 'APPROVED') {
     kind = 'success';
@@ -228,10 +148,7 @@ const StatusCell = props => {
   );
 };
 
-const ActionCell = props => {
-  const { rowIndex, data, assumeRole } = props;
-  const request = data[rowIndex] as Row;
-
+const renderActionCell = (request: Row, assumeRole: (request: Row) => void) => {
   return (
     <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
       {request.canAssume && (
@@ -256,9 +173,7 @@ const ActionCell = props => {
   );
 };
 
-const RolesCell = props => {
-  const { rowIndex, data } = props;
-  const { roles } = data[rowIndex] as Row;
+const RolesCell = ({ roles }: Pick<Row, 'roles'>) => {
   const $roles = roles.sort().map(role => (
     <Label mb="0" mr="1" key={role} kind="secondary">
       {role}
@@ -268,8 +183,8 @@ const RolesCell = props => {
   return <Cell>{$roles}</Cell>;
 };
 
-const StyledTable = styled(PagedTable)`
+const StyledTable = styled(Table)`
   tbody > tr > td {
     vertical-align: baseline;
   }
-`;
+` as typeof Table;

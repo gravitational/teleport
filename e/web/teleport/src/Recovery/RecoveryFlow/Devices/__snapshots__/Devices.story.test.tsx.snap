@@ -10,6 +10,52 @@ exports[`render device list 1`] = `
   box-sizing: border-box;
 }
 
+.c12 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 40px;
+  width: 100%;
+}
+
+.c12:active {
+  opacity: 0.56;
+}
+
+.c12:hover,
+.c12:focus {
+  background: #651FFF;
+}
+
+.c12:active {
+  background: #354AA4;
+}
+
+.c12:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
 .c11 {
   line-height: 1.5;
   margin: 0;
@@ -54,52 +100,6 @@ exports[`render device list 1`] = `
 }
 
 .c11:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c12 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
-  margin-top: 40px;
-  width: 100%;
-}
-
-.c12:active {
-  opacity: 0.56;
-}
-
-.c12:hover,
-.c12:focus {
-  background: #651FFF;
-}
-
-.c12:active {
-  background: #354AA4;
-}
-
-.c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -196,6 +196,10 @@ exports[`render device list 1`] = `
   padding-right: 24px;
 }
 
+.c6 > tbody > tr > td {
+  vertical-align: baseline;
+}
+
 .c6 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;
@@ -286,7 +290,7 @@ exports[`render device list 1`] = `
               <a>
                 Registered
                 <span
-                  class="c8 c9 icon icon-chevron-up "
+                  class="c8 c9 icon icon-chevron-down "
                   color="light"
                 />
               </a>

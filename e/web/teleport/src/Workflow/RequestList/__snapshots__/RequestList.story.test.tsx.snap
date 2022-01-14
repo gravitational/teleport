@@ -227,6 +227,7 @@ exports[`loaded state 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
+  margin-right: 8px;
   color: #FFFFFF;
 }
 
@@ -241,12 +242,13 @@ exports[`loaded state 1`] = `
 
 .c2 {
   box-sizing: border-box;
+  width: 100%;
   display: flex;
+  justify-content: end;
 }
 
 .c3 {
   box-sizing: border-box;
-  margin-right: 8px;
   display: flex;
   align-items: center;
 }
@@ -259,8 +261,10 @@ exports[`loaded state 1`] = `
   border-radius: 8px;
   font-size: 12px;
   width: 100%;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .c8 > thead > tr > th,
@@ -289,6 +293,10 @@ exports[`loaded state 1`] = `
 .c8 > tbody > tr > td:last-child,
 .c8 > tfoot > tr > td:last-child {
   padding-right: 24px;
+}
+
+.c8 > tbody > tr > td {
+  vertical-align: baseline;
 }
 
 .c8 > thead > tr > th {
@@ -332,6 +340,43 @@ exports[`loaded state 1`] = `
   border-bottom-right-radius: 8px;
 }
 
+.c0 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c5 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c5 .c6 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c5:hover .c6,
+.c5:focus .c6 {
+  opacity: 1;
+}
+
+.c5:disabled {
+  cursor: default;
+}
+
+.c5:disabled .c6 {
+  opacity: 0.1;
+}
+
 .c1 {
   box-sizing: border-box;
   font-size: 12px;
@@ -340,21 +385,17 @@ exports[`loaded state 1`] = `
   border: none;
   border-radius: 200px;
   height: 32px;
-  transition: all 0.2s;
+  transition: all .2s;
+  color: rgba(255,255,255,0.87);
   background: #111B48;
-  margin-right: 16px;
   padding-left: 16px;
   padding-right: 16px;
-  color: rgba(255,255,255,0.87);
 }
 
-.c1:hover {
-  background: #2C3A73;
-}
-
+.c1:hover,
 .c1:focus,
 .c1:active {
-  background: #2C3A73;
+  background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
@@ -364,445 +405,393 @@ exports[`loaded state 1`] = `
   font-size: 12px;
 }
 
-.c5 {
-  box-sizing: border-box;
-  display: flex;
-}
-
-.c5 button {
-  background: none;
-  border: none;
-  border-radius: 200px;
-  cursor: pointer;
-  padding: 0;
-  margin: 0 0 0 8px;
-  outline: none;
-  transition: all 0.3s;
-  text-align: center;
-}
-
-.c5 button:hover,
-.c5 button:focus {
-  background: #1C254D;
-}
-
-.c5 button:hover .c6,
-.c5 button:focus .c6 {
-  opacity: 1;
-}
-
-.c5 button .c6 {
-  opacity: 0.4;
-  font-size: 20px;
-  transition: all 0.3s;
-}
-
-.c0 {
-  padding: 12px 16px;
-  display: flex;
-  height: 24px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: end;
-  background: #222C59;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  justify-content: space-between;
-}
-
 .c9 tbody > tr > td {
   vertical-align: baseline;
 }
 
 <div>
-  <div
-    style="min-width: min-content;"
+  <nav
+    class="c0"
   >
-    <nav
-      class="c0"
+    <input
+      class="c1"
+      placeholder="SEARCH..."
+      value=""
+    />
+    <div
+      class="c2"
+      width="100%"
     >
-      <input
-        class="c1"
-        color="text.primary"
-        placeholder="SEARCH..."
-        value=""
-      />
       <div
-        class="c2"
+        class="c3"
       >
         <div
-          class="c3"
+          class="c4"
+          color="primary.contrastText"
         >
-          <div
-            class="c4"
-            color="primary.contrastText"
-          >
-            SHOWING 
-            <strong>
-              1
-            </strong>
-             - 
-            <strong>
-              4
-            </strong>
-             
-            of 
-            <strong>
-              4
-            </strong>
-          </div>
+          SHOWING 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            4
+          </strong>
+           of
+           
+          <strong>
+            4
+          </strong>
         </div>
-        <div
+        <button
           class="c5"
+          disabled=""
+          title="Previous page"
+        >
+          <span
+            class="c6 c7 icon icon-arrow-left-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+        <button
+          class="c5"
+          disabled=""
+          title="Next page"
+        >
+          <span
+            class="c6 c7 icon icon-arrow-right-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+      </div>
+    </div>
+  </nav>
+  <table
+    class="c8 c9"
+  >
+    <thead>
+      <tr>
+        <th>
+          <a>
+            Status
+            <span
+              class="c6 c10 icon icon-chevrons-expand-vertical "
+              color="light"
+            />
+          </a>
+        </th>
+        <th>
+          <a>
+            User
+            <span
+              class="c6 c10 icon icon-chevrons-expand-vertical "
+              color="light"
+            />
+          </a>
+        </th>
+        <th>
+          <a>
+            Roles
+            <span
+              class="c6 c10 icon icon-chevrons-expand-vertical "
+              color="light"
+            />
+          </a>
+        </th>
+        <th>
+          <a>
+            Request Reason
+            <span
+              class="c6 c10 icon icon-chevrons-expand-vertical "
+              color="light"
+            />
+          </a>
+        </th>
+        <th>
+          <a>
+            Created
+            <span
+              class="c6 c10 icon icon-chevron-down "
+              color="light"
+            />
+          </a>
+        </th>
+        <th />
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td
+          style="display: flex; align-items: center;"
+        >
+          <span
+            class="c11"
+            color="light"
+            font-size="0"
+            font-weight="bold"
+            kind="warning"
+            style="min-height: 10px;"
+            width="10px"
+          />
+          <div
+            class="c12"
+          >
+            PENDING
+          </div>
+        </td>
+        <td
+          style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          title="Sam"
+        >
+          Sam
+        </td>
+        <td>
+          <div
+            class="c13"
+            kind="secondary"
+          >
+            admin
+          </div>
+        </td>
+        <td
+          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          title="Testing long message format. I am requesting access for the developer role that i will be using to     commit fixes for our production application. I will need access for the     rest of the day to complete my changes."
+        >
+          Testing long message format. I am requesting access for the developer role that i will be using to     commit fixes for our production application. I will need access for the     rest of the day to complete my changes.
+        </td>
+        <td>
+          1 minute ago
+        </td>
+        <td
+          align="right"
+          style="white-space: nowrap;"
+        >
+          <a
+            class="c14"
+            href="/web/requests/461ff4bb-62f1-53b5-84ae-731022261a12"
+            kind="border"
+            ml="3"
+            theme="[object Object]"
+          >
+            View
+          </a>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="display: flex; align-items: center;"
+        >
+          <span
+            class="c15"
+            color="light"
+            font-size="0"
+            font-weight="bold"
+            kind="danger"
+            style="min-height: 10px;"
+            width="10px"
+          />
+          <div
+            class="c12"
+          >
+            DENIED
+          </div>
+        </td>
+        <td
+          style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          title="Sam"
+        >
+          Sam
+        </td>
+        <td>
+          <div
+            class="c13"
+            kind="secondary"
+          >
+            admin
+          </div>
+          <div
+            class="c13"
+            kind="secondary"
+          >
+            ruhh
+          </div>
+        </td>
+        <td
+          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          title="Some short request reason"
+        >
+          Some short request reason
+        </td>
+        <td>
+          35 minutes ago
+        </td>
+        <td
+          align="right"
+          style="white-space: nowrap;"
+        >
+          <a
+            class="c14"
+            href="/web/requests/3ce23da9-6b85-5fce-9bf3-5fb826120cb2"
+            kind="border"
+            ml="3"
+            theme="[object Object]"
+          >
+            View
+          </a>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="display: flex; align-items: center;"
+        >
+          <span
+            class="c16"
+            color="light"
+            font-size="0"
+            font-weight="bold"
+            kind="success"
+            style="min-height: 10px;"
+            width="10px"
+          />
+          <div
+            class="c12"
+          >
+            APPROVED
+          </div>
+        </td>
+        <td
+          style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          title="Sam"
+        >
+          Sam
+        </td>
+        <td>
+          <div
+            class="c13"
+            kind="secondary"
+          >
+            admin
+          </div>
+          <div
+            class="c13"
+            kind="secondary"
+          >
+            kaco
+          </div>
+          <div
+            class="c13"
+            kind="secondary"
+          >
+            ziuzzow
+          </div>
+        </td>
+        <td
+          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          title=""
+        />
+        <td>
+          2 hours ago
+        </td>
+        <td
+          align="right"
+          style="white-space: nowrap;"
         >
           <button
+            class="c17"
             disabled=""
-            title="Previous Page"
+            kind="primary"
+            width="108px"
           >
-            <span
-              class="c6 c7 icon icon-arrow-left-circle "
-              color="light"
-              font-size="3"
-            />
+            assumed
           </button>
+          <a
+            class="c14"
+            href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
+            kind="border"
+            ml="3"
+            theme="[object Object]"
+          >
+            View
+          </a>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="display: flex; align-items: center;"
+        >
+          <span
+            class="c16"
+            color="light"
+            font-size="0"
+            font-weight="bold"
+            kind="success"
+            style="min-height: 10px;"
+            width="10px"
+          />
+          <div
+            class="c12"
+          >
+            APPROVED
+          </div>
+        </td>
+        <td
+          style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          title="Sam"
+        >
+          Sam
+        </td>
+        <td>
+          <div
+            class="c13"
+            kind="secondary"
+          >
+            admin
+          </div>
+          <div
+            class="c13"
+            kind="secondary"
+          >
+            kaco
+          </div>
+          <div
+            class="c13"
+            kind="secondary"
+          >
+            ziuzzow
+          </div>
+        </td>
+        <td
+          style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          title=""
+        />
+        <td>
+          2 hours ago
+        </td>
+        <td
+          align="right"
+          style="white-space: nowrap;"
+        >
           <button
-            disabled=""
-            title="Next Page"
+            class="c17"
+            kind="primary"
+            width="108px"
           >
-            <span
-              class="c6 c7 icon icon-arrow-right-circle "
-              color="light"
-              font-size="3"
-            />
+            assume roles
           </button>
-        </div>
-      </div>
-    </nav>
-    <table
-      class="c8 c9"
-    >
-      <thead>
-        <tr>
-          <th>
-            <a>
-              Status
-              <span
-                class="c6 c10 icon icon-chevrons-expand-vertical "
-                color="light"
-              />
-            </a>
-          </th>
-          <th>
-            <a>
-              User
-              <span
-                class="c6 c10 icon icon-chevrons-expand-vertical "
-                color="light"
-              />
-            </a>
-          </th>
-          <th>
-            <a>
-              Roles
-              <span
-                class="c6 c10 icon icon-chevrons-expand-vertical "
-                color="light"
-              />
-            </a>
-          </th>
-          <th>
-            <a>
-              Request Reason
-              <span
-                class="c6 c10 icon icon-chevrons-expand-vertical "
-                color="light"
-              />
-            </a>
-          </th>
-          <th>
-            <a>
-              Created
-              <span
-                class="c6 c10 icon icon-chevron-down "
-                color="light"
-              />
-            </a>
-          </th>
-          <th />
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td
-            style="display: flex; align-items: center;"
+          <a
+            class="c14"
+            href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
+            kind="border"
+            ml="3"
+            theme="[object Object]"
           >
-            <span
-              class="c11"
-              color="light"
-              font-size="0"
-              font-weight="bold"
-              kind="warning"
-              style="min-height: 10px;"
-              width="10px"
-            />
-            <div
-              class="c12"
-            >
-              PENDING
-            </div>
-          </td>
-          <td
-            style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-            title="Sam"
-          >
-            Sam
-          </td>
-          <td>
-            <div
-              class="c13"
-              kind="secondary"
-            >
-              admin
-            </div>
-          </td>
-          <td
-            style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-            title="Testing long message format. I am requesting access for the developer role that i will be using to     commit fixes for our production application. I will need access for the     rest of the day to complete my changes."
-          >
-            Testing long message format. I am requesting access for the developer role that i will be using to     commit fixes for our production application. I will need access for the     rest of the day to complete my changes.
-          </td>
-          <td>
-            1 minute ago
-          </td>
-          <td
-            align="right"
-            style="white-space: nowrap;"
-          >
-            <a
-              class="c14"
-              href="/web/requests/461ff4bb-62f1-53b5-84ae-731022261a12"
-              kind="border"
-              ml="3"
-              theme="[object Object]"
-            >
-              View
-            </a>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="display: flex; align-items: center;"
-          >
-            <span
-              class="c15"
-              color="light"
-              font-size="0"
-              font-weight="bold"
-              kind="danger"
-              style="min-height: 10px;"
-              width="10px"
-            />
-            <div
-              class="c12"
-            >
-              DENIED
-            </div>
-          </td>
-          <td
-            style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-            title="Sam"
-          >
-            Sam
-          </td>
-          <td>
-            <div
-              class="c13"
-              kind="secondary"
-            >
-              admin
-            </div>
-            <div
-              class="c13"
-              kind="secondary"
-            >
-              ruhh
-            </div>
-          </td>
-          <td
-            style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-            title="Some short request reason"
-          >
-            Some short request reason
-          </td>
-          <td>
-            35 minutes ago
-          </td>
-          <td
-            align="right"
-            style="white-space: nowrap;"
-          >
-            <a
-              class="c14"
-              href="/web/requests/3ce23da9-6b85-5fce-9bf3-5fb826120cb2"
-              kind="border"
-              ml="3"
-              theme="[object Object]"
-            >
-              View
-            </a>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="display: flex; align-items: center;"
-          >
-            <span
-              class="c16"
-              color="light"
-              font-size="0"
-              font-weight="bold"
-              kind="success"
-              style="min-height: 10px;"
-              width="10px"
-            />
-            <div
-              class="c12"
-            >
-              APPROVED
-            </div>
-          </td>
-          <td
-            style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-            title="Sam"
-          >
-            Sam
-          </td>
-          <td>
-            <div
-              class="c13"
-              kind="secondary"
-            >
-              admin
-            </div>
-            <div
-              class="c13"
-              kind="secondary"
-            >
-              kaco
-            </div>
-            <div
-              class="c13"
-              kind="secondary"
-            >
-              ziuzzow
-            </div>
-          </td>
-          <td
-            style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-            title=""
-          />
-          <td>
-            2 hours ago
-          </td>
-          <td
-            align="right"
-            style="white-space: nowrap;"
-          >
-            <button
-              class="c17"
-              disabled=""
-              kind="primary"
-              width="108px"
-            >
-              assumed
-            </button>
-            <a
-              class="c14"
-              href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
-              kind="border"
-              ml="3"
-              theme="[object Object]"
-            >
-              View
-            </a>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="display: flex; align-items: center;"
-          >
-            <span
-              class="c16"
-              color="light"
-              font-size="0"
-              font-weight="bold"
-              kind="success"
-              style="min-height: 10px;"
-              width="10px"
-            />
-            <div
-              class="c12"
-            >
-              APPROVED
-            </div>
-          </td>
-          <td
-            style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-            title="Sam"
-          >
-            Sam
-          </td>
-          <td>
-            <div
-              class="c13"
-              kind="secondary"
-            >
-              admin
-            </div>
-            <div
-              class="c13"
-              kind="secondary"
-            >
-              kaco
-            </div>
-            <div
-              class="c13"
-              kind="secondary"
-            >
-              ziuzzow
-            </div>
-          </td>
-          <td
-            style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-            title=""
-          />
-          <td>
-            2 hours ago
-          </td>
-          <td
-            align="right"
-            style="white-space: nowrap;"
-          >
-            <button
-              class="c17"
-              kind="primary"
-              width="108px"
-            >
-              assume roles
-            </button>
-            <a
-              class="c14"
-              href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
-              kind="border"
-              ml="3"
-              theme="[object Object]"
-            >
-              View
-            </a>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+            View
+          </a>
+        </td>
+      </tr>
+    </tbody>
+  </table>
 </div>
 `;
