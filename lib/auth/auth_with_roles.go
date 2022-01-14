@@ -3677,7 +3677,6 @@ func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.Wind
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertWindowsDesktop(ctx, s)
-
 }
 
 // DeleteWindowsDesktop removes the specified windows desktop host.
