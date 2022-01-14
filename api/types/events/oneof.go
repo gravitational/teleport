@@ -16,7 +16,11 @@ limitations under the License.
 
 package events
 
-import "github.com/gravitational/trace"
+import (
+	"reflect"
+
+	"github.com/gravitational/trace"
+)
 
 // MustToOneOf converts audit event to OneOf
 // or panics, used in tests
@@ -293,6 +297,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_WindowsDesktopSessionEnd{
 			WindowsDesktopSessionEnd: e,
 		}
+	case *SessionConnect:
+		out.Event = &OneOf_SessionConnect{
+			SessionConnect: e,
+		}
 	case *AccessRequestDelete:
 		out.Event = &OneOf_AccessRequestDelete{
 			AccessRequestDelete: e,
@@ -305,142 +313,23 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 
 // FromOneOf converts audit event from one of wrapper to interface
 func FromOneOf(in OneOf) (AuditEvent, error) {
-	if e := in.GetUserLogin(); e != nil {
-		return e, nil
-	} else if e := in.GetUserCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetUserDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetUserPasswordChange(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionStart(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionJoin(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionPrint(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionReject(); e != nil {
-		return e, nil
-	} else if e := in.GetResize(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionEnd(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionCommand(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionDisk(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionNetwork(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionData(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionLeave(); e != nil {
-		return e, nil
-	} else if e := in.GetPortForward(); e != nil {
-		return e, nil
-	} else if e := in.GetX11Forward(); e != nil {
-		return e, nil
-	} else if e := in.GetSCP(); e != nil {
-		return e, nil
-	} else if e := in.GetExec(); e != nil {
-		return e, nil
-	} else if e := in.GetSubsystem(); e != nil {
-		return e, nil
-	} else if e := in.GetClientDisconnect(); e != nil {
-		return e, nil
-	} else if e := in.GetAuthAttempt(); e != nil {
-		return e, nil
-	} else if e := in.GetAccessRequestCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetUserTokenCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetRoleCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetRoleDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetTrustedClusterCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetTrustedClusterDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetTrustedClusterTokenCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetGithubConnectorCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetGithubConnectorDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetOIDCConnectorCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetOIDCConnectorDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetSAMLConnectorCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetSAMLConnectorDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetKubeRequest(); e != nil {
-		return e, nil
-	} else if e := in.GetAppSessionStart(); e != nil {
-		return e, nil
-	} else if e := in.GetAppSessionChunk(); e != nil {
-		return e, nil
-	} else if e := in.GetAppSessionRequest(); e != nil {
-		return e, nil
-	} else if e := in.GetAppCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetAppUpdate(); e != nil {
-		return e, nil
-	} else if e := in.GetAppDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetDatabaseCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetDatabaseUpdate(); e != nil {
-		return e, nil
-	} else if e := in.GetDatabaseDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetDatabaseSessionStart(); e != nil {
-		return e, nil
-	} else if e := in.GetDatabaseSessionEnd(); e != nil {
-		return e, nil
-	} else if e := in.GetDatabaseSessionQuery(); e != nil {
-		return e, nil
-	} else if e := in.GetPostgresParse(); e != nil {
-		return e, nil
-	} else if e := in.GetPostgresBind(); e != nil {
-		return e, nil
-	} else if e := in.GetPostgresExecute(); e != nil {
-		return e, nil
-	} else if e := in.GetPostgresClose(); e != nil {
-		return e, nil
-	} else if e := in.GetPostgresFunctionCall(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionUpload(); e != nil {
-		return e, nil
-	} else if e := in.GetMFADeviceAdd(); e != nil {
-		return e, nil
-	} else if e := in.GetMFADeviceDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetBillingCardCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetBillingCardDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetLockCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetLockDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetBillingInformationUpdate(); e != nil {
-		return e, nil
-	} else if e := in.GetRecoveryCodeGenerate(); e != nil {
-		return e, nil
-	} else if e := in.GetRecoveryCodeUsed(); e != nil {
-		return e, nil
-	} else if e := in.GetWindowsDesktopSessionStart(); e != nil {
-		return e, nil
-	} else if e := in.GetWindowsDesktopSessionEnd(); e != nil {
-		return e, nil
-	} else if e := in.GetAccessRequestDelete(); e != nil {
-		return e, nil
-	} else {
-		if in.Event == nil {
-			return nil, trace.BadParameter("failed to parse event, session record is corrupted")
-		}
+	e := in.GetEvent()
+	if e == nil {
+		return nil, trace.BadParameter("failed to parse event, session record is corrupted")
+	}
+
+	// We go from e (isOneOf_Event) -> reflect.Value (*OneOf_SomeStruct) -> reflect.Value(OneOf_SomeStruct).
+	elem := reflect.ValueOf(in.GetEvent()).Elem()
+
+	// OneOfs only have one inner field, verify and then read it.
+	if elem.NumField() != 1 {
+		// This should never happen for proto one-ofs.
+		return nil, trace.BadParameter("unexpect number in value %v: %v != 1", elem.Kind(), elem.NumField())
+	}
+
+	auditEvent, ok := elem.Field(0).Interface().(AuditEvent)
+	if !ok || reflect.ValueOf(auditEvent).IsNil() {
 		return nil, trace.BadParameter("received unsupported event %T", in.Event)
 	}
+	return auditEvent, nil
 }
