@@ -523,22 +523,21 @@ func (s *localSite) agentStats() {
 		}
 
 		// appDB needs to be first as it also matches the serverKubeWindows interface
-		switch t := server.(type) {
-		case appDB:
-			if t.Expiry().Before(time.Now()) {
+		if a, ok := server.(appDB); ok {
+			if a.Expiry().Before(time.Now()) {
 				return
 			}
-			if _, present := hostID[t.GetHostID()]; !present {
-				hostID[t.GetHostID()] = struct{}{}
-				versionCount[t.GetTeleportVersion()]++
+			if _, present := hostID[a.GetHostID()]; !present {
+				hostID[a.GetHostID()] = struct{}{}
+				versionCount[a.GetTeleportVersion()]++
 			}
-		case serverKubeWindows:
-			if t.Expiry().Before(time.Now()) {
+		} else if s, ok := server.(serverKubeWindows); ok {
+			if s.Expiry().Before(time.Now()) {
 				return
 			}
-			if _, present := hostID[t.GetName()]; !present {
-				hostID[t.GetName()] = struct{}{}
-				versionCount[t.GetTeleportVersion()]++
+			if _, present := hostID[s.GetName()]; !present {
+				hostID[s.GetName()] = struct{}{}
+				versionCount[s.GetTeleportVersion()]++
 			}
 		}
 	}
