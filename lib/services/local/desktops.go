@@ -116,6 +116,28 @@ func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, deskto
 	return nil
 }
 
+// UpsertWindowsDesktop updates a windows desktop resource, creating it if it doesn't exist.
+func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	if err := desktop.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	value, err := services.MarshalWindowsDesktop(desktop)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetName()),
+		Value:   value,
+		Expires: desktop.Expiry(),
+		ID:      desktop.GetResourceID(),
+	}
+	_, err = s.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // DeleteWindowsDesktop removes the specified windows desktop resource.
 func (s *WindowsDesktopService) DeleteWindowsDesktop(ctx context.Context, name string) error {
 	err := s.Delete(ctx, backend.Key(windowsDesktopsPrefix, name))
