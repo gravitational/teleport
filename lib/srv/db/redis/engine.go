@@ -72,24 +72,40 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	redisConn := redis.NewClient(&redis.Options{
-		Addr:      sessionCtx.Database.GetURI(),
-		TLSConfig: tlsConfig,
-	})
+	var redisConn redis.UniversalClient
+
+	// TODO:
+	// Use system TLS if connecting to AWS.
+	// Distinguish between single and cluster instances.
+	// Use redis connection string??
+	if true {
+		redisConn = redis.NewClient(&redis.Options{
+			Addr:      sessionCtx.Database.GetURI(),
+			TLSConfig: tlsConfig,
+		})
+	} else {
+		redisConn = redis.NewClusterClient(&redis.ClusterOptions{
+			Addrs:     []string{sessionCtx.Database.GetURI()},
+			TLSConfig: tlsConfig,
+		})
+	}
+	defer redisConn.Close()
+
+	e.Log.Debug("created a new Redis client")
 
 	pingResp := redisConn.Ping(context.Background())
 	if pingResp.Err() != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := process(ctx, e.proxyConn, redisConn); err != nil {
+	if err := e.process(ctx, e.proxyConn, redisConn); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-func process(ctx context.Context, clientConn net.Conn, redisClient *redis.Client) error {
+func (e *Engine) process(ctx context.Context, clientConn net.Conn, redisClient redis.UniversalClient) error {
 	clientReader := redis.NewReader(clientConn)
 	buf := &bytes.Buffer{}
 	wr := redis.NewWriter(buf)
@@ -101,8 +117,14 @@ func process(ctx context.Context, clientConn net.Conn, redisClient *redis.Client
 			return trace.Wrap(err)
 		}
 
-		val := cmd.Val().([]interface{})
+		val, ok := cmd.Val().([]interface{})
+		if !ok {
+			return trace.BadParameter("failed to cast Redis value to a slice")
+		}
+
 		nCmd := redis.NewCmd(ctx, val...)
+
+		e.Log.Debugf("redis cmd: %v", nCmd.Name())
 
 		err := redisClient.Process(ctx, nCmd)
 
@@ -111,6 +133,9 @@ func process(ctx context.Context, clientConn net.Conn, redisClient *redis.Client
 		if errors.As(err, &redisErr) {
 			vals = err
 		} else if err != nil {
+			// Send the error to the client as connection will be terminated after return.
+			e.SendError(err)
+
 			return trace.Wrap(err)
 		} else {
 			vals, err = nCmd.Result()

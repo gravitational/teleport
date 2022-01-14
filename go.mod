@@ -12,6 +12,7 @@ require (
 	github.com/HdrHistogram/hdrhistogram-go v1.0.1
 	github.com/Microsoft/go-winio v0.4.16
 	github.com/ThalesIgnite/crypto11 v1.2.4
+	github.com/alicebob/miniredis/v2 v2.17.0
 	github.com/aquasecurity/libbpfgo v0.1.0
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.37.17
@@ -122,6 +123,7 @@ require (
 	github.com/alecthomas/repr v0.0.0-20200325044227-4184120f674c // indirect
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15 // indirect
+	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.2.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.3.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.4.0 // indirect
@@ -195,6 +197,7 @@ require (
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
+	github.com/yuin/gopher-lua v0.0.0-20200816102855-ee81675732da // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.1 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect

@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -682,6 +683,8 @@ type testContext struct {
 	mysql map[string]testMySQL
 	// mongo is a collection of MongoDB databases the test uses.
 	mongo map[string]testMongoDB
+	// mongo is a collection of MongoDB databases the test uses.
+	redis map[string]testRedis
 	// clock to override clock in tests.
 	clock clockwork.FakeClock
 }
@@ -706,6 +709,14 @@ type testMySQL struct {
 type testMongoDB struct {
 	// db is the test MongoDB database server.
 	db *mongodb.TestServer
+	// resource is the resource representing this MongoDB database.
+	resource types.Database
+}
+
+// testMongoDB represents a single proxied MongoDB database.
+type testRedis struct {
+	// db is the test MongoDB database server.
+	db *redis.TestServer
 	// resource is the resource representing this MongoDB database.
 	resource types.Database
 }
@@ -787,7 +798,7 @@ func (c *testContext) mongoClient(ctx context.Context, teleportUser, dbService, 
 	return c.mongoClientWithAddr(ctx, c.webListener.Addr().String(), teleportUser, dbService, dbUser, opts...)
 }
 
-// mongoClientWithAddr is like mongoClient but allows to override connection address.
+// mongoClientWithAddr is like mongoClient but allows overriding connection address.
 func (c *testContext) mongoClientWithAddr(ctx context.Context, address, teleportUser, dbService, dbUser string, opts ...*options.ClientOptions) (*mongo.Client, error) {
 	return mongodb.MakeTestClient(ctx, common.TestClientConfig{
 		AuthClient: c.authClient,
@@ -801,6 +812,21 @@ func (c *testContext) mongoClientWithAddr(ctx context.Context, address, teleport
 			Username:    dbUser,
 		},
 	}, opts...)
+}
+
+func (c *testContext) redisClient(ctx context.Context, proxyAddress, teleportUser, dbService, dbUser string, opts ...*options.ClientOptions) (*redis.Client, error) {
+	return redis.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient: c.authClient,
+		AuthServer: c.authServer,
+		Address:    proxyAddress,
+		Cluster:    c.clusterName,
+		Username:   teleportUser,
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: dbService,
+			Protocol:    defaults.ProtocolRedis,
+			Username:    dbUser,
+		},
+	})
 }
 
 // createUserAndRole creates Teleport user and role with specified names
@@ -854,6 +880,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		postgres:    make(map[string]testPostgres),
 		mysql:       make(map[string]testMySQL),
 		mongo:       make(map[string]testMongoDB),
+		redis:       make(map[string]testRedis),
 		clock:       clockwork.NewFakeClockAt(time.Now()),
 	}
 	t.Cleanup(func() { testCtx.Close() })
@@ -1378,6 +1405,30 @@ func withSelfHostedMongo(name string, opts ...mongodb.TestServerOption) withData
 		require.NoError(t, err)
 		testCtx.mongo[name] = testMongoDB{
 			db:       mongoServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withSelfHostedRedis(name string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+		})
+		require.NoError(t, err)
+
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolRedis,
+			URI:           net.JoinHostPort("localhost", redisServer.Port()),
+			DynamicLabels: dynamicLabels,
+		})
+		require.NoError(t, err)
+		testCtx.redis[name] = testRedis{
+			db:       redisServer,
 			resource: database,
 		}
 		return database
