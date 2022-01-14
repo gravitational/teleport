@@ -66,7 +66,7 @@ func (s *WindowsService) startDesktopDiscovery(ctx context.Context) error {
 
 		GetCurrentResources: func() types.ResourcesWithLabels { return s.lastDiscoveryResults },
 		GetNewResources:     s.getDesktopsFromLDAP,
-		OnCreate:            s.createDesktop,
+		OnCreate:            s.upsertDesktop,
 		OnUpdate:            s.updateDesktop,
 		OnDelete:            s.deleteDesktop,
 		Log:                 s.cfg.Log,
@@ -76,15 +76,6 @@ func (s *WindowsService) startDesktopDiscovery(ctx context.Context) error {
 	}
 
 	go func() {
-		// initialize lastDiscoveryResults with any desktops that already exist
-		initialDesktops, err := s.getDesktopsFromAuthServer(ctx)
-		if err != nil {
-			s.cfg.Log.Errorf("initial fetch of desktops from auth server failed: %v", err)
-		}
-
-		s.lastDiscoveryResults = initialDesktops
-		s.cfg.Log.Debugf("desktop discovery starting with %v initial desktops", len(s.lastDiscoveryResults))
-
 		// reconcile once before starting the ticker, so that desktops show up immediately
 		if err := reconciler.Reconcile(ctx); err != nil && err != context.Canceled {
 			s.cfg.Log.Errorf("desktop reconciliation failed: %v", err)
@@ -107,25 +98,6 @@ func (s *WindowsService) startDesktopDiscovery(ctx context.Context) error {
 	}()
 
 	return nil
-}
-
-// getDesktopsFromAuthServer gets all the Windows hosts already saved on the auth server.
-func (s *WindowsService) getDesktopsFromAuthServer(ctx context.Context) (types.ResourcesWithLabels, error) {
-	windowsDesktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var desktops types.ResourcesWithLabels
-	for _, windowsDesktop := range windowsDesktops {
-		desktop, ok := windowsDesktop.(*types.WindowsDesktopV3)
-		if !ok {
-			return nil, trace.Errorf("create: expected a *WindowsDesktopV3, got %T", desktop)
-		}
-		desktops = append(desktops, desktop)
-	}
-
-	return desktops, nil
 }
 
 func (s *WindowsService) ldapSearchFilter() string {
@@ -166,12 +138,12 @@ func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabels {
 	return result
 }
 
-func (s *WindowsService) createDesktop(ctx context.Context, r types.ResourceWithLabels) error {
+func (s *WindowsService) upsertDesktop(ctx context.Context, r types.ResourceWithLabels) error {
 	d, ok := r.(types.WindowsDesktop)
 	if !ok {
 		return trace.Errorf("create: expected a WindowsDesktop, got %T", r)
 	}
-	return s.cfg.AccessPoint.CreateWindowsDesktop(ctx, d)
+	return s.cfg.AuthClient.UpsertWindowsDesktop(ctx, d)
 }
 
 func (s *WindowsService) updateDesktop(ctx context.Context, r types.ResourceWithLabels) error {
