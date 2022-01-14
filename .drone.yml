@@ -5037,7 +5037,7 @@ steps:
         echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
         chown -R root:root $GNUPGHOME
       # Sign rpm repo metadata (yum clients will automatically look for and verify repodata/repomd.xml.asc)
-      - gpg --detach-sign --armor /rpmrepo/teleport/repodata/repomd.xml
+      - gpg --batch --yes --detach-sign --armor /rpmrepo/teleport/repodata/repomd.xml
       - cat /rpmrepo/teleport/repodata/repomd.xml.asc
       - rm -rf $GNUPGHOME
 
@@ -5166,6 +5166,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 1473746cd33150de6ce4e6be53478ad6961414d1e34987d9eff4b3e17bcfe5a2
+hmac: 7e267bb32adf5588554c4dd04e25df09d450bcb3e4a5e8766a6df5e8a97fde4a
 
 ...

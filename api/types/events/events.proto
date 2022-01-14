@@ -252,6 +252,18 @@ message SessionReject {
     int64 Maximum = 6 [ (gogoproto.jsontag) = "max" ];
 }
 
+// SessionConnect is emitted when a non-Teleport connection is made over net.Dial.
+message SessionConnect {
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    ServerMetadata Server = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    ConnectionMetadata Connection = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
 // Resize means that some user resized PTY on the client
 message Resize {
     // Metadata is a common event metadata
@@ -685,6 +697,20 @@ message AccessRequestCreate {
     // ProposedState is the state proposed by a review (only used in the access_request.review event
     // variant).
     string ProposedState = 11 [ (gogoproto.jsontag) = "proposed_state,omitempty" ];
+}
+
+// AccessRequestDelete is emitted when an access request has been deleted.
+message AccessRequestDelete {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // User is a common user event metadata
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // RequestID is access request ID
+    string RequestID = 3 [ (gogoproto.jsontag) = "id" ];
 }
 
 // PortForward is emitted when a user requests port forwarding.
@@ -1716,6 +1742,8 @@ message OneOf {
         events.PostgresExecute PostgresExecute = 63;
         events.PostgresClose PostgresClose = 64;
         events.PostgresFunctionCall PostgresFunctionCall = 65;
+        events.AccessRequestDelete AccessRequestDelete = 66;
+        events.SessionConnect SessionConnect = 67;
     }
 }
 
