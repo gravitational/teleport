@@ -13,11 +13,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-// Command version-check-latest exits non-zero when given a
-// git tag that is not greater than the highest semver ever
-// published on GitHub Releases. This allows us to avoid updating
-// "latest" packages or tags when publishing patch releases for
-// older branches.
+
+// Command version-check validates that a tag is not a prerelease
+// or that it is the latest version ever. version-check exits non-zero
+// if tag fails this check. This allows us to avoid updating "latest"
+// packages or tags when publishing releases for older branches.
 package main
 
 import (
