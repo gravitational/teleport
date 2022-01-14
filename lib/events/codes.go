@@ -345,6 +345,9 @@ const (
 	// AppSessionRequestCode is the application request/response code.
 	AppSessionRequestCode = "T2009I"
 
+	// SessionConnectCode is the session connect event code.
+	SessionConnectCode = "T2010I"
+
 	// DatabaseSessionStartCode is the database session start event code.
 	DatabaseSessionStartCode = "TDB00I"
 	// DatabaseSessionStartFailureCode is the database session start failure event code.
@@ -429,6 +432,8 @@ const (
 	AccessRequestUpdateCode = "T5001I"
 	// AccessRequestReviewCode is the access review application code.
 	AccessRequestReviewCode = "T5002I"
+	// AccessRequestDeleteCode is the access request deleted code.
+	AccessRequestDeleteCode = "T5003I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"

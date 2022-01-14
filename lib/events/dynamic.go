@@ -470,6 +470,18 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &e, nil
+	case SessionConnectEvent:
+		var e events.SessionConnect
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case AccessRequestDeleteEvent:
+		var e events.AccessRequestDelete
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
 	default:
 		return nil, trace.BadParameter("unknown event type: %q", eventType)
 	}

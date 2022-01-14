@@ -493,13 +493,13 @@ const (
 const (
 	// ProtocolPostgres is the PostgreSQL database protocol.
 	ProtocolPostgres = "postgres"
-	// ProtocolMySQL is the MySQL database protocol.
+	// ProtocolMySQL is the MySQL/MariaDB database protocol.
 	ProtocolMySQL = "mysql"
 	// ProtocolMongoDB is the MongoDB database protocol.
 	ProtocolMongoDB = "mongodb"
 	// ProtocolCockroachDB is the CockroachDB database protocol.
 	//
-	// Technically it's the same as the Postgres protocol but it's used to
+	// Technically it's the same as the Postgres protocol, but it's used to
 	// differentiate between Cockroach and Postgres databases e.g. when
 	// selecting a CLI client to use.
 	ProtocolCockroachDB = "cockroachdb"
