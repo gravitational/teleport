@@ -18,6 +18,7 @@ package desktop
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -26,12 +27,13 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity, windowsUser, sessionID string, desktop types.WindowsDesktop, err error) {
+func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity, startTime time.Time, windowsUser, sessionID string, desktop types.WindowsDesktop, err error) {
 	event := &events.WindowsDesktopSessionStart{
 		Metadata: events.Metadata{
 			Type:        libevents.WindowsDesktopSessionStartEvent,
 			Code:        libevents.DesktopSessionStartCode,
 			ClusterName: s.clusterName,
+			Time:        startTime,
 		},
 		UserMetadata: events.UserMetadata{
 			User:         id.Username,
@@ -63,7 +65,7 @@ func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity,
 	s.emit(ctx, event)
 }
 
-func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, windowsUser, sessionID string, desktop types.WindowsDesktop) {
+func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, startedAt time.Time, windowsUser, sessionID string, desktop types.WindowsDesktop) {
 	event := &events.WindowsDesktopSessionEnd{
 		Metadata: events.Metadata{
 			Type:        libevents.WindowsDesktopSessionEndEvent,
@@ -73,6 +75,7 @@ func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, w
 		UserMetadata: events.UserMetadata{
 			User:         id.Username,
 			Impersonator: id.Impersonator,
+			Login:        windowsUser,
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: sessionID,
@@ -83,6 +86,9 @@ func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, w
 		Domain:                desktop.GetDomain(),
 		WindowsUser:           windowsUser,
 		DesktopLabels:         desktop.GetAllLabels(),
+		StartTime:             startedAt,
+		EndTime:               s.cfg.Clock.Now().UTC().Round(time.Millisecond),
+		DesktopName:           desktop.GetName(),
 	}
 	s.emit(ctx, event)
 }
