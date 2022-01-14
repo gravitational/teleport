@@ -221,7 +221,7 @@ func (c *cloud) isSessionUsingTemporaryCredentials() (bool, error) {
 
 	// Credentials.Get can potentially make external API calls to retrieve
 	// credentials. However, if the session credentials are used for something
-	// else sucessfully right before this Credentials.Get call, it should
+	// else successfully right before this Credentials.Get call, it should
 	// return the cached credentials.
 	credentials, err := c.cfg.Session.Config.Credentials.Get()
 	if err != nil {
