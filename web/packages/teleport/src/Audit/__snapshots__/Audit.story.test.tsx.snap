@@ -72,24 +72,26 @@ exports[`list of all events 1`] = `
   font-size: 16px;
 }
 
-.c4 {
+.c5 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
+  margin-right: 8px;
   color: #FFFFFF;
 }
 
 .c2 {
   box-sizing: border-box;
+  width: 100%;
   display: flex;
+  justify-content: space-between;
 }
 
-.c3 {
+.c4 {
   box-sizing: border-box;
-  margin-right: 8px;
   display: flex;
   align-items: center;
 }
@@ -102,8 +104,10 @@ exports[`list of all events 1`] = `
   border-radius: 8px;
   font-size: 12px;
   width: 100%;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .c9 > thead > tr > th,
@@ -175,6 +179,66 @@ exports[`list of all events 1`] = `
   border-bottom-right-radius: 8px;
 }
 
+.c0 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c6 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c6 .c7 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c6:hover .c7,
+.c6:focus .c7 {
+  opacity: 1;
+}
+
+.c6:disabled {
+  cursor: default;
+}
+
+.c6:disabled .c7 {
+  opacity: 0.1;
+}
+
+.c3 {
+  color: #03a9f4;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  outline: none;
+  border: none;
+  font-weight: bold;
+  line-height: 0;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.c3:hover,
+.c3:focus {
+  cursor: pointer;
+}
+
+.c3:disabled {
+  color: rgba(255,255,255,0.3);
+  cursor: wait;
+}
+
 .c1 {
   box-sizing: border-box;
   font-size: 12px;
@@ -183,21 +247,17 @@ exports[`list of all events 1`] = `
   border: none;
   border-radius: 200px;
   height: 32px;
-  transition: all 0.2s;
+  transition: all .2s;
+  color: rgba(255,255,255,0.87);
   background: #111B48;
-  margin-right: 16px;
   padding-left: 16px;
   padding-right: 16px;
-  color: rgba(255,255,255,0.87);
 }
 
-.c1:hover {
-  background: #2C3A73;
-}
-
+.c1:hover,
 .c1:focus,
 .c1:active {
-  background: #2C3A73;
+  background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
@@ -205,75 +265,6 @@ exports[`list of all events 1`] = `
 .c1::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
-}
-
-.c6 {
-  box-sizing: border-box;
-  display: flex;
-}
-
-.c6 button {
-  background: none;
-  border: none;
-  border-radius: 200px;
-  cursor: pointer;
-  padding: 0;
-  margin: 0 0 0 8px;
-  outline: none;
-  transition: all 0.3s;
-  text-align: center;
-}
-
-.c6 button:hover,
-.c6 button:focus {
-  background: #1C254D;
-}
-
-.c6 button:hover .c7,
-.c6 button:focus .c7 {
-  opacity: 1;
-}
-
-.c6 button .c7 {
-  opacity: 0.4;
-  font-size: 20px;
-  transition: all 0.3s;
-}
-
-.c5 {
-  color: #03a9f4;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  padding-left: 8px;
-  outline: none;
-  border: none;
-  font-weight: bold;
-  line-height: 0;
-  font-size: 12px;
-}
-
-.c5:hover,
-.c5:focus {
-  cursor: pointer;
-}
-
-.c5:disabled {
-  color: rgba(255,255,255,0.3);
-  cursor: wait;
-}
-
-.c0 {
-  padding: 12px 16px;
-  display: flex;
-  height: 24px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: end;
-  background: #222C59;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  justify-content: space-between;
 }
 
 .c14 {
@@ -313,26 +304,29 @@ exports[`list of all events 1`] = `
   white-space: nowrap;
 }
 
-<div
-  style="min-width: min-content;"
->
+<div>
   <nav
     class="c0"
   >
     <input
       class="c1"
-      color="text.primary"
       placeholder="SEARCH..."
       value=""
     />
     <div
       class="c2"
+      width="100%"
     >
-      <div
+      <button
         class="c3"
       >
+        Fetch More
+      </button>
+      <div
+        class="c4"
+      >
         <div
-          class="c4"
+          class="c5"
           color="primary.contrastText"
         >
           SHOWING 
@@ -343,24 +337,16 @@ exports[`list of all events 1`] = `
           <strong>
             60
           </strong>
+           of
            
-          of 
           <strong>
             60
           </strong>
         </div>
         <button
-          class="c5"
-        >
-          Fetch More
-        </button>
-      </div>
-      <div
-        class="c6"
-      >
-        <button
+          class="c6"
           disabled=""
-          title="Previous Page"
+          title="Previous page"
         >
           <span
             class="c7 c8 icon icon-arrow-left-circle "
@@ -369,8 +355,9 @@ exports[`list of all events 1`] = `
           />
         </button>
         <button
+          class="c6"
           disabled=""
-          title="Next Page"
+          title="Next page"
         >
           <span
             class="c7 c8 icon icon-arrow-right-circle "
@@ -402,7 +389,7 @@ exports[`list of all events 1`] = `
           <a>
             Created
             <span
-              class="c7 c10 icon icon-chevron-up "
+              class="c7 c10 icon icon-chevron-down "
               color="light"
             />
           </a>
@@ -2602,17 +2589,19 @@ exports[`loaded audit log screen 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
+  margin-right: 8px;
   color: #FFFFFF;
 }
 
 .c7 {
   box-sizing: border-box;
+  width: 100%;
   display: flex;
+  justify-content: end;
 }
 
 .c8 {
   box-sizing: border-box;
-  margin-right: 8px;
   display: flex;
   align-items: center;
 }
@@ -2666,8 +2655,10 @@ exports[`loaded audit log screen 1`] = `
   border-radius: 8px;
   font-size: 12px;
   width: 100%;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .c13 > thead > tr > th,
@@ -2739,6 +2730,43 @@ exports[`loaded audit log screen 1`] = `
   border-bottom-right-radius: 8px;
 }
 
+.c5 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c10 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c10 .c11 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c10:hover .c11,
+.c10:focus .c11 {
+  opacity: 1;
+}
+
+.c10:disabled {
+  cursor: default;
+}
+
+.c10:disabled .c11 {
+  opacity: 0.1;
+}
+
 .c6 {
   box-sizing: border-box;
   font-size: 12px;
@@ -2747,21 +2775,17 @@ exports[`loaded audit log screen 1`] = `
   border: none;
   border-radius: 200px;
   height: 32px;
-  transition: all 0.2s;
+  transition: all .2s;
+  color: rgba(255,255,255,0.87);
   background: #111B48;
-  margin-right: 16px;
   padding-left: 16px;
   padding-right: 16px;
-  color: rgba(255,255,255,0.87);
 }
 
-.c6:hover {
-  background: #2C3A73;
-}
-
+.c6:hover,
 .c6:focus,
 .c6:active {
-  background: #2C3A73;
+  background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
@@ -2769,52 +2793,6 @@ exports[`loaded audit log screen 1`] = `
 .c6::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
-}
-
-.c10 {
-  box-sizing: border-box;
-  display: flex;
-}
-
-.c10 button {
-  background: none;
-  border: none;
-  border-radius: 200px;
-  cursor: pointer;
-  padding: 0;
-  margin: 0 0 0 8px;
-  outline: none;
-  transition: all 0.3s;
-  text-align: center;
-}
-
-.c10 button:hover,
-.c10 button:focus {
-  background: #1C254D;
-}
-
-.c10 button:hover .c11,
-.c10 button:focus .c11 {
-  opacity: 1;
-}
-
-.c10 button .c11 {
-  opacity: 0.4;
-  font-size: 20px;
-  transition: all 0.3s;
-}
-
-.c5 {
-  padding: 12px 16px;
-  display: flex;
-  height: 24px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: end;
-  background: #222C59;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  justify-content: space-between;
 }
 
 .c15 {
@@ -3145,241 +3123,235 @@ exports[`loaded audit log screen 1`] = `
       </div>
     </div>
   </div>
-  <div
-    style="min-width: min-content;"
+  <nav
+    class="c5"
   >
-    <nav
-      class="c5"
+    <input
+      class="c6"
+      placeholder="SEARCH..."
+      value=""
+    />
+    <div
+      class="c7"
+      width="100%"
     >
-      <input
-        class="c6"
-        color="text.primary"
-        placeholder="SEARCH..."
-        value=""
-      />
       <div
-        class="c7"
+        class="c8"
       >
         <div
-          class="c8"
+          class="c9"
+          color="primary.contrastText"
         >
-          <div
-            class="c9"
-            color="primary.contrastText"
-          >
-            SHOWING 
-            <strong>
-              1
-            </strong>
-             - 
-            <strong>
-              4
-            </strong>
-             
-            of 
-            <strong>
-              4
-            </strong>
-          </div>
+          SHOWING 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            4
+          </strong>
+           of
+           
+          <strong>
+            4
+          </strong>
         </div>
-        <div
+        <button
           class="c10"
+          disabled=""
+          title="Previous page"
+        >
+          <span
+            class="c11 c12 icon icon-arrow-left-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+        <button
+          class="c10"
+          disabled=""
+          title="Next page"
+        >
+          <span
+            class="c11 c12 icon icon-arrow-right-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+      </div>
+    </div>
+  </nav>
+  <table
+    class="c13"
+  >
+    <thead>
+      <tr>
+        <th>
+          <a>
+            Type
+            <span
+              class="c11 c14 icon icon-chevrons-expand-vertical "
+              color="light"
+            />
+          </a>
+        </th>
+        <th>
+          Description
+        </th>
+        <th>
+          <a>
+            Created
+            <span
+              class="c11 c14 icon icon-chevron-down "
+              color="light"
+            />
+          </a>
+        </th>
+        <th />
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <div
+            class="c15"
+          >
+            <span
+              class="c11 c16 icon icon-info_outline c11 c16"
+              color="light"
+              font-size="3"
+            />
+            User Updated
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [bob] has been updated
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2020-06-05 16:24:05
+        </td>
+        <td
+          align="right"
         >
           <button
-            disabled=""
-            title="Previous Page"
+            class="c17"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div
+            class="c15"
           >
             <span
-              class="c11 c12 icon icon-arrow-left-circle "
+              class="c11 c16 icon icon-info_outline c11 c16"
               color="light"
               font-size="3"
             />
-          </button>
+            User Deleted
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [bob] has been deleted
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2020-06-05 16:24:05
+        </td>
+        <td
+          align="right"
+        >
           <button
-            disabled=""
-            title="Next Page"
+            class="c17"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div
+            class="c15"
           >
             <span
-              class="c11 c12 icon icon-arrow-right-circle "
+              class="c11 c16 icon icon-terminal c11 c16"
               color="light"
               font-size="3"
             />
+            Session File Access
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          Program [bash] accessed a file [/etc/profile.d/] within a session [44c6cea8-362f-11ea-83aa-125400432324]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22 19:39:26
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c17"
+            kind="border"
+            width="87px"
+          >
+            Details
           </button>
-        </div>
-      </div>
-    </nav>
-    <table
-      class="c13"
-    >
-      <thead>
-        <tr>
-          <th>
-            <a>
-              Type
-              <span
-                class="c11 c14 icon icon-chevrons-expand-vertical "
-                color="light"
-              />
-            </a>
-          </th>
-          <th>
-            Description
-          </th>
-          <th>
-            <a>
-              Created
-              <span
-                class="c11 c14 icon icon-chevron-up "
-                color="light"
-              />
-            </a>
-          </th>
-          <th />
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>
-            <div
-              class="c15"
-            >
-              <span
-                class="c11 c16 icon icon-info_outline c11 c16"
-                color="light"
-                font-size="3"
-              />
-              User Updated
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div
+            class="c15"
           >
-            User [bob] has been updated
-          </td>
-          <td
-            style="min-width: 120px;"
+            <span
+              class="c11 c16 icon icon-terminal c11 c16"
+              color="light"
+              font-size="3"
+            />
+            Session Network Connection
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          Program [bash] opened a connection [10.217.136.161 &lt;-&gt; 190.58.129.4:3000] within a session [44c6cea8-362f-11ea-83aa-125400432324]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22 19:39:26
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c17"
+            kind="border"
+            width="87px"
           >
-            2020-06-05 16:24:05
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c17"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c15"
-            >
-              <span
-                class="c11 c16 icon icon-info_outline c11 c16"
-                color="light"
-                font-size="3"
-              />
-              User Deleted
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [bob] has been deleted
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2020-06-05 16:24:05
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c17"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c15"
-            >
-              <span
-                class="c11 c16 icon icon-terminal c11 c16"
-                color="light"
-                font-size="3"
-              />
-              Session File Access
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            Program [bash] accessed a file [/etc/profile.d/] within a session [44c6cea8-362f-11ea-83aa-125400432324]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 19:39:26
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c17"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c15"
-            >
-              <span
-                class="c11 c16 icon icon-terminal c11 c16"
-                color="light"
-                font-size="3"
-              />
-              Session Network Connection
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            Program [bash] opened a connection [10.217.136.161 &lt;-&gt; 190.58.129.4:3000] within a session [44c6cea8-362f-11ea-83aa-125400432324]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 19:39:26
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c17"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+            Details
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
 </div>
 `;

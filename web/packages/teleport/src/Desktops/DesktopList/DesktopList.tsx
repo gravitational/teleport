@@ -72,7 +72,7 @@ function DesktopList(props: Props) {
       }}
       initialSort={{
         key: 'name',
-        dir: 'DESC',
+        dir: 'ASC',
       }}
       isSearchable
       emptyText="No Desktops Found"

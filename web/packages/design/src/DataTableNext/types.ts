@@ -5,6 +5,7 @@ export type TableProps<T> = {
   pagination?: PaginationConfig;
   isSearchable?: boolean;
   initialSort?: InitialSort<T>;
+  fetching?: FetchingConfig;
 };
 
 type TableColumnBase<T> = {
@@ -17,8 +18,11 @@ type TableColumnBase<T> = {
 export type PaginationConfig = {
   pageSize?: number;
   pagerPosition?: 'top' | 'bottom';
-  onFetchMore?: () => void;
-  fetchStatus?: 'loading' | 'disabled' | '';
+};
+
+export type FetchingConfig = {
+  onFetchMore: () => void;
+  fetchStatus: FetchStatus;
 };
 
 // Makes it so either key or altKey is required
@@ -38,5 +42,7 @@ type InitialSort<T> = {
 };
 
 export type SortDir = 'ASC' | 'DESC';
+
+export type FetchStatus = 'loading' | 'disabled' | '';
 
 export type TableColumn<T> = TableColumnWithKey<T> | TableColumnWithAltKey<T>;

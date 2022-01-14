@@ -74,6 +74,8 @@ export const DataTablePaged = () => {
       pagination={{
         pageSize: 7,
         pagerPosition: 'top',
+      }}
+      fetching={{
         onFetchMore: () => setAllData([...allData, ...extraData]),
         fetchStatus: '',
       }}

@@ -42,9 +42,7 @@ export function Audit(props: State) {
     setRange,
     rangeOptions,
     events,
-    searchValue,
     clusterId,
-    setSearchValue,
     fetchMore,
     fetchStatus,
   } = props;
@@ -68,8 +66,6 @@ export function Audit(props: State) {
       )}
       {attempt.status === 'success' && (
         <EventList
-          search={searchValue}
-          onSearchChange={setSearchValue}
           events={events}
           clusterId={clusterId}
           fetchMore={fetchMore}

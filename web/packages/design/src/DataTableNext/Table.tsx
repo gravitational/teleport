@@ -22,6 +22,7 @@ export function Table<T>({
   prevPage,
   setSearchValue,
   isSearchable,
+  fetching,
 }: State<T>) {
   const renderHeaders = () => {
     const headers = columns.map(column => {
@@ -88,6 +89,7 @@ export function Table<T>({
         pagination={state.pagination}
         searchValue={state.searchValue}
         setSearchValue={setSearchValue}
+        fetching={fetching}
       />
     );
   }
@@ -158,6 +160,7 @@ function PagedTable<T>({
   pagination,
   searchValue,
   setSearchValue,
+  fetching,
 }: PagedTableProps<T>) {
   const { pagerPosition, paginatedData, currentPage } = pagination;
   const isTopPager = pagerPosition === 'top';
@@ -188,6 +191,7 @@ function PagedTable<T>({
             nextPage={nextPage}
             prevPage={prevPage}
             data={data}
+            {...fetching}
             {...pagination}
           />
         </StyledPanel>
@@ -253,4 +257,5 @@ type PagedTableProps<T> = SearchableBasicTableProps<T> & {
   nextPage: () => void;
   prevPage: () => void;
   pagination: State<T>['state']['pagination'];
+  fetching?: State<T>['fetching'];
 };

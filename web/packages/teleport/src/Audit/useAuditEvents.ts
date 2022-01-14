@@ -29,7 +29,6 @@ export default function useAuditEvents(
   eventCode?: EventCode
 ) {
   const rangeOptions = useMemo(() => getRangeOptions(), []);
-  const [searchValue, setSearchValue] = useState('');
   const [range, setRange] = useState<EventRange>(rangeOptions[0]);
   const { attempt, setAttempt, run } = useAttempt('processing');
   const [results, setResults] = useState<EventResult>({
@@ -97,8 +96,6 @@ export default function useAuditEvents(
     range,
     setRange,
     rangeOptions,
-    searchValue,
-    setSearchValue,
   };
 }
 

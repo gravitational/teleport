@@ -10,5 +10,5 @@ test('loaded audit log screen', async () => {
 
 test('list of all events', async () => {
   const { container } = render(<AllEvents />);
-  expect(container.firstChild).toMatchSnapshot();
+  expect(container).toMatchSnapshot();
 });
