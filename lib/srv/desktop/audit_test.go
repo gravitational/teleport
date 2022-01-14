@@ -46,6 +46,7 @@ func setup() (*WindowsService, *tlsca.Identity, *libevents.MockEmitter) {
 			Heartbeat: HeartbeatConfig{
 				HostUUID: "test-host-id",
 			},
+			Clock: clockwork.NewFakeClockAt(time.Now()),
 		},
 	}
 
@@ -75,14 +76,12 @@ func TestSessionStartEvent(t *testing.T) {
 		},
 	}
 
-	clock := clockwork.NewFakeClockAt(time.Now())
-
 	expected := &events.WindowsDesktopSessionStart{
 		Metadata: events.Metadata{
 			ClusterName: s.clusterName,
 			Type:        libevents.WindowsDesktopSessionStartEvent,
 			Code:        libevents.DesktopSessionStartCode,
-			Time:        clock.Now().UTC().Round(time.Millisecond),
+			Time:        s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		},
 		UserMetadata: events.UserMetadata{
 			User:         id.Username,
@@ -134,7 +133,7 @@ func TestSessionStartEvent(t *testing.T) {
 			s.onSessionStart(
 				context.Background(),
 				id,
-				clock.Now().UTC().Round(time.Millisecond),
+				s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 				"Administrator",
 				"sessionID",
 				desktop,
@@ -168,15 +167,15 @@ func TestSessionEndEvent(t *testing.T) {
 		},
 	}
 
-	clock := clockwork.NewFakeClockAt(time.Now())
-	startTime := clock.Now().UTC().Round(time.Millisecond)
-	clock.Advance(30 * time.Second)
+	c := clockwork.NewFakeClockAt(time.Now())
+	s.cfg.Clock = c
+	startTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
+	c.Advance(30 * time.Second)
 
 	s.onSessionEnd(
 		context.Background(),
 		id,
 		startTime,
-		clock,
 		"Administrator",
 		"sessionID",
 		desktop,
@@ -208,7 +207,7 @@ func TestSessionEndEvent(t *testing.T) {
 		WindowsUser:           "Administrator",
 		DesktopLabels:         map[string]string{"env": "production"},
 		StartTime:             startTime,
-		EndTime:               clock.Now().UTC().Round(time.Millisecond),
+		EndTime:               c.Now().UTC().Round(time.Millisecond),
 		DesktopName:           desktop.GetName(),
 	}
 	require.Empty(t, cmp.Diff(expected, endEvent))
