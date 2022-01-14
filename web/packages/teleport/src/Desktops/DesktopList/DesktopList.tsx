@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 import React from 'react';
-import styled from 'styled-components';
 import Table, { Cell, LabelCell } from 'design/DataTableNext';
 import { Desktop } from 'teleport/services/desktops';
 import MenuSshLogin, { LoginItem } from 'shared/components/MenuSshLogin';
@@ -38,7 +37,7 @@ function DesktopList(props: Props) {
   }
 
   return (
-    <StyledTable
+    <Table
       data={desktops}
       columns={[
         {
@@ -123,12 +122,6 @@ function LoginCell({
     </Cell>
   );
 }
-
-const StyledTable = styled(Table)`
-  & > tbody > tr > td {
-    vertical-align: baseline;
-  }
-` as typeof Table;
 
 type Props = {
   desktops: Desktop[];

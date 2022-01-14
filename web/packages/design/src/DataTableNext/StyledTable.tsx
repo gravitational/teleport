@@ -46,6 +46,10 @@ export const StyledTable = styled.table(
     }
   }
 
+  & > tbody > tr > td {
+    vertical-align: baseline;
+  }
+
   & > thead > tr > th {
     background: ${props.theme.colors.primary.dark};
     color: ${props.theme.colors.primary.contrastText};

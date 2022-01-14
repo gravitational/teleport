@@ -194,6 +194,10 @@ exports[`render DocumentNodes 1`] = `
   padding-right: 24px;
 }
 
+.c19 > tbody > tr > td {
+  vertical-align: baseline;
+}
+
 .c19 > thead > tr > th {
   background: #01172C;
   color: #FFFFFF;

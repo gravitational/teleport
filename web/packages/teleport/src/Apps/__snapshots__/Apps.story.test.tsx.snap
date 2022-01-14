@@ -529,7 +529,7 @@ exports[`loaded state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c17 {
+.c18 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -558,22 +558,22 @@ exports[`loaded state 1`] = `
   width: 88px;
 }
 
-.c17:active {
+.c18:active {
   opacity: 0.56;
 }
 
-.c17:hover,
-.c17:focus {
+.c18:hover,
+.c18:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c17:active {
+.c18:active {
   opacity: 0.24;
 }
 
-.c17:disabled {
+.c18:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -585,20 +585,20 @@ exports[`loaded state 1`] = `
   font-size: 16px;
 }
 
-.c13 {
+.c14 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c15 {
+.c16 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
   font-size: 22px;
 }
 
-.c18 {
+.c19 {
   display: inline-block;
   transition: color .3s;
   margin-left: 4px;
@@ -606,7 +606,7 @@ exports[`loaded state 1`] = `
   font-size: 14px;
 }
 
-.c16 {
+.c17 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -634,7 +634,7 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
 }
 
-.c20 {
+.c21 {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -656,7 +656,7 @@ exports[`loaded state 1`] = `
   align-items: center;
 }
 
-.c21 {
+.c22 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -667,7 +667,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c22 {
+.c23 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -678,7 +678,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c19 {
+.c20 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -689,7 +689,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c14 {
+.c15 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -781,6 +781,10 @@ exports[`loaded state 1`] = `
 .c12 > tbody > tr > td:last-child,
 .c12 > tfoot > tr > td:last-child {
   padding-right: 24px;
+}
+
+.c12 > tbody > tr > td {
+  vertical-align: baseline;
 }
 
 .c12 > thead > tr > th {
@@ -889,6 +893,10 @@ exports[`loaded state 1`] = `
   font-size: 12px;
 }
 
+.c13 > tbody > tr > td {
+  vertical-align: middle;
+}
+
 <div>
   <div
     class="c0"
@@ -969,7 +977,7 @@ exports[`loaded state 1`] = `
       </div>
     </nav>
     <table
-      class="c12"
+      class="c12 c13"
     >
       <thead>
         <tr>
@@ -978,7 +986,7 @@ exports[`loaded state 1`] = `
             <a>
               Name
               <span
-                class="c10 c13 icon icon-chevron-up "
+                class="c10 c14 icon icon-chevron-up "
                 color="light"
               />
             </a>
@@ -987,7 +995,7 @@ exports[`loaded state 1`] = `
             <a>
               Description
               <span
-                class="c10 c13 icon icon-chevrons-expand-vertical "
+                class="c10 c14 icon icon-chevrons-expand-vertical "
                 color="light"
               />
             </a>
@@ -996,7 +1004,7 @@ exports[`loaded state 1`] = `
             <a>
               Address
               <span
-                class="c10 c13 icon icon-chevrons-expand-vertical "
+                class="c10 c14 icon icon-chevrons-expand-vertical "
                 color="light"
               />
             </a>
@@ -1013,12 +1021,12 @@ exports[`loaded state 1`] = `
             style="user-select: none;"
           >
             <div
-              class="c14"
+              class="c15"
               height="32px"
               width="32px"
             >
               <span
-                class="c10 c15 icon icon-amazonaws "
+                class="c10 c16 icon icon-amazonaws "
                 color="light"
                 font-size="6"
               />
@@ -1036,19 +1044,19 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c16"
+              class="c17"
               kind="secondary"
             >
               aws_account_id: A1234
             </div>
             <div
-              class="c16"
+              class="c17"
               kind="secondary"
             >
               env: dev
             </div>
             <div
-              class="c16"
+              class="c17"
               kind="secondary"
             >
               cluster: two
@@ -1058,13 +1066,13 @@ exports[`loaded state 1`] = `
             align="right"
           >
             <button
-              class="c17"
+              class="c18"
               kind="border"
               width="88px"
             >
               LAUNCH
               <span
-                class="c10 c18 icon icon-caret-down "
+                class="c10 c19 icon icon-caret-down "
                 color="text.secondary"
                 font-size="2"
               />
@@ -1076,12 +1084,12 @@ exports[`loaded state 1`] = `
             style="user-select: none;"
           >
             <div
-              class="c19"
+              class="c20"
               height="32px"
               width="32px"
             >
               <div
-                class="c20"
+                class="c21"
                 font-size="3"
               >
                 G
@@ -1100,13 +1108,13 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c16"
+              class="c17"
               kind="secondary"
             >
               env: dev
             </div>
             <div
-              class="c16"
+              class="c17"
               kind="secondary"
             >
               cluster: one
@@ -1116,64 +1124,8 @@ exports[`loaded state 1`] = `
             align="right"
           >
             <a
-              class="c17"
+              class="c18"
               href="/web/launch/grafana.one/one/grafana.teleport-proxy.com"
-              kind="border"
-              rel="noreferrer"
-              target="_blank"
-              width="88px"
-            >
-              LAUNCH
-            </a>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="user-select: none;"
-          >
-            <div
-              class="c21"
-              height="32px"
-              width="32px"
-            >
-              <div
-                class="c20"
-                font-size="3"
-              >
-                J
-              </div>
-            </div>
-          </td>
-          <td>
-            Jenkins
-          </td>
-          <td>
-            This is a Jenkins app
-          </td>
-          <td>
-            https://
-            jenkins.teleport-proxy.com
-          </td>
-          <td>
-            <div
-              class="c16"
-              kind="secondary"
-            >
-              env: prod
-            </div>
-            <div
-              class="c16"
-              kind="secondary"
-            >
-              cluster: one
-            </div>
-          </td>
-          <td
-            align="right"
-          >
-            <a
-              class="c17"
-              href="/web/launch/jenkins.one/one/jenkins.teleport-proxy.com"
               kind="border"
               rel="noreferrer"
               target="_blank"
@@ -1193,7 +1145,63 @@ exports[`loaded state 1`] = `
               width="32px"
             >
               <div
-                class="c20"
+                class="c21"
+                font-size="3"
+              >
+                J
+              </div>
+            </div>
+          </td>
+          <td>
+            Jenkins
+          </td>
+          <td>
+            This is a Jenkins app
+          </td>
+          <td>
+            https://
+            jenkins.teleport-proxy.com
+          </td>
+          <td>
+            <div
+              class="c17"
+              kind="secondary"
+            >
+              env: prod
+            </div>
+            <div
+              class="c17"
+              kind="secondary"
+            >
+              cluster: one
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c18"
+              href="/web/launch/jenkins.one/one/jenkins.teleport-proxy.com"
+              kind="border"
+              rel="noreferrer"
+              target="_blank"
+              width="88px"
+            >
+              LAUNCH
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="user-select: none;"
+          >
+            <div
+              class="c23"
+              height="32px"
+              width="32px"
+            >
+              <div
+                class="c21"
                 font-size="3"
               >
                 M
@@ -1212,13 +1220,13 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c16"
+              class="c17"
               kind="secondary"
             >
               env: dev
             </div>
             <div
-              class="c16"
+              class="c17"
               kind="secondary"
             >
               cluster: two
@@ -1228,7 +1236,7 @@ exports[`loaded state 1`] = `
             align="right"
           >
             <a
-              class="c17"
+              class="c18"
               href="/web/launch/mattermost.one/one/mattermost.teleport-proxy.com"
               kind="border"
               rel="noreferrer"

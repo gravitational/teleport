@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 import React, { useState } from 'react';
-import styled from 'styled-components';
 import { ButtonBorder } from 'design';
 import Table, { Cell, LabelCell } from 'design/DataTableNext';
 import { AuthType } from 'teleport/services/user';
@@ -38,7 +37,7 @@ function DatabaseList(props: Props) {
 
   return (
     <>
-      <StyledTable
+      <Table
         data={databases}
         columns={[
           {
@@ -115,12 +114,6 @@ function ConnectButton({
     </Cell>
   );
 }
-
-const StyledTable = styled(Table)`
-  & > tbody > tr > td {
-    vertical-align: baseline;
-  }
-` as typeof Table;
 
 type Props = {
   databases: Database[];

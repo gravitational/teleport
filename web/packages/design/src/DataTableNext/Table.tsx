@@ -23,6 +23,8 @@ export function Table<T>({
   setSearchValue,
   isSearchable,
   fetching,
+  className,
+  style,
 }: State<T>) {
   const renderHeaders = () => {
     const headers = columns.map(column => {
@@ -81,6 +83,8 @@ export function Table<T>({
   if (state.pagination) {
     return (
       <PagedTable
+        style={style}
+        className={className}
         data={state.data}
         renderHeaders={renderHeaders}
         renderBody={renderBody}
@@ -97,6 +101,8 @@ export function Table<T>({
   if (isSearchable) {
     return (
       <SearchableBasicTable
+        style={style}
+        className={className}
         data={state.data}
         renderHeaders={renderHeaders}
         renderBody={renderBody}
@@ -108,6 +114,8 @@ export function Table<T>({
 
   return (
     <BasicTable
+      style={style}
+      className={className}
       data={state.data}
       renderHeaders={renderHeaders}
       renderBody={renderBody}
@@ -119,9 +127,11 @@ function BasicTable<T>({
   data,
   renderHeaders,
   renderBody,
+  className,
+  style,
 }: BasicTableProps<T>) {
   return (
-    <StyledTable>
+    <StyledTable className={className} style={style}>
       {renderHeaders()}
       {renderBody(data)}
     </StyledTable>
@@ -134,6 +144,8 @@ function SearchableBasicTable<T>({
   renderBody,
   searchValue,
   setSearchValue,
+  className,
+  style,
 }: SearchableBasicTableProps<T>) {
   return (
     <>
@@ -143,7 +155,12 @@ function SearchableBasicTable<T>({
           setSearchValue={setSearchValue}
         />
       </StyledPanel>
-      <StyledTable borderTopLeftRadius={0} borderTopRightRadius={0}>
+      <StyledTable
+        className={className}
+        borderTopLeftRadius={0}
+        borderTopRightRadius={0}
+        style={style}
+      >
         {renderHeaders()}
         {renderBody(data)}
       </StyledTable>
@@ -161,6 +178,8 @@ function PagedTable<T>({
   searchValue,
   setSearchValue,
   fetching,
+  className,
+  style,
 }: PagedTableProps<T>) {
   const { pagerPosition, paginatedData, currentPage } = pagination;
   const isTopPager = pagerPosition === 'top';
@@ -196,7 +215,7 @@ function PagedTable<T>({
           />
         </StyledPanel>
       )}
-      <StyledTable {...radiusProps}>
+      <StyledTable {...radiusProps} className={className} style={style}>
         {renderHeaders()}
         {renderBody(paginatedData[currentPage])}
       </StyledTable>
@@ -246,6 +265,8 @@ type BasicTableProps<T> = {
   data: T[];
   renderHeaders: () => JSX.Element;
   renderBody: (data: T[]) => JSX.Element;
+  className?: string;
+  style?: React.CSSProperties;
 };
 
 type SearchableBasicTableProps<T> = BasicTableProps<T> & {

@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 import React, { useState } from 'react';
-import styled from 'styled-components';
 import Table, { Cell, LabelCell } from 'design/DataTableNext';
 import { ButtonBorder } from 'design';
 import { Kube } from 'teleport/services/kube';
@@ -29,7 +28,7 @@ function KubeList(props: Props) {
 
   return (
     <>
-      <StyledTable
+      <Table
         data={kubes}
         columns={[
           {
@@ -83,12 +82,6 @@ export const ConnectButtonCell = ({
     </Cell>
   );
 };
-
-const StyledTable = styled(Table)`
-  & > tbody > tr > td {
-    vertical-align: baseline;
-  }
-` as typeof Table;
 
 type Props = {
   kubes: Kube[];

@@ -33,7 +33,7 @@ export const SortIndicator = ({
   return <Icons.Sort />;
 };
 
-export const TextCell = ({ data }) => <Cell>{`${data}`}</Cell>;
+export const TextCell = ({ data }) => <Cell>{`${data || ''}`}</Cell>;
 
 export const LabelCell = ({ data }: { data: string[] }) =>
   renderLabelCell(data);

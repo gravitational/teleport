@@ -712,6 +712,10 @@ exports[`open source loaded 1`] = `
   padding-right: 24px;
 }
 
+.c12 > tbody > tr > td {
+  vertical-align: baseline;
+}
+
 .c12 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;

@@ -15,7 +15,6 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
 import { Label } from 'design';
 import Table, { Cell } from 'design/DataTableNext';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
@@ -29,7 +28,7 @@ export default function UserList({
   onReset,
 }: Props) {
   return (
-    <StyledTable
+    <Table
       data={users}
       columns={[
         {
@@ -113,9 +112,3 @@ type Props = {
   onDelete(user: User): void;
   onReset(user: User): void;
 };
-
-const StyledTable = styled(Table)`
-  & > tbody > tr > td {
-    vertical-align: baseline;
-  }
-` as typeof Table;

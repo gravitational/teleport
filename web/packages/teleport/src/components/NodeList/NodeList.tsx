@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 import React from 'react';
-import styled from 'styled-components';
 import Table, { Cell, LabelCell } from 'design/DataTableNext';
 import MenuSshLogin, { LoginItem } from 'shared/components/MenuSshLogin';
 import { Node } from 'teleport/services/nodes';
@@ -24,7 +23,7 @@ function NodeList(props: Props) {
   const { nodes = [], onLoginMenuOpen, onLoginSelect, pageSize = 100 } = props;
 
   return (
-    <StyledTable
+    <Table
       columns={[
         {
           key: 'hostname',
@@ -116,12 +115,6 @@ function renderTunnel() {
     >{`⟵ tunnel`}</span>
   );
 }
-
-const StyledTable = styled(Table)`
-  & > tbody > tr > td {
-    vertical-align: baseline;
-  }
-` as typeof Table;
 
 type Props = {
   nodes: Node[];

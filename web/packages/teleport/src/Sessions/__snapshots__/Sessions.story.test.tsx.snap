@@ -182,6 +182,10 @@ exports[`loaded 1`] = `
   padding-right: 24px;
 }
 
+.c11 > tbody > tr > td {
+  vertical-align: baseline;
+}
+
 .c11 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;

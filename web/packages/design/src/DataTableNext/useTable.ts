@@ -187,4 +187,5 @@ export type State<T> = Omit<
   'columns' | 'initialSort'
 > & {
   columns: TableColumn<T>[];
+  className?: string;
 };
