@@ -1,10 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`loaded 1`] = `
-.c3 {
-  box-sizing: border-box;
-}
-
 .c14 {
   line-height: 1.5;
   margin: 0;
@@ -87,17 +83,19 @@ exports[`loaded 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
+  margin-right: 8px;
   color: #FFFFFF;
 }
 
 .c5 {
   box-sizing: border-box;
+  width: 100%;
   display: flex;
+  justify-content: end;
 }
 
 .c6 {
   box-sizing: border-box;
-  margin-right: 8px;
   display: flex;
   align-items: center;
 }
@@ -150,8 +148,10 @@ exports[`loaded 1`] = `
   border-radius: 8px;
   font-size: 12px;
   width: 100%;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .c11 > thead > tr > th,
@@ -223,50 +223,69 @@ exports[`loaded 1`] = `
   border-bottom-right-radius: 8px;
 }
 
-.c8 {
-  box-sizing: border-box;
-  display: flex;
-}
-
-.c8 button {
-  background: none;
-  border: none;
-  border-radius: 200px;
-  cursor: pointer;
-  padding: 0;
-  margin: 0 0 0 8px;
-  outline: none;
-  transition: all 0.3s;
-  text-align: center;
-}
-
-.c8 button:hover,
-.c8 button:focus {
-  background: #1C254D;
-}
-
-.c8 button:hover .c9,
-.c8 button:focus .c9 {
-  opacity: 1;
-}
-
-.c8 button .c9 {
-  opacity: 0.4;
-  font-size: 20px;
-  transition: all 0.3s;
-}
-
-.c4 {
-  padding: 12px 16px;
+.c3 {
+  padding: 16px 24px;
   display: flex;
   height: 24px;
   flex-shrink: 0;
   align-items: center;
-  justify-content: end;
+  justify-content: space-between;
   background: #222C59;
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
-  justify-content: end;
+}
+
+.c8 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c8 .c9 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c8:hover .c9,
+.c8:focus .c9 {
+  opacity: 1;
+}
+
+.c8:disabled {
+  cursor: default;
+}
+
+.c8:disabled .c9 {
+  opacity: 0.1;
+}
+
+.c4 {
+  box-sizing: border-box;
+  font-size: 12px;
+  min-width: 200px;
+  outline: none;
+  border: none;
+  border-radius: 200px;
+  height: 32px;
+  transition: all .2s;
+  color: rgba(255,255,255,0.87);
+  background: #111B48;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.c4:hover,
+.c4:focus,
+.c4:active {
+  background: #1C254D;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(255,255,255,0.87);
+}
+
+.c4::placeholder {
+  color: rgba(255,255,255,0.24);
+  font-size: 12px;
 }
 
 .c12 {
@@ -287,140 +306,136 @@ exports[`loaded 1`] = `
       Active Sessions
     </div>
   </div>
-  <div
+  <nav
     class="c3"
   >
+    <input
+      class="c4"
+      placeholder="SEARCH..."
+      value=""
+    />
     <div
-      style="min-width: min-content;"
+      class="c5"
+      width="100%"
     >
-      <nav
-        class="c4"
+      <div
+        class="c6"
       >
         <div
-          class="c5"
+          class="c7"
+          color="primary.contrastText"
         >
-          <div
-            class="c6"
-          >
-            <div
-              class="c7"
-              color="primary.contrastText"
-            >
-              SHOWING 
-              <strong>
-                1
-              </strong>
-               - 
-              <strong>
-                1
-              </strong>
-               
-              of 
-              <strong>
-                1
-              </strong>
-            </div>
-          </div>
-          <div
-            class="c8"
-          >
-            <button
-              disabled=""
-              title="Previous Page"
-            >
-              <span
-                class="c9 c10 icon icon-arrow-left-circle "
-                color="light"
-                font-size="3"
-              />
-            </button>
-            <button
-              disabled=""
-              title="Next Page"
-            >
-              <span
-                class="c9 c10 icon icon-arrow-right-circle "
-                color="light"
-                font-size="3"
-              />
-            </button>
-          </div>
+          SHOWING 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            1
+          </strong>
+           of
+           
+          <strong>
+            1
+          </strong>
         </div>
-      </nav>
-      <table
-        class="c11"
-      >
-        <thead>
-          <tr>
-            <th>
-              Description
-            </th>
-            <th>
-              Session ID
-            </th>
-            <th>
-              Users
-            </th>
-            <th>
-              Node
-            </th>
-            <th>
-              Duration
-            </th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>
-              <div
-                class="c12"
-              >
-                <a
-                  class="c9 c13 icon icon-terminal "
-                  color="light"
-                  font-size="2"
-                  href="/web/cluster/one/console/session/sid0"
-                  style="border-radius: 50%; border: 2px solid #00bfa5; text-decoration: none;"
-                  target="_blank"
-                />
-                Session is in progress [root@localhost]
-              </div>
-            </td>
-            <td>
-              sid0
-            </td>
-            <td>
-              hehwawe@aw.sg [129.232.123.132], ma@pewu.tz [129.232.123.132]
-            </td>
-            <td>
-              localhost
-               
-              [1.1.1.1]
-            </td>
-            <td>
-              12 min
-            </td>
-            <td
-              align="right"
-            >
-              <button
-                class="c14"
-                height="24px"
-                kind="border"
-              >
-                OPTIONS
-                <span
-                  class="c9 c15 icon icon-caret-down "
-                  color="text.secondary"
-                  font-size="2"
-                />
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+        <button
+          class="c8"
+          disabled=""
+          title="Previous page"
+        >
+          <span
+            class="c9 c10 icon icon-arrow-left-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+        <button
+          class="c8"
+          disabled=""
+          title="Next page"
+        >
+          <span
+            class="c9 c10 icon icon-arrow-right-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+      </div>
     </div>
-  </div>
+  </nav>
+  <table
+    class="c11"
+  >
+    <thead>
+      <tr>
+        <th>
+          Description
+        </th>
+        <th>
+          Session ID
+        </th>
+        <th>
+          Users
+        </th>
+        <th>
+          Node
+        </th>
+        <th>
+          Duration
+        </th>
+        <th />
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <div
+            class="c12"
+          >
+            <a
+              class="c9 c13 icon icon-terminal "
+              color="light"
+              font-size="2"
+              href="/web/cluster/one/console/session/sid0"
+              style="border-radius: 50%; border: 2px solid #00bfa5; text-decoration: none;"
+              target="_blank"
+            />
+            Session is in progress [root@localhost]
+          </div>
+        </td>
+        <td>
+          sid0
+        </td>
+        <td>
+          hehwawe@aw.sg [129.232.123.132], ma@pewu.tz [129.232.123.132]
+        </td>
+        <td>
+          localhost
+           
+          [1.1.1.1]
+        </td>
+        <td>
+          12 min
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c9 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
 </div>
 `;

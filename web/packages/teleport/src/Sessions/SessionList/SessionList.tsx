@@ -15,41 +15,94 @@ limitations under the License.
 */
 
 import React from 'react';
-import { TablePaged, Column, Cell, TextCell } from 'design/DataTable';
-import { Box } from 'design';
+import Table, { Cell } from 'design/DataTableNext';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import cfg from 'teleport/config';
 import { Session } from 'teleport/services/ssh';
 import DescCell from './DescCell';
-import UserCell from './UserCell';
-import ActionCell from './ActionCell';
-import NodeCell from './NodeCell';
 
 export default function SessionList(props: Props) {
-  const { sessions, pageSize = 100, ...rest } = props;
-  const tableProps = {
-    data: sessions,
-    pageSize,
-  };
+  const { sessions, pageSize = 100 } = props;
 
   return (
-    <Box {...rest}>
-      <TablePaged {...tableProps}>
-        <Column header={<Cell>Description</Cell>} cell={<DescCell />} />
-        <Column
-          columnKey="sid"
-          header={<Cell>Session ID</Cell>}
-          cell={<TextCell />}
-        />
-        <Column header={<Cell>Users</Cell>} cell={<UserCell />} />
-        <Column header={<Cell>Node</Cell>} cell={<NodeCell />} />
-        <Column
-          columnKey="durationText"
-          header={<Cell>Duration</Cell>}
-          cell={<TextCell />}
-        />
-        <Column header={<Cell />} cell={<ActionCell />} />
-      </TablePaged>
-    </Box>
+    <Table
+      data={sessions}
+      columns={[
+        {
+          altKey: 'description',
+          headerText: 'Description',
+          render: ({ login, sid, clusterId, hostname }) => (
+            <DescCell
+              login={login}
+              hostname={hostname}
+              sid={sid}
+              clusterId={clusterId}
+            />
+          ),
+        },
+        {
+          key: 'sid',
+          headerText: 'Session ID',
+        },
+        {
+          altKey: 'users',
+          headerText: 'Users',
+          render: ({ parties }) => <UsersCell parties={parties} />,
+        },
+        {
+          altKey: 'node',
+          headerText: 'Node',
+          render: ({ hostname, addr }) => (
+            <NodeCell hostname={hostname} addr={addr} />
+          ),
+        },
+        {
+          key: 'durationText',
+          headerText: 'Duration',
+        },
+        {
+          altKey: 'options-btn',
+          render: ({ sid, clusterId }) => (
+            <ActionCell sid={sid} clusterId={clusterId} />
+          ),
+        },
+      ]}
+      emptyText="No Active Sessions Found"
+      pagination={{ pageSize }}
+      isSearchable
+    />
   );
+}
+
+function ActionCell({ sid, clusterId }: Pick<Session, 'sid' | 'clusterId'>) {
+  const url = cfg.getSshSessionRoute({ sid, clusterId });
+
+  return (
+    <Cell align="right">
+      <MenuButton>
+        <MenuItem as="a" href={url} target="_blank">
+          Join Session
+        </MenuItem>
+      </MenuButton>
+    </Cell>
+  );
+}
+
+function NodeCell({ hostname, addr }: Pick<Session, 'hostname' | 'addr'>) {
+  const nodeAddr = addr ? `[${addr}]` : '';
+
+  return (
+    <Cell>
+      {hostname} {nodeAddr}
+    </Cell>
+  );
+}
+
+function UsersCell({ parties }: Pick<Session, 'parties'>) {
+  const users = parties
+    .map(({ user, remoteAddr }) => `${user} [${remoteAddr}]`)
+    .join(', ');
+  return <Cell>{users}</Cell>;
 }
 
 type Props = {
