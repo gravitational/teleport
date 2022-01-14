@@ -24,7 +24,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"syscall"
 
@@ -93,7 +92,8 @@ func innerMain() error {
 		return trace.Wrap(err)
 	}
 
-	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(args.workspace, gomodcacheDir))
+	moduleCacheDir := filepath.Join(os.TempDir(), gomodcacheDir)
+	gomodcache := fmt.Sprintf("GOMODCACHE=%s", moduleCacheDir)
 
 	log.Println("Analysing code changes")
 	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
@@ -103,7 +103,7 @@ func innerMain() error {
 
 	hasOnlyDocChanges := ch.Docs && (!ch.Code)
 	if hasOnlyDocChanges {
-		log.Println("No non-docs changes detected. Skipping tests.")
+		log.Println("No code changes detected. Skipping tests.")
 		return nil
 	}
 
@@ -112,18 +112,32 @@ func innerMain() error {
 	if err != nil {
 		return trace.Wrap(err, "Root-only integration tests failed")
 	}
+	log.Println("Root-only integration tests passed.")
 
 	if !args.skipChown {
 		// We run some build steps as root and others as a non user, and we
 		// want the nonroot user to be able to manipulate the artifacts
-		// created by root, so we `chown -R` the whole workspace to allow it.
+		// created by root, so we `chown -R` the whole workspace & module
+		// cache to allow it.
+
 		log.Printf("Reconfiguring workspace for nonroot user")
 		err = chownR(args.workspace, nonrootUID, nonrootGID)
 		if err != nil {
 			return trace.Wrap(err, "failed reconfiguring workspace")
 		}
+
+		log.Printf("Reconfiguring module cache for nonroot user")
+		err = chownR(moduleCacheDir, nonrootUID, nonrootGID)
+		if err != nil {
+			return trace.Wrap(err, "failed reconfiguring module cache")
+		}
 	}
 
+	// Note that we run `etcd` as nonroot here. The files created by etcd live
+	// inside the directory searched by `go list ./...` when generating the list
+	// of packages to test, and so making them owned by root produces a heap of
+	// diagnostic warnings that would pollute the build log and just confuse
+	// people when they are trying to work out why their build failed.
 	log.Printf("Starting etcd...")
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -138,7 +152,7 @@ func innerMain() error {
 		return trace.Wrap(err, "Nonroot integration tests failed")
 	}
 
-	log.Printf("PASS")
+	log.Printf("Non-root integration tests passed.")
 
 	return nil
 }

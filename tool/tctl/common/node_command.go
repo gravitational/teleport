@@ -144,9 +144,9 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 		return trace.Errorf("This cluster does not have any auth servers running.")
 	}
 
-	// output format swtich:
+	// output format switch:
 	if c.format == "text" {
-		if roles.Include(types.RoleTrustedCluster) || roles.Include(types.LegacyClusterTokenType) {
+		if roles.Include(types.RoleTrustedCluster) {
 			fmt.Printf(trustedClusterMessage, token, int(c.ttl.Minutes()))
 		} else {
 			return nodeMessageTemplate.Execute(os.Stdout, map[string]interface{}{

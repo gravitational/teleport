@@ -80,8 +80,31 @@ func (l *Limiter) RegisterRequestWithCustomRate(token string, customRate *rateli
 	return l.rateLimiter.RegisterRequest(token, customRate)
 }
 
-// Add limiter to the handle
+// WrapHandle adds limiter to the handle
 func (l *Limiter) WrapHandle(h http.Handler) {
 	l.rateLimiter.Wrap(h)
 	l.ConnLimiter.Wrap(l.rateLimiter)
+}
+
+// RegisterRequestAndConnection register a rate and connection limiter for a given token. Close function is returned,
+// and it must be called to release the token. When a limit is hit an error is returned.
+// Example usage:
+//
+//	release, err := limiter.RegisterRequestAndConnection(clientIP)
+//	if err != nil {
+//		return trace.Wrap(err)
+//	}
+//	defer release()
+func (l *Limiter) RegisterRequestAndConnection(token string) (func(), error) {
+	// Apply rate limiting.
+	if err := l.RegisterRequest(token); err != nil {
+		return func() {}, trace.LimitExceeded("rate limit exceeded for %q", token)
+	}
+
+	// Apply connection limiting.
+	if err := l.AcquireConnection(token); err != nil {
+		return func() {}, trace.LimitExceeded("exceeded connection limit for %q", token)
+	}
+
+	return func() { l.ReleaseConnection(token) }, nil
 }

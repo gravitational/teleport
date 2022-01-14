@@ -538,7 +538,7 @@ func (a *Server) validateTrustedClusterToken(token string) (map[string]string, e
 		return nil, trace.AccessDenied("the remote server denied access: invalid cluster token")
 	}
 
-	if !roles.Include(types.RoleTrustedCluster) && !roles.Include(types.LegacyClusterTokenType) {
+	if !roles.Include(types.RoleTrustedCluster) {
 		return nil, trace.AccessDenied("role does not match")
 	}
 
