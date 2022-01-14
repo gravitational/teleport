@@ -254,6 +254,12 @@ message UserCertsRequest {
     // RouteToApp specifies application to issue certificate for.
     RouteToApp RouteToApp = 11
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "route_to_app,omitempty" ];
+
+    // RoleRequests specify an alternative set of named roles to apply to the
+    // certificate, assuming the requestor is allowed to impersonate said roles
+    // directly. An empty set of requests returns the user's normal set of
+    // roles.
+    repeated string RoleRequests = 12 [ (gogoproto.jsontag) = "role_requests,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
