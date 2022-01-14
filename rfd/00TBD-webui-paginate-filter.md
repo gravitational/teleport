@@ -32,10 +32,10 @@ The language will be the same across the web ui and cli tools.
 Supported operators:
 - `,`: Comma between labels acts as an `AND` operator (same interpretation as current `tsh ls <label1>,<label2>`)
 - `|`: Pipe between label `values` denotes a set and acts as a `OR` operator
-- `!`: Exclamation point before a label acts as a `NOT` operator
+- `!=`: Acts as a `NOT` equal operator
 - `=` or `==`: Both are used between a label key and value and can be used interchangeably
 
-Additionally, an empty right-hand side of the `equals` char means `any values`.
+Additionally, an asterik on the right-hand side of the `equals` char means `any values`.
 
 | Format                        | Operator | Example          | Description                                                      |
 |-------------------------------|----------|------------------|------------------------------------------------------------------|
@@ -161,44 +161,28 @@ type Sort struct {
 
 <br/>
 
-### Filter: Search
+### Filter: Fuzzy Search
 
-The fields we allow for searching should be mostly the same as sorting. Search values will be stored as simple list of strings that will be iterated through resource fields to look for match ignoring order. If a user wants to search a phrase, they must supply the phrase within paranthesis.
+The fields we allow for searching should be mostly the same as sorting. Search values will be stored as simple list of strings that will be iterated through select resource fields to look for a fuzzy match (contains), ignoring case and order. If a user wants to search a phrase, they must supply the phrase within paranthesis.
 
-| Search values | Interpretation     |
-|---------------|--------------------|
-| foo bar       | ["foo", "bar"]     |
-| "foo bar"     | ["foo bar"]        |
-| "foo bar" baz | ["foo bar", "baz"] |
+| Search Examples | Interpretation     |
+|-----------------|--------------------|
+| foo bar         | ["foo", "bar"]     |
+| "foo bar"       | ["foo bar"]        |
+| "foo bar" baz   | ["foo bar", "baz"] |
 
 
-The below are the current searchable fields in the web ui, minus labels in which the label filtering should be used instead:
+The below are the current searchable fields in the web ui:
 
-- `Server Fields`: [hostname, addr, tunnel]
-- `App Fields`: [name, publicAddr, description]
-- `DB Fields`: [name, description, protocol, type]
-- `Kube Fields`: [name]
-- `Desktop Fields`: [name, address]
+- `Server Fields`: [hostname, addr, tunnel, labels]
+- `App Fields`: [name, publicAddr, description, labels]
+- `DB Fields`: [name, description, protocol, type, labels]
+- `Kube Fields`: [name, labels]
+- `Desktop Fields`: [name, address, labels]
 
 **Some things to consider:**
 
-Sometimes the UI will format a field to be displayed differently ie: if a server does not have a addr, we display `tunnel` to the user, a user may search for `tunnel`, expecting to get all tunnels. Or for app types, we display `cloud sql` instead of `gcp`. To handle this, we could extend search functionality for these special cases to check for these values.
-
-<br/>
-
-### List of Unique Labels
-
-A user needs to be able to see a list of available labels as a dropdown, and so we need to create a new rpc and a new web api endpoint to retrieve them.
-
-```
-rpc GetResourceLabels(resourceType string) returns []Labels
-
-GET /webabpi/sites/:sites/<nodes|apps|databases|kubernetes>/labels
-```
-
-The new rpc will return a list of unique labels by going through a list of resources that is first ran through rbac checks (so users don't see labels to a resource they don't have access to).
-
-There is an edge case where each resource in a list, can have unique labels which can result in a large list, ie. with 30k items in list, one unique label will result in 30k+ labels, two unique labels will result in 60k+ labels and so on. I don't think listing one time labels are particularly useful to the user. We can only return labels that have at least 2 occurences by keeping track of how often labels appear as we process the list to dramatically cut down the length.
+Sometimes the UI will format a field to be displayed differently ie: if a server does not have a addr, we display `tunnel` to the user, a user may search for `tunnel`, expecting to get all tunnels. Or for app types, we display `cloud sql` instead of `gcp`. To handle this, we could make custom search matching for these values ie: if a search value equals `tunnel`, we will also check if `nodeResource.UsesTunnel()`.
 
 <br/>
 
@@ -242,9 +226,34 @@ Because we keep the original meaning of `comma` the same, extending will not be 
 
 ### Client: Web UI
 
+#### Search Bar
+
+Label querying and searching will be done in the search bar. There will be two states of our search bar:
+
+1) `Simple Search` that does fuzzy `AND` searching only. Users can also look for words in a label ie: if we have a label `env=foo` user can search for words `env foo`. Anything more complex than this, the user will need to use our advanced search.
+2) `Advanced Search` that allows users to perform the same query as done in the CLI, using the same long flags `--labels=<label query>` and `--search=<search words>`.
+
+Similar to how it is done in the VS Code's search box, there will be two clickable buttons that alternates between these two states.
+
+#### Clickable Labels from Table's
+
+Label's on table for select resources will be clickable, which updates the URL param, and triggers a re-fetch.
+
+Depending on what state the search bar is currently on, clicking on labels will have different behavior:
+
+
+| Label Clicked           | Search Bar State | Displayed on Search Bar    | What it means                                                          |
+|-------------------------|------------------|----------------------------|------------------------------------------------------------------------|
+| `env=prod`              | simple           | `env prod`                 | resources with fields containing string `env` and `prod`               |
+| `env=prod`              | advanced         | `--labels=env=prod`        | resources with labels `env=prod`                                       |
+| `env=prod` and `os=mac` | simple           | `env prod os mac`          | resources with fields containing string `env`, `prod`, `os`, and `mac` |
+| `env=prod` and `os=mac` | advanced         | `--labels=env=prod,os=mac` | resources with labels `env=prod` and `os=mac`                          |
+
+<br/>
+
 #### Bookmarkable URL 
 
-The URL will be made bookmarkable and contain
+The URL will be made bookmarkable and contains the search and label queries.
 
 **Allowed characters in the URL query param**
 
@@ -261,11 +270,12 @@ According to [rfc 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-3.
 
 **Proposed Query Params and Delimiters**
 
-| Query Params | Description                |
-|--------------|----------------------------|
-| `labels`     | Start of label query.      |
-| `sort`       | Sort column and direction. |
-| `search`     | Search values.             |
+| Query Params | Description    |
+|--------------|----------------|
+| `labels`     | Labels         |
+| `search`     | Search values. |
+
+**Note:** The existence of `labels` query param will indicate that the user has used the advanced search.
 
 <br/>
 
@@ -295,7 +305,10 @@ According to [rfc 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-3.
 https://cloud.dev/v1/webapi/sites/clusterName/nodes?labels=os=mac,linux+-env=prod&sort=hostname=desc&search=foo+bar
 
 // Parsed in web client for the following data,
-// which will then be sent to proxy server as POST request (with limit and startKey):
+// which will then be sent to proxy server as 
+// POST request (with limit and startKey) to: `/webapi/sites/:site/resources/:resourceType`
+// resourceType can be: app, node, db, kube, windesktop
+
 - Sort: {col: `hostname`, dir: `desc`}
 - Search: ["foo", "bar"]
 - LabelExpr: Expr[{Key: "os", Values: ["mac", "linux"], Op: In},   {Key: "env", Values: ["prod"], Op: NotIn}]
@@ -309,20 +322,6 @@ https://cloud.dev/v1/webapi/sites/clusterName/nodes?labels=os=mac,linux+-env=pro
 
 <br/>
 
-#### Search
-
-The behavior of the search input box will be different in that the user must be intentional and press the `enter` key to make a request (similar to github search behavior). 
-
-We should also place an `x` button at the end of the search bar where if clicked, clears the search bar and updates URL query.
-
-In future work, this search bar should also be extended to allow users to type the same label query as done in the CLI.
-
-#### Label Filtering
-
-There will be a button `Select Filter` that once clicked, makes a call to fetch the list of labels (if not already fetched), and then renders a drop down menu of the list of filters (paginated if the list exceeds 100).
-
-In future work, this drop down will be extended to allow selecting sets, and `NOT`ing a label through use of shortcut keys (as done in github).
-
 #### Pagination
 
 Paginating and fetching for more rows will behave the same as how audit logs are currently working.
@@ -334,11 +333,11 @@ Sort buttons on table columns will stay the same, but on click will update the q
 ## Phases of Work
 
 - Phase 1: will focus on bringing server side pagination and filtering to nodes only in the web UI to match `tsh`.
-  - filtering by labels (only `AND`), search values, and sort
-  - label drop down menu and allow click on labels from table rows
-  - search bar will be soley used for search values in this phase
+  - create two state search bar for UI:
+	 - fuzzy search
+	 - advanced search that supports "AND"ing labels (and search)
+  - clickable labels from table
 - Phase 2: 
-  - add support for label value set and `NOT` operator
-  - extend web ui search bar to allow users to type label query
-- Phase 3:
+  - add full label query support to our advanced search bar
   - bring pagination + filter support to rest of resources for tsh, tctl and web ui
+
