@@ -30,11 +30,16 @@ import (
 	"google.golang.org/api/option"
 )
 
-// mergeGoogleClaims will fetch extra data from proprietary Google APIs if
+// addGsuiteClaims will fetch extra data from proprietary Google APIs if
 // applicable to the connector, and it will add claims based on the fetched
 // data. The current implementation adds a "groups" claim containing the Google
 // Groups that the user is a member of.
-func mergeGoogleClaims(ctx context.Context, connector types.OIDCConnector, claims jose.Claims, clientOptions ...option.ClientOption) (jose.Claims, error) {
+//
+// If clientOptions is not empty, it will be passed to the underlying google api
+// client without loading the credentials according to the configuration of the
+// connector. The credentials in the default case are loaded from the connector
+// with the getGsuiteCredentialsForConnector function.
+func addGsuiteClaims(ctx context.Context, connector types.OIDCConnector, claims jose.Claims, clientOptions ...option.ClientOption) (jose.Claims, error) {
 	// If google_service_account_uri and google_service_account are not set, we
 	// assume that this is a non-GWorkspace OIDC provider using the same
 	// issuer URL as Google Workspace (e.g.
@@ -48,6 +53,42 @@ func mergeGoogleClaims(ctx context.Context, connector types.OIDCConnector, claim
 		return nil, trace.BadParameter("no email in oauth claims for Google Workspace account")
 	}
 
+	if len(clientOptions) == 0 {
+		credentials, err := getGsuiteCredentialsForConnector(ctx, connector)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		clientOptions = []option.ClientOption{option.WithCredentials(credentials)}
+	}
+
+	var gsuiteGroups []string
+	if connector.GetGoogleTransitiveGroups() {
+		gsuiteGroups, err = groupsFromGsuiteCloudidentity(ctx, email, clientOptions...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		gsuiteGroups, err = groupsFromGsuiteDirectory(ctx, email, clientOptions...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if len(gsuiteGroups) > 0 {
+		gsuiteClaims := jose.Claims{"groups": gsuiteGroups}
+		log.Debugf("Claims from Google Workspace: %v.", gsuiteClaims)
+		claims, err = mergeClaims(claims, gsuiteClaims)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		log.Debugf("No Google Workspace claims.")
+	}
+
+	return claims, nil
+}
+
+func getGsuiteCredentialsForConnector(ctx context.Context, connector types.OIDCConnector) (*google.Credentials, error) {
 	var jsonCredentials []byte
 	var credentialLoadingMethod string
 	if connector.GetGoogleServiceAccountURI() != "" {
@@ -72,22 +113,18 @@ func mergeGoogleClaims(ctx context.Context, connector types.OIDCConnector, claim
 	// https://developers.google.com/admin-sdk/directory/v1/guides/delegation
 	// and
 	// https://developers.google.com/identity/protocols/oauth2/service-account#delegatingauthority )
-	// but the "Cloud Identity API" can work as a user as long as the user
-	// can view all their transitive groups.
-	var credentialsParams google.CredentialsParams
+	// and the "Cloud Identity API" needs an account with View permission on
+	// all groups to work reliably.
+	credentialsParams := google.CredentialsParams{
+		Subject: connector.GetGoogleAdminEmail(),
+	}
+
 	if connector.GetGoogleTransitiveGroups() {
+		log.Debugf("Loading credentials to fetch transitive groups")
 		credentialsParams.Scopes = []string{cloudidentity.CloudIdentityGroupsReadonlyScope}
-		if connector.GetGoogleAdminEmail() != "" {
-			log.Debugf("Will attempt to fetch transitive groups as admin")
-			credentialsParams.Subject = connector.GetGoogleAdminEmail()
-		} else {
-			log.Debugf("Will attempt to fetch transitive groups as user")
-			credentialsParams.Subject = email
-		}
 	} else {
-		log.Debugf("Will attempt to fetch direct groups as admin")
+		log.Debugf("Loading credentials to fetch direct groups")
 		credentialsParams.Scopes = []string{directory.AdminDirectoryGroupReadonlyScope}
-		credentialsParams.Subject = connector.GetGoogleAdminEmail()
 	}
 
 	credentials, err := google.CredentialsFromJSONWithParams(ctx, jsonCredentials, credentialsParams)
@@ -95,35 +132,10 @@ func mergeGoogleClaims(ctx context.Context, connector types.OIDCConnector, claim
 		return nil, trace.BadParameter("unable to parse google service account from %v: %v", credentialLoadingMethod, err)
 	}
 
-	var gsuiteGroups []string
-	if connector.GetGoogleTransitiveGroups() {
-		gsuiteGroups, err = groupsFromGsuiteCloudidentity(ctx, credentials, email, clientOptions...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		gsuiteGroups, err = groupsFromGsuiteDirectory(ctx, credentials, email, clientOptions...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	if len(gsuiteGroups) > 0 {
-		gsuiteClaims := jose.Claims{"groups": gsuiteGroups}
-		log.Debugf("Claims from Google Workspace: %v.", gsuiteClaims)
-		claims, err = mergeClaims(claims, gsuiteClaims)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		log.Debugf("No Google Workspace claims.")
-	}
-
-	return claims, nil
+	return credentials, nil
 }
 
-func groupsFromGsuiteDirectory(ctx context.Context, credentials *google.Credentials, email string, clientOptions ...option.ClientOption) ([]string, error) {
-	clientOptions = append([]option.ClientOption{option.WithCredentials(credentials)}, clientOptions...)
+func groupsFromGsuiteDirectory(ctx context.Context, email string, clientOptions ...option.ClientOption) ([]string, error) {
 	service, err := directory.NewService(ctx, clientOptions...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -149,8 +161,7 @@ func groupsFromGsuiteDirectory(ctx context.Context, credentials *google.Credenti
 	return groups, nil
 }
 
-func groupsFromGsuiteCloudidentity(ctx context.Context, credentials *google.Credentials, email string, clientOptions ...option.ClientOption) ([]string, error) {
-	clientOptions = append([]option.ClientOption{option.WithCredentials(credentials)}, clientOptions...)
+func groupsFromGsuiteCloudidentity(ctx context.Context, email string, clientOptions ...option.ClientOption) ([]string, error) {
 	service, err := cloudidentity.NewService(ctx, clientOptions...)
 	if err != nil {
 		return nil, trace.Wrap(err)
