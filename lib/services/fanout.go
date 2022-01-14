@@ -276,10 +276,16 @@ func newFanoutWatcher(ctx context.Context, f *Fanout, watch Watch) (*fanoutWatch
 	if watch.QueueSize < 1 {
 		watch.QueueSize = defaultQueueSize
 	}
+
+	var skipFn func(Event) bool
+	if sf, ok := ctx.Value("skipFn").(func(Event) bool); ok {
+		skipFn = sf
+	}
 	return &fanoutWatcher{
 		fanout: f,
 		watch:  watch,
 		eventC: make(chan Event, watch.QueueSize),
+		skipFn: skipFn,
 		cancel: cancel,
 		ctx:    ctx,
 	}, nil
@@ -291,6 +297,7 @@ type fanoutWatcher struct {
 	err      error
 	watch    types.Watch
 	eventC   chan types.Event
+	skipFn   func(Event) bool
 	cancel   context.CancelFunc
 	ctx      context.Context
 	initOnce sync.Once
@@ -311,6 +318,11 @@ func (w *fanoutWatcher) init() (ok bool) {
 }
 
 func (w *fanoutWatcher) emit(event Event) error {
+	if w.skipFn != nil {
+		if w.skipFn(event) {
+			return nil
+		}
+	}
 	select {
 	case <-w.ctx.Done():
 		return trace.Wrap(w.ctx.Err(), "watcher closed")

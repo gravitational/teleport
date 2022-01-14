@@ -58,6 +58,14 @@ func (s *CA) UpsertCertAuthority(ca services.CertAuthority) error {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// ignore writes that would have no effect (helps reduce network traffic)
+	if prev, err := s.GetCertAuthority(services.CertAuthID{Type: ca.GetType(), DomainName: ca.GetClusterName()}, false); err == nil {
+		if services.CertAuthoritiesEquivalent(prev, ca) {
+			return nil
+		}
+	}
+
 	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)

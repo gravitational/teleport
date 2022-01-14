@@ -612,6 +612,43 @@ Outer:
 		}
 		return nil, trace.BadParameter("cache %q does not support watching resource %q", c.Config.target, requested.Kind)
 	}
+
+	if component, ok := ctx.Value("watch-component").(string); ok && component == "node" {
+		skipFn := func(e types.Event) bool {
+			if e.Type != types.OpPut {
+				return false
+			}
+			ca, ok := e.Resource.(services.CertAuthority)
+			if !ok {
+				return false
+			}
+
+			rg, err := c.read()
+			if err != nil {
+				return false
+			}
+			ta := func(_ []types.RemoteCluster) {} // compile-time type assertion
+			ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{}, func() (interface{}, error) {
+				remotes, err := rg.presence.GetRemoteClusters(services.SkipValidation())
+				ta(remotes)
+				return remotes, err
+			})
+			if err != nil || ri == nil {
+				return false
+			}
+			cachedRemotes := ri.([]types.RemoteCluster)
+			ta(cachedRemotes)
+
+			for _, rc := range cachedRemotes {
+				if rc.GetName() == ca.GetName() {
+					return true
+				}
+			}
+			return false
+		}
+
+		ctx = context.WithValue(ctx, "skipFn", skipFn)
+	}
 	return c.eventsFanout.NewWatcher(ctx, watch)
 }
 

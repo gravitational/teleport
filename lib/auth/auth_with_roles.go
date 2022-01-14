@@ -541,6 +541,9 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch services.Watch) 
 		watch.QueueSize = defaults.ProxyQueueSize
 	case a.hasBuiltinRole(string(teleport.RoleNode)):
 		watch.QueueSize = defaults.NodeQueueSize
+		if !a.hasBuiltinRole(string(teleport.RoleAuth)) {
+			ctx = context.WithValue(ctx, "watch-component", "node")
+		}
 	}
 	return a.authServer.NewWatcher(ctx, watch)
 }
