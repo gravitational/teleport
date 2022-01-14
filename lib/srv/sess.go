@@ -38,6 +38,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/pborman/uuid"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -751,6 +752,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			Type:        events.SessionStartEvent,
 			Code:        events.SessionStartCode,
 			ClusterName: ctx.ClusterName,
+			ID:          uuid.New(),
 		},
 		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
@@ -900,6 +902,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			Type:        events.SessionStartEvent,
 			Code:        events.SessionStartCode,
 			ClusterName: ctx.ClusterName,
+			ID:          uuid.New(),
 		},
 		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
