@@ -357,3 +357,23 @@ const (
 	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
 )
+
+const (
+	// ResourceFieldName refers to the resource object field name "name".
+	ResourceFieldName = "name"
+
+	// ResourceFieldDescription refers to the resource object field name "description".
+	ResourceFieldDescription = "description"
+
+	// ResourceFieldHostname refers to the resource object field name "hostname".
+	ResourceFieldHostname = "hostname"
+
+	// ResourceFieldAddr refers to the resource object field name "address".
+	ResourceFieldAddr = "address"
+
+	// ResourceFieldPublicAddr refers to the resource object field name "address".
+	ResourceFieldPublicAddr = "publicAddress"
+
+	// ResourceFieldType refers to the resource object field name "type".
+	ResourceFieldType = "type"
+)

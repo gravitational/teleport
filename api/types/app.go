@@ -30,7 +30,7 @@ import (
 
 // Application represents a web app.
 type Application interface {
-	// ResourceWithOrigin provides common resource methods.
+	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
 	// GetNamespace returns the app namespace.
 	GetNamespace() string
