@@ -70,10 +70,7 @@ func parseFlags() (string, string, error) {
 		return "", "", trace.BadParameter("check missing")
 	}
 	switch *check {
-	case "latest":
-		break
-	case "prerelease":
-		break
+	case "latest", "prerelease":
 	default:
 		return "", "", trace.BadParameter("invalid check: %v", *check)
 	}
