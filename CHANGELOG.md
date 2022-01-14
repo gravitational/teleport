@@ -444,7 +444,7 @@ if err != nil {
 defer clt.Close()
 
 // Create a Access Request.
-accessRequest, err := types.NewAccessRequest(uuid.New().String(), "access-admin", "admin")
+accessRequest, err := types.NewAccessRequest(uuid.New(), "access-admin", "admin")
 if err != nil {
   log.Fatalf("Failed to build access request: %v.", err)
 }
