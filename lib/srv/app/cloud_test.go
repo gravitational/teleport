@@ -18,8 +18,10 @@ package app
 import (
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 
 	"github.com/gravitational/trace"
@@ -47,24 +49,36 @@ func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
 		expectError func(error) bool
 	}{
 		{
-			name: "not temporary",
+			name: "ec2 role",
 			credentials: credentials.NewCredentials(&mockCredentialsProvider{
 				retrieveValue: credentials.Value{
 					AccessKeyID:     "id",
 					SecretAccessKey: "secret",
-					ProviderName:    "mock",
+					ProviderName:    ec2rolecreds.ProviderName,
 				},
 			}),
 			expectBool: false,
 		},
 		{
-			name: "is temporary with session token",
+			name: "web identity",
 			credentials: credentials.NewCredentials(&mockCredentialsProvider{
 				retrieveValue: credentials.Value{
 					AccessKeyID:     "id",
 					SecretAccessKey: "secret",
 					SessionToken:    "token",
-					ProviderName:    "mock",
+					ProviderName:    stscreds.WebIdentityProviderName,
+				},
+			}),
+			expectBool: true,
+		},
+		{
+			name: "session token exists",
+			credentials: credentials.NewCredentials(&mockCredentialsProvider{
+				retrieveValue: credentials.Value{
+					AccessKeyID:     "id",
+					SecretAccessKey: "secret",
+					SessionToken:    "token",
+					ProviderName:    "SharedConfigCredentials",
 				},
 			}),
 			expectBool: true,

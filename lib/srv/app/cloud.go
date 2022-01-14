@@ -26,6 +26,8 @@ import (
 
 	"github.com/gravitational/teleport/lib/tlsca"
 
+	"github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds"
+	"github.com/aws/aws-sdk-go-v2/credentials/ssocreds"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
@@ -228,19 +230,35 @@ func (c *cloud) isSessionUsingTemporaryCredentials() (bool, error) {
 		return false, trace.Wrap(err)
 	}
 
-	// Token is only required for temporary security credentials retrieved via STS.
+	switch credentials.ProviderName {
+	case ec2rolecreds.ProviderName:
+		return false, nil
+
+	case
+		// stscreds.AssumeRoleProvider retrieves temporary credentials from the
+		// STS service, and keeps track of their expiration time.
+		// https://docs.aws.amazon.com/sdk-for-go/api/aws/credentials/stscreds/#AssumeRoleProvider
+		stscreds.ProviderName,
+
+		// stscreds.WebIdentityRoleProvider is used to retrieve credentials
+		// using an OIDC token.
+		// https://docs.aws.amazon.com/sdk-for-go/api/aws/credentials/stscreds/#WebIdentityRoleProvider
+		//
+		// IAM roles for EKS service accounts are also granted through the OIDC tokens.
+		// https://aws.amazon.com/blogs/opensource/introducing-fine-grained-iam-roles-service-accounts/
+		stscreds.WebIdentityProviderName,
+
+		// ssocreds.Provider is an AWS credential provider that retrieves
+		// temporary AWS credentials by exchanging an SSO login token.
+		// https://docs.aws.amazon.com/sdk-for-go/api/aws/credentials/ssocreds/#Provider
+		ssocreds.ProviderName:
+		return true, nil
+	}
+
+	// For other providers, make an assumption that a session token is only
+	// required for temporary security credentials retrieved via STS, otherwise
+	// it is an empty string.
 	// https://docs.aws.amazon.com/sdk-for-go/api/aws/credentials/#NewStaticCredentials
-	//
-	// Token can be staticially provided through profile, environment, etc., or retrieved by the following providers:
-	// - stscreds.AssumeRoleProvider retrieves temporary credentials from the STS service, and keeps track of their expiration time.
-	//   https://docs.aws.amazon.com/sdk-for-go/api/aws/credentials/stscreds/#AssumeRoleProvider
-	// - stscreds.WebIdentityRoleProvider is used to retrieve credentials using an OIDC token.
-	//   https://docs.aws.amazon.com/sdk-for-go/api/aws/credentials/stscreds/#WebIdentityRoleProvider
-	// - ssocreds.Provider is an AWS credential provider that retrieves temporary AWS credentials by exchanging an SSO login token.
-	//   https://docs.aws.amazon.com/sdk-for-go/api/aws/credentials/ssocreds/#Provider
-	//
-	// Note that IAM roles for EKS service accounts are granted through the OIDC tokens.
-	// https://aws.amazon.com/blogs/opensource/introducing-fine-grained-iam-roles-service-accounts/
 	return credentials.SessionToken != "", nil
 }
 
