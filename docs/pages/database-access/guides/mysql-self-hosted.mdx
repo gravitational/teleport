@@ -1,9 +1,9 @@
 ---
-title: Database Access with Self-Hosted MySQL
-description: How to configure Teleport Database Access with self-hosted MySQL.
+title: Database Access with Self-Hosted MySQL/MariaDB
+description: How to configure Teleport Database Access with self-hosted MySQL/MariaDB.
 ---
 
-# Self-Hosted MySQL
+# Self-Hosted MySQL/MariaDB
 
 ## Create Certificate/Key Pair
 
@@ -22,9 +22,11 @@ $ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
 The command will create 3 files: `server.cas`, `server.crt` and `server.key`
 which you'll need to enable mutual TLS on your MySQL server.
 
-## Configure MySQL Server
+## Configure MySQL/MariaDB Server
 
-To configure MySQL server to accept TLS connections, add the following to
+<Tabs>
+  <TabItem label="MySQL">
+  To configure MySQL server to accept TLS connections, add the following to
 MySQL configuration file `mysql.cnf`:
 
 ```conf
@@ -34,8 +36,22 @@ ssl-ca=/path/to/server.cas
 ssl-cert=/path/to/server.crt
 ssl-key=/path/to/server.key
 ```
+  </TabItem>
+  <TabItem label="MariaDB">
+  To configure MariaDB server to accept TLS connections, add the following to
+MariaDB configuration file `mysql.cnf`:
 
-Additionally, MySQL database user accounts must be configured to require a
+```conf
+[mariadb]
+require_secure_transport=ON
+ssl-ca=/path/to/server.cas
+ssl-cert=/path/to/server.crt
+ssl-key=/path/to/server.key
+```
+  </TabItem>
+</Tabs>
+
+Additionally, MySQL/MariaDB database user accounts must be configured to require a
 valid client certificate. If you're creating a new user:
 
 ```sql
@@ -56,11 +72,11 @@ GRANT ALL ON `%`.* TO 'alice'@'%';
 ```
 
 See [Configuring MySQL to Use Encrypted Connections](https://dev.mysql.com/doc/refman/8.0/en/using-encrypted-connections.html)
-in MySQL documentation for more details.
+in MySQL or [Enabling TLS on MariaDB Server](https://mariadb.com/docs/security/encryption/in-transit/enable-tls-server/) in MariaDB documentation for more details.
 
 ## Setup Teleport Auth and Proxy Services
 
-Teleport Database Access for MySQL is available starting from `6.0` release.
+Teleport Database Access for MySQL is available starting from `6.0` and MariaDB starting from `8.0` release.
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
@@ -143,7 +159,7 @@ db_service:
     description: "Example MySQL"
     # Database protocol.
     protocol: "mysql"
-    # Database address, MySQL server endpoint in this case.
+    # Database address, MySQL/MariaDB server endpoint in this case.
     #
     # Note: this URI's hostname must match the host name specified via --host
     # flag to tctl auth sign command.
@@ -218,8 +234,8 @@ $ tsh db connect example
 ```
 
 <Admonition type="note" title="Note">
-  The `mysql` command-line client should be available in PATH in order to be
-  able to connect.
+  The `mysql` or `mariadb` command-line client should be available in PATH in order to be
+  able to connect. `mariadb` is a default command-line client for MySQL and MariaDB.
 </Admonition>
 
 To log out of the database and remove credentials:
