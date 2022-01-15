@@ -349,6 +349,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		&cfg.SSH.Limiter,
 		&cfg.Auth.Limiter,
 		&cfg.Proxy.Limiter,
+		&cfg.Databases.Limiter,
 		&cfg.Kube.Limiter,
 		&cfg.WindowsDesktop.ConnLimiter,
 	}
@@ -459,7 +460,7 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":
-		formatter := &textFormatter{
+		formatter := &utils.TextFormatter{
 			ExtraFields:  loggerConfig.Format.ExtraFields,
 			EnableColors: trace.IsTerminal(os.Stderr),
 		}
@@ -470,8 +471,8 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 
 		logger.SetFormatter(formatter)
 	case "json":
-		formatter := &jsonFormatter{
-			extraFields: loggerConfig.Format.ExtraFields,
+		formatter := &utils.JSONFormatter{
+			ExtraFields: loggerConfig.Format.ExtraFields,
 		}
 
 		if err := formatter.CheckAndSetDefaults(); err != nil {
@@ -1039,14 +1040,12 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				}
 			}
 		}
-		var caBytes []byte
-		var err error
-		if database.CACertFile != "" {
-			caBytes, err = ioutil.ReadFile(database.CACertFile)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+
+		caBytes, err := readCACert(database)
+		if err != nil {
+			return trace.Wrap(err)
 		}
+
 		db := service.Database{
 			Name:          database.Name,
 			Description:   database.Description,
@@ -1054,7 +1053,11 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			URI:           database.URI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
-			CACert:        caBytes,
+			TLS: service.DatabaseTLS{
+				CACert:     caBytes,
+				ServerName: database.TLS.ServerName,
+				Mode:       service.TLSMode(database.TLS.Mode),
+			},
 			AWS: service.DatabaseAWS{
 				Region: database.AWS.Region,
 				Redshift: service.DatabaseAWSRedshift{
@@ -1076,6 +1079,41 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
 	}
 	return nil
+}
+
+// readCACert reads database CA certificate from the config file.
+// First 'tls.ca_cert_file` is being read, then deprecated 'ca_cert_file' if
+// the first one is not set.
+func readCACert(database *Database) ([]byte, error) {
+	var (
+		caBytes []byte
+		err     error
+	)
+	if database.TLS.CACertFile != "" {
+		caBytes, err = os.ReadFile(database.TLS.CACertFile)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+	}
+
+	// ca_cert_file is deprecated, but we still support it.
+	// Print a warning if the old field is still being used.
+	if database.CACertFile != "" {
+		if database.TLS.CACertFile != "" {
+			// New and old fields are set. Ignore the old field.
+			log.Warnf("Ignoring deprecated ca_cert_file in %s configuration; using tls.ca_cert_file.", database.Name)
+		} else {
+			// Only old field is set, inform about deprecation.
+			log.Warnf("ca_cert_file is deprecated, please use tls.ca_cert_file instead for %s.", database.Name)
+
+			caBytes, err = os.ReadFile(database.CACertFile)
+			if err != nil {
+				return nil, trace.ConvertSystemError(err)
+			}
+		}
+	}
+
+	return caBytes, nil
 }
 
 // applyAppsConfig applies file configuration for the "app_service" section.
@@ -1599,7 +1637,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 		var caBytes []byte
 		if clf.DatabaseCACertFile != "" {
-			caBytes, err = ioutil.ReadFile(clf.DatabaseCACertFile)
+			caBytes, err = os.ReadFile(clf.DatabaseCACertFile)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1611,7 +1649,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			URI:           clf.DatabaseURI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
-			CACert:        caBytes,
+			TLS: service.DatabaseTLS{
+				CACert: caBytes,
+			},
 			AWS: service.DatabaseAWS{
 				Region: clf.DatabaseAWSRegion,
 				Redshift: service.DatabaseAWSRedshift{

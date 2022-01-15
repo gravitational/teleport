@@ -64,6 +64,8 @@ type ResourceWatcherConfig struct {
 	// MaxStaleness is a maximum acceptable staleness for the locally maintained
 	// resources, zero implies no staleness detection.
 	MaxStaleness time.Duration
+	// ResetC is a channel to notify of internal watcher reset (used in tests).
+	ResetC chan time.Duration
 }
 
 // CheckAndSetDefaults checks parameters and sets default values.
@@ -85,6 +87,9 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Client == nil {
 		return trace.BadParameter("missing parameter Client")
+	}
+	if cfg.ResetC == nil {
+		cfg.ResetC = make(chan time.Duration, 1)
 	}
 	return nil
 }
@@ -112,7 +117,6 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 		cancel:                cancel,
 		retry:                 retry,
 		LoopC:                 make(chan struct{}),
-		ResetC:                make(chan time.Duration, 1),
 		StaleC:                make(chan struct{}, 1),
 	}
 	go p.runWatchLoop()
@@ -140,8 +144,7 @@ type resourceWatcher struct {
 	// LoopC is a channel to check whether the watch loop is running
 	// (used in tests).
 	LoopC chan struct{}
-	// ResetC is a channel to notify of internal watcher reset (used in tests).
-	ResetC chan time.Duration
+
 	// StaleC is a channel that can trigger the condition of resource staleness
 	// (used in tests).
 	StaleC chan struct{}

@@ -623,6 +623,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		requestCh:        requestCh,
 		component:        teleport.ComponentReverseTunnelServer,
 		localClusterName: s.ClusterName,
+		emitter:          s.Emitter,
 	}
 	go t.start()
 }
