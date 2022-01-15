@@ -717,10 +717,11 @@ func (i ImpersonateConditions) IsEmpty() bool {
 // CheckAndSetDefaults checks and sets default values
 func (i ImpersonateConditions) CheckAndSetDefaults() error {
 	if len(i.Users) != 0 && len(i.Roles) == 0 {
-		return trace.BadParameter("please set both impersonate.users and impersonate.roles")
-	}
-	if len(i.Users) == 0 && len(i.Roles) != 0 {
-		return trace.BadParameter("please set both impersonate.users and impersonate.roles")
+		// Role-only impersonation note: the phrasing of this error message
+		// assumes the user is attempting user (rather than role)
+		// impersonation, but this seems like a safe assumption when a user has
+		// already been specified.
+		return trace.BadParameter("please set both impersonate.users and impersonate.roles for user impersonation")
 	}
 	return nil
 }

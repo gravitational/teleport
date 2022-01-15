@@ -306,12 +306,16 @@ func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnel.Tunnel,
 		return nil, "", trace.Wrap(err)
 	}
 
-	server, err := app.Match(ctx, authClient, app.MatchPublicAddr(publicAddr))
+	servers, err := app.Match(ctx, authClient, app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	return server, clusterName, nil
+	if len(servers) == 0 {
+		return nil, "", trace.NotFound("failed to match applications with public addr %s", publicAddr)
+	}
+
+	return servers[0], clusterName, nil
 }
 
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application
