@@ -497,6 +497,40 @@ cluster deployed in HA mode.
   and the relevant sections of the [AWS](./guides/aws.mdx#step-4-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-4-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
+### `highAvailability.certManager.addCommonName`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `bool` | `false` | ❌ | `proxy_service.https_keypairs` (to provide your own certificates) |
+
+Setting `highAvailability.certManager.addCommonName` to `true` will instruct `cert-manager` to set the commonName field in its certificate signing request to the issuing CA.
+
+<Admonition type="note" title="Enabling common name field">
+  You must install and configure `cert-manager` in your Kubernetes cluster yourself.
+
+  See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
+  and the relevant sections of the [AWS](./guides/aws.mdx#step-4-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-4-install-and-configure-cert-manager) guides for more information.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    certManager:
+      enabled: true
+      addCommonName: true
+      issuerName: letsencrypt-production
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set highAvailability.certManager.enabled=true \
+  --set highAvailability.certManager.addCommonName=true \
+  --set highAvailability.certManager.issuerName=letsencrypt-production
+  ```
+  </TabItem>
+</Tabs>
+
 ### `highAvailability.certManager.issuerName`
 
 | Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
@@ -549,6 +583,29 @@ scoped to a single namespace.
   <TabItem label="--set">
   ```code
   --set highAvailability.certManager.issuerKind=ClusterIssuer
+  ```
+  </TabItem>
+</Tabs>
+
+### `highAvailability.certManager.issuerGroup`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `cert-manager.io` | ❌ | None |
+
+Sets the `Group` of `Issuer` to be used when issuing certificates with `cert-manager`. Defaults to `cert-manager.io` to use built-in issuers.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    certManager:
+      issuerGroup: cert-manager.io
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set highAvailability.certManager.issuerGroup=cert-manager.io
   ```
   </TabItem>
 </Tabs>
