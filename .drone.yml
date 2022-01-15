@@ -4812,6 +4812,11 @@ clone:
   disable: true
 
 steps:
+  - name: Check if commit is tagged
+    image: alpine
+    commands:
+      - "[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)"
+
   - name: Download artifacts from S3
     image: amazon/aws-cli
     environment:
@@ -4965,25 +4970,14 @@ steps:
   # NOTE: all mandatory steps for a release promotion need to go BEFORE this
   # step, as there is a chance that everything afterwards will be skipped.
   #
-  # this step exits early and skips all remanining steps in the pipeline if the
-  # tag looks like a pre-release, to avoid publishing RPMs for pre-release builds.
-  - name: Determine whether RPM/DEB packages should be published to repos
-    image: docker
+  # this step exits early and skips all remaining steps in the pipeline if the
+  # tag looks like a pre-release, to avoid pushing pre-release RPMs and DEBs to
+  # our yum / apt repos.
+  - name: Check if tag is prerelease
+    image: golang:1.17-alpine
     commands:
-      - |
-        if [ "${DRONE_REPO}" != "gravitational/teleport" ]; then
-          echo "---> Not publishing ${DRONE_REPO} packages to repos"
-          exit 78
-        fi
-        # length will be 0 after filtering if this is a pre-release, >0 otherwise
-        FILTERED_TAG_LENGTH=$(echo ${DRONE_TAG} | egrep -v '(alpha|beta|dev|rc)' | wc -c)
-        if [ $$FILTERED_TAG_LENGTH -eq 0 ]; then
-          echo "---> ${DRONE_TAG} looks like a pre-release, not publishing packages to repos"
-          # exit pipeline early with success status
-          exit 78
-        else
-          echo "---> Publishing packages to repos for ${DRONE_TAG}"
-        fi
+      - cd build.assets/version-check
+      - go run . -tag ${DRONE_TAG} -check prerelease || (echo '---> Not publishing ${DRONE_REPO} packages to RPM and DEB repos' && exit 78)
 
   - name: Download RPM repo contents
     image: amazon/aws-cli
@@ -5037,7 +5031,7 @@ steps:
         echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
         chown -R root:root $GNUPGHOME
       # Sign rpm repo metadata (yum clients will automatically look for and verify repodata/repomd.xml.asc)
-      - gpg --detach-sign --armor /rpmrepo/teleport/repodata/repomd.xml
+      - gpg --batch --yes --detach-sign --armor /rpmrepo/teleport/repodata/repomd.xml
       - cat /rpmrepo/teleport/repodata/repomd.xml.asc
       - rm -rf $GNUPGHOME
 
@@ -5055,6 +5049,16 @@ steps:
         path: /rpmrepo
     commands:
     - aws s3 sync /rpmrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
+
+  # This step skips all remaining steps in the pipeline if the tag
+  # is not the highest semver *ever* released, to avoid publishing DEBs
+  # that would cause apt users to downgrade. For more info see:
+  #   https://github.com/gravitational/teleport/issues/8166
+  - name: Check if tag is latest
+    image: golang:1.17-alpine
+    commands:
+      - cd build.assets/version-check
+      - go run . -tag ${DRONE_TAG} -check latest || (echo '---> Not publishing ${DRONE_REPO} packages to DEB repo' && exit 78)
 
   - name: Download DEB repo contents
     image: amazon/aws-cli
@@ -5166,6 +5170,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 1473746cd33150de6ce4e6be53478ad6961414d1e34987d9eff4b3e17bcfe5a2
+hmac: 698a7e7554027d5c3c875c3c5e26bc6dcf955506df1bb8e3869ff4d52774f74a
 
 ...

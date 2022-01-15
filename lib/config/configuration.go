@@ -460,7 +460,7 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":
-		formatter := &textFormatter{
+		formatter := &utils.TextFormatter{
 			ExtraFields:  loggerConfig.Format.ExtraFields,
 			EnableColors: trace.IsTerminal(os.Stderr),
 		}
@@ -471,8 +471,8 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 
 		logger.SetFormatter(formatter)
 	case "json":
-		formatter := &jsonFormatter{
-			extraFields: loggerConfig.Format.ExtraFields,
+		formatter := &utils.JSONFormatter{
+			ExtraFields: loggerConfig.Format.ExtraFields,
 		}
 
 		if err := formatter.CheckAndSetDefaults(); err != nil {

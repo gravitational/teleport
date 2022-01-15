@@ -62,6 +62,10 @@ func (b *Bot) labels(ctx context.Context) ([]string, error) {
 	}
 
 	for _, file := range files {
+		if strings.HasPrefix(file, "vendor/") {
+			continue
+		}
+
 		for k, v := range prefixes {
 			if strings.HasPrefix(file, k) {
 				log.Printf("Label: Found prefix %v, attaching labels: %v.", k, v)
