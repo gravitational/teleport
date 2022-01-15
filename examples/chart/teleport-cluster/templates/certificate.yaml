@@ -8,12 +8,16 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   secretName: teleport-tls
+  {{- if .Values.highAvailability.certManager.addCommonName }}
+  commonName: {{ quote $domain }}
+  {{- end }}
   dnsNames:
   - {{ quote $domain }}
   - {{ quote $domainWildcard }}
   issuerRef:
     name: {{ required "highAvailability.certManager.issuerName is required in chart values" .Values.highAvailability.certManager.issuerName }}
     kind: {{ required "highAvailability.certManager.issuerKind is required in chart values" .Values.highAvailability.certManager.issuerKind }}
+    group: {{ required "highAvailability.certManager.issuerGroup is required in chart values" .Values.highAvailability.certManager.issuerGroup }}
   {{- with .Values.annotations.certSecret }}
   secretTemplate:
     annotations: {{- toYaml . | nindent 6 }}
