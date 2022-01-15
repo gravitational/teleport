@@ -20,7 +20,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -49,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -210,7 +208,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TrustedClustersWithLabels", suite.bind(testTrustedClustersWithLabels))
 	t.Run("TrustedTunnelNode", suite.bind(testTrustedTunnelNode))
 	t.Run("TwoClustersProxy", suite.bind(testTwoClustersProxy))
-	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
 }
@@ -1356,214 +1353,6 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	err = tc.SSH(context.TODO(), cmd, false)
 	require.Regexp(t, "cluster wrong-site not found", err.Error())
-}
-
-// TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a
-// tunnel from A to B.
-//
-// Two tests are run, first is when both A and B record sessions at nodes. It
-// executes an SSH command on A by connecting directly to A and by connecting
-// to B via B<->A tunnel. All sessions should end up in A.
-//
-// In the second test, sessions are recorded at B. All sessions still show up on
-// A (they are Teleport nodes) but in addition, two show up on B when connecting
-// over the B<->A tunnel because sessions are recorded at the proxy.
-func testTwoClustersTunnel(t *testing.T, suite *integrationTestSuite) {
-	tr := utils.NewTracer(utils.ThisFunction()).Start()
-	defer tr.Stop()
-
-	now := time.Now().In(time.UTC).Round(time.Second)
-
-	var tests = []struct {
-		inRecordLocation  string
-		outExecCountSiteA int
-		outExecCountSiteB int
-	}{
-		// normal teleport. since all events are recorded at the node, all events
-		// end up on site-a and none on site-b.
-		{
-			types.RecordAtNode,
-			3,
-			0,
-		},
-		// recording proxy. since events are recorded at the proxy, 3 events end up
-		// on site-a (because it's a teleport node so it still records at the node)
-		// and 2 events end up on site-b because it's recording.
-		{
-			types.RecordAtProxy,
-			3,
-			2,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.inRecordLocation, func(t *testing.T) {
-			twoClustersTunnel(t, suite, now, tt.inRecordLocation, tt.outExecCountSiteA, tt.outExecCountSiteB)
-		})
-	}
-
-	log.Info("Tests done. Cleaning up.")
-}
-
-func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time, proxyRecordMode string, execCountSiteA, execCountSiteB int) {
-	// start the http proxy, we need to make sure this was not used
-	ps := &proxyServer{}
-	ts := httptest.NewServer(ps)
-	defer ts.Close()
-
-	// clear out any proxy environment variables
-	for _, v := range []string{"http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"} {
-		os.Setenv(v, "")
-	}
-
-	username := suite.me.Username
-
-	a := suite.newNamedTeleportInstance(t, "site-A")
-	b := suite.newNamedTeleportInstance(t, "site-B")
-
-	a.AddUser(username, []string{username})
-	b.AddUser(username, []string{username})
-
-	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: proxyRecordMode,
-	})
-	require.NoError(t, err)
-
-	acfg := suite.defaultServiceConfig()
-	acfg.Auth.Enabled = true
-	acfg.Proxy.Enabled = true
-	acfg.Proxy.DisableWebService = true
-	acfg.Proxy.DisableWebInterface = true
-	acfg.SSH.Enabled = true
-
-	bcfg := suite.defaultServiceConfig()
-	bcfg.Auth.Enabled = true
-	bcfg.Auth.SessionRecordingConfig = recConfig
-	bcfg.Proxy.Enabled = true
-	bcfg.Proxy.DisableWebService = true
-	bcfg.Proxy.DisableWebInterface = true
-	bcfg.SSH.Enabled = false
-
-	require.NoError(t, b.CreateEx(t, a.Secrets.AsSlice(), bcfg))
-	defer b.StopAll()
-	require.NoError(t, a.CreateEx(t, b.Secrets.AsSlice(), acfg))
-	defer a.StopAll()
-
-	require.NoError(t, b.Start())
-	require.NoError(t, a.Start())
-
-	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-	clustersAreCrossConnected := func() bool {
-		return len(checkGetClusters(t, a.Tunnel)) >= 2 && len(checkGetClusters(t, b.Tunnel)) >= 2
-	}
-	require.Eventually(t,
-		clustersAreCrossConnected,
-		10*time.Second /* waitFor */, 200*time.Millisecond, /* tick */
-		"Two clusters do not see each other: tunnels are not working.")
-
-	var (
-		outputA bytes.Buffer
-		outputB bytes.Buffer
-	)
-
-	// make sure the direct dialer was used and not the proxy dialer
-	require.Zero(t, ps.Count())
-
-	// if we got here, it means two sites are cross-connected. lets execute SSH commands
-	sshPort := a.GetPortSSHInt()
-	cmd := []string{"echo", "hello world"}
-
-	// directly:
-	tc, err := a.NewClient(t, ClientConfig{
-		Login:        username,
-		Cluster:      a.Secrets.SiteName,
-		Host:         Host,
-		Port:         sshPort,
-		ForwardAgent: true,
-	})
-	tc.Stdout = &outputA
-	require.NoError(t, err)
-	err = tc.SSH(context.TODO(), cmd, false)
-	require.NoError(t, err)
-	require.Equal(t, "hello world\n", outputA.String())
-
-	// Update trusted CAs.
-	err = tc.UpdateTrustedCA(context.TODO(), a.Secrets.SiteName)
-	require.NoError(t, err)
-
-	// The known_hosts file should have two certificates, the way bytes.Split
-	// works that means the output will be 3 (2 certs + 1 empty).
-	buffer, err := ioutil.ReadFile(keypaths.KnownHostsPath(tc.KeysDir))
-	require.NoError(t, err)
-	parts := bytes.Split(buffer, []byte("\n"))
-	require.Len(t, parts, 3)
-
-	// The certs.pem file should have 2 certificates.
-	buffer, err = ioutil.ReadFile(keypaths.TLSCAsPath(tc.KeysDir, Host))
-	require.NoError(t, err)
-	roots := x509.NewCertPool()
-	ok := roots.AppendCertsFromPEM(buffer)
-	require.True(t, ok)
-	require.Len(t, roots.Subjects(), 2)
-
-	// wait for active tunnel connections to be established
-	waitForActiveTunnelConnections(t, b.Tunnel, a.Secrets.SiteName, 1)
-
-	// via tunnel b->a:
-	tc, err = b.NewClient(t, ClientConfig{
-		Login:        username,
-		Cluster:      a.Secrets.SiteName,
-		Host:         Host,
-		Port:         sshPort,
-		ForwardAgent: true,
-	})
-	tc.Stdout = &outputB
-	require.NoError(t, err)
-	err = tc.SSH(context.TODO(), cmd, false)
-	require.NoError(t, err)
-	require.Equal(t, outputA.String(), outputB.String())
-
-	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
-	require.NoError(t, a.StopAuth(false))
-	err = tc.SSH(context.TODO(), cmd, false)
-	require.IsType(t, err, trace.ConnectionProblem(nil, ""))
-
-	// Reset and start "Site-A" again
-	require.NoError(t, a.Reset())
-	require.NoError(t, a.Start())
-
-	// try to execute an SSH command using the same old client to Site-B
-	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
-	// and 'tc' (client) is also supposed to reconnect
-	tcHasReconnected := func() bool {
-		return tc.SSH(context.TODO(), cmd, false) == nil
-	}
-	require.Eventually(t, tcHasReconnected, 2500*time.Millisecond, 250*time.Millisecond,
-		"Timed out waiting for Site A to restart")
-
-	clientHasEvents := func(site auth.ClientI, count int) func() bool {
-		// only look for exec events
-		eventTypes := []string{events.ExecEvent}
-
-		return func() bool {
-			eventsInSite, _, err := site.SearchEvents(now, now.Add(1*time.Hour), apidefaults.Namespace, eventTypes, 0, types.EventOrderAscending, "")
-			require.NoError(t, err)
-			return len(eventsInSite) == count
-		}
-	}
-
-	siteA := a.GetSiteAPI(a.Secrets.SiteName)
-	require.Eventually(t, clientHasEvents(siteA, execCountSiteA), 5*time.Second, 500*time.Millisecond,
-		"Failed to find %d events on Site A after 5s", execCountSiteA)
-
-	siteB := b.GetSiteAPI(b.Secrets.SiteName)
-	require.Eventually(t, clientHasEvents(siteB, execCountSiteB), 5*time.Second, 500*time.Millisecond,
-		"Failed to find %d events on Site B after 5s", execCountSiteB)
-
-	// stop both sites for real
-	require.NoError(t, b.StopAll())
-
-	require.NoError(t, a.StopAll())
 }
 
 // TestTwoClustersProxy checks if the reverse tunnel uses a HTTP PROXY to
