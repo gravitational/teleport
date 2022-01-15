@@ -93,6 +93,23 @@ func (a *ServerWithRoles) withOptions(opts ...actionOption) actionConfig {
 	return cfg
 }
 
+func (a *ServerWithRoles) withStaticRoles() (actionConfig, error) {
+	user, err := a.authServer.GetUser(a.context.User.GetName(), false)
+	if err != nil {
+		return actionConfig{}, trace.Wrap(err)
+	}
+
+	checker, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	if err != nil {
+		return actionConfig{}, trace.Wrap(err)
+	}
+
+	return actionConfig{context: Context{
+		User:    user,
+		Checker: checker,
+	}}, nil
+}
+
 func (c actionConfig) action(namespace, resource string, verbs ...string) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("no verbs provided for authorization check on resource %q", resource)
@@ -765,6 +782,62 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 	return filteredNodes, nil
 }
 
+// ListResources returns a paginated list of resources filtered by user access.
+func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.Resource, string, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	limit := int(req.Limit)
+
+	var resourceKind string
+	switch req.ResourceType {
+	case types.KindDatabaseServer:
+		resourceKind = types.KindDatabaseServer
+	case types.KindAppServer:
+		resourceKind = types.KindAppServer
+	default:
+		return nil, "", trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+	}
+
+	if err := a.action(req.Namespace, resourceKind, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	var resources []types.Resource
+	nextKey, err := a.authServer.IterateResourcePages(ctx, req, func(nextPage []types.Resource) (bool, error) {
+		for _, resource := range nextPage {
+			if err := a.checkAccessToResource(resource); err != nil {
+				if trace.IsAccessDenied(err) {
+					continue
+				}
+
+				return false, trace.Wrap(err)
+			}
+
+			resources = append(resources, resource)
+		}
+
+		return len(resources) == limit, nil
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return resources, nextKey, nil
+}
+
+func (a *ServerWithRoles) checkAccessToResource(resource types.Resource) error {
+	switch r := resource.(type) {
+	case types.AppServer:
+		return a.checkAccessToApp(r.GetApp())
+	case types.DatabaseServer:
+		return a.checkAccessToDatabase(r.GetDatabase())
+	default:
+		return trace.BadParameter("could not check access to resource type %T", r)
+	}
+}
+
 // ListNodes returns a paginated list of nodes filtered by user access.
 func (a *ServerWithRoles) ListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
 	if err := a.action(req.Namespace, types.KindNode, types.VerbList); err != nil {
@@ -1329,7 +1402,17 @@ func (a *ServerWithRoles) getProxyPublicAddr() string {
 }
 
 func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {
-	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbDelete); err != nil {
+	cfg, err := a.withStaticRoles()
+	if err != nil {
+		return err
+	}
+	if err := cfg.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbDelete); err != nil {
+		if trace.IsAccessDenied(err) {
+			if a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbDelete) == nil {
+				// the user would've had permission with the roles granted by access requests
+				return trace.WrapWithMessage(err, "access request deletion through elevated roles is not allowed")
+			}
+		}
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAccessRequest(ctx, name)
@@ -1437,15 +1520,62 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 	return a.generateUserCerts(ctx, req)
 }
 
+// determineDesiredRolesAndTraits inspects the current request to determine
+// which roles and traits the requesting user wants to be present on the
+// resulting certificate. This does not attempt to determine if the
+// user is allowed to assume the returned roles.
+func (a *ServerWithRoles) determineDesiredRolesAndTraits(req proto.UserCertsRequest, user types.User) ([]string, wrappers.Traits, error) {
+	if req.Username == a.context.User.GetName() {
+		if len(req.RoleRequests) == 0 {
+			// If no role requests exist, reuse the roles and traits from the
+			// current identity.
+			roles, traits, err := services.ExtractFromIdentity(a.authServer, a.context.Identity.GetIdentity())
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			return roles, traits, nil
+		}
+
+		// Do not allow combining role impersonation and access requests
+		// Note: additional requested roles will fail validation; it may be
+		// possible to support this in the future if needed.
+		if len(req.AccessRequests) > 0 {
+			log.Warningf("User %v tried to issue a cert with both role and access requests. This is not supported.", a.context.User.GetName())
+			return nil, nil, trace.AccessDenied("access denied")
+		}
+
+		// If role requests are provided, attempt to satisfy them instead of
+		// pulling them directly from the logged in identity. Role requests
+		// are intended to reduce allowed permissions so we'll accept them
+		// as-is for now (and ensure the user is allowed to assume them
+		// later).
+		// Note: traits are not currently set for role impersonation.
+		return req.RoleRequests, nil, nil
+	}
+
+	// Otherwise, use the roles and traits of the impersonated user. Note
+	// that permissions have not been verified at this point.
+
+	// Do not allow combining impersonation and access requests
+	if len(req.AccessRequests) > 0 {
+		log.Warningf("User %v tried to issue a cert for %v and added access requests. This is not supported.", a.context.User.GetName(), req.Username)
+		return nil, nil, trace.AccessDenied("access denied")
+	}
+
+	return user.GetRoles(), user.GetTraits(), nil
+}
+
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	var err error
-	var roles []string
-	var traits wrappers.Traits
 
 	// this prevents clients who have no chance at getting a cert and impersonating anyone
 	// from enumerating local users and hitting database
 	if !a.hasBuiltinRole(string(types.RoleAdmin)) && !a.context.Checker.CanImpersonateSomeone() && req.Username != a.context.User.GetName() {
 		return nil, trace.AccessDenied("access denied: impersonation is not allowed")
+	}
+
+	if a.context.Identity.GetIdentity().DisallowReissue {
+		return nil, trace.AccessDenied("access denied: identity is not allowed to reissue certificates")
 	}
 
 	// Prohibit recursive impersonation behavior:
@@ -1459,9 +1589,18 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	//
 	// Bob (impersonated by Alice) can renew the cert with route to cluster
 	//
+	// Similarly, for role requests, Alice is allowed to request roles `access`
+	// and `ci`, however these impersonated identities, Alice(access) and
+	// Alice(ci), should not be able to issue any new certificates.
+	//
 	if a.context.Identity != nil && a.context.Identity.GetIdentity().Impersonator != "" {
 		if len(req.AccessRequests) > 0 {
 			return nil, trace.AccessDenied("access denied: impersonated user can not request new roles")
+		}
+		if len(req.RoleRequests) > 0 {
+			// Note: technically this should never be needed as all role
+			// impersonated certs should have the DisallowReissue set.
+			return nil, trace.AccessDenied("access denied: impersonated roles can not request other roles")
 		}
 		if req.Username != a.context.User.GetName() {
 			return nil, trace.AccessDenied("access denied: impersonated user can not impersonate anyone else")
@@ -1501,24 +1640,24 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
-	// If the user is generating a certificate, the roles and traits come from the logged in identity.
 	if req.Username == a.context.User.GetName() {
-		roles, traits, err = services.ExtractFromIdentity(a.authServer, a.context.Identity.GetIdentity())
+		// we're going to extend the roles list based on the access requests, so
+		// we ensure that all the current requests are added to the new
+		// certificate (and are checked again)
+		req.AccessRequests = append(req.AccessRequests, a.context.Identity.GetIdentity().ActiveRequests...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else {
-		// Do not allow combining impersonation and access requests
-		if len(req.AccessRequests) > 0 {
-			log.WithError(err).Warningf("User %v tried to issue a cert for %v and added access requests. This is not supported.", a.context.User.GetName(), req.Username)
-			return nil, trace.AccessDenied("access denied")
-		}
-		roles = user.GetRoles()
-		traits = user.GetTraits()
+	}
+
+	roles, traits, err := a.determineDesiredRolesAndTraits(req, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if len(req.AccessRequests) > 0 {
 		// add any applicable access request values.
+		req.AccessRequests = apiutils.Deduplicate(req.AccessRequests)
 		for _, reqID := range req.AccessRequests {
 			accessReq, err := services.GetAccessRequest(ctx, a.authServer, reqID)
 			if err != nil {
@@ -1566,7 +1705,36 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// builtin admins can impersonate anyone
 		// this is required for local tctl commands to work
 	case req.Username == a.context.User.GetName():
-		// users can impersonate themselves
+		// users can impersonate themselves, but role impersonation requests
+		// must be checked.
+
+		if len(req.RoleRequests) > 0 {
+			// Note: CheckImpersonateRoles() checks against the _stored_
+			// impersonate roles for the user rather than the set available
+			// to the current identity. If not explicitly denied (as above),
+			// this could allow a role-impersonated certificate to request new
+			// certificates with alternate RoleRequests.
+			err = a.context.Checker.CheckImpersonateRoles(a.context.User, parsedRoles)
+			if err != nil {
+				log.Warning(err)
+				err := trace.AccessDenied("user %q has requested role impersonation for %q", a.context.User.GetName(), roles)
+				if err := a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &apievents.UserLogin{
+					Metadata: apievents.Metadata{
+						Type: events.UserLoginEvent,
+						Code: events.UserLocalLoginFailureCode,
+					},
+					Method: events.LoginMethodClientCert,
+					Status: apievents.Status{
+						Success:     false,
+						Error:       trace.Unwrap(err).Error(),
+						UserMessage: err.Error(),
+					},
+				}); err != nil {
+					log.WithError(err).Warn("Failed to emit local login failure event.")
+				}
+				return nil, trace.Wrap(err)
+			}
+		}
 	default:
 		// check if this user is allowed to impersonate other users
 		err = a.context.Checker.CheckImpersonate(a.context.User, user, parsedRoles)
@@ -1622,6 +1790,12 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
+	} else if len(req.RoleRequests) > 0 {
+		// Role impersonation uses the user's own name as the impersonator value.
+		certReq.impersonator = a.context.User.GetName()
+
+		// Deny reissuing certs to prevent privilege re-escalation.
+		certReq.disallowReissue = true
 	} else if a.context.Identity != nil && a.context.Identity.GetIdentity().Impersonator != "" {
 		// impersonating users can receive new certs
 		certReq.impersonator = a.context.Identity.GetIdentity().Impersonator
@@ -3565,6 +3739,30 @@ func (a *ServerWithRoles) UpdateWindowsDesktop(ctx context.Context, s types.Wind
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpdateWindowsDesktop(ctx, s)
+}
+
+// UpsertWindowsDesktop updates a windows desktop resource, creating it if it doesn't exist.
+func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+	// Ensure caller has both Create and Update permissions.
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If the desktop exists, check access,
+	// if it doesn't, continue.
+	existing, err := a.authServer.GetWindowsDesktop(ctx, s.GetName())
+	if err == nil {
+		if err := a.checkAccessToWindowsDesktop(existing); err != nil {
+			return trace.Wrap(err)
+		}
+	} else if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	if err := a.checkAccessToWindowsDesktop(s); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertWindowsDesktop(ctx, s)
 }
 
 // DeleteWindowsDesktop removes the specified windows desktop host.

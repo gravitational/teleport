@@ -1,7 +1,7 @@
 [package]
 name = "rdp-client"
 version = "0.1.0"
-authors = ["Andrew Lytvynov <andrew@goteleport.com>"]
+authors = ["Andrew Lytvynov <andrew@goteleport.com>", "Zac Bergquist <zac@goteleport.com>"]
 edition = "2018"
 
 [lib]
@@ -21,7 +21,7 @@ byteorder = "1.4.3"
 env_logger = "0.9.0"
 iso7816 = "0.1.0-alpha.1"
 iso7816-tlv = "0.4.2"
-libc = "0.2.106"
+libc = "0.2.110"
 log = "0.4.14"
 num-derive = "0.3.3"
 num-traits = "0.2.14"
@@ -29,5 +29,5 @@ num-traits = "0.2.14"
 # RustCrypto doesn't expose the low-level primitives we need for the smartcard
 # challenge signing (see src/piv.rs for details).
 openssl = { version = "0.10.38", features = ["vendored"] }
-rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "755e950dcff0fc6965aa518c4596b995ede3417d" }
+rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "cb61119d2803f647b60e6c9b2ef05ab587cc1966" }
 uuid = { version = "0.8.2", features = ["v4"] }

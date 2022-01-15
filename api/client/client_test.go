@@ -26,9 +26,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -99,6 +101,62 @@ func (m *mockServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest)
 	return resp, nil
 }
 
+func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	resources, err := testResources(req.ResourceType)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	resp := &proto.ListResourcesResponse{
+		Resources: make([]*proto.PaginatedResource, 0),
+	}
+
+	var (
+		takeResources    = req.StartKey == ""
+		lastResourceName string
+	)
+	for _, resource := range resources {
+		if resource.GetName() == req.StartKey {
+			takeResources = true
+			continue
+		}
+
+		if !takeResources {
+			continue
+		}
+
+		var protoResource *proto.PaginatedResource
+		switch req.ResourceType {
+		case types.KindDatabaseServer:
+			database, ok := resource.(*types.DatabaseServerV3)
+			if !ok {
+				return nil, trace.Errorf("database server has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}}
+		case types.KindAppServer:
+			app, ok := resource.(*types.AppServerV3)
+			if !ok {
+				return nil, trace.Errorf("application server has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}}
+		}
+
+		resp.Resources = append(resp.Resources, protoResource)
+		lastResourceName = resource.GetName()
+		if len(resp.Resources) == int(req.Limit) {
+			break
+		}
+	}
+
+	if len(resp.Resources) != len(resources) {
+		resp.NextKey = lastResourceName
+	}
+
+	return resp, nil
+}
+
 const fiveMBNode = "fiveMBNode"
 
 func testNodes(namespace string) ([]types.Server, error) {
@@ -139,6 +197,66 @@ func testNodes(namespace string) ([]types.Server, error) {
 	}
 }
 
+func testResources(resourceType string) ([]types.Resource, error) {
+	var err error
+	size := 50
+	resources := make([]types.Resource, size)
+
+	switch resourceType {
+	case types.KindDatabaseServer:
+		for i := 0; i < size; i++ {
+			resources[i], err = types.NewDatabaseServerV3(types.Metadata{
+				Name: fmt.Sprintf("db-%d", i),
+				Labels: map[string]string{
+					// Artificially make each node ~ 100KB to force
+					// ListResources to fail with chunks of >= 40.
+					"label": string(make([]byte, 100000)),
+				},
+			}, types.DatabaseServerSpecV3{
+				Protocol: "",
+				URI:      "localhost:5432",
+				Hostname: "localhost",
+				HostID:   fmt.Sprintf("host-%d", i),
+			})
+
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	case types.KindAppServer:
+		for i := 0; i < size; i++ {
+			app, err := types.NewAppV3(types.Metadata{
+				Name: fmt.Sprintf("app-%d", i),
+			}, types.AppSpecV3{
+				URI: "localhost",
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources[i], err = types.NewAppServerV3(types.Metadata{
+				Name: fmt.Sprintf("app-%d", i),
+				Labels: map[string]string{
+					// Artificially make each node ~ 100KB to force
+					// ListResources to fail with chunks of >= 40.
+					"label": string(make([]byte, 100000)),
+				},
+			}, types.AppServerSpecV3{
+				HostID: fmt.Sprintf("host-%d", i),
+				App:    app,
+			})
+
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	default:
+		return nil, trace.Errorf("unsupported resource type %s", resourceType)
+	}
+
+	return resources, nil
+}
+
 // mockInsecureCredentials mocks insecure Client credentials.
 // it returns a nil tlsConfig which allows the client to run in insecure mode.
 // TODO(Joerger) replace insecure credentials with proper TLS credentials.
@@ -173,7 +291,7 @@ func TestNew(t *testing.T) {
 				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 			},
 			DialOpts: []grpc.DialOption{
-				grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+				grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 			},
 		},
 		assertErr: require.NoError,
@@ -187,7 +305,7 @@ func TestNew(t *testing.T) {
 				&tlsConfigCreds{nil},
 			},
 			DialOpts: []grpc.DialOption{
-				grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+				grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 			},
 		},
 		assertErr: require.NoError,
@@ -200,7 +318,7 @@ func TestNew(t *testing.T) {
 				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 			},
 			DialOpts: []grpc.DialOption{
-				grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+				grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 			},
 		},
 		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
@@ -214,7 +332,7 @@ func TestNew(t *testing.T) {
 				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 			},
 			DialOpts: []grpc.DialOption{
-				grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+				grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 			},
 		},
 		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
@@ -255,7 +373,7 @@ func TestNewDialBackground(t *testing.T) {
 			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 		},
 		DialOpts: []grpc.DialOption{
-			grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 		},
 	})
 	require.NoError(t, err)
@@ -293,7 +411,7 @@ func TestWaitForConnectionReady(t *testing.T) {
 			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 		},
 		DialOpts: []grpc.DialOption{
-			grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 		},
 	})
 	require.NoError(t, err)
@@ -326,7 +444,7 @@ func TestLimitExceeded(t *testing.T) {
 			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 		},
 		DialOpts: []grpc.DialOption{
-			grpc.WithInsecure(), // TODO(Joerger) remove insecure dial option
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 		},
 	})
 	require.NoError(t, err)
@@ -350,4 +468,109 @@ func TestLimitExceeded(t *testing.T) {
 	// single node is too big to send over gRPC (over 4MB).
 	_, err = clt.GetNodes(ctx, fiveMBNode)
 	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+}
+
+func TestListResources(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	addr := startMockServer(t)
+
+	testCases := map[string]struct {
+		resourceType   string
+		resourceStruct types.Resource
+	}{
+		"DatabaseServer": {
+			resourceType:   types.KindDatabaseServer,
+			resourceStruct: &types.DatabaseServerV3{},
+		},
+		"ApplicationServer": {
+			resourceType:   types.KindAppServer,
+			resourceStruct: &types.AppServerV3{},
+		},
+	}
+
+	// Create client
+	clt, err := New(ctx, Config{
+		Addrs: []string{addr},
+		Credentials: []Credentials{
+			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
+		},
+		DialOpts: []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
+		},
+	})
+	require.NoError(t, err)
+
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			resources, nextKey, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+				Namespace:    defaults.Namespace,
+				Limit:        10,
+				ResourceType: test.resourceType,
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, nextKey)
+			require.Len(t, resources, 10)
+			require.IsType(t, test.resourceStruct, resources[0])
+
+			// exceed the limit
+			_, _, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+				Namespace:    defaults.Namespace,
+				Limit:        50,
+				ResourceType: test.resourceType,
+			})
+			require.Error(t, err)
+			require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+		})
+	}
+}
+
+func TestGetResources(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	addr := startMockServer(t)
+
+	// Create client
+	clt, err := New(ctx, Config{
+		Addrs: []string{addr},
+		Credentials: []Credentials{
+			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
+		},
+		DialOpts: []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
+		},
+	})
+	require.NoError(t, err)
+
+	testCases := map[string]struct {
+		resourceType string
+	}{
+		"DatabaseServer": {
+			resourceType: types.KindDatabaseServer,
+		},
+		"ApplicationServer": {
+			resourceType: types.KindAppServer,
+		},
+	}
+
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			expectedResources, err := testResources(test.resourceType)
+			require.NoError(t, err)
+
+			// listing everything at once breaks the ListResource.
+			_, _, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+				Namespace:    defaults.Namespace,
+				Limit:        int32(len(expectedResources)),
+				ResourceType: test.resourceType,
+			})
+			require.Error(t, err)
+			require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+
+			resources, err := clt.GetResources(ctx, defaults.Namespace, test.resourceType)
+			require.NoError(t, err)
+			require.Len(t, resources, len(expectedResources))
+			require.Empty(t, cmp.Diff(expectedResources, resources))
+		})
+	}
 }

@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"io"
 	mathrand "math/rand"
 	"net"
 	"net/http"
@@ -60,6 +61,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/httpstream"
@@ -879,8 +881,8 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 	if recorder != nil {
 		// capture stderr and stdout writes to session recorder
-		streamOptions.Stdout = utils.NewBroadcastWriter(streamOptions.Stdout, recorder)
-		streamOptions.Stderr = utils.NewBroadcastWriter(streamOptions.Stderr, recorder)
+		streamOptions.Stdout = io.MultiWriter(streamOptions.Stdout, recorder)
+		streamOptions.Stderr = io.MultiWriter(streamOptions.Stderr, recorder)
 	}
 
 	// Defer a cleanup handler that will mark the stream as complete on exit, regardless of
@@ -1440,7 +1442,11 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx authContext) (*clusterSes
 		tlsConfig:            tlsConfig,
 	}
 
-	transport := f.newTransport(sess.Dial, sess.tlsConfig)
+	transport, err := f.newTransport(sess.Dial, sess.tlsConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	sess.forwarder, err = forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
@@ -1512,13 +1518,18 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 		tlsConfig:            creds.tlsConfig,
 	}
 
+	t, err := f.newTransport(sess.Dial, sess.tlsConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// When running inside Kubernetes cluster or using auth/exec providers,
 	// kubeconfig provides a transport wrapper that adds a bearer token to
 	// requests
 	//
 	// When forwarding request to a remote cluster, this is not needed
 	// as the proxy uses client cert auth to reach out to remote proxy.
-	transport, err := creds.wrapTransport(f.newTransport(sess.Dial, sess.tlsConfig))
+	transport, err := creds.wrapTransport(t)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1558,7 +1569,11 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, endpoints []kubeClu
 		noAuditEvents: true,
 	}
 
-	transport := f.newTransport(sess.Dial, sess.tlsConfig)
+	transport, err := f.newTransport(sess.Dial, sess.tlsConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	sess.forwarder, err = forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
@@ -1575,8 +1590,8 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, endpoints []kubeClu
 // DialFunc is a network dialer function that returns a network connection
 type DialFunc func(string, string) (net.Conn, error)
 
-func (f *Forwarder) newTransport(dial DialFunc, tlsConfig *tls.Config) *http.Transport {
-	return &http.Transport{
+func (f *Forwarder) newTransport(dial DialFunc, tlsConfig *tls.Config) (*http.Transport, error) {
+	t := &http.Transport{
 		Dial:            dial,
 		TLSClientConfig: tlsConfig,
 		// Increase the size of the connection pool. This substantially improves the
@@ -1587,8 +1602,16 @@ func (f *Forwarder) newTransport(dial DialFunc, tlsConfig *tls.Config) *http.Tra
 		// IdleConnTimeout defines the maximum amount of time before idle connections
 		// are closed. Leaving this unset will lead to connections open forever and
 		// will cause memory leaks in a long running process.
-		IdleConnTimeout: defaults.HTTPIdleTimeout,
+		IdleConnTimeout:   defaults.HTTPIdleTimeout,
+		ForceAttemptHTTP2: true,
 	}
+
+	err := http2.ConfigureTransport(t)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return t, nil
 }
 
 // getOrCreateRequestContext creates a new certificate request for a given context,

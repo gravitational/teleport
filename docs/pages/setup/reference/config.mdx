@@ -324,17 +324,11 @@ auth_service:
 
     # Optional setting for configuring session recording. Possible values are:
     #    "node"  : sessions will be recorded on the node level  (the default)
+    #    "node-sync" : session recordings will be streamed from node -> auth -> storage service without being stored on disk at all.
     #    "proxy" : recording on the proxy level, see "Recording Proxy Mode"
     #              (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
+    #    "proxy-sync : session recordings will be streamed from proxy -> auth -> storage service without being stored on disk at all.
     #    "off"   : session recording is turned off
-    #
-    # EXPERIMENTAL *-sync modes
-    # Proxy and node send logs directly to S3 or other storage without
-    # storing the records on disk at all. *-sync requires all nodes to be
-    # upgraded to 4.4.
-    #
-    #    "node-sync" : session recordings will be streamed from node -> auth -> storage service
-    #    "proxy-sync : session recordings will be streamed from proxy -> auth -> storage service
     #
     session_recording: "node"
 
@@ -556,11 +550,22 @@ proxy_service:
     # "v1": defaults to 0.0.0.0:3036
     mysql_listen_addr: "0.0.0.0:3036"
 
-    # Address advertised to PostgreSQL clients. If not set, public_addr is used.
-    postgres_public_addr: "postgres.teleport.example.com:443"
+    # Postgres Proxy listener address. If provided, proxy will use a separate listener
+    # instead of multiplexing Postgres protocol on web_listener_addr.
+    # postgres_listen_addr: "0.0.0.0:5432"
+
+    # Mongo Proxy listener address. If provided, proxy will use a separate listener
+    # instead of multiplexing Mongo protocol on web_listener_addr.
+    # mongo_listen_addr: "0.0.0.0:27017"
 
     # Address advertised to MySQL clients. If not set, public_addr is used.
     mysql_public_addr: "mysql.teleport.example.com:3306"
+
+    # Address advertised to PostgresSQL clients. If not set, public_addr is used.
+    postgres_public_addr: "postgres.teleport.example.com:443"
+
+    # Address advertised to Mongo clients. If not set, public_addr is used.
+    mongo_public_addr: "mongo.teleport.example.com:443"
 
     # Get an automatic certificate from Letsencrypt.org using ACME via TLS_ALPN-01 challenge.
     # When using ACME, the cluster name must match the 'public_addr' of Teleport and
@@ -639,7 +644,7 @@ kubernetes_service:
       command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
       period: 1m0s
 
-# This section configures the database service.
+# This section configures the 'database service'.
 db_service:
   # Enables the database service. Default is "no".
   enabled: "yes"
@@ -654,8 +659,19 @@ db_service:
     protocol: "postgres"
     # Database connection endpoint. Must be reachable from Database Service.
     uri: "postgres.example.com:5432"
-    # Optional path to the CA used to validate the database certificate.
-    ca_cert_file: /path/to/ca.pem
+    # Optional TLS configuration.
+    tls:
+      # TLS verification mode. Valid options are:
+      # 'verify-full' - performs full certificate validation (default).
+      # 'verify-ca' - the same as `verify-full`, but skips the server name validation.
+      # 'insecure' - accepts any certificate provided by database (not recommended).
+      mode: verify-full
+      # Optional database DNS server name. It allows to override the DNS name on
+      # a client certificate when connecting to a database.
+      # Use only with 'verify-full' mode.
+      server_name: db.example.com
+      # Optional path to the CA used to validate the database certificate.
+      ca_cert_file: /path/to/pem
     # AWS specific configuration, only required for RDS/Aurora/Redshift.
     aws:
       # Region the database is deployed in.
@@ -678,4 +694,7 @@ db_service:
     - name: "hostname"
       command: ["hostname"]
       period: 1m0s
+
+# This section configures the windows desktop service
+(!docs/pages/includes/desktop-access/desktop-config.mdx!)
 ```

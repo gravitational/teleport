@@ -23,11 +23,11 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 func TestInit(t *testing.T) { check.TestingT(t) }
@@ -36,10 +36,9 @@ type BufferSuite struct{}
 
 var _ = check.Suite(&BufferSuite{})
 
-func (s *BufferSuite) SetUpSuite(c *check.C) {
+func (s *BufferSuite) SetUpSuite(_ *check.C) {
 	log.StandardLogger().Hooks = make(log.LevelHooks)
-	formatter := &trace.TextFormatter{DisableTimestamp: false}
-	log.SetFormatter(formatter)
+	log.SetFormatter(utils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 	if testing.Verbose() {
 		log.SetLevel(log.DebugLevel)
 		log.SetOutput(os.Stdout)
