@@ -47,6 +47,7 @@ $SamAccountName="svc-teleport"
 $OutputFile="teleport-svc-pass.txt"
 
 # Generate a random password that meets the "Password must meet complexity requirements" security policy setting.
+# Note: if the minimum complexity requirements have been changed from the Windows default, this part of the script may need to be modified.
 Add-Type -AssemblyName 'System.Web'
 do {
    $Password=[System.Web.Security.Membership]::GeneratePassword(15,1)
@@ -117,7 +118,7 @@ New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
 
 ### Deny interactive login
 
-1. From the `Group Policy Management` window, right-click on the GPO you just created (`Block teleport-svc Interactive Login`) and select `Edit...` from the context menu.
+1. Open the program named `Group Policy Management` and find the GPO you just created (`$FOREST > Domains > $DOMAIN > Group Policy Objects > Block teleport-svc Interactive Login`), right-click on it and select `Edit...` from the context menu.
 2. Select:
 
 ```text
@@ -161,7 +162,13 @@ $ tctl auth export --type=windows > user-ca.cer
   to an OU that includes only such computers.
 </Admonition>
 
-1. Create a new GPO like you did in Step 2 above, this time giving it a name like `Teleport Access Policy`.
+1. Create another new GPO, this time giving it a name like `Teleport Access Policy`:
+
+```powershell
+$GPOName="Teleport Access Policy"
+New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
+```
+
 2. Again open the `Group Policy Management` program, and on the left pane, navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects`.
 3. Right click on the GPO you just made (`Teleport Access Policy`), and select `Edit...`.
 4. In the group policy editor, select:
