@@ -47,19 +47,8 @@ message Lease {
 }
 
 message Watch {
-    // Name is a watch name set for debugging
-	// purposes
-    string name = 1;
-    // Prefixes specifies prefixes to watch,
-	// passed to the backend implementation
-    repeated bytes prefixes = 2;
-
-    // QueueSize is an optional queue size
-    int32 queue_size = 3;
-
-    // MetricComponent if set will start reporting
-	// with a given component metric
-    string metric_component = 4;
+    // resume_last_id is the last item index we saw, and we want to resume from any event after that point
+    sfixed64 resume_last_id = 1;
 }
 
 message CompareAndSwapRequest {

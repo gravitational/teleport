@@ -1223,8 +1223,6 @@ func (process *TeleportProcess) initAuthService() error {
 		trace.Component: teleport.Component(teleport.ComponentAuth, process.id),
 	})
 
-	log.Warn("new checking streamer completed")
-
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
 		Backend:                 b,
@@ -1263,8 +1261,6 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	log.Warn("auth.Init complete")
-
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentAuth,
@@ -1276,19 +1272,12 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	authServer.SetLockWatcher(lockWatcher)
-
-	log.Warn("lock watcher set")
-
 	process.setLocalAuth(authServer)
-
-	log.Warn("local auth set")
 
 	connector, err := process.connectToAuthService(types.RoleAdmin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	log.Warn("connect to auth service created")
 
 	// second, create the API Server: it's actually a collection of API servers,
 	// each serving requests for a "role" which is assigned to every connected
@@ -1298,14 +1287,11 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	log.Warn("sessionService created")
-
 	authorizer, err := auth.NewAuthorizer(cfg.Auth.ClusterName.GetClusterName(), authServer, lockWatcher)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	log.Warn("authorizer created")
 	apiConf := &auth.APIConfig{
 		AuthServer:     authServer,
 		SessionService: sessionService,
@@ -1334,15 +1320,11 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	authServer.SetCache(authCache)
 
-	log.Warn("authServer cache set")
-
 	// Register TLS endpoint of the auth service
 	tlsConfig, err := connector.ServerIdentity.TLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	log.Warn("tls config created")
 
 	// auth server listens on SSH and TLS, reusing the same socket
 	listener, err := process.importOrCreateListener(listenerAuthSSH, cfg.Auth.SSHAddr.Addr)
@@ -1350,8 +1332,6 @@ func (process *TeleportProcess) initAuthService() error {
 		log.Errorf("PID: %v Failed to bind to address %v: %v, exiting.", os.Getpid(), cfg.Auth.SSHAddr.Addr, err)
 		return trace.Wrap(err)
 	}
-
-	log.Warn("auth server listener created")
 
 	// use listener addr instead of cfg.Auth.SSHAddr in order to support
 	// binding to a random port (e.g. `127.0.0.1:0`).
@@ -1373,8 +1353,6 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	go mux.Serve()
 
-	log.Warn("multiplexer start serving")
-
 	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
@@ -1387,8 +1365,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	log.Warn("tls server created")
 
 	process.RegisterCriticalFunc("auth.tls", func() error {
 		utils.Consolef(cfg.Console, log, teleport.ComponentAuth, "Auth service %s:%s is starting on %v.",
@@ -1404,8 +1380,6 @@ func (process *TeleportProcess) initAuthService() error {
 		return nil
 	})
 
-	log.Warn("auth.tls registered with process monitor")
-
 	process.RegisterFunc("auth.heartbeat.broadcast", func() error {
 		// Heart beat auth server presence, this is not the best place for this
 		// logic, consolidate it into auth package later
@@ -1420,8 +1394,6 @@ func (process *TeleportProcess) initAuthService() error {
 		})
 		return nil
 	})
-
-	log.Warn("auth.heartbeat.broadcast started")
 
 	host, port, err := net.SplitHostPort(authAddr)
 	if err != nil {
@@ -1494,8 +1466,6 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
 
-	log.Warn("auth.heartbeat started")
-
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload interface{}) {
 		// The listeners have to be closed here, because if shutdown
@@ -1527,7 +1497,6 @@ func (process *TeleportProcess) initAuthService() error {
 		log.Info("Exited.")
 	})
 
-	log.Warn("process onexit registered")
 	return nil
 }
 

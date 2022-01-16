@@ -152,6 +152,12 @@ type Watch struct {
 	// MetricComponent if set will start reporting
 	// with a given component metric
 	MetricComponent string
+
+	// ResumeIndex indicates that when creating the
+	// watcher, we want to replay events from a
+	// point in history. When set, will return
+	// an error if the event is not available
+	ResumeIndex int64
 }
 
 // String returns a user-friendly description

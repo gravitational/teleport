@@ -34,6 +34,7 @@ import (
 
 	grpcbackend "github.com/gravitational/teleport/api/backend/grpc"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -50,6 +51,8 @@ type GrpcBackend struct {
 	// like etcd/dynamo for proof of concept. But it might be better to
 	// write through and cache in the gRPC service than the processes.
 	buf *backend.CircularBuffer
+
+	log *logrus.Entry
 }
 
 // Config represents JSON config for grpc backend
@@ -130,16 +133,20 @@ func New(ctx context.Context, params backend.Params) (*GrpcBackend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &GrpcBackend{
+	backend := &GrpcBackend{
+		log:        l,
 		clock:      clockwork.NewRealClock(),
 		clientConn: conn,
 		grpc:       grpcbackend.NewBackendServiceClient(conn),
 		buf: backend.NewCircularBuffer(
 			backend.BufferCapacity(cfg.BufferSize),
 		),
-	}, nil
+	}
 
-	return nil, trace.NotImplemented("new not implemented")
+	// TODO: clean close of background routine
+	go backend.run(context.TODO())
+
+	return backend, nil
 }
 
 func (cfg *Config) CheckAndSetDefaults() error {
@@ -164,40 +171,86 @@ func (b *GrpcBackend) CloseWatchers() {
 
 // NewWatcher returns a new event watcher
 func (b *GrpcBackend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
-	//return b.buf.NewWatcher(ctx, watch)
-	watchCtx, cancel := context.WithCancel(context.Background())
+	return b.buf.NewWatcher(ctx, watch)
 
-	res := watcher{
-		events: make(chan backend.Event, watch.QueueSize),
-		done:   make(chan struct{}, 1),
-		cancel: cancel,
-	}
+	/*
+		watchCtx, cancel := context.WithCancel(context.Background())
 
-	stream, err := b.grpc.NewWatcher(watchCtx, &grpcbackend.Watch{
-		Name:            watch.Name,
-		Prefixes:        watch.Prefixes,
-		QueueSize:       int32(watch.QueueSize),
-		MetricComponent: watch.MetricComponent,
-	})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	go func() {
-		for {
-			ev, err := stream.Recv()
-			if err != nil {
-				//TODO: this should be made to be resumable on failure
-				//TODO: silent failure
-				res.shutdown()
-				return
-			}
-
-			res.events <- ConvertGrpcEventBackendEvent(ev)
+		res := watcher{
+			events: make(chan backend.Event, watch.QueueSize),
+			done:   make(chan struct{}, 1),
+			cancel: cancel,
 		}
-	}()
 
-	return res, nil
+		stream, err := b.grpc.NewWatcher(watchCtx, &grpcbackend.Watch{
+			Name:            watch.Name,
+			Prefixes:        watch.Prefixes,
+			QueueSize:       int32(watch.QueueSize),
+			MetricComponent: watch.MetricComponent,
+		})
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+
+		go func() {
+			for {
+				ev, err := stream.Recv()
+				if err != nil {
+					//TODO: this should be made to be resumable on failure
+					//TODO: silent failure
+					res.shutdown()
+					return
+				}
+
+				res.events <- ConvertGrpcEventBackendEvent(ev)
+			}
+		}()
+
+		return res, nil
+	*/
+}
+
+// run connects to the gRPC server and sets up a watch for all events, and feeds the fanout buffer, similar
+// to the etcd/dynamo backends
+func (b *GrpcBackend) run(ctx context.Context) {
+	// rate limit the connection attempts
+	// TODO: should backoff
+	// TODO: configurable
+	ticker := time.NewTicker(time.Second)
+
+	var lastSeenId int64
+	for {
+		<-ticker.C
+
+		stream, err := b.grpc.NewWatcher(ctx, &grpcbackend.Watch{ResumeLastId: lastSeenId})
+		if err != nil {
+			b.log.Warn("Error setting up stream: ", err)
+			continue
+		}
+
+		lastSeenId, err = b.processStream(stream)
+		if err != nil {
+			b.log.Warn("Error processing stream: ", err)
+		}
+	}
+}
+
+func (b *GrpcBackend) processStream(stream grpcbackend.BackendService_NewWatcherClient) (int64, error) {
+	var lastSeenId int64
+
+	b.buf.SetInit()
+	defer b.buf.Reset()
+
+	for {
+		ev, err := stream.Recv()
+		if err != nil {
+			return lastSeenId, err
+		}
+
+		lastSeenId = ev.Item.Id
+
+		b.buf.Emit(ConvertGrpcEventBackendEvent(ev))
+	}
 }
 
 func (b *GrpcBackend) GetRange(ctx context.Context, startKey, endKey []byte, limit int) (*backend.GetResult, error) {

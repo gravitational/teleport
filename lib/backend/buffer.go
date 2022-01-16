@@ -282,12 +282,20 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 	c.Lock()
 	defer c.Unlock()
 
+	return c.newWatcher(ctx, watch)
+}
+
+func (c *CircularBuffer) newWatcher(ctx context.Context, watch Watch) (*BufferWatcher, error) {
 	if c.closed {
 		return nil, trace.Errorf("cannot register watcher, buffer is closed")
 	}
 
 	if watch.QueueSize == 0 {
 		watch.QueueSize = len(c.events)
+	}
+
+	if watch.ResumeIndex != 0 && watch.QueueSize < len(c.events) {
+		return nil, trace.BadParameter("queue size too small to resume the watch")
 	}
 
 	if len(watch.Prefixes) == 0 {
@@ -317,7 +325,43 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 		}
 	}
 	c.watchers.add(w)
+
+	if watch.ResumeIndex != 0 {
+		err := c.resume(ctx, w, watch.ResumeIndex)
+		if err != nil {
+			_ = w.Close()
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return w, nil
+}
+
+func (c *CircularBuffer) resume(ctx context.Context, watcher *BufferWatcher, resumeFromEventId int64) error {
+	//TODO: unit tests
+
+	events := c.eventsCopy()
+
+	resumeIdx := 0
+	for i, v := range events {
+		if v.Item.ID == resumeFromEventId {
+			resumeIdx = i
+		}
+	}
+
+	if resumeIdx == 0 {
+		return trace.NotFound("history does not contain the requested index")
+	}
+
+	if resumeIdx == len(events) {
+		return nil
+	}
+
+	for _, v := range events[resumeIdx+1:] {
+		watcher.eventsC <- v
+	}
+
+	return nil
 }
 
 func (c *CircularBuffer) removeWatcherWithLock(watcher *BufferWatcher) {
