@@ -255,6 +255,9 @@ type UserCertParams struct {
 	MFAVerified string
 	// ClientIP is an IP of the client to embed in the certificate.
 	ClientIP string
+	// DisallowReissue flags that any attempt to request new certificates while
+	// authenticated with this cert should be denied.
+	DisallowReissue bool
 }
 
 // Check checks the user certificate parameters

@@ -254,6 +254,12 @@ message UserCertsRequest {
     // RouteToApp specifies application to issue certificate for.
     RouteToApp RouteToApp = 11
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "route_to_app,omitempty" ];
+
+    // RoleRequests specify an alternative set of named roles to apply to the
+    // certificate, assuming the requestor is allowed to impersonate said roles
+    // directly. An empty set of requests returns the user's normal set of
+    // roles.
+    repeated string RoleRequests = 12 [ (gogoproto.jsontag) = "role_requests,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -1780,6 +1786,8 @@ service AuthService {
     rpc CreateWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
     // UpdateWindowsDesktop updates an existing Windows desktop host.
     rpc UpdateWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
+    // UpsertWindowsDesktop updates a Windows desktop host, creating it if it doesn't exist.
+    rpc UpsertWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
     // DeleteWindowsDesktop removes the specified Windows desktop host.
     rpc DeleteWindowsDesktop(DeleteWindowsDesktopRequest) returns (google.protobuf.Empty);
     // DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
