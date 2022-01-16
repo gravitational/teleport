@@ -46,6 +46,7 @@ const (
 	TypeClipboardData    = MessageType(6)
 	TypeClientUsername   = MessageType(7)
 	TypeMouseWheel       = MessageType(8)
+	TypeError            = MessageType(9)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -92,6 +93,8 @@ func decode(in peekReader) (Message, error) {
 		return decodeKeyboardButton(in)
 	case TypeClientUsername:
 		return decodeClientUsername(in)
+	case TypeError:
+		return decodeError(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", t)
 	}
