@@ -241,6 +241,11 @@ federated login and the name of your assumed IAM role:
 
 Note that your federated login session is marked with your Teleport username.
 
+<Admonition type="note" title="Session Duration">
+    If the Teleport agent is using [tempoary security credentials](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html),
+    the maximum session duration will be limited to one hour.
+</Admonition>
+
 ## Step 7. Use CloudTrail to see Teleport user activity
 
 To view CloudTrail events for your federated sessions, navigate to the CloudTrail
