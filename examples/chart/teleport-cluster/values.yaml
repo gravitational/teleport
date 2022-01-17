@@ -140,6 +140,8 @@ highAvailability:
     minAvailable: 1
   # Settings for cert-manager (can be used for provisioning TLS certs in HA mode)
   certManager:
+    # If set to true, a common name matching the cluster name will be set in the certificate signing request. This is mandatory for some CAs.
+    addCommonName: false
     # If set to true, use cert-manager to get certificates for Teleport to use for TLS termination
     enabled: false
     # Name of the Issuer/ClusterIssuer to use for certs
@@ -148,6 +150,9 @@ highAvailability:
     # Kind of Issuer that cert-manager should look for.
     # This defaults to 'Issuer' to keep everything contained within the teleport namespace.
     issuerKind: Issuer
+    # Group of Issuer that cert-manager should look for.
+    # This defaults to 'cert-manager.io' which is the default Issuer group.
+    issuerGroup: cert-manager.io
 
 
 ##################################################

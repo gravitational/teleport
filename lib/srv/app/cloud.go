@@ -298,8 +298,8 @@ func (c *cloud) getFederationDuration(req *AWSSigninRequest, temporarySession bo
 		duration = maxDuration
 	}
 
-	// The feduration endpoint will also error out if we request less than
-	// the minimum.
+	// Both the federation endpoint and the AssumeRole call will error out if
+	// we request less than 15 minutes.
 	if duration < minimumSessionDuration {
 		duration = minimumSessionDuration
 	}
