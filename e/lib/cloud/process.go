@@ -96,12 +96,19 @@ func NewTeleport(cfg Config) (*Process, error) {
 		identity = local.NewIdentityService(process.GetBackend())
 	}
 
+	access := process.Config.Access
+	if access == nil {
+		access = local.NewAccessService(process.GetBackend())
+	}
+
 	resourceGetter := struct {
 		services.Presence
 		services.Identity
+		services.Access
 	}{
 		Identity: identity,
 		Presence: presence,
+		Access:   access,
 	}
 
 	usageReporter, err := usagereporter.New(usagereporter.Config{

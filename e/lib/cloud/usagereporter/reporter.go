@@ -79,6 +79,16 @@ func (r *UsageReporter) reportUsage(ctx context.Context) {
 		r.Log.WithError(err).Error("Failed to report number of kube clusters.")
 	}
 
+	roles, err := r.ResourceGetter.GetRoles(ctx)
+	if err != nil {
+		r.Log.WithError(err).Error("Failed to report number of roles.")
+	}
+
+	authConnectorCount, err := r.getAuthConnectorCount(ctx)
+	if err != nil {
+		r.Log.WithError(err).Error("Failed to report number of auth connectors.")
+	}
+
 	reportingTime := r.Clock.Now().UTC()
 	req := &cloudapi.SubmitUsageReportsRequest{
 		Reports: []*cloudapi.UsageReport{{
@@ -99,6 +109,12 @@ func (r *UsageReporter) reportUsage(ctx context.Context) {
 			}, {
 				Resource: cloudapi.KUBE_CLUSTER,
 				Quantity: int64(len(kubeServers)),
+			}, {
+				Resource: cloudapi.ROLE,
+				Quantity: int64(len(roles)),
+			}, {
+				Resource: cloudapi.AUTH_CONNECTOR,
+				Quantity: int64(authConnectorCount),
 			}},
 		}},
 	}
@@ -106,12 +122,14 @@ func (r *UsageReporter) reportUsage(ctx context.Context) {
 	if _, err = r.CloudClient.SubmitUsageReports(ctx, req); err != nil {
 		r.Log.WithError(err).Error("Unable submit usage report.")
 	} else {
-		r.Log.Infof("Reported: nodes=%v, users=%v, databases=%v, k8s=%v, apps=%v",
+		r.Log.Infof("Reported: nodes=%v, users=%v, databases=%v, k8s=%v, apps=%v, roles=%v, auth_connectors=%v",
 			len(nodes),
 			len(users),
 			len(databases),
 			len(kubeServers),
 			appCount,
+			len(roles),
+			authConnectorCount,
 		)
 	}
 }
@@ -128,6 +146,25 @@ func (r *UsageReporter) getAppsCount(ctx context.Context) (int, error) {
 	}
 
 	return count, nil
+}
+
+func (r *UsageReporter) getAuthConnectorCount(ctx context.Context) (int, error) {
+	ghConnectors, err := r.ResourceGetter.GetGithubConnectors(ctx, false)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	oidcConnectors, err := r.ResourceGetter.GetOIDCConnectors(ctx, false)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	samlConnectors, err := r.ResourceGetter.GetSAMLConnectors(ctx, false)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return len(ghConnectors) + len(oidcConnectors) + len(samlConnectors), nil
 }
 
 // acquireRecordingLock attempts to set a lock for recording new usage. Returns an isAlreadyExists error in case the

@@ -24,11 +24,15 @@ func (m *MockedBackendGetter) Clock() clockwork.Clock {
 }
 
 type MockedResourceGetter struct {
-	MockedGetNodes           func() ([]types.Server, error)
-	MockedGetDatabaseServers func() ([]types.DatabaseServer, error)
-	MockedGetUsers           func() ([]types.User, error)
-	MockedGetKubeServices    func() ([]types.Server, error)
-	MockedGetAppServers      func() ([]types.Server, error)
+	MockedGetNodes            func() ([]types.Server, error)
+	MockedGetDatabaseServers  func() ([]types.DatabaseServer, error)
+	MockedGetUsers            func() ([]types.User, error)
+	MockedGetKubeServices     func() ([]types.Server, error)
+	MockedGetAppServers       func() ([]types.Server, error)
+	MockedGetRoles            func() ([]types.Role, error)
+	MockedGetGithubConnectors func() ([]types.GithubConnector, error)
+	MockedGetSAMLConnectors   func() ([]types.SAMLConnector, error)
+	MockedGetOIDCConnectors   func() ([]types.OIDCConnector, error)
 }
 
 func (g *MockedResourceGetter) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
@@ -69,4 +73,36 @@ func (g *MockedResourceGetter) GetAppServers(context.Context, string, ...service
 	}
 
 	return nil, trace.NotImplemented("GetAppServers is not implemented")
+}
+
+func (g *MockedResourceGetter) GetRoles(context.Context) ([]types.Role, error) {
+	if g.MockedGetRoles != nil {
+		return g.MockedGetRoles()
+	}
+
+	return nil, trace.NotImplemented("GetRoles is not implemented")
+}
+
+func (g *MockedResourceGetter) GetGithubConnectors(context.Context, bool) ([]types.GithubConnector, error) {
+	if g.MockedGetGithubConnectors != nil {
+		return g.MockedGetGithubConnectors()
+	}
+
+	return nil, trace.NotImplemented("GetGithubConnectors is not implemented")
+}
+
+func (g *MockedResourceGetter) GetOIDCConnectors(context.Context, bool) ([]types.OIDCConnector, error) {
+	if g.MockedGetOIDCConnectors != nil {
+		return g.MockedGetOIDCConnectors()
+	}
+
+	return nil, trace.NotImplemented("GetOIDCConnectors is not implemented")
+}
+
+func (g *MockedResourceGetter) GetSAMLConnectors(context.Context, bool) ([]types.SAMLConnector, error) {
+	if g.MockedGetSAMLConnectors != nil {
+		return g.MockedGetSAMLConnectors()
+	}
+
+	return nil, trace.NotImplemented("GetSAMLConnectors is not implemented")
 }

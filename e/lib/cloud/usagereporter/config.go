@@ -80,4 +80,13 @@ type ResourceAPIGetter interface {
 	GetKubeServices(context.Context) ([]types.Server, error)
 	// GetAppServers retrieves application servers
 	GetAppServers(context.Context, string, ...services.MarshalOption) ([]types.Server, error)
+	// GetRoles retrieves roles
+	GetRoles(context.Context) ([]types.Role, error)
+
+	// GetGithubConnectors retrieves Github connectors
+	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	// GetSAMLConnector retrieves SAML connectors
+	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
+	// GetOIDCConnector retrieves OIDC connectors
+	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
 }
