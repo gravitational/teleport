@@ -42,6 +42,7 @@ func TestEncodeDecode(t *testing.T) {
 		ClientScreenSpec{Width: 123, Height: 456},
 		ClientUsername{Username: "admin"},
 		MouseWheel{Axis: HorizontalWheelAxis, Delta: -123},
+		Error{Message: "An error occurred"},
 	} {
 
 		buf, err := m.Encode()
