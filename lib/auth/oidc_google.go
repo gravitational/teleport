@@ -30,6 +30,16 @@ import (
 	"google.golang.org/api/option"
 )
 
+const (
+	// gsuiteIssuerURL is the issuer URL for Google Workspace accounts.
+	gsuiteIssuerURL = "https://accounts.google.com"
+
+	// gsuiteGroupsClaim is the OIDC claim that we inject into the claims
+	// returned for Google Workspace users, containing the email addresses of
+	// the Google Groups that the user belongs to.
+	gsuiteGroupsClaim = "groups"
+)
+
 // addGsuiteClaims will fetch extra data from proprietary Google APIs if
 // applicable to the connector, and it will add claims based on the fetched
 // data. The current implementation adds a "groups" claim containing the Google
@@ -44,7 +54,7 @@ func addGsuiteClaims(ctx context.Context, connector types.OIDCConnector, claims 
 	// assume that this is a non-GWorkspace OIDC provider using the same
 	// issuer URL as Google Workspace (e.g.
 	// https://developers.google.com/identity/protocols/oauth2/openid-connect).
-	if connector.GetIssuerURL() != "https://accounts.google.com" || (connector.GetGoogleServiceAccountURI() == "" && connector.GetGoogleServiceAccount() == "") {
+	if connector.GetIssuerURL() != gsuiteIssuerURL || (connector.GetGoogleServiceAccountURI() == "" && connector.GetGoogleServiceAccount() == "") {
 		return claims, nil
 	}
 
@@ -63,7 +73,7 @@ func addGsuiteClaims(ctx context.Context, connector types.OIDCConnector, claims 
 
 	var gsuiteGroups []string
 	if connector.GetGoogleTransitiveGroups() {
-		gsuiteGroups, err = groupsFromGsuiteCloudidentity(ctx, email, clientOptions...)
+		gsuiteGroups, err = groupsFromGsuiteCloudIdentity(ctx, email, clientOptions...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -75,7 +85,7 @@ func addGsuiteClaims(ctx context.Context, connector types.OIDCConnector, claims 
 	}
 
 	if len(gsuiteGroups) > 0 {
-		gsuiteClaims := jose.Claims{"groups": gsuiteGroups}
+		gsuiteClaims := jose.Claims{gsuiteGroupsClaim: gsuiteGroups}
 		log.Debugf("Claims from Google Workspace: %v.", gsuiteClaims)
 		claims, err = mergeClaims(claims, gsuiteClaims)
 		if err != nil {
@@ -161,18 +171,30 @@ func groupsFromGsuiteDirectory(ctx context.Context, email string, clientOptions 
 	return groups, nil
 }
 
-func groupsFromGsuiteCloudidentity(ctx context.Context, email string, clientOptions ...option.ClientOption) ([]string, error) {
+func groupsFromGsuiteCloudIdentity(ctx context.Context, email string, clientOptions ...option.ClientOption) ([]string, error) {
 	service, err := cloudidentity.NewService(ctx, clientOptions...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var groups []string
+	// SearchTransitiveGroups takes a fixed parameter as part of the URL
+	// ("Format: `groups/{group}`, where `group` is always '-'") and a query
+	// parameter that the google API docs claim to be a CEL expression
+	// (https://opensource.google/projects/cel) that filters the results based
+	// on `member_key_id`, optionally `member_key_namespace`, and `labels`. The
+	// query parameter doesn't seem to actually be a CEL expression, and even
+	// changing the single quotes into double quotes (which is fine according to
+	// the CEL grammar) makes every API call fail with an "Unauthorized" error
+	// message.
+	//
+	// The query string was lifted directly from
+	// https://cloud.google.com/identity/docs/how-to/query-memberships#searching_for_all_group_memberships_of_a_member
+	// and some more informations on group labels can be found at
+	// https://cloud.google.com/identity/docs/groups#group_properties . The
+	// actual docs for the API call are at
+	// https://cloud.google.com/identity/docs/reference/rest/v1/groups.memberships/searchTransitiveGroups .
 	err = service.Groups.Memberships.SearchTransitiveGroups("groups/-").
-		// the google API docs claim that the query string is a CEL expression
-		// (https://opensource.google/projects/cel) but the call will fail if
-		// you use double quotes instead of single quotes in spite of them being
-		// equivalent according to the CEL specs
 		Query(fmt.Sprintf("member_key_id == '%s' && 'cloudidentity.googleapis.com/groups.discussion_forum' in labels", email)).
 		Pages(ctx, func(resp *cloudidentity.SearchTransitiveGroupsResponse) error {
 			if resp == nil {
