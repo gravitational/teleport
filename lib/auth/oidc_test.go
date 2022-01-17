@@ -218,10 +218,7 @@ func TestOIDCGoogle(t *testing.T) {
 			resp.Groups = append(resp.Groups, &directory.Group{Email: groupEmail})
 		}
 
-		b, err := json.Marshal(resp)
-		require.NoError(t, err)
-
-		rw.Write(b)
+		require.NoError(t, json.NewEncoder(rw).Encode(resp))
 	})
 	mux.HandleFunc("/v1/groups/-/memberships:searchTransitiveGroups", func(rw http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "GET", r.Method)
@@ -256,10 +253,7 @@ func TestOIDCGoogle(t *testing.T) {
 			}
 		}
 
-		b, err := json.Marshal(resp)
-		require.NoError(t, err)
-
-		rw.Write(b)
+		require.NoError(t, json.NewEncoder(rw).Encode(resp))
 	})
 
 	ts := httptest.NewServer(mux)
@@ -267,14 +261,6 @@ func TestOIDCGoogle(t *testing.T) {
 	testOptions := []option.ClientOption{option.WithEndpoint(ts.URL), option.WithoutAuthentication()}
 
 	ctx := context.Background()
-
-	connector, err := types.NewOIDCConnector("googleoidc", types.OIDCConnectorSpecV2{
-		IssuerURL:            "https://accounts.google.com",
-		ClientID:             "unused",
-		GoogleServiceAccount: "unused",
-		GoogleAdminEmail:     "unused",
-	})
-	require.NoError(t, err)
 
 	for _, testCase := range []struct {
 		email      string
@@ -286,12 +272,20 @@ func TestOIDCGoogle(t *testing.T) {
 		{"bob@foo.example", false, []string{"group1@foo.example"}},
 		{"bob@foo.example", true, []string{"group1@foo.example"}},
 	} {
-		connector.(*types.OIDCConnectorV2).Spec.GoogleTransitiveGroups = testCase.transitive
+		connector, err := types.NewOIDCConnector("googleoidc", types.OIDCConnectorSpecV2{
+			IssuerURL:              gsuiteIssuerURL,
+			ClientID:               "unused",
+			GoogleServiceAccount:   "unused",
+			GoogleAdminEmail:       "unused",
+			GoogleTransitiveGroups: testCase.transitive,
+		})
+		require.NoError(t, err)
+
 		claims, err := addGsuiteClaims(ctx, connector, jose.Claims{"email": testCase.email}, testOptions...)
 		require.NoError(t, err)
 		require.Equal(t, testCase.email, claims["email"])
 
-		groupsClaim, _, _ := claims.StringsClaim("groups")
+		groupsClaim, _, _ := claims.StringsClaim(gsuiteGroupsClaim)
 		require.ElementsMatch(t, testCase.groups, groupsClaim)
 	}
 }
