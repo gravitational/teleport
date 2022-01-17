@@ -144,6 +144,9 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return IdentityContext{}, trace.Wrap(err)
 	}
 	identity.ActiveRequests = accessRequestIDs
+	if _, ok := certificate.Extensions[teleport.CertExtensionDisallowReissue]; ok {
+		identity.DisallowReissue = true
+	}
 	return identity, nil
 }
 
