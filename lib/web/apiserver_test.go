@@ -3573,9 +3573,9 @@ func TestIsRoleMatchError(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"saml", trace.AccessDenied("unable to map attributes to role for connector: x")},
-		{"oidc", trace.AccessDenied("unable to map claims to role for connector: x")},
-		{"github", trace.BadParameter("user y does not belong to any teams configured in z connector")},
+		{name: "saml", err: trace.AccessDenied("unable to map attributes to role for connector: x")},
+		{name: "oidc", err: trace.AccessDenied("unable to map claims to role for connector: x")},
+		{name: "github", err: trace.BadParameter("user y does not belong to any teams configured in z connector")},
 	}
 	for _, tc := range matches {
 		t.Run(fmt.Sprintf("Accept %s", tc.name), func(t *testing.T) {
@@ -3587,10 +3587,10 @@ func TestIsRoleMatchError(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"nil", nil},
-		{"random error", errors.New("random error")},
-		{"unrelated access denied", trace.AccessDenied("something unrelated")},
-		{"unrelated bad parameter", trace.BadParameter("something unrelated")},
+		{name: "nil", err: nil},
+		{name: "random error", err: errors.New("random error")},
+		{name: "unrelated access denied", err: trace.AccessDenied("something unrelated")},
+		{name: "unrelated bad parameter", err: trace.BadParameter("something unrelated")},
 	}
 	for _, tc := range nonMatches {
 		t.Run(fmt.Sprintf("Reject %s", tc.name), func(t *testing.T) {
