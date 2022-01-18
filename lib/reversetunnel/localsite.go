@@ -564,7 +564,7 @@ var (
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      teleport.MetricReverseSSHTunnels,
-			Help:      "Number of reverse SSH tunnels connected to proxy by Teleport instances",
+			Help:      "Number of reverse SSH tunnels connected to the Teleport Proxy Service by Teleport instances",
 		},
 		[]string{teleport.TagType},
 	)
