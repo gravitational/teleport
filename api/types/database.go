@@ -307,7 +307,7 @@ func (d *DatabaseV3) GetType() string {
 	if d.GetAWS().Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift
 	}
-	if d.GetAWS().Region != "" || d.GetAWS().RDS.InstanceID != "" || d.GetAWS().RDS.ClusterID != "" {
+	if d.GetAWS().Region != "" || d.GetAWS().RDS.InstanceID != "" || d.GetAWS().RDS.ClusterID != "" || d.GetAWS().RDS.ProxyID != "" {
 		return DatabaseTypeRDS
 	}
 	if d.GetGCP().ProjectID != "" {

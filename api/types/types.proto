@@ -297,6 +297,8 @@ message RDS {
     string ResourceID = 3 [ (gogoproto.jsontag) = "resource_id,omitempty" ];
     // IAMAuth indicates whether database IAM authentication is enabled.
     bool IAMAuth = 4 [ (gogoproto.jsontag) = "iam_auth" ];
+    // ProxyID is the RDS proxy identifier.
+    string ProxyID = 5 [ (gogoproto.jsontag) = "proxy_id,omitempty" ];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.

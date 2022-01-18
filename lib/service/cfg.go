@@ -713,6 +713,8 @@ type DatabaseAWSRDS struct {
 	InstanceID string
 	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string
+	// ProxyID is the RDS proxy identifier.
+	ProxyID string
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.

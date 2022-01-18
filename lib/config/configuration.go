@@ -136,6 +136,8 @@ type CommandLineFlags struct {
 	DatabaseAWSRDSInstanceID string
 	// DatabaseAWSRDSClusterID is RDS cluster (Aurora) cluster identifier.
 	DatabaseAWSRDSClusterID string
+	// DatabaseAWSRDSClusterID is RDS proxy identifier.
+	DatabaseAWSRDSProxyID string
 	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
@@ -1066,6 +1068,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				RDS: service.DatabaseAWSRDS{
 					InstanceID: database.AWS.RDS.InstanceID,
 					ClusterID:  database.AWS.RDS.ClusterID,
+					ProxyID:    database.AWS.RDS.ProxyID,
 				},
 			},
 			GCP: service.DatabaseGCP{
@@ -1660,6 +1663,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				RDS: service.DatabaseAWSRDS{
 					InstanceID: clf.DatabaseAWSRDSInstanceID,
 					ClusterID:  clf.DatabaseAWSRDSClusterID,
+					ProxyID:    clf.DatabaseAWSRDSProxyID,
 				},
 			},
 			GCP: service.DatabaseGCP{

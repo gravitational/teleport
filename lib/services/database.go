@@ -186,6 +186,23 @@ func MetadataFromRDSCluster(rdsCluster *rds.DBCluster) (*types.AWS, error) {
 	}, nil
 }
 
+// MetadataFromRDSProxy creates AWS metadata from the provided RDS proxy.
+func MetadataFromRDSProxy(rdsProxy *rds.DBProxy) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(rdsProxy.DBProxyArn))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		RDS: types.RDS{
+			ProxyID:    aws.StringValue(rdsProxy.DBProxyName),
+			ResourceID: strings.TrimPrefix(parsedARN.Resource, "db-proxy:"),
+			IAMAuth:    true, // always enabled
+		},
+	}, nil
+}
+
 // engineToProtocol converts RDS instance engine to the database protocol.
 func engineToProtocol(engine string) string {
 	switch engine {

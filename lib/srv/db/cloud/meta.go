@@ -99,7 +99,12 @@ func (m *Metadata) fetchRDSMetadata(ctx context.Context, database types.Database
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// First try to fetch the RDS instance metadata.
+
+	if database.GetAWS().RDS.ProxyID != "" {
+		return fetchRDSProxyMetadata(ctx, rds, database.GetAWS().RDS.ProxyID)
+	}
+
+	// Try to fetch the RDS instance metadata.
 	metadata, err := fetchRDSInstanceMetadata(ctx, rds, database.GetAWS().RDS.InstanceID)
 	if err != nil && !trace.IsNotFound(err) && !trace.IsAccessDenied(err) {
 		return nil, trace.Wrap(err)
@@ -202,4 +207,27 @@ func describeRedshiftCluster(ctx context.Context, redshiftClient redshiftiface.R
 		return nil, trace.BadParameter("expected 1 Redshift cluster for %v, got %s", clusterID, out.Clusters)
 	}
 	return out.Clusters[0], nil
+}
+
+// fetchRDSProxyMetadata fetches metadata about specified RDS proxy.
+func fetchRDSProxyMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyID string) (*types.AWS, error) {
+	rdsProxy, err := describeRDSProxy(ctx, rdsClient, proxyID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.MetadataFromRDSProxy(rdsProxy)
+}
+
+// describeRDSProxy returns AWS RDS proxy for the specified ID.
+func describeRDSProxy(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyID string) (*rds.DBProxy, error) {
+	out, err := rdsClient.DescribeDBProxiesWithContext(ctx, &rds.DescribeDBProxiesInput{
+		DBProxyName: aws.String(proxyID),
+	})
+	if err != nil {
+		return nil, common.ConvertError(err)
+	}
+	if len(out.DBProxies) != 1 {
+		return nil, trace.BadParameter("expected 1 RDS proxy for %v, got %s", proxyID, out.DBProxies)
+	}
+	return out.DBProxies[0], nil
 }

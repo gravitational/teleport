@@ -113,6 +113,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					RDS: types.RDS{
 						InstanceID: db.AWS.RDS.InstanceID,
 						ClusterID:  db.AWS.RDS.ClusterID,
+						ProxyID:    db.AWS.RDS.ProxyID,
 					},
 				},
 				GCP: types.GCPCloudSQL{
