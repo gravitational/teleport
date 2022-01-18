@@ -418,6 +418,9 @@ example of said roots could include:
   (attestation roots available at the [FIDO Metadata Service](
   https://fidoalliance.org/metadata/))
 
+(Roots retrieval, if dynamic and not canned, should warn of any changes in the
+CAs, detecting potential PKI attacks.)
+
 It is important to consider the tradeoffs of a fixed set of passwordless roots
 and its interaction with existing WebAuthn attestation settings.
 
@@ -459,6 +462,11 @@ interesting change is the ability for untrusted users to generate WebAuthn
 challenges, an operation previously gated by user/password. In order to mitigate
 a potential source of DoS and storage space attacks, the design recommends
 adding rate-limiting for those endpoints (a possibly overdue change).
+
+A circular in-memory buffer (or similar solution) to storage challenges may also
+be advisable, in order to mitigate storage bloat of potentially-malicious
+challenge creation sprees. <!-- As noted by Alexey, this may require digging
+into the Teleport caching system to make it work in HA mode). -->
 
 (Note that "entropy attacks" are
 [not really](https://www.2uo.de/myths-about-urandom/#what-about-entropy-running-low)
