@@ -150,7 +150,7 @@ func (f *rdsFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, e
 			continue
 		}
 
-		// add a database from primary endpoint
+		// Add a database from primary endpoint
 		database, err := services.NewDatabaseFromRDSCluster(cluster)
 		if err != nil {
 			f.log.Warnf("Could not convert RDS cluster %q to database resource: %v.",
@@ -159,8 +159,13 @@ func (f *rdsFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, e
 			databases = append(databases, database)
 		}
 
-		// add a database from reader endpoint
-		if cluster.ReaderEndpoint != nil {
+		// Add a database from reader endpoint, only when the reader endpoint
+		// is available and there is more than one instance. When the cluster
+		// contains only a primary instance and no Aurora Replicas, the reader
+		// endpoint connects to the primary instance, which makes the reader
+		// database entry pointless.
+		// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html#Aurora.Endpoints.Reader
+		if cluster.ReaderEndpoint != nil && len(cluster.DBClusterMembers) > 1 {
 			database, err := services.NewDatabaseFromRDSClusterReaderEndpoint(cluster)
 			if err != nil {
 				f.log.Warnf("Could not convert RDS cluster %q reader endpoint to database resource: %v.",
@@ -170,7 +175,7 @@ func (f *rdsFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, e
 			}
 		}
 
-		// add databases from custom endpoints
+		// Add databases from custom endpoints
 		if len(cluster.CustomEndpoints) > 0 {
 			customEndpointDatabases, err := services.NewDatabasesFromRDSClusterCustomEndpoints(cluster)
 			if err != nil {

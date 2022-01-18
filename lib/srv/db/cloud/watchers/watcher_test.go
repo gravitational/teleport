@@ -130,6 +130,7 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 		ReaderEndpoint:      aws.String("reader.host"),
 		Port:                aws.Int64(3306),
 		TagList:             labelsToTags(labels),
+		DBClusterMembers:    []*rds.DBClusterMember{&rds.DBClusterMember{}, &rds.DBClusterMember{}},
 		CustomEndpoints: []*string{
 			aws.String("custom1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
 			aws.String("custom2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
