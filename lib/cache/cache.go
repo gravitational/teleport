@@ -52,7 +52,7 @@ var (
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      teleport.MetricStaleCacheEventsReceived,
-			Help:      "Number of stale events received by a Teleport service cache. A large number of stale events can indicate a degraded backend.",
+			Help:      "Number of stale events received by a Teleport service cache. A high percentage of stale events can indicate a degraded backend.",
 		},
 		[]string{teleport.TagCacheComponent},
 	)

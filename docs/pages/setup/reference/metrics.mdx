@@ -110,7 +110,7 @@ Now you can see the monitoring information by visiting several endpoints:
 | `server_interactive_sessions_total` | gauge | Teleport | Number of active sessions. |
 | `teleport_build_info` | gauge | Teleport | Provides build information of Teleport including gitref (git describe --long --tags), Go version, and Teleport version. The value of this gauge will always be 1. |
 | `teleport_cache_events` | counter | Teleport | Number of events received by a Teleport service cache. |
-| `teleport_cache_stale_events` | counter | Teleport | Number of stale events received by a Teleport service cache. A large number of stale events can indicate a degraded backend. |
+| `teleport_cache_stale_events` | counter | Teleport | Number of stale events received by a Teleport service cache. A high percentage of stale events can indicate a degraded backend. |
 | `trusted_clusters` | gauge | Teleport | Number of tunnels per state. |
 | `tx` | counter | Teleport | Number of bytes transmitted. |
 | `user_login_total` | counter | Teleport Auth | Number of user logins. |
