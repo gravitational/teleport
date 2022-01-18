@@ -456,6 +456,9 @@ const (
 	// WindowsDesktopSessionEndEvent is emitted when a user  disconnects
 	// from a desktop.
 	WindowsDesktopSessionEndEvent = "windows.desktop.session.end"
+
+	// CertificateCreateEvent is emitted when a certificate is issued.
+	CertificateCreateEvent = "cert.create"
 )
 
 const (

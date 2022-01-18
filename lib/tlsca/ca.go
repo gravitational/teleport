@@ -195,6 +195,59 @@ func (id *Identity) GetRouteToApp() (RouteToApp, error) {
 	return id.RouteToApp, nil
 }
 
+func (id *Identity) GetEventIdentity() events.Identity {
+	// leave a nil instead of a zero struct so the field doesn't appear when
+	// serialized as json
+	var routeToApp *events.RouteToApp
+	if id.RouteToApp != (RouteToApp{}) {
+		routeToApp = &events.RouteToApp{
+			Name:        id.RouteToApp.Name,
+			SessionID:   id.RouteToApp.SessionID,
+			PublicAddr:  id.RouteToApp.PublicAddr,
+			ClusterName: id.RouteToApp.ClusterName,
+			AWSRoleARN:  id.RouteToApp.AWSRoleARN,
+		}
+	}
+	var routeToDatabase *events.RouteToDatabase
+	if id.RouteToDatabase != (RouteToDatabase{}) {
+		routeToDatabase = &events.RouteToDatabase{
+			ServiceName: id.RouteToDatabase.ServiceName,
+			Protocol:    id.RouteToDatabase.Protocol,
+			Username:    id.RouteToDatabase.Username,
+			Database:    id.RouteToDatabase.Database,
+		}
+	}
+
+	traits, err := events.EncodeMapStrings(id.Traits)
+	if err != nil {
+		log.WithError(err).Debug("Failed to encode traits.")
+	}
+
+	return events.Identity{
+		Username:          id.Username,
+		Impersonator:      id.Impersonator,
+		Groups:            id.Groups,
+		Usage:             id.Usage,
+		Principals:        id.Principals,
+		KubernetesGroups:  id.KubernetesGroups,
+		KubernetesUsers:   id.KubernetesUsers,
+		Expires:           id.Expires,
+		RouteToCluster:    id.RouteToCluster,
+		KubernetesCluster: id.KubernetesCluster,
+		Traits:            traits,
+		RouteToApp:        routeToApp,
+		TeleportCluster:   id.TeleportCluster,
+		RouteToDatabase:   routeToDatabase,
+		DatabaseNames:     id.DatabaseNames,
+		DatabaseUsers:     id.DatabaseUsers,
+		MFAVerified:       id.MFAVerified,
+		ClientIP:          id.ClientIP,
+		AWSRoleARNs:       id.AWSRoleARNs,
+		ActiveRequests:    id.ActiveRequests,
+		DisallowReissue:   id.DisallowReissue,
+	}
+}
+
 // CheckAndSetDefaults checks and sets default values
 func (id *Identity) CheckAndSetDefaults() error {
 	if id.Username == "" {
