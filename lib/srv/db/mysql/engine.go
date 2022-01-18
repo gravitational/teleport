@@ -18,6 +18,7 @@ package mysql
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"time"
@@ -38,6 +39,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+)
+
+const (
+	// CloudSQLListenPort is the port used by Cloud SQL MySQL instances.
+	CloudSQLListenPort = "3306"
+	// CloudSQLProxyListenPort is the port used by Cloud Proxy for MySQL instances.
+	CloudSQLProxyListenPort = "3307"
 )
 
 // Engine implements the MySQL database service that accepts client
@@ -159,8 +167,13 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user := sessionCtx.DatabaseUser
+	connectOpt := func(conn *client.Conn) {
+		conn.SetTLSConfig(tlsConfig)
+	}
+
+	var dialer client.Dialer
 	var password string
+	user := sessionCtx.DatabaseUser
 	switch {
 	case sessionCtx.Database.IsRDS():
 		password, err = e.Auth.GetRDSAuthToken(sessionCtx)
@@ -191,6 +204,21 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// workaround issue generating ephemeral certs for secure connections
+		// by creating a TLS connection to the cloud proxy port and
+		// overridding mysql client's connection. mysql on the default port
+		// does not trust the ephemeral cert's CA but cloud proxy does.
+		if len(tlsConfig.Certificates) > 0 { // has client certificate
+			connectOpt = func(conn *client.Conn) {}
+			dialer = func(ctx context.Context, network, address string) (net.Conn, error) {
+				host, port, err := net.SplitHostPort(address)
+				if err == nil && port == CloudSQLListenPort {
+					address = net.JoinHostPort(host, CloudSQLProxyListenPort)
+				}
+				tlsDialer := tls.Dialer{Config: tlsConfig}
+				return tlsDialer.DialContext(ctx, network, address)
+			}
+		}
 	case sessionCtx.Database.IsAzure():
 		password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
 		if err != nil {
@@ -200,14 +228,20 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		// alice@mysql-server-name.
 		user = fmt.Sprintf("%v@%v", user, sessionCtx.Database.GetAzure().Name)
 	}
+
+	// use default dialer unless we've already initialized it.
+	if dialer == nil {
+		var nd net.Dialer
+		dialer = nd.DialContext
+	}
+
 	// TODO(r0mant): Set CLIENT_INTERACTIVE flag on the client?
-	conn, err := client.Connect(sessionCtx.Database.GetURI(),
+	conn, err := client.ConnectWithDialer(ctx, "tcp", sessionCtx.Database.GetURI(),
 		user,
 		password,
 		sessionCtx.DatabaseName,
-		func(conn *client.Conn) {
-			conn.SetTLSConfig(tlsConfig)
-		})
+		dialer,
+		connectOpt)
 	if err != nil {
 		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Database.IsRDS() {
 			return nil, trace.AccessDenied(`Could not connect to database:

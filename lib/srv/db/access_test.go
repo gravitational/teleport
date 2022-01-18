@@ -56,6 +56,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
 
 func TestMain(m *testing.M) {
@@ -1021,8 +1022,18 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 	// Create test database auth tokens generator.
 	testAuth, err := newTestAuth(common.AuthConfig{
 		AuthClient: c.authClient,
-		Clients:    &common.TestCloudClients{},
 		Clock:      c.clock,
+		Clients: &common.TestCloudClients{
+			GCPSQL: &cloud.GCPSQLAdminClientMock{
+				DatabaseInstance: &sqladmin.DatabaseInstance{
+					Settings: &sqladmin.Settings{
+						IpConfiguration: &sqladmin.IpConfiguration{
+							RequireSsl: false,
+						},
+					},
+				},
+			},
+		},
 	})
 	require.NoError(t, err)
 

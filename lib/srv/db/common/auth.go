@@ -251,11 +251,8 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 }
 
 // updateCloudSQLUser makes a request to Cloud SQL API to update the provided user.
-func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL *sqladmin.Service, user *sqladmin.User) error {
-	_, err := gcpCloudSQL.Users.Update(
-		sessionCtx.Database.GetGCP().ProjectID,
-		sessionCtx.Database.GetGCP().InstanceID,
-		user).Name(sessionCtx.DatabaseUser).Host("%").Context(ctx).Do()
+func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL GCPSQLAdminClient, user *sqladmin.User) error {
+	err := gcpCloudSQL.UpdateUser(ctx, sessionCtx, user)
 	if err != nil {
 		return trace.AccessDenied(`Could not update Cloud SQL user %q password:
 
@@ -359,6 +356,11 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		tlsConfig.InsecureSkipVerify = true
 		// This will verify CN and cert chain on each connection.
 		tlsConfig.VerifyConnection = getVerifyCloudSQLCertificate(tlsConfig.RootCAs)
+		// Generate client SSL certificate when instance's RequireSsl is enabled.
+		tlsConfig, err = a.appendGCPSQLClientCert(ctx, sessionCtx, tlsConfig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	dbTLSConfig := sessionCtx.Database.GetTLS()
@@ -367,8 +369,9 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		tlsConfig.ServerName = dbTLSConfig.ServerName
 	}
 
-	// RDS/Aurora/Redshift and Cloud SQL auth is done with an auth token so
+	// RDS/Aurora/Redshift auth is done with an auth token so
 	// don't generate a client certificate and exit here.
+	// GCP SQL client certificate was already generated above.
 	if sessionCtx.Database.IsCloudHosted() {
 		return tlsConfig, nil
 	}
@@ -503,6 +506,34 @@ func (a *dbAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 // Close releases all resources used by authenticator.
 func (a *dbAuth) Close() error {
 	return a.cfg.Clients.Close()
+}
+
+// appendGCPSQLClientCert to tlsConfig for the project/instance
+// configured in Session. The ephemeral client certificate is created
+// by calling the GenerateEphemeralCert Cloud SQL API. The tlsConfig is
+// only modified when the instance's RequireSsl configuration is enabled.
+func (a *dbAuth) appendGCPSQLClientCert(ctx context.Context, sessionCtx *Session, tlsConfig *tls.Config) (*tls.Config, error) {
+	svc, err := a.cfg.Clients.GetGCPSQLAdminClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dbi, err := svc.GetDatabaseInstance(ctx, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get Cloud SQL instance information for %q", tlsConfig.ServerName)
+	} else if dbi.Settings == nil || dbi.Settings.IpConfiguration == nil {
+		return nil, trace.Errorf("failed to find Cloud SQL settings for %q", tlsConfig.ServerName)
+	}
+
+	if dbi.Settings.IpConfiguration.RequireSsl {
+		cert, err := svc.GenerateEphemeralCert(ctx, sessionCtx)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to generate Cloud SQL ephemeral client certificate for %q", tlsConfig.ServerName)
+		}
+		tlsConfig.Certificates = []tls.Certificate{*cert}
+	}
+
+	return tlsConfig, nil
 }
 
 // getVerifyCloudSQLCertificate returns a function that performs verification
