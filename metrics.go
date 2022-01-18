@@ -183,6 +183,12 @@ const (
 	// MetricBuildInfo tracks build information
 	MetricBuildInfo = "build_info"
 
+	// MetricCacheEventsReceived tracks the total number of events received by a cache
+	MetricCacheEventsReceived = "cache_events"
+
+	// MetricStaleCacheEventsReceived tracks the number of stale events received by a cache
+	MetricStaleCacheEventsReceived = "cache_stale_events"
+
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
 
@@ -206,4 +212,7 @@ const (
 
 	// TagGoVersion is a prometheus label for version of Go used to build Teleport
 	TagGoVersion = "goversion"
+
+	// TagCacheComponent is a prometheus label for the cache component
+	TagCacheComponent = "cache_component"
 )
