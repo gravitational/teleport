@@ -685,9 +685,11 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 		return nil, trace.Wrap(err, "unable to merge OIDC claims")
 	}
 
-	claims, err = addGsuiteClaims(a.closeCtx, connector, claims)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if isGoogleWorkspaceConnector(connector) {
+		claims, err = addGoogleWorkspaceClaims(a.closeCtx, connector, claims)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return claims, nil

@@ -273,7 +273,7 @@ func TestOIDCGoogle(t *testing.T) {
 		{"bob@foo.example", true, []string{"group1@foo.example"}},
 	} {
 		connector, err := types.NewOIDCConnector("googleoidc", types.OIDCConnectorSpecV2{
-			IssuerURL:              gsuiteIssuerURL,
+			IssuerURL:              googleWorkspaceIssuerURL,
 			ClientID:               "unused",
 			GoogleServiceAccount:   "unused",
 			GoogleAdminEmail:       "unused",
@@ -281,11 +281,11 @@ func TestOIDCGoogle(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		claims, err := addGsuiteClaims(ctx, connector, jose.Claims{"email": testCase.email}, testOptions...)
+		claims, err := addGoogleWorkspaceClaims(ctx, connector, jose.Claims{"email": testCase.email}, testOptions...)
 		require.NoError(t, err)
 		require.Equal(t, testCase.email, claims["email"])
 
-		groupsClaim, _, _ := claims.StringsClaim(gsuiteGroupsClaim)
+		groupsClaim, _, _ := claims.StringsClaim(googleGroupsClaim)
 		require.ElementsMatch(t, testCase.groups, groupsClaim)
 	}
 }
