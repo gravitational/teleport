@@ -946,6 +946,11 @@ func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
 	return trail.FromGRPC(err)
 }
 
+func (c *Client) ResetCache(ctx context.Context) error {
+	_, err := c.grpc.ResetCache(ctx, &empty.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // DeleteRole deletes role by name
 func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	if name == "" {

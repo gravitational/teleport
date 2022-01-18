@@ -294,8 +294,21 @@ type Cache struct {
 	webTokenCache      types.WebTokenInterface
 	eventsFanout       *services.FanoutSet
 
+	reset chan struct{}
+
 	// closed indicates that the cache has been closed
 	closed *atomic.Bool
+}
+
+func (c *Cache) ResetCache(_ context.Context) error {
+	if c.closed.Load() {
+		return trace.Errorf("cache is closed, cannot reset")
+	}
+	select {
+	case c.reset <- struct{}{}:
+	default:
+	}
+	return nil
 }
 
 func (c *Cache) setInitError(err error) {
@@ -542,6 +555,7 @@ func New(config Config) (*Cache, error) {
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
+		reset:  make(chan struct{}, 1),
 		closed: atomic.NewBool(false),
 	}
 	collections, err := setupCollections(cs, config.Watches)
@@ -659,6 +673,10 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 		case <-c.ctx.Done():
 			return
 		}
+		select {
+		case <-c.reset:
+		default:
+		}
 	}
 }
 
@@ -764,6 +782,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	// cache process makes sure the connection is established
 	// by receiving init event first.
 	select {
+	case <-c.reset:
+		return trace.Errorf("remote reset triggered")
 	case <-watcher.Done():
 		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
 	case <-c.ctx.Done():
@@ -810,6 +830,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	var staleEventCount int
 	for {
 		select {
+		case <-c.reset:
+			return trace.Errorf("remote reset triggered")
 		case <-watcher.Done():
 			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
 		case <-c.ctx.Done():

@@ -1992,4 +1992,6 @@ type ClientI interface {
 	// GetWebToken queries the existing web token described with req.
 	// Implements ReadAccessPoint.
 	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
+
+	ResetCache(ctx context.Context) error
 }

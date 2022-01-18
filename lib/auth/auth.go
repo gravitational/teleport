@@ -377,6 +377,18 @@ func (a *Server) GetClusterName(opts ...services.MarshalOption) (services.Cluste
 	return a.GetCache().GetClusterName(opts...)
 }
 
+type resetCache interface {
+	ResetCache(context.Context) error
+}
+
+func (a *Server) ResetCache(ctx context.Context) error {
+	c, ok := a.GetCache().(resetCache)
+	if !ok {
+		return trace.Errorf("cache is disabled or cannot be reset")
+	}
+	return trace.Wrap(c.ResetCache(ctx))
+}
+
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *Server) GetDomainName() (string, error) {

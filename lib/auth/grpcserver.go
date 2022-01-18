@@ -2661,6 +2661,19 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSession
 	return res, nil
 }
 
+func (g *GRPCServer) ResetCache(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.ResetCache(ctx); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 // GetAuthPreference gets cluster auth preference.
 func (g *GRPCServer) GetAuthPreference(ctx context.Context, _ *empty.Empty) (*types.AuthPreferenceV2, error) {
 	auth, err := g.authenticate(ctx)

@@ -2202,6 +2202,14 @@ func (a *ServerWithRoles) GetClusterName(opts ...services.MarshalOption) (servic
 	return a.authServer.GetClusterName()
 }
 
+func (a *ServerWithRoles) ResetCache(ctx context.Context) error {
+	if !a.hasBuiltinRole(string(teleport.RoleAdmin)) {
+		return trace.AccessDenied("cache reset is admin-only action")
+	}
+
+	return a.authServer.ResetCache(ctx)
+}
+
 // SetClusterName sets the name of the cluster. SetClusterName can only be called once.
 func (a *ServerWithRoles) SetClusterName(c services.ClusterName) error {
 	if err := a.action(defaults.Namespace, services.KindClusterName, services.VerbCreate); err != nil {
