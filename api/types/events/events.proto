@@ -252,6 +252,18 @@ message SessionReject {
     int64 Maximum = 6 [ (gogoproto.jsontag) = "max" ];
 }
 
+// SessionConnect is emitted when a non-Teleport connection is made over net.Dial.
+message SessionConnect {
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    ServerMetadata Server = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    ConnectionMetadata Connection = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
 // Resize means that some user resized PTY on the client
 message Resize {
     // Metadata is a common event metadata
@@ -1731,6 +1743,7 @@ message OneOf {
         events.PostgresClose PostgresClose = 64;
         events.PostgresFunctionCall PostgresFunctionCall = 65;
         events.AccessRequestDelete AccessRequestDelete = 66;
+        events.SessionConnect SessionConnect = 67;
     }
 }
 
