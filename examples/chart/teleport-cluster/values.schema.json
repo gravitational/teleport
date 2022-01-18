@@ -84,7 +84,12 @@
         "chartMode": {
             "$id": "#/properties/chartMode",
             "type": "string",
-            "enum": ["standalone", "aws", "gcp", "custom"],
+            "enum": [
+                "standalone",
+                "aws",
+                "gcp",
+                "custom"
+            ],
             "default": "standalone"
         },
         "standalone": {
@@ -207,9 +212,15 @@
                     "required": [
                         "enabled",
                         "issuerName",
-                        "issuerKind"
+                        "issuerKind",
+                        "issuerGroup"
                     ],
                     "properties": {
+                        "addCommonName": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/addCommonName",
+                            "type": "boolean",
+                            "default": "false"
+                        },
                         "enabled": {
                             "$id": "#/properties/highAvailability/properties/certManager/properties/enabled",
                             "type": "boolean",
@@ -224,6 +235,11 @@
                             "$id": "#/properties/highAvailability/properties/certManager/properties/issuerKind",
                             "type": "string",
                             "default": "Issuer"
+                        },
+                        "issuerGroup": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/issuerGroup",
+                            "type": "string",
+                            "default": "cert-manager.io"
                         }
                     }
                 },
@@ -262,7 +278,13 @@
         "logLevel": {
             "$id": "#/properties/logLevel",
             "type": "string",
-            "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
+            "enum": [
+                "DEBUG",
+                "INFO",
+                "WARN",
+                "WARNING",
+                "ERROR"
+            ],
             "default": "INFO"
         },
         "log": {
@@ -388,7 +410,11 @@
         "imagePullPolicy": {
             "$id": "#/properties/imagePullPolicy",
             "type": "string",
-            "enum": ["Never", "IfNotPresent", "Always"],
+            "enum": [
+                "Never",
+                "IfNotPresent",
+                "Always"
+            ],
             "default": "IfNotPresent"
         },
         "initContainers": {
