@@ -1,8 +1,8 @@
 <Admonition type="tip" title="Insecure Certificate Error">
-  If you encounter an "Insecure Certificate Error" (or equivalent warning) that prevents the Teleport Web UI from opening, you can:
+  If you encounter an "Insecure Certificate Error" (or equivalent warning) that prevents the Teleport Web UI from opening, you can perform one of the following actions depending on your browser:
 
-  1. Open the URL in Safari or Firefox.
-  2. In Chrome, visit `chrome://flags` and enable "Allow invalid certificates for resources loaded from localhost."
+  - In Safari's "This Connection Is Not Private" page, click "Show Details," then click "visit this website."
+  - In Firefox, click "Advanced" from the warning page, then click "Accept the Risk and Continue."
+  - In Chrome's warning page, type `thisisunsafe` to ignore certificate validation for the Teleport Web UI.
 
-  Both options will allow you to open the Web UI.
 </Admonition>
