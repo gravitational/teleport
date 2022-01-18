@@ -624,28 +624,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			services.NewWindowsLoginMatcher(login))
 	}
 
-<<<<<<< HEAD
-	delay := timer()
-	tdpConn := tdp.NewConn(conn)
 	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
-	tdpConn.OnSend = func(m tdp.Message, b []byte) {
-		switch b[0] {
-		case byte(tdp.TypePNGFrame), byte(tdp.TypeClientScreenSpec), byte(tdp.TypeClipboardData), byte(tdp.TypeMouseButton):
-			if err := sw.EmitAuditEvent(ctx, &events.DesktopRecording{
-				Metadata: events.Metadata{
-					Type: libevents.DesktopRecordingEvent,
-					Time: s.cfg.Clock.Now().UTC().Round(time.Millisecond),
-				},
-				Message:           b,
-				DelayMilliseconds: delay(), // TODO(zmb3): AuditWriter should set this for us if necessary
-			}); err != nil {
-				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
-			}
-		}
-	}
-=======
 	tdpConn := tdp.NewConn(proxyConn)
->>>>>>> master
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
