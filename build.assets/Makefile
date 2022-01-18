@@ -238,7 +238,7 @@ buildbox-arm-fips: buildbox-fips
 grpc: devbox
 	docker run \
 		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(DEVBOX) \
-		make -C /go/src/github.com/gravitational/teleport DISABLE_TEST_TARGETS=1 devbox-grpc
+		make -C /go/src/github.com/gravitational/teleport devbox-grpc
 
 #
 # Removes the docker image
