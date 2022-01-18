@@ -251,11 +251,8 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 }
 
 // updateCloudSQLUser makes a request to Cloud SQL API to update the provided user.
-func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL *sqladmin.Service, user *sqladmin.User) error {
-	_, err := gcpCloudSQL.Users.Update(
-		sessionCtx.Database.GetGCP().ProjectID,
-		sessionCtx.Database.GetGCP().InstanceID,
-		user).Name(sessionCtx.DatabaseUser).Host("%").Context(ctx).Do()
+func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL GCPSQLAdminClient, user *sqladmin.User) error {
+	err := gcpCloudSQL.UpdateUser(ctx, sessionCtx, user)
 	if err != nil {
 		return trace.AccessDenied(`Could not update Cloud SQL user %q password:
 
