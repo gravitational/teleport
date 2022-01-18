@@ -3,7 +3,7 @@
 package teleport
 
 const (
-	Version = "6.2.26-cache-resets.1"
+	Version = "6.2.26-cache-resets.2"
 )
 
 // Gitref variable is automatically set to the output of git-describe
