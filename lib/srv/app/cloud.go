@@ -18,10 +18,10 @@ package app
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -206,7 +206,7 @@ func (c *cloud) getAWSSigninToken(req *AWSSigninRequest, endpoint string, option
 
 	if !temporarySession {
 		duration := c.getFederationDuration(req, temporarySession)
-		values["SessionDuration"] = []string{fmt.Sprintf("%d", int(duration.Seconds()))}
+		values["SessionDuration"] = []string{strconv.Itoa(int(duration.Seconds()))}
 	}
 
 	tokenURL.RawQuery = values.Encode()

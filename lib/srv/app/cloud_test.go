@@ -35,6 +35,8 @@ import (
 )
 
 func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		credentials *credentials.Credentials
@@ -113,6 +115,7 @@ func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
 }
 
 func TestGetFederationDuration(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	tests := []struct {
 		name             string
@@ -175,6 +178,7 @@ func TestGetFederationDuration(t *testing.T) {
 }
 
 func TestGetAWSSigninToken(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                    string
 		sessionCredentials      *credentials.Credentials
