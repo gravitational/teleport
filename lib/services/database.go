@@ -31,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // DatabaseGetter defines interface for fetching database resources.
@@ -272,7 +273,7 @@ func parseRDSCustomEndpoint(endpoint string) (name string, err error) {
 
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
 func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[string]string {
-	labels := tagsToLabels(rdsInstance.TagList)
+	labels := rdsTagsToLabels(rdsInstance.TagList)
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelAccountID] = meta.AccountID
 	labels[labelRegion] = meta.Region
@@ -284,7 +285,7 @@ func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[str
 
 // labelsFromRDSCluster creates database labels for the provided RDS cluster.
 func labelsFromRDSCluster(rdsCluster *rds.DBCluster, meta *types.AWS, endpointType RDSEndpointType) map[string]string {
-	labels := tagsToLabels(rdsCluster.TagList)
+	labels := rdsTagsToLabels(rdsCluster.TagList)
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelAccountID] = meta.AccountID
 	labels[labelRegion] = meta.Region
@@ -294,11 +295,21 @@ func labelsFromRDSCluster(rdsCluster *rds.DBCluster, meta *types.AWS, endpointTy
 	return labels
 }
 
-// tagsToLabels converts RDS tags to a labels map.
-func tagsToLabels(tags []*rds.Tag) map[string]string {
+// rdsTagsToLabels converts RDS tags to a labels map.
+func rdsTagsToLabels(tags []*rds.Tag) map[string]string {
 	labels := make(map[string]string)
 	for _, tag := range tags {
-		labels[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
+		// An AWS tag key has a pattern of "^([\p{L}\p{Z}\p{N}_.:/=+\-@]*)$",
+		// which can make invalid labels (for example "aws:cloudformation:stack-id").
+		// Omit those to avoid resource creation failures.
+		//
+		// https://docs.aws.amazon.com/directoryservice/latest/devguide/API_Tag.html
+		key := aws.StringValue(tag.Key)
+		if types.IsValidLabelKey(key) {
+			labels[key] = aws.StringValue(tag.Value)
+		} else {
+			log.Debugf("Skipping RDS tag %q, not a valid label key.", key)
+		}
 	}
 	return labels
 }
