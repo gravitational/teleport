@@ -2713,8 +2713,8 @@ func ssoSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 func isRoleMatchError(err error) bool {
 	// oidc or saml
 	if trace.IsAccessDenied(err) {
-		return strings.HasPrefix(err.Error(), "unable to map attributes to role") ||
-			strings.HasPrefix(err.Error(), "unable to map claims to role")
+		return strings.Contains(err.Error(), "unable to map attributes to role") ||
+			strings.Contains(err.Error(), "unable to map claims to role")
 	}
 	// github
 	if trace.IsBadParameter(err) {
