@@ -31,63 +31,66 @@ import (
 )
 
 const (
-	// gsuiteIssuerURL is the issuer URL for Google Workspace accounts.
-	gsuiteIssuerURL = "https://accounts.google.com"
+	// googleWorkspaceIssuerURL is the issuer URL for Google Workspace accounts.
+	googleWorkspaceIssuerURL = "https://accounts.google.com"
 
-	// gsuiteGroupsClaim is the OIDC claim that we inject into the claims
+	// googleGroupsClaim is the OIDC claim that we inject into the claims
 	// returned for Google Workspace users, containing the email addresses of
 	// the Google Groups that the user belongs to.
-	gsuiteGroupsClaim = "groups"
+	googleGroupsClaim = "groups"
 )
 
-// addGsuiteClaims will fetch extra data from proprietary Google APIs if
-// applicable to the connector, and it will add claims based on the fetched
-// data. The current implementation adds a "groups" claim containing the Google
-// Groups that the user is a member of.
-//
-// If clientOptions is not empty, it will be passed to the underlying google api
-// client without loading the credentials according to the configuration of the
-// connector. The credentials in the default case are loaded from the connector
-// with the getGsuiteCredentialsForConnector function.
-func addGsuiteClaims(ctx context.Context, connector types.OIDCConnector, claims jose.Claims, clientOptions ...option.ClientOption) (jose.Claims, error) {
+// isGoogleWorkspaceConnector returns true if the connector is a OIDC connector
+// for Google Workspace, configured to fetch extra claims.
+func isGoogleWorkspaceConnector(connector types.OIDCConnector) bool {
 	// If google_service_account_uri and google_service_account are not set, we
-	// assume that this is a non-GWorkspace OIDC provider using the same
+	// assume that this is a non-Google Workspace OIDC provider using the same
 	// issuer URL as Google Workspace (e.g.
 	// https://developers.google.com/identity/protocols/oauth2/openid-connect).
-	if connector.GetIssuerURL() != gsuiteIssuerURL || (connector.GetGoogleServiceAccountURI() == "" && connector.GetGoogleServiceAccount() == "") {
-		return claims, nil
-	}
+	return connector.GetIssuerURL() == googleWorkspaceIssuerURL &&
+		(connector.GetGoogleServiceAccountURI() != "" || connector.GetGoogleServiceAccount() != "")
+}
 
+// addGoogleWorkspaceClaims will fetch extra data from proprietary Google APIs
+// and it will add claims based on the fetched data. The current implementation
+// adds a "groups" claim containing the Google Groups that the user is a member
+// of.
+//
+// If clientOptions is empty, credentials will be loaded from the parameters in
+// the connector with the getGoogleWorkspaceCredentials function, otherwise they
+// will be passed as-is to the underlying Google API clients (mostly used for
+// testing purposes, for instance to redirect the client to a mock service).
+func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector, claims jose.Claims, clientOptions ...option.ClientOption) (jose.Claims, error) {
 	email, exists, err := claims.StringClaim("email")
 	if err != nil || !exists {
-		return nil, trace.BadParameter("no email in oauth claims for Google Workspace account")
+		return nil, trace.BadParameter("no `email` in oauth claims for Google Workspace account")
 	}
 
 	if len(clientOptions) == 0 {
-		credentials, err := getGsuiteCredentialsForConnector(ctx, connector)
+		credentials, err := getGoogleWorkspaceCredentials(ctx, connector)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		clientOptions = []option.ClientOption{option.WithCredentials(credentials)}
 	}
 
-	var gsuiteGroups []string
+	var googleGroups []string
 	if connector.GetGoogleTransitiveGroups() {
-		gsuiteGroups, err = groupsFromGsuiteCloudIdentity(ctx, email, clientOptions...)
+		googleGroups, err = groupsFromGoogleCloudIdentity(ctx, email, clientOptions...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		gsuiteGroups, err = groupsFromGsuiteDirectory(ctx, email, clientOptions...)
+		googleGroups, err = groupsFromGoogleDirectory(ctx, email, clientOptions...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	if len(gsuiteGroups) > 0 {
-		gsuiteClaims := jose.Claims{gsuiteGroupsClaim: gsuiteGroups}
-		log.Debugf("Claims from Google Workspace: %v.", gsuiteClaims)
-		claims, err = mergeClaims(claims, gsuiteClaims)
+	if len(googleGroups) > 0 {
+		googleClaims := jose.Claims{googleGroupsClaim: googleGroups}
+		log.Debugf("Claims from Google Workspace: %v.", googleClaims)
+		claims, err = mergeClaims(claims, googleClaims)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -98,7 +101,7 @@ func addGsuiteClaims(ctx context.Context, connector types.OIDCConnector, claims 
 	return claims, nil
 }
 
-func getGsuiteCredentialsForConnector(ctx context.Context, connector types.OIDCConnector) (*google.Credentials, error) {
+func getGoogleWorkspaceCredentials(ctx context.Context, connector types.OIDCConnector) (*google.Credentials, error) {
 	var jsonCredentials []byte
 	var credentialLoadingMethod string
 	if connector.GetGoogleServiceAccountURI() != "" {
@@ -145,7 +148,7 @@ func getGsuiteCredentialsForConnector(ctx context.Context, connector types.OIDCC
 	return credentials, nil
 }
 
-func groupsFromGsuiteDirectory(ctx context.Context, email string, clientOptions ...option.ClientOption) ([]string, error) {
+func groupsFromGoogleDirectory(ctx context.Context, email string, clientOptions ...option.ClientOption) ([]string, error) {
 	service, err := directory.NewService(ctx, clientOptions...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -171,7 +174,7 @@ func groupsFromGsuiteDirectory(ctx context.Context, email string, clientOptions 
 	return groups, nil
 }
 
-func groupsFromGsuiteCloudIdentity(ctx context.Context, email string, clientOptions ...option.ClientOption) ([]string, error) {
+func groupsFromGoogleCloudIdentity(ctx context.Context, email string, clientOptions ...option.ClientOption) ([]string, error) {
 	service, err := cloudidentity.NewService(ctx, clientOptions...)
 	if err != nil {
 		return nil, trace.Wrap(err)
