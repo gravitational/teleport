@@ -62,10 +62,6 @@ func parseCommandLine() (commandlineArgs, error) {
 		return args, trace.Wrap(err, "Unable to resolve absolute path to workspace")
 	}
 
-	if args.targetBranch == "" {
-		return args, trace.Errorf("target branch must be set")
-	}
-
 	if args.commitSHA == "" {
 		return args, trace.Errorf("commit must be set")
 	}
@@ -81,10 +77,17 @@ func innerMain() error {
 		return trace.Wrap(err)
 	}
 
-	log.Println("Analysing code changes")
-	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
-	if err != nil {
-		return trace.Wrap(err, "Failed analyzing code")
+	// assume that everything needs testing unless proven otherwise
+	ch := changes.Changes{Docs: true, Code: true}
+
+	if args.targetBranch == "" {
+		log.Println("Target branch not specified. Skipping change analysis.")
+	} else {
+		log.Println("Analysing code changes")
+		ch, err = changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
+		if err != nil {
+			return trace.Wrap(err, "Failed analyzing code")
+		}
 	}
 
 	hasOnlyDocChanges := ch.Docs && (!ch.Code)
