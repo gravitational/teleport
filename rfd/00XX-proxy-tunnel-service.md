@@ -27,7 +27,7 @@ syntax = "proto3";
 
 package api;
 
-service TunnelService { rpc DialNode(stream Frame) returns (stream Frame); }
+service ProxyService { rpc DialNode(stream Frame) returns (stream Frame); }
 
 // Frame wraps different message types to be sent over a stream.
 message Frame {
@@ -83,7 +83,7 @@ To avoid duplicate work the user-proxy will handle all typical proxy side logic 
 The DialNode rpc will be wrapped with a client library to return a net.Conn when called. This abstraction allows teleport to treat any underlying transport the same, whether it be a direct dial to the node, a reverse tunnel connected to the user-proxy, or a connection over the DialNode rpc.
 
 ```go
-type NodeTunnelClient interface {
+type ProxyClient interface {
     DialNode(
         ctx context.Context,
         proxyAddress string,
