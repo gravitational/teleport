@@ -2151,6 +2151,16 @@ func (c *Client) UpdateWindowsDesktop(ctx context.Context, desktop types.Windows
 	return trail.FromGRPC(err)
 }
 
+// UpsertWindowsDesktop updates a windows desktop resource, creating it if it doesn't exist.
+func (c *Client) UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	d, ok := desktop.(*types.WindowsDesktopV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.UpsertWindowsDesktop(ctx, d, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // DeleteWindowsDesktop removes the specified windows desktop host.
 func (c *Client) DeleteWindowsDesktop(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteWindowsDesktop(ctx, &proto.DeleteWindowsDesktopRequest{

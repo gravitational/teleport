@@ -363,6 +363,9 @@ const (
 	// session has been rejected due to exceeding a session control limit.
 	SessionRejectedEvent = "session.rejected"
 
+	// SessionConnect is emitted when any ssh connection is made
+	SessionConnectEvent = "session.connect"
+
 	// AppCreateEvent is emitted when an application resource is created.
 	AppCreateEvent = "app.create"
 	// AppUpdateEvent is emitted when an application resource is updated.
