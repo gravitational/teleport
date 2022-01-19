@@ -41,6 +41,10 @@ import (
 	saml2 "github.com/russellhaering/gosaml2"
 )
 
+const (
+	SAMLNoRolesErrorMessage = "unable to map attributes to role"
+)
+
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
 	if err := a.Identity.UpsertSAMLConnector(ctx, connector); err != nil {
@@ -170,7 +174,7 @@ func (a *Server) calculateSAMLUser(connector types.SAMLConnector, assertionInfo 
 		if len(warnings) != 0 {
 			log.WithField("connector", connector).Warnf("Unable to map attibutes to roles: %q", warnings)
 		}
-		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
+		return nil, trace.AccessDenied("%s for connector: %v", SAMLNoRolesErrorMessage, connector.GetName())
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.

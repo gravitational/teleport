@@ -43,6 +43,10 @@ import (
 	"golang.org/x/oauth2/jwt"
 )
 
+const (
+	OIDCNoRolesErrorMessage = "unable to map claims to role"
+)
+
 func (a *Server) getOrCreateOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
 	client, err := a.getOIDCClient(conn)
 	if err == nil {
@@ -446,7 +450,7 @@ func (a *Server) calculateOIDCUser(connector types.OIDCConnector, claims jose.Cl
 		if len(warnings) != 0 {
 			log.WithField("connector", connector).Warnf("Unable to map attibutes to roles: %q", warnings)
 		}
-		return nil, trace.AccessDenied("unable to map claims to role for connector: %v", connector.GetName())
+		return nil, trace.AccessDenied("%s for connector: %v", OIDCNoRolesErrorMessage, connector.GetName())
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.

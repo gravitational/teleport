@@ -39,6 +39,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	GithubNoTeamsErrorMessage = "does not belong to any teams"
+)
+
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
 	ctx := context.TODO()
@@ -350,8 +354,8 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 	p.logins, p.kubeGroups, p.kubeUsers = connector.MapClaims(*claims)
 	if len(p.logins) == 0 {
 		return nil, trace.BadParameter(
-			"user %q does not belong to any teams configured in %q connector",
-			claims.Username, connector.GetName())
+			"user %q %s configured in %q connector",
+			claims.Username, GithubNoTeamsErrorMessage, connector.GetName())
 	}
 	p.roles = p.logins
 	p.traits = map[string][]string{
