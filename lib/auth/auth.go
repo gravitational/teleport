@@ -405,10 +405,11 @@ func (a *Server) runPeriodicOperations() {
 		Duration: apidefaults.ServerKeepAliveTTL() * 2,
 		Jitter:   utils.NewSeventhJitter(),
 	})
-	promTicker := a.clock.NewTicker(defaults.PrometheusScrapeInterval)
+	promTicker := time.NewTicker(defaults.PrometheusScrapeInterval)
 	missedKeepAliveCount := 0
 	defer ticker.Stop()
 	defer heartbeatCheckTicker.Stop()
+	defer promTicker.Stop()
 	for {
 		select {
 		case <-a.closeCtx.Done():
@@ -434,7 +435,7 @@ func (a *Server) runPeriodicOperations() {
 			}
 			// Update prometheus gauge
 			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
-		case <-promTicker.Chan():
+		case <-promTicker.C:
 			a.versionMetrics()
 		}
 	}
@@ -479,8 +480,9 @@ func (a *Server) versionMetrics() {
 			}
 		}
 	}
+	client := a.GetCache()
 
-	proxyServers, err := a.cache.GetProxies()
+	proxyServers, err := client.GetProxies()
 	if err != nil {
 		log.Debugf("Failed to get Proxies for teleport_registered_agent metric: %v", err)
 	}
@@ -488,7 +490,7 @@ func (a *Server) versionMetrics() {
 		serverCheck(proxyServer)
 	}
 
-	authServers, err := a.cache.GetAuthServers()
+	authServers, err := client.GetAuthServers()
 	if err != nil {
 		log.Debugf("Failed to get Auth servers for teleport_registered_agent metric: %v", err)
 	}
@@ -496,7 +498,7 @@ func (a *Server) versionMetrics() {
 		serverCheck(authServer)
 	}
 
-	servers, err := a.cache.GetNodes(a.closeCtx, apidefaults.Namespace)
+	servers, err := client.GetNodes(a.closeCtx, apidefaults.Namespace)
 	if err != nil {
 		log.Debugf("Failed to get Nodes for teleport_registered_agent metric: %v", err)
 	}
@@ -504,7 +506,7 @@ func (a *Server) versionMetrics() {
 		serverCheck(server)
 	}
 
-	dbs, err := a.cache.GetDatabaseServers(a.closeCtx, apidefaults.Namespace)
+	dbs, err := client.GetDatabaseServers(a.closeCtx, apidefaults.Namespace)
 	if err != nil {
 		log.Debugf("Failed to get Database servers for teleport_registered_agent metric: %v", err)
 	}
@@ -512,7 +514,7 @@ func (a *Server) versionMetrics() {
 		serverCheck(db)
 	}
 
-	apps, err := a.cache.GetApplicationServers(a.closeCtx, apidefaults.Namespace)
+	apps, err := client.GetApplicationServers(a.closeCtx, apidefaults.Namespace)
 	if err != nil {
 		log.Debugf("Failed to get Application servers for teleport_registered_agent metric: %v", err)
 	}
@@ -520,7 +522,7 @@ func (a *Server) versionMetrics() {
 		serverCheck(app)
 	}
 
-	kubeServices, err := a.cache.GetKubeServices(a.closeCtx)
+	kubeServices, err := client.GetKubeServices(a.closeCtx)
 	if err != nil {
 		log.Debugf("Failed to get Kube services for teleport_registered_agent metric: %v", err)
 	}
@@ -528,7 +530,7 @@ func (a *Server) versionMetrics() {
 		serverCheck(kubeService)
 	}
 
-	windowsServices, err := a.cache.GetWindowsDesktopServices(a.closeCtx)
+	windowsServices, err := client.GetWindowsDesktopServices(a.closeCtx)
 	if err != nil {
 		log.Debugf("Failed to get Window Desktop Services for teleport_registered_agent metric: %v", err)
 	}
