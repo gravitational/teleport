@@ -119,11 +119,24 @@ clusterRoleBindingName: ""
 serviceAccountName: ""
 # Name of the Secret to store the teleport join token.
 secretName: teleport-kube-agent-join-token
-# Log level for the Teleport process.
-# Available log levels are: DEBUG, INFO, WARNING, ERROR.
-# The default is INFO, which is recommended in production.
-# DEBUG is useful during first-time setup or to see more detailed logs for debugging.
-logLevel: INFO
+
+# Teleport logging configuration
+log:
+  # Log level for the Teleport process.
+  # Available log levels are: DEBUG, INFO, WARNING, ERROR.
+  # The default is INFO, which is recommended in production.
+  # DEBUG is useful during first-time setup or to see more detailed logs for debugging.
+  level: INFO
+  # Log output
+  # Use a file path to log to disk: e.g. '/var/lib/teleport/teleport.log'
+  # Other supported values: 'stdout', 'stderr' and 'syslog'
+  output: stderr
+  # Log format configuration
+  # Possible output values are 'json' and 'text' (default).
+  format: text
+  # Possible extra_fields values include: timestamp, component, caller, and level.
+  # All extra fields are included by default.
+  extraFields: ["timestamp", "level", "component", "caller"]
 
 ##################################
 # Extra Kubernetes configuration #
