@@ -20,10 +20,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -51,7 +55,42 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) er
 	return nil
 }
 
+// authorizeConnection does authorization check for MongoDB connection about
+// to be established.
+func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Session) error {
+	ap, err := e.Auth.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	mfaParams := services.AccessMFAParams{
+		Verified:       sessionCtx.Identity.MFAVerified != "",
+		AlwaysRequired: ap.GetRequireSessionMFA(),
+	}
+
+	dbRoleMatchers := role.DatabaseRoleMatchers(
+		sessionCtx.Database.GetProtocol(),
+		sessionCtx.DatabaseUser,
+		sessionCtx.DatabaseName,
+	)
+	err = sessionCtx.Checker.CheckAccess(
+		sessionCtx.Database,
+		mfaParams,
+		dbRoleMatchers...,
+	)
+	if err != nil {
+		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 func (e *Engine) SendError(redisErr error) {
+	if redisErr == nil || utils.IsOKNetworkError(redisErr) {
+		return
+	}
+
+	e.Log.Debugf("sending error to Redis client: %v", redisErr)
+
 	buf := &bytes.Buffer{}
 	wr := redis.NewWriter(buf)
 
@@ -67,6 +106,12 @@ func (e *Engine) SendError(redisErr error) {
 }
 
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	// Check that the user has access to the database.
+	err := e.authorizeConnection(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err, "error authorizing database access")
+	}
+
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -77,18 +122,20 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.BadParameter("Redis connection string is incorrect: %v", err)
 	}
 
-	var redisConn redis.UniversalClient
+	var (
+		redisConn      redis.UniversalClient
+		connectionAddr = fmt.Sprintf("%s:%s", connectionOptions.address, connectionOptions.port)
+	)
 
-	// TODO:
-	// Use system TLS if connecting to AWS.
+	// TODO(jakub): Use system CA bundle if connecting to AWS.
 	if connectionOptions.cluster {
 		redisConn = redis.NewClusterClient(&redis.ClusterOptions{
-			Addrs:     []string{connectionOptions.address},
+			Addrs:     []string{connectionAddr},
 			TLSConfig: tlsConfig,
 		})
 	} else {
 		redisConn = redis.NewClient(&redis.Options{
-			Addr:      connectionOptions.address,
+			Addr:      connectionAddr,
 			TLSConfig: tlsConfig,
 		})
 	}
