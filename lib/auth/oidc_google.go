@@ -55,33 +55,25 @@ func isGoogleWorkspaceConnector(connector types.OIDCConnector) bool {
 // and it will add claims based on the fetched data. The current implementation
 // adds a "groups" claim containing the Google Groups that the user is a member
 // of.
-//
-// If clientOptions is empty, credentials will be loaded from the parameters in
-// the connector with the getGoogleWorkspaceCredentials function, otherwise they
-// will be passed as-is to the underlying Google API clients (mostly used for
-// testing purposes, for instance to redirect the client to a mock service).
-func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector, claims jose.Claims, clientOptions ...option.ClientOption) (jose.Claims, error) {
+func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector, claims jose.Claims) (jose.Claims, error) {
 	email, exists, err := claims.StringClaim("email")
 	if err != nil || !exists {
 		return nil, trace.BadParameter("no `email` in oauth claims for Google Workspace account")
 	}
 
-	if len(clientOptions) == 0 {
-		credentials, err := getGoogleWorkspaceCredentials(ctx, connector)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		clientOptions = []option.ClientOption{option.WithCredentials(credentials)}
+	credentials, err := getGoogleWorkspaceCredentials(ctx, connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	var googleGroups []string
 	if connector.GetGoogleTransitiveGroups() {
-		googleGroups, err = groupsFromGoogleCloudIdentity(ctx, email, clientOptions...)
+		googleGroups, err = groupsFromGoogleCloudIdentity(ctx, email, option.WithCredentials(credentials))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		googleGroups, err = groupsFromGoogleDirectory(ctx, email, clientOptions...)
+		googleGroups, err = groupsFromGoogleDirectory(ctx, email, "", option.WithCredentials(credentials))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -148,26 +140,29 @@ func getGoogleWorkspaceCredentials(ctx context.Context, connector types.OIDCConn
 	return credentials, nil
 }
 
-func groupsFromGoogleDirectory(ctx context.Context, email string, clientOptions ...option.ClientOption) ([]string, error) {
+func groupsFromGoogleDirectory(ctx context.Context, email, filterDomain string, clientOptions ...option.ClientOption) ([]string, error) {
 	service, err := directory.NewService(ctx, clientOptions...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	call := service.Groups.List().UserKey(email)
+	if filterDomain != "" {
+		call = call.Domain(filterDomain)
+	}
+
 	var groups []string
-	err = service.Groups.List().
-		UserKey(email).
-		Pages(ctx, func(resp *directory.Groups) error {
-			if resp == nil {
-				return nil
-			}
-			for _, g := range resp.Groups {
-				if g != nil && g.Email != "" {
-					groups = append(groups, g.Email)
-				}
-			}
+	err = call.Pages(ctx, func(resp *directory.Groups) error {
+		if resp == nil {
 			return nil
-		})
+		}
+		for _, g := range resp.Groups {
+			if g != nil && g.Email != "" {
+				groups = append(groups, g.Email)
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -180,7 +175,6 @@ func groupsFromGoogleCloudIdentity(ctx context.Context, email string, clientOpti
 		return nil, trace.Wrap(err)
 	}
 
-	var groups []string
 	// SearchTransitiveGroups takes a fixed parameter as part of the URL
 	// ("Format: `groups/{group}`, where `group` is always '-'") and a query
 	// parameter that the google API docs claim to be a CEL expression
@@ -194,22 +188,24 @@ func groupsFromGoogleCloudIdentity(ctx context.Context, email string, clientOpti
 	// The query string was lifted directly from
 	// https://cloud.google.com/identity/docs/how-to/query-memberships#searching_for_all_group_memberships_of_a_member
 	// and some more informations on group labels can be found at
-	// https://cloud.google.com/identity/docs/groups#group_properties . The
-	// actual docs for the API call are at
+	// https://cloud.google.com/identity/docs/groups#group_properties .
+	// The actual docs for the API call are at
 	// https://cloud.google.com/identity/docs/reference/rest/v1/groups.memberships/searchTransitiveGroups .
-	err = service.Groups.Memberships.SearchTransitiveGroups("groups/-").
-		Query(fmt.Sprintf("member_key_id == '%s' && 'cloudidentity.googleapis.com/groups.discussion_forum' in labels", email)).
-		Pages(ctx, func(resp *cloudidentity.SearchTransitiveGroupsResponse) error {
-			if resp == nil {
-				return nil
-			}
-			for _, g := range resp.Memberships {
-				if g != nil && g.GroupKey != nil && g.GroupKey.Id != "" {
-					groups = append(groups, g.GroupKey.Id)
-				}
-			}
+	call := service.Groups.Memberships.SearchTransitiveGroups("groups/-").
+		Query(fmt.Sprintf("member_key_id == '%s' && 'cloudidentity.googleapis.com/groups.discussion_forum' in labels", email))
+
+	var groups []string
+	err = call.Pages(ctx, func(resp *cloudidentity.SearchTransitiveGroupsResponse) error {
+		if resp == nil {
 			return nil
-		})
+		}
+		for _, g := range resp.Memberships {
+			if g != nil && g.GroupKey != nil && g.GroupKey.Id != "" {
+				groups = append(groups, g.GroupKey.Id)
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

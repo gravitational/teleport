@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 
-	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -187,22 +186,26 @@ func (s *fakeIDP) configurationHandler(w http.ResponseWriter, r *http.Request) {
 
 func TestOIDCGoogle(t *testing.T) {
 	directGroups := map[string][]string{
-		"alice@foo.example": {"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
-		"bob@foo.example":   {"group1@foo.example"},
+		"alice@foo.example":  {"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
+		"bob@foo.example":    {"group1@foo.example"},
+		"carlos@bar.example": {"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
 	}
 
 	// group2@sub.foo.example is in group3@bar.example and group3@bar.example is in group4@bar.example
 	strictDirectGroups := map[string][]string{
-		"alice@foo.example": {"group1@foo.example", "group2@sub.foo.example"},
-		"bob@foo.example":   {"group1@foo.example"},
+		"alice@foo.example":  {"group1@foo.example", "group2@sub.foo.example"},
+		"bob@foo.example":    {"group1@foo.example"},
+		"carlos@bar.example": {"group1@foo.example", "group2@sub.foo.example"},
 	}
 	directIndirectGroups := map[string][]string{
-		"alice@foo.example": {"group3@bar.example"},
-		"bob@foo.example":   {},
+		"alice@foo.example":  {"group3@bar.example"},
+		"bob@foo.example":    {},
+		"carlos@bar.example": {"group3@bar.example"},
 	}
 	indirectGroups := map[string][]string{
-		"alice@foo.example": {"group4@bar.example"},
-		"bob@foo.example":   {},
+		"alice@foo.example":  {"group4@bar.example"},
+		"bob@foo.example":    {},
+		"carlos@bar.example": {"group4@bar.example"},
 	}
 
 	mux := http.NewServeMux()
@@ -213,9 +216,13 @@ func TestOIDCGoogle(t *testing.T) {
 		require.NotEmpty(t, email)
 		require.Contains(t, directGroups, email)
 
+		domain := r.URL.Query().Get("domain")
+
 		resp := &directory.Groups{}
 		for _, groupEmail := range directGroups[email] {
-			resp.Groups = append(resp.Groups, &directory.Group{Email: groupEmail})
+			if domain == "" || strings.HasSuffix(groupEmail, "@"+domain) {
+				resp.Groups = append(resp.Groups, &directory.Group{Email: groupEmail})
+			}
 		}
 
 		require.NoError(t, json.NewEncoder(rw).Encode(resp))
@@ -263,29 +270,38 @@ func TestOIDCGoogle(t *testing.T) {
 	ctx := context.Background()
 
 	for _, testCase := range []struct {
-		email      string
-		transitive bool
-		groups     []string
+		email, domain                string
+		transitive, direct, filtered []string
 	}{
-		{"alice@foo.example", true, []string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example", "group4@bar.example"}},
-		{"alice@foo.example", false, []string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"}},
-		{"bob@foo.example", false, []string{"group1@foo.example"}},
-		{"bob@foo.example", true, []string{"group1@foo.example"}},
+		{"alice@foo.example", "foo.example",
+			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example", "group4@bar.example"},
+			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
+			[]string{"group1@foo.example"},
+		},
+		{"bob@foo.example", "foo.example",
+			[]string{"group1@foo.example"},
+			[]string{"group1@foo.example"},
+			[]string{"group1@foo.example"},
+		},
+		{"carlos@bar.example", "bar.example",
+			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example", "group4@bar.example"},
+			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
+			[]string{"group3@bar.example"},
+		},
 	} {
-		connector, err := types.NewOIDCConnector("googleoidc", types.OIDCConnectorSpecV2{
-			IssuerURL:              googleWorkspaceIssuerURL,
-			ClientID:               "unused",
-			GoogleServiceAccount:   "unused",
-			GoogleAdminEmail:       "unused",
-			GoogleTransitiveGroups: testCase.transitive,
-		})
+		// transitive groups
+		groups, err := groupsFromGoogleCloudIdentity(ctx, testCase.email, testOptions...)
 		require.NoError(t, err)
+		require.ElementsMatch(t, testCase.transitive, groups)
 
-		claims, err := addGoogleWorkspaceClaims(ctx, connector, jose.Claims{"email": testCase.email}, testOptions...)
+		// direct groups, unfiltered
+		groups, err = groupsFromGoogleDirectory(ctx, testCase.email, "", testOptions...)
 		require.NoError(t, err)
-		require.Equal(t, testCase.email, claims["email"])
+		require.ElementsMatch(t, testCase.direct, groups)
 
-		groupsClaim, _, _ := claims.StringsClaim(googleGroupsClaim)
-		require.ElementsMatch(t, testCase.groups, groupsClaim)
+		// direct groups, filtered by domain
+		groups, err = groupsFromGoogleDirectory(ctx, testCase.email, testCase.domain, testOptions...)
+		require.NoError(t, err)
+		require.ElementsMatch(t, testCase.filtered, groups)
 	}
 }
