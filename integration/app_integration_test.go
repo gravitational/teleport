@@ -53,9 +53,9 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/websocket"
 )
@@ -365,7 +365,7 @@ func TestAppAccessNoHeaderOverrides(t *testing.T) {
 		Value: appCookie,
 	})
 	for _, headerName := range forwardedHeaderNames {
-		req.Header.Set(headerName, uuid.New())
+		req.Header.Set(headerName, uuid.New().String())
 	}
 
 	// Issue the request.
@@ -820,28 +820,28 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		rootAppName:        "app-01",
 		rootAppPublicAddr:  "app-01.example.com",
 		rootAppClusterName: "example.com",
-		rootMessage:        uuid.New(),
+		rootMessage:        uuid.New().String(),
 
 		rootWSAppName:    "ws-01",
 		rootWSPublicAddr: "ws-01.example.com",
-		rootWSMessage:    uuid.New(),
+		rootWSMessage:    uuid.New().String(),
 
 		rootWSSAppName:    "wss-01",
 		rootWSSPublicAddr: "wss-01.example.com",
-		rootWSSMessage:    uuid.New(),
+		rootWSSMessage:    uuid.New().String(),
 
 		leafAppName:        "app-02",
 		leafAppPublicAddr:  "app-02.example.com",
 		leafAppClusterName: "leaf.example.com",
-		leafMessage:        uuid.New(),
+		leafMessage:        uuid.New().String(),
 
 		leafWSAppName:    "ws-02",
 		leafWSPublicAddr: "ws-02.example.com",
-		leafWSMessage:    uuid.New(),
+		leafWSMessage:    uuid.New().String(),
 
 		leafWSSAppName:    "wss-02",
 		leafWSSPublicAddr: "wss-02.example.com",
-		leafWSSMessage:    uuid.New(),
+		leafWSSMessage:    uuid.New().String(),
 
 		jwtAppName:        "app-03",
 		jwtAppPublicAddr:  "app-03.example.com",
@@ -935,7 +935,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	// Create a new Teleport instance with passed in configuration.
 	p.rootCluster = NewInstance(InstanceConfig{
 		ClusterName: "example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
@@ -946,7 +946,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	// Create a new Teleport instance with passed in configuration.
 	p.leafCluster = NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
@@ -1063,8 +1063,8 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 
 // initUser will create a user within the root cluster.
 func (p *pack) initUser(t *testing.T, opts appTestOptions) {
-	p.username = uuid.New()
-	p.password = uuid.New()
+	p.username = uuid.New().String()
+	p.password = uuid.New().String()
 
 	user, err := types.NewUser(p.username)
 	require.NoError(t, err)
@@ -1292,7 +1292,7 @@ func (p *pack) makeTLSConfigNoSession(t *testing.T, publicAddr, clusterName stri
 			PublicAddr:  publicAddr,
 			ClusterName: clusterName,
 			// Use arbitrary session ID
-			SessionID: uuid.New(),
+			SessionID: uuid.New().String(),
 		})
 	require.NoError(t, err)
 

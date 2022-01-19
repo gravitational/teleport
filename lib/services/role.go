@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 )
@@ -1138,7 +1138,7 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 		// but ssh certificates must contain at least one valid principal.
 		// we add a single distinctive value which should be unique, and
 		// will never be a valid unix login (due to leading '-').
-		logins = []string{"-teleport-nologin-" + uuid.New()}
+		logins = []string{"-teleport-nologin-" + uuid.New().String()}
 	}
 
 	if len(logins) == 0 {
@@ -2227,7 +2227,7 @@ func DowngradeRoleToV3(r *types.RoleV4) (*types.RoleV4, error) {
 		// empty. To prevent this for roles which are created as V4 and
 		// downgraded, set a placeholder label
 		const labelKey = "__teleport_no_labels"
-		labelVal := uuid.New()
+		labelVal := uuid.New().String()
 		if len(r.Spec.Allow.NodeLabels) == 0 {
 			downgraded.Spec.Allow.NodeLabels = types.Labels{labelKey: []string{labelVal}}
 		}
