@@ -806,9 +806,6 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			ctx.Errorf("Received error waiting for the interactive session %v to finish: %v.", s.id, err)
 		}
 
-		// If configured, start x11 forwarding once the child process has completed
-		ctx.startX11Forwarding()
-
 		// wait for copying from the pty to be complete or a timeout before
 		// broadcasting the result (which will close the pty) if it has not been
 		// closed already.
@@ -964,9 +961,6 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		if result != nil {
 			ctx.SendExecResult(*result)
 		}
-
-		// If configured, start x11 forwarding once the child process has completed
-		ctx.startX11Forwarding()
 
 		// Wait a little bit to let all events filter through before closing the
 		// BPF session so everything can be recorded.

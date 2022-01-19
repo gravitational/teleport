@@ -109,11 +109,11 @@ type PAMConfig struct {
 	Environment map[string]string `json:"environment"`
 }
 
-// X11Config contains information needed for the child process to set up x11 forwarding.
+// X11Config contains information used by the child process to set up x11 forwarding.
 type X11Config struct {
-	// XAuthEntry contains x11 xauth data used for x11 forwarding.
+	// XAuthEntry contains xauth data used for x11 forwarding.
 	XAuthEntry *x11.XAuthEntry `json:"xauth_entry,omitempty"`
-	// XServerUnixSocket is the name of an open x11 unix socket for x11 forwarding.
+	// XServerUnixSocket is the name of an open xserver unix socket used for x11 forwarding.
 	XServerUnixSocket string `json:"xserver_unix_socket"`
 }
 
@@ -170,8 +170,8 @@ func RunCommand() (io.Writer, int, error) {
 	// PTY and TTY. Extract them and set the controlling TTY. Otherwise, connect
 	// std{in,out,err} directly.
 	if c.Terminal {
-		pty = os.NewFile(uintptr(5), "/proc/self/fd/5")
-		tty = os.NewFile(uintptr(6), "/proc/self/fd/6")
+		pty = os.NewFile(uintptr(6), "/proc/self/fd/6")
+		tty = os.NewFile(uintptr(7), "/proc/self/fd/7")
 		if pty == nil || tty == nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
 		}
@@ -247,8 +247,14 @@ func RunCommand() (io.Writer, int, error) {
 	}
 
 	if c.X11Config != nil {
+		// Open x11rdy fd to signal parent process once x11 forwarding is set up.
+		x11rdyfd := os.NewFile(uintptr(5), "/proc/self/fd/5")
+		if x11rdyfd == nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
+		}
+
 		// Set the open xserver unix socket's owner to the localuser
-		// to prevent a possible privilege escalation vulnerability.
+		// to prevent a potential privilege escalation vulnerability.
 		if err := os.Chown(c.X11Config.XServerUnixSocket, int(cmd.SysProcAttr.Credential.Uid), int(cmd.SysProcAttr.Credential.Gid)); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
@@ -258,20 +264,17 @@ func RunCommand() (io.Writer, int, error) {
 		removeCmd := x11.NewXAuthCommand(context.Background(), "")
 		addCmd := x11.NewXAuthCommand(context.Background(), "")
 
-		// Update the commands' user credentials and other parameters
-		// to match that of the re-exec command created above.
-		removeCmd.SysProcAttr = cmd.SysProcAttr
-		removeCmd.Stdout = cmd.Stdout
-		removeCmd.Stdin = cmd.Stdin
-		removeCmd.Stderr = cmd.Stderr
-		removeCmd.Env = cmd.Env
-		removeCmd.Dir = cmd.Dir
-		addCmd.SysProcAttr = cmd.SysProcAttr
-		addCmd.Stdout = cmd.Stdout
-		addCmd.Stdin = cmd.Stdin
-		addCmd.Stderr = cmd.Stderr
-		addCmd.Env = cmd.Env
-		addCmd.Dir = cmd.Dir
+		// Copy the re-exec command's io and user environment fields.
+		cpyCmdFields := func(cmd *exec.Cmd, params *exec.Cmd) {
+			cmd.Stdout = params.Stdout
+			cmd.Stdin = params.Stdin
+			cmd.Stderr = params.Stderr
+			cmd.SysProcAttr = params.SysProcAttr
+			cmd.Env = params.Env
+			cmd.Dir = params.Dir
+		}
+		cpyCmdFields(removeCmd.Cmd, cmd)
+		cpyCmdFields(addCmd.Cmd, cmd)
 
 		if err := removeCmd.RemoveEntries(c.X11Config.XAuthEntry.Display); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
@@ -282,6 +285,13 @@ func RunCommand() (io.Writer, int, error) {
 
 		// Set $DISPLAY so that XServer requests are sent to the X11 socket opened above.
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", x11.DisplayEnv, c.X11Config.XAuthEntry.Display))
+
+		// Write a single byte to signal since Close
+		// only closes the fd, not the underlying pipe.
+		if _, err := x11rdyfd.Write([]byte{0}); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+		x11rdyfd.Close()
 	}
 
 	// Start the command.
@@ -619,6 +629,7 @@ func ConfigureCommand(ctx *ServerContext) (*exec.Cmd, error) {
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
 			ctx.contr,
+			ctx.x11rdyw,
 		},
 	}
 
