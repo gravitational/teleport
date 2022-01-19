@@ -43,6 +43,22 @@ func TestUsageReport(t *testing.T) {
 		return []types.DatabaseServer{&types.DatabaseServerV3{}}, nil
 	}
 
+	m.apiGetters.MockedGetRoles = func() ([]types.Role, error) {
+		return []types.Role{&types.RoleV4{}, &types.RoleV4{}}, nil
+	}
+
+	m.apiGetters.MockedGetGithubConnectors = func() ([]types.GithubConnector, error) {
+		return []types.GithubConnector{&types.GithubConnectorV3{}}, nil
+	}
+
+	m.apiGetters.MockedGetOIDCConnectors = func() ([]types.OIDCConnector, error) {
+		return []types.OIDCConnector{&types.OIDCConnectorV2{}, &types.OIDCConnectorV2{}}, nil
+	}
+
+	m.apiGetters.MockedGetSAMLConnectors = func() ([]types.SAMLConnector, error) {
+		return []types.SAMLConnector{&types.SAMLConnectorV2{}, &types.SAMLConnectorV2{}, &types.SAMLConnectorV2{}}, nil
+	}
+
 	var obtained []*cloudapi.UsageReport
 	m.client.MockSubmitUsageReports = func(request *cloudapi.SubmitUsageReportsRequest) (*cloudapi.EmptyResponse, error) {
 		obtained = request.Reports
@@ -63,6 +79,10 @@ func TestUsageReport(t *testing.T) {
 			Quantity: 1,
 		}, {Resource: cloudapi.KUBE_CLUSTER,
 			Quantity: 1,
+		}, {Resource: cloudapi.ROLE,
+			Quantity: 2,
+		}, {Resource: cloudapi.AUTH_CONNECTOR,
+			Quantity: 6,
 		}},
 	}}
 
@@ -93,6 +113,10 @@ func TestErrors(t *testing.T) {
 		return []types.DatabaseServer{&types.DatabaseServerV3{}}, nil
 	}
 
+	m.apiGetters.MockedGetGithubConnectors = func() ([]types.GithubConnector, error) {
+		return nil, trace.BadParameter("unable to return github auth connectors")
+	}
+
 	var obtained []*cloudapi.UsageReport
 	m.client.MockSubmitUsageReports = func(request *cloudapi.SubmitUsageReportsRequest) (*cloudapi.EmptyResponse, error) {
 		obtained = request.Reports
@@ -113,10 +137,14 @@ func TestErrors(t *testing.T) {
 			Quantity: 0,
 		}, {Resource: cloudapi.KUBE_CLUSTER,
 			Quantity: 0,
+		}, {Resource: cloudapi.ROLE,
+			Quantity: 0,
+		}, {Resource: cloudapi.AUTH_CONNECTOR,
+			Quantity: 0,
 		}},
 	}}
 
-	require.Equal(t, obtained, needed)
+	require.Equal(t, needed, obtained)
 }
 
 func createReporterMocks() (reporterMocks, error) {
