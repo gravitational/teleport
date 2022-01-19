@@ -214,7 +214,7 @@ You'll need to replace these values in the `Issuer` example below:
 | Placeholder value | Replace with |
 | - | - |
 | `email@address.com` | An email address to receive communications from Let's Encrypt |
-| `example.com` | The name of the Cloud DNS domain hosting your Teleport cluster |
+| `example.com` | The name of the Cloud DNS domain hosting your Teleport cluster, listed as "DNS name" on the GCP Cloud DNS page. |
 | `gcp-project-id` | GCP project ID where the Cloud DNS domain is registered |
 
 ```yaml
@@ -233,7 +233,7 @@ spec:
     solvers:
     - selector:
         dnsZones:
-          - "example.com"   # Change this. This is listed as "DNS name" on the GCP Cloud DNS page.
+          - "example.com"   # Change this 
       dns01:
         cloudDNS:
           project: gcp-project-id                          # Change this
