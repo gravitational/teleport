@@ -1646,11 +1646,11 @@ service AuthService {
     rpc CreateRegisterChallenge(CreateRegisterChallengeRequest) returns (MFARegisterChallenge);
 
     // GetOIDCConnector gets an OIDC connector resource by name.
-    rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV2);
+    rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV3);
     // GetOIDCConnectors gets all current OIDC connector resources.
-    rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV2List);
+    rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV3List);
     // UpsertOIDCConnector upserts an OIDC connector in a backend.
-    rpc UpsertOIDCConnector(types.OIDCConnectorV2) returns (google.protobuf.Empty);
+    rpc UpsertOIDCConnector(types.OIDCConnectorV3) returns (google.protobuf.Empty);
     // DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
     rpc DeleteOIDCConnector(types.ResourceRequest) returns (google.protobuf.Empty);
 
