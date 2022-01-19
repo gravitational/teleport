@@ -688,6 +688,10 @@ type AccessChecker interface {
 	// users and roles
 	CheckImpersonate(currentUser, impersonateUser types.User, impersonateRoles []types.Role) error
 
+	// CheckImpersonateRoles checks whether the current user is allowed to
+	// perform roles-only impersonation.
+	CheckImpersonateRoles(currentUser types.User, impersonateRoles []types.Role) error
+
 	// CanImpersonateSomeone returns true if this checker has any impersonation rules
 	CanImpersonateSomeone() bool
 
@@ -1307,6 +1311,52 @@ func (set RoleSet) CheckImpersonate(currentUser, impersonateUser types.User, imp
 	return trace.AccessDenied("access denied to '%s' to impersonate user '%s' and roles '%s'", currentUser.GetName(), impersonateUser.GetName(), roleNames(impersonateRoles))
 }
 
+// CheckImpersonateRoles validates that the current user can perform role-only impersonation
+// of the given roles. Role-only impersonation requires an allow rule with
+// roles but no users (and no user-less deny rules). All requested roles must
+// be allowed for the check to succeed.
+func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRoles []types.Role) error {
+	ctx := &impersonateContext{
+		user: currentUser,
+	}
+	whereParser, err := newImpersonateWhereParser(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO: Unlike regular impersonation where all requested roles must be
+	// granted by a single impersonation role, it would be reasonable to
+	// request several roles whose `allow` conditions are split between
+	// several roles. Our initial use-case doesn't require this, so for now
+	// we'll assume all requested roles must be granted by a single `allow`.
+
+	// check deny: a single match on a deny rule prohibits access
+	for _, role := range set {
+		cond := role.GetImpersonateConditions(types.Deny)
+		matched, err := matchDenyRoleImpersonateCondition(cond, impersonateRoles)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matched {
+			return trace.AccessDenied("access denied to '%s' to impersonate roles '%s'", currentUser.GetName(), roleNames(impersonateRoles))
+		}
+	}
+
+	// check allow: if any one Role satisfies all the role requests, allow impersonation
+	for _, role := range set {
+		cond := role.GetImpersonateConditions(types.Allow)
+		matched, err := matchAllowRoleImpersonateCondition(ctx, whereParser, cond, impersonateRoles)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matched {
+			return nil
+		}
+	}
+
+	return trace.AccessDenied("access denied to '%s' to impersonate roles '%s'", currentUser.GetName(), roleNames(impersonateRoles))
+}
+
 // LockingMode returns the locking mode to apply with this RoleSet.
 func (set RoleSet) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
 	mode := defaultMode
@@ -1333,13 +1383,12 @@ func roleNames(roles []types.Role) string {
 // matchAllowImpersonateCondition matches impersonate condition,
 // both user, role and where condition has to match
 func matchAllowImpersonateCondition(ctx *impersonateContext, whereParser predicate.Parser, cond types.ImpersonateConditions, impersonateUser types.User, impersonateRoles []types.Role) (bool, error) {
-	// an empty set matches nothing
-	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
-		return false, nil
-	}
-	// should specify both roles and users, this condition is also verified on the role level
+	// User impersonation requires both users and roles. Roles with no users
+	// must use RoleRequests instead; however, we can't treat this as an error
+	// since this function is tested against all roles regardless of how
+	// they'll be used.
 	if len(cond.Users) == 0 || len(cond.Roles) == 0 {
-		return false, trace.BadParameter("the system does not support empty roles and users")
+		return false, nil
 	}
 
 	anyUser, err := parse.NewAnyMatcher(cond.Users)
@@ -1381,13 +1430,11 @@ func matchAllowImpersonateCondition(ctx *impersonateContext, whereParser predica
 // matchDenyImpersonateCondition matches impersonate condition,
 // greedy is used for deny type rules, where any user or role can match
 func matchDenyImpersonateCondition(cond types.ImpersonateConditions, impersonateUser types.User, impersonateRoles []types.Role) (bool, error) {
-	// an empty set matches nothing
-	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
-		return false, nil
-	}
-	// should specify both roles and users, this condition is also verified on the role level
+	// As above, user impersonation requires both users and roles. We can't
+	// return an error to ensure role impersonation rules are allowed to exist
+	// in the system.
 	if len(cond.Users) == 0 || len(cond.Roles) == 0 {
-		return false, trace.BadParameter("the system does not support empty roles and users")
+		return false, nil
 	}
 
 	anyUser, err := parse.NewAnyMatcher(cond.Users)
@@ -1399,6 +1446,75 @@ func matchDenyImpersonateCondition(cond types.ImpersonateConditions, impersonate
 		return true, nil
 	}
 
+	anyRole, err := parse.NewAnyMatcher(cond.Roles)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	for _, impersonateRole := range impersonateRoles {
+		if anyRole.Match(impersonateRole.GetName()) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// matchAllowRoleImpersonateCondition matches an allow impersonate condition
+// specifically for role-only impersonation, where only roles are matched.
+func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser predicate.Parser, cond types.ImpersonateConditions, impersonateRoles []types.Role) (bool, error) {
+	// an empty set matches nothing
+	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
+		return false, nil
+	}
+
+	// Role impersonation can never apply to users.
+	if len(cond.Users) != 0 {
+		return false, nil
+	}
+
+	// By this point, at least 1 role is guaranteed.
+	anyRole, err := parse.NewAnyMatcher(cond.Roles)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	for _, impersonateRole := range impersonateRoles {
+		if !anyRole.Match(impersonateRole.GetName()) {
+			return false, nil
+		}
+		// TODO:
+		// This set impersonateRole inside the ctx that is in turn used inside whereParser
+		// which is created in CheckImpersonate above but is being used right below.
+		// This is unfortunate interface of the parser, instead
+		// parser should accept additional context as a first argument.
+		ctx.impersonateRole = impersonateRole
+		match, err := matchesImpersonateWhere(cond, whereParser)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if !match {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+// matchDenyRoleImpersonateCondition matches a deny impersonate condition
+// specifically for role impersonation, where only roles are matched.
+func matchDenyRoleImpersonateCondition(cond types.ImpersonateConditions, impersonateRoles []types.Role) (bool, error) {
+	// an empty set matches nothing
+	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
+		return false, nil
+	}
+
+	// Role impersonation can never apply to users.
+	if len(cond.Users) != 0 {
+		return false, nil
+	}
+
+	// By this point, at least 1 role is guaranteed.
 	anyRole, err := parse.NewAnyMatcher(cond.Roles)
 	if err != nil {
 		return false, trace.Wrap(err)
