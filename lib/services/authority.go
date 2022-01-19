@@ -260,7 +260,7 @@ type UserCertParams struct {
 	DisallowReissue bool
 }
 
-// Check checks the user certificate parameters
+// CheckAndSetDefaults checks the user certificate parameters
 func (c *UserCertParams) CheckAndSetDefaults() error {
 	if c.CASigner == nil || c.CASigningAlg == "" {
 		return trace.BadParameter("CASigner and CASigningAlg are required")
@@ -389,7 +389,7 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 	}
 }
 
-// CertAuthorityNeedsMigrations returns true if the given CertAuthority needs to be migrated
+// CertAuthorityNeedsMigration returns true if the given CertAuthority needs to be migrated
 func CertAuthorityNeedsMigration(cai types.CertAuthority) (bool, error) {
 	ca, ok := cai.(*types.CertAuthorityV2)
 	if !ok {
