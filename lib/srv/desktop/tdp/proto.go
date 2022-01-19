@@ -46,6 +46,7 @@ const (
 	TypeClipboardData    = MessageType(6)
 	TypeClientUsername   = MessageType(7)
 	TypeMouseWheel       = MessageType(8)
+	TypeError            = MessageType(9)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -92,6 +93,8 @@ func decode(in peekReader) (Message, error) {
 		return decodeKeyboardButton(in)
 	case TypeClientUsername:
 		return decodeClientUsername(in)
+	case TypeError:
+		return decodeError(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", t)
 	}
@@ -101,6 +104,15 @@ func decode(in peekReader) (Message, error) {
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#2---png-frame
 type PNGFrame struct {
 	Img image.Image
+
+	enc *png.Encoder // optionally override the PNG encoder
+}
+
+func NewPNG(img image.Image, enc *png.Encoder) PNGFrame {
+	return PNGFrame{
+		Img: img,
+		enc: enc,
+	}
 }
 
 func (f PNGFrame) Encode() ([]byte, error) {
@@ -120,10 +132,11 @@ func (f PNGFrame) Encode() ([]byte, error) {
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Note: this uses the default png.Encoder parameters.
-	// You can tweak compression level and reduce memory allocations by using a
-	// custom png.Encoder, if this happens to be a bottleneck.
-	if err := png.Encode(buf, f.Img); err != nil {
+	encoder := f.enc
+	if encoder == nil {
+		encoder = &png.Encoder{}
+	}
+	if err := encoder.Encode(buf, f.Img); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return buf.Bytes(), nil
@@ -314,6 +327,34 @@ func decodeClientUsername(in peekReader) (ClientUsername, error) {
 		return ClientUsername{}, trace.Wrap(err)
 	}
 	return ClientUsername{Username: username}, nil
+}
+
+type Error struct {
+	Message string
+}
+
+func (m Error) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeError))
+	if err := encodeString(buf, m.Message); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeError(in peekReader) (Error, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return Error{}, trace.Wrap(err)
+	}
+	if t != byte(TypeError) {
+		return Error{}, trace.BadParameter("got message type %v, expected TypeError(%v)", t, TypeError)
+	}
+	message, err := decodeString(in)
+	if err != nil {
+		return Error{}, trace.Wrap(err)
+	}
+	return Error{Message: message}, nil
 }
 
 // MouseWheelAxis identifies a scroll axis on the mouse wheel.
