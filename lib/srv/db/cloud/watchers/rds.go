@@ -70,7 +70,7 @@ func newRDSDBInstancesFetcher(config rdsFetcherConfig) (Fetcher, error) {
 	return &rdsDBInstancesFetcher{
 		cfg: config,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "watcher:rds:instances",
+			trace.Component: "watch:rds",
 			"labels":        config.Labels,
 			"region":        config.Region,
 		}),
@@ -151,7 +151,7 @@ func newRDSAuroraClustersFetcher(config rdsFetcherConfig) (Fetcher, error) {
 	return &rdsAuroraClustersFetcher{
 		cfg: config,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "watcher:rds:aurora",
+			trace.Component: "watch:aurora",
 			"labels":        config.Labels,
 			"region":        config.Region,
 		}),
