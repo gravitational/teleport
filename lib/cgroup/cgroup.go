@@ -213,7 +213,7 @@ func (s *Service) cleanupHierarchy() error {
 	var sessions []string
 
 	// Recursively look within the Teleport hierarchy for cgroups for session.
-	err := filepath.Walk(path.Join(s.teleportRoot), func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(path.Join(s.teleportRoot), func(path string, info os.FileInfo, _ error) error {
 		// Only pick up cgroup.procs files.
 		if !pattern.MatchString(path) {
 			return nil
