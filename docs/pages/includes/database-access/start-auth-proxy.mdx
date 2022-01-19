@@ -1,13 +1,13 @@
-Teleport requires a valid TLS certificate to operate and can fetch one automatically
-using Let's Encrypt's [ACME](https://letsencrypt.org/how-it-works/) protocol. 
-
 <Tabs>
 <TabItem scope={["oss","enterprise"]} label="Self Hosted">
+Teleport requires a valid TLS certificate to operate and can fetch one automatically
+using Let's Encrypt's ACME protocol. Before Let's Encrypt can issue a TLS certificate for the Teleport Proxy host's domain, the ACME protocol must verify that an HTTPS server is reachable on port 443 of the host.  
+
 We will assume that you have configured DNS records for `teleport.example.com` and
 `*.teleport.example.com` to point to your Teleport node.
 
 <Admonition type="note" title="Web Proxy Port">
-  The ACME protocol must verify that an HTTPS server is reachable on port 443 of a host before Let's Encrypt can issue a TLS certificate with that host's domain as a subject. Port 443 must be open to all incoming traffic on the Teleport Proxy host.
+To support the ACME protocol, Teleport Proxy must listen on port 443, rather than the default port 3080.
 </Admonition>
 
 Download the latest version of Teleport for your platform from our
