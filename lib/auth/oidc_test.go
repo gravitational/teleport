@@ -108,7 +108,7 @@ func (s *OIDCSuite) TestUserInfo(c *check.C) {
 	defer idp.Close()
 
 	// Create OIDC connector and client.
-	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
 		IssuerURL:    idp.s.URL,
 		ClientID:     "00000000000000000000000000000000",
 		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
@@ -130,7 +130,7 @@ func (s *OIDCSuite) TestPingProvider(c *check.C) {
 	defer idp.Close()
 
 	// Create OIDC connector and client.
-	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
 		IssuerURL:    idp.s.URL,
 		ClientID:     "00000000000000000000000000000000",
 		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
