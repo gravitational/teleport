@@ -23,6 +23,8 @@ import (
 	"encoding/json"
 	"image"
 	"image/color"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -57,7 +59,7 @@ func TestEncodeDecode(t *testing.T) {
 		out, err := Decode(buf)
 		require.NoError(t, err)
 
-		require.Empty(t, cmp.Diff(m, out))
+		require.Empty(t, cmp.Diff(m, out, cmpopts.IgnoreUnexported(PNGFrame{})))
 	}
 }
 

@@ -160,7 +160,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 
 func (c *Client) readClientUsername() error {
 	for {
-		msg, err := c.cfg.InputMessage()
+		msg, err := c.cfg.Conn.InputMessage()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -177,7 +177,7 @@ func (c *Client) readClientUsername() error {
 
 func (c *Client) readClientSize() error {
 	for {
-		msg, err := c.cfg.InputMessage()
+		msg, err := c.cfg.Conn.InputMessage()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -255,7 +255,7 @@ func (c *Client) start() {
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
 		for {
-			msg, err := c.cfg.InputMessage()
+			msg, err := c.cfg.Conn.InputMessage()
 			if err != nil {
 				c.cfg.Log.Warningf("Failed reading RDP input message: %v", err)
 				return
@@ -383,7 +383,7 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	})
 	copy(img.Pix, data)
 
-	if err := c.cfg.OutputMessage(tdp.PNGFrame{Img: img}); err != nil {
+	if err := c.cfg.Conn.OutputMessage(tdp.NewPNG(img, c.cfg.Encoder)); err != nil {
 		return C.CString(fmt.Sprintf("failed to send PNG frame %v: %v", img.Rect, err))
 	}
 	return nil
