@@ -21,7 +21,6 @@ import (
 	"context"
 	"errors"
 	"net"
-	"net/url"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -65,51 +64,6 @@ func (e *Engine) SendError(redisErr error) {
 		e.Log.Errorf("Failed to send message to the client: %v", err)
 		return
 	}
-}
-
-type ConnectionOptions struct {
-	cluster bool
-	address string
-	port    string
-}
-
-func ParseRedisURI(uri string) (*ConnectionOptions, error) {
-	if uri == "" {
-		return nil, trace.BadParameter("Redis uri is empty")
-	}
-
-	u, err := url.Parse(uri)
-	if err != nil {
-		return nil, trace.BadParameter("failed to parse Redis URI: %v", err)
-	}
-
-	switch u.Scheme {
-	case "redis", "rediss":
-	default:
-		return nil, trace.BadParameter("Redis schema protocol is incorrect, expected redis or rediss, provided %q", u.Scheme)
-	}
-
-	host, port, err := net.SplitHostPort(u.Host)
-	if err != nil {
-		return nil, trace.BadParameter("failed to parse Redis host: %v", err)
-	}
-
-	if port == "" {
-		port = "6379"
-	}
-
-	cluster := false
-
-	values := u.Query()
-	if values.Has("cluster") && values.Get("cluster") == "true" { // TODO(jakub): make it more generic
-		cluster = true
-	}
-
-	return &ConnectionOptions{
-		cluster: cluster,
-		address: host,
-		port:    port,
-	}, nil
 }
 
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
