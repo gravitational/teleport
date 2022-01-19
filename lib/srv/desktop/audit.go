@@ -89,8 +89,7 @@ func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, s
 		StartTime:             startedAt,
 		EndTime:               s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		DesktopName:           desktop.GetName(),
-		// SessionRecording:      recConfig.GetMode(),
-		SessionRecording: "off",
+		SessionRecording:      recConfig.GetMode(),
 	}
 	s.emit(ctx, event)
 }
