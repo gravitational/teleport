@@ -2713,11 +2713,14 @@ func ssoSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 func isRoleMatchError(err error) bool {
 	// oidc or saml
 	if trace.IsAccessDenied(err) {
+		// from lib/auth/saml.go:calculateSAMLUser
 		return strings.Contains(err.Error(), "unable to map attributes to role") ||
+			// from lib/auth/oidc.go:calculateOIDCUser
 			strings.Contains(err.Error(), "unable to map claims to role")
 	}
 	// github
 	if trace.IsBadParameter(err) {
+		// from lib/auth/github.go:calculateGithubUser
 		return strings.Contains(err.Error(), "does not belong to any teams")
 	}
 	return false
