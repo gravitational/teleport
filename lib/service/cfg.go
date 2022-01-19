@@ -53,6 +53,7 @@ import (
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -762,6 +763,11 @@ func (d *Database) CheckAndSetDefaults() error {
 				return trace.BadParameter("invalid MongoDB database %q read preference %q",
 					d.Name, connString.ReadPreference)
 			}
+		}
+	} else if d.Protocol == defaults.ProtocolRedis {
+		_, err := redis.ParseRedisURI(d.URI)
+		if err != nil {
+			return trace.BadParameter("failed to parse Redis URI: %v", err)
 		}
 	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",

@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/url"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -66,37 +67,87 @@ func (e *Engine) SendError(redisErr error) {
 	}
 }
 
+type ConnectionOptions struct {
+	cluster bool
+	address string
+	port    string
+}
+
+func ParseRedisURI(uri string) (*ConnectionOptions, error) {
+	if uri == "" {
+		return nil, trace.BadParameter("Redis uri is empty")
+	}
+
+	u, err := url.Parse(uri)
+	if err != nil {
+		return nil, trace.BadParameter("failed to parse Redis URI: %v", err)
+	}
+
+	switch u.Scheme {
+	case "redis", "rediss":
+	default:
+		return nil, trace.BadParameter("Redis schema protocol is incorrect, expected redis or rediss, provided %q", u.Scheme)
+	}
+
+	host, port, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		return nil, trace.BadParameter("failed to parse Redis host: %v", err)
+	}
+
+	if port == "" {
+		port = "6379"
+	}
+
+	cluster := false
+
+	values := u.Query()
+	if values.Has("cluster") && values.Get("cluster") == "true" { // TODO(jakub): make it more generic
+		cluster = true
+	}
+
+	return &ConnectionOptions{
+		cluster: cluster,
+		address: host,
+		port:    port,
+	}, nil
+}
+
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	connectionOptions, err := ParseRedisURI(sessionCtx.Database.GetURI())
+	if err != nil {
+		return trace.BadParameter("Redis connection string is incorrect: %v", err)
+	}
+
 	var redisConn redis.UniversalClient
 
 	// TODO:
 	// Use system TLS if connecting to AWS.
-	// Distinguish between single and cluster instances.
-	// Use redis connection string??
-	if true {
-		redisConn = redis.NewClient(&redis.Options{
-			Addr:      sessionCtx.Database.GetURI(),
+	if connectionOptions.cluster {
+		redisConn = redis.NewClusterClient(&redis.ClusterOptions{
+			Addrs:     []string{connectionOptions.address},
 			TLSConfig: tlsConfig,
 		})
 	} else {
-		redisConn = redis.NewClusterClient(&redis.ClusterOptions{
-			Addrs:     []string{sessionCtx.Database.GetURI()},
+		redisConn = redis.NewClient(&redis.Options{
+			Addr:      connectionOptions.address,
 			TLSConfig: tlsConfig,
 		})
 	}
 	defer redisConn.Close()
 
-	e.Log.Debug("created a new Redis client")
+	e.Log.Debug("created a new Redis client, sending ping")
 
 	pingResp := redisConn.Ping(context.Background())
 	if pingResp.Err() != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(pingResp.Err())
 	}
+
+	e.Log.Debug("Redis server responded to ping message")
 
 	if err := e.process(ctx, e.proxyConn, redisConn); err != nil {
 		return trace.Wrap(err)
