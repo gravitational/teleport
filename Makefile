@@ -729,7 +729,7 @@ enter:
 	make -C build.assets enter
 
 # grpc generates GRPC stubs from service definitions.
-# This target runs in the devbox container.
+# This target runs in the buildbox container.
 .PHONY: grpc
 grpc:
 	$(MAKE) -C build.assets grpc
