@@ -104,6 +104,15 @@ func decode(in peekReader) (Message, error) {
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#2---png-frame
 type PNGFrame struct {
 	Img image.Image
+
+	enc *png.Encoder // optionally override the PNG encoder
+}
+
+func NewPNG(img image.Image, enc *png.Encoder) PNGFrame {
+	return PNGFrame{
+		Img: img,
+		enc: enc,
+	}
 }
 
 func (f PNGFrame) Encode() ([]byte, error) {
@@ -123,10 +132,11 @@ func (f PNGFrame) Encode() ([]byte, error) {
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Note: this uses the default png.Encoder parameters.
-	// You can tweak compression level and reduce memory allocations by using a
-	// custom png.Encoder, if this happens to be a bottleneck.
-	if err := png.Encode(buf, f.Img); err != nil {
+	encoder := f.enc
+	if encoder == nil {
+		encoder = &png.Encoder{}
+	}
+	if err := encoder.Encode(buf, f.Img); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return buf.Bytes(), nil
