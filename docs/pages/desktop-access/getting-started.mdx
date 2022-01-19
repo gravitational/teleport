@@ -47,6 +47,7 @@ $SamAccountName="svc-teleport"
 $OutputFile="teleport-svc-pass.txt"
 
 # Generate a random password that meets the "Password must meet complexity requirements" security policy setting.
+# Note: if the minimum complexity requirements have been changed from the Windows default, this part of the script may need to be modified.
 Add-Type -AssemblyName 'System.Web'
 do {
    $Password=[System.Web.Security.Membership]::GeneratePassword(15,1)
@@ -117,7 +118,7 @@ New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
 
 ### Deny interactive login
 
-1. From the `Group Policy Management` window, right-click on the GPO you just created (`Block teleport-svc Interactive Login`) and select `Edit...` from the context menu.
+1. Open the program named `Group Policy Management` and find the GPO you just created (`$FOREST > Domains > $DOMAIN > Group Policy Objects > Block teleport-svc Interactive Login`), right-click on it and select `Edit...` from the context menu.
 2. Select:
 
 ```text
@@ -161,7 +162,13 @@ $ tctl auth export --type=windows > user-ca.cer
   to an OU that includes only such computers.
 </Admonition>
 
-1. Create a new GPO like you did in Step 2 above, this time giving it a name like `Teleport Access Policy`.
+1. Create another new GPO, this time giving it a name like `Teleport Access Policy`:
+
+```powershell
+$GPOName="Teleport Access Policy"
+New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
+```
+
 2. Again open the `Group Policy Management` program, and on the left pane, navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects`.
 3. Right click on the GPO you just made (`Teleport Access Policy`), and select `Edit...`.
 4. In the group policy editor, select:
@@ -276,69 +283,23 @@ trusted repository or provide the filepath to the `der_ca_file` configuration va
   order to resolve this.
 </Admonition>
 
-In order to enable Desktop Access in Teleport, add the
-following section in `teleport.yaml` on your Linux server:
+In order to enable Desktop Access in Teleport, add the following section in
+`teleport.yaml` on your Linux server. For a detailed description of these
+configuration fields, see the [reference](./reference.mdx) page.
 
 ```yaml
 windows_desktop_service:
   enabled: yes
-  # This is the address that windows_desktop_service will listen on.
   listen_addr: "0.0.0.0:3028"
-  # (optional) This is the address that windows_desktop_service will advertise
-  # to the rest of Teleport for incoming connections. Only proxy_service should
-  # connect to windows_desktop_service, users connect to the proxy's web UI
-  # instead.
-  public_addr: "desktop-access.example.com:3028"
   ldap:
-    # Address of the Domain Controller for LDAP connections. Usually, this
-    # address will use port 636, like: domain-controller.example.com:636.
     addr: "$LDAP_SERVER_ADDRESS"
-    # Active Directory domain name you are connecting to, like: domain-controller.example.com.
     domain: "$LDAP_DOMAIN_NAME"
-    # LDAP username for authentication. This will be the user logon name you chose for the service
-    # account User in Step 1 (svc-teleport). This username must include the domain NetBIOS name.
-    #
-    # For example, if your domain is "example.com", the NetBIOS name for it is
-    # likely "EXAMPLE". When connecting as the "svc-teleport" user, you should
-    # use the format: 'EXAMPLE\svc-teleport'.
-    # Note the use of single quotes due to the \ character
-    #
-    # If you are unsure of your NetBIOS name, you can find it by opening a PowerShell command prompt
-    # and running:
-    #
-    # (Get-ADDomain).NetBIOSName
-    #
-    username: "$LDAP_USERNAME"
-    # Plain text file containing the LDAP password for authentication. This is the password that was
-    # randomly generated and saved to $OutputFile in Step 1, which you will need to transfer
-    # to this machine.
-    #
-    # Note that if you transfer the file itself, it will likely be UTF-16LE encoded, and you will need to
-    # convert it to UTF-8 Unix format by using a tool such as dos2unix
-    # (simply `dos2unix $OutputFile` with no option flags will do the trick).
-    # Alternately, you can just create a new file on this machine and copy the characters manually.
-    #
-    # Remember that it is good practice to delete this file from the Windows host it was created on once
-    # it's been successfully saved on this machine and you have verified that LDAP authentication is working properly
-    # (after you've successfully connected to a windows desktop in Step 6 below).
+    username: '$LDAP_USERNAME'
     password_file: /var/lib/teleport-svc-pass.txt
-    # You can skip LDAPS certificate verification by setting
-    # this to true. It is recommended that this be set to false
-    # and the certificate added your system's trusted repository,
-    # or its filepath provided in with the der_ca_file variable below.
-    insecure_skip_verify: false
-    # DER encoded certificate.
     # This should be the path to the certificate exported in Step 4.
     der_ca_file: /path/to/cert
   discovery:
-    # This setting will tell Teleport to discover all the hosts connected to the LDAP domain
-    # controller configured above.
     base_dn: "*"
-  hosts:
-    # DNS entries for any static hosts you want to connect to.
-    # These are only needed to connect to desktops that aren't covered by the discovery setting.
-    - "100.104.52.89"
-    - "another-example.com"
 ```
 
 After updating `teleport.yaml`, start Teleport as usual using `teleport start`.

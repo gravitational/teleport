@@ -443,6 +443,9 @@ const (
 	// CertExtensionImpersonator is set when one user has requested certificates
 	// for another user
 	CertExtensionImpersonator = "impersonator"
+	// CertExtensionDisallowReissue is set when a certificate should not be allowed
+	// to request future certificates.
+	CertExtensionDisallowReissue = "disallow-reissue"
 )
 
 const (
