@@ -61,22 +61,66 @@ func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector
 		return nil, trace.BadParameter("no `email` in oauth claims for Google Workspace account")
 	}
 
-	credentials, err := getGoogleWorkspaceCredentials(ctx, connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	var googleGroups []string
-	if connector.GetGoogleTransitiveGroups() {
-		googleGroups, err = groupsFromGoogleCloudIdentity(ctx, email, option.WithCredentials(credentials))
+	switch connector.GetVersion() {
+	// for the V3 connector we first check to see if the service account can use
+	// the Cloud Identity API (fetching direct and indirect groups for all
+	// domains) and if that's not the case we fall back to the Admin SDK
+	// Directory API (fetching direct groups for all domains)
+	case types.V3:
+		credentials, err := getGoogleWorkspaceCredentials(ctx, connector, cloudidentity.CloudIdentityGroupsReadonlyScope)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else {
-		googleGroups, err = groupsFromGoogleDirectory(ctx, email, "", option.WithCredentials(credentials))
+
+		if credentials != nil {
+			log.Debugf("fetching transitive Google groups for %v", email)
+			googleGroups, err = groupsFromGoogleCloudIdentity(ctx, email, option.WithCredentials(credentials))
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			credentials, err := getGoogleWorkspaceCredentials(ctx, connector, directory.AdminDirectoryGroupReadonlyScope)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if credentials == nil {
+				return nil, trace.BadParameter("invalid Google Workspace credentials for scopes %v or %v",
+					cloudidentity.CloudIdentityGroupsReadonlyScope, directory.AdminDirectoryGroupReadonlyScope)
+			}
+
+			log.Debugf("fetching direct Google groups with no domain filtering for %v", email)
+			googleGroups, err = groupsFromGoogleDirectory(ctx, email, "", option.WithCredentials(credentials))
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+	// for the V2 connector we always try to use the Admin SDK Directory API to
+	// fetch direct groups filtered by domain, for backwards compatibility
+	case types.V2:
+		hostedDomain, exists, err := claims.StringClaim("hd")
+		if err != nil || !exists {
+			return nil, trace.BadParameter("no `hd` in oauth claims for Google Workspace account")
+		}
+
+		credentials, err := getGoogleWorkspaceCredentials(ctx, connector, directory.AdminDirectoryGroupReadonlyScope)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		if credentials == nil {
+			return nil, trace.BadParameter("invalid Google Workspace credentials for scope %v", directory.AdminDirectoryGroupReadonlyScope)
+		}
+
+		log.Debugf("fetching direct Google groups for %v, filtering by domain %v", email, hostedDomain)
+		googleGroups, err = groupsFromGoogleDirectory(ctx, email, hostedDomain, option.WithCredentials(credentials))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		return nil, trace.BadParameter("OIDC connector resource version %v is not supported", connector.GetVersion())
 	}
 
 	if len(googleGroups) > 0 {
@@ -93,7 +137,7 @@ func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector
 	return claims, nil
 }
 
-func getGoogleWorkspaceCredentials(ctx context.Context, connector types.OIDCConnector) (*google.Credentials, error) {
+func getGoogleWorkspaceCredentials(ctx context.Context, connector types.OIDCConnector, scopes ...string) (*google.Credentials, error) {
 	var jsonCredentials []byte
 	var credentialLoadingMethod string
 	if connector.GetGoogleServiceAccountURI() != "" {
@@ -122,19 +166,18 @@ func getGoogleWorkspaceCredentials(ctx context.Context, connector types.OIDCConn
 	// all groups to work reliably.
 	credentialsParams := google.CredentialsParams{
 		Subject: connector.GetGoogleAdminEmail(),
-	}
-
-	if connector.GetGoogleTransitiveGroups() {
-		log.Debugf("Loading credentials to fetch transitive groups")
-		credentialsParams.Scopes = []string{cloudidentity.CloudIdentityGroupsReadonlyScope}
-	} else {
-		log.Debugf("Loading credentials to fetch direct groups")
-		credentialsParams.Scopes = []string{directory.AdminDirectoryGroupReadonlyScope}
+		Scopes:  scopes,
 	}
 
 	credentials, err := google.CredentialsFromJSONWithParams(ctx, jsonCredentials, credentialsParams)
 	if err != nil {
 		return nil, trace.BadParameter("unable to parse google service account from %v: %v", credentialLoadingMethod, err)
+	}
+
+	token, err := credentials.TokenSource.Token()
+	if err != nil || !token.Valid() {
+		log.Debugf("failed to obtain valid Google Workspace credentials for scopes %v", scopes)
+		return nil, nil
 	}
 
 	return credentials, nil
