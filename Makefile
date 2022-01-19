@@ -734,9 +734,9 @@ enter:
 grpc:
 	$(MAKE) -C build.assets grpc
 
-# devbox-grpc generates GRPC stubs
-.PHONY: devbox-grpc
-devbox-grpc:
+# buildbox-grpc generates GRPC stubs
+.PHONY: buildbox-grpc
+buildbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
 	$(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}' \

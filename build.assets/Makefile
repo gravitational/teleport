@@ -26,16 +26,10 @@ GID := $$(id -g)
 
 HOST_ARCH := $(shell uname -m)
 RUNTIME_ARCH_x86_64 := amd64
+# uname returns different value on Linux (aarch64) and MacOS (arm64).
 RUNTIME_ARCH_arm64 := arm64
+RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
-
-DEVBOX_BASE_IMAGE_x86_64 = ubuntu:20.04
-DEVBOX_BASE_IMAGE_arm64 = arm64v8/ubuntu:20.04
-DEVBOX_BASE_IMAGE = $(DEVBOX_BASE_IMAGE_$(HOST_ARCH))
-
-DEVBOX_PROTOC_PLATFORM_x86_64 = linux-x86_64
-DEVBOX_PROTOC_PLATFORM_arm64 = linux-aarch_64
-DEVBOX_PROTOC_PLATFORM := $(DEVBOX_PROTOC_PLATFORM_$(HOST_ARCH))
 
 PROTOC_VER ?= 3.6.1
 GOGO_PROTO_TAG ?= v1.3.2
@@ -47,7 +41,6 @@ BUILDBOX_CENTOS7=quay.io/gravitational/teleport-buildbox-centos7:$(RUNTIME)
 BUILDBOX_CENTOS7_FIPS=quay.io/gravitational/teleport-buildbox-centos7-fips:$(RUNTIME)
 BUILDBOX_ARM=quay.io/gravitational/teleport-buildbox-arm:$(RUNTIME)
 BUILDBOX_ARM_FIPS=quay.io/gravitational/teleport-buildbox-arm-fips:$(RUNTIME)
-DEVBOX=teleport-devbox
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
@@ -133,19 +126,6 @@ buildbox:
 			--tag $(BUILDBOX) . ; \
 	fi
 
-.PHONY: devbox
-devbox:
-	docker build \
-	    --build-arg BASE_IMAGE=$(DEVBOX_BASE_IMAGE) \
-		--build-arg RUNTIME=$(RUNTIME) \
-		--build-arg RUNTIME_ARCH=$(RUNTIME_ARCH) \
-		--build-arg PROTOC_VER=$(PROTOC_VER) \
-		--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
-		--build-arg PROTOC_PLATFORM=$(DEVBOX_PROTOC_PLATFORM) \
-		--cache-from $(DEVBOX) \
-		--tag $(DEVBOX) -f Dockerfile-devbox . ; \
-
-#
 # Builds a Docker buildbox for FIPS
 #
 .PHONY:buildbox-fips
@@ -233,12 +213,12 @@ buildbox-arm-fips: buildbox-fips
 		--cache-from $(BUILDBOX_ARM_FIPS) \
 		--tag $(BUILDBOX_ARM_FIPS) -f Dockerfile-arm-fips .
 
-# grpc generates GRPC stubs from inside the devbox
+# grpc generates GRPC stubs from inside the buildbox
 .PHONY: grpc
-grpc: devbox
+grpc: buildbox
 	docker run \
-		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(DEVBOX) \
-		make -C /go/src/github.com/gravitational/teleport devbox-grpc
+		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX) \
+		make -C /go/src/github.com/gravitational/teleport buildbox-grpc
 
 #
 # Removes the docker image
