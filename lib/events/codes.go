@@ -345,6 +345,9 @@ const (
 	// AppSessionRequestCode is the application request/response code.
 	AppSessionRequestCode = "T2009I"
 
+	// SessionConnectCode is the session connect event code.
+	SessionConnectCode = "T2010I"
+
 	// DatabaseSessionStartCode is the database session start event code.
 	DatabaseSessionStartCode = "TDB00I"
 	// DatabaseSessionStartFailureCode is the database session start failure event code.
@@ -355,6 +358,17 @@ const (
 	DatabaseSessionQueryCode = "TDB02I"
 	// DatabaseSessionQueryFailedCode is the database query failure event code.
 	DatabaseSessionQueryFailedCode = "TDB02W"
+
+	// PostgresParseCode is the db.session.postgres.parse event code.
+	PostgresParseCode = "TPG00I"
+	// PostgresBindCode is the db.session.postgres.bind event code.
+	PostgresBindCode = "TPG01I"
+	// PostgresExecuteCode is the db.session.postgres.execute event code.
+	PostgresExecuteCode = "TPG02I"
+	// PostgresCloseCode is the db.session.postgres.close event code.
+	PostgresCloseCode = "TPG03I"
+	// PostgresFunctionCallCode is the db.session.postgres.function event code.
+	PostgresFunctionCallCode = "TPG04I"
 
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
@@ -418,6 +432,8 @@ const (
 	AccessRequestUpdateCode = "T5001I"
 	// AccessRequestReviewCode is the access review application code.
 	AccessRequestReviewCode = "T5002I"
+	// AccessRequestDeleteCode is the access request deleted code.
+	AccessRequestDeleteCode = "T5003I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"

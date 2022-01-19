@@ -35,7 +35,7 @@
 
 ## Introduction
 
-Teleport is the easiest, most secure way to access all your infrastructure. 
+Teleport is the easiest, most secure way to access all your infrastructure.
 Teleport is an identity-aware, multi-protocol access proxy which understands
 SSH, HTTPS, RDP, Kubernetes API, MySQL, MongoDB and PostgreSQL wire protocols.
 
@@ -209,43 +209,27 @@ Latest version:
 go get github.com/new/dependency
 ```
 
-Update the source to use this dependency, then run:
+and update the source to use this dependency.
 
-```bash
-make update-vendor
-```
 
-Specific version:
-
-```bash
-go get github.com/new/dependency@version
-```
-
-Update the source to use this dependency, then run:
-
-```bash
-make update-vendor
-```
+To get a specific version, use `go get github.com/new/dependency@version` instead.
 
 #### Set dependency to a specific version
 
 ```bash
 go get github.com/new/dependency@version
-make update-vendor
 ```
 
 #### Update dependency to the latest version
 
 ```bash
 go get -u github.com/new/dependency
-make update-vendor
 ```
 
 #### Update all dependencies
 
 ```bash
 go get -u all
-make update-vendor
 ```
 
 #### Debugging dependencies
@@ -297,5 +281,5 @@ You can find the latest stable Teleport build on our [Releases](https://gotelepo
 ## Who Built Teleport?
 
 Teleport was created by [Gravitational Inc](https://goteleport.com). We have
-built Teleport by borrowing from our previous experiences at Rackspace. [Learn more 
+built Teleport by borrowing from our previous experiences at Rackspace. [Learn more
 about Teleport and our history](https://goteleport.com/about/).

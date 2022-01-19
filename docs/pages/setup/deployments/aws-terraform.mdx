@@ -714,7 +714,7 @@ To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 You can use this command to get the CA pin hash for your Teleport cluster:
 
 ```code
-$ aws ssm get-parameter --name "/teleport/${TF_VAR_cluster_name}/ca-pin-hash" --query "Parameter.Value" --output text
+$ aws ssm get-parameter --region ${TF_VAR_region} --name "/teleport/${TF_VAR_cluster_name}/ca-pin-hash" --query "Parameter.Value" --output text
 # sha256:d021ef54aaf8633c4e15c5cc59479fb2f19b1bbc5432bb95213ee047000689dd
 ```
 
@@ -725,11 +725,9 @@ You should use this so that nodes can validate the auth server's identity when j
 You can use this command to get a join token for your Teleport cluster:
 
 ```code
-$ aws ssm get-parameter --name "/teleport/${TF_VAR_cluster_name}/tokens/node" --query "Parameter.Value" --output text
-# AQICAzgLq8feq4riNouuw8Wxs5EEPlS2qKIVE5Z/qEo1i6mqfwGX3dW56SdoS6PinTWbZL1RAAAAgzCBgAYJKoZIhvcNAQcGoHMwcQIBADBsBgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDNdu5TxaT8gyJx63eAIBEIA/JEpX2Vte90UmufIzZzvBQcQaKgWr95aN9xZYMEjWbAiNitxkvZgb98FgFn8d9GNwKQgDGfUYDbzsX8EqTtx7
+$ aws ssm get-parameter --region ${TF_VAR_region} --name "/teleport/${TF_VAR_cluster_name}/tokens/node" --query "Parameter.Value" --with-decryption --output text
+# 992a9725-0a64-428d-8e5e-308e6877743d
 ```
-
-You should use this so that nodes can validate the auth server's identity when joining your cluster.
 
 You can also generate a node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../admin/adding-nodes.mdx#adding-nodes-to-the-cluster).
 

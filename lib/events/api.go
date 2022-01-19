@@ -199,6 +199,8 @@ const (
 	AccessRequestUpdateEvent = "access_request.update"
 	// AccessRequestReviewEvent is emitted when a review is applied to a request.
 	AccessRequestReviewEvent = "access_request.review"
+	// AccessRequestDeleteEvent is emitted when a new access request is deleted.
+	AccessRequestDeleteEvent = "access_request.delete"
 	// AccessRequestDelegator is used by teleport plugins to indicate the identity
 	// which caused them to update state.
 	AccessRequestDelegator = "delegator"
@@ -361,6 +363,9 @@ const (
 	// session has been rejected due to exceeding a session control limit.
 	SessionRejectedEvent = "session.rejected"
 
+	// SessionConnect is emitted when any ssh connection is made
+	SessionConnectEvent = "session.connect"
+
 	// AppCreateEvent is emitted when an application resource is created.
 	AppCreateEvent = "app.create"
 	// AppUpdateEvent is emitted when an application resource is updated.
@@ -398,6 +403,22 @@ const (
 	// DatabaseSessionQueryFailedEvent is emitted when database client's request
 	// to execute a database query/command was unsuccessful.
 	DatabaseSessionQueryFailedEvent = "db.session.query.failed"
+
+	// DatabaseSessionPostgresParseEvent is emitted when a Postgres client
+	// creates a prepared statement using extended query protocol.
+	DatabaseSessionPostgresParseEvent = "db.session.postgres.parse"
+	// DatabaseSessionPostgresBindEvent is emitted when a Postgres client
+	// readies a prepared statement for execution and binds it to parameters.
+	DatabaseSessionPostgresBindEvent = "db.session.postgres.bind"
+	// DatabaseSessionPostgresExecuteEvent is emitted when a Postgres client
+	// executes a previously bound prepared statement.
+	DatabaseSessionPostgresExecuteEvent = "db.session.postgres.execute"
+	// DatabaseSessionPostgresCloseEvent is emitted when a Postgres client
+	// closes an existing prepared statement.
+	DatabaseSessionPostgresCloseEvent = "db.session.postgres.close"
+	// DatabaseSessionPostgresFunctionEvent is emitted when a Postgres client
+	// calls an internal function.
+	DatabaseSessionPostgresFunctionEvent = "db.session.postgres.function"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
