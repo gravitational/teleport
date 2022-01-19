@@ -52,7 +52,7 @@ You will also need to include a `kubernetes_service` section in your `teleport.y
 ```yaml
 kubernetes_service:
   enabled: yes
-  # comment out the following line if this config file specifies a proxy endpoint for the auth server (IOT mode):
+  # comment out the following line if this config file specifies a proxy endpoint for the Auth Server (IOT mode):
   listen_addr: 0.0.0.0:3027
   # replace this path with the actual path for your generated kubeconfig
   kubeconfig_file: "path/to/kubeconfig"
