@@ -547,10 +547,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
 			return s.generateCredentials(ctx, username, desktop.GetDomain())
 		},
-		Addr:          desktop.GetAddr(),
-		InputMessage:  tdpConn.InputMessage,
-		OutputMessage: tdpConn.OutputMessage,
-		AuthorizeFn:   authorize,
+		Addr:        desktop.GetAddr(),
+		Conn:        tdpConn,
+		AuthorizeFn: authorize,
 	})
 	if err != nil {
 		s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err)
