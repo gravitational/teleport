@@ -3,12 +3,12 @@ authors: Krzysztof Skrzętnicki <krzysztof.skrzetnicki@goteleport.com>
 state: draft
 ---
 
-# RFD 48 - `tsh sso test` command
+# RFD 48 - `tctl sso test` command
 
 ## What
 
-This RFD proposes new subcommand for the `tsh` tool: `sso test`. The purpose of this command is to perform validation of
-auth connector in SSO flow prior to creating the connector resource with `tctl create ...` command.
+This RFD proposes new subcommand for the `tctl` tool: `sso test`. The purpose of this command is to perform validation
+of auth connector in SSO flow prior to creating the connector resource with `tctl create ...` command.
 
 To accomplish that the definition of auth connector is read from file and attached to the auth request being made. The
 Teleport server uses the attached definition to proceed with the flow, instead of using any of the stored auth connector
@@ -26,9 +26,6 @@ The following kinds of auth connectors will be supported:
 - OIDC (Enterprise only)
 - Github
 
-To implement this change `tsh` will have to be able to load SAML and OIDC resources. This is only possible in Teleport
-Enterprise, which means an Enterprise variant of `tsh` command will need to be created.
-
 ## Why
 
 Currently, Teleport offers no mechanism for testing the SSO flows prior to creating the connector, at which point the
@@ -42,7 +39,7 @@ be iterated. Decreased SSO configuration time contributes to improved "time-to-f
 
 _TODO: more examples, better messages._
 
-The user initiates the flow by issuing command such as `tsh --proxy=<proxy.addr> sso test <auth_connector.yaml>`. The
+The user initiates the flow by issuing command such as `tctl --proxy=<proxy.addr> sso test <auth_connector.yaml>`. The
 resource is loaded, and it's kind is determined. If the connector kind is supported, the SSO flow is initiated to
 appropriate endpoint. In the same manner as `tsh login --auth=<sso_auth>` opens the browser to perform the login, the
 user is redirected to the browser as well. Once the flow is finished in any way, the user is notified of that fact along
@@ -51,7 +48,7 @@ with any debugging information that has been passed by the server (e.g. claims, 
 - Example of successful test:
 
 ```bash
-$ tsh --proxy=teleport.example.com sso test auth_connector.yaml
+$ tctl --debug --proxy=teleport.example.com sso test auth_connector.yaml
 INFO [AUTH] Connector type: SAML
 DEBU [SAML] SSO: https://dev-813354.oktapreview.com/app/dev-813354_krzysztofssodev_1/exk14fxcpjuKMcor30h8/sso/saml services/saml.go:98
 DEBU [SAML] Issuer: http://www.okta.com/exk14fxcpjuKMcor30h8 services/saml.go:99
@@ -68,7 +65,7 @@ roles_to_groups: ...
 - Example of failure:
 
 ```bash
-$ tsh --proxy=teleport.example.com sso test auth_connector.yaml
+$ tctl --debug --proxy=teleport.example.com sso test auth_connector.yaml
 INFO [AUTH] Connector type: SAML
 DEBU [SAML] SSO: https://dev-813354.oktapreview.com/app/dev-813354_krzysztofssodev_1/exk14fxcpjuKMcor30h8/sso/saml services/saml.go:98
 DEBU [SAML] Issuer: http://www.okta.com/exk14fxcpjuKMcor30h8 services/saml.go:99
@@ -117,10 +114,12 @@ This change of flow will allow for:
 
 There are several conceptual pieces to the implementation:
 
-1. Extending auth requests with embedded connector details. The `"/webapi/{oidc,saml,github}/login/console"` endpoints
-   will have to accept the additional parameter which subsequently will be stored with the auth request. There are
-   numerous types involved here which will need to be updated, along with conversions between them. For example, among
-   others, these types will need to be extended:
+1. Extending auth requests with embedded connector details. New set of endpoints will be
+   created: `"/webapi/{oidc,saml,github}/login/sso_test"`, similar to
+   existing `"/webapi/{oidc,saml,github}/login/console"` endpoints. The new endpoints will be authenticated and accept
+   the additional parameter for embedded auth connector definition. The embedded definition will be stored with the auth
+   request. There are numerous types involved here which will need to be updated, along with conversions between them.
+   For example, among others, these types will need to be extended:
 
 - [`services.SAMLAuthRequest`](https://github.com/gravitational/teleport/blob/8c4bf751b211e82b555653a9aee6c6c5bf39411f/lib/services/identity.go#L421)
 - [`services.OIDCAuthRequest`](https://github.com/gravitational/teleport/blob/8c4bf751b211e82b555653a9aee6c6c5bf39411f/lib/services/identity.go#L352)
@@ -143,28 +142,8 @@ The implementation of this RFD for different kinds of connectors should be large
 iteration will implement this functionality for SAML, while the lessons learned will help shape the implementations for
 OIDC and Github.
 
-### Enterprise version of `tsh`
-
-SAML and OIDC are Enterprise-only features. `tsh` needs to load the resources for these auth connectors and that is only
-possible using Enterprise version of the libraries. Similar to how `tctl` offers two tiers, `tsh` would follow the same
-pattern.
-
 ### Security
 
-It isn't immediately clear if it is safe for unauthenticated users to have access to the SSO testing flow. In
-particular, the following two issues are of concern:
-
-1. Auth connector definition can contain arbitrary URL, which will be called by auth server.
-2. After finishing the flow the user will be given debugging information which normally would require access to server
-   logs.
-
-It may be prudent to require the user to be:
-
-- logged in
-- authorized for creation and reading of auth connectors
-
-In case of such requirement being made, we would either extend the `"/webapi/{oidc,saml,github}/login/console"`
-endpoints with an option to authenticate the call, or create a new set of authenticated endpoints purely for testing
-purposes.
-
-**TODO**: Reach consensus regarding the above point and update the RFD accordingly.
+The new `"/webapi/{oidc,saml,github}/login/sso_test"` endpoints will be authenticated,
+unlike `"/webapi/{oidc,saml,github}/login/console"`. The user will be required to have `create` access to appropriate
+resource type being tested (e.g. `types.KindSAML`).
