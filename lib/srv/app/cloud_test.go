@@ -94,16 +94,12 @@ func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			c, err := NewCloud(CloudConfig{
-				Session: &awssession.Session{
-					Config: &aws.Config{
-						Credentials: test.credentials,
-					},
+			session := &awssession.Session{
+				Config: &aws.Config{
+					Credentials: test.credentials,
 				},
-			})
-			require.NoError(t, err)
-
-			isTemporary, err := c.(*cloud).isSessionUsingTemporaryCredentials()
+			}
+			isTemporary, err := isSessionUsingTemporaryCredentials(session)
 
 			if test.expectError != nil {
 				require.True(t, test.expectError(err))
@@ -114,7 +110,7 @@ func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
 	}
 }
 
-func TestGetFederationDuration(t *testing.T) {
+func TestCloudGetFederationDuration(t *testing.T) {
 	t.Parallel()
 	now := time.Now()
 	tests := []struct {
@@ -122,6 +118,7 @@ func TestGetFederationDuration(t *testing.T) {
 		expiresAt        time.Time
 		temporarySession bool
 		expectedDuration time.Duration
+		expectedErrorIs  func(error) bool
 	}{
 		{
 			name:             "max session",
@@ -142,10 +139,9 @@ func TestGetFederationDuration(t *testing.T) {
 			expectedDuration: 2 * time.Hour,
 		},
 		{
-			name:             "minimum session",
-			expiresAt:        now.Add(time.Minute),
-			temporarySession: false,
-			expectedDuration: 15 * time.Minute,
+			name:            "minimum session",
+			expiresAt:       now.Add(time.Minute),
+			expectedErrorIs: trace.IsBadParameter,
 		},
 	}
 
@@ -161,6 +157,9 @@ func TestGetFederationDuration(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			cloud, ok := c.(*cloud)
+			require.True(t, ok)
+
 			req := &AWSSigninRequest{
 				Identity: &tlsca.Identity{
 					RouteToApp: tlsca.RouteToApp{
@@ -171,13 +170,18 @@ func TestGetFederationDuration(t *testing.T) {
 				Issuer: "test",
 			}
 
-			actualDuration := c.(*cloud).getFederationDuration(req, test.temporarySession)
-			require.Equal(t, test.expectedDuration, actualDuration)
+			actualDuration, err := cloud.getFederationDuration(req, test.temporarySession)
+			if test.expectedErrorIs != nil {
+				require.True(t, test.expectedErrorIs(err))
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectedDuration, actualDuration)
+			}
 		})
 	}
 }
 
-func TestGetAWSSigninToken(t *testing.T) {
+func TestCloudGetAWSSigninToken(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name                    string
@@ -210,19 +214,6 @@ func TestGetAWSSigninToken(t *testing.T) {
 				values := r.URL.Query()
 				require.Equal(t, "getSigninToken", values.Get("Action"))
 				require.Equal(t, `{"sessionId":"keyid","sessionKey":"accesskey","sessionToken":"sessiontoken"}`, values.Get("Session"))
-				require.Equal(t, "43200", values.Get("SessionDuration"))
-				w.Write([]byte(`{"SigninToken":"generated-token"}`))
-			}),
-			expectedToken: "generated-token",
-		},
-		{
-			name:               "validate URL parameters for temporary sessions",
-			sessionCredentials: credentials.NewStaticCredentials("id", "secret", "sessionToken"),
-			federationServerHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				values := r.URL.Query()
-				require.Equal(t, "getSigninToken", values.Get("Action"))
-				require.Equal(t, `{"sessionId":"keyid","sessionKey":"accesskey","sessionToken":"sessiontoken"}`, values.Get("Session"))
-				require.Equal(t, "", values.Get("SessionDuration"))
 				w.Write([]byte(`{"SigninToken":"generated-token"}`))
 			}),
 			expectedToken: "generated-token",
@@ -256,6 +247,9 @@ func TestGetAWSSigninToken(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			cloud, ok := c.(*cloud)
+			require.True(t, ok)
+
 			req := &AWSSigninRequest{
 				Identity: &tlsca.Identity{
 					RouteToApp: tlsca.RouteToApp{
@@ -266,7 +260,7 @@ func TestGetAWSSigninToken(t *testing.T) {
 				Issuer: "test",
 			}
 
-			actualToken, err := c.(*cloud).getAWSSigninToken(req, mockFedurationServer.URL, mockProviderClient)
+			actualToken, err := cloud.getAWSSigninToken(req, mockFedurationServer.URL, mockProviderClient)
 			if test.expectedErrorIs != nil {
 				require.True(t, test.expectedErrorIs(err))
 			} else if test.expectedError {
