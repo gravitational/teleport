@@ -1701,7 +1701,7 @@ message WindowsDesktopSessionEnd {
     string DesktopName = 11 [ (gogoproto.jsontag) = "desktop_name" ];
     // SessionRecording is the type of session recording. If the session was not
     // recorded, it should be set to RecordOff ("off").
-    string SessionRecording = 14 [ (gogoproto.jsontag) = "session_recording,omitempty" ];
+    string SessionRecording = 12 [ (gogoproto.jsontag) = "session_recording,omitempty" ];
 }
 
 // OneOf is a union of one of audit events submitted to the auth service
