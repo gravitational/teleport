@@ -486,7 +486,7 @@ func (s *localSite) chanTransportConn(rconn *remoteConn, dreq *sshutils.DialReq)
 
 // periodicFunctions runs functions periodic functions for the local cluster.
 func (s *localSite) periodicFunctions() {
-	ticker := time.NewTicker(defaults.PrometheusScrapeInterval)
+	ticker := time.NewTicker(defaults.ResyncInterval)
 	defer ticker.Stop()
 
 	for {
@@ -497,111 +497,7 @@ func (s *localSite) periodicFunctions() {
 			if err := s.sshTunnelStats(); err != nil {
 				s.log.Warningf("Failed to report SSH tunnel statistics for: %v: %v.", s.domainName, err)
 			}
-			s.agentStats()
 		}
-	}
-}
-
-// agentStats leverages the accessPoint cache to report all agents/proxies/auth servers connected to the
-// teleport cluster via prometheus metrics
-func (s *localSite) agentStats() {
-	hostID := make(map[string]struct{})
-	versionCount := make(map[string]int)
-
-	// Nodes, Proxies, Auths, KubeServices, and WindowsDesktopServices use the UUID as the name field where
-	// DB and App store it in the spec. Check expiry due to DynamoDB taking up to 48hr to expire from backend
-	// and then store hostID and version count information.
-	serverCheck := func(server interface{}) {
-		type serverKubeWindows interface {
-			Expiry() time.Time
-			GetName() string
-			GetTeleportVersion() string
-		}
-		type appDB interface {
-			serverKubeWindows
-			GetHostID() string
-		}
-
-		// appDB needs to be first as it also matches the serverKubeWindows interface
-		if a, ok := server.(appDB); ok {
-			if a.Expiry().Before(time.Now()) {
-				return
-			}
-			if _, present := hostID[a.GetHostID()]; !present {
-				hostID[a.GetHostID()] = struct{}{}
-				versionCount[a.GetTeleportVersion()]++
-			}
-		} else if s, ok := server.(serverKubeWindows); ok {
-			if s.Expiry().Before(time.Now()) {
-				return
-			}
-			if _, present := hostID[s.GetName()]; !present {
-				hostID[s.GetName()] = struct{}{}
-				versionCount[s.GetTeleportVersion()]++
-			}
-		}
-	}
-
-	proxyServers, err := s.accessPoint.GetProxies()
-	if err != nil {
-		log.Debugf("Failed to get Proxies for teleport_registered_agent metric: %v", err)
-	}
-	for _, proxyServer := range proxyServers {
-		serverCheck(proxyServer)
-	}
-
-	authServers, err := s.accessPoint.GetAuthServers()
-	if err != nil {
-		log.Debugf("Failed to get Auth servers for teleport_registered_agent metric: %v", err)
-	}
-	for _, authServer := range authServers {
-		serverCheck(authServer)
-	}
-
-	servers, err := s.accessPoint.GetNodes(s.srv.ctx, apidefaults.Namespace)
-	if err != nil {
-		log.Debugf("Failed to get Nodes for teleport_registered_agent metric: %v", err)
-	}
-	for _, server := range servers {
-		serverCheck(server)
-	}
-
-	dbs, err := s.accessPoint.GetDatabaseServers(s.srv.ctx, apidefaults.Namespace)
-	if err != nil {
-		log.Debugf("Failed to get Database servers for teleport_registered_agent metric: %v", err)
-	}
-	for _, db := range dbs {
-		serverCheck(db)
-	}
-
-	apps, err := s.accessPoint.GetApplicationServers(s.srv.ctx, apidefaults.Namespace)
-	if err != nil {
-		log.Debugf("Failed to get Application servers for teleport_registered_agent metric: %v", err)
-	}
-	for _, app := range apps {
-		serverCheck(app)
-	}
-
-	kubeServices, err := s.accessPoint.GetKubeServices(s.srv.ctx)
-	if err != nil {
-		log.Debugf("Failed to get Kube services for teleport_registered_agent metric: %v", err)
-	}
-	for _, kubeService := range kubeServices {
-		serverCheck(kubeService)
-	}
-
-	windowsServices, err := s.accessPoint.GetWindowsDesktopServices(s.srv.ctx)
-	if err != nil {
-		log.Debugf("Failed to get Window Desktop Services for teleport_registered_agent metric: %v", err)
-	}
-	for _, windowsService := range windowsServices {
-		serverCheck(windowsService)
-	}
-
-	// reset the gauges so that any versions that fall off are removed from exported metrics
-	registeredAgents.Reset()
-	for version, count := range versionCount {
-		registeredAgents.WithLabelValues(version).Set(float64(count))
 	}
 }
 
@@ -662,14 +558,6 @@ var (
 			Help: "Number of missing SSH tunnels",
 		},
 	)
-	registeredAgents = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: teleport.MetricNamespace,
-			Name:      teleport.MetricRegisteredAgents,
-			Help:      "The number of Teleport agents with their version that have connected to the Teleport cluster. After disconnecting, a Teleport agent has a TTL of 10 minutes so this value will include agents that have recently disconnected but have not reached their TTL.",
-		},
-		[]string{teleport.TagVersion},
-	)
 
-	localClusterCollectors = []prometheus.Collector{missingSSHTunnels, registeredAgents}
+	localClusterCollectors = []prometheus.Collector{missingSSHTunnels}
 )

@@ -362,9 +362,6 @@ type ReadRemoteProxyAccessPoint interface {
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
-
-	// GetWindowsDesktopServices returns windows desktop services.
-	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
 }
 
 // RemoteProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
