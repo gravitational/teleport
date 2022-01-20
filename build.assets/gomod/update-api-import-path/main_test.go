@@ -21,8 +21,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/teleport/build.assets/gomod"
+
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport/build.assets/go-modules"
 	"github.com/stretchr/testify/require"
 )
 
@@ -174,7 +175,7 @@ func TestGetImportPaths(t *testing.T) {
 			writeFile(t, modDir, "go.mod", newGoModFileString(currentModPath))
 
 			// Get import paths using the mod file in disk
-			oldModPath, err := modules.GetImportPath(modDir)
+			oldModPath, err := gomod.GetImportPath(modDir)
 			require.NoError(t, err)
 			newModPath := getNewModImportPath(oldModPath, semver.New(newVersion))
 

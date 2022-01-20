@@ -656,7 +656,7 @@ $(VERSRC): Makefile
 # Note: any build flags needed to compile go files (such as build tags) should be provided below.
 .PHONY: update-api-import-path
 update-api-import-path:
-	go run build.assets/go-modules/update-api-import-path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
+	go run build.assets/gomod/update-api-import-path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
 	$(MAKE) grpc
 
 # make tag - prints a tag to use with git for the current version
@@ -736,6 +736,8 @@ grpc:
 # buildbox-grpc generates GRPC stubs
 .PHONY: buildbox-grpc
 buildbox-grpc:
+buildbox-grpc: API_IMPORT_PATH ?= $(shell go run build.assets/gomod/print-import-path/main.go ./api)
+buildbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
 	$(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}' \
@@ -750,17 +752,16 @@ buildbox-grpc:
 		lib/web/envelope.proto
 
 	# proto files within the api module must be passed with the 'M' flag. This way
-	# protoc will generate files with the correct import paths in the case where
+	# protoc will generate files with the correct API_IMPORT_PATH in the case where
 	# the import path has a version suffix, e.g. github.com/gravitational/teleport/api/v8
-	$(eval API_IMPORT_PATH=$(shell go run build.assets/go-modules/print-api-import-path/main.go))
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/client/proto \
 		--gogofast_out=plugins=grpc,\
-Mgithub.com/gravitational/teleport/api/types/types.proto=$$API_IMPORT_PATH/types,\
-Mgithub.com/gravitational/teleport/api/types/events/events.proto=$$API_IMPORT_PATH/types/events,\
-Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$$API_IMPORT_PATH/types/wrappers,\
-Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$$API_IMPORT_PATH/types/webauthn:\
+Mgithub.com/gravitational/teleport/api/types/types.proto=$(API_IMPORT_PATH)/types,\
+Mgithub.com/gravitational/teleport/api/types/events/events.proto=$(API_IMPORT_PATH)/types/events,\
+Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,\
+Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn:\
 api/client/proto \
 		authservice.proto
 
@@ -772,7 +773,7 @@ api/client/proto \
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types \
 		--gogofast_out=plugins=grpc,\
-Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$$API_IMPORT_PATH/types/wrappers:\
+Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers:\
 api/types \
 		types.proto
 

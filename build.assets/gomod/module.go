@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package modules
+package gomod
 
 import (
 	"os"
@@ -29,7 +29,7 @@ func GetImportPath(dir string) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	modFile, err := modfile.Parse(modPath, bts, nil)
+	modFile, err := modfile.Parse(modPath, bts, nil /* fix */)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -27,11 +27,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport/api"
-	"github.com/gravitational/teleport/build.assets/go-modules"
+	"github.com/gravitational/teleport/build.assets/gomod"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/mod/modfile"
@@ -59,7 +59,7 @@ func main() {
 	}
 
 	// get the current api module import path
-	currentModPath, err := modules.GetImportPath("./api")
+	currentModPath, err := gomod.GetImportPath("./api")
 	if err != nil {
 		exitWithError(trace.Wrap(err, "failed to get current mod path"), nil)
 	}

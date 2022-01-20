@@ -18,14 +18,21 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 
-	"github.com/gravitational/teleport/build.assets/go-modules"
+	"github.com/gravitational/teleport/build.assets/gomod"
+
 	"github.com/gravitational/trace"
 )
 
 // prints the import path of the api module
 func main() {
-	modPath, err := modules.GetImportPath("./api")
+	if len(os.Args) < 1 {
+		log.Fatal("first argument should be a path to a go.mod file")
+	}
+	goModFilePath := os.Args[1]
+
+	modPath, err := gomod.GetImportPath(goModFilePath)
 	if err != nil {
 		log.Fatal(trace.Wrap(err))
 	}
