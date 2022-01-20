@@ -22,6 +22,8 @@ import (
 	"sync"
 
 	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/aws/aws-sdk-go/aws"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -32,6 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -56,6 +59,8 @@ type CloudClients interface {
 	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
 	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
 	GetGCPSQLAdminClient(context.Context) (*sqladmin.Service, error)
+	// GetAzureCredential returns Azure default token credential chain.
+	GetAzureCredential() (azcore.TokenCredential, error)
 	// Closer closes all initialized clients.
 	io.Closer
 }
@@ -74,6 +79,8 @@ type cloudClients struct {
 	gcpIAM *gcpcredentials.IamCredentialsClient
 	// gcpSQLAdmin is the cached GCP Cloud SQL Admin client.
 	gcpSQLAdmin *sqladmin.Service
+	// azureCredential is the cached Azure credential.
+	azureCredential azcore.TokenCredential
 	// mtx is used for locking.
 	mtx sync.RWMutex
 }
@@ -129,7 +136,7 @@ func (c *cloudClients) GetAWSSTSClient(region string) (stsiface.STSAPI, error) {
 func (c *cloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
 	c.mtx.RLock()
 	if c.gcpIAM != nil {
-		c.mtx.RUnlock()
+		defer c.mtx.RUnlock()
 		return c.gcpIAM, nil
 	}
 	c.mtx.RUnlock()
@@ -140,11 +147,22 @@ func (c *cloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.Iam
 func (c *cloudClients) GetGCPSQLAdminClient(ctx context.Context) (*sqladmin.Service, error) {
 	c.mtx.RLock()
 	if c.gcpSQLAdmin != nil {
-		c.mtx.RUnlock()
+		defer c.mtx.RUnlock()
 		return c.gcpSQLAdmin, nil
 	}
 	c.mtx.RUnlock()
 	return c.initGCPSQLAdminClient(ctx)
+}
+
+// GetAzureCredential returns default Azure token credential chain.
+func (c *cloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
+	c.mtx.RLock()
+	if c.azureCredential != nil {
+		defer c.mtx.RUnlock()
+		return c.azureCredential, nil
+	}
+	c.mtx.RUnlock()
+	return c.initAzureCredential()
 }
 
 // Closes closes all initialized clients.
@@ -208,6 +226,21 @@ func (c *cloudClients) initGCPSQLAdminClient(ctx context.Context) (*sqladmin.Ser
 	return gcpSQLAdmin, nil
 }
 
+func (c *cloudClients) initAzureCredential() (azcore.TokenCredential, error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if c.azureCredential != nil { // If some other thread already got here first.
+		return c.azureCredential, nil
+	}
+	logrus.Debug("Initializing Azure default credential chain.")
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.azureCredential = cred
+	return cred, nil
+}
+
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
 	RDS          rdsiface.RDSAPI
@@ -248,18 +281,23 @@ func (c *TestCloudClients) GetAWSSTSClient(region string) (stsiface.STSAPI, erro
 // GetGCPIAMClient returns GCP IAM client.
 func (c *TestCloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
 	return gcpcredentials.NewIamCredentialsClient(ctx,
-		option.WithGRPCDialOption(grpc.WithInsecure()), // Insecure must be set for unauth client.
+		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())), // Insecure must be set for unauth client.
 		option.WithoutAuthentication())
 }
 
 // GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
 func (c *TestCloudClients) GetGCPSQLAdminClient(ctx context.Context) (*sqladmin.Service, error) {
 	return sqladmin.NewService(ctx,
-		option.WithGRPCDialOption(grpc.WithInsecure()), // Insecure must be set for unauth client.
+		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())), // Insecure must be set for unauth client.
 		option.WithoutAuthentication())
 }
 
-// Closer closes all initialized clients.
+// GetAzureCredential returns default Azure token credential chain.
+func (c *TestCloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
+	return &azidentity.ChainedTokenCredential{}, nil
+}
+
+// Close closes all initialized clients.
 func (c *TestCloudClients) Close() error {
 	return nil
 }

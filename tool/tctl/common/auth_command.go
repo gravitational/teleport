@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 // AuthCommand implements `tctl auth` group of commands
@@ -66,6 +67,7 @@ type AuthCommand struct {
 	proxyAddr                  string
 	leafCluster                string
 	kubeCluster                string
+	appName                    string
 	signOverwrite              bool
 
 	rotateGracePeriod time.Duration
@@ -122,6 +124,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("kube-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).Hidden().StringVar(&a.leafCluster)
 	a.authSign.Flag("leaf-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.leafCluster)
 	a.authSign.Flag("kube-cluster-name", `Kubernetes cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.kubeCluster)
+	a.authSign.Flag("app-name", `Application to generate identity file for`).StringVar(&a.appName)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
 	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to relogin and nodes to re-register.").
@@ -580,14 +583,44 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
+	var routeToApp proto.RouteToApp
+	var certUsage proto.UserCertsRequest_CertUsage
+
+	if a.appName != "" {
+		server, err := getApplicationServer(context.TODO(), clusterAPI, a.appName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		appSession, err := clusterAPI.CreateAppSession(context.TODO(), types.CreateAppSessionRequest{
+			Username:    a.genUser,
+			PublicAddr:  server.GetApp().GetPublicAddr(),
+			ClusterName: a.leafCluster,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		routeToApp = proto.RouteToApp{
+			Name:        a.appName,
+			PublicAddr:  server.GetApp().GetPublicAddr(),
+			ClusterName: a.leafCluster,
+			SessionID:   appSession.GetName(),
+		}
+		certUsage = proto.UserCertsRequest_App
+	}
+
+	reqExpiry := time.Now().UTC().Add(a.genTTL)
 	// Request signed certs from `auth` server.
 	certs, err := clusterAPI.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
 		PublicKey:         key.Pub,
 		Username:          a.genUser,
-		Expires:           time.Now().UTC().Add(a.genTTL),
+		Expires:           reqExpiry,
 		Format:            certificateFormat,
 		RouteToCluster:    a.leafCluster,
 		KubernetesCluster: a.kubeCluster,
+		RouteToApp:        routeToApp,
+		Usage:             certUsage,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -613,6 +646,20 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
+
+	expires, err := key.TeleportTLSCertValidBefore()
+	if err != nil {
+		log.WithError(err).Warn("Failed to check TTL validity")
+		// err swallowed on purpose
+		return nil
+	}
+	if reqExpiry.Sub(expires) > time.Minute {
+		log.Warnf("Requested TTL of %s was not granted. User may have a role with a shorter max session TTL"+
+			" or an existing session ending before the requested TTL. Proceeding with %s",
+			a.genTTL,
+			time.Until(expires).Round(time.Second))
+	}
+
 	return nil
 }
 
@@ -745,4 +792,18 @@ func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) 
 	}
 	allowedLogins, _ := roles.GetLoginsForTTL(defaults.MinCertDuration + time.Second)
 	return sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), keyBytes, allowedLogins)
+}
+
+func getApplicationServer(ctx context.Context, clusterAPI auth.ClientI, appName string) (types.AppServer, error) {
+	servers, err := clusterAPI.GetApplicationServers(ctx, apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, s := range servers {
+		if s.GetName() == appName {
+			return s, nil
+		}
+	}
+	return nil, trace.NotFound("app %q not found", appName)
 }

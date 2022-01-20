@@ -223,8 +223,9 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 				lock, ok := lockEvent.Resource.(types.Lock)
 				if !ok {
 					w.Entry.Warnf("Skipping unexpected lock event resource type %T.", lockEvent.Resource)
+				} else {
+					lockErr = services.LockInForceAccessDenied(lock)
 				}
-				lockErr = services.LockInForceAccessDenied(lock)
 			case types.OpDelete:
 				// Lock deletion can be ignored.
 			case types.OpUnreliable:
@@ -256,12 +257,14 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 
 func (w *Monitor) disconnectClientOnExpiredCert() {
 	reason := fmt.Sprintf("client certificate expired at %v", w.Clock.Now().UTC())
-	if err := w.emitDisconnectEvent(reason); err != nil {
-		w.Entry.WithError(err).Warn("Failed to emit audit event.")
-	}
+
 	w.Entry.Debugf("Disconnecting client: %v", reason)
 	if err := w.Conn.Close(); err != nil {
 		w.Entry.WithError(err).Error("Failed to close connection.")
+	}
+
+	if err := w.emitDisconnectEvent(reason); err != nil {
+		w.Entry.WithError(err).Warn("Failed to emit audit event.")
 	}
 }
 

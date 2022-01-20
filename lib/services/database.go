@@ -19,8 +19,10 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -29,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // DatabaseGetter defines interface for fetching database resources.
@@ -196,7 +199,7 @@ func engineToProtocol(engine string) string {
 
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
 func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[string]string {
-	labels := tagsToLabels(rdsInstance.TagList)
+	labels := rdsTagsToLabels(rdsInstance.TagList)
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelAccountID] = meta.AccountID
 	labels[labelRegion] = meta.Region
@@ -207,7 +210,7 @@ func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[str
 
 // labelsFromRDSCluster creates database labels for the provided RDS cluster.
 func labelsFromRDSCluster(rdsCluster *rds.DBCluster, meta *types.AWS) map[string]string {
-	labels := tagsToLabels(rdsCluster.TagList)
+	labels := rdsTagsToLabels(rdsCluster.TagList)
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelAccountID] = meta.AccountID
 	labels[labelRegion] = meta.Region
@@ -216,13 +219,66 @@ func labelsFromRDSCluster(rdsCluster *rds.DBCluster, meta *types.AWS) map[string
 	return labels
 }
 
-// tagsToLabels converts RDS tags to a labels map.
-func tagsToLabels(tags []*rds.Tag) map[string]string {
+// rdsTagsToLabels converts RDS tags to a labels map.
+func rdsTagsToLabels(tags []*rds.Tag) map[string]string {
 	labels := make(map[string]string)
 	for _, tag := range tags {
-		labels[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
+		// An AWS tag key has a pattern of "^([\p{L}\p{Z}\p{N}_.:/=+\-@]*)$",
+		// which can make invalid labels (for example "aws:cloudformation:stack-id").
+		// Omit those to avoid resource creation failures.
+		//
+		// https://docs.aws.amazon.com/directoryservice/latest/devguide/API_Tag.html
+		key := aws.StringValue(tag.Key)
+		if types.IsValidLabelKey(key) {
+			labels[key] = aws.StringValue(tag.Value)
+		} else {
+			log.Debugf("Skipping RDS tag %q, not a valid label key.", key)
+		}
 	}
 	return labels
+}
+
+// IsRDSClusterSupported checks whether the aurora cluster is supported and logs
+// related info if not.
+func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
+	switch aws.StringValue(cluster.EngineMode) {
+	// Aurora Serverless (v1 and v2) does not support IAM authentication
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless.html#aurora-serverless.limitations
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-2.limitations.html
+	case RDSEngineModeServerless:
+		return false
+
+	// Aurora MySQL 1.22.2, 1.20.1, 1.19.6, and 5.6.10a only: Parallel query doesn't support AWS Identity and Access Management (IAM) database authentication.
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-mysql-parallel-query.html#aurora-mysql-parallel-query-limitations
+	case RDSEngineModeParallelQuery:
+		if apiutils.SliceContainsStr([]string{"1.22.2", "1.20.1", "1.19.6", "5.6.10a"}, auroraMySQLVersion(cluster)) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// auroraMySQLVersion extracts aurora mysql version from engine version
+func auroraMySQLVersion(cluster *rds.DBCluster) string {
+	// version guide: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Updates.Versions.html
+	// a list of all the available versions: https://docs.aws.amazon.com/cli/latest/reference/rds/describe-db-engine-versions.html
+	//
+	// some examples of possible inputs:
+	// 5.6.10a
+	// 5.7.12
+	// 5.6.mysql_aurora.1.22.0
+	// 5.6.mysql_aurora.1.22.1
+	// 5.6.mysql_aurora.1.22.1.3
+	//
+	// general format is: <mysql-major-version>.mysql_aurora.<aurora-mysql-version>
+	// 5.6.10a and 5.7.12 are "legacy" versions and they are returned as it is
+	version := aws.StringValue(cluster.EngineVersion)
+	parts := strings.Split(version, ".mysql_aurora.")
+	if len(parts) == 2 {
+		return parts[1]
+	}
+	return version
 }
 
 const (
@@ -247,4 +303,17 @@ const (
 	RDSEngineAuroraMySQL = "aurora-mysql"
 	// RDSEngineAuroraPostgres is RDS engine name for Aurora Postgres clusters.
 	RDSEngineAuroraPostgres = "aurora-postgresql"
+)
+
+const (
+	// RDSEngineModeProvisioned is the RDS engine mode for provisioned Aurora clusters
+	RDSEngineModeProvisioned = "provisioned"
+	// RDSEngineModeServerless is the RDS engine mode for Aurora Serverless DB clusters
+	RDSEngineModeServerless = "serverless"
+	// RDSEngineModeParallelQuery is the RDS engine mode for Aurora MySQL clusters with parallel query enabled
+	RDSEngineModeParallelQuery = "parallelquery"
+	// RDSEngineModeGlobal is the RDS engine mode for Aurora Global databases
+	RDSEngineModeGlobal = "global"
+	// RDSEngineModeMultiMaster is the RDS engine mode for Multi-master clusters
+	RDSEngineModeMultiMaster = "multimaster"
 )

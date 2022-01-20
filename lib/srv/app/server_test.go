@@ -38,16 +38,19 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	libsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 func TestMain(m *testing.M) {
@@ -102,6 +105,8 @@ type suiteConfig struct {
 	OnReconcile func(types.Apps)
 	// Apps are the apps to configure.
 	Apps types.Apps
+	// ServerStreamer is the auth server audit events streamer.
+	ServerStreamer events.Streamer
 }
 
 func SetUpSuite(t *testing.T) *Suite {
@@ -113,7 +118,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
-	s.hostUUID = uuid.New()
+	s.hostUUID = uuid.New().String()
 
 	var err error
 	// Create Auth Server.
@@ -121,8 +126,18 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		ClusterName: "root.example.com",
 		Dir:         s.dataDir,
 		Clock:       s.clock,
+		Streamer:    config.ServerStreamer,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { s.authServer.Close() })
+
+	if config.ServerStreamer != nil {
+		err = s.authServer.AuthServer.SetSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
+			Spec: types.SessionRecordingConfigSpecV2{Mode: types.RecordAtNodeSync},
+		})
+		require.NoError(t, err)
+	}
+
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
 	require.NoError(t, err)
 
@@ -148,7 +163,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	// Create a in-memory HTTP server that will respond with a UUID. This value
 	// will be checked in the client later to ensure a connection was made.
-	s.message = uuid.New()
+	s.message = uuid.New().String()
 
 	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, s.message)
@@ -383,21 +398,25 @@ func TestAuthorizeWithLocks(t *testing.T) {
 // TestGetConfigForClient verifies that only the CAs of the requested cluster are returned.
 func TestGetConfigForClient(t *testing.T) {
 	// TODO(r0mant): Implement this.
+	t.Skip("Not Implemented")
 }
 
 // TestRewriteRequest verifies that requests are rewritten to include JWT headers.
 func TestRewriteRequest(t *testing.T) {
 	// TODO(r0mant): Implement this.
+	t.Skip("Not Implemented")
 }
 
 // TestRewriteResponse verifies that responses are rewritten if rewrite rules are specified.
 func TestRewriteResponse(t *testing.T) {
 	// TODO(r0mant): Implement this.
+	t.Skip("Not Implemented")
 }
 
 // TestSessionClose makes sure sessions are closed after the given session time period.
 func TestSessionClose(t *testing.T) {
 	// TODO(r0mant): Implement this.
+	t.Skip("Not Implemented")
 }
 
 // TestAWSConsoleRedirect verifies AWS management console access.
@@ -409,6 +428,99 @@ func TestAWSConsoleRedirect(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, location.String(), "https://signin.aws.amazon.com")
 	})
+}
+
+// TestRequestAuditEvent verifies that audit events regarding application access
+// are being generated with the correct metadata.
+// This test configures the server to record the session sync, meaning that the
+// events will be forwarded to the auth server. On the server-side, it defines a
+// CallbackStreamer, which is going to be used to "intercept" the
+// app.session.request events.
+func TestRequestAuditEvents(t *testing.T) {
+	testhttp := httptest.NewUnstartedServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
+	testhttp.Config.TLSConfig = &tls.Config{Time: clockwork.NewFakeClock().Now}
+	testhttp.Start()
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name:   "foo",
+		Labels: staticLabels,
+	}, types.AppSpecV3{
+		URI:           testhttp.URL,
+		PublicAddr:    "foo.example.com",
+		DynamicLabels: types.LabelsToV2(dynamicLabels),
+	})
+	require.NoError(t, err)
+
+	requestEventsReceived := atomic.NewUint64(0)
+	serverStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
+		Inner: events.NewDiscardEmitter(),
+		OnEmitAuditEvent: func(_ context.Context, _ libsession.ID, event apievents.AuditEvent) error {
+			if event.GetType() == events.AppSessionRequestEvent {
+				requestEventsReceived.Inc()
+
+				expectedEvent := &apievents.AppSessionRequest{
+					Metadata: apievents.Metadata{
+						Type: events.AppSessionRequestEvent,
+						Code: events.AppSessionRequestCode,
+					},
+					AppMetadata: apievents.AppMetadata{
+						AppURI:        app.Spec.URI,
+						AppPublicAddr: app.Spec.PublicAddr,
+						AppName:       app.Metadata.Name,
+					},
+					StatusCode: 200,
+					Method:     "GET",
+					Path:       "/",
+				}
+				require.Empty(t, cmp.Diff(
+					expectedEvent,
+					event,
+					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+					cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time"),
+					cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
+				))
+			}
+
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	s := SetUpSuiteWithConfig(t, suiteConfig{
+		ServerStreamer: serverStreamer,
+		Apps:           types.Apps{app},
+	})
+
+	// make a request to generate events.
+	s.checkHTTPResponse(t, s.clientCertificate, func(_ *http.Response) {
+		// wait until request events are generated before closing the server.
+		require.Eventually(t, func() bool {
+			return requestEventsReceived.Load() == 1
+		}, 500*time.Millisecond, 50*time.Millisecond, "app.request event not generated")
+	})
+
+	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.AppSessionChunkEvent}, 10, types.EventOrderDescending, "")
+	require.NoError(t, err)
+	require.Len(t, searchEvents, 1)
+
+	expectedEvent := &apievents.AppSessionChunk{
+		Metadata: apievents.Metadata{
+			Type: events.AppSessionChunkEvent,
+			Code: events.AppSessionChunkCode,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        app.Spec.URI,
+			AppPublicAddr: app.Spec.PublicAddr,
+			AppName:       app.Metadata.Name,
+		},
+	}
+	require.Empty(t, cmp.Diff(
+		expectedEvent,
+		searchEvents[0],
+		cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+		cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName"),
+		cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
+	))
 }
 
 // checkHTTPResponse checks expected HTTP response.
@@ -457,10 +569,8 @@ func (s *Suite) checkHTTPResponse(t *testing.T, clientCert tls.Certificate, chec
 	checkResp(resp)
 	require.NoError(t, resp.Body.Close())
 
-	// Context will close because of the net.Pipe, expect a context canceled
-	// error here.
-	err = s.appServer.Close()
-	require.NotNil(t, err)
+	// Close should not trigger an error.
+	require.NoError(t, s.appServer.Close())
 
 	// Wait for the application server to actually stop serving before
 	// closing the test. This will make sure the server removes the listeners

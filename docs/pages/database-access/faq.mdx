@@ -7,7 +7,7 @@ description: Frequently asked questions about Teleport Database Access.
 
 ## Which database protocols does Teleport Database Access support?
 
-Teleport Database Access currently supports PostgreSQL, MySQL, and MongoDB
+Teleport Database Access currently supports PostgreSQL, MySQL, MariaDB and MongoDB
 protocols.
 
 For PostgreSQL and MySQL, both self-hosted and cloud-hosted versions such as AWS
@@ -54,3 +54,25 @@ See if the database you're interested in has already been requested among
 [Github issues](https://github.com/gravitational/teleport/labels/database-access)
 or open a [new issue](https://github.com/gravitational/teleport/issues/new/choose)
 to register your interest.
+
+## Can I provide a custom CA certificate?
+
+Yes, you can pass custom CA certificate by using
+[configuration file](./reference/configuration.mdx#database-service-configuration)
+(look at `ca_cert_file`).
+
+## Can I provide a custom DNS name for Teleport generated CA?
+
+Yes, use `server_name` under `tls` section in configuration file. Please look on our
+reference [configuration file](./reference/configuration.mdx#database-service-configuration)
+for more details.
+
+## Can I disable CA verification when connecting to database?
+
+Yes, although is not recommended. Certificate verification prevents from man in the middle attack
+and makes sure that you are connected to the database that you intended to. Teleport also allows to
+provide a [custom CA certificate](#can-i-provide-a-custom-ca-certificate) or
+[custom DNS name](#can-i-provide-a-custom-dns-name-for-teleport-generated-ca) which is more secure.
+If none of the above options don't work for you and you still want to disable the CA check
+you can use `mode` under `tls` option in the Teleport configuration file. For more details please refer
+to the reference [configuration file](./reference/configuration.mdx#database-service-configuration).

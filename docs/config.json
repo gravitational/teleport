@@ -54,7 +54,15 @@
             { "title": "Scaling", "slug": "/setup/operations/scaling/" },
             { "title": "Upgrading", "slug": "/setup/operations/upgrading/" },
             { "title": "Backup and Restore", "slug": "/setup/operations/backup-restore/" },
-            { "title": "Cert Authority Rotation", "slug": "/setup/operations/ca-rotation/" }
+            { "title": "Cert Authority Rotation", "slug": "/setup/operations/ca-rotation/" },
+            { "title": "TLS Routing Migration", "slug": "/setup/operations/tls-routing/" }
+          ]
+        },
+        {
+          "title": "Security",
+          "slug": "/setup/security/",
+          "entries":[
+            {"title": "Reducing the Blast Radius of Attacks", "slug": "/setup/security/reduce-blast-radius/"}
           ]
         },
         {
@@ -183,7 +191,7 @@
             { "title": "GCP Cloud SQL MySQL", "slug": "/database-access/guides/mysql-cloudsql/" },
             { "title": "MongoDB Atlas", "slug": "/database-access/guides/mongodb-atlas/" },
             { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
-            { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
+            { "title": "Self-Hosted MySQL/MariaDB", "slug": "/database-access/guides/mysql-self-hosted/" },
             { "title": "Self-Hosted MongoDB", "slug": "/database-access/guides/mongodb-self-hosted/" },
             { "title": "Self-Hosted CockroachDB", "slug": "/database-access/guides/cockroachdb-self-hosted/" },
             { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" },
@@ -228,7 +236,7 @@
           "entries": [
             { "title": "Role Templates", "slug": "/access-controls/guides/role-templates/" },
             { "title": "Session Locking", "slug": "/access-controls/guides/locking/" },
-            { "title": "Second Factor - U2F", "slug": "/access-controls/guides/u2f/" },
+            { "title": "Second Factor - WebAuthn", "slug": "/access-controls/guides/webauthn/" },
             { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },
             { "title": "Dual Authorization", "slug": "/access-controls/guides/dual-authz/" },
             { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" }
@@ -296,13 +304,6 @@
       "entries": [
         { "title": "Introduction", "slug": "/cloud/introduction/" },
         { "title": "Getting Started", "slug": "/cloud/getting-started/" },
-        {
-          "title": "Guides",
-          "slug": "/cloud/guides/",
-          "entries": [
-            { "title": "U2f", "slug": "/cloud/guides/u2f/" }
-          ]
-        },
         { "title": "Architecture", "slug": "/cloud/architecture/" },
         { "title": "FAQ", "slug": "/cloud/faq/" }
       ]
@@ -316,7 +317,8 @@
         { "title": "Teleport Nodes", "slug": "/architecture/nodes/" },
         { "title": "Teleport Auth", "slug": "/architecture/authentication/" },
         { "title": "Teleport Proxy", "slug": "/architecture/proxy/" },
-        { "title": "Trusted Clusters", "slug": "/trustedclusters/" }
+        { "title": "Trusted Clusters", "slug": "/trustedclusters/" },
+        { "title": "TLS Routing", "slug": "/architecture/tls-routing/" }
       ]
     }
   ],

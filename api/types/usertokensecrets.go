@@ -146,7 +146,7 @@ func (u *UserTokenSecretsV3) setStaticFields() {
 }
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
-func (u UserTokenSecretsV3) CheckAndSetDefaults() error {
+func (u *UserTokenSecretsV3) CheckAndSetDefaults() error {
 	u.setStaticFields()
 	if err := u.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)

@@ -196,3 +196,11 @@ This message contains a mouse wheel update. Sent from client to server.
 `delta` is the signed scroll distance in pixels.
 - on vertical axis, positive `delta` is up, negative `delta` is down
 - on horizontal axis, positive `delta` is left, negative `delta` is right
+
+#### 9 - error
+
+```
+| message type (9) | message_length uint32 | message []byte
+```
+
+This message indicates an error has occurred.

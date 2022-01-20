@@ -200,6 +200,10 @@ type IdentityContext struct {
 
 	// ActiveRequests is active access request IDs
 	ActiveRequests []string
+
+	// DisallowReissue is a flag that, if set, instructs the auth server to
+	// deny any requests from this identity to generate new certificates.
+	DisallowReissue bool
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
