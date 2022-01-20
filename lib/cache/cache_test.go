@@ -96,6 +96,10 @@ func newPackForProxy(t *testing.T) *testPack {
 	return newTestPack(t, ForProxy)
 }
 
+func newPackForOldRemoteProxy(t *testing.T) *testPack {
+	return newTestPack(t, ForOldRemoteProxy)
+}
+
 func newPackForNode(t *testing.T) *testPack {
 	return newTestPack(t, ForNode)
 }
@@ -113,7 +117,7 @@ func newTestPackWithoutCache(t *testing.T) *testPack {
 }
 
 // newPackWithoutCache returns a new test pack without creating cache
-func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
+func newPackWithoutCache(dir string) (*testPack, error) {
 	ctx := context.Background()
 	p := &testPack{
 		dataDir: dir,
@@ -162,7 +166,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 // newPack returns a new test pack or fails the test on error
 func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
 	ctx := context.Background()
-	p, err := newPackWithoutCache(dir, opts...)
+	p, err := newPackWithoutCache(dir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -965,9 +969,9 @@ func TestClusterName(t *testing.T) {
 
 // TestClusterConfig tests cluster configuration
 // DELETE IN 8.0.0
-func (s *CacheSuite) TestClusterConfig(c *check.C) {
+func TestClusterConfig(t *testing.T) {
 	ctx := context.Background()
-	p := s.newPackForOldRemoteProxy(c)
+	p := newPackForOldRemoteProxy(t)
 	defer p.Close()
 
 	// Since changes to configuration-related resources trigger ClusterConfig events
@@ -978,61 +982,62 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 		for {
 			select {
 			case event := <-p.eventsC:
-				c.Assert(event.Type, check.Equals, EventProcessed)
+				require.Equal(t, EventProcessed, event.Type)
 				if event.Event.Resource.GetKind() == types.KindClusterConfig {
 					continue
 				}
-				c.Assert(event.Event.Resource.GetKind(), check.Equals, resourceKind)
+				require.Equal(t, resourceKind, event.Event.Resource.GetKind())
 				return
 			case <-timeC:
-				c.Fatalf("Timeout waiting for update to resource %v", resourceKind)
+				t.Fatalf("Timeout waiting for update to resource %v", resourceKind)
 			}
 		}
 	}
 
 	err := p.clusterConfigS.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	err = p.clusterConfigS.SetAuthPreference(ctx, types.DefaultAuthPreference())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	waitForEventIgnoreClusterConfig(types.KindClusterAuthPreference)
 
 	err = p.clusterConfigS.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 		AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	err = p.clusterConfigS.SetClusterAuditConfig(ctx, auditConfig)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	err = p.clusterConfigS.SetClusterName(clusterName)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	waitForEventIgnoreClusterConfig(types.KindClusterName)
 
 	err = p.clusterConfigS.SetClusterConfig(types.DefaultClusterConfig())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	clusterConfig, err := p.clusterConfigS.GetClusterConfig()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
-		c.Assert(event.Event.Resource.GetKind(), check.Equals, types.KindClusterConfig)
+		require.Equal(t, EventProcessed, event.Type)
+		require.Equal(t, types.KindClusterConfig, event.Event.Resource.GetKind())
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err := p.cache.GetClusterConfig()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	clusterConfig.SetResourceID(out.GetResourceID())
-	fixtures.DeepCompare(c, clusterConfig, out)
+
+	require.Empty(t, cmp.Diff(clusterConfig, out))
 }
 
 // TestNamespaces tests caching of namespaces
