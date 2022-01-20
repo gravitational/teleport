@@ -55,9 +55,17 @@ func (b *Bot) Check(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 
-		// TODO(russjones): Add override.
 		if err := b.checkTests(ctx); err != nil {
-			log.Printf("Check: Passed code review, but missing test coverage.")
+			message := "Passed code review, but missing test coverage."
+
+			log.Printf("Check: %v", message)
+			err := b.c.GitHub.CreateComment(ctx,
+				b.c.Environment.Organization,
+				b.c.Environment.Repository,
+				b.c.Environment.Number)
+			if err != nil {
+				log.Printf("Check: Failed to leave comment: %v.", err)
+			}
 			return trace.Wrap(err)
 		}
 		return nil
@@ -70,12 +78,15 @@ func (b *Bot) Check(ctx context.Context) error {
 }
 
 func (b *Bot) checkTests(ctx context.Context) error {
-	if b.c.Review.CheckAdmin() {
-		return nil
-	}
-	if hasTestCoverage() 
-}
+	//if b.c.Review.CheckAdmin() {
+	//	return nil
+	//}
+	//if !hasTestCoverage() {
 
+	//}
+
+	return nil
+}
 
 func (b *Bot) hasTestCoverage(ctx context.Context) error {
 	files, err := b.c.GitHub.ListFiles(ctx,
