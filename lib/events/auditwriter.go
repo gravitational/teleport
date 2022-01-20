@@ -563,8 +563,6 @@ func (a *AuditWriter) setupEvent(event apievents.AuditEvent) error {
 		return trace.Wrap(err)
 	}
 
-	// TODO(isaiah): Can this be deleted? Nothing in the codebase appears to be a SessionMetadataSetter
-	// grep -rn SetSessionID .
 	sess, ok := event.(SessionMetadataSetter)
 	if ok {
 		sess.SetSessionID(string(a.cfg.SessionID))

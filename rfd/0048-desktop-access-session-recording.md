@@ -3,7 +3,7 @@ authors: Zac Bergquist (zac@goteleport.com), Isaiah Becker-Mayer (isaiah@gotelep
 state: draft
 ---
 
-# RFD 0047 - Desktop Access: Session Recording
+# RFD 0048 - Desktop Access: Session Recording
 
 ## What
 
@@ -145,10 +145,8 @@ The `Message` field contains an artibrary TDP-encoded message, as defined in
 [RFD 0037](./0037-desktop-access-protocol.md). The vast majority of these events
 will contain TDP message 2 (PNG frame), but we will also capture:
 
-- message 1 - client screen spec: to know when the canvas needs to be resized
-  during playback
-- message 6 - clipboard data: to indicate when the clipboard was used in a
-  session
+- message 1 - client screen spec: to know the initial size of the screen
+- message 6 - clipboard data: to indicate when the clipboard was used
 - message 3 - mouse move
 - message 4 - mouse button
 
@@ -176,9 +174,17 @@ udpated:
   also filter out `DesktopRecordingEvent`s, as there will be a large number of
   these events and we don't want to clutter the global audit log with them.
 
+##### Recording Mode
+
 SSH session recording can operate in synchronous or asynchronous mode, and can
 be captured at the node or at the proxy, resulting in a total of 4 possible
 configurations.
+
+- `node`
+- `node-sync`
+- `proxy`
+- `proxy-sync`
+- `off`
 
 Synchronous recording mode emits each audit event directly to the audit log, and
 fails if an event can not be written. Asynchronous recording mode writes events
@@ -196,6 +202,17 @@ TDP protocol-aware (the Teleport Proxy service simply passes data between the
 browser and the Windows Desktop Service without attempting to decode or
 interpret the data in any way.)
 
+To summarize, desktop session recording will interpret the session recording
+configuration as follows:
+
+- `off` means don't record any desktop (or SSH) sessions under any circumstances
+- Both `node` and `proxy` result in desktop sessions recorded in async mode
+  (this is the recommended configuration). Sessions are only recorded if the
+  user has a role enabling desktop session recording.
+- Both `node-sync` and `proxy-sync` result in desktop sessions recorded
+  in sync mode. Sessions are only recorded if the user has a role enabling
+  desktop session recording.
+
 #### Playback
 
 The core component of the playback functionality is the `ProtoReader`, which reads
@@ -207,13 +224,24 @@ for session playback. The proxy will pull the session ID out of the URL, and use
 `StreamSessionEvents` to start receiving AuditEvents for the session. Since the
 desktop recording events contain a TDP message that is already encoded, the proxy
 simply needs to look at the event's delay, determine how long to wait, and then
-send the TDP message on the websocket. This process repeats until the events channel
+send the event on the websocket. This process repeats until the events channel
 is closed and there are no more events to send.
 
-To summarize, desktop session *recordings* are captured at the Windows Desktop
-Service, where live traffic is being translated between RDP and TDP. Desktop
-session *playback* is performed by the Teleport proxy, as playback doesn't
-require a connection to a Windows Desktop.
+Additionally, during playback mode, the Teleport proxy listens for JSON-encoded
+commands from the browser, with the format:
+
+```
+{ "action": "play/pause" }
+```
+
+The only supported action for the initial implementation will be `play/pause`.
+When told to pause, the Teleport proxy will stop streaming playback data to the
+browser, while maintaining the current position in the stream. When a subsequent
+action is received to resume playback, the proxy starts sending from where it
+left off.
+
+In the future, we may support additional actions to "seek" to a particular time
+in the stream or adjust the playback speed.
 
 ### Security
 
@@ -258,11 +286,15 @@ Desktop session recordings will appear in the web UI in the same "Session
 Recordings" page as SSH sessions. The existing search and filtering
 functionality will be applied to both types of recordings.
 
-An interesting UX consideration is screen sizes. At this time we are aiming to
-keep CPU intensive operations out of the critical path of recording, so
-recordings are always captured at the screen size of the live session. This
-means that attempting to view a session on a smaller screen than what it was
-recorded on may overflow the bounds of the screen. The initial implementation
-will make no attempts to scale the player to fit the screen, though this can be
-solved in the browser without changes to the backend should it become a problem.
+There is no translation of screen size during recording, so sessions are
+captured at the screen size of the live session. Since we capture the screen
+spec message, the player will scale the size of the canvas to fit the size of
+the screen needed for playback.
+
+This means that sessions will be viewable when played back on in a window that
+is larger or smaller than the original recorded screen size, and there are no
+concerns about the recording overflowing the bounds of the playback screen. It
+should be noted that smaller recordings played back in very large windows may
+appear to be of poor quality, similar to scaling a low resolution image on a
+high resolution display.
 
