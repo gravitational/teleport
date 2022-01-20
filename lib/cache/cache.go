@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -824,6 +825,13 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 
 	retry.Reset()
 
+	relativeExpiryInterval := interval.New(interval.Config{
+		Duration:      defaults.ServerAnnounceTTL / 2,
+		FirstDuration: utils.HalfJitter(defaults.ServerAnnounceTTL / 2),
+		Jitter:        utils.NewSeventhJitter(),
+	})
+	defer relativeExpiryInterval.Stop()
+
 	c.notify(c.ctx, Event{Type: WatcherStarted})
 
 	var lastStalenessWarning time.Time
@@ -836,6 +844,14 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
 		case <-c.ctx.Done():
 			return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
+		case <-relativeExpiryInterval.Next():
+			count, err := c.performRelativeNodeExpiry(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if count > 0 {
+				c.Debugf("Removed %d nodes via relative expiry.", count)
+			}
 		case event := <-watcher.Events():
 			// check for expired resources in OpPut events and log them periodically. stale OpPut events
 			// may be an indicator of poor performance, and can lead to confusing and inconsistent state
@@ -875,6 +891,66 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			c.notify(c.ctx, Event{Event: event, Type: EventProcessed})
 		}
 	}
+}
+
+// performRelativeNodeExpiry performs a special kind of active expiration where we remove nodes
+// which are clearly stale *relative* to ther more recently heartbeated counterparts. this
+// strategy lets us side-step the issue of clock drift or general cache staleness by only
+// removing items which are stale from within the cache's own "frame of reference". this is
+// necessary because some backends (notably dynamo) can take a *very* long time to emit expiry
+// events (>24 hours).
+//
+// *note*: this function is only sane to call when the cache and event stream are healthy, and
+// cannot run concurrently with event processing. this function injects additional events into
+// the outbound event stream.
+func (c *Cache) performRelativeNodeExpiry(ctx context.Context) (int, error) {
+	cutoff := defaults.ServerAnnounceTTL * 3
+
+	if c.target != "auth" {
+		return 0, nil
+	}
+
+	var latestExp time.Time
+
+	nodes, err := c.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	for _, node := range nodes {
+		if node.Expiry().IsZero() {
+			continue
+		}
+
+		if node.Expiry().After(latestExp) {
+			latestExp = node.Expiry()
+		}
+	}
+
+	if latestExp.IsZero() {
+		return 0, nil
+	}
+
+	var removed int
+	for _, node := range nodes {
+		if node.Expiry().IsZero() || latestExp.Sub(node.Expiry()) < cutoff {
+			continue
+		}
+
+		err = c.processEvent(ctx, types.Event{
+			Type: types.OpDelete,
+			Resource: &types.ResourceHeader{
+				Kind:     types.KindNode,
+				Metadata: node.GetMetadata(),
+			},
+		})
+		if err != nil {
+			return removed, trace.Wrap(err)
+		}
+		removed++
+	}
+
+	return removed, nil
 }
 
 func (c *Cache) watchKinds() []services.WatchKind {
