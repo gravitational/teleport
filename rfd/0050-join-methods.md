@@ -9,7 +9,8 @@ state: Draft
 
 There are multiple ways a node can get credentials for a Teleport cluster. This
 document describes the current node joining methods and details upcoming changes
-for the IAM join method (RFD 41) and Certificate Bot (RFD YY).
+for the IAM join method (RFD 41) and Certificate Bot
+(https://github.com/gravitational/teleport/pull/7986).
 
 ## Why
 
@@ -23,7 +24,8 @@ When "joining" a cluster, a Teleport node must authenticate itself using either
 a secret token or one of the new AWS join methods (EC2 or IAM method). If the
 node can successfully authenticate, the Auth server will return signed SSH and
 TLS certificates to the node for the requested role (Proxy, Node, Kubernetes,
-etc).
+etc). The token or AWS join method is only used once for the first-time connect
+and from that point on signed certificates are used.
 
 The joining node also needs to be able to trust that the Teleport cluster is
 authentic. It can do this by using CA pins configured on the node, in the case
@@ -58,12 +60,18 @@ Server trust: PKI
 This is the proxy endpoint for registering IoT nodes that don't have a direct connection to the auth server, it basically forwards to
 the Auth `/tokens/register` endpoint.
 
-### New IAM Join Method
-The IAM join method requires new gRPC methods because the design requires gRPC
-streams to implement a challenge/response protocol. A new gRPC method will be
-added on Auth and Proxy to support this. The client will be able to call the
-gRPC method with either a Proxy or Auth address and it will "just work"
-transparently.
+### IAM Join Method
+The IAM join method (introduced in RFD 41) requires gRPC methods rather than
+HTTP because the design requires streams to implement a challenge/response
+protocol. To summarize, after the client initiates the rpc the Auth server sends
+a crypto-random "challenge" string over the server->client stream. This
+challenge must be included in a signed `sts:GetCallerIdentity` request which
+will be sent on the client->server stream.  Finally, if everything checks out,
+the Auth server will send the signed certificates on the server->client stream.
+
+A new gRPC streaming method will be added on Auth and Proxy to support this. The
+client will be able to call the gRPC method with either a Proxy or Auth address
+and it will "just work" transparently.
 
 #### Auth `rpc RegisterUsingIAM(stream RegisterUsingIAMRequest) returns (stream RegisterUsingIAMResponse)`
 Join mathods: IAM
