@@ -19,7 +19,7 @@ package utils
 import (
 	"github.com/gravitational/teleport/lib/fixtures"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 )
 
 // UID provides an interface for generating unique identifiers.
@@ -38,7 +38,7 @@ func NewRealUID() UID {
 
 // New generates a new UUID4.
 func (u *realUID) New() string {
-	return uuid.New()
+	return uuid.New().String()
 }
 
 // fakeUID is a fake UID generator used in tests.

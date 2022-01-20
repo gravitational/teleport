@@ -17,11 +17,16 @@ limitations under the License.
 package tdp
 
 import (
+	"bufio"
+	"encoding/json"
 	"image"
 	"image/color"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,7 +56,7 @@ func TestEncodeDecode(t *testing.T) {
 		out, err := Decode(buf)
 		require.NoError(t, err)
 
-		require.Empty(t, cmp.Diff(m, out))
+		require.Empty(t, cmp.Diff(m, out, cmpopts.IgnoreUnexported(PNGFrame{})))
 	}
 }
 
@@ -59,4 +64,50 @@ func TestBadDecode(t *testing.T) {
 	// 254 is an unknown message type.
 	_, err := Decode([]byte{254})
 	require.Error(t, err)
+}
+
+var encodedFrame []byte
+
+func BenchmarkEncodePNG(b *testing.B) {
+	b.StopTimer()
+	frames := loadBitmaps(b)
+	b.StartTimer()
+	var err error
+	for i := 0; i < b.N; i++ {
+		fi := i % len(frames)
+		encodedFrame, err = frames[fi].Encode()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func loadBitmaps(b *testing.B) []PNGFrame {
+	b.Helper()
+
+	f, err := os.Open(filepath.Join("testdata", "png_frames.json"))
+	require.NoError(b, err)
+	defer f.Close()
+
+	enc := PNGEncoder()
+
+	var result []PNGFrame
+	type record struct {
+		Top, Left, Right, Bottom int
+		Pix                      []byte
+	}
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		var r record
+		require.NoError(b, json.Unmarshal(s.Bytes(), &r))
+
+		img := image.NewNRGBA(image.Rectangle{
+			Min: image.Pt(r.Left, r.Top),
+			Max: image.Pt(r.Right, r.Bottom),
+		})
+		copy(img.Pix, r.Pix)
+		result = append(result, NewPNG(img, enc))
+	}
+	require.NoError(b, s.Err())
+	return result
 }
