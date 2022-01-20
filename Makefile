@@ -729,14 +729,14 @@ enter:
 	make -C build.assets enter
 
 # grpc generates GRPC stubs from service definitions.
-# This target runs in the devbox container.
+# This target runs in the buildbox container.
 .PHONY: grpc
 grpc:
 	$(MAKE) -C build.assets grpc
 
-# devbox-grpc generates GRPC stubs
-.PHONY: devbox-grpc
-devbox-grpc:
+# buildbox-grpc generates GRPC stubs
+.PHONY: buildbox-grpc
+buildbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
 	$(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}' \

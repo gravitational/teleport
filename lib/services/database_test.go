@@ -22,11 +22,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/pborman/uuid"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -254,7 +254,7 @@ func TestIsRDSClusterSupported(t *testing.T) {
 			cluster := &rds.DBCluster{
 				DBClusterArn:        aws.String("arn:aws:rds:us-east-1:1234567890:cluster:test"),
 				DBClusterIdentifier: aws.String(test.name),
-				DbClusterResourceId: aws.String(uuid.New()),
+				DbClusterResourceId: aws.String(uuid.New().String()),
 				Engine:              aws.String(RDSEngineAuroraMySQL),
 				EngineMode:          aws.String(test.engineMode),
 				EngineVersion:       aws.String(test.engineVersion),

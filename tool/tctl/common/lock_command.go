@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -74,7 +74,7 @@ func (c *LockCommand) CreateLock(ctx context.Context, client auth.ClientI) error
 		return trace.Wrap(err)
 	}
 	c.spec.Expires = lockExpiry
-	lock, err := types.NewLock(uuid.New(), c.spec)
+	lock, err := types.NewLock(uuid.New().String(), c.spec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
