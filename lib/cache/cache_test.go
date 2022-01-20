@@ -40,8 +40,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -628,7 +628,7 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 
 	for i := 0; i < nodeCount; i++ {
 		func() {
-			server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 			_, err := p.presenceS.UpsertNode(ctx, server)
 			require.NoError(b, err)
 			timeout := time.NewTimer(time.Millisecond * 200)
@@ -671,7 +671,7 @@ func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
 
 	for i := 0; i < nodeCount; i++ {
 		func() {
-			server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 			_, err := p.presenceS.UpsertNode(ctx, server)
 			require.NoError(b, err)
 			timeout := time.NewTimer(time.Millisecond * 200)
@@ -745,7 +745,7 @@ func TestListNodesTTLVariant(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < nodeCount; i++ {
-		server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
 	}
@@ -1837,7 +1837,7 @@ func TestApplicationServers(t *testing.T) {
 	// Upsert app server into backend.
 	app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "localhost"})
 	require.NoError(t, err)
-	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 	require.NoError(t, err)
 
 	_, err = p.presenceS.UpsertApplicationServer(ctx, server)
@@ -2007,7 +2007,7 @@ func TestDatabaseServers(t *testing.T) {
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
 		Hostname: "localhost",
-		HostID:   uuid.New(),
+		HostID:   uuid.New().String(),
 	})
 	require.NoError(t, err)
 
