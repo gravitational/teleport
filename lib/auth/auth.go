@@ -280,7 +280,7 @@ var (
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      teleport.MetricRegisteredAgents,
-			Help:      "The number of Teleport agents with their version that have connected to the Teleport cluster. After disconnecting, a Teleport agent has a TTL of 10 minutes so this value will include agents that have recently disconnected but have not reached their TTL.",
+			Help:      "The number of Teleport servers (a server consists of one or more Teleport services) with their version that have connected to the Teleport cluster. After disconnecting, a Teleport server has a TTL of 10 minutes so this value will include servers that have recently disconnected but have not reached their TTL.",
 		},
 		[]string{teleport.TagVersion},
 	)
@@ -436,14 +436,14 @@ func (a *Server) runPeriodicOperations() {
 			// Update prometheus gauge
 			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 		case <-promTicker.C:
-			a.versionMetrics()
+			a.updateVersionMetrics()
 		}
 	}
 }
 
-// versionMetrics leverages the cache to report all agents/proxies/auth servers connected to the
-// teleport cluster via prometheus metrics
-func (a *Server) versionMetrics() {
+// updateVersionMetrics leverages the cache to report all versions of teleport servers connected to the
+// cluster via prometheus metrics
+func (a *Server) updateVersionMetrics() {
 	hostID := make(map[string]struct{})
 	versionCount := make(map[string]int)
 
