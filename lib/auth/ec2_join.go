@@ -25,8 +25,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
@@ -62,12 +63,6 @@ func ec2ClientFromConfig(ctx context.Context, cfg aws.Config) ec2Client {
 	return ec2.NewFromConfig(cfg)
 }
 
-// NodeIDFromIID returns the node ID that must be used for nodes joining with
-// the given Instance Identity Document.
-func NodeIDFromIID(iid *imds.InstanceIdentityDocument) string {
-	return iid.AccountID + "-" + iid.InstanceID
-}
-
 // checkEC2AllowRules checks that the iid matches at least one of the allow
 // rules of the given token.
 func checkEC2AllowRules(ctx context.Context, iid *imds.InstanceIdentityDocument, provisionToken types.ProvisionToken) error {
@@ -81,7 +76,7 @@ func checkEC2AllowRules(ctx context.Context, iid *imds.InstanceIdentityDocument,
 		}
 		// If this rule specifies any AWS regions, the IID must match one of them
 		if len(rule.AWSRegions) > 0 {
-			if !utils.SliceContainsStr(rule.AWSRegions, iid.Region) {
+			if !apiutils.SliceContainsStr(rule.AWSRegions, iid.Region) {
 				continue
 			}
 		}
@@ -265,7 +260,7 @@ func dbExists(ctx context.Context, presence services.Presence, hostID string) (b
 // role.
 func (a *Server) checkInstanceUnique(ctx context.Context, req RegisterUsingTokenRequest, iid *imds.InstanceIdentityDocument) error {
 	requestedHostID := req.HostID
-	expectedHostID := NodeIDFromIID(iid)
+	expectedHostID := utils.NodeIDFromIID(iid)
 	if requestedHostID != expectedHostID {
 		return trace.AccessDenied("invalid host ID %q, expected %q", requestedHostID, expectedHostID)
 	}

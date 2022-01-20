@@ -14,22 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package service
+package utils
 
 import (
 	"context"
 	"io"
-
-	"github.com/gravitational/teleport/lib/auth"
+	"regexp"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/gravitational/trace"
 )
 
-// getEC2IdentityDocument fetches the PKCS7 RSA2048 InstanceIdentityDocument
+// GetEC2IdentityDocument fetches the PKCS7 RSA2048 InstanceIdentityDocument
 // from the IMDS for this EC2 instance.
-func getEC2IdentityDocument() ([]byte, error) {
+func GetEC2IdentityDocument() ([]byte, error) {
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -51,9 +50,9 @@ func getEC2IdentityDocument() ([]byte, error) {
 	return iidBytes, nil
 }
 
-// getEC2NodeID returns the node ID to use for this EC2 instance when using
+// GetEC2NodeID returns the node ID to use for this EC2 instance when using
 // Simplified Node Joining.
-func getEC2NodeID() (string, error) {
+func GetEC2NodeID() (string, error) {
 	// fetch the raw IID
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
@@ -64,5 +63,24 @@ func getEC2NodeID() (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return auth.NodeIDFromIID(&output.InstanceIdentityDocument), nil
+	return NodeIDFromIID(&output.InstanceIdentityDocument), nil
+}
+
+// EC2 Node IDs are {AWS account ID}-{EC2 resource ID} eg:
+//   123456789012-i-1234567890abcdef0
+// AWS account ID is always a 12 digit number, see
+//   https://docs.aws.amazon.com/general/latest/gr/acct-identifiers.html
+// EC2 resource ID is i-{8 or 17 hex digits}, see
+//   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
+var ec2NodeIDRE = regexp.MustCompile("^[0-9]{12}-i-[0-9a-f]{8,}$")
+
+// IsEC2NodeID returns true if the given ID looks like an EC2 node ID
+func IsEC2NodeID(id string) bool {
+	return ec2NodeIDRE.MatchString(id)
+}
+
+// NodeIDFromIID returns the node ID that must be used for nodes joining with
+// the given Instance Identity Document.
+func NodeIDFromIID(iid *imds.InstanceIdentityDocument) string {
+	return iid.AccountID + "-" + iid.InstanceID
 }
