@@ -65,7 +65,7 @@ func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity,
 	s.emit(ctx, event)
 }
 
-func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, startedAt time.Time, recConfig types.SessionRecordingConfig, windowsUser, sessionID string, desktop types.WindowsDesktop) {
+func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, startedAt time.Time, recorded bool, windowsUser, sessionID string, desktop types.WindowsDesktop) {
 	event := &events.WindowsDesktopSessionEnd{
 		Metadata: events.Metadata{
 			Type:        libevents.WindowsDesktopSessionEndEvent,
@@ -89,7 +89,7 @@ func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, s
 		StartTime:             startedAt,
 		EndTime:               s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		DesktopName:           desktop.GetName(),
-		SessionRecording:      recConfig.GetMode(),
+		Recorded:              recorded,
 	}
 	s.emit(ctx, event)
 }
