@@ -171,7 +171,7 @@ Sometimes the UI will format a field to be displayed differently ie: if a server
 
 ### Client: tsh and tctl
 
-Tables below are listing of current pagination + filter support. Methods with `ListXXX` supports pagination and filter, while `GetXXX` does not (it retrieves entire list).
+Tables below are listing of current pagination + filter support. Methods with `ListXXX` supports pagination and filter, while `GetXXX` does not.
 
 | tctl  | Method Used Currently | Current Query Language |
 |-------|-----------------------|------------------------|
@@ -198,10 +198,10 @@ Fallbacks will be used when we switch from `ListNodes` and `GetXXX` to `ListReso
 
 `tsh` will keep the current behavior where it can define simple label query without any flags, in addition:
 
-| Long flag | Description    | Example                                 |
-|-----------|----------------|-----------------------------------------|
-| --query   | resource query | `tsh ls --query='labels.env == "prod"'` |
-| --search  | fuzzy search   | `tsh ls --search=foo,bar,"some phrase"` |
+| Long flag | Description                                                  | Example                                                       |
+|-----------|--------------------------------------------------------------|---------------------------------------------------------------|
+| --query   | resource query that has<br>to be wrapped in single<br>quotes | `tsh ls --query='labels.env == "prod" && labels.os == "mac"'` |
+| --search  | fuzzy search                                                 | `tsh ls --search=foo,bar,"some phrase"`                       |
 
 <br/>
 
@@ -263,25 +263,25 @@ According to [rfc 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-3.
 
 **Examples**
 
-| Bookmarkable Query Examples | Description                                           |
-|-----------------------------|-------------------------------------------------------|
-| `?query=<encoded string>`   |                                                       |
-| `?search=foo+bar+baz`       | rows contain search values `foo`, `bar` and `baz`     |
-| `?sort=hostname:desc`       | rows sorted by column `hostname`in `descending` order |
+| Query                                        | URL                                                                                       | Description                                                |
+|----------------------------------------------|-------------------------------------------------------------------------------------------|------------------------------------------------------------|
+| `labels.env == "prod" && labels.os == "mac"` | ?query=labels.env%20%3D%3D%20%22prod<br>%22%20%26%26%20labels.os%20%3D%3D<br>%20%22mac%22 | rows with label `env=prod` and `os=mac`                    |
+| `env prod "some phrase"`                     | ?search=env+prod+%22some%20phrase%22                                                      | rows contain search values `env`, `prod` and `some phrase` |
+| User clicks on sort buttons on table         | ?sort=hostname:desc                                                                       | rows sorted by column `hostname`in `descending` order      |
 
 <br/>
 
 **Complete URL Example:**
 
 ```
-https://cloud.dev/v1/webapi/sites/clusterName/nodes?query=<some-query>&sort=hostname:desc
+https://cloud.dev/web/cluster/some-cluster-name/nodes?query=labels.env%20%3D%3D%20%22prod%22%20%26%26%20labels.os%20%3D%3D%20%22mac%22&sort=hostname:desc
 
-// Makes request to an endpoint `/webapi/sites/:site/resources/:resourceType?limit=50&startKey=abc&query=<some-query>&sort=hostname:desc`
+// Makes request to an endpoint `/webapi/sites/:site/resources/:resourceType?limit=50&startKey=abc&query=labels.env%20%3D%3D%20%22prod%22%20%26%26%20labels.os%20%3D%3D%20%22mac%22&sort=hostname:desc`
 // And extract the following from url query params and sent to auth server:
 
 - Limit: 50
-- StartKey: abc
-- Query: some-query (unencoded)
+- StartKey: `abc`
+- Query: `labels.env == "prod" && labels.os == "mac"` (unencoded)
 - Sort: {col: `hostname`, dir: `desc`}
 ```
 
