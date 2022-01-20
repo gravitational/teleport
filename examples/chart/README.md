@@ -1,1 +1,1 @@
-When using a Teleport provided values.yaml file from one of the above Helm Charts with a Helm Chart from the Teleport Helm Repo, please ensure you are on the most recent major release branch. (e.g. branch/v8). Using a values.yaml from the master branch may cause compatability issues. 
+When using a Teleport provided `values.yaml` file from one of the above Helm Charts with a Helm Chart from the Teleport Helm Repo, please ensure you are on the most recent major release branch. (e.g. `branch/v8`). Using a `values.yaml` from the master branch may cause compatibility issues. 
