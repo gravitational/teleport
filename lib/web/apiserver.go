@@ -414,7 +414,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*WebAPIHandler, error) {
 	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.desktopConnectHandle))
 
 	// TODO(zmb3): update this testing endpoint with the real playback endpoint
-	h.GET("/webapi/sites/:site/desktopplaybacktest/:session", h.WithAuth(h.desktopPlaybackHandle))
+	h.GET("/webapi/sites/:site/desktopPlayback/:sid", h.WithAuth(h.desktopPlaybackHandle))
 
 	// if Web UI is enabled, check the assets dir:
 	var indexPage *template.Template

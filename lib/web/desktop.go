@@ -18,6 +18,7 @@ package web
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
 	"math/rand"
 	"net"
@@ -173,13 +174,22 @@ func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
 	return trace.NewAggregate(retErrs...)
 }
 
+// playbackAction is a message passed from the playback client
+// to the server over the websocket connection.
+type playbackAction struct {
+	// Action is one of "play" | "pause" | "move"
+	Action string `json:"action"`
+	// Data is an optional field for arbitrary data
+	Data string `json:"data"`
+}
+
 func (h *Handler) desktopPlaybackHandle(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
 	ctx *SessionContext,
 ) (interface{}, error) {
-	sID := p.ByName("session")
+	sID := p.ByName("sid")
 	if sID == "" {
 		return nil, trace.BadParameter("missing session in request URL")
 	}
@@ -191,6 +201,11 @@ func (h *Handler) desktopPlaybackHandle(
 		var lastDelay int64
 		eventsC, errC := ctx.clt.StreamSessionEvents(r.Context(), session.ID(sID), 0)
 		for {
+			fmt.Println("BEFORE websocket.JSON.Receive(ws, &playbackAction)")
+			playbackAction := playbackAction{}
+			websocket.JSON.Receive(ws, &playbackAction)
+			fmt.Println("AFTER websocket.JSON.Receive(ws, &playbackAction)")
+
 			select {
 			case err := <-errC:
 				h.log.WithError(err).Errorf("streaming session %v", sID)
