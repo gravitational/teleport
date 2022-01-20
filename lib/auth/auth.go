@@ -279,7 +279,7 @@ var (
 	registeredAgents = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
-			Name:      teleport.MetricRegisteredAgents,
+			Name:      teleport.MetricRegisteredServers,
 			Help:      "The number of Teleport servers (a server consists of one or more Teleport services) with their version that have connected to the Teleport cluster. After disconnecting, a Teleport server has a TTL of 10 minutes so this value will include servers that have recently disconnected but have not reached their TTL.",
 		},
 		[]string{teleport.TagVersion},
