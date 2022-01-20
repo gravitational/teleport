@@ -478,9 +478,14 @@ func TestAccessMongoDB(t *testing.T) {
 	// Execute each scenario on both modern and legacy Mongo servers
 	// to make sure legacy messages are also subject to RBAC.
 	for _, test := range tests {
+		test := test
 		for _, serverOpt := range serverOpts {
+			serverOpt := serverOpt
 			for _, clientOpt := range clientOpts {
+				clientOpt := clientOpt
 				t.Run(fmt.Sprintf("%v/%v/%v", serverOpt.name, clientOpt.name, test.desc), func(t *testing.T) {
+					t.Parallel()
+
 					testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo", serverOpt.opts...))
 					go testCtx.startHandlingConnections()
 
