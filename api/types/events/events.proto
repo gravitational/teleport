@@ -651,6 +651,20 @@ message AccessRequestCreate {
     string ProposedState = 11 [ (gogoproto.jsontag) = "proposed_state,omitempty" ];
 }
 
+// AccessRequestDelete is emitted when an access request has been deleted.
+message AccessRequestDelete {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // User is a common user event metadata
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // RequestID is access request ID
+    string RequestID = 3 [ (gogoproto.jsontag) = "id" ];
+}
+
 // PortForward is emitted when a user requests port forwarding.
 message PortForward {
     // Metadata is a common event metadata
@@ -1319,6 +1333,7 @@ message OneOf {
         events.BillingInformationUpdate BillingInformationUpdate = 46;
         events.BillingCardCreate BillingCardCreate = 47;
         events.BillingCardDelete BillingCardDelete = 48;
+        events.AccessRequestDelete AccessRequestDelete = 66;
     }
 }
 
