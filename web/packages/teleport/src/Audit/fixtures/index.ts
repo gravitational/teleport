@@ -837,6 +837,33 @@ export const events = [
     windows_domain: 'desktopaccess.com',
     windows_user: 'Administrator',
   },
+  {
+    'addr.local': '192.000.0.000:3022',
+    'addr.remote': '127.0.0.1:50000',
+    cluster_name: 'im-a-cluster-name',
+    code: 'T3008I',
+    ei: 0,
+    event: 'x11-forward',
+    login: 'root',
+    success: true,
+    time: '2022-01-20T18:31:45.012Z',
+    uid: '6333-37a7-4c3c-9180-f3abc8e2b',
+    user: 'lisa',
+  },
+  {
+    'addr.local': '192.000.0.000:3022',
+    'addr.remote': '127.0.0.1:60000',
+    cluster_name: 'im-a-cluster-name',
+    code: 'T3008W',
+    ei: 0,
+    error: 'lisa was here',
+    event: 'x11-forward',
+    login: 'root',
+    success: false,
+    time: '2022-01-20T19:49:02.307Z',
+    uid: '0629c7-3d98-4451-ac90-dc5330',
+    user: 'lisa',
+  },
 ].map(makeEvent);
 
 export const eventsSample = [

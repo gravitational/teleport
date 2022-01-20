@@ -511,6 +511,18 @@ export const formatters: Formatters = {
     format: ({ user, windows_domain, desktop_addr, windows_user }) =>
       `Session for Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}] has ended for user [${user}]`,
   },
+  [eventCodes.X11_FORWARD]: {
+    type: 'x11-forward',
+    desc: 'X11 Forwarding Requested',
+    format: ({ user }) =>
+      `User [${user}] has requested x11 forwarding for a session`,
+  },
+  [eventCodes.X11_FORWARD_FAILURE]: {
+    type: 'x11-forward',
+    desc: 'X11 Forwarding Request Failed',
+    format: ({ user }) =>
+      `User [${user}] was denied x11 forwarding for a session`,
+  },
 };
 
 const unknownFormatter = {

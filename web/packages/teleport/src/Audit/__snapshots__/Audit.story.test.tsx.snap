@@ -339,12 +339,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            60
+            62
           </strong>
            of
            
           <strong>
-            60
+            62
           </strong>
         </div>
         <button
@@ -402,6 +402,76 @@ exports[`list of all events 1`] = `
       </tr>
     </thead>
     <tbody>
+      <tr>
+        <td>
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-info_outline c7 c12"
+              color="light"
+              font-size="3"
+            />
+            X11 Forwarding Request Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [lisa] was denied x11 forwarding for a session
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-01-20 19:49:02
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-info_outline c7 c12"
+              color="light"
+              font-size="3"
+            />
+            X11 Forwarding Requested
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [lisa] has requested x11 forwarding for a session
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-01-20 18:31:45
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
       <tr>
         <td>
           <div

@@ -103,6 +103,8 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.RECOVERY_CODE_USED]: Icons.VpnKey,
   [eventCodes.RECOVERY_CODE_USED_FAILURE]: Icons.VpnKey,
   [eventCodes.PRIVILEGE_TOKEN_CREATED]: Icons.Info,
+  [eventCodes.X11_FORWARD]: Icons.Info,
+  [eventCodes.X11_FORWARD_FAILURE]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event, clusterId: string) {
