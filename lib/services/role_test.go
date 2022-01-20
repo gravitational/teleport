@@ -3605,8 +3605,33 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 		wantGroups    []string
 	}{
 		{
-			name:       "empty kube labels should returns all kube users/groups",
-			roles:      RoleSet{roleA, roleB},
+			name: "empty kube labels should returns all kube users/groups",
+			roles: RoleSet{
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "role-dev", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubeUsers:  []string{"dev-user"},
+							KubeGroups: []string{"system:masters"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"*": []string{"*"},
+							},
+						},
+					},
+				},
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "role-prod", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubeUsers:  []string{"limited-user"},
+							KubeGroups: []string{"limited"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"*": []string{"*"},
+							},
+						},
+					},
+				},
+			},
 			wantUsers:  []string{"dev-user", "limited-user"},
 			wantGroups: []string{"limited", "system:masters"},
 		},
@@ -3670,6 +3695,10 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 		},
 		{
 			name: "deny access with system:masters kube group",
+			kubeResLabels: map[string]string{
+				"env":     "prod",
+				"release": "test",
+			},
 			roles: RoleSet{
 				&types.RoleV4{
 					Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
@@ -3678,7 +3707,8 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 							KubeGroups: []string{"system:masters", "groupA"},
 							KubeUsers:  []string{"dev-user"},
 							KubernetesLabels: map[string]apiutils.Strings{
-								"env": []string{"prod"},
+								"env":     []string{"prod"},
+								"release": []string{"test"},
 							},
 						},
 					},
@@ -3689,7 +3719,7 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 						Deny: types.RoleConditions{
 							KubeGroups: []string{"system:masters"},
 							KubernetesLabels: map[string]apiutils.Strings{
-								types.Wildcard: []string{types.Wildcard},
+								"env": []string{"prod"},
 							},
 						},
 					},

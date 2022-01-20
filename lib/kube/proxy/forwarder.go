@@ -619,7 +619,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 func (f *Forwarder) getKubeGroupsAndUsers(
 	roles services.AccessChecker,
 	kubeClusterName string,
-	sessionTTL time.Duration) (groups []string, users []string, err error) {
+	sessionTTL time.Duration) (groups, users []string, err error) {
 
 	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
 	if err != nil {

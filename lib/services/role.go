@@ -1051,7 +1051,7 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, 
 		}
 	}
 	for _, role := range set {
-		ok, err := RoleMatchers(matchers).MatchAll(role, types.Deny)
+		ok, _, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -1552,12 +1552,8 @@ func NewKubernetesClusterLabelMatcher(clustersLabels map[string]string) RoleMatc
 
 // Match matches a Kubernetes cluster labels against a role.
 func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
-	if len(l.clusterLabels) == 0 {
-		// If a kubernetes cluster doesn't have any labels match the role.
-		return true, nil
-	}
 	ok, _, err := MatchLabels(role.GetKubernetesLabels(typ), l.clusterLabels)
-	return ok, err
+	return ok, trace.Wrap(err)
 }
 
 // AccessCheckable is the subset of types.Resource required for the RBAC checks.
