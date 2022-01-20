@@ -259,8 +259,7 @@ func RunCommand() (io.Writer, int, error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 
-		// Update localUser's xauth database to include the xauth
-		// entry expected for x11 forwarding.
+		// Update localUser's xauth database for x11 forwarding.
 		removeCmd := x11.NewXAuthCommand(context.Background(), "")
 		addCmd := x11.NewXAuthCommand(context.Background(), "")
 
@@ -283,11 +282,10 @@ func RunCommand() (io.Writer, int, error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 
-		// Set $DISPLAY so that XServer requests are sent to the X11 socket opened above.
+		// Set $DISPLAY so that xserver requests forwarded to the x11 unix listener.
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", x11.DisplayEnv, c.X11Config.XAuthEntry.Display))
 
-		// Write a single byte to signal since Close
-		// only closes the fd, not the underlying pipe.
+		// Write a single byte to signal to the parent process that x11 forwarding is set up.
 		if _, err := x11rdyfd.Write([]byte{0}); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}

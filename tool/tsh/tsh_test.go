@@ -674,8 +674,6 @@ func TestOptions(t *testing.T) {
 			assertError: require.NoError,
 			outOptions: Options{
 				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentNo,
-				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 				ForwardX11Trusted:     true,
 			},
@@ -686,8 +684,6 @@ func TestOptions(t *testing.T) {
 			assertError: require.NoError,
 			outOptions: Options{
 				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentNo,
-				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 				ForwardX11Trusted:     true,
 			},
@@ -719,7 +715,6 @@ func TestOptions(t *testing.T) {
 			outOptions: Options{
 				AddKeysToAgent:        true,
 				ForwardAgent:          client.ForwardAgentYes,
-				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 				ForwardX11Trusted:     true,
 			},
@@ -731,7 +726,6 @@ func TestOptions(t *testing.T) {
 			outOptions: Options{
 				AddKeysToAgent:        true,
 				ForwardAgent:          client.ForwardAgentNo,
-				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 				ForwardX11Trusted:     true,
 			},
@@ -743,7 +737,6 @@ func TestOptions(t *testing.T) {
 			outOptions: Options{
 				AddKeysToAgent:        true,
 				ForwardAgent:          client.ForwardAgentLocal,
-				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 				ForwardX11Trusted:     true,
 			},
@@ -754,14 +747,13 @@ func TestOptions(t *testing.T) {
 			assertError: require.Error,
 			outOptions:  Options{},
 		},
+		// ForwardX11 tests
 		{
 			desc:        "Forward X11",
 			inOptions:   []string{"ForwardX11 yes"},
 			assertError: require.NoError,
 			outOptions: Options{
 				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentNo,
-				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 				ForwardX11:            true,
 				ForwardX11Trusted:     true,
@@ -773,8 +765,6 @@ func TestOptions(t *testing.T) {
 			assertError: require.NoError,
 			outOptions: Options{
 				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentNo,
-				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 				ForwardX11:            false,
 				ForwardX11Trusted:     true,
@@ -786,33 +776,65 @@ func TestOptions(t *testing.T) {
 			assertError: require.Error,
 			outOptions:  Options{},
 		},
+		// ForwardX11Trusted tests
 		{
-			desc:        "Forward X11",
+			desc:        "Forward X11 Trusted",
 			inOptions:   []string{"ForwardX11Trusted yes"},
 			assertError: require.NoError,
 			outOptions: Options{
 				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentNo,
-				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 				ForwardX11Trusted:     true,
 			},
 		},
 		{
-			desc:        "Forward X11",
+			desc:        "Forward X11 Trusted",
 			inOptions:   []string{"ForwardX11Trusted no"},
 			assertError: require.NoError,
 			outOptions: Options{
 				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentNo,
-				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 				ForwardX11Trusted:     false,
 			},
 		},
 		{
-			desc:        "Forward X11 InvalidValue",
+			desc:        "Forward X11 Trusted InvalidValue",
 			inOptions:   []string{"ForwardX11Trusted potato"},
+			assertError: require.Error,
+			outOptions:  Options{},
+		},
+		// ForwardX11Trusted tests
+		{
+			desc:        "Forward X11 Timeout",
+			inOptions:   []string{"ForwardX11Timeout 10"},
+			assertError: require.NoError,
+			outOptions: Options{
+				AddKeysToAgent:        true,
+				StrictHostKeyChecking: true,
+				ForwardX11Trusted:     true,
+				ForwardX11Timeout:     10,
+			},
+		},
+		{
+			desc:        "Forward X11 Timeout",
+			inOptions:   []string{"ForwardX11Timeout 0"},
+			assertError: require.NoError,
+			outOptions: Options{
+				AddKeysToAgent:        true,
+				StrictHostKeyChecking: true,
+				ForwardX11Trusted:     true,
+				ForwardX11Timeout:     0,
+			},
+		},
+		{
+			desc:        "Forward X11 Timeout InvalidValue",
+			inOptions:   []string{"ForwardX11Timeout -1"},
+			assertError: require.Error,
+			outOptions:  Options{},
+		},
+		{
+			desc:        "Forward X11 Timeout InvalidValue",
+			inOptions:   []string{"ForwardX11Timeout potato"},
 			assertError: require.Error,
 			outOptions:  Options{},
 		},
@@ -822,11 +844,7 @@ func TestOptions(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			options, err := parseOptions(tt.inOptions)
 			tt.assertError(t, err)
-
-			require.Equal(t, tt.outOptions.AddKeysToAgent, options.AddKeysToAgent)
-			require.Equal(t, tt.outOptions.ForwardAgent, options.ForwardAgent)
-			require.Equal(t, tt.outOptions.RequestTTY, options.RequestTTY)
-			require.Equal(t, tt.outOptions.StrictHostKeyChecking, options.StrictHostKeyChecking)
+			require.Equal(t, tt.outOptions, options)
 		})
 	}
 }

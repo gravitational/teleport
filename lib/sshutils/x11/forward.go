@@ -2,8 +2,6 @@ package x11
 
 import (
 	"context"
-	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -48,7 +46,8 @@ type ServerConfig struct {
 // ForwardRequestPayload according to http://www.ietf.org/rfc/rfc4254.txt
 type ForwardRequestPayload struct {
 	// SingleConnection determines whether any connections will be forwarded
-	// after the first connection, or after the session is closed.
+	// after the first connection, or after the session is closed. In OpenSSH
+	// and Teleport SSH clients, SingleConnection is always set to false.
 	SingleConnection bool
 	// AuthProtocol is the name of the X11 authentication protocol being used.
 	AuthProtocol string
@@ -72,17 +71,16 @@ type X11ChannelRequestPayload struct {
 // authProto and authCookie are required to set up authentication with the Server. screenNumber is used
 // by the server to determine which screen should be connected to for x11 forwarding. singleConnection is
 // an optional argument to request x11 forwarding for a single connection.
-func RequestX11Forwarding(sess *ssh.Session, display, authProto, authCookie string, singleConnection bool) error {
+func RequestX11Forwarding(sess *ssh.Session, display, authProto, authCookie string) error {
 	_, _, screenNumber, err := parseDisplay(display)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	payload := ForwardRequestPayload{
-		SingleConnection: singleConnection,
-		AuthProtocol:     authProto,
-		AuthCookie:       authCookie,
-		ScreenNumber:     uint32(screenNumber),
+		AuthProtocol: authProto,
+		AuthCookie:   authCookie,
+		ScreenNumber: uint32(screenNumber),
 	}
 
 	ok, err := sess.SendRequest(sshutils.X11ForwardRequest, true, ssh.Marshal(payload))
@@ -135,125 +133,22 @@ func OpenNewXServerListener(displayOffset int, screen uint32) (net.Listener, str
 	return nil, "", trace.LimitExceeded("No more x11 sockets are available")
 }
 
-// ForwardToX11Channel begins x11 forwarding between the given
-// XServer connection and a new x11 channel.
-func ForwardToX11Channel(conn net.Conn, sc *ssh.ServerConn) error {
-	originHost, originPort, err := net.SplitHostPort(sc.LocalAddr().String())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	originPortI, err := strconv.Atoi(originPort)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	x11ChannelReq := X11ChannelRequestPayload{
-		OriginatorAddress: originHost,
-		OriginatorPort:    uint32(originPortI),
-	}
-
-	sch, _, err := sc.OpenChannel(sshutils.X11ChannelRequest, ssh.Marshal(x11ChannelReq))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer sch.Close()
-
-	// copy data between the X11 channel and the XServer conn
-	ForwardIO(sch, conn)
-	return nil
-}
-
-// ForwardToXDisplay opens up an x11 channel listener and serves any channel
-// requests by beginning X11Forwarding between the channel and given display.
-// the x11 channel's initial auth packet is scanned for the given fakeCookie.
-// If the cookie is present, it will be replaced with the real cookie.
-// Otherwise, an access denied error will be returned.
-func ForwardToXDisplay(sch ssh.Channel, display, authProto, fakeCookie, realCookie string) error {
-	conn, err := dialDisplay(display)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	if err := scanAndReplaceXAuthData(sch, conn, authProto, fakeCookie, realCookie); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// copy data between the X11 channel and the XClient conn
-	ForwardIO(sch, conn)
-	return nil
-}
-
-// scanAndReplaceXAuthData reads the initial xauth packet from the x11 channel. The xauth packet has 2 parts:
-//  1. fixed size buffer (12 bytes) - holds byteOrder bit, and the sizes of the protocol string and auth data
-//  2. variable size xauth packet - holds xauth protocol and data used to connect to the remote XServer.
-//
-// Then it compares the received auth packet with the auth proto and fake cookie sent to the server with the original "x11-req".
-// If the data matches, the fake cookie is replaced with the real cookie to provide access to the client's X display.
-func scanAndReplaceXAuthData(sch ssh.Channel, conn net.Conn, authProto, fakeCookie, realCookie string) error {
-	// xauth packet starts with a fixed sized buffer of 12 bytes
-	// which is used to size and decode the remaining bytes
-	initBufSize := 12
-	initBuf := make([]byte, initBufSize)
-	if _, err := io.ReadFull(sch, initBuf); err != nil {
-		return trace.Wrap(err, "x11 channel initial packet buffer missing or too short")
-	}
-
-	var protoLen, dataLen int
-	switch byteOrder := initBuf[0]; byteOrder {
-	///* Byte order MSB first. */
-	case 0x42:
-		protoLen = int(binary.BigEndian.Uint16(initBuf[6:8]))
-		dataLen = int(binary.BigEndian.Uint16(initBuf[8:10]))
-	///* Byte order LSB first. */
-	case 0x6c:
-		protoLen = int(binary.LittleEndian.Uint16(initBuf[6:8]))
-		dataLen = int(binary.LittleEndian.Uint16(initBuf[8:10]))
-	default:
-		return trace.Errorf("x11 channel auth packet has invalid byte order: ", byteOrder)
-	}
-
-	authPacketSize := protoLen + dataLen + ((protoLen + 2*protoLen%4) % 4)
-	authPacket := make([]byte, authPacketSize)
-	if _, err := io.ReadFull(sch, authPacket); err != nil {
-		return trace.Wrap(err, "x11 channel auth packet missing or too short")
-	}
-
-	proto := authPacket[:protoLen]
-	data := authPacket[len(authPacket)-dataLen:]
-	if string(proto) != authProto || hex.EncodeToString(data) != fakeCookie {
-		return trace.AccessDenied("x11 channel uses different authentication from what client provided")
-	}
-
-	realAuthData, err := hex.DecodeString(realCookie)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Replace auth data with the real auth data and write to conn
-	for i := 0; i < len(data); i++ {
-		data[i] = realAuthData[i]
-	}
-
-	_, err = conn.Write(append(initBuf, authPacket...))
-	return trace.Wrap(err)
-}
-
-// ForwardIO forwards io data bidirectionally between an x11 channel and the other end of
-// the x11 forwarding connection (XServer, XClient, or another x11 channel)
-func ForwardIO(sch ssh.Channel, conn io.ReadWriteCloser) {
+// Forward begins x11 forwarding between an xserver connection and an x11 channel.
+// The xserver connection may be a direct xserver connection, or another x11 channel.
+func Forward(xconn io.ReadWriteCloser, x11Chan ssh.Channel) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		io.Copy(sch, conn)
-		sch.CloseWrite()
+		io.Copy(x11Chan, xconn)
+		x11Chan.CloseWrite()
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		io.Copy(conn, sch)
-		// prefer CloseWrite over Close to prevent reading from halting early.
-		switch c := conn.(type) {
+		io.Copy(xconn, x11Chan)
+		// prefer CloseWrite over Close to prevent reading from halting pre-maturely.
+		switch c := xconn.(type) {
 		case interface{ CloseWrite() error }:
 			c.CloseWrite()
 		default:
@@ -263,19 +158,29 @@ func ForwardIO(sch ssh.Channel, conn io.ReadWriteCloser) {
 	wg.Wait()
 }
 
-// sendRequest represents a resource capable of sending an ssh request such as
-// an ssh.Channel or ssh.Session.
-type sendRequest interface {
-	SendRequest(name string, wantReply bool, payload []byte) (bool, error)
-}
-
-// ForwardRequest is a helper for forwarding a request across a session or channel.
-func ForwardRequest(sender sendRequest, req *ssh.Request) (bool, error) {
-	reply, err := sender.SendRequest(req.Type, req.WantReply, req.Payload)
-	if err != nil || !req.WantReply {
-		return reply, trace.Wrap(err)
+// DialXDisplay connects to the local xserver set in the $DISPLAY variable.
+func DialXDisplay(display string) (net.Conn, error) {
+	hostname, displayNumber, _, err := parseDisplay(display)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return reply, trace.Wrap(req.Reply(reply, nil))
+
+	// If display is a unix socket, dial the address as an x11 unix socket
+	if hostname == "unix" || hostname == "" {
+		return net.Dial("unix", xserverUnixSocket(displayNumber))
+	}
+
+	// If hostname can be parsed as an IP address, dial the address as an x11 tcp socket
+	if ip := net.ParseIP(hostname); ip != nil {
+		conn, err := net.Dial("tcp", xserverTCPSocket(hostname, displayNumber))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conn, nil
+	}
+
+	// dial display as generic socket address
+	return net.Dial("unix", display)
 }
 
 // parsesDisplay parses the given display value and returns the host,
@@ -303,31 +208,6 @@ func parseDisplay(display string) (string, int, int, error) {
 	}
 
 	return host, displayNumber, screenNumber, nil
-}
-
-// dialDisplay connects to the xserver socket for the set $DISPLAY variable.
-func dialDisplay(display string) (net.Conn, error) {
-	hostname, displayNumber, _, err := parseDisplay(display)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// If display is a unix socket, dial the address as an x11 unix socket
-	if hostname == "unix" || hostname == "" {
-		return net.Dial("unix", xserverUnixSocket(displayNumber))
-	}
-
-	// If hostname can be parsed as an IP address, dial the address as an x11 tcp socket
-	if ip := net.ParseIP(hostname); ip != nil {
-		conn, err := net.Dial("tcp", xserverTCPSocket(hostname, displayNumber))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return conn, nil
-	}
-
-	// dial display as generic socket address
-	return net.Dial("unix", display)
 }
 
 // xserverUnixSocket returns the display's associated

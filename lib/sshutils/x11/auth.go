@@ -3,12 +3,15 @@ package x11
 import (
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -157,4 +160,62 @@ func (x *XAuthCommand) output() ([]byte, error) {
 		}
 	}
 	return out, trace.Wrap(err)
+}
+
+// ReadAndRewriteXAuthPacket reads the initial xauth packet from the xserver request. The xauth packet has 2 parts:
+//  1. fixed size buffer (12 bytes) - holds byteOrder bit, and the sizes of the protocol string and auth data
+//  2. variable size xauth packet - holds xauth protocol and data used to connect to the remote XServer.
+//
+// Then it compares the received auth packet with the auth proto and fake cookie
+// sent to the server with the original "x11-req". If the data matches, the auth
+// packet is returned with the fake cookie replaced by the real cookie to provide
+// access to the client's X display.
+func ReadAndRewriteXAuthPacket(xchan ssh.Channel, authProto, fakeCookie, realCookie string) ([]byte, error) {
+	// xauth packet starts with a fixed sized buffer of 12 bytes
+	// which is used to size and decode the remaining bytes
+	initBufSize := 12
+	initBuf := make([]byte, initBufSize)
+	if _, err := io.ReadFull(xchan, initBuf); err != nil {
+		return nil, trace.Wrap(err, "x11 channel initial packet buffer missing or too short")
+	}
+
+	var protoLen, dataLen int
+	switch byteOrder := initBuf[0]; byteOrder {
+	///* Byte order MSB first. */
+	case 0x42:
+		protoLen = int(binary.BigEndian.Uint16(initBuf[6:8]))
+		dataLen = int(binary.BigEndian.Uint16(initBuf[8:10]))
+	///* Byte order LSB first. */
+	case 0x6c:
+		protoLen = int(binary.LittleEndian.Uint16(initBuf[6:8]))
+		dataLen = int(binary.LittleEndian.Uint16(initBuf[8:10]))
+	default:
+		return nil, trace.Errorf("x11 channel auth packet has invalid byte order: ", byteOrder)
+	}
+
+	// authPacket size is equal to protoLen (rounded up by 4) + dataLen.
+	// In openssh, the rounding is performed with: (protoLen + 3) & ~3
+	authPacketSize := protoLen + (4-protoLen%4)%4 + dataLen
+	authPacket := make([]byte, authPacketSize)
+	if _, err := io.ReadFull(xchan, authPacket); err != nil {
+		return nil, trace.Wrap(err, "x11 channel auth packet missing or too short")
+	}
+
+	proto := authPacket[:protoLen]
+	data := authPacket[len(authPacket)-dataLen:]
+	if string(proto) != authProto || hex.EncodeToString(data) != fakeCookie {
+		return nil, trace.AccessDenied("x11 channel has the wrong authentication data")
+	}
+
+	realAuthData, err := hex.DecodeString(realCookie)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Replace auth data with the real auth data and write to conn
+	for i := 0; i < len(data); i++ {
+		data[i] = realAuthData[i]
+	}
+
+	return append(initBuf, authPacket...), trace.Wrap(err)
 }

@@ -1991,7 +1991,6 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		c.ForwardAgent = client.ForwardAgentYes
 	}
 
-	// TODO(Joerger): Add tests for flag-option combos
 	// If X11 trusted/untrusted forwarding was specified on the command line enable it.
 	c.X11ForwardingEnabled = !cf.X11ForwardingDisabled && (cf.X11Forwarding || cf.X11ForwardingTrusted || options.ForwardX11)
 	if c.X11ForwardingEnabled && os.Getenv(x11.DisplayEnv) == "" {

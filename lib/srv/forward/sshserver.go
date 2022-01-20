@@ -948,9 +948,9 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.S
 // handleX11ChannelRequest accepts an X11 channel and forwards it back to the client.
 // Servers which support X11 forwarding request a separate channel for serving each
 // inbound connection on the X11 socket of the remote session.
-func (s *Server) handleX11ChannelRequest(ctx context.Context, xreq ssh.NewChannel) {
+func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel) {
 	// accept inbound X11 channel from server
-	sch, sin, err := xreq.Accept()
+	sch, sin, err := nch.Accept()
 	if err != nil {
 		s.log.Errorf("x11 channel fwd failed: %v", err)
 		return
@@ -958,67 +958,31 @@ func (s *Server) handleX11ChannelRequest(ctx context.Context, xreq ssh.NewChanne
 	defer sch.Close()
 
 	// setup outbound X11 channel to client
-	cch, cin, err := s.sconn.OpenChannel(sshutils.X11ChannelRequest, xreq.ExtraData())
+	cch, cin, err := s.sconn.OpenChannel(sshutils.X11ChannelRequest, nch.ExtraData())
 	if err != nil {
 		s.log.Errorf("x11 channel fwd failed: %v", err)
 		return
 	}
 	defer cch.Close()
 
-	// setup child context which will be canceled when io forwarding completes.
+	// Forward ssh requests on the x11 channels until x11 forwarding is complete
 	ctx, cancel := context.WithCancel(ctx)
-
+	defer cancel()
 	go func() {
-		defer cancel()
-		x11.ForwardIO(cch, sch)
+		err := sshutils.ForwardRequests(ctx, cin, sch)
+		if err != nil {
+			s.log.WithError(err).Debug("Failed to forward ssh request during x11 forwarding")
+		}
+	}()
+	go func() {
+		err := sshutils.ForwardRequests(ctx, sin, cch)
+		if err != nil {
+			s.log.WithError(err).Debug("Failed to forward ssh request during x11 forwarding")
+		}
 	}()
 
-	// multiplex requests until io forwarding goroutines
-	// have completed.
-	for {
-		select {
-		case sreq := <-sin:
-			if sreq == nil {
-				// channel closed, stop processing
-				sin = nil
-				continue
-			}
-			switch sreq.Type {
-			case sshutils.WindowChangeRequest:
-				if _, err := x11.ForwardRequest(cch, sreq); err != nil {
-					s.log.Errorf("x11 channel fwd failed: %v", err)
-					return
-				}
-			default:
-				s.log.Errorf("Unsupported x11 channel request type: %s", sreq.Type)
-				if sreq.WantReply {
-					sreq.Reply(false, nil)
-				}
-				continue
-			}
-		case creq := <-cin:
-			if creq == nil {
-				// channel closed, stop processing
-				cin = nil
-				continue
-			}
-			switch creq.Type {
-			case sshutils.WindowChangeRequest:
-				if _, err := x11.ForwardRequest(sch, creq); err != nil {
-					s.log.Errorf("x11 channel fwd failed: %v", err)
-					return
-				}
-			default:
-				s.log.Errorf("Unsupported x11 channel request type: %s", creq.Type)
-				if creq.WantReply {
-					creq.Reply(false, nil)
-				}
-				continue
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
+	// Begin x11 forwarding and cancel ctx once complete.
+	x11.Forward(cch, sch)
 }
 
 // handleX11Forward handles an X11 forwarding request from the client.
@@ -1052,7 +1016,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 	}
 
 	// send X11 forwarding request to remote
-	ok, err := x11.ForwardRequest(scx.RemoteSession, req)
+	ok, err := sshutils.ForwardRequest(scx.RemoteSession, req)
 	if err != nil || !ok {
 		// request failed or was denied
 		event.Metadata.Code = events.X11ForwardFailureCode

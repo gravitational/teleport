@@ -225,10 +225,13 @@ type Config struct {
 	// X11ForwardingEnabled specifies whether x11 forwarding should be enabled.
 	X11ForwardingEnabled bool
 
-	// X11ForwardingTimeout can be set to set a timeout for open x11 channels.
+	// X11ForwardingTimeout can be set to set a x11 forwarding timeout in seconds,
+	// after which any x11 forwarding requests in that session will be rejected.
 	X11ForwardingTimeout uint
 
-	// X11ForwardingTrusted specifies the x11 forwarding mode.
+	// X11ForwardingTrusted specifies the x11 forwarding security mode.
+	// Trusted x11 forwarding gives the x11 forwarding node trusted access
+	// to the client's local display.
 	X11ForwardingTrusted bool
 
 	// AuthMethods are used to login into the cluster. If specified, the client will

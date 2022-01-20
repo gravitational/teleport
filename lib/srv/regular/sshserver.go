@@ -1549,10 +1549,6 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 		return trace.AccessDenied("x11 forwarding is not enabled")
 	}
 
-	if ctx.GetX11Config() != nil {
-		return trace.AlreadyExists("x11 forwarding has already been requested for this session")
-	}
-
 	// Check if the user's RBAC role allows X11 forwarding.
 	if err := s.authHandlers.CheckX11Forward(ctx); err != nil {
 		return trace.Wrap(err)

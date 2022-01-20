@@ -22,6 +22,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -321,7 +322,7 @@ type ServerContext struct {
 	// populated for port forwarding requests.
 	DstAddr string
 
-	// x11rdy{r,w} is used to signal from the child process ot the
+	// x11rdy{r,w} is used to signal from the child process to the
 	// parent process when x11 forwarding is set up.
 	x11rdyr *os.File
 	x11rdyw *os.File
@@ -435,6 +436,15 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 	child.AddCloser(child.contr)
 	child.AddCloser(child.contw)
+
+	// Create pipe used to get x11 forwarding ready signal from the child process.
+	child.x11rdyr, child.x11rdyw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.x11rdyr)
+	child.AddCloser(child.x11rdyw)
 
 	return ctx, child, nil
 }
@@ -593,8 +603,14 @@ func (c *ServerContext) getSession() *session {
 	return c.session
 }
 
-// OpenXServerListener opens a new xserver unix socket listener to
-// be used by this server session to perform x11 forwarding.
+// GetX11Config gets the x11 config for this server session.
+func (c *ServerContext) GetX11Config() *X11Config {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.x11Config
+}
+
+// OpenXServerListener opens a new xserver unix listener.
 func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, displayOffset int) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -627,17 +643,23 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 		},
 	}
 
-	// Create pipe used to send command to child process.
-	c.x11rdyr, c.x11rdyw, err = os.Pipe()
+	// Prepare x11 channel request payload
+	originHost, originPort, err := net.SplitHostPort(c.ServerConn.LocalAddr().String())
 	if err != nil {
-		cErr := c.Close()
-		return trace.NewAggregate(err, cErr)
+		return trace.Wrap(err)
 	}
-	c.closers = append(c.closers, c.x11rdyr, c.x11rdyw)
+	originPortI, err := strconv.Atoi(originPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	x11ChannelReqPayload := ssh.Marshal(x11.X11ChannelRequestPayload{
+		OriginatorAddress: originHost,
+		OriginatorPort:    uint32(originPortI),
+	})
 
 	go func() {
 		for {
-			conn, err := l.Accept()
+			xconn, err := l.Accept()
 			if err != nil {
 				// listener is closed
 				return
@@ -646,23 +668,37 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 			// If the session has not signaled that x11 forwarding is
 			// fully set up yet, then ignore any incoming connections.
 			// The client's session hasn't been fully set up yet so this
-			// could potentially be an attack attempt.
+			// could potentially be a break-in attempt.
 			if ok, err := c.x11Ready(); err != nil {
 				log.WithError(err).Debug("Failed to get x11 ready status")
 				return
 			} else if !ok {
-				conn.Close()
+				xconn.Close()
 				continue
 			}
 
 			go func() {
-				defer conn.Close()
-				if err := x11.ForwardToX11Channel(conn, c.ServerConn); err != nil {
-					log.WithError(err).Debug("Failed to start x11 forwarding for the incoming XServer connection")
+				defer xconn.Close()
+
+				xchan, sin, err := c.ServerConn.OpenChannel(sshutils.X11ChannelRequest, x11ChannelReqPayload)
+				if err != nil {
+					log.WithError(err).Debug("Failed to open a new x11 channel")
+					return
 				}
+				defer xchan.Close()
+
+				// Forward ssh requests on the x11 channel until x11 forwarding is complete
+				ctx, cancel := context.WithCancel(c.cancelContext)
+				defer cancel()
+				go func() {
+					if err := sshutils.ForwardRequests(ctx, sin, c.RemoteSession); err != nil {
+						log.WithError(err).Debug("Failed to forward ssh request during x11 forwarding")
+					}
+				}()
+
+				x11.Forward(xconn, xchan)
 			}()
 
-			// Stop forwarding connections after the first connection is forwarded.
 			if x11Req.SingleConnection {
 				l.Close()
 				return
@@ -673,28 +709,20 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 	return nil
 }
 
+// x11Ready returns whether the x11 unix listener is ready to accept connections.
 func (c *ServerContext) x11Ready() (bool, error) {
-	buf := make([]byte, 1)
-	_, err := io.ReadFull(c.x11rdyr, buf)
+	// Wait for child process to send signal (1 byte)
+	// or EOF if signal was already received.
+	_, err := io.ReadFull(c.x11rdyr, make([]byte, 1))
 	if err == io.EOF {
 		return true, nil
 	} else if err != nil {
 		return false, trace.Wrap(err)
 	}
 
-	// once we've any close the pipe-w and set it
-	// to nil to avoid closing twice.
+	// signal recieved, close writer so future calls read EOF.
 	c.x11rdyw.Close()
-	c.x11rdyw = nil
-
 	return true, nil
-}
-
-// GetX11Config gets the x11 config for this server session.
-func (c *ServerContext) GetX11Config() *X11Config {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.x11Config
 }
 
 // takeClosers returns all resources that should be closed and sets the properties to null

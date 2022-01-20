@@ -28,9 +28,9 @@ import (
 )
 
 // supportedOptions is a listing of all known OpenSSH options
-// and a validater/parser if the option is supported by tsh.
-var supportedOptions = map[string]validateAndParseValue{
-	"AddKeysToAgent":                   parseBoolTrueOption,
+// and a parser/setter if the option is supported by tsh.
+var supportedOptions = map[string]setOption{
+	"AddKeysToAgent":                   setAddKeysToAgentOption,
 	"AddressFamily":                    nil,
 	"BatchMode":                        nil,
 	"BindAddress":                      nil,
@@ -56,10 +56,10 @@ var supportedOptions = map[string]validateAndParseValue{
 	"EscapeChar":                       nil,
 	"ExitOnForwardFailure":             nil,
 	"FingerprintHash":                  nil,
-	"ForwardAgent":                     parseAgentForwardingMode,
-	"ForwardX11":                       parseBoolOption,
-	"ForwardX11Timeout":                parseUintOption,
-	"ForwardX11Trusted":                parseBoolOption,
+	"ForwardAgent":                     setAgentForwardingModeOption,
+	"ForwardX11":                       setForwardX11Option,
+	"ForwardX11Timeout":                setForwardX11TimeoutOption,
+	"ForwardX11Trusted":                setForwardX11TrustedOption,
 	"GatewayPorts":                     nil,
 	"GlobalKnownHostsFile":             nil,
 	"GSSAPIAuthentication":             nil,
@@ -96,7 +96,7 @@ var supportedOptions = map[string]validateAndParseValue{
 	"PubkeyAuthentication":             nil,
 	"RekeyLimit":                       nil,
 	"RemoteForward":                    nil,
-	"RequestTTY":                       parseBoolOption,
+	"RequestTTY":                       setRequestTTYOption,
 	"RhostsRSAAuthentication":          nil,
 	"RSAAuthentication":                nil,
 	"SendEnv":                          nil,
@@ -104,7 +104,7 @@ var supportedOptions = map[string]validateAndParseValue{
 	"ServerAliveCountMax":              nil,
 	"StreamLocalBindMask":              nil,
 	"StreamLocalBindUnlink":            nil,
-	"StrictHostKeyChecking":            parseBoolOption,
+	"StrictHostKeyChecking":            setStrictHostKeyCheckingOption,
 	"TCPKeepAlive":                     nil,
 	"Tunnel":                           nil,
 	"TunnelDevice":                     nil,
@@ -115,47 +115,6 @@ var supportedOptions = map[string]validateAndParseValue{
 	"VerifyHostKeyDNS":                 nil,
 	"VisualHostKey":                    nil,
 	"XAuthLocation":                    nil,
-}
-
-type validateAndParseValue func(string) (interface{}, error)
-
-func parseBoolOption(val string) (interface{}, error) {
-	if val != "yes" && val != "no" {
-		return nil, trace.BadParameter("invalid bool option value: %s", val)
-	}
-	return utils.AsBool(val), nil
-}
-
-func parseBoolTrueOption(val string) (interface{}, error) {
-	if val != "yes" {
-		return nil, trace.BadParameter("invalid true-only bool option value: %s", val)
-	}
-	return utils.AsBool(val), nil
-}
-
-func parseUintOption(val string) (interface{}, error) {
-	valUint, err := strconv.ParseUint(val, 10, 0)
-	if err != nil {
-		return Options{}, trace.BadParameter("invalid int option value: %s", val)
-	}
-	return uint(valUint), nil
-}
-
-func parseAgentForwardingMode(val string) (interface{}, error) {
-	switch strings.ToLower(val) {
-	case "no":
-		return client.ForwardAgentNo, nil
-
-	case "yes":
-		return client.ForwardAgentYes, nil
-
-	case "local":
-		return client.ForwardAgentLocal, nil
-
-	default:
-		return Options{}, trace.BadParameter("invalid agent forwarding mode: %s", val)
-
-	}
 }
 
 // Options holds parsed values of OpenSSH options.
@@ -192,6 +151,98 @@ type Options struct {
 	ForwardX11Timeout uint
 }
 
+type setOption func(*Options, string) error
+
+func setAddKeysToAgentOption(o *Options, val string) error {
+	parsedValue, err := parseBoolTrueOption(val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	o.AddKeysToAgent = parsedValue
+	return nil
+}
+
+func setAgentForwardingModeOption(o *Options, val string) error {
+	switch strings.ToLower(val) {
+	case "no":
+		o.ForwardAgent = client.ForwardAgentNo
+	case "yes":
+		o.ForwardAgent = client.ForwardAgentYes
+	case "local":
+		o.ForwardAgent = client.ForwardAgentLocal
+	default:
+		return trace.BadParameter("invalid agent forwarding mode: %s", val)
+	}
+	return nil
+}
+
+func setForwardX11Option(o *Options, val string) error {
+	parsedValue, err := parseBoolOption(val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	o.ForwardX11 = parsedValue
+	return nil
+}
+
+func setForwardX11TimeoutOption(o *Options, val string) error {
+	parsedValue, err := parseUintOption(val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	o.ForwardX11Timeout = parsedValue
+	return nil
+}
+
+func setForwardX11TrustedOption(o *Options, val string) error {
+	parsedValue, err := parseBoolOption(val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	o.ForwardX11Trusted = parsedValue
+	return nil
+}
+
+func setRequestTTYOption(o *Options, val string) error {
+	parsedValue, err := parseBoolOption(val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	o.RequestTTY = parsedValue
+	return nil
+}
+
+func setStrictHostKeyCheckingOption(o *Options, val string) error {
+	parsedValue, err := parseBoolOption(val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	o.StrictHostKeyChecking = parsedValue
+	return nil
+}
+
+func parseBoolOption(val string) (bool, error) {
+	if val != "yes" && val != "no" {
+		return false, trace.BadParameter("invalid bool option value: %s", val)
+	}
+	return utils.AsBool(val), nil
+}
+
+func parseBoolTrueOption(val string) (bool, error) {
+	if val != "yes" {
+		return false, trace.BadParameter("invalid true-only bool option value: %s", val)
+	}
+	return utils.AsBool(val), nil
+}
+
+func parseUintOption(val string) (uint, error) {
+	valUint, err := strconv.ParseUint(val, 10, 0)
+	if err != nil {
+		return 0, trace.BadParameter("invalid uint option value: %s", val)
+	}
+	return uint(valUint), nil
+}
+
 func parseOptions(opts []string) (Options, error) {
 	options := Options{
 		// By default, Teleport prefers strict host key checking and adding keys
@@ -213,36 +264,18 @@ func parseOptions(opts []string) (Options, error) {
 			return Options{}, trace.Wrap(err)
 		}
 
-		parseValue, ok := supportedOptions[key]
+		setOption, ok := supportedOptions[key]
 		if !ok {
 			return Options{}, trace.BadParameter("unsupported option key: %v", key)
 		}
 
-		if parseValue == nil {
+		if setOption == nil {
 			fmt.Printf("WARNING: Option '%v' is not supported.\n", key)
 			continue
 		}
 
-		val, err := parseValue(value)
-		if err != nil {
+		if err := setOption(&options, value); err != nil {
 			return Options{}, trace.BadParameter("unsupported option value %q: %s", value, err)
-		}
-
-		switch key {
-		case "AddKeysToAgent":
-			options.AddKeysToAgent = val.(bool)
-		case "ForwardAgent":
-			options.ForwardAgent = val.(client.AgentForwardingMode)
-		case "RequestTTY":
-			options.RequestTTY = val.(bool)
-		case "StrictHostKeyChecking":
-			options.StrictHostKeyChecking = val.(bool)
-		case "ForwardX11":
-			options.ForwardX11 = val.(bool)
-		case "ForwardX11Trusted":
-			options.ForwardX11Trusted = val.(bool)
-		case "ForwardX11Timeout":
-			options.ForwardX11Timeout = val.(uint)
 		}
 	}
 
