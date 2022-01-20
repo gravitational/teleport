@@ -62,14 +62,45 @@ written to Teleport's main audit log.
 
 #### Playback
 
+In order to maintain compatibility with older versions of Teleport, SSH session
+playback converts this stream of `SessionPrint` events into a legacy format
+consisting of two files:
+
+- an "events" file containing timing data
+- a "chunks" file containing the raw PTY data
+
+For SSH, this format has the nice property of the "chunks" file being useful on
+its own, as the raw data can be viewed and searched independent of the timing
+data (outside of the Teleport player). This separation of timing data is not
+necessary for desktop sessions, as the raw data cannot be interpreted outside of
+the Teleport player, so this conversion step will not be necessary for desktop
+sessions.
+
+Teleport's existing API also exposes an endpoint for streaming audit events associated
+with a particular session.
+
+```
+func StreamSessionEvents(
+    ctx context.Context,
+    sessionID string,
+    startIndex int64) (chan events.AuditEvent chan error)
+```
+
+On the backend, the log is downloaded from external storage, the events are
+parsed via an `AuditReader`, and finally written to the events channel. There is
+no attention paid to timing at this step. Events are written to the channel as
+soon as they are available and the process is naturally throttled by how fast
+the consumer reads from the channel.
+
 ### Overview
 
 During a live session, desktop images are sent to the browser via a series of
 PNG frames encoded in a TDP message (message #2, "PNG frame"). At a high level,
-the session recording feature needs to archive these messages so that they can
-be played back at a later time. During playback, the majority of the frontend
-code works exactly as it does during a live session - the PNGs are rendered on
-an HTML canvas.
+the session recording feature needs to archive these messages in the audit log
+so that they can be played back at a later time.
+
+During playback, the majority of the frontend code works exactly as it does
+during a live session - the PNGs are rendered on an HTML canvas.
 
 The major differences in playback mode are:
 
@@ -145,6 +176,17 @@ udpated:
   also filter out `DesktopRecordingEvent`s, as there will be a large number of
   these events and we don't want to clutter the global audit log with them.
 
+SSH session recording can operate in synchronous or asynchronous mode, and can
+be captured at the node or at the proxy, resulting in a total of 4 possible
+configurations.
+
+Synchronous recording mode emits each audit event directly to the audit log, and
+fails if an event can not be written. Asynchronous recording mode writes events
+to a local filesystem log, and periodically uploads the audit events to external
+storage. Asynchronous mode is both more efficient (due to making less API calls)
+and more resilient (due to support for retries, backoff, stream recovery, etc).
+For desktop recordings, Teleport will support sync or async modes.
+
 Unlike SSH sessions, where the node itself is running Teleport and the user has
 an option of where the recording will take place, Desktop Access sessions will
 always be recorded by the Windows Desktop Service which has an RDP connection to
@@ -158,25 +200,15 @@ interpret the data in any way.)
 
 The core component of the playback functionality is the `ProtoReader`, which reads
 from a gzipped-stream of protobuf-encoded events and emits deserialized audit events
-one at a time.
+one at a time. This is what powers the `StreamSessionEvents` API call.
 
-During playback of SSH sessions, Teleport temporarily writes these events to
-disk (or buffers them all in memory, in the case of web-UI playbcak), in a
-format used by the SSH session player. Notably, the raw bytes of the SSH session
-are written to one file, and metadata and timing of these events are written to
-a separate file.
-
-The separation of timing events and TTY data is a nice feature for SSH, as an
-auditor can grep the TTY data and search for activity without "watching" the whole
-session.
-
-For desktop access, there is no need to store the timing data separately, as the
-raw bytes are not text and can not be interpreted without a graphical player. In
-some ways, this makes desktop session playback simpler. The Teleport proxy will
-stream the recorded session events directly from the auth server (via an
-existing `StreamSessionEvents` API call). Since these events contain TDP
-messages that have already been encoded, it can efficiently stream them over a
-websocket where the browser will render them just like it does a live session.
+For desktop access, a new websocket endpoint will be added to the Teleport proxy
+for session playback. The proxy will pull the session ID out of the URL, and use
+`StreamSessionEvents` to start receiving AuditEvents for the session. Since the
+desktop recording events contain a TDP message that is already encoded, the proxy
+simply needs to look at the event's delay, determine how long to wait, and then
+send the TDP message on the websocket. This process repeats until the events channel
+is closed and there are no more events to send.
 
 To summarize, desktop session *recordings* are captured at the Windows Desktop
 Service, where live traffic is being translated between RDP and TDP. Desktop
@@ -185,16 +217,40 @@ require a connection to a Windows Desktop.
 
 ### Security
 
-TODO(zmb3)
+Teleport 8.1 introduced
+[RBAC for sessions](https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions),
+allowing users to control access to shared SSH sessions (resource kind
+`ssh_session`) or session recordings (kind `session`) via Teleport's RBAC
+system.
 
-- Do we need to make any updates to RBAC for access to desktop recordings?
-- Is there an attack vector by running very long sessions? (especially when not
-  using S3-compatible backend) - maybe when we have a better idea of session
-  size we can emit warnings if disk space appears limited
-- Are recordings encrypted at rest?
-- We will leverage existing recording support which is known to be well-behaved
-  in poor network conditions, supports backoff, can run in sync or async modes,
-  etc.
+Desktop Access does not support shared sessions at this time, so we will *not*
+add a new resource type for an active desktop session (kind `desktop_session`).
+
+We will, however ensure that RBAC support for `session` resources is extended to
+desktop sessions as well. This means that the canonical role for allowing a user
+access to only the session recordings that they participated in will work for
+desktop recordings without modification:
+
+```
+version: v4
+kind: role
+metadata:
+  name: only-own-sessions
+spec:
+  allow:
+    rules:
+    # Users can only view session recordings for sessions in which they
+    # participated.
+    - resources: [session]
+      verbs: [list, read]
+      where: contains(session.participants, user.metadata.name)
+```
+
+In order for this to work, the set of `participants` for a desktop session will
+be set to a list containing one element - the user who started the session.
+
+This lays the groundwork for supporting shared desktop sessions in the future
+while integrating with the RBAC system as it exists today.
 
 ### User Experience
 
@@ -202,23 +258,11 @@ Desktop session recordings will appear in the web UI in the same "Session
 Recordings" page as SSH sessions. The existing search and filtering
 functionality will be applied to both types of recordings.
 
-One notable difference between SSH recordings and desktop recordings is that SSH
-recordings can be played back in both the web UI or via the `tsh` command line
-client. Desktop sessions are not text based and therefore can only be played
-back via the web UI.
+An interesting UX consideration is screen sizes. At this time we are aiming to
+keep CPU intensive operations out of the critical path of recording, so
+recordings are always captured at the screen size of the live session. This
+means that attempting to view a session on a smaller screen than what it was
+recorded on may overflow the bounds of the screen. The initial implementation
+will make no attempts to scale the player to fit the screen, though this can be
+solved in the browser without changes to the backend should it become a problem.
 
-One interesting UX consideration is screen sizes. At this time we are aiming to
-keep CPU intensive operations out of the critical path of recording, so we have
-no plans to resize PNG frames during the recording process. This means that
-attempting to view a session on a smaller screen than what it was recorded on
-may overflow the bounds of the screen.
-
-TODO(isaiah): brief description of playback functionality (play/pause, playback speed, permalink to specific time, etc.)
-
-TODO(isaiah): investigate whether we can scale a recording down client-side
-during playback
-
-TODO(isaiah): any additional interface changes?
-
-- icon do distinguish SSH vs desktop session?
-- filter to show only SSH or only desktops in the list?
