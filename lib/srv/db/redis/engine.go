@@ -47,10 +47,13 @@ type Engine struct {
 	Log logrus.FieldLogger
 	// proxyConn is a client connection.
 	proxyConn net.Conn
+
+	clientReader *redis.Reader
 }
 
 func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
 	e.proxyConn = clientConn
+	e.clientReader = redis.NewReader(clientConn)
 
 	return nil
 }
@@ -89,20 +92,28 @@ func (e *Engine) SendError(redisErr error) {
 		return
 	}
 
+	//TODO(jakub): We can send errors only after reading command from the connected client.
 	e.Log.Debugf("sending error to Redis client: %v", redisErr)
 
-	buf := &bytes.Buffer{}
-	wr := redis.NewWriter(buf)
-
-	if err := writeCmd(wr, redisErr); err != nil {
-		e.Log.Errorf("Failed to convert error to a message: %v", err)
-		return
-	}
-
-	if _, err := e.proxyConn.Write(buf.Bytes()); err != nil {
+	if err := e.sendToClient(redisErr); err != nil {
 		e.Log.Errorf("Failed to send message to the client: %v", err)
 		return
 	}
+}
+
+func (e *Engine) sendToClient(vals interface{}) error {
+	buf := &bytes.Buffer{}
+	wr := redis.NewWriter(buf)
+
+	if err := writeCmd(wr, vals); err != nil {
+		return trace.BadParameter("Failed to convert error to a message: %v", err)
+	}
+
+	if _, err := e.proxyConn.Write(buf.Bytes()); err != nil {
+		return trace.ConnectionProblem(err, "Failed to send message to the client: %v")
+	}
+
+	return nil
 }
 
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
@@ -141,8 +152,11 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 	defer redisConn.Close()
 
-	e.Log.Debug("created a new Redis client, sending ping")
+	e.Log.Debug("created a new Redis client, sending ping to test the connection")
 
+	// TODO(jakub): Currently Teleport supports only RESP2 as RESP3 is not supported by go-redis.
+	// When migration to RESP3 protocol this PING should be replaced with "HELLO 3"
+	// https://github.com/antirez/RESP3/blob/master/spec.md#the-hello-command-and-connection-handshake
 	pingResp := redisConn.Ping(context.Background())
 	if pingResp.Err() != nil {
 		return trace.Wrap(pingResp.Err())
@@ -150,68 +164,84 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	e.Log.Debug("Redis server responded to ping message")
 
-	if err := e.process(ctx, e.proxyConn, redisConn); err != nil {
+	if err := e.process(ctx, redisConn); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-func (e *Engine) process(ctx context.Context, clientConn net.Conn, redisClient redis.UniversalClient) error {
-	clientReader := redis.NewReader(clientConn)
-	buf := &bytes.Buffer{}
-	wr := redis.NewWriter(buf)
-	var redisErr redis.Error
+func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
+	cmd := &redis.Cmd{}
+	if err := cmd.ReadReply(e.clientReader); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
+	val, ok := cmd.Val().([]interface{})
+	if !ok {
+		return nil, trace.BadParameter("failed to cast Redis value to a slice")
+	}
+
+	return redis.NewCmd(ctx, val...), nil
+}
+
+func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient) error {
 	for {
-		cmd := &redis.Cmd{}
-		if err := cmd.ReadReply(clientReader); err != nil {
+		cmd, err := e.readClientCmd(ctx)
+		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		val, ok := cmd.Val().([]interface{})
-		if !ok {
-			return trace.BadParameter("failed to cast Redis value to a slice")
-		}
+		e.Log.Debugf("redis cmd: %s", cmd.String())
 
-		nCmd := redis.NewCmd(ctx, val...)
-
-		e.Log.Debugf("redis cmd: %v", nCmd.Name())
-
-		err := redisClient.Process(ctx, nCmd)
+		err = redisClient.Process(ctx, cmd)
 
 		var vals interface{}
+		var redisErr redis.Error
 
 		if errors.As(err, &redisErr) {
 			vals = err
+		} else if errors.Is(err, context.DeadlineExceeded) {
+			// Do not return Deadline Exceeded to the client as it's not very self-explanatory.
+			// Return "connection timeout" as this is what most likely happened.
+			vals = errors.New("connection timeout")
 		} else if err != nil {
 			// Send the error to the client as connection will be terminated after return.
 			e.SendError(err)
 
 			return trace.Wrap(err)
 		} else {
-			vals, err = nCmd.Result()
+			vals, err = cmd.Result()
 			if err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		if err := writeCmd(wr, vals); err != nil {
+		if err := e.sendToClient(vals); err != nil {
 			return trace.Wrap(err)
 		}
-
-		if _, err := clientConn.Write(buf.Bytes()); err != nil {
-			return trace.Wrap(err)
-		}
-
-		buf.Reset()
 	}
 }
 
 func writeCmd(wr *redis.Writer, vals interface{}) error {
 	switch val := vals.(type) {
-	case error:
+	case redis.Error:
 		if err := wr.WriteByte('-'); err != nil {
+			// Redis error passed from DB itself. Just add '-' to mark as error.
+			return trace.Wrap(err)
+		}
+
+		if _, err := wr.WriteString(val.Error()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if _, err := wr.Write([]byte("\r\n")); err != nil {
+			return trace.Wrap(err)
+		}
+	case error:
+		if _, err := wr.WriteString("-ERR "); err != nil {
+			// Add error header specified in https://redis.io/topics/protocol#resp-errors
+			// to follow the convention.
 			return trace.Wrap(err)
 		}
 
