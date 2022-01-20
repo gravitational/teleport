@@ -1111,8 +1111,8 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 	req.RequestURI = req.URL.Path + "?" + req.URL.RawQuery
 
 	// We only have a direct host to provide when using local creds.
-	// Otherwise, use kube.teleport.cluster.local to pass TLS handshake and leverage TLS Routing.
-	req.URL.Host = fmt.Sprintf("%s%s", constants.KubeSNIPrefix, constants.APIDomain)
+	// Otherwise, use kube-teleport-proxy-alpn.teleport.cluster.local to pass TLS handshake and leverage TLS Routing.
+	req.URL.Host = fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, constants.APIDomain)
 	if sess.creds != nil {
 		req.URL.Host = sess.creds.targetAddr
 	}

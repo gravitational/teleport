@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -313,7 +314,7 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 		{
 			name:             "kube ServerName prefix should route to kube handler",
 			ClientNextProtos: nil,
-			ServerName:       "kube.localhost",
+			ServerName:       fmt.Sprintf("%s%s", constants.KubeSNIPrefix, "localhost"),
 			handlers: []HandlerDecs{
 				makeHandler(common.ProtocolHTTP),
 			},
@@ -342,6 +343,23 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 				makeHandler(common.ProtocolHTTP),
 			},
 			wantProtocolHandler: string(common.ProtocolHTTP),
+		},
+		{
+			name:             "kube ServerName prefix should route to kube handler",
+			ClientNextProtos: nil,
+			ServerName:       fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, "localhost"),
+			handlers: []HandlerDecs{
+				makeHandler(common.ProtocolHTTP),
+			},
+			kubeHandler: HandlerDecs{
+				Handler: func(ctx context.Context, conn net.Conn) error {
+					defer conn.Close()
+					_, err := fmt.Fprint(conn, "kube")
+					require.NoError(t, err)
+					return nil
+				},
+			},
+			wantProtocolHandler: "kube",
 		},
 	}
 

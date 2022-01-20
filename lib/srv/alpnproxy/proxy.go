@@ -483,7 +483,12 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 }
 
 func shouldRouteToKubeService(sni string) bool {
-	return strings.HasPrefix(sni, constants.KubeSNIPrefix)
+	// Deprecated DELETE IN 10.0 use KubeTeleportProxyALPNPrefix prefix only.
+	if strings.HasPrefix(sni, constants.KubeSNIPrefix) {
+		return true
+	}
+
+	return strings.HasPrefix(sni, constants.KubeTeleportProxyALPNPrefix)
 }
 
 // Close the Proxy server.
