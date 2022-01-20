@@ -116,7 +116,7 @@ func newTestPackWithoutCache(t *testing.T) *testPack {
 }
 
 // newPackWithoutCache returns a new test pack without creating cache
-func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
+func newPackWithoutCache(dir string) (*testPack, error) {
 	ctx := context.Background()
 	p := &testPack{
 		dataDir: dir,
@@ -168,7 +168,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 // newPack returns a new test pack or fails the test on error
 func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
 	ctx := context.Background()
-	p, err := newPackWithoutCache(dir, opts...)
+	p, err := newPackWithoutCache(dir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
