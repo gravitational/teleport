@@ -32,6 +32,14 @@ apps: []
 # Values that must be provided if Database access is enabled.
 ################################################################
 
+# Details of at least one awsDatabase discovery pattern to be discovered
+# and proxied. Example:
+# awsDatabases:
+# - types: ["rds", "aurora"]
+#   regions: ["us-east-1"]
+#   tags:
+#     "environment": "production"
+awsDatabases: []
 # Details of at least one database to be proxied. Example:
 # databases:
 #  - name: aurora

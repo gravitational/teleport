@@ -53,6 +53,23 @@ data:
     db_service:
       {{- if contains "db" (.Values.roles | toString) }}
       enabled: true
+      {{- if (or .Values.awsDatabases .Values.databases) }}
+      {{- if .Values.awsDatabases }}
+      aws:
+      {{- range $db := .Values.awsDatabases }}
+          {{- if not (hasKey $db "types") }}
+            {{- fail "'types' is required for all 'awsDatabases' in chart values when db role is enabled, see README" }}
+          {{- end }}
+          {{- if not (hasKey $db "regions") }}
+            {{- fail "'regions' is required for all 'awsDatabases' is required in chart values when db role is enabled, see README" }}
+          {{- end }}
+          {{- if not (hasKey $db "tags") }}
+            {{- fail "'tags' is required for all 'awsDatabases' in chart values when db role is enabled, see README" }}
+          {{- end }}
+      {{- end }}
+      {{- toYaml .Values.awsDatabases | nindent 8 }}
+      {{- end }}
+      {{- if .Values.databases }}
       databases:
         {{- range $db := .Values.databases }}
           {{- if not (hasKey $db "name") }}
@@ -65,7 +82,9 @@ data:
             {{- fail "'protocol' is required for all 'databases' in chart values when db role is enabled, see README" }}
           {{- end }}
         {{- end }}
-        {{- required "'databases' map is required in chart values when db role is enabled, see README" .Values.databases | toYaml | nindent 8 }}
+        {{- .Values.databases | toYaml | nindent 8 }}
+      {{- end }}
+      {{- end }}
       {{- else }}
       enabled: false
       {{- end }}

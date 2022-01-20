@@ -1480,6 +1480,64 @@ You can specify multiple apps by adding additional list elements.
   You can see a list of all the supported [values which can be used in a Teleport application access configuration here](../../application-access/reference.mdx#configuration).
 </Admonition>
 
+## `awsDatabases`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `list` | `[]` | When `db` chart role is used |
+
+`awsDatabases` is a YAML list object detailing the filters for the AWS databases that should be discovered and proxied by Teleport Database access.
+
+You can specify multiple database filters by adding additional list elements.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  awsDatabases:
+    - types: ["rds", "aurora"]
+      regions: ["us-east-1", "us-west-2"]
+      tags:
+        "environment": "production"
+    - types: ["rds"]
+      regions: ["us-east-1"]
+      tags:
+        "environment": "dev"
+    - types: ["aurora"]
+      regions: ["eu-west-1"]
+      tags:
+        "*": "*"
+  ```
+
+  <Admonition type="note" title="YAML formatting">
+    YAML is very sensitive to correct spacing. When specifying lists in a `values.yaml` file, you might like
+    to [use a linter](https://codebeautify.org/yaml-validator) to validate your YAML list and ensure that it is correctly formatted.
+  </Admonition>
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set "databases[0].name=aurora" \
+  --set "databases[0].uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432" \
+  --set "databases[0].protocol=postgres" \
+  --set "databases[0].aws.region=us-east-1" \
+  --set "databases[0].static_labels.env=staging" \
+  --set "databases[1].name=mysql" \
+  --set "databases[1].uri=mysql-instance-1.xxx.us-east-1.rds.amazonaws.com:3306" \
+  --set "databases[1].protocol=mysql" \
+  --set "databases[1].aws.region=us-east-1" \
+  --set "databases[1].static_labels.env=staging"
+  ```
+
+  <Admonition type="note">
+    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
+  </Admonition>
+
+  </TabItem>
+</Tabs>
+
+<Admonition type="tip" title="Supported values">
+  You can see a list of all the supported [values which can be used in a Teleport database service configuration here](../../database-access/reference/configuration.mdx).
+</Admonition>
+
 ## `databases`
 
 | Type | Default value | Required? |
