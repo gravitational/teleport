@@ -113,17 +113,16 @@ func TestRDSEndpointDetails(t *testing.T) {
 			name: "rds proxy",
 			uri:  "my-proxy.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
 			expectedDetails: &rdsEndpointDetails{
-				proxyID:    "my-proxy",
-				region:     "us-west-1",
-				isRDSProxy: true,
+				proxyName: "my-proxy",
+				region:    "us-west-1",
 			},
 		},
 		{
 			name: "rds proxy custom",
 			uri:  "my-proxy-custom.endpoint.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
 			expectedDetails: &rdsEndpointDetails{
-				region:     "us-west-1",
-				isRDSProxy: true,
+				proxyEndpointName: "my-proxy-custom",
+				region:            "us-west-1",
 			},
 		},
 	}

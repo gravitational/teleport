@@ -191,10 +191,11 @@ func (d *realDownloader) downloadForCloudSQL(ctx context.Context, database types
 // rdsCAURLForDatabase returns root certificate download URL based on the region
 // of the provided RDS server instance.
 func rdsCAURLForDatabase(database types.Database) string {
-	if database.GetAWS().RDS.ProxyID != "" {
+	awsMetadata := database.GetAWS()
+	if awsMetadata.RDS.ProxyName != "" || awsMetadata.RDS.ProxyEndpointName != "" {
 		return rdsProxyCAURL
 	}
-	if u, ok := rdsCAURLs[database.GetAWS().Region]; ok {
+	if u, ok := rdsCAURLs[awsMetadata.Region]; ok {
 		return u
 	}
 	return rdsDefaultCAURL
@@ -208,6 +209,7 @@ const (
 	// for details.
 	rdsDefaultCAURL = "https://s3.amazonaws.com/rds-downloads/rds-ca-2019-root.pem"
 	// rdsProxyCAURL is the URL of the CA certificate used by the RDS proxies.
+	//
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/rds-proxy.howitworks.html#rds-proxy-security
 	rdsProxyCAURL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem"
 	// redshiftCAURL is the Redshift CA bundle download URL.

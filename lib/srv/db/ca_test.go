@@ -481,3 +481,84 @@ func TestTLSConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestRDSCAURLForDatabase(t *testing.T) {
+	t.Parallel()
+
+	regionSpecific, err := types.NewDatabaseV3(types.Metadata{
+		Name: "rds-special-region",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		AWS:      types.AWS{Region: "ap-east-1"},
+	})
+	require.NoError(t, err)
+
+	rdsDefault, err := types.NewDatabaseV3(types.Metadata{
+		Name: "rds-default",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		AWS:      types.AWS{Region: "us-east-1"},
+	})
+	require.NoError(t, err)
+
+	rdsProxy, err := types.NewDatabaseV3(types.Metadata{
+		Name: "rds-proxy",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		AWS: types.AWS{
+			RDS: types.RDS{
+				ProxyName: "rds-proxy",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	rdsProxyCustomEndpoint, err := types.NewDatabaseV3(types.Metadata{
+		Name: "rds-proxy",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		AWS: types.AWS{
+			RDS: types.RDS{
+				ProxyEndpointName: "custom-proxy",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		input       types.Database
+		expectedURL string
+	}{
+		{
+			name:        "region specific",
+			input:       regionSpecific,
+			expectedURL: rdsCAURLs["ap-east-1"],
+		},
+		{
+			name:        "rds default",
+			input:       rdsDefault,
+			expectedURL: rdsDefaultCAURL,
+		},
+		{
+			name:        "rds proxy",
+			input:       rdsProxy,
+			expectedURL: rdsProxyCAURL,
+		},
+		{
+			name:        "rds proxy custom endpoint",
+			input:       rdsProxyCustomEndpoint,
+			expectedURL: rdsProxyCAURL,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expectedURL, rdsCAURLForDatabase(test.input))
+		})
+	}
+}

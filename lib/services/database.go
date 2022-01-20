@@ -207,11 +207,22 @@ func MetadataFromRDSProxy(rdsProxy *rds.DBProxy) (*types.AWS, error) {
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		RDS: types.RDS{
-			ProxyID:    aws.StringValue(rdsProxy.DBProxyName),
+			ProxyName:  aws.StringValue(rdsProxy.DBProxyName),
 			ResourceID: parts[1],
 			IAMAuth:    true, // always enabled
 		},
 	}, nil
+}
+
+// MetadataFromRDSProxyEndpoint creates AWS metadata from the provided RDS proxy endpoint.
+func MetadataFromRDSProxyEndpoint(rdsProxy *rds.DBProxy, rdsProxyEndpoint *rds.DBProxyEndpoint) (*types.AWS, error) {
+	metadata, err := MetadataFromRDSProxy(rdsProxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	metadata.RDS.ProxyEndpointName = aws.StringValue(rdsProxyEndpoint.DBProxyEndpointName)
+	return metadata, err
 }
 
 // engineToProtocol converts RDS instance engine to the database protocol.

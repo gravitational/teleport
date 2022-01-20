@@ -310,7 +310,8 @@ func (d *DatabaseV3) GetType() string {
 	if d.GetAWS().Region != "" ||
 		d.GetAWS().RDS.InstanceID != "" ||
 		d.GetAWS().RDS.ClusterID != "" ||
-		d.GetAWS().RDS.ProxyID != "" {
+		d.GetAWS().RDS.ProxyName != "" ||
+		d.GetAWS().RDS.ProxyEndpointName != "" {
 		return DatabaseTypeRDS
 	}
 	if d.GetGCP().ProjectID != "" {
@@ -370,8 +371,11 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.AWS.RDS.ClusterID == "" && rdsDetails.clusterID != "" {
 			d.Spec.AWS.RDS.ClusterID = rdsDetails.clusterID
 		}
-		if d.Spec.AWS.RDS.ProxyID == "" && rdsDetails.proxyID != "" {
-			d.Spec.AWS.RDS.ProxyID = rdsDetails.proxyID
+		if d.Spec.AWS.RDS.ProxyName == "" && rdsDetails.proxyName != "" {
+			d.Spec.AWS.RDS.ProxyName = rdsDetails.proxyName
+		}
+		if d.Spec.AWS.RDS.ProxyEndpointName == "" && rdsDetails.proxyEndpointName != "" {
+			d.Spec.AWS.RDS.ProxyEndpointName = rdsDetails.proxyEndpointName
 		}
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = rdsDetails.region
@@ -401,11 +405,11 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 
 // rdsEndpointDetails contains information about an RDS endpoint.
 type rdsEndpointDetails struct {
-	instanceID string
-	clusterID  string
-	proxyID    string
-	region     string
-	isRDSProxy bool
+	instanceID        string
+	clusterID         string
+	proxyName         string
+	proxyEndpointName string
+	region            string
 }
 
 // newRDSEndpointDetails extracts identifiers and region from the provided RDS endpoint.
@@ -437,10 +441,9 @@ func newRDSEndpointDetails(endpoint string) (*rdsEndpointDetails, error) {
 	parts := strings.Split(host, ".")
 	details := &rdsEndpointDetails{}
 
-	// Note that the RDS Proxy custom endpoints have 7 parts and do not have
-	// proxy identifiers in the URI.
+	// Note that the RDS Proxy custom endpoints have 7 parts.
 	if len(parts) == 7 && strings.HasPrefix(parts[2], "proxy-") {
-		details.isRDSProxy = true
+		details.proxyEndpointName = parts[0]
 		details.region = parts[3]
 		return details, nil
 	}
@@ -450,8 +453,7 @@ func newRDSEndpointDetails(endpoint string) (*rdsEndpointDetails, error) {
 	}
 
 	if strings.HasPrefix(parts[1], "proxy-") {
-		details.isRDSProxy = true
-		details.proxyID = parts[0]
+		details.proxyName = parts[0]
 	} else if strings.HasPrefix(parts[1], "cluster-") {
 		details.clusterID = parts[0]
 	} else {

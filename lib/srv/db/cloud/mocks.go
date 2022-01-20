@@ -45,9 +45,10 @@ func (m *STSMock) GetCallerIdentityWithContext(aws.Context, *sts.GetCallerIdenti
 // RDSMock mocks AWS RDS API.
 type RDSMock struct {
 	rdsiface.RDSAPI
-	DBInstances []*rds.DBInstance
-	DBClusters  []*rds.DBCluster
-	DBProxies   []*rds.DBProxy
+	DBInstances      []*rds.DBInstance
+	DBClusters       []*rds.DBCluster
+	DBProxies        []*rds.DBProxy
+	DBProxyEndpoints []*rds.DBProxyEndpoint
 }
 
 func (m *RDSMock) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
@@ -137,7 +138,36 @@ func (m *RDSMock) DescribeDBProxiesWithContext(ctx aws.Context, input *rds.Descr
 			}, nil
 		}
 	}
-	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.DBProxyName))
+	return nil, trace.NotFound("proxy %v not found", aws.StringValue(input.DBProxyName))
+}
+func (m *RDSMock) DescribeDBProxyEndpointsWithContext(context aws.Context, input *rds.DescribeDBProxyEndpointsInput, options ...request.Option) (*rds.DescribeDBProxyEndpointsOutput, error) {
+	inputProxyName := aws.StringValue(input.DBProxyName)
+	inputProxyEndpointName := aws.StringValue(input.DBProxyEndpointName)
+
+	if inputProxyName == "" && inputProxyEndpointName == "" {
+		return &rds.DescribeDBProxyEndpointsOutput{
+			DBProxyEndpoints: m.DBProxyEndpoints,
+		}, nil
+	}
+
+	endpoints := []*rds.DBProxyEndpoint{}
+	for _, dbProxyEndpoiont := range m.DBProxyEndpoints {
+		if inputProxyEndpointName != "" &&
+			inputProxyEndpointName != aws.StringValue(dbProxyEndpoiont.DBProxyEndpointName) {
+			continue
+		}
+
+		if inputProxyName != "" &&
+			inputProxyName != aws.StringValue(dbProxyEndpoiont.DBProxyName) {
+			continue
+		}
+
+		endpoints = append(endpoints, dbProxyEndpoiont)
+	}
+	if len(endpoints) == 0 {
+		return nil, trace.NotFound("proxy endpoint %v not found", aws.StringValue(input.DBProxyEndpointName))
+	}
+	return &rds.DescribeDBProxyEndpointsOutput{DBProxyEndpoints: endpoints}, nil
 }
 
 // IAMMock mocks AWS IAM API.
@@ -260,6 +290,9 @@ func (m *RDSMockUnauth) ModifyDBClusterWithContext(ctx aws.Context, input *rds.M
 	return nil, trace.AccessDenied("unauthorized")
 }
 func (m *RDSMockUnauth) DescribeDBProxiesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, options ...request.Option) (*rds.DescribeDBProxiesOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+func (m *RDSMockUnauth) DescribeDBProxyEndpointsWithContext(context aws.Context, input *rds.DescribeDBProxyEndpointsInput, options ...request.Option) (*rds.DescribeDBProxyEndpointsOutput, error) {
 	return nil, trace.AccessDenied("unauthorized")
 }
 

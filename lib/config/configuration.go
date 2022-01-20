@@ -136,8 +136,10 @@ type CommandLineFlags struct {
 	DatabaseAWSRDSInstanceID string
 	// DatabaseAWSRDSClusterID is RDS cluster (Aurora) cluster identifier.
 	DatabaseAWSRDSClusterID string
-	// DatabaseAWSRDSClusterID is RDS proxy identifier.
-	DatabaseAWSRDSProxyID string
+	// DatabaseAWSRDSProxyName is RDS proxy name.
+	DatabaseAWSRDSProxyName string
+	// DatabaseAWSRDSProxyEndpointName is the custom RDS proxy endpoint name.
+	DatabaseAWSRDSProxyEndpointName string
 	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
@@ -1066,9 +1068,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 					ClusterID: database.AWS.Redshift.ClusterID,
 				},
 				RDS: service.DatabaseAWSRDS{
-					InstanceID: database.AWS.RDS.InstanceID,
-					ClusterID:  database.AWS.RDS.ClusterID,
-					ProxyID:    database.AWS.RDS.ProxyID,
+					InstanceID:        database.AWS.RDS.InstanceID,
+					ClusterID:         database.AWS.RDS.ClusterID,
+					ProxyName:         database.AWS.RDS.ProxyName,
+					ProxyEndpointName: database.AWS.RDS.ProxyEndpointName,
 				},
 			},
 			GCP: service.DatabaseGCP{
@@ -1661,9 +1664,10 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
 				},
 				RDS: service.DatabaseAWSRDS{
-					InstanceID: clf.DatabaseAWSRDSInstanceID,
-					ClusterID:  clf.DatabaseAWSRDSClusterID,
-					ProxyID:    clf.DatabaseAWSRDSProxyID,
+					InstanceID:        clf.DatabaseAWSRDSInstanceID,
+					ClusterID:         clf.DatabaseAWSRDSClusterID,
+					ProxyName:         clf.DatabaseAWSRDSProxyName,
+					ProxyEndpointName: clf.DatabaseAWSRDSProxyEndpointName,
 				},
 			},
 			GCP: service.DatabaseGCP{

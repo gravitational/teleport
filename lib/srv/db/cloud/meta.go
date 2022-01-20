@@ -100,15 +100,21 @@ func (m *Metadata) fetchRDSMetadata(ctx context.Context, database types.Database
 		return nil, trace.Wrap(err)
 	}
 
-	if database.GetAWS().RDS.ProxyID != "" {
-		return fetchRDSProxyMetadata(ctx, rds, database.GetAWS().RDS.ProxyID)
+	awsMetadata := database.GetAWS()
+
+	if awsMetadata.RDS.ProxyEndpointName != "" {
+		return fetchRDSProxyEndpointMetadata(ctx, rds, awsMetadata.RDS.ProxyName)
 	}
 
-	if database.GetAWS().RDS.ClusterID != "" {
-		return fetchRDSClusterMetadata(ctx, rds, database.GetAWS().RDS.ClusterID)
+	if awsMetadata.RDS.ProxyName != "" {
+		return fetchRDSProxyMetadata(ctx, rds, awsMetadata.RDS.ProxyName)
 	}
 
-	metadata, err := fetchRDSInstanceMetadata(ctx, rds, database.GetAWS().RDS.InstanceID)
+	if awsMetadata.RDS.ClusterID != "" {
+		return fetchRDSClusterMetadata(ctx, rds, awsMetadata.RDS.ClusterID)
+	}
+
+	metadata, err := fetchRDSInstanceMetadata(ctx, rds, awsMetadata.RDS.InstanceID)
 
 	// If instance was found, it may be a part of an Aurora cluster.
 	if metadata != nil && metadata.RDS.ClusterID != "" {
@@ -200,25 +206,54 @@ func describeRedshiftCluster(ctx context.Context, redshiftClient redshiftiface.R
 	return out.Clusters[0], nil
 }
 
-// fetchRDSProxyMetadata fetches metadata about specified RDS proxy.
-func fetchRDSProxyMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyID string) (*types.AWS, error) {
-	rdsProxy, err := describeRDSProxy(ctx, rdsClient, proxyID)
+// fetchRDSProxyMetadata fetches metadata about specified RDS proxy name.
+func fetchRDSProxyMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyName string) (*types.AWS, error) {
+	rdsProxy, err := describeRDSProxy(ctx, rdsClient, proxyName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return services.MetadataFromRDSProxy(rdsProxy)
 }
 
-// describeRDSProxy returns AWS RDS proxy for the specified ID.
-func describeRDSProxy(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyID string) (*rds.DBProxy, error) {
+// describeRDSProxy returns AWS RDS proxy for the specified RDS proxy name.
+func describeRDSProxy(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyName string) (*rds.DBProxy, error) {
 	out, err := rdsClient.DescribeDBProxiesWithContext(ctx, &rds.DescribeDBProxiesInput{
-		DBProxyName: aws.String(proxyID),
+		DBProxyName: aws.String(proxyName),
 	})
 	if err != nil {
 		return nil, common.ConvertError(err)
 	}
 	if len(out.DBProxies) != 1 {
-		return nil, trace.BadParameter("expected 1 RDS proxy for %v, got %s", proxyID, out.DBProxies)
+		return nil, trace.BadParameter("expected 1 RDS proxy for %v, got %s", proxyName, out.DBProxies)
 	}
 	return out.DBProxies[0], nil
+}
+
+// fetchRDSProxyEndpointMetadata fetches metadata about specified RDS proxy endpoint.
+func fetchRDSProxyEndpointMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyEndpointName string) (*types.AWS, error) {
+	rdsProxyEndpoint, err := describeRDSProxyEndpoint(ctx, rdsClient, proxyEndpointName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rdsProxy, err := describeRDSProxy(ctx, rdsClient, aws.StringValue(rdsProxyEndpoint.DBProxyName))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return services.MetadataFromRDSProxyEndpoint(rdsProxy, rdsProxyEndpoint)
+}
+
+// describeRDSProxyEndpoint returns AWS RDS proxy endpoint for the specified RDS proxy endpoint.
+func describeRDSProxyEndpoint(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyEndpointName string) (*rds.DBProxyEndpoint, error) {
+	out, err := rdsClient.DescribeDBProxyEndpointsWithContext(ctx, &rds.DescribeDBProxyEndpointsInput{
+		DBProxyEndpointName: aws.String(proxyEndpointName),
+	})
+	if err != nil {
+		return nil, common.ConvertError(err)
+	}
+	if len(out.DBProxyEndpoints) != 1 {
+		return nil, trace.BadParameter("expected 1 RDS proxy endpoint for %v, got %s", proxyEndpointName, out.DBProxyEndpoints)
+	}
+	return out.DBProxyEndpoints[0], nil
 }

@@ -63,6 +63,12 @@ func TestAWSMetadata(t *testing.T) {
 				DBProxyName: aws.String("rds-proxy"),
 			},
 		},
+		DBProxyEndpoints: []*rds.DBProxyEndpoint{
+			{
+				DBProxyEndpointName: aws.String("custom-proxy-endpoint"),
+				DBProxyName:         aws.String("rds-proxy"),
+			},
+		},
 	}
 
 	// Configure Redshift API mock.
@@ -177,16 +183,35 @@ func TestAWSMetadata(t *testing.T) {
 			inAWS: types.AWS{
 				Region: "us-east-1",
 				RDS: types.RDS{
-					ProxyID: "rds-proxy",
+					ProxyName: "rds-proxy",
 				},
 			},
 			outAWS: types.AWS{
 				AccountID: "1234567890",
 				Region:    "us-east-1",
 				RDS: types.RDS{
-					ProxyID:    "rds-proxy",
+					ProxyName:  "rds-proxy",
 					ResourceID: "prx-resource-id",
 					IAMAuth:    true,
+				},
+			},
+		},
+		{
+			name: "RDS proxy custom endpoint",
+			inAWS: types.AWS{
+				Region: "us-east-1",
+				RDS: types.RDS{
+					ProxyEndpointName: "custom-proxy-endpoint",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID: "1234567890",
+				Region:    "us-east-1",
+				RDS: types.RDS{
+					ProxyName:         "rds-proxy",
+					ProxyEndpointName: "custom-proxy-endpoint",
+					ResourceID:        "prx-resource-id",
+					IAMAuth:           true,
 				},
 			},
 		},
@@ -243,7 +268,7 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 			name: "RDS proxy",
 			meta: types.AWS{
 				RDS: types.RDS{
-					ProxyID: "rds-proxy",
+					ProxyName: "rds-proxy",
 				},
 			},
 		},
