@@ -1494,7 +1494,7 @@ You can specify multiple database filters by adding additional list elements.
   <TabItem label="values.yaml">
   ```yaml
   awsDatabases:
-    - types: ["rds", "aurora"]
+    - types: ["rds"]
       regions: ["us-east-1", "us-west-2"]
       tags:
         "environment": "production"
@@ -1502,7 +1502,7 @@ You can specify multiple database filters by adding additional list elements.
       regions: ["us-east-1"]
       tags:
         "environment": "dev"
-    - types: ["aurora"]
+    - types: ["rds"]
       regions: ["eu-west-1"]
       tags:
         "*": "*"

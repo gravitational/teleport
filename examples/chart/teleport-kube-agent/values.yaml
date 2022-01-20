@@ -35,7 +35,7 @@ apps: []
 # Details of at least one awsDatabase discovery pattern to be discovered
 # and proxied. Example:
 # awsDatabases:
-# - types: ["rds", "aurora"]
+# - types: ["rds"]
 #   regions: ["us-east-1"]
 #   tags:
 #     "environment": "production"
