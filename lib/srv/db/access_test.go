@@ -248,6 +248,87 @@ func TestAccessMySQL(t *testing.T) {
 	}
 }
 
+// TestAccessRedis verifies access scenarios to a Redis database based
+// on the configured RBAC rules.
+func TestAccessRedis(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
+	go testCtx.startHandlingConnections()
+
+	tests := []struct {
+		// desc is the test case description.
+		desc string
+		// user is the Teleport local username the test will use.
+		user string
+		// role is the Teleport role name to create and assign to the user.
+		role string
+		// allowDbUsers is the role's list of allowed database users.
+		allowDbUsers []string
+		// dbUser is the database user to simulate connect as.
+		dbUser string
+		// err is the expected test case error.
+		err string
+	}{
+		{
+			desc:         "has access to all database users",
+			user:         "alice",
+			role:         "admin",
+			allowDbUsers: []string{types.Wildcard},
+			dbUser:       "root",
+		},
+		{
+			desc:         "has access to nothing",
+			user:         "alice",
+			role:         "admin",
+			allowDbUsers: []string{},
+			dbUser:       "root",
+			err:          "authorized database access",
+		},
+		{
+			desc:         "access allowed to specific user",
+			user:         "alice",
+			role:         "admin",
+			allowDbUsers: []string{"alice"},
+			dbUser:       "alice",
+		},
+		{
+			desc:         "access denied to specific user",
+			user:         "alice",
+			role:         "admin",
+			allowDbUsers: []string{"alice"},
+			dbUser:       "root",
+			err:          "authorized database access",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			// Create user/role with the requested permissions.
+			testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, []string{types.Wildcard})
+
+			ctx := context.Background()
+			// Try to connect to the database as this user.
+			redisClient, err := testCtx.redisClient(ctx, test.user, "redis", test.dbUser)
+			if test.err != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), test.err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Execute a query.
+			result := redisClient.Echo(ctx, "ping")
+			require.NoError(t, result.Err())
+			require.Equal(t, "ping", result.Val())
+
+			// Disconnect.
+			err = redisClient.Close()
+			require.NoError(t, err)
+		})
+	}
+}
+
 // TestMySQLBadHandshake verifies MySQL proxy can gracefully handle truncated
 // client handshake messages.
 func TestMySQLBadHandshake(t *testing.T) {
@@ -814,7 +895,11 @@ func (c *testContext) mongoClientWithAddr(ctx context.Context, address, teleport
 	}, opts...)
 }
 
-func (c *testContext) redisClient(ctx context.Context, proxyAddress, teleportUser, dbService, dbUser string, opts ...*options.ClientOptions) (*redis.Client, error) {
+func (c *testContext) redisClient(ctx context.Context, teleportUser, dbService, dbUser string, opts ...*options.ClientOptions) (*redis.Client, error) {
+	return c.redisClientWithAddr(ctx, c.webListener.Addr().String(), teleportUser, dbService, dbUser, opts...)
+}
+
+func (c *testContext) redisClientWithAddr(ctx context.Context, proxyAddress, teleportUser, dbService, dbUser string, opts ...*options.ClientOptions) (*redis.Client, error) {
 	return redis.MakeTestClient(ctx, common.TestClientConfig{
 		AuthClient: c.authClient,
 		AuthServer: c.authServer,
@@ -1423,7 +1508,7 @@ func withSelfHostedRedis(name string) withDatabaseOption {
 			Name: name,
 		}, types.DatabaseSpecV3{
 			Protocol:      defaults.ProtocolRedis,
-			URI:           net.JoinHostPort("localhost", redisServer.Port()),
+			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
 			DynamicLabels: dynamicLabels,
 		})
 		require.NoError(t, err)

@@ -113,7 +113,7 @@ func TestProxyProtocolRedis(t *testing.T) {
 
 	// Connect to the proxy instead of directly to Teleport listener and make
 	// sure the connection succeeds.
-	redisClient, err := testCtx.redisClient(ctx, proxy.Address(), "alice", "redis", "alice")
+	redisClient, err := testCtx.redisClientWithAddr(ctx, proxy.Address(), "alice", "redis", "admin")
 	require.NoError(t, err)
 
 	// Send ECHO to Redis server and check if we get it back.

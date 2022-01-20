@@ -217,8 +217,8 @@ func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) e
 }
 
 func (s *ProxyServer) serverGenericTLS(listener net.Listener, tlsConfig *tls.Config, DBName string) error {
-	s.log.Debug("Started %s proxy.", DBName)
-	defer s.log.Debug("%s proxy exited.", DBName)
+	s.log.Debugf("Started %s proxy.", DBName)
+	defer s.log.Debugf("%s proxy exited.", DBName)
 	for {
 		clientConn, err := listener.Accept()
 		if err != nil {
@@ -232,12 +232,12 @@ func (s *ProxyServer) serverGenericTLS(listener net.Listener, tlsConfig *tls.Con
 			defer clientConn.Close()
 			tlsConn := tls.Server(clientConn, tlsConfig)
 			if err := tlsConn.Handshake(); err != nil {
-				s.log.WithError(err).Error("%s TLS handshake failed.", DBName)
+				s.log.WithError(err).Errorf("%s TLS handshake failed.", DBName)
 				return
 			}
 			err := s.handleConnection(tlsConn)
 			if err != nil {
-				s.log.WithError(err).Error("Failed to handle %s client connection.", DBName)
+				s.log.WithError(err).Errorf("Failed to handle %s client connection.", DBName)
 			}
 		}()
 	}

@@ -110,7 +110,7 @@ func (e *Engine) sendToClient(vals interface{}) error {
 	}
 
 	if _, err := e.proxyConn.Write(buf.Bytes()); err != nil {
-		return trace.ConnectionProblem(err, "Failed to send message to the client: %v")
+		return trace.ConnectionProblem(err, "Failed to send message to the client")
 	}
 
 	return nil
@@ -120,7 +120,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	// Check that the user has access to the database.
 	err := e.authorizeConnection(ctx, sessionCtx)
 	if err != nil {
-		return trace.Wrap(err, "error authorizing database access")
+		return trace.Wrap(err, "error authorized database access")
 	}
 
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
