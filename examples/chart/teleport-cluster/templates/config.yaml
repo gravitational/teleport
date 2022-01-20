@@ -55,6 +55,23 @@ data:
   {{- end }}
       authentication:
         type: {{ required "authenticationType is required in chart values" .Values.authenticationType }}
+  {{- if .Values.authenticationSecondFactor }}
+    {{- if .Values.authenticationSecondFactor.secondFactor }}
+        second_factor: {{ .Values.authenticationSecondFactor.secondFactor }}
+    {{- end }}
+    {{- if .Values.authenticationSecondFactor.webauthn }}
+        webauthn:
+          rp_id: {{ required "authenticationSecondFactor.webauthn.rpId is required in chart values to enable webauthn" .Values.authenticationSecondFactor.webauthn.rpId }}
+      {{- if .Values.authenticationSecondFactor.webauthn.attestationAllowedCas }}
+          attestation_allowed_cas:
+          {{- toYaml .Values.authenticationSecondFactor.webauthn.attestationAllowedCas | nindent 12 }}
+      {{- end }}
+      {{- if .Values.authenticationSecondFactor.webauthn.attestationDeniedCas }}
+          attestation_denied_cas:
+          {{- toYaml .Values.authenticationSecondFactor.webauthn.attestationDeniedCas | nindent 12 }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
   {{- if eq .Values.proxyListenerMode "multiplex" }}
       proxy_listener_mode: multiplex
   {{- end }}
