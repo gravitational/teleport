@@ -31,6 +31,9 @@ func (b *Bot) Label(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if len(labels) == 0 {
+		return nil
+	}
 
 	err = b.c.GitHub.AddLabels(ctx,
 		b.c.Environment.Organization,
@@ -72,12 +75,6 @@ func (b *Bot) labels(ctx context.Context) ([]string, error) {
 				labels = append(labels, v...)
 			}
 		}
-		for k, v := range suffixes {
-			if strings.HasSuffix(file, k) {
-				log.Printf("Label: Found suffix %v, attaching labels: %v.", k, v)
-				labels = append(labels, v...)
-			}
-		}
 	}
 
 	return deduplicate(labels), nil
@@ -100,7 +97,7 @@ func deduplicate(s []string) []string {
 var prefixes map[string][]string = map[string][]string{
 	"bpf/":                []string{"bpf"},
 	"docs/":               []string{"documentation"},
-	"rfd/":                []string{"documentation", "rfd"},
+	"rfd/":                []string{"rfd"},
 	"examples/chart":      []string{"helm"},
 	"lib/bpf/":            []string{"bpf"},
 	"lib/events":          []string{"audit-log"},
@@ -112,9 +109,4 @@ var prefixes map[string][]string = map[string][]string{
 	"lib/web/desktop.go":  []string{"desktop-access"},
 	"tool/tctl/":          []string{"tctl"},
 	"tool/tsh/":           []string{"tsh"},
-}
-
-var suffixes map[string][]string = map[string][]string{
-	".md":  []string{"documentation"},
-	".mdx": []string{"documentation"},
 }
