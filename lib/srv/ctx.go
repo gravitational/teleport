@@ -608,9 +608,15 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 		return trace.Wrap(err)
 	}
 
-	// TODO (Joerger): If the teleport process is terminated, then these closers
-	// don't actually run. They only run when the client session is terminated.
-	// This is either a bug, or we need to use a different mechanism.
+	// TODO (Joerger): During a non-graceful shutdown, such as SIGTERM, the Teleport
+	// process is terminated immediately. Any deferred close statements, such as these
+	// closers, are not run and we rely on the process to clean up any remaining resources.
+	//
+	// However, unlike tcp sockets, unix sockets are not fully cleaned up without an explicit
+	// all to Close(). The underlying file descriptor will be removed and the socket won't be
+	// listening, but the bound socket name ("/tmp/.X11-unix/X10" in this case), is not
+	// cleaned up. Any future calls to net.Listen("/tmp/.X11-unix/X10") will fail unless
+	// the file is manually removed or the device is restarted.
 	c.closers = append(c.closers, l)
 	c.x11Config = &X11Config{
 		XServerUnixSocket: l.Addr().String(),
