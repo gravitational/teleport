@@ -22,6 +22,9 @@ teleportVersionOverride: ""
 # 'false' is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/
 authenticationType: local
 
+authenticationSecondFactor:
+  secondFactor: "on"
+
 # Teleport supports TLS routing. In this mode, all client connections are wrapped in TLS and multiplexed on one Teleport proxy port.
 # Default mode will not utilize TLS routing and operate in backwards-compatibility mode.
 # Possible values are 'multiplex'
