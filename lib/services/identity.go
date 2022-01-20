@@ -24,6 +24,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
@@ -266,6 +267,8 @@ type AppSession interface {
 	DeleteAppSession(context.Context, types.DeleteAppSessionRequest) error
 	// DeleteAllAppSessions removes all application web sessions.
 	DeleteAllAppSessions(context.Context) error
+	// DeleteUserAppSessions delete all user’s application sessions.
+	DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),

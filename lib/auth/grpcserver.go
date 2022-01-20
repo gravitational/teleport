@@ -1269,6 +1269,20 @@ func (g *GRPCServer) DeleteAllAppSessions(ctx context.Context, _ *empty.Empty) (
 	return &empty.Empty{}, nil
 }
 
+// DeleteUserAppSessions removes user's all application web sessions.
+func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteUserAppSessions(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 // GenerateAppToken creates a JWT token with application access.
 func (g GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateAppTokenRequest) (*proto.GenerateAppTokenResponse, error) {
 	auth, err := g.authenticate(ctx)

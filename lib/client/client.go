@@ -608,6 +608,19 @@ func (proxy *ProxyClient) DeleteAppSession(ctx context.Context, sessionID string
 	return nil
 }
 
+// DeleteUserAppSessions removes user's all application web sessions.
+func (proxy *ProxyClient) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
+	authClient, err := proxy.ConnectToRootCluster(ctx, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = authClient.DeleteUserAppSessions(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // GetDatabaseServers returns all registered database proxy servers.
 func (proxy *ProxyClient) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
 	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)

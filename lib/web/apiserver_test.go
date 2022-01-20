@@ -2113,6 +2113,64 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
 }
 
+// TestApplicationWebSessionsDeletedAfterLogout makes sure user's application
+// sessions are deleted after user logout.
+func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com")
+
+	// Register multiple applications.
+	applications := []struct {
+		name       string
+		publicAddr string
+	}{
+		{name: "panel", publicAddr: "panel.example.com"},
+		{name: "admin", publicAddr: "admin.example.com"},
+		{name: "metrics", publicAddr: "metrics.example.com"},
+	}
+
+	// Register and create a session for each application.
+	for _, application := range applications {
+		// Register an application.
+		app, err := types.NewAppV3(types.Metadata{
+			Name: application.name,
+		}, types.AppSpecV3{
+			URI:        "localhost",
+			PublicAddr: application.publicAddr,
+		})
+		require.NoError(t, err)
+		server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+		require.NoError(t, err)
+		_, err = env.server.Auth().UpsertApplicationServer(context.Background(), server)
+		require.NoError(t, err)
+
+		// Create application session
+		endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+		_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
+			FQDNHint:    application.publicAddr,
+			PublicAddr:  application.publicAddr,
+			ClusterName: "localhost",
+		})
+		require.NoError(t, err)
+	}
+
+	// List sessions, should have one for each application.
+	sessions, err := proxy.client.GetAppSessions(context.Background())
+	require.NoError(t, err)
+	require.Len(t, sessions, len(applications))
+
+	// Logout from Telport.
+	_, err = pack.clt.Delete(context.Background(), pack.clt.Endpoint("webapi", "sessions"))
+	require.NoError(t, err)
+
+	// Check sessions after logout, should be empty.
+	sessions, err = proxy.client.GetAppSessions(context.Background())
+	require.NoError(t, err)
+	require.Len(t, sessions, 0)
+}
+
 func TestCreatePrivilegeToken(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
