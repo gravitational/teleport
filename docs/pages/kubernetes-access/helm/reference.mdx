@@ -67,6 +67,52 @@ This reference details available values for the `teleport-cluster` chart.
 
 `authenticationType` controls the authentication scheme used by Teleport. Possible values are `local` and `github` for OSS, plus `oidc`, `saml`, and `false` for Enterprise.
 
+## `authenticationSecondFactor`
+
+### `authenticationSecondFactor.secondFactor`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `on` | Yes | `auth_service.authentication.second_factor` | ❌ |
+
+`authenticationSecondFactor.secondFactor` controls the second factor used for local user authentication. Possible values are `on`, `optional` and `webauthn`.
+
+### `authenticationSecondFactor.webauthn`
+
+See [Second Factor - WebAuthn](../../access-controls/guides/webauthn.mdx) for more details.
+
+#### `authenticationSecondFactor.webauthn.rpId`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `` | Yes | `auth_service.authentication.webauthn.rp_id` | ❌ |
+
+`authenticationSecondFactor.webauthn.rpId` is public domain of the Teleport proxy, excluding protocol (https://) and port number.
+
+#### `authenticationSecondFactor.webauthn.attestationAllowedCas`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `array` | `[]` | No | `auth_service.authentication.webauthn.attestation_allowed_cas` | ❌ |
+
+`authenticationSecondFactor.webauthn.attestationAllowedCas` is an optional allow list of certificate authorities (as local file paths or in-line PEM certificate string) for
+[device verification](https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
+This field allows you to restrict which device models and vendors you trust.
+Devices outside of the list will be rejected during registration.
+By default all devices are allowed.
+
+#### `authenticationSecondFactor.webauthn.attestationDeniedCas`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `array` | `[]` | No | `auth_service.authentication.webauthn.attestation_denied_cas` | ❌ |
+
+`authenticationSecondFactor.webauthn.attestationDeniedCas` is optional deny list of certificate authorities (as local file paths or in-line PEM certificate string) for
+[device verification](https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
+This field allows you to forbid specific device models and vendors, while allowing all others (provided they clear attestation_allowed_cas as well).
+Devices within this list will be rejected during registration.
+By default no devices are forbidden.
+
 ## `proxyListenerMode`
 
 | Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
