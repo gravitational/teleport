@@ -47,6 +47,7 @@ type RDSMock struct {
 	rdsiface.RDSAPI
 	DBInstances []*rds.DBInstance
 	DBClusters  []*rds.DBCluster
+	DBProxies   []*rds.DBProxy
 }
 
 func (m *RDSMock) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
@@ -121,6 +122,22 @@ func (m *RDSMock) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyD
 		}
 	}
 	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.DBClusterIdentifier))
+}
+
+func (m *RDSMock) DescribeDBProxiesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, options ...request.Option) (*rds.DescribeDBProxiesOutput, error) {
+	if aws.StringValue(input.DBProxyName) == "" {
+		return &rds.DescribeDBProxiesOutput{
+			DBProxies: m.DBProxies,
+		}, nil
+	}
+	for _, dbProxy := range m.DBProxies {
+		if aws.StringValue(dbProxy.DBProxyName) == aws.StringValue(input.DBProxyName) {
+			return &rds.DescribeDBProxiesOutput{
+				DBProxies: []*rds.DBProxy{dbProxy},
+			}, nil
+		}
+	}
+	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.DBProxyName))
 }
 
 // IAMMock mocks AWS IAM API.
@@ -240,6 +257,9 @@ func (m *RDSMockUnauth) ModifyDBInstanceWithContext(ctx aws.Context, input *rds.
 }
 
 func (m *RDSMockUnauth) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyDBClusterInput, options ...request.Option) (*rds.ModifyDBClusterOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+func (m *RDSMockUnauth) DescribeDBProxiesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, options ...request.Option) (*rds.DescribeDBProxiesOutput, error) {
 	return nil, trace.AccessDenied("unauthorized")
 }
 

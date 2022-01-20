@@ -104,26 +104,17 @@ func (m *Metadata) fetchRDSMetadata(ctx context.Context, database types.Database
 		return fetchRDSProxyMetadata(ctx, rds, database.GetAWS().RDS.ProxyID)
 	}
 
-	// Try to fetch the RDS instance metadata.
+	if database.GetAWS().RDS.ClusterID != "" {
+		return fetchRDSClusterMetadata(ctx, rds, database.GetAWS().RDS.ClusterID)
+	}
+
 	metadata, err := fetchRDSInstanceMetadata(ctx, rds, database.GetAWS().RDS.InstanceID)
-	if err != nil && !trace.IsNotFound(err) && !trace.IsAccessDenied(err) {
-		return nil, trace.Wrap(err)
-	}
-	// If RDS instance metadata wasn't found, it may be an Aurora cluster.
-	if metadata == nil {
-		// Aurora cluster ID may be either explicitly specified or parsed
-		// from endpoint in which case it will be in InstanceID field.
-		clusterID := database.GetAWS().RDS.ClusterID
-		if clusterID == "" {
-			clusterID = database.GetAWS().RDS.InstanceID
-		}
-		return fetchRDSClusterMetadata(ctx, rds, clusterID)
-	}
+
 	// If instance was found, it may be a part of an Aurora cluster.
-	if metadata.RDS.ClusterID != "" {
+	if metadata != nil && metadata.RDS.ClusterID != "" {
 		return fetchRDSClusterMetadata(ctx, rds, metadata.RDS.ClusterID)
 	}
-	return metadata, nil
+	return metadata, err
 }
 
 // fetchRedshiftMetadata fetches metadata for the provided Redshift database.

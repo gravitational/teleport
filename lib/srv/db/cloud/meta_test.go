@@ -57,6 +57,12 @@ func TestAWSMetadata(t *testing.T) {
 				DbClusterResourceId: aws.String("cluster-xyz"),
 			},
 		},
+		DBProxies: []*rds.DBProxy{
+			{
+				DBProxyArn:  aws.String("arn:aws:rds:us-east-1:1234567890:db-proxy:prx-resource-id"),
+				DBProxyName: aws.String("rds-proxy"),
+			},
+		},
 	}
 
 	// Configure Redshift API mock.
@@ -108,7 +114,7 @@ func TestAWSMetadata(t *testing.T) {
 			name: "Aurora cluster",
 			inAWS: types.AWS{
 				RDS: types.RDS{
-					InstanceID: "postgres-aurora",
+					ClusterID: "postgres-aurora",
 				},
 			},
 			outAWS: types.AWS{
@@ -166,6 +172,24 @@ func TestAWSMetadata(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "RDS proxy",
+			inAWS: types.AWS{
+				Region: "us-east-1",
+				RDS: types.RDS{
+					ProxyID: "rds-proxy",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID: "1234567890",
+				Region:    "us-east-1",
+				RDS: types.RDS{
+					ProxyID:    "rds-proxy",
+					ResourceID: "prx-resource-id",
+					IAMAuth:    true,
+				},
+			},
+		},
 	}
 
 	ctx := context.Background()
@@ -212,6 +236,14 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 			meta: types.AWS{
 				RDS: types.RDS{
 					InstanceID: "postgres-rds",
+				},
+			},
+		},
+		{
+			name: "RDS proxy",
+			meta: types.AWS{
+				RDS: types.RDS{
+					ProxyID: "rds-proxy",
 				},
 			},
 		},

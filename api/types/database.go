@@ -307,7 +307,10 @@ func (d *DatabaseV3) GetType() string {
 	if d.GetAWS().Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift
 	}
-	if d.GetAWS().Region != "" || d.GetAWS().RDS.InstanceID != "" || d.GetAWS().RDS.ClusterID != "" || d.GetAWS().RDS.ProxyID != "" {
+	if d.GetAWS().Region != "" ||
+		d.GetAWS().RDS.InstanceID != "" ||
+		d.GetAWS().RDS.ClusterID != "" ||
+		d.GetAWS().RDS.ProxyID != "" {
 		return DatabaseTypeRDS
 	}
 	if d.GetGCP().ProjectID != "" {
@@ -357,15 +360,21 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
 	case strings.Contains(d.Spec.URI, rdsEndpointSuffix):
-		instanceID, region, err := parseRDSEndpoint(d.Spec.URI)
+		rdsDetails, err := newRDSEndpointDetails(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if d.Spec.AWS.RDS.InstanceID == "" {
-			d.Spec.AWS.RDS.InstanceID = instanceID
+		if d.Spec.AWS.RDS.InstanceID == "" && rdsDetails.instanceID != "" {
+			d.Spec.AWS.RDS.InstanceID = rdsDetails.instanceID
+		}
+		if d.Spec.AWS.RDS.ClusterID == "" && rdsDetails.clusterID != "" {
+			d.Spec.AWS.RDS.ClusterID = rdsDetails.clusterID
+		}
+		if d.Spec.AWS.RDS.ProxyID == "" && rdsDetails.proxyID != "" {
+			d.Spec.AWS.RDS.ProxyID = rdsDetails.proxyID
 		}
 		if d.Spec.AWS.Region == "" {
-			d.Spec.AWS.Region = region
+			d.Spec.AWS.Region = rdsDetails.region
 		}
 	case strings.Contains(d.Spec.URI, redshiftEndpointSuffix):
 		clusterID, region, err := parseRedshiftEndpoint(d.Spec.URI)
@@ -390,19 +399,67 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-// parseRDSEndpoint extracts region from the provided RDS endpoint.
-func parseRDSEndpoint(endpoint string) (instanceID, region string, err error) {
+// rdsEndpointDetails contains information about an RDS endpoint.
+type rdsEndpointDetails struct {
+	instanceID string
+	clusterID  string
+	proxyID    string
+	region     string
+	isRDSProxy bool
+}
+
+// newRDSEndpointDetails extracts identifiers and region from the provided RDS endpoint.
+func newRDSEndpointDetails(endpoint string) (*rdsEndpointDetails, error) {
 	host, _, err := net.SplitHostPort(endpoint)
 	if err != nil {
-		return "", "", trace.Wrap(err)
+		return nil, err
 	}
-	// RDS/Aurora endpoint looks like this:
+
+	// RDS/Aurora instances looks like this:
 	// aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com
-	parts := strings.Split(host, ".")
-	if !strings.HasSuffix(host, rdsEndpointSuffix) || len(parts) != 6 {
-		return "", "", trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
+	//
+	// Aurora cluster endpoints look like this:
+	// my-cluster.cluster-abcdefghijklmnop.us-west-1.rds.amazonaws.com
+	// my-cluster.cluster-ro-abcdefghijklmnop.us-west-1.rds.amazonaws.com
+	// my-cluster.cluster-custom-abcdefghijklmnop.us-west-1.rds.amazonaws.com
+	//
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html
+	//
+	// RDS proxy endpoints look like this:
+	// my-proxy.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com
+	// my-proxy-custom.endpoint.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com
+	//
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/rds-proxy-setup.html#rds-proxy-connecting
+	if !strings.HasSuffix(host, rdsEndpointSuffix) {
+		return nil, trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
 	}
-	return parts[0], parts[2], nil
+
+	parts := strings.Split(host, ".")
+	details := &rdsEndpointDetails{}
+
+	// Note that the RDS Proxy custom endpoints have 7 parts and do not have
+	// proxy identifiers in the URI.
+	if len(parts) == 7 && strings.HasPrefix(parts[2], "proxy-") {
+		details.isRDSProxy = true
+		details.region = parts[3]
+		return details, nil
+	}
+
+	if len(parts) != 6 {
+		return nil, trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
+	}
+
+	if strings.HasPrefix(parts[1], "proxy-") {
+		details.isRDSProxy = true
+		details.proxyID = parts[0]
+	} else if strings.HasPrefix(parts[1], "cluster-") {
+		details.clusterID = parts[0]
+	} else {
+		details.instanceID = parts[0]
+	}
+
+	details.region = parts[2]
+	return details, nil
 }
 
 // parseRedshiftEndpoint extracts cluster ID and region from the provided Redshift endpoint.

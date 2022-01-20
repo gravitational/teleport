@@ -192,12 +192,23 @@ func MetadataFromRDSProxy(rdsProxy *rds.DBProxy) (*types.AWS, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// rds.DBProxy has no resource ID attribute. The resource ID can be found
+	// at the end of the ARN after "db-proxy:".
+	//
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/rds-proxy-setup.html#rds-proxy-connecting
+	// https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html#arns-paths.
+	parts := strings.Split(parsedARN.Resource, ":")
+	if len(parts) != 2 {
+		return nil, trace.BadParameter("failed to find resource ID")
+	}
+
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		RDS: types.RDS{
 			ProxyID:    aws.StringValue(rdsProxy.DBProxyName),
-			ResourceID: strings.TrimPrefix(parsedARN.Resource, "db-proxy:"),
+			ResourceID: parts[1],
 			IAMAuth:    true, // always enabled
 		},
 	}, nil
