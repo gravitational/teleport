@@ -1515,16 +1515,16 @@ You can specify multiple database filters by adding additional list elements.
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set "databases[0].name=aurora" \
-  --set "databases[0].uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432" \
-  --set "databases[0].protocol=postgres" \
-  --set "databases[0].aws.region=us-east-1" \
-  --set "databases[0].static_labels.env=staging" \
-  --set "databases[1].name=mysql" \
-  --set "databases[1].uri=mysql-instance-1.xxx.us-east-1.rds.amazonaws.com:3306" \
-  --set "databases[1].protocol=mysql" \
-  --set "databases[1].aws.region=us-east-1" \
-  --set "databases[1].static_labels.env=staging"
+  $ --set "awsDatabases[0].types[0]=rds" \
+  --set "awsDatabases[0].regions[0]=us-east-1" \
+  --set "awsDatabases[0].regions[1]=us-west-2" \
+  --set "awsDatabases[0].tags[0].environment=production" \
+  --set "awsDatabases[1].types[0]=rds" \
+  --set "awsDatabases[1].regions[0]=us-east-1" \
+  --set "awsDatabases[1].tags[0].environment=dev" \
+  --set "awsDatabases[2].types[0]=rds" \
+  --set "awsDatabases[2].regions[0]=eu-west-1" \
+  --set "awsDatabases[2].tags[0].*=*"
   ```
 
   <Admonition type="note">
