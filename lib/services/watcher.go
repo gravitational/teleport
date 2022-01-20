@@ -188,6 +188,16 @@ func (p *resourceWatcher) runWatchLoop() {
 		default:
 		}
 
+		if err != nil && p.failureStartedAt.IsZero() {
+			// Note that failureStartedAt is zeroed in the watch routine immediately
+			// after the local resource set has been successfully updated.
+			p.failureStartedAt = p.Clock.Now()
+		}
+		if p.hasStaleView() {
+			p.Log.Warningf("Maximum staleness of %v exceeded, failure started at %v.", p.MaxStaleness, p.failureStartedAt)
+			p.collector.notifyStale()
+		}
+
 		// Used for testing that the watch routine has exited and is about
 		// to be restarted.
 		select {
@@ -206,15 +216,8 @@ func (p *resourceWatcher) runWatchLoop() {
 		}
 		if err != nil {
 			p.Log.Warningf("Restart watch on error: %v.", err)
-			if p.failureStartedAt.IsZero() {
-				p.failureStartedAt = p.Clock.Now()
-			}
-			// failureStartedAt is zeroed in the watch routine immediately after
-			// the local resource set has been successfully updated.
-		}
-		if p.hasStaleView() {
-			p.Log.Warningf("Maximum staleness of %v exceeded, failure started at %v.", p.MaxStaleness, p.failureStartedAt)
-			p.collector.notifyStale()
+		} else {
+			p.Log.Debug("Triggering scheduled refetch.")
 		}
 
 	}

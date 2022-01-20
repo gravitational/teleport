@@ -400,10 +400,16 @@ func TestLockWatcherStale(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
+	select {
+	case <-w.LoopC:
+	case <-time.After(15 * time.Second):
+		t.Fatal("Timeout waiting for LockWatcher loop.")
+	}
 
 	// Subscribe to lock watcher updates.
 	target := types.LockTarget{Node: "node"}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
 	sub, err := w.Subscribe(ctx, target)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, sub.Close()) })
@@ -420,6 +426,7 @@ func TestLockWatcherStale(t *testing.T) {
 	case <-time.After(2 * time.Second):
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
 
 	// Advance the clock to exceed LockMaxStaleness.
 	clock.Advance(defaults.LockMaxStaleness + time.Second)
@@ -428,7 +435,7 @@ func TestLockWatcherStale(t *testing.T) {
 		require.Equal(t, types.OpUnreliable, event.Type)
 	case <-sub.Done():
 		t.Fatal("Lock watcher subscription has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for OpUnreliable.")
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
@@ -460,7 +467,7 @@ ExpectPut:
 			break ExpectPut
 		case <-sub.Done():
 			t.Fatal("Lock watcher subscription has unexpectedly exited.")
-		case <-time.After(2 * time.Second):
+		case <-time.After(15 * time.Second):
 			t.Fatal("Timeout waiting for OpPut.")
 		}
 	}
