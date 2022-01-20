@@ -164,6 +164,9 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	e.Log.Debug("Redis server responded to ping message")
 
+	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
+	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
+
 	if err := e.process(ctx, redisConn); err != nil {
 		return trace.Wrap(err)
 	}

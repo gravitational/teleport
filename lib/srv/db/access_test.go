@@ -420,6 +420,8 @@ func TestAccessMySQLChangeUser(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TODO(jakub): Add redis AUTH cmd
+
 // TestAccessMySQLServerPacket verifies some edge-cases related to reading
 // wire packets sent by the MySQL server.
 func TestAccessMySQLServerPacket(t *testing.T) {
