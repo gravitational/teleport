@@ -94,7 +94,7 @@ the client.
 
 ### Certificate Bot
 The Certificate Bot needs to get an initial certificate for the cluster which
-will be renable. It will either provide a token or use the new EC2 or IAM
+will be renawable. It will either provide a token or use the new EC2 or IAM
 methods to get the initial certificate. This is very similar to a node joining a
 cluster, except that the obtained certificate will be renewable.
 
