@@ -18,6 +18,8 @@ package bot
 
 import (
 	"context"
+	"log"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -49,15 +51,60 @@ func (b *Bot) Check(ctx context.Context) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
 		if err := b.c.Review.CheckInternal(b.c.Environment.Author, reviews, docs, code); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// TODO(russjones): Add override.
+		if err := b.checkTests(ctx); err != nil {
+			log.Printf("Check: Passed code review, but missing test coverage.")
 			return trace.Wrap(err)
 		}
 		return nil
 	}
-
 	if err := b.c.Review.CheckExternal(b.c.Environment.Author, reviews); err != nil {
 		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (b *Bot) checkTests(ctx context.Context) error {
+	if b.c.Review.CheckAdmin() {
+		return nil
+	}
+	if hasTestCoverage() 
+}
+
+
+func (b *Bot) hasTestCoverage(ctx context.Context) error {
+	files, err := b.c.GitHub.ListFiles(ctx,
+		b.c.Environment.Organization,
+		b.c.Environment.Repository,
+		b.c.Environment.Number)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var code bool
+	var tests bool
+
+	for _, file := range files {
+		if strings.HasPrefix(file, "vendor/") {
+			continue
+		}
+
+		if strings.HasSuffix(file, "_test.go") {
+			tests = true
+		}
+		if strings.HasSuffix(file, ".go") {
+			code = true
+		}
+	}
+
+	// Fail if code was added without test coverage.
+	if code && !tests {
+		return trace.BadParameter("missing test coverage")
 	}
 	return nil
 }
