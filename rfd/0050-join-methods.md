@@ -55,7 +55,7 @@ certificate used for the mTLS connection.
 #### Proxy `POST /webapi/host/credentials`
 Join methods: token, EC2
 Server trust: PKI
-This is the proxy endpoint for registering IoT nodes, it basically forwards to
+This is the proxy endpoint for registering IoT nodes that don't have a direct connection to the auth server, it basically forwards to
 the Auth `/tokens/register` endpoint.
 
 ### New IAM Join Method
