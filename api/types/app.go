@@ -281,7 +281,7 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		host = url.Host
 	}
 
-	// Deprecated DELETE IN 10.0 use KubeTeleportProxyALPNPrefix instead.
+	// DEPRECATED DELETE IN 11.0 use KubeTeleportProxyALPNPrefix check only.
 	if strings.HasPrefix(host, constants.KubeSNIPrefix) {
 		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
 			constants.KubeSNIPrefix, a.Spec.PublicAddr)
