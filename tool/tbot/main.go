@@ -5,9 +5,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
-	"text/template"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -16,50 +13,25 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/renew"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tbot/config"
+	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/kr/pretty"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentTSH,
+	trace.Component: teleport.ComponentTBot,
 })
 
 const (
-	authServerEnvVar  = "TELEPORT_AUTH_SERVER"
-	clusterNameEnvVar = "TELEPORT_CLUSTER_NAME"
-	tokenEnvVar       = "TELEPORT_BOT_TOKEN"
+	authServerEnvVar = "TELEPORT_AUTH_SERVER"
+	tokenEnvVar      = "TELEPORT_BOT_TOKEN"
 )
-
-// TODO: need to store the bot's host ID and the name of the cluster
-// we're connecting to - should we just dump that in the store?
-
-type CLIConf struct {
-	Debug       bool
-	AuthServer  string
-	ClusterName string
-	DataDir     string
-	// CAPins is a list of pinned SKPI hashes of trusted auth server CAs, used
-	// only on first connect.
-	CAPins []string
-	// CAPath is the path to the auth server CA certificate, if available. Used
-	// only on first connect.
-	CAPath string
-
-	ProxyServer string
-
-	Token string
-	// RenewInterval is the interval at which certificates are renewed, as a
-	// time.ParseDuration() string. It must be less than the certificate TTL.
-	RenewInterval time.Duration
-	// CertificateTTL is the requested TTL of certificates. It should be some
-	// multiple of the renewal interval to allow for failed renewals.
-	CertificateTTL time.Duration
-}
 
 func main() {
 	if err := Run(os.Args[1:]); err != nil {
@@ -69,17 +41,21 @@ func main() {
 }
 
 func Run(args []string) error {
-	var cf CLIConf
+	var cf config.CLIConf
 	utils.InitLogger(utils.LoggingForDaemon, logrus.InfoLevel)
 
 	app := utils.InitCLIParser("tbot", "tbot: Teleport Credential Bot").Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
+	app.Flag("config", "tbot.yaml path").Short('c').StringVar(&cf.ConfigPath)
+
+	configCmd := app.Command("config", "Parse and dump a config file")
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
-	startCmd.Flag("auth-server", "Specify the Teleport auth server host").Short('a').Envar(authServerEnvVar).Required().StringVar(&cf.AuthServer)
+	startCmd.Flag("auth-server", "Specify the Teleport auth server host").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
 	startCmd.Flag("token", "A bot join token, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
 	startCmd.Flag("ca-pin", "A repeatable auth server CA hash to pin; used on first connect.").StringsVar(&cf.CAPins)
-	startCmd.Flag("data-dir", "Directory in which to write certificate files.").Required().StringVar(&cf.DataDir)
+	startCmd.Flag("data-dir", "Directory to store internal bot data.").StringVar(&cf.DataDir)
+	startCmd.Flag("destination-dir", "Directory to write generated certificates").StringVar(&cf.DestinationDir)
 	startCmd.Flag("certificate-ttl", "TTL of generated certificates").Default("60m").DurationVar(&cf.CertificateTTL)
 	startCmd.Flag("renew-interval", "Interval at which certificates are renewed; must be less than the certificate TTL.").Default("20m").DurationVar(&cf.RenewInterval)
 
@@ -93,11 +69,16 @@ func Run(args []string) error {
 		utils.InitLogger(utils.LoggingForDaemon, logrus.DebugLevel)
 	}
 
-	log.Debugf("args: %+v", cf)
+	botConfig, err := config.FromCLIConf(&cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	switch command {
+	case configCmd.FullCommand():
+		err = onConfig(botConfig)
 	case startCmd.FullCommand():
-		err = onStart(&cf)
+		err = onStart(botConfig)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
@@ -106,36 +87,39 @@ func Run(args []string) error {
 	return err
 }
 
-func onStart(cf *CLIConf) error {
-	// TODO: for now, destination is always dir
-	dest, err := renew.NewDestination(&renew.DestinationSpec{
-		Type:     renew.DestinationDir,
-		Location: cf.DataDir,
-	})
+func onConfig(botConfig *config.BotConfig) error {
+	pretty.Println(botConfig)
+
+	return nil
+}
+
+func onStart(botConfig *config.BotConfig) error {
+	// Start by loading the bot's primary destination.
+	dest, err := botConfig.Storage.GetDestination()
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.WrapWithMessage(err, "could not read bot storage destination from config")
 	}
 
-	addr, err := utils.ParseAddr(cf.AuthServer)
+	addr, err := utils.ParseAddr(botConfig.AuthServer)
 	if err != nil {
-		return trace.WrapWithMessage(err, "invalid auth server address %+v", cf.AuthServer)
+		return trace.WrapWithMessage(err, "invalid auth server address %+v", botConfig.AuthServer)
 	}
 
 	var authClient *auth.Client
 
 	// First, attempt to load an identity from the given destination
-	ident, err := renew.LoadIdentity(dest)
+	ident, err := identity.LoadIdentity(dest)
 	if err == nil {
-		log.Infof("succesfully loaded identity %+v", ident)
+		log.Infof("successfully loaded identity %+v", ident)
 
 		// TODO: we should cache the token; if --token is provided but
 		// different, assume the user is attempting to start with a new
 		// identity
-		if cf.Token != "" {
-			log.Warn("note: --token and --ca-pins ignored as identity was loaded from persistent storage")
+		if botConfig.Onboarding != nil {
+			log.Warn("note: onboard config ignored as identity was loaded from persistent storage")
 		}
 
-		authClient, err = authenticatedUserClientFromIdentity(ident, cf.AuthServer)
+		authClient, err = authenticatedUserClientFromIdentity(ident, botConfig.AuthServer)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -146,8 +130,13 @@ func onStart(cf *CLIConf) error {
 		// TODO: validate that errors from LoadIdentity are sanely typed; we
 		// actually only want to ignore NotFound errors
 
+		onboarding := botConfig.Onboarding
+		if onboarding == nil {
+			return trace.BadParameter("onboarding config required on first start via CLI or YAML")
+		}
+
 		// If no token is present, we can't continue.
-		if cf.Token == "" {
+		if onboarding.Token == "" {
 			return trace.Errorf("unable to start: no identity could be loaded and no token present")
 		}
 
@@ -157,14 +146,14 @@ func onStart(cf *CLIConf) error {
 		}
 
 		params := RegisterParams{
-			Token:        cf.Token,
+			Token:        onboarding.Token,
 			Servers:      []utils.NetAddr{*addr}, // TODO: multiple servers?
 			PrivateKey:   tlsPrivateKey,
 			PublicTLSKey: tlsPublicKey,
 			PublicSSHKey: sshPublicKey,
 			CipherSuites: utils.DefaultCipherSuites(),
-			CAPins:       cf.CAPins,
-			CAPath:       cf.CAPath,
+			CAPins:       onboarding.CAPins,
+			CAPath:       onboarding.CAPath,
 			Clock:        clockwork.NewRealClock(),
 		}
 
@@ -180,13 +169,13 @@ func onStart(cf *CLIConf) error {
 		// TODO: consider `memory` dest type for testing / ephemeral use / etc
 
 		log.Debug("attempting first connection using initial auth client")
-		authClient, err = authenticatedUserClientFromIdentity(ident, cf.AuthServer)
+		authClient, err = authenticatedUserClientFromIdentity(ident, botConfig.AuthServer)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		log.Infof("storing new identity to destination: %+v", dest)
-		if err := renew.SaveIdentity(ident, dest); err != nil {
+		if err := identity.SaveIdentity(ident, dest); err != nil {
 			return trace.WrapWithMessage(err, "unable to save generated identity back to destination")
 		}
 	}
@@ -198,15 +187,6 @@ func onStart(cf *CLIConf) error {
 	//  - identity has expired
 	//  - user provided a new token
 	//  - ???
-
-	// TODO: these auth api calls require an authenticated user so we can't
-	// store them in the identity, at least initially; for now we'll just
-	// reuse/abuse the hard-coded data dir. Unfortunately the SSH config file
-	// requires path references to other values so the lack of exported
-	// filesystem paths in our Destination impl is a problem.
-	if err := writeSSHConfig(authClient, cf.DataDir, ident.Cert.ValidPrincipals); err != nil {
-		return trace.Wrap(err)
-	}
 
 	watcher, err := authClient.NewWatcher(context.Background(), types.Watch{
 		Kinds: []types.WatchKind{{
@@ -221,7 +201,7 @@ func onStart(cf *CLIConf) error {
 
 	defer watcher.Close()
 
-	return renewLoop(authClient, ident, cf.AuthServer, dest, cf.CertificateTTL, cf.RenewInterval)
+	return renewLoop(botConfig, authClient, ident)
 }
 
 func watchCARotations(watcher types.Watcher) {
@@ -240,7 +220,7 @@ func watchCARotations(watcher types.Watcher) {
 
 // newIdentityViaAuth contacts the auth server directly to exchange a token for
 // a new set of user certificates.
-func newIdentityViaAuth(params RegisterParams) (*renew.Identity, error) {
+func newIdentityViaAuth(params RegisterParams) (*identity.Identity, error) {
 	var client *auth.Client
 	var rootCAs []*x509.Certificate
 	var err error
@@ -276,7 +256,7 @@ func newIdentityViaAuth(params RegisterParams) (*renew.Identity, error) {
 		return nil, trace.WrapWithMessage(err, "Could not generate initial user certificates")
 	}
 
-	// Append any additional root CAs we receieved as part of the auth process
+	// Append any additional root CAs we received as part of the auth process
 	// (i.e. the host CA cert)
 	for _, cert := range rootCAs {
 		pemBytes, err := tlsca.MarshalCertificatePEM(cert)
@@ -286,133 +266,14 @@ func newIdentityViaAuth(params RegisterParams) (*renew.Identity, error) {
 		certs.TLSCACerts = append(certs.TLSCACerts, pemBytes)
 	}
 
-	return renew.ReadIdentityFromKeyPair(params.PrivateKey, params.PublicSSHKey, certs)
-}
-
-func writeSSHConfig(client *auth.Client, dataDir string, validPrincipals []string) error {
-	var (
-		proxyHosts     []string
-		firstProxyHost string
-		firstProxyPort string
-	)
-
-	clusterName, err := client.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	proxies, err := client.GetProxies()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for i, proxy := range proxies {
-		host, _, err := utils.SplitHostPort(proxy.GetPublicAddr())
-		if err != nil {
-			log.Debugf("proxy %+v has no usable public address", proxy)
-			continue
-		}
-
-		if i == 0 {
-			firstProxyHost = host
-			firstProxyPort = "3023" // TODO: need to resolve correct port somehow
-		}
-
-		proxyHosts = append(proxyHosts, host)
-	}
-
-	if len(proxyHosts) == 0 {
-		return trace.BadParameter("auth server has no proxies with a valid public address")
-	}
-
-	proxyHostStr := strings.Join(proxyHosts, ",")
-
-	knownHosts, err := fetchKnownHosts(client, clusterName.GetClusterName(), proxyHostStr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	dataDir, err = filepath.Abs(dataDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	knownHostsPath := filepath.Join(dataDir, "known_hosts")
-	if err := os.WriteFile(knownHostsPath, []byte(knownHosts), 0600); err != nil {
-		return trace.Wrap(err)
-	}
-
-	log.Infof("Wrote known hosts configuration to %s", knownHostsPath)
-
-	var sshConfigBuilder strings.Builder
-	identityFilePath := filepath.Join(dataDir, renew.PrivateKeyKey)
-	certificateFilePath := filepath.Join(dataDir, renew.SSHCertKey)
-	sshConfigPath := filepath.Join(dataDir, "ssh_config")
-	if err := sshConfigTemplate.Execute(&sshConfigBuilder, sshConfigParameters{
-		ClusterName:         clusterName.GetClusterName(),
-		ProxyHost:           firstProxyHost,
-		ProxyPort:           firstProxyPort,
-		KnownHostsPath:      knownHostsPath,
-		IdentityFilePath:    identityFilePath,
-		CertificateFilePath: certificateFilePath,
-		SSHConfigPath:       sshConfigPath,
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := os.WriteFile(sshConfigPath, []byte(sshConfigBuilder.String()), 0600); err != nil {
-		return trace.Wrap(err)
-	}
-
-	var principals string
-	switch len(validPrincipals) {
-	case 0:
-		principals = "[user]"
-	case 1:
-		principals = validPrincipals[0]
-	default:
-		principals = fmt.Sprintf("[%s]", strings.Join(validPrincipals, "|"))
-	}
-
-	log.Infof("Wrote SSH configuration to %s", sshConfigPath)
-	fmt.Printf("\nSSH usage example: ssh -F %s %s@[node].%s\n\n", sshConfigPath, principals, clusterName.GetClusterName())
-
-	return nil
-}
-
-func fetchKnownHosts(client *auth.Client, clusterName, proxyHosts string) (string, error) {
-	ca, err := client.GetCertAuthority(types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: clusterName,
-	}, false)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	var sb strings.Builder
-	for _, auth := range auth.AuthoritiesToTrustedCerts([]types.CertAuthority{ca}) {
-		pubKeys, err := auth.SSHCertPublicKeys()
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		for _, pubKey := range pubKeys {
-			bytes := ssh.MarshalAuthorizedKey(pubKey)
-			sb.WriteString(fmt.Sprintf(
-				"@cert-authority %s,%s,*.%s %s type=host",
-				proxyHosts, auth.ClusterName, auth.ClusterName, strings.TrimSpace(string(bytes)),
-			))
-		}
-	}
-
-	return sb.String(), nil
+	return identity.ReadIdentityFromKeyPair(params.PrivateKey, params.PublicSSHKey, certs)
 }
 
 func renewIdentityViaAuth(
 	client *auth.Client,
-	currentIdentity *renew.Identity,
+	currentIdentity *identity.Identity,
 	certTTL time.Duration,
-) (*renew.Identity, error) {
+) (*identity.Identity, error) {
 	// TODO: enforce expiration > renewal period (by what margin?)
 
 	// First, ask the auth server to generate a new set of certs with a new
@@ -447,7 +308,7 @@ func renewIdentityViaAuth(
 		certs.TLSCACerts = append(certs.TLSCACerts, pemBytes)
 	}
 
-	newIdentity, err := renew.ReadIdentityFromKeyPair(
+	newIdentity, err := identity.ReadIdentityFromKeyPair(
 		currentIdentity.KeyBytes,
 		currentIdentity.SSHPublicKeyBytes,
 		certs,
@@ -459,34 +320,34 @@ func renewIdentityViaAuth(
 	return newIdentity, nil
 }
 
-func renewLoop(
-	client *auth.Client,
-	identity *renew.Identity,
-	authServer string,
-	dest renew.Destination,
-	certTTL time.Duration,
-	renewInterval time.Duration,
-) error {
+func renewLoop(cfg *config.BotConfig, client *auth.Client, ident *identity.Identity) error {
 	// TODO: failures here should probably not just end the renewal loop, there
 	// should be some retry / back-off logic.
 
 	// TODO: what should this interval be? should it be user configurable?
 	// Also, must be < the validity period.
 
-	log.Infof("Beginning renewal loop: ttl=%s interval=%s", certTTL, renewInterval)
-	if renewInterval > certTTL {
+	log.Infof("Beginning renewal loop: ttl=%s interval=%s", cfg.CertificateTTL, cfg.RenewInterval)
+	if cfg.RenewInterval > cfg.CertificateTTL {
 		log.Errorf(
 			"Certificate TTL (%s) is shorter than the renewal interval (%s). The next renewal is likely to fail.",
-			certTTL,
-			renewInterval,
+			cfg.CertificateTTL,
+			cfg.RenewInterval,
 		)
 	}
 
-	ticker := time.NewTicker(renewInterval)
+	// Determine where the bot should write its internal data (renewable cert
+	// etc)
+	botDestination, err := cfg.Storage.GetDestination()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ticker := time.NewTicker(cfg.RenewInterval)
 	defer ticker.Stop()
 	for {
 		log.Info("Attempting to renew certificates...")
-		newIdentity, err := renewIdentityViaAuth(client, identity, certTTL)
+		newIdentity, err := renewIdentityViaAuth(client, ident, cfg.CertificateTTL)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -504,26 +365,58 @@ func renewLoop(
 
 		// Immediately attempt to reconnect using the new identity (still
 		// haven't persisted the known-good certs).
-		newClient, err := authenticatedUserClientFromIdentity(newIdentity, authServer)
+		newClient, err := authenticatedUserClientFromIdentity(newIdentity, cfg.AuthServer)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		log.Info("Auth client now using renewed credentials.")
 		client = newClient
-		identity = newIdentity
+		ident = newIdentity
 
 		// Now that we're sure the new creds work, persist them.
-		if err := renew.SaveIdentity(newIdentity, dest); err != nil {
+		if err := identity.SaveIdentity(newIdentity, botDestination); err != nil {
 			return trace.Wrap(err)
 		}
 
-		log.Infof("Persisted new certificates to disk. Next renewal in approximately %s", renewInterval)
+		// Next, generate impersonated certs
+		// TODO: real role requests
+		expires := time.Unix(int64(ident.Cert.ValidBefore), 0)
+		for _, dest := range cfg.Destinations {
+			destImpl, err := dest.GetDestination()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			impersonatedIdent, err := generateImpersonatedIdentity(client, ident, expires, dest.Roles)
+			if err != nil {
+				log.Warnf("could not generate impersonated certs: %+v", err)
+			} else {
+				log.Infof("impersonated identity: %+v", impersonatedIdent)
+
+				if err := identity.SaveIdentity(impersonatedIdent, destImpl); err != nil {
+					log.WithError(err).Warn("failed to save impersonated identity")
+				}
+			}
+
+			// TODO: these auth api calls require an authenticated user so we can't
+			// store them in the identity, at least initially; for now we'll just
+			// reuse/abuse the hard-coded data dir. Unfortunately the SSH config file
+			// requires path references to other values so the lack of exported
+			// filesystem paths in our Destination impl is a problem.
+			// TODO! reenable this for refactored destinations (need to at least
+			// provide a unix permission hint)
+			//if err := configtemplate.WriteSSHConfig(client, cf.DataDir, impersonatedIdent.Cert.ValidPrincipals); err != nil {
+			//	return trace.Wrap(err)
+			//}
+		}
+
+		log.Infof("Persisted new certificates to disk. Next renewal in approximately %s", cfg.RenewInterval)
 		<-ticker.C
 	}
 }
 
-func authenticatedUserClientFromIdentity(id *renew.Identity, authServer string) (*auth.Client, error) {
+func authenticatedUserClientFromIdentity(id *identity.Identity, authServer string) (*auth.Client, error) {
 	tlsConfig, err := id.TLSConfig([]uint16{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -542,134 +435,58 @@ func authenticatedUserClientFromIdentity(id *renew.Identity, authServer string) 
 	})
 }
 
-var sshConfigTemplate = template.Must(template.New("ssh-config").Parse(`
-# Begin generated Teleport configuration for {{ .ProxyHost }} from tbot config
+func generateImpersonatedIdentity(
+	client *auth.Client,
+	currentIdentity *identity.Identity,
+	expires time.Time,
+	roleRequests []string,
+) (*identity.Identity, error) {
+	// TODO: enforce expiration > renewal period (by what margin?)
 
-# Common flags for all {{ .ClusterName }} hosts
-Host *.{{ .ClusterName }} {{ .ProxyHost }}
-    UserKnownHostsFile "{{ .KnownHostsPath }}"
-    IdentityFile "{{ .IdentityFilePath }}"
-    CertificateFile "{{ .CertificateFilePath }}"
-    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
-    PubkeyAcceptedAlgorithms +ssh-rsa-cert-v01@openssh.com
+	// First, ask the auth server to generate a new set of certs with a new
+	// expiration date.
+	certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
+		PublicKey:    currentIdentity.SSHPublicKeyBytes,
+		Username:     currentIdentity.XCert.Subject.CommonName,
+		Expires:      expires,
+		RoleRequests: roleRequests,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-# Flags for all {{ .ClusterName }} hosts except the proxy
-Host *.{{ .ClusterName }} !{{ .ProxyHost }}
-    Port 3022
-    ProxyCommand ssh -F {{ .SSHConfigPath }} -l %r -p {{ .ProxyPort }} {{ .ProxyHost }} -s proxy:%h:%p@{{ .ClusterName }}
+	// The root CA included with the returned user certs will only contain the
+	// Teleport User CA. We'll also need the host CA for future API calls.
+	localCA, err := client.GetClusterCACert()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-# End generated Teleport configuration
-`))
+	caCerts, err := tlsca.ParseCertificatePEMs(localCA.TLSCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-type sshConfigParameters struct {
-	ClusterName         string
-	KnownHostsPath      string
-	IdentityFilePath    string
-	CertificateFilePath string
-	ProxyHost           string
-	ProxyPort           string
-	SSHConfigPath       string
+	// Append the host CAs from the auth server.
+	for _, cert := range caCerts {
+		pemBytes, err := tlsca.MarshalCertificatePEM(cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certs.TLSCACerts = append(certs.TLSCACerts, pemBytes)
+	}
+
+	newIdentity, err := identity.ReadIdentityFromKeyPair(
+		currentIdentity.KeyBytes,
+		currentIdentity.SSHPublicKeyBytes,
+		certs,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newIdentity, nil
 }
-
-// func mainHostCerts() error {
-// 	addr := utils.MustParseAddr(authServer)
-
-// 	ds, err := renew.ParseDestinationSpec(dest)
-// 	if err != nil {
-// 		return trace.Wrap(err)
-// 	}
-
-// 	store, err := renew.NewDestination(ds)
-// 	if err != nil {
-// 		return trace.Wrap(err)
-// 	}
-
-// 	id, err := renew.LoadIdentity(store)
-// 	if err != nil {
-// 		log.Println("could not load identity, starting new registration", err)
-// 		privateKey, sshPublicKey, tlsPublicKey, err := generateKeys()
-// 		if err != nil {
-// 			return trace.Wrap(err)
-// 		}
-// 		hostID := uuid.New().String()
-// 		id, err = auth.Register(auth.RegisterParams{
-// 			Token: token,
-// 			ID: auth.IdentityID{
-// 				Role:     types.RoleNode,
-// 				HostUUID: hostID,
-// 				NodeName: nodeName,
-// 			},
-// 			Servers: []utils.NetAddr{*addr},
-// 			CAPins:  []string{}, // TODO
-
-// 			DNSNames:             nil,
-// 			AdditionalPrincipals: nil,
-
-// 			GetHostCredentials: client.HostCredentials,
-
-// 			PrivateKey:   privateKey,
-// 			PublicTLSKey: tlsPublicKey,
-// 			PublicSSHKey: sshPublicKey,
-// 		})
-// 		if err != nil {
-// 			return trace.WrapWithMessage(err, "could not register")
-// 		}
-
-// 		log.Println("registered with auth server, saving certs to disk!")
-
-// 		if err := renew.SaveIdentity(id, store); err != nil {
-// 			return trace.Wrap(err)
-// 		}
-// 	} else {
-// 		// TODO: handle case where these certs are too old..
-// 		log.Println("connecting to auth server with existing certificates")
-// 	}
-
-// 	tc, err := id.TLSConfig(nil)
-// 	if err != nil {
-// 		return trace.Wrap(err)
-// 	}
-
-// 	client, err := api.New(context.Background(), api.Config{
-// 		Addrs:                    []string{authServer},
-// 		Credentials:              []api.Credentials{api.LoadTLS(tc)},
-// 		InsecureAddressDiscovery: true,
-// 	})
-// 	if err != nil {
-// 		return trace.Wrap(err)
-// 	}
-
-// 	if err := startServiceHeartbeat(client, id.ID.HostUUID); err != nil {
-// 		return trace.Wrap(err)
-// 	}
-
-// 	// log.Println("generating user certs")
-// 	// userCerts, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
-// 	// 	PublicKey: id.KeySigner.PublicKey().Marshal(),
-// 	// 	Username:  "test3",
-// 	// 	Expires:   time.Now().UTC().Add(4 * time.Hour),
-// 	// 	Usage:     proto.UserCertsRequest_All, // TODO: allow pinning to a specific node with NodeName
-// 	// })
-// 	// if err != nil {
-// 	// 	log.Fatalln("could not generate user certs", err)
-// 	// }
-
-// 	//log.Println("generated user certs!")
-// 	//log.Println("SSH:", string(userCerts.SSH))
-
-// 	// log.Println("waiting for signals: ^C to rotate, ^\\ to exit")
-// 	// ch := make(chan os.Signal, 1)
-// 	// signal.Notify(ch, os.Interrupt)
-
-// 	// for {
-// 	// 	select {
-// 	// 	case <-ch:
-// 	// 		log.Println("rotating due to signal")
-// 	// 	}
-// 	// }
-
-// 	return nil
-// }
 
 func generateKeys() (private, sshpub, tlspub []byte, err error) {
 	privateKey, publicKey, err := native.GenerateKeyPair("")
@@ -689,15 +506,3 @@ func generateKeys() (private, sshpub, tlspub []byte, err error) {
 
 	return privateKey, publicKey, tlsPublicKey, nil
 }
-
-// API client can't upsert core components like auth servers and proxies,
-// so just nop those calls
-
-type announcerAdapter struct{ *api.Client }
-
-func (a announcerAdapter) UpsertAuthServer(s types.Server) error { return nil }
-func (a announcerAdapter) UpsertProxy(s types.Server) error      { return nil }
-
-// API client doesn't implement all of ClientI
-
-type clientiAdapter struct{ *api.Client }

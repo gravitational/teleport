@@ -224,6 +224,9 @@ const (
 	// ComponentTSH is the "tsh" binary.
 	ComponentTSH = "tsh"
 
+	// ComponentTBot is the "tbot" binary
+	ComponentTBot = "tbot"
+
 	// ComponentKubeClient is the Kubernetes client.
 	ComponentKubeClient = "client:kube"
 

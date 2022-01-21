@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-const BOT_LABEL = "teleport-bot"
+const BOT_LABEL = "teleport.dev/bot"
 
 type BotsCommand struct {
 	format string
@@ -154,7 +154,9 @@ func (c *BotsCommand) AddBot(client auth.ClientI) error {
 		return trace.AlreadyExists("cannot add bot: role %q already exists", userName)
 	}
 
-	if err := c.addBotRole(client, c.botName, userName); err != nil {
+	roleRequests := splitRoles(c.botRoles)
+
+	if err := c.addBotRole(client, c.botName, userName, roleRequests); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -163,9 +165,7 @@ func (c *BotsCommand) AddBot(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	roles := []string{userName}
-	roles = append(roles, splitRoles(c.botRoles)...)
-	user.SetRoles(roles)
+	user.SetRoles([]string{userName})
 
 	metadata := user.GetMetadata()
 	metadata.Labels = map[string]string{
@@ -201,22 +201,6 @@ func (c *BotsCommand) AddBot(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	// Create the node join token, used by the bot to join the cluster and fetch
-	// host certificates.
-	// To ease the UX, we'll now create a host token that explicitly re-uses
-	// the user token.
-	// TODO: can the bot join as only one type (auto-expiring the other), or
-	// should it always join as both?
-	token, err := client.GenerateToken(context.Background(), auth.GenerateTokenRequest{
-		Roles:  types.SystemRoles{types.RoleProvisionToken, types.RoleNode},
-		TTL:    ttl,
-		Token:  userToken.GetName(),
-		Labels: map[string]string{"bot": c.botName},
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Calculate the CA pins for this cluster. The CA pins are used by the
 	// client to verify the identity of the Auth Server.
 	localCAResponse, err := client.GetClusterCACert()
@@ -242,14 +226,14 @@ func (c *BotsCommand) AddBot(client auth.ClientI) error {
 	}
 
 	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
-		"token":       token,
+		"token":       userToken.GetName(),
 		"minutes":     int(ttl.Minutes()),
 		"ca_pins":     caPins,
 		"auth_server": addr,
 	})
 }
 
-func (c *BotsCommand) addBotRole(client auth.ClientI, botName, userName string) error {
+func (c *BotsCommand) addBotRole(client auth.ClientI, botName, userName string, roleRequests []string) error {
 	return client.UpsertRole(context.Background(), &types.RoleV4{
 		Kind:    types.KindRole,
 		Version: types.V4,
@@ -269,6 +253,9 @@ func (c *BotsCommand) addBotRole(client auth.ClientI, botName, userName string) 
 				Rules: []types.Rule{
 					// read certificate authorities to watch for CA rotations
 					types.NewRule(types.KindCertAuthority, []string{types.VerbReadNoSecrets}),
+				},
+				Impersonate: &types.ImpersonateConditions{
+					Roles: roleRequests,
 				},
 			},
 		},

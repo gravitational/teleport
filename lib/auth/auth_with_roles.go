@@ -1871,7 +1871,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AccessRequests: req.AccessRequests,
 		},
 	}
-	if user.GetName() != a.context.User.GetName() {
+	if allowNopUser && isNopUser(a.context.User) {
+		// If generating initial renewable certs, the user will be Nop and
+		// trigger this condition; reset the condition in only this case.
+		// (allowNopUser will only ever be true for validated first-time
+		// renewable cert requests)
+		certReq.impersonator = ""
+	} else if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
 	} else if len(req.RoleRequests) > 0 {
 		// Role impersonation uses the user's own name as the impersonator value.
