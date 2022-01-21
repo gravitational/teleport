@@ -289,9 +289,13 @@ Teleport connects to your Domain Controller via LDAPS. This means that you must
 let Teleport know that the certificate sent by your Domain Controller during the
 initial SSL connection is trusted. If your Domain Controller's certificate is
 trusted by the system repository on the system running Teleport, you can skip
-this step. If you are unable to acquire the LDAP CA certificate, you can skip
-TLS verification by setting `insecure_skip_verify: true`. We do not recommend
-skipping TLS verification in production environments.
+this step.
+
+<Details title="Skipping TLS Verification">
+  If you are unable to acquire the LDAP CA certificate, you can skip
+  TLS verification by setting `insecure_skip_verify: true`. We do not recommend
+  skipping TLS verification in production environments.
+</Details>
 
 ### To export a CA certificate
 
