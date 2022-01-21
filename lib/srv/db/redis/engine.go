@@ -197,10 +197,13 @@ func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient)
 
 		e.Log.Debugf("redis cmd: %s", cmd.String())
 
+		// Here the command is sent to the DB.
 		err = redisClient.Process(ctx, cmd)
 
-		var vals interface{}
-		var redisErr redis.Error
+		var (
+			vals     interface{}
+			redisErr redis.Error
+		)
 
 		if errors.As(err, &redisErr) {
 			vals = err
