@@ -52,7 +52,7 @@ func TestUsageReport(t *testing.T) {
 	}
 
 	m.apiGetters.MockedGetOIDCConnectors = func() ([]types.OIDCConnector, error) {
-		return []types.OIDCConnector{&types.OIDCConnectorV2{}, &types.OIDCConnectorV2{}}, nil
+		return []types.OIDCConnector{&types.OIDCConnectorV3{}, &types.OIDCConnectorV3{}}, nil
 	}
 
 	m.apiGetters.MockedGetSAMLConnectors = func() ([]types.SAMLConnector, error) {

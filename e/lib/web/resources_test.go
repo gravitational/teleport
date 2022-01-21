@@ -21,9 +21,9 @@ spec:
   client_secret: ""
   issuer_url: ""
   redirect_url: ""
-version: v2
+version: v3
 `
-	oidcConn, err := types.NewOIDCConnector("oidcName", types.OIDCConnectorSpecV2{ClientID: "client-id"})
+	oidcConn, err := types.NewOIDCConnector("oidcName", types.OIDCConnectorSpecV3{ClientID: "client-id"})
 	require.NoError(t, err)
 
 	item, err := ui.NewResourceItem(oidcConn)
@@ -86,7 +86,7 @@ func TestGetAuthConnectors(t *testing.T) {
 		return []types.SAMLConnector{connector}, nil
 	}
 	m.mockGetOIDCConnectors = func(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
-		connector, err := types.NewOIDCConnector("oidcName", types.OIDCConnectorSpecV2{ClientID: "client-id"})
+		connector, err := types.NewOIDCConnector("oidcName", types.OIDCConnectorSpecV3{ClientID: "client-id"})
 		require.NoError(t, err)
 		return []types.OIDCConnector{connector}, nil
 	}
