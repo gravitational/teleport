@@ -1,5 +1,12 @@
 # Changelog
 
+## 7.3.11
+
+This release of Teleport contains a feature and fix.
+
+* Added the `access_request.delete` event to track deleted Access Requests. [#9552](https://github.com/gravitational/teleport/pull/9552) 
+* Fixed an issue where `tsh kube login` would not respect `TELEPORT_HOME`. [#9760](https://github.com/gravitational/teleport/pull/9760)
+
 ## 7.3.10
 
 This release of Teleport contains a feature and a bug fix.
