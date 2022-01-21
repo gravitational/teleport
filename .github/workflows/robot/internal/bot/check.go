@@ -47,6 +47,21 @@ func (b *Bot) Check(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 
+		// Before requesting code reviews, check if PR contains test coverage. If
+		// not, prompt the user to add test coverage.
+		if err := b.checkTests(ctx); err != nil {
+			cerr := b.c.GitHub.CreateComment(ctx,
+				b.c.Environment.Organization,
+				b.c.Environment.Repository,
+				b.c.Environment.Number,
+				strings.Title(err.String())+".",
+			)
+			if checkerr != nil {
+				log.Printf("Check: Failed to leave comment %q: %v.", err, cerr)
+			}
+			return trace.NewAggregate(err, cerr)
+		}
+
 		docs, code, err := b.parseChanges(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -55,19 +70,6 @@ func (b *Bot) Check(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 
-		if err := b.checkTests(ctx); err != nil {
-			message := "Passed code review, but missing test coverage."
-
-			log.Printf("Check: %v", message)
-			err := b.c.GitHub.CreateComment(ctx,
-				b.c.Environment.Organization,
-				b.c.Environment.Repository,
-				b.c.Environment.Number)
-			if err != nil {
-				log.Printf("Check: Failed to leave comment: %v.", err)
-			}
-			return trace.Wrap(err)
-		}
 		return nil
 	}
 	if err := b.c.Review.CheckExternal(b.c.Environment.Author, reviews); err != nil {
@@ -78,14 +80,16 @@ func (b *Bot) Check(ctx context.Context) error {
 }
 
 func (b *Bot) checkTests(ctx context.Context) error {
-	//if b.c.Review.CheckAdmin() {
-	//	return nil
-	//}
-	//if !hasTestCoverage() {
+	// If an admin has approved, bypass the test coverage check.
+	if err := b.c.Review.CheckAdmin(); err == nil {
+		return nil
+	}
 
-	//}
-
+	if err := b.hasTestCoverage(ctx); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
+
 }
 
 func (b *Bot) hasTestCoverage(ctx context.Context) error {
@@ -115,7 +119,7 @@ func (b *Bot) hasTestCoverage(ctx context.Context) error {
 
 	// Fail if code was added without test coverage.
 	if code && !tests {
-		return trace.BadParameter("missing test coverage")
+		return trace.BadParameter("missing test coverage, add test coverage or request admin override")
 	}
 	return nil
 }
