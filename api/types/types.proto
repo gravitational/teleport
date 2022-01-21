@@ -2309,8 +2309,8 @@ message ResourcesInNamespaceRequest {
     string Namespace = 1;
 }
 
-// OIDCConnectorV2 represents an OIDC connector.
-message OIDCConnectorV2 {
+// OIDCConnectorV3 represents an OIDC connector.
+message OIDCConnectorV3 {
     // Kind is a resource kind.
     string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources.
@@ -2320,20 +2320,20 @@ message OIDCConnectorV2 {
     // Metadata holds resource metadata.
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is an OIDC connector specification.
-    OIDCConnectorSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+    OIDCConnectorSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
-// OIDCConnectorV2List is a list of OIDC connectors.
-message OIDCConnectorV2List {
+// OIDCConnectorV3List is a list of OIDC connectors.
+message OIDCConnectorV3List {
     // OIDCConnectors is a list of OIDC connectors.
-    repeated OIDCConnectorV2 OIDCConnectors = 1;
+    repeated OIDCConnectorV3 OIDCConnectors = 1;
 }
 
-// OIDCConnectorSpecV2 is an OIDC connector specification.
+// OIDCConnectorSpecV3 is an OIDC connector specification.
 //
 // It specifies configuration for Open ID Connect compatible external
 // identity provider: https://openid.net/specs/openid-connect-core-1_0.html
-message OIDCConnectorSpecV2 {
+message OIDCConnectorSpecV3 {
     // IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
     string IssuerURL = 1 [ (gogoproto.jsontag) = "issuer_url" ];
     // ClientID is the id of the authentication client (Teleport Auth server).
