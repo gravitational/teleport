@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Command print-api-import-path prints the import path that
+// Command print-import-path prints the import path that
 // should appear in Go import paths to stdout.
 package main
 
