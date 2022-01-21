@@ -1,5 +1,15 @@
 # Changelog
 
+## 8.1.1
+
+This release of Teleport contains a feature, improvement, and fixes.
+
+* Added the `access_request.delete` event to track deleted Access Requests. [#9552](https://github.com/gravitational/teleport/pull/9552) 
+* Improved Kubernetes Access performance by forcing the use of http2. [#9294](https://github.com/gravitational/teleport/pull/9294)
+* Fixed an issue where `tsh kube login` would not respect `TELEPORT_HOME`. [#9760](https://github.com/gravitational/teleport/pull/9760)
+* Fixed an issue where EC2 node could fail if two nodes shared a nodename. [#9722](https://github.com/gravitational/teleport/pull/9722)
+* Fixed an issue where login would fail if the users home directory does not exist. [#9413](https://github.com/gravitational/teleport/pull/9413)
+
 ## 8.1.0
 
 This release of Teleport contains features and fixes.
