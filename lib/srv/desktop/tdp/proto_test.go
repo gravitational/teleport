@@ -18,6 +18,8 @@ package tdp
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"image"
 	"image/color"
@@ -27,6 +29,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,6 +67,18 @@ func TestBadDecode(t *testing.T) {
 	// 254 is an unknown message type.
 	_, err := Decode([]byte{254})
 	require.Error(t, err)
+}
+
+func TestRejectsLongUsername(t *testing.T) {
+	const lengthTooLong = 4096
+
+	b := &bytes.Buffer{}
+	b.WriteByte(byte(TypeClientUsername))
+	binary.Write(b, binary.BigEndian, uint32(lengthTooLong))
+	b.Write(bytes.Repeat([]byte("a"), lengthTooLong))
+
+	_, err := Decode(b.Bytes())
+	require.True(t, trace.IsBadParameter(err))
 }
 
 var encodedFrame []byte

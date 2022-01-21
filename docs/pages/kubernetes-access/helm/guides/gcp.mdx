@@ -283,7 +283,7 @@ The `--set` CLI method is more appropriate for quick test deployments.
     projectId: gcpproj-123456                       # Google Cloud project ID
     backendTable: teleport-helm-backend             # Firestore collection to use for the Teleport backend
     auditLogTable: teleport-helm-events             # Firestore collection to use for the Teleport audit log (must be different to the backend collection)
-    auditLogMirrorToStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
+    auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
     sessionRecordingBucket: teleport-helm-sessions  # Google Cloud Storage bucket to use for Teleport session recordings
   highAvailability:
     replicaCount: 2                                 # Number of replicas to configure
