@@ -735,8 +735,11 @@ grpc:
 
 # buildbox-grpc generates GRPC stubs
 .PHONY: buildbox-grpc
-buildbox-grpc:
+# proto file dependencies within the api module must be passed with the 'M' flag. This 
+# way protoc generated files will use the correct api module import path in the case where
+# the import path has a version suffix, e.g. github.com/gravitational/teleport/api/v8
 buildbox-grpc: API_IMPORT_PATH ?= $(shell go run build.assets/gomod/print-import-path/main.go ./api)
+buildbox-grpc: M ?= Mgithub.com/gravitational/teleport/api/types/types.proto=$(API_IMPORT_PATH)/types,Mgithub.com/gravitational/teleport/api/types/events/events.proto=$(API_IMPORT_PATH)/types/events,Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn
 buildbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
@@ -751,57 +754,44 @@ buildbox-grpc:
 		lib/multiplexer/test/ping.proto \
 		lib/web/envelope.proto
 
-	# proto files within the api module must be passed with the 'M' flag. This way
-	# protoc will generate files with the correct API_IMPORT_PATH in the case where
-	# the import path has a version suffix, e.g. github.com/gravitational/teleport/api/v8
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/client/proto \
-		--gogofast_out=plugins=grpc,\
-Mgithub.com/gravitational/teleport/api/types/types.proto=$(API_IMPORT_PATH)/types,\
-Mgithub.com/gravitational/teleport/api/types/events/events.proto=$(API_IMPORT_PATH)/types/events,\
-Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,\
-Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn:\
-api/client/proto \
+
+	cd api/client/proto && protoc \-I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(M):. \
 		authservice.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/types/events \
-		--gogofast_out=plugins=grpc:api/types/events \
+	cd api/types/events && protoc \-I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(M):. \
 		events.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/types \
-		--gogofast_out=plugins=grpc,\
-Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers:\
-api/types \
+	cd api/types && protoc \-I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(M):. \
 		types.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/types/webauthn \
-		--gogofast_out=plugins=grpc:api/types/webauthn \
+	cd api/types/webauthn && protoc \-I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(M):. \
 		webauthn.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/types/wrappers \
-		--gogofast_out=plugins=grpc:api/types/wrappers \
+	cd api/types/wrappers && protoc \-I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(M):. \
 		wrappers.proto
 
-	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc:. \
+	cd lib/datalog && protoc \-I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(M):. \
 		types.proto
 
-	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc:. \
+	cd lib/events && protoc \-I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(M):. \
 		slice.proto
 
-	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc:. \
+	cd lib/multiplexer/test && protoc \-I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(M):. \
 		ping.proto
 
-	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc:. \
+	cd lib/web && protoc \-I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(M):. \
 		envelope.proto
+
 
 .PHONY: goinstall
 goinstall:
