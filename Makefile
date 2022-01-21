@@ -756,39 +756,39 @@ buildbox-grpc:
 
 
 
-	cd api/client/proto && protoc \-I=.:$$PROTO_INCLUDE \
+	cd api/client/proto && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(M):. \
 		authservice.proto
 
-	cd api/types/events && protoc \-I=.:$$PROTO_INCLUDE \
+	cd api/types/events && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(M):. \
 		events.proto
 
-	cd api/types && protoc \-I=.:$$PROTO_INCLUDE \
+	cd api/types && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(M):. \
 		types.proto
 
-	cd api/types/webauthn && protoc \-I=.:$$PROTO_INCLUDE \
+	cd api/types/webauthn && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(M):. \
 		webauthn.proto
 
-	cd api/types/wrappers && protoc \-I=.:$$PROTO_INCLUDE \
+	cd api/types/wrappers && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(M):. \
 		wrappers.proto
 
-	cd lib/datalog && protoc \-I=.:$$PROTO_INCLUDE \
+	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(M):. \
 		types.proto
 
-	cd lib/events && protoc \-I=.:$$PROTO_INCLUDE \
+	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(M):. \
 		slice.proto
 
-	cd lib/multiplexer/test && protoc \-I=.:$$PROTO_INCLUDE \
+	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(M):. \
 		ping.proto
 
-	cd lib/web && protoc \-I=.:$$PROTO_INCLUDE \
+	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(M):. \
 		envelope.proto
 
