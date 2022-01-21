@@ -273,6 +273,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_WindowsDesktopSessionEnd{
 			WindowsDesktopSessionEnd: e,
 		}
+	case *AccessRequestDelete:
+		out.Event = &OneOf_AccessRequestDelete{
+			AccessRequestDelete: e,
+		}
 	default:
 		return nil, trace.BadParameter("event type %T is not supported", in)
 	}
@@ -400,6 +404,8 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 	} else if e := in.GetWindowsDesktopSessionStart(); e != nil {
 		return e, nil
 	} else if e := in.GetWindowsDesktopSessionEnd(); e != nil {
+		return e, nil
+	} else if e := in.GetAccessRequestDelete(); e != nil {
 		return e, nil
 	} else {
 		if in.Event == nil {

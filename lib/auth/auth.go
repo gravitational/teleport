@@ -2484,6 +2484,26 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	return nil
 }
 
+func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
+	if err := a.DynamicAccessExt.DeleteAccessRequest(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AccessRequestDelete{
+		Metadata: apievents.Metadata{
+			Type: events.AccessRequestDeleteEvent,
+			Code: events.AccessRequestDeleteCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		RequestID: name,
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit access request delete event.")
+	}
+	return nil
+}
+
 func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {
 	req, err := a.DynamicAccessExt.SetAccessRequestState(ctx, params)
 	if err != nil {
