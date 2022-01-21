@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
@@ -176,10 +177,36 @@ func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
 // playbackAction is a message passed from the playback client
 // to the server over the websocket connection.
 type playbackAction struct {
-	// Action is one of "play" | "pause" | "move"
+	// Action is one of "play" | "pause"
 	Action string `json:"action"`
-	// Data is an optional field for arbitrary data
-	Data string `json:"data"`
+}
+
+// playbackState is a thread-safe struct for managing
+// the global state of the playback websocket connection.
+type playbackState struct {
+	ws      *websocket.Conn
+	playing bool
+	wsOpen  bool
+	mu      sync.RWMutex
+}
+
+// GetWsOpen gets the wsOpen value. It should be called at the top of continuously
+// looping goroutines that use playbackState, who should return if it returns false.
+func (ps *playbackState) GetWsOpen() bool {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	return ps.wsOpen
+}
+
+// Close closes the websocket connection and sets wsOpen to false.
+// It should be deferred by all the goroutines that use playbackState,
+// in order to ensure that when one goroutine closes, all the others do too
+// (when used in conjunction with GetWsOpen).
+func (ps *playbackState) Close() {
+	ps.ws.Close()
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	ps.wsOpen = false
 }
 
 func (h *Handler) desktopPlaybackHandle(
@@ -194,39 +221,96 @@ func (h *Handler) desktopPlaybackHandle(
 	}
 
 	websocket.Handler(func(ws *websocket.Conn) {
-		defer ws.Close()
+		rCtx := r.Context()
 		ws.PayloadType = websocket.BinaryFrame
+		ps := playbackState{
+			ws:      ws,
+			playing: true,
+			wsOpen:  true,
+		}
+		defer ps.Close()
+		defer h.log.Debug("playback websocket closed")
 
-		var lastDelay int64
-		eventsC, errC := ctx.clt.StreamSessionEvents(r.Context(), session.ID(sID), 0)
-		for {
-			select {
-			case err := <-errC:
-				h.log.WithError(err).Errorf("streaming session %v", sID)
-				return
-			case evt := <-eventsC:
-				if evt == nil {
-					lastDelay = 0
-					// TODO: this causes the session to be re-downloaded, make it smarter by checking for the file first?
-					eventsC, errC = ctx.clt.StreamSessionEvents(r.Context(), session.ID(sID), 0)
-					h.log.Debug("reached end of playback, restarting")
-					continue
+		// Handle incoming playback actions.
+		go func() {
+			defer ps.Close()
+			defer h.log.Debug("playback action-recieving goroutine returned")
+			for {
+				if !ps.GetWsOpen() {
+					return
 				}
-				switch e := evt.(type) {
-				case *apievents.DesktopRecording:
-					if e.DelayMilliseconds > lastDelay {
-						time.Sleep(time.Duration(e.DelayMilliseconds-lastDelay) * time.Millisecond)
-						lastDelay = e.DelayMilliseconds
-					}
-					if _, err := ws.Write(e.Message); err != nil {
-						h.log.WithError(err).Error("failed to write TDP message over websocket")
-						return
-					}
-				default:
-					h.log.Warnf("session %v contains unexpected event type %T", sID, evt)
+
+				action := playbackAction{}
+				err := websocket.JSON.Receive(ws, &action)
+				if err != nil {
+					h.log.WithError(err).Error("error reading from websocket")
+					return
+				}
+				if action.Action != "" {
+					h.log.Debugf("recieved playback action: %+v", action)
+					// TODO
 				}
 			}
+		}()
+
+		// Stream session events back to browser.
+		go func() {
+			defer ps.Close()
+			defer h.log.Debug("playback event streaming goroutine returned")
+			var lastDelay int64
+			eventsC, errC := ctx.clt.StreamSessionEvents(rCtx, session.ID(sID), 0)
+			for {
+				if !ps.GetWsOpen() {
+					return
+				}
+
+				select {
+				case err := <-errC:
+					h.log.WithError(err).Errorf("streaming session %v", sID)
+					return
+				case evt := <-eventsC:
+					if evt == nil {
+						h.log.Debug("reached end of playback, restarting")
+						lastDelay = 0
+						// TODO: this causes the session to be re-downloaded, make it smarter by checking for the file first?
+						eventsC, errC = ctx.clt.StreamSessionEvents(rCtx, session.ID(sID), 0)
+						continue
+					}
+					switch e := evt.(type) {
+					case *apievents.DesktopRecording:
+						if e.DelayMilliseconds > lastDelay {
+							time.Sleep(time.Duration(e.DelayMilliseconds-lastDelay) * time.Millisecond)
+							lastDelay = e.DelayMilliseconds
+						}
+						if _, err := ws.Write(e.Message); err != nil {
+							h.log.WithError(err).Error("failed to write TDP message over websocket")
+							return
+						}
+					default:
+						h.log.Warnf("session %v contains unexpected event type %T", sID, evt)
+					}
+				default:
+					continue
+				}
+			}
+		}()
+
+		// Hang until the request context is cancelled or the websocket is closed by another goroutine.
+		for {
+			// Return if websocket is closed by another goroutine calling ps.Close()
+			if !ps.GetWsOpen() {
+				return
+			}
+
+			// Return if websocket is closed by the browser.
+			select {
+			case <-rCtx.Done():
+				return
+			default:
+				continue
+			}
 		}
+
 	}).ServeHTTP(w, r)
 	return nil, nil
 }
