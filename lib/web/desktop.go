@@ -18,7 +18,6 @@ package web
 
 import (
 	"crypto/tls"
-	"fmt"
 	"io"
 	"math/rand"
 	"net"
@@ -191,7 +190,7 @@ func (h *Handler) desktopPlaybackHandle(
 ) (interface{}, error) {
 	sID := p.ByName("sid")
 	if sID == "" {
-		return nil, trace.BadParameter("missing session in request URL")
+		return nil, trace.BadParameter("missing sid in request URL")
 	}
 
 	websocket.Handler(func(ws *websocket.Conn) {
@@ -201,19 +200,17 @@ func (h *Handler) desktopPlaybackHandle(
 		var lastDelay int64
 		eventsC, errC := ctx.clt.StreamSessionEvents(r.Context(), session.ID(sID), 0)
 		for {
-			fmt.Println("BEFORE websocket.JSON.Receive(ws, &playbackAction)")
-			playbackAction := playbackAction{}
-			websocket.JSON.Receive(ws, &playbackAction)
-			fmt.Println("AFTER websocket.JSON.Receive(ws, &playbackAction)")
-
 			select {
 			case err := <-errC:
 				h.log.WithError(err).Errorf("streaming session %v", sID)
 				return
 			case evt := <-eventsC:
 				if evt == nil {
-					h.log.Debug("reached end of playback")
-					return
+					lastDelay = 0
+					// TODO: this causes the session to be re-downloaded, make it smarter by checking for the file first?
+					eventsC, errC = ctx.clt.StreamSessionEvents(r.Context(), session.ID(sID), 0)
+					h.log.Debug("reached end of playback, restarting")
+					continue
 				}
 				switch e := evt.(type) {
 				case *apievents.DesktopRecording:
