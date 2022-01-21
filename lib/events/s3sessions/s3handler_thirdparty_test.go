@@ -18,6 +18,7 @@ limitations under the License.
 package s3sessions
 
 import (
+	"context"
 	"fmt"
 	"net/http/httptest"
 	"testing"
@@ -25,9 +26,9 @@ import (
 	"github.com/gravitational/teleport/lib/events/test"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/google/uuid"
 	"github.com/johannesboyne/gofakes3"
 	"github.com/johannesboyne/gofakes3/backend/s3mem"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
@@ -41,18 +42,18 @@ func TestThirdpartyStreams(t *testing.T) {
 	faker := gofakes3.New(backend, gofakes3.WithLogger(gofakes3.GlobalLog()))
 	server := httptest.NewServer(faker.Server())
 
-	handler, err := NewHandler(Config{
+	handler, err := NewHandler(context.Background(), Config{
 		Credentials:                 credentials.NewStaticCredentials("YOUR-ACCESSKEYID", "YOUR-SECRETACCESSKEY", ""),
 		Region:                      "us-west-1",
 		Path:                        "/test/",
-		Bucket:                      fmt.Sprintf("teleport-test-%v", uuid.New()),
+		Bucket:                      fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 		Endpoint:                    server.URL,
 		DisableServerSideEncryption: true,
 	})
 	require.Nil(t, err)
 
 	defer func() {
-		if err := handler.deleteBucket(); err != nil {
+		if err := handler.deleteBucket(context.Background()); err != nil {
 			t.Fatalf("Failed to delete bucket: %#v", trace.DebugReport(err))
 		}
 	}()

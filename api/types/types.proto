@@ -243,7 +243,9 @@ message DatabaseSpecV3 {
     // URI is the database connection endpoint.
     string URI = 2 [ (gogoproto.jsontag) = "uri" ];
     // CACert is the PEM-encoded database CA certificate.
-    string CACert = 3 [ (gogoproto.jsontag) = "ca_cert,omitempty" ];
+    //
+    // DEPRECATED: Moved to TLS.CACert. DELETE IN 10.0.
+    string CACert = 3 [ (gogoproto.jsontag) = "ca_cert,omitempty", deprecated = true ];
     // DynamicLabels is the database dynamic labels.
     map<string, CommandLabelV2> DynamicLabels = 4
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
@@ -251,6 +253,11 @@ message DatabaseSpecV3 {
     AWS AWS = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "aws,omitempty" ];
     // GCP contains parameters specific to GCP Cloud SQL databases.
     GCPCloudSQL GCP = 6 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty" ];
+    // Azure contains Azure specific database metadata.
+    Azure Azure = 7 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "azure,omitempty" ];
+    // TLS is the TLS configuration used when establishing connection to target database.
+    // Allows to provide custom CA cert or override server name.
+    DatabaseTLS TLS = 8 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "tls,omitempty" ];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.
@@ -298,6 +305,35 @@ message GCPCloudSQL {
     string ProjectID = 1 [ (gogoproto.jsontag) = "project_id,omitempty" ];
     // InstanceID is the Cloud SQL instance ID.
     string InstanceID = 2 [ (gogoproto.jsontag) = "instance_id,omitempty" ];
+}
+
+// Azure contains Azure specific database metadata.
+message Azure {
+    // Name is the Azure database server name.
+    string Name = 1 [ (gogoproto.jsontag) = "name,omitempty" ];
+}
+
+// DatabaseTLSMode represents the level of TLS verification performed by
+// DB agent when connecting to a database.
+enum DatabaseTLSMode {
+    // VERIFY_FULL performs full certificate validation.
+    VERIFY_FULL = 0;
+    // VERIFY_CA works the same as VERIFY_FULL, but it skips the hostname check.
+    VERIFY_CA = 1;
+    // INSECURE accepts any certificate provided by server. This is the least secure option.
+    INSECURE = 2;
+}
+
+// DatabaseTLS contains TLS configuration options.
+message DatabaseTLS {
+    // Mode is a TLS connection mode. See DatabaseTLSMode for details.
+    DatabaseTLSMode Mode = 1 [ (gogoproto.jsontag) = "mode" ];
+    // CACert is an optional user provided CA certificate used for verifying
+    // database TLS connection.
+    string CACert = 2 [ (gogoproto.jsontag) = "ca_cert,omitempty" ];
+    // ServerName allows to provide custom hostname. This value will override the
+    // servername/hostname on a certificate during validation.
+    string ServerName = 3 [ (gogoproto.jsontag) = "server_name,omitempty" ];
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
@@ -614,7 +650,7 @@ message CAKeySet {
     repeated JWTKeyPair JWT = 3 [ (gogoproto.jsontag) = "jwt,omitempty" ];
 }
 
-// RoleMappping provides mapping of remote roles to local roles
+// RoleMapping provides mapping of remote roles to local roles
 // for trusted clusters
 message RoleMapping {
     // Remote specifies remote role name to map from
@@ -667,6 +703,12 @@ message ProvisionTokenV2List {
     repeated ProvisionTokenV2 ProvisionTokens = 1;
 }
 
+message TokenRule {
+    string AWSAccount = 1 [ (gogoproto.jsontag) = "aws_account,omitempty" ];
+    repeated string AWSRegions = 2 [ (gogoproto.jsontag) = "aws_regions,omitempty" ];
+    string AWSRole = 3 [ (gogoproto.jsontag) = "aws_role,omitempty" ];
+}
+
 // ProvisionTokenSpecV2 is a specification for V2 token
 message ProvisionTokenSpecV2 {
     // Roles is a list of roles associated with the token,
@@ -674,6 +716,9 @@ message ProvisionTokenSpecV2 {
     // certificates issued to the user of the token
     repeated string Roles = 1
         [ (gogoproto.jsontag) = "roles", (gogoproto.casttype) = "SystemRole" ];
+    repeated TokenRule allow = 2 [ (gogoproto.jsontag) = "allow,omitempty" ];
+    int64 AWSIIDTTL = 3
+        [ (gogoproto.jsontag) = "aws_iid_ttl,omitempty", (gogoproto.casttype) = "Duration" ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -780,6 +825,12 @@ message ClusterAuditConfigSpecV2 {
     int64 WriteMinCapacity = 12 [ (gogoproto.jsontag) = "write_min_capacity,omitempty" ];
     // WriteTargetValue is the ratio of consumed write to provisioned capacity.
     double WriteTargetValue = 13 [ (gogoproto.jsontag) = "write_target_value,omitempty" ];
+    // RetentionPeriod is the retention period for audit events.
+    int64 RetentionPeriod = 14 [
+        (gogoproto.jsontag) = "retention_period",
+        (gogoproto.casttype) = "Duration",
+        (gogoproto.nullable) = true
+    ];
 }
 
 // ClusterNetworkingConfigV2 contains cluster-wide networking configuration.
@@ -805,7 +856,7 @@ message ClusterNetworkingConfigSpecV2 {
     int64 ClientIdleTimeout = 1
         [ (gogoproto.jsontag) = "client_idle_timeout", (gogoproto.casttype) = "Duration" ];
 
-    // KeepAliveInterval is the interval at which the server sends keep-alive messsages
+    // KeepAliveInterval is the interval at which the server sends keep-alive messages
     // to the client.
     int64 KeepAliveInterval = 2
         [ (gogoproto.jsontag) = "keep_alive_interval", (gogoproto.casttype) = "Duration" ];
@@ -827,6 +878,32 @@ message ClusterNetworkingConfigSpecV2 {
     // timeouts.
     int64 WebIdleTimeout = 6
         [ (gogoproto.jsontag) = "web_idle_timeout", (gogoproto.casttype) = "Duration" ];
+
+    // ProxyListenerMode is proxy listener mode used by Teleport Proxies.
+    ProxyListenerMode ProxyListenerMode = 7
+        [ (gogoproto.jsontag) = "proxy_listener_mode,omitempty" ];
+
+    // RoutingStrategy determines the strategy used to route to nodes.
+    RoutingStrategy RoutingStrategy = 8 [ (gogoproto.jsontag) = "routing_strategy,omitempty" ];
+}
+
+// ProxyListenerMode represents the cluster proxy listener mode.
+enum ProxyListenerMode {
+    // Separate is the proxy listener mode indicating that proxies are running
+    // in separate listener mode where Teleport Proxy services use different listeners.
+    Separate = 0;
+    // Multiplex is the proxy listener mode indicating the proxy should use multiplex mode
+    // where all proxy services are multiplexed on a single proxy port.
+    Multiplex = 1;
+}
+
+// RoutingStrategy determines the strategy used to route to nodes.
+enum RoutingStrategy {
+    // UnambiguousMatch only routes to distinct nodes.
+    UNAMBIGUOUS_MATCH = 0;
+
+    // MostRecent routes to the most recently heartbeated node if duplicates are present.
+    MOST_RECENT = 1;
 }
 
 // SessionRecordingConfigV2 contains session recording configuration.
@@ -1527,6 +1604,17 @@ message RoleConditions {
 
     // AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
     repeated string AWSRoleARNs = 16 [ (gogoproto.jsontag) = "aws_role_arns,omitempty" ];
+
+    // WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.
+    repeated string WindowsDesktopLogins = 17
+        [ (gogoproto.jsontag) = "windows_desktop_logins,omitempty" ];
+
+    // WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.
+    wrappers.LabelValues WindowsDesktopLabels = 18 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "windows_desktop_labels,omitempty",
+        (gogoproto.customtype) = "Labels"
+    ];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
@@ -2498,6 +2586,9 @@ message LockTarget {
 
     // MFADevice specifies the UUID of a user MFA device.
     string MFADevice = 5 [ (gogoproto.jsontag) = "mfa_device,omitempty" ];
+
+    // WindowsDesktop specifies the name of a Windows desktop.
+    string WindowsDesktop = 6 [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specfied
@@ -2568,6 +2659,36 @@ message WindowsDesktopSpecV3 {
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
     // Domain is the ActiveDirectory domain that this host belongs to.
     string Domain = 2 [ (gogoproto.jsontag) = "domain" ];
+}
+
+// RegisterUsingTokenRequest is a request to register with the auth server using
+// an authentication token
+message RegisterUsingTokenRequest {
+    // HostID is a unique host ID, usually a UUID
+    string HostID = 1 [ (gogoproto.jsontag) = "hostID" ];
+    // NodeName is a node name
+    string NodeName = 2 [ (gogoproto.jsontag) = "node_name" ];
+    // Role is a system role, e.g. Proxy
+    string Role = 3 [ (gogoproto.jsontag) = "role", (gogoproto.casttype) = "SystemRole" ];
+    // Token is the name of an authentication token
+    string Token = 4 [ (gogoproto.jsontag) = "token" ];
+    // AdditionalPrincipals is a list of additional principals
+    repeated string AdditionalPrincipals = 5 [ (gogoproto.jsontag) = "additional_principals" ];
+    // DNSNames is a list of DNS names to include in the x509 client certificate
+    repeated string DNSNames = 6 [ (gogoproto.jsontag) = "dns_names" ];
+    // PublicTLSKey is a PEM encoded public key
+    // used for TLS setup
+    bytes PublicTLSKey = 7 [ (gogoproto.jsontag) = "public_tls_key" ];
+    // PublicSSHKey is a SSH encoded public key,
+    // if present will be signed as a return value
+    // otherwise, new public/private key pair will be generated
+    bytes PublicSSHKey = 8 [ (gogoproto.jsontag) = "public_ssh_key" ];
+    // RemoteAddr is the remote address of the host requesting a host certificate.
+    // It is used to replace 0.0.0.0 in the list of additional principals.
+    string RemoteAddr = 9 [ (gogoproto.jsontag) = "remote_addr" ];
+    // EC2IdentityDocument is used for Simplified Node Joining to prove the
+    // identity of a joining EC2 instance.
+    bytes EC2IdentityDocument = 10 [ (gogoproto.jsontag) = "ec2_id" ];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain

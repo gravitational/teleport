@@ -74,7 +74,7 @@ func SetupSoftHSMTest(t *testing.T) Config {
 		require.NoError(t, configFile.Close())
 
 		// set env
-		os.Setenv("SOFTHSM2_CONF", configFile.Name())
+		t.Setenv("SOFTHSM2_CONF", configFile.Name())
 	}
 
 	// create test token (max length is 32 chars)

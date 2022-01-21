@@ -26,6 +26,7 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/prometheus/client_golang/prometheus"
@@ -231,6 +232,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 					Metadata: apievents.Metadata{
 						Type:        events.SessionUploadEvent,
 						Code:        events.SessionUploadCode,
+						ID:          uuid.New().String(),
 						Index:       events.SessionUploadIndex,
 						ClusterName: clusterName.GetClusterName(),
 					},
@@ -2500,7 +2502,7 @@ func (g *GRPCServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ns, nextKey, err := auth.ServerWithRoles.ListNodes(ctx, req.Namespace, int(req.Limit), req.StartKey)
+	ns, nextKey, err := auth.ServerWithRoles.ListNodes(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2811,14 +2813,14 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *proto.GetEventsRequest)
 	return res, nil
 }
 
-// GetEvents searches for session events on the backend and sends them back in a response.
+// GetSessionEvents searches for session events on the backend and sends them back in a response.
 func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSessionEventsRequest) (*proto.Events, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), types.EventOrder(req.Order), req.StartKey)
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), types.EventOrder(req.Order), req.StartKey, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3248,6 +3250,19 @@ func (g *GRPCServer) UpdateWindowsDesktop(ctx context.Context, desktop *types.Wi
 	return &empty.Empty{}, nil
 }
 
+// UpsertWindowsDesktop updates a Windows desktop host, creating it if it doesn't exist.
+func (g *GRPCServer) UpsertWindowsDesktop(ctx context.Context, desktop *types.WindowsDesktopV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.UpsertWindowsDesktop(ctx, desktop); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 // DeleteWindowsDesktop removes the specified Windows desktop host.
 func (g *GRPCServer) DeleteWindowsDesktop(ctx context.Context, req *proto.DeleteWindowsDesktopRequest) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -3351,7 +3366,7 @@ func (g *GRPCServer) CompleteAccountRecovery(ctx context.Context, req *proto.Com
 }
 
 // CreateAccountRecoveryCodes is implemented by AuthService.CreateAccountRecoveryCodes.
-func (g *GRPCServer) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error) {
+func (g *GRPCServer) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3382,7 +3397,7 @@ func (g *GRPCServer) GetAccountRecoveryToken(ctx context.Context, req *proto.Get
 }
 
 // GetAccountRecoveryCodes is implemented by AuthService.GetAccountRecoveryCodes.
-func (g *GRPCServer) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+func (g *GRPCServer) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3448,6 +3463,50 @@ func (g *GRPCServer) GenerateCertAuthorityCRL(ctx context.Context, req *proto.Ce
 		return nil, trace.Wrap(err)
 	}
 	return &proto.CRL{CRL: crl}, nil
+}
+
+// ListResources retrieves a paginated list of resources.
+func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resources, nextKey, err := auth.ListResources(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &proto.ListResourcesResponse{
+		NextKey:   nextKey,
+		Resources: make([]*proto.PaginatedResource, len(resources)),
+	}
+
+	for i, resource := range resources {
+		var protoResource *proto.PaginatedResource
+		switch req.ResourceType {
+		case types.KindDatabaseServer:
+			database, ok := resource.(*types.DatabaseServerV3)
+			if !ok {
+				return nil, trace.BadParameter("database server has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}}
+		case types.KindAppServer:
+			app, ok := resource.(*types.AppServerV3)
+			if !ok {
+				return nil, trace.BadParameter("application server has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}}
+		default:
+			return nil, trace.NotImplemented("resource type %s doesn't support pagination", req.ResourceType)
+		}
+
+		resp.Resources[i] = protoResource
+	}
+
+	return resp, nil
 }
 
 // GRPCServerConfig specifies GRPC server configuration

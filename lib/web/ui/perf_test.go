@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -120,7 +120,7 @@ func insertServers(ctx context.Context, t assert.TestingT, svc services.Presence
 		labels[fmt.Sprintf("label-key-%d", i)] = fmt.Sprintf("label-val-%d", i)
 	}
 	for i := 0; i < count; i++ {
-		name := uuid.New()
+		name := uuid.New().String()
 		addr := fmt.Sprintf("%s.%s", name, clusterName)
 		server := &types.ServerV2{
 			Kind:    kind,
@@ -164,10 +164,10 @@ func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reverset
 
 type mockRemoteSite struct {
 	reversetunnel.RemoteSite
-	accessPoint auth.AccessPoint
+	accessPoint auth.ProxyAccessPoint
 }
 
-func (m *mockRemoteSite) CachingAccessPoint() (auth.AccessPoint, error) {
+func (m *mockRemoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
 	return m.accessPoint, nil
 }
 
@@ -184,7 +184,7 @@ func (m *mockRemoteSite) GetStatus() string {
 }
 
 type mockAccessPoint struct {
-	auth.AccessPoint
+	auth.ProxyAccessPoint
 	presence *local.PresenceService
 }
 

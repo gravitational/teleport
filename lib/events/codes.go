@@ -345,7 +345,10 @@ const (
 	// AppSessionRequestCode is the application request/response code.
 	AppSessionRequestCode = "T2009I"
 
-	// DatabaseSessioStartCode is the database session start event code.
+	// SessionConnectCode is the session connect event code.
+	SessionConnectCode = "T2010I"
+
+	// DatabaseSessionStartCode is the database session start event code.
 	DatabaseSessionStartCode = "TDB00I"
 	// DatabaseSessionStartFailureCode is the database session start failure event code.
 	DatabaseSessionStartFailureCode = "TDB00W"
@@ -356,12 +359,31 @@ const (
 	// DatabaseSessionQueryFailedCode is the database query failure event code.
 	DatabaseSessionQueryFailedCode = "TDB02W"
 
+	// PostgresParseCode is the db.session.postgres.parse event code.
+	PostgresParseCode = "TPG00I"
+	// PostgresBindCode is the db.session.postgres.bind event code.
+	PostgresBindCode = "TPG01I"
+	// PostgresExecuteCode is the db.session.postgres.execute event code.
+	PostgresExecuteCode = "TPG02I"
+	// PostgresCloseCode is the db.session.postgres.close event code.
+	PostgresCloseCode = "TPG03I"
+	// PostgresFunctionCallCode is the db.session.postgres.function event code.
+	PostgresFunctionCallCode = "TPG04I"
+
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
 	// DatabaseUpdateCode is the db.update event code.
 	DatabaseUpdateCode = "TDB04I"
 	// DatabaseDeleteCode is the db.delete event code.
 	DatabaseDeleteCode = "TDB05I"
+
+	// DesktopSessionStartCode is the desktop session start event code.
+	DesktopSessionStartCode = "TDP00I"
+	// DesktopSessionStartFailureCode is event code for desktop sessions
+	// that failed to start.
+	DesktopSessionStartFailureCode = "TDP00W"
+	// DesktopSessionEndCode is the desktop session end event code.
+	DesktopSessionEndCode = "TDP01I"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
@@ -410,13 +432,15 @@ const (
 	AccessRequestUpdateCode = "T5001I"
 	// AccessRequestReviewCode is the access review application code.
 	AccessRequestReviewCode = "T5002I"
+	// AccessRequestDeleteCode is the access request deleted code.
+	AccessRequestDeleteCode = "T5003I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
 	// RecoveryTokenCreateCode is the recovery token create event code.
 	RecoveryTokenCreateCode = "T6001I"
-	// PrivilegeTokenCreateCode is the recovery token create event code.
-	PrivilegeTokenCreateCode = "T6001I"
+	// PrivilegeTokenCreateCode is the privilege token create event code.
+	PrivilegeTokenCreateCode = "T6002I"
 
 	// TrustedClusterCreateCode is the event code for creating a trusted cluster.
 	TrustedClusterCreateCode = "T7000I"

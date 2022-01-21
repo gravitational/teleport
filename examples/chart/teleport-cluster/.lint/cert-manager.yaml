@@ -1,0 +1,10 @@
+clusterName: test-cluster
+chartMode: custom
+highAvailability:
+  replicaCount: 3
+  certManager:
+    addCommonName: true
+    enabled: true
+    issuerGroup: custom.cert-manager.io
+    issuerName: custom
+    issuerKind: CustomClusterIssuer

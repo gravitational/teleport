@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use crate::errors::invalid_data_error;
 use iso7816::aid::Aid;
 use iso7816::command::instruction::Instruction;
@@ -11,7 +25,7 @@ use std::convert::TryFrom;
 use std::io::{Cursor, Read};
 use uuid::Uuid;
 
-// AID of PIV application, per
+// AID (Application ID) of PIV application, per
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
 const PIV_AID: Aid = Aid::new_truncatable(
     &[
@@ -20,22 +34,25 @@ const PIV_AID: Aid = Aid::new_truncatable(
     5, // usually truncates to first 5 bytes
 );
 
+// Card implements a PIV-compatible smartcard, per:
+// https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
 #[derive(Debug)]
 pub struct Card<const S: usize> {
+    // Card-holder user ID (CHUID). In federal agencies, this value would be unique per employee
+    // and encodes some agency information. In our case it's static.
     chuid: Vec<u8>,
     piv_auth_cert: Vec<u8>,
     piv_auth_key: Rsa<Private>,
+    // Pending command and response to receive/send over multiple messages when they don't fit into
+    // one.
     pending_command: Option<Command<S>>,
     pending_response: Option<Cursor<Vec<u8>>>,
 }
 
 impl<const S: usize> Card<S> {
     pub fn new(uuid: Uuid, cert_der: &[u8], key_der: &[u8]) -> RdpResult<Self> {
-        let piv_auth_key = Rsa::private_key_from_der(key_der).or_else(|e| {
-            Err(invalid_data_error(&format!(
-                "failed to parse private key from DER: {:?}",
-                e
-            )))
+        let piv_auth_key = Rsa::private_key_from_der(key_der).map_err(|e| {
+            invalid_data_error(&format!("failed to parse private key from DER: {:?}", e))
         })?;
 
         Ok(Self {
@@ -57,7 +74,8 @@ impl<const S: usize> Card<S> {
             Some(pending) => {
                 pending
                     .extend_from_command(&cmd)
-                    .or_else(|_| Err(invalid_data_error("could not build chained command")))?;
+                    .map_err(|_| invalid_data_error("could not build chained command"))?;
+
                 pending.clone()
             }
         };
@@ -114,7 +132,7 @@ impl<const S: usize> Card<S> {
                 )?,
             ]),
         )?;
-        Ok(Response::with_data(Status::Success, resp.to_vec().into()))
+        Ok(Response::with_data(Status::Success, resp.to_vec()))
     }
 
     fn handle_verify(&mut self, _cmd: Command<S>) -> RdpResult<Response> {
@@ -129,12 +147,12 @@ impl<const S: usize> Card<S> {
             return Ok(Response::new(Status::NotFound));
         }
         let request_tlv = Tlv::from_bytes(cmd.data())
-            .or_else(|e| Err(invalid_data_error(&format!("TLV invalid: {:?}", e))))?;
+            .map_err(|e| invalid_data_error(&format!("TLV invalid: {:?}", e)))?;
         if *request_tlv.tag() != tlv_tag(0x5C)? {
             return Ok(Response::new(Status::NotFound));
         }
         match request_tlv.value() {
-            Value::Primitive(tag) => match to_hex(&tag).as_str() {
+            Value::Primitive(tag) => match to_hex(tag).as_str() {
                 // Card Holder Unique Identifier.
                 "5FC102" => Ok(Response::with_data(Status::Success, self.chuid.clone())),
                 // X.509 Certificate for PIV Authentication
@@ -163,7 +181,7 @@ impl<const S: usize> Card<S> {
                 let mut chunk = chunk.to_vec();
                 chunk.truncate(n);
                 let remaining = cursor.get_ref().len() as u64 - cursor.position();
-                let status = if remaining <= 0 {
+                let status = if remaining == 0 {
                     Status::Success
                 } else if remaining < CHUNK_SIZE as u64 {
                     Status::MoreAvailable(remaining as u8)
@@ -181,8 +199,9 @@ impl<const S: usize> Card<S> {
 
         // P1='07' means 2048-bit RSA.
         //
-        // TODO(awly): compare algorithm against the private key using consts from
+        // TODO(zmb3): compare algorithm against the private key using consts from
         // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-78-4.pdf
+        // TODO(zmb3): support non-RSA keys, if needed.
         if cmd.p1 != 0x07 {
             return Err(invalid_data_error(&format!(
                 "unsupported algorithm identifier P1:{:#X} in general authenticate command",
@@ -198,7 +217,7 @@ impl<const S: usize> Card<S> {
         }
 
         let request_tlv = Tlv::from_bytes(cmd.data())
-            .or_else(|e| Err(invalid_data_error(&format!("TLV invalid: {:?}", e))))?;
+            .map_err(|e| invalid_data_error(&format!("TLV invalid: {:?}", e)))?;
         if *request_tlv.tag() != tlv_tag(TLV_TAG_DYNAMIC_AUTHENTICATION_TEMPLATE)? {
             return Err(invalid_data_error(&format!(
                 "general authenticate command TLV invalid: {:?}",
@@ -251,14 +270,11 @@ impl<const S: usize> Card<S> {
         // In our case, the RDP server does all of the above hashing and signing and only gives us
         // a finished blob to decrypt. This is why we call private_decrypt below, and not the usual
         // signer.
+        //
+        // TODO(zmb3): support non-RSA keys, if needed.
         self.piv_auth_key
-            .private_decrypt(&challenge, &mut signed_challenge, Padding::NONE)
-            .or_else(|e| {
-                Err(invalid_data_error(&format!(
-                    "failed to sign challenge: {:?}",
-                    e
-                )))
-            })?;
+            .private_decrypt(challenge, &mut signed_challenge, Padding::NONE)
+            .map_err(|e| invalid_data_error(&format!("failed to sign challenge: {:?}", e)))?;
 
         // Return signed challenge.
         let resp = tlv(
@@ -350,7 +366,7 @@ impl Response {
     pub fn encode(&self) -> Vec<u8> {
         let mut buf = Vec::new();
         if let Some(data) = &self.data {
-            buf.extend_from_slice(&data);
+            buf.extend_from_slice(data);
         }
         let status: [u8; 2] = self.status.into();
         buf.extend_from_slice(&status);
@@ -376,21 +392,13 @@ const TLV_TAG_CHALLENGE: u8 = 0x81;
 const TLV_TAG_RESPONSE: u8 = 0x82;
 
 fn tlv(tag: u8, value: Value) -> RdpResult<Tlv> {
-    Tlv::new(tlv_tag(tag)?, value).or_else(|e| {
-        Err(invalid_data_error(&format!(
-            "TLV with tag {:#X} invalid: {:?}",
-            tag, e
-        )))
-    })
+    Tlv::new(tlv_tag(tag)?, value)
+        .map_err(|e| invalid_data_error(&format!("TLV with tag {:#X} invalid: {:?}", tag, e)))
 }
 
 fn tlv_tag(val: u8) -> RdpResult<Tag> {
-    Tag::try_from(val).or_else(|e| {
-        Err(invalid_data_error(&format!(
-            "TLV tag {:#X} invalid: {:?}",
-            val, e
-        )))
-    })
+    Tag::try_from(val)
+        .map_err(|e| invalid_data_error(&format!("TLV tag {:#X} invalid: {:?}", val, e)))
 }
 
 fn hex_data<const S: usize>(cmd: &Command<S>) -> String {

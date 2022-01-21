@@ -131,11 +131,8 @@ func validate(claims *claims, issuer string, subject string, audience string) er
 		Audience: jwt.Audience{audience},
 		Time:     time.Now(),
 	}
-	if err := claims.Validate(expectedClaims); err != nil {
-		return err
-	}
 
-	return nil
+	return claims.Validate(expectedClaims)
 }
 
 func printClaims(claims *claims) {

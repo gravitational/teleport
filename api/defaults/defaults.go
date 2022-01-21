@@ -18,6 +18,7 @@ limitations under the License.
 package defaults
 
 import (
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -50,16 +51,38 @@ const (
 )
 
 var (
-	// ServerKeepAliveTTL is a period between server keep-alives,
-	// when servers announce only presence without sending full data
-	ServerKeepAliveTTL = 60 * time.Second
+	moduleLock sync.RWMutex
 
-	// KeepAliveInterval is interval at which Teleport will send keep-alive
+	// serverKeepAliveTTL is a period between server keep-alives,
+	// when servers announce only presence without sending full data
+	serverKeepAliveTTL = 60 * time.Second
+
+	// keepAliveInterval is interval at which Teleport will send keep-alive
 	// messages to the client. The default interval of 5 minutes (300 seconds) is
 	// set to help keep connections alive when using AWS NLBs (which have a default
 	// timeout of 350 seconds)
-	KeepAliveInterval = 5 * time.Minute
+	keepAliveInterval = 5 * time.Minute
 )
+
+func SetTestTimeouts(svrKeepAliveTTL, keepAliveTick time.Duration) {
+	moduleLock.Lock()
+	defer moduleLock.Unlock()
+
+	serverKeepAliveTTL = svrKeepAliveTTL
+	keepAliveInterval = keepAliveTick
+}
+
+func ServerKeepAliveTTL() time.Duration {
+	moduleLock.RLock()
+	defer moduleLock.RUnlock()
+	return serverKeepAliveTTL
+}
+
+func KeepAliveInterval() time.Duration {
+	moduleLock.RLock()
+	defer moduleLock.RUnlock()
+	return keepAliveInterval
+}
 
 // EnhancedEvents returns the default list of enhanced events.
 func EnhancedEvents() []string {
@@ -79,6 +102,12 @@ const (
 	// connections from SSH nodes who wish to use "reverse tunnell" (when they
 	// run behind an environment/firewall which only allows outgoing connections)
 	SSHProxyTunnelListenPort = 3024
+
+	// ProxyWebListenPort is the default Teleport Proxy WebPort address.
+	ProxyWebListenPort = 3080
+
+	// StandardHTTPSPort is the default port used for the https URI scheme.
+	StandardHTTPSPort = 443
 )
 
 const (

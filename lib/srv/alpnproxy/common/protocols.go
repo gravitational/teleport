@@ -60,7 +60,6 @@ var SupportedProtocols = []Protocol{
 	ProtocolReverseTunnel,
 	ProtocolHTTP,
 	ProtocolHTTP2,
-	ProtocolDefault,
 	ProtocolAuth,
 }
 

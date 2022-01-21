@@ -66,9 +66,9 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 	recoveryAllowed := s.isAccountRecoveryAllowed(ctx) == nil
 	createRecoveryCodes := hasEmail && hasMFA && recoveryAllowed
 
-	var recoveryCodes []string
+	var newRecovery *proto.RecoveryCodes
 	if createRecoveryCodes {
-		recoveryCodes, err = s.generateAndUpsertRecoveryCodes(ctx, user.GetName())
+		newRecovery, err = s.generateAndUpsertRecoveryCodes(ctx, user.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -85,8 +85,8 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 	}
 
 	return &proto.ChangeUserAuthenticationResponse{
-		WebSession:    sess,
-		RecoveryCodes: recoveryCodes,
+		WebSession: sess,
+		Recovery:   newRecovery,
 	}, nil
 }
 
@@ -298,7 +298,7 @@ func (s *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *type
 		return trace.AccessDenied("failed to validate TOTP code: %v", err)
 	}
 	if !valid {
-		return trace.AccessDenied("TOTP code not valid")
+		return trace.AccessDenied("invalid one time token, please check if the token has expired and try again")
 	}
 	// if we have a valid token, update the previously used token
 	if err := s.UpsertUsedTOTPToken(user, otpToken); err != nil {
@@ -385,25 +385,20 @@ func (s *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUs
 		return trace.Wrap(err)
 	}
 
-	secondFactor := cap.GetSecondFactor()
-	if secondFactor == constants.SecondFactorOff {
+	switch sf := cap.GetSecondFactor(); {
+	case sf == constants.SecondFactorOff:
 		return nil
-	}
-
-	if req.GetNewMFARegisterResponse() == nil {
-		switch secondFactor {
-		case constants.SecondFactorOptional:
-			// Optional second factor does not enforce users to add a MFA device.
-			// No need to check if a user already has registered devices since we expect
-			// users to have no devices at this point.
-			//
-			// The ChangeUserAuthenticationRequest is made
-			// with a reset or invite token where a reset token would've reset the users MFA devices,
-			// and an invite token is a new user with no devices.
-			return nil
-		default:
-			return trace.BadParameter("no second factor sent during user %q password reset", username)
-		}
+	case req.GetNewMFARegisterResponse() == nil && sf == constants.SecondFactorOptional:
+		// Optional second factor does not enforce users to add a MFA device.
+		// No need to check if a user already has registered devices since we expect
+		// users to have no devices at this point.
+		//
+		// The ChangeUserAuthenticationRequest is made with a reset or invite token
+		// where a reset token would've reset the users' MFA devices, and an invite
+		// token is a new user with no devices.
+		return nil
+	case req.GetNewMFARegisterResponse() == nil:
+		return trace.BadParameter("no second factor sent during user %q password reset", username)
 	}
 
 	// Default device name still used as UI invite/reset

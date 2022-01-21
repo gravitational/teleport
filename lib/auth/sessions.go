@@ -29,9 +29,9 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 )
 
 // CreateAppSession creates and inserts a services.WebSession into the
@@ -66,15 +66,16 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		return nil, trace.Wrap(err)
 	}
 	certs, err := s.generateUserCert(certRequest{
-		user:      user,
-		publicKey: publicKey,
-		checker:   checker,
-		ttl:       ttl,
-		traits:    traits,
+		user:           user,
+		publicKey:      publicKey,
+		checker:        checker,
+		ttl:            ttl,
+		traits:         traits,
+		activeRequests: services.RequestIDs{AccessRequests: identity.ActiveRequests},
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
-		appSessionID:   uuid.New(),
+		appSessionID:   uuid.New().String(),
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
 		awsRoleARN:     req.AWSRoleARN,
@@ -108,7 +109,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 
 // WaitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
-func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoint) error {
+func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint) error {
 	_, err := ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
 	if err == nil {
 		return nil

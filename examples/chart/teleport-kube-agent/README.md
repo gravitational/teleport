@@ -154,7 +154,7 @@ These are the supported values for the `databases` map:
 | --- | --- | --- | --- | --- |
 | `name` | Name of the database to be accessed | `databases[0].name=aurora` | | Yes |
 | `uri` | URI of the database to be accessed | `databases[0].uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432` | | Yes |
-| `protocol` | Database protocol | `databases[0].protocol=postgresql` | | Yes |
+| `protocol` | Database protocol | `databases[0].protocol=postgres` | | Yes |
 | `description` | Free-form description of the database proxy instance | `databases[0].description='AWS Aurora instance of PostgreSQL 13.0'` | | No |
 | `aws.region` | AWS-specific region configuration (only used for RDS/Aurora) | `databases[0].aws.region=us-east-1` | | No |
 | `labels.[name]` | Key-value pairs to set against the database for grouping/RBAC | `databases[0].labels.db=postgres-dev,apps[0].labels.region=us-east-1` | | No |

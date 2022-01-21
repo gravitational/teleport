@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -49,6 +50,9 @@ const (
 	EventProtocolSSH = "ssh"
 	// EventProtocolKube specifies kubernetes as a type of captured protocol
 	EventProtocolKube = "kube"
+	// EventProtocolTDP specifies Teleport Desktop Protocol (TDP)
+	// as a type of captured protocol
+	EventProtocolTDP = "tdp"
 	// LocalAddr is a target address on the host
 	LocalAddr = "addr.local"
 	// RemoteAddr is a client (user's) address
@@ -195,6 +199,8 @@ const (
 	AccessRequestUpdateEvent = "access_request.update"
 	// AccessRequestReviewEvent is emitted when a review is applied to a request.
 	AccessRequestReviewEvent = "access_request.review"
+	// AccessRequestDeleteEvent is emitted when a new access request is deleted.
+	AccessRequestDeleteEvent = "access_request.delete"
 	// AccessRequestDelegator is used by teleport plugins to indicate the identity
 	// which caused them to update state.
 	AccessRequestDelegator = "delegator"
@@ -286,7 +292,7 @@ const (
 	// SessionDiskEvent is emitted when a file is opened within an session.
 	SessionDiskEvent = "session.disk"
 
-	// SessionNetworkEvent is emitted when a network connection is initated with a
+	// SessionNetworkEvent is emitted when a network connection is initiated with a
 	// session.
 	SessionNetworkEvent = "session.network"
 
@@ -357,6 +363,9 @@ const (
 	// session has been rejected due to exceeding a session control limit.
 	SessionRejectedEvent = "session.rejected"
 
+	// SessionConnect is emitted when any ssh connection is made
+	SessionConnectEvent = "session.connect"
+
 	// AppCreateEvent is emitted when an application resource is created.
 	AppCreateEvent = "app.create"
 	// AppUpdateEvent is emitted when an application resource is updated.
@@ -395,6 +404,22 @@ const (
 	// to execute a database query/command was unsuccessful.
 	DatabaseSessionQueryFailedEvent = "db.session.query.failed"
 
+	// DatabaseSessionPostgresParseEvent is emitted when a Postgres client
+	// creates a prepared statement using extended query protocol.
+	DatabaseSessionPostgresParseEvent = "db.session.postgres.parse"
+	// DatabaseSessionPostgresBindEvent is emitted when a Postgres client
+	// readies a prepared statement for execution and binds it to parameters.
+	DatabaseSessionPostgresBindEvent = "db.session.postgres.bind"
+	// DatabaseSessionPostgresExecuteEvent is emitted when a Postgres client
+	// executes a previously bound prepared statement.
+	DatabaseSessionPostgresExecuteEvent = "db.session.postgres.execute"
+	// DatabaseSessionPostgresCloseEvent is emitted when a Postgres client
+	// closes an existing prepared statement.
+	DatabaseSessionPostgresCloseEvent = "db.session.postgres.close"
+	// DatabaseSessionPostgresFunctionEvent is emitted when a Postgres client
+	// calls an internal function.
+	DatabaseSessionPostgresFunctionEvent = "db.session.postgres.function"
+
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
 	SessionRejectedReasonMaxConnections = "max_connections limit reached"
@@ -424,6 +449,13 @@ const (
 	RecoveryCodeGeneratedEvent = "recovery_code.generated"
 	// RecoveryCodeUsedEvent is an event type when a recovery token was used.
 	RecoveryCodeUsedEvent = "recovery_code.used"
+
+	// WindowsDesktopSessionStartEvent is emitted when a user attempts
+	// to connect to a desktop.
+	WindowsDesktopSessionStartEvent = "windows.desktop.session.start"
+	// WindowsDesktopSessionEndEvent is emitted when a user  disconnects
+	// from a desktop.
+	WindowsDesktopSessionEndEvent = "windows.desktop.session.end"
 )
 
 const (
@@ -630,14 +662,14 @@ type IAuditLog interface {
 	SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)
 
 	// SearchSessionEvents is a flexible way to find session events.
-	// Only session events are returned by this function.
-	// This is used to find completed session.
+	// Only session.end events are returned by this function.
+	// This is used to find completed sessions.
 	//
 	// Event types to filter can be specified and pagination is handled by an iterator key that allows
 	// a query to be resumed.
 	//
 	// This function may never return more than 1 MiB of event data.
-	SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)
+	SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error)
 
 	// WaitForDelivery waits for resources to be released and outstanding requests to
 	// complete after calling Close method
@@ -650,7 +682,7 @@ type IAuditLog interface {
 }
 
 // EventFields instance is attached to every logged event
-type EventFields map[string]interface{}
+type EventFields utils.Fields
 
 // String returns a string representation of an event structure
 func (f EventFields) AsString() string {
@@ -659,6 +691,7 @@ func (f EventFields) AsString() string {
 		f.GetString(EventLogin),
 		f.GetInt(EventCursor),
 		f.GetInt(SessionPrintEventBytes))
+
 }
 
 // GetType returns the type (string) of the event
@@ -683,46 +716,25 @@ func (f EventFields) GetTimestamp() time.Time {
 
 // GetString returns a string representation of a logged field
 func (f EventFields) GetString(key string) string {
-	val, found := f[key]
-	if !found {
-		return ""
-	}
-	v, _ := val.(string)
-	return v
+	return utils.Fields(f).GetString(key)
+}
+
+// GetString returns a slice-of-strings representation of a logged field.
+func (f EventFields) GetStrings(key string) []string {
+	return utils.Fields(f).GetStrings(key)
 }
 
 // GetInt returns an int representation of a logged field
 func (f EventFields) GetInt(key string) int {
-	val, found := f[key]
-	if !found {
-		return 0
-	}
-	v, ok := val.(int)
-	if !ok {
-		f, ok := val.(float64)
-		if ok {
-			v = int(f)
-		}
-	}
-	return v
+	return utils.Fields(f).GetInt(key)
 }
 
-// GetTime returns an int representation of a logged field
+// GetTime returns a time.Time representation of a logged field
 func (f EventFields) GetTime(key string) time.Time {
-	val, found := f[key]
-	if !found {
-		return time.Time{}
-	}
-	v, ok := val.(time.Time)
-	if !ok {
-		s := f.GetString(key)
-		v, _ = time.Parse(time.RFC3339, s)
-	}
-	return v
+	return utils.Fields(f).GetTime(key)
 }
 
 // HasField returns true if the field exists in the event.
 func (f EventFields) HasField(key string) bool {
-	_, ok := f[key]
-	return ok
+	return utils.Fields(f).HasField(key)
 }

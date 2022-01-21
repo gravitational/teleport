@@ -25,7 +25,8 @@ const (
      A user will have to complete account creation by visiting the URL.
 
   2. The allowed logins of the account only apply if a role uses them by including
-     '{{ internal.logins }}' variable in a role definition.
+     '{{ internal.logins }}' variable in a role definition. The same is true for
+     the allowed Windows logins and the '{{ internal.windows_logins }}' variable.
 
 Examples:
 

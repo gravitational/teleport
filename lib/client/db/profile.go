@@ -68,7 +68,17 @@ func add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile clie
 	default:
 		return nil, trace.BadParameter("unknown database protocol: %q", db)
 	}
-	connectProfile := profile.ConnectProfile{
+	connectProfile := New(tc, db, clientProfile, host, port)
+	err := profileFile.Upsert(connectProfile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &connectProfile, nil
+}
+
+// New makes a new database connection profile.
+func New(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus, host string, port int) profile.ConnectProfile {
+	return profile.ConnectProfile{
 		Name:       profileName(tc.SiteName, db.ServiceName),
 		Host:       host,
 		Port:       port,
@@ -76,14 +86,9 @@ func add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile clie
 		Database:   db.Database,
 		Insecure:   tc.InsecureSkipVerify,
 		CACertPath: clientProfile.CACertPath(),
-		CertPath:   clientProfile.DatabaseCertPath(db.ServiceName),
+		CertPath:   clientProfile.DatabaseCertPathForCluster(tc.SiteName, db.ServiceName),
 		KeyPath:    clientProfile.KeyPath(),
 	}
-	err := profileFile.Upsert(connectProfile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &connectProfile, nil
 }
 
 // Env returns environment variables for the specified database profile.

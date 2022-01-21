@@ -44,8 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -134,7 +134,7 @@ type Server struct {
 	macAlgorithms []string
 
 	authClient      auth.ClientI
-	authService     auth.AccessPoint
+	authService     srv.AccessPoint
 	sessionRegistry *srv.SessionRegistry
 	sessionServer   session.Service
 	dataDir         string
@@ -271,7 +271,7 @@ func New(c ServerConfig) (*Server, error) {
 				"dst-addr": c.DstAddr.String(),
 			},
 		}),
-		id:              uuid.New(),
+		id:              uuid.New().String(),
 		targetConn:      c.TargetConn,
 		serverConn:      utils.NewTrackingConn(serverConn),
 		clientConn:      clientConn,
@@ -372,8 +372,8 @@ func (s *Server) PermitUserEnvironment() bool {
 	return false
 }
 
-// GetAccessPoint returns an auth.AccessPoint for this cluster.
-func (s *Server) GetAccessPoint() auth.AccessPoint {
+// GetAccessPoint returns a srv.AccessPoint for this cluster.
+func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
 }
 

@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
@@ -39,9 +40,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -54,13 +55,15 @@ type Config struct {
 	// AuthClient is a client directly connected to the Auth server.
 	AuthClient *auth.Client
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.DatabaseAccessPoint
 	// StreamEmitter is a non-blocking audit events emitter.
 	StreamEmitter events.StreamEmitter
 	// NewAudit allows to override audit logger in tests.
 	NewAudit NewAuditFn
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
+	// Limiter limits the number of connections per client IP.
+	Limiter *limiter.Limiter
 	// Authorizer is used to authorize requests coming from proxy.
 	Authorizer auth.Authorizer
 	// GetRotation returns the certificate rotation state.
@@ -71,8 +74,10 @@ type Config struct {
 	Hostname string
 	// HostID is the id of the host where this database server is running.
 	HostID string
-	// Selector is a list of selectors to watch for database resources.
-	Selectors []services.Selector
+	// ResourceMatchers is a list of database resource matchers.
+	ResourceMatchers []services.ResourceMatcher
+	// AWSMatchers is a list of AWS databases matchers.
+	AWSMatchers []services.AWSMatcher
 	// Databases is a list of proxied databases from static configuration.
 	Databases types.Databases
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
@@ -161,7 +166,15 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.CloudIAM == nil {
 		c.CloudIAM, err = cloud.NewIAM(ctx, cloud.IAMConfig{
 			Clients: c.CloudClients,
+			HostID:  c.HostID,
 		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if c.Limiter == nil {
+		// Use default limiter if nothing is provided. Connection limiting will be disabled.
+		c.Limiter, err = limiter.NewLimiter(limiter.Config{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -182,18 +195,56 @@ type Server struct {
 	middleware *auth.Middleware
 	// dynamicLabels contains dynamic labels for databases.
 	dynamicLabels map[string]*labels.Dynamic
-	// heartbeats holds hearbeats for database servers.
+	// heartbeats holds heartbeats for database servers.
 	heartbeats map[string]*srv.Heartbeat
 	// watcher monitors changes to database resources.
 	watcher *services.DatabaseWatcher
-	// databases keeps an up-to-date list of all databases this server proxies.
-	databases map[string]types.Database
+	// proxiedDatabases contains databases this server currently is proxying.
+	// Proxied databases are reconciled against monitoredDatabases below.
+	proxiedDatabases map[string]types.Database
+	// monitoredDatabases contains all cluster databases the proxied databases
+	// are reconciled against.
+	monitoredDatabases monitoredDatabases
+	// reconcileCh triggers reconciliation of proxied databases.
+	reconcileCh chan struct{}
 	// mu protects access to server infos and databases.
 	mu sync.RWMutex
 	// log is used for logging.
 	log *logrus.Entry
-	// reconciler is used to reconcile proxied databases with database resources.
-	reconciler *services.Reconciler
+}
+
+// monitoredDatabases is a collection of databases from different sources
+// like configuration file, dynamic resources and imported from cloud.
+//
+// It's updated by respective watchers and is used for reconciling with the
+// currently proxied databases.
+type monitoredDatabases struct {
+	// static are databases from the agent's YAML configuration.
+	static types.Databases
+	// resources are databases created via CLI or API.
+	resources types.Databases
+	// cloud are databases detected by cloud watchers.
+	cloud types.Databases
+	// mu protects access to the fields.
+	mu sync.Mutex
+}
+
+func (m *monitoredDatabases) setResources(databases types.Databases) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.resources = databases
+}
+
+func (m *monitoredDatabases) setCloud(databases types.Databases) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.cloud = databases
+}
+
+func (m *monitoredDatabases) get() types.ResourcesWithLabels {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append(append(m.static, m.resources...), m.cloud...).AsResources()
 }
 
 // New returns a new database server.
@@ -205,23 +256,21 @@ func New(ctx context.Context, config Config) (*Server, error) {
 
 	ctx, cancel := context.WithCancel(ctx)
 	server := &Server{
-		cfg:           config,
-		log:           logrus.WithField(trace.Component, teleport.ComponentDatabase),
-		closeContext:  ctx,
-		closeFunc:     cancel,
-		dynamicLabels: make(map[string]*labels.Dynamic),
-		heartbeats:    make(map[string]*srv.Heartbeat),
-		databases:     config.Databases.ToMap(),
+		cfg:              config,
+		log:              logrus.WithField(trace.Component, teleport.ComponentDatabase),
+		closeContext:     ctx,
+		closeFunc:        cancel,
+		dynamicLabels:    make(map[string]*labels.Dynamic),
+		heartbeats:       make(map[string]*srv.Heartbeat),
+		proxiedDatabases: config.Databases.ToMap(),
+		monitoredDatabases: monitoredDatabases{
+			static: config.Databases,
+		},
+		reconcileCh: make(chan struct{}),
 		middleware: &auth.Middleware{
 			AccessPoint:   config.AccessPoint,
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
-	}
-
-	// Reconciler will be reconciling database resources with proxied databases.
-	server.reconciler, err = server.getReconciler()
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// Update TLS config to require client certificate.
@@ -248,6 +297,10 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	}
 	// Attempts to fetch cloud metadata and configure IAM for cloud-hosted
 	// databases on a best-effort basis.
+	//
+	// TODO(r0mant): It may also make sense to auto-configure IAM upon getting
+	// access denied error at connection time in case this fails or the policy
+	// gets removed off-band.
 	if err := s.cfg.CloudIAM.Setup(ctx, database); err != nil {
 		s.log.Warnf("Failed to auto-configure IAM for %v: %v.", database, err)
 	}
@@ -339,7 +392,7 @@ func (s *Server) registerDatabase(ctx context.Context, database types.Database) 
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.databases[database.GetName()] = database
+	s.proxiedDatabases[database.GetName()] = database
 	return nil
 }
 
@@ -366,6 +419,17 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 	if err := s.cfg.CloudIAM.Teardown(ctx, database); err != nil {
 		s.log.Warnf("Failed to teardown IAM for %v: %v.", database, err)
 	}
+	// Stop heartbeat, labels, etc.
+	if err := s.stopProxyingDatabase(ctx, database); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// stopProxyingDatabase winds down the proxied database instance by stopping
+// its heartbeat and dynamic labels and unregistering it from the list of
+// proxied databases.
+func (s *Server) stopProxyingDatabase(ctx context.Context, database types.Database) error {
 	// Stop heartbeat and dynamic labels updates.
 	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
 		return trace.Wrap(err)
@@ -377,15 +441,15 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.databases, database.GetName())
+	delete(s.proxiedDatabases, database.GetName())
 	return nil
 }
 
-// getDatabases returns a list of all databases this server is proxying.
-func (s *Server) getDatabases() (databases types.Databases) {
+// getProxiedDatabases returns a list of all databases this server is proxying.
+func (s *Server) getProxiedDatabases() (databases types.Databases) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	for _, database := range s.databases {
+	for _, database := range s.proxiedDatabases {
 		databases = append(databases, database)
 	}
 	return databases
@@ -399,7 +463,7 @@ func (s *Server) startHeartbeat(ctx context.Context, database types.Database) er
 		Mode:            srv.HeartbeatModeDB,
 		Announcer:       s.cfg.AccessPoint,
 		GetServerInfo:   s.getServerInfoFunc(database),
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
@@ -479,7 +543,7 @@ func (s *Server) getRotationState() types.Rotation {
 }
 
 // Start starts proxying all server's registered databases.
-func (s *Server) Start(ctx context.Context) error {
+func (s *Server) Start(ctx context.Context) (err error) {
 	// Register all databases from static configuration.
 	for _, database := range s.cfg.Databases {
 		if err := s.registerDatabase(ctx, database); err != nil {
@@ -487,18 +551,21 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 	}
 
-	// Register all matching databases from resources.
-	databases, err := s.cfg.AccessPoint.GetDatabases(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := s.reconciler.Reconcile(ctx, types.Databases(databases).AsResources()); err != nil {
+	// Start reconciler that will be reconciling proxied databases with
+	// database resources and cloud instances.
+	if err := s.startReconciler(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Initialize watcher that will be dynamically (un-)registering
+	// Start watcher that will be dynamically (un-)registering
 	// proxied databases based on the database resources.
-	if s.watcher, err = s.startWatcher(ctx); err != nil {
+	if s.watcher, err = s.startResourceWatcher(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Start watcher that will be monitoring cloud provider databases
+	// according to the server's selectors.
+	if err := s.startCloudWatcher(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -508,10 +575,11 @@ func (s *Server) Start(ctx context.Context) error {
 // Close stops proxying all server's databases and frees up other resources.
 func (s *Server) Close() error {
 	var errors []error
-	// Stop all proxied databases.
-	for _, database := range s.getDatabases() {
-		if err := s.unregisterDatabase(s.closeContext, database); err != nil {
-			errors = append(errors, err)
+	// Stop proxying all databases.
+	for _, database := range s.getProxiedDatabases() {
+		if err := s.stopProxyingDatabase(s.closeContext, database); err != nil {
+			errors = append(errors, trace.WrapWithMessage(
+				err, "stopping database %v", database.GetName()))
 		}
 	}
 	// Signal to all goroutines to stop.
@@ -528,7 +596,10 @@ func (s *Server) Close() error {
 // Wait will block while the server is running.
 func (s *Server) Wait() error {
 	<-s.closeContext.Done()
-	return s.closeContext.Err()
+	if err := s.closeContext.Err(); err != nil && err != context.Canceled {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // ForceHeartbeat is used by tests to force-heartbeat all registered databases.
@@ -556,7 +627,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Make sure to close the upgraded connection, not "conn", otherwise
 	// the other side may not detect that connection has closed.
 	defer tlsConn.Close()
-	// Perform the hanshake explicitly, normally it should be performed
+	// Perform the handshake explicitly, normally it should be performed
 	// on the first read/write but when the connection is passed over
 	// reverse tunnel it doesn't happen for some reason.
 	err := tlsConn.Handshake()
@@ -580,11 +651,12 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	}
 }
 
-func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
+func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) error {
 	sessionCtx, err := s.authorize(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	streamWriter, err := s.newStreamWriter(sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -592,7 +664,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 	defer func() {
 		// Closing the stream writer is needed to flush all recorded data
 		// and trigger upload. Do it in a goroutine since depending on
-		// session size it can take a while and we don't want to block
+		// session size it can take a while, and we don't want to block
 		// the client.
 		go func() {
 			// Use the server closing context to make sure that upload
@@ -603,15 +675,25 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 			}
 		}()
 	}()
-	engine, err := s.dispatch(sessionCtx, streamWriter)
+	engine, err := s.dispatch(sessionCtx, streamWriter, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			s.log.Warnf("Recovered while handling DB connection from %v: %v.", clientConn.RemoteAddr(), r)
+			err = trace.BadParameter("failed to handle client connection")
+		}
+		if err != nil {
+			engine.SendError(err)
+		}
+	}()
+
 	// Wrap a client connection into monitor that auto-terminates
 	// idle connection and connection with expired cert.
-	conn, err = monitorConn(ctx, monitorConnConfig{
-		conn:         conn,
+	clientConn, err = monitorConn(ctx, monitorConnConfig{
+		conn:         clientConn,
 		lockWatcher:  s.cfg.LockWatcher,
 		lockTargets:  sessionCtx.LockTargets,
 		identity:     sessionCtx.Identity,
@@ -628,23 +710,53 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 
-	err = engine.HandleConnection(ctx, sessionCtx, conn)
+	// TODO(jakule): ClientIP should be required starting from 10.0.
+	clientIP := sessionCtx.Identity.ClientIP
+	if clientIP != "" {
+		s.log.Debugf("Real client IP %s", clientIP)
+
+		var release func()
+		release, err = s.cfg.Limiter.RegisterRequestAndConnection(clientIP)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer release()
+	} else {
+		s.log.Debug("ClientIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
+	}
+
+	err = engine.HandleConnection(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// dispatch returns an appropriate database engine for the session.
-func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter) (common.Engine, error) {
+// dispatch creates and initializes an appropriate database engine for the session.
+func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter, clientConn net.Conn) (common.Engine, error) {
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
 		Emitter: streamWriter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	engine, err := s.createEngine(sessionCtx, audit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := engine.InitializeConnection(clientConn, sessionCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return engine, nil
+}
+
+// createEngine creates a new database engine base on the database protocol. An error is returned when
+// a protocol is not supported.
+func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (common.Engine, error) {
 	switch sessionCtx.Database.GetProtocol() {
-	case defaults.ProtocolPostgres:
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		return &postgres.Engine{
 			Auth:    s.cfg.Auth,
 			Audit:   audit,
@@ -670,6 +782,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 			Log:     sessionCtx.Log,
 		}, nil
 	}
+
 	return nil, trace.BadParameter("unsupported database protocol %q",
 		sessionCtx.Database.GetProtocol())
 }
@@ -691,7 +804,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	s.log.Debugf("Client identity: %#v.", identity)
 	// Fetch the requested database server.
 	var database types.Database
-	registeredDatabases := s.getDatabases()
+	registeredDatabases := s.getProxiedDatabases()
 	for _, db := range registeredDatabases {
 		if db.GetName() == identity.RouteToDatabase.ServiceName {
 			database = db
@@ -704,7 +817,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	}
 	s.log.Debugf("Will connect to database %q at %v.", database.GetName(),
 		database.GetURI())
-	id := uuid.New()
+	id := uuid.New().String()
 	return &common.Session{
 		ID:                id,
 		ClusterName:       identity.RouteToCluster,
@@ -715,7 +828,6 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		DatabaseName:      identity.RouteToDatabase.Database,
 		Checker:           authContext.Checker,
 		StartupParameters: make(map[string]string),
-		Statements:        common.NewStatementsCache(),
 		Log: s.log.WithFields(logrus.Fields{
 			"id": id,
 			"db": database.GetName(),

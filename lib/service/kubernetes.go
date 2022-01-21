@@ -20,19 +20,19 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/events"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 func (process *TeleportProcess) initKubernetes() {
@@ -78,7 +78,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	cfg := process.Config
 
 	// Create a caching auth client.
-	accessPoint, err := process.newLocalCache(conn.Client, cache.ForKubernetes, []string{teleport.ComponentKube})
+	accessPoint, err := process.newLocalCacheForKubernetes(conn.Client, []string{teleport.ComponentKube})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -249,13 +249,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		TLS:           tlsConfig,
 		AccessPoint:   accessPoint,
 		LimiterConfig: cfg.Kube.Limiter,
-		OnHeartbeat: func(err error) {
-			if err != nil {
-				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentKube})
-			} else {
-				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentKube})
-			}
-		},
+		OnHeartbeat:   process.onHeartbeat(teleport.ComponentKube),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -277,6 +271,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 				"Kubernetes service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, listener.Addr())
 		}
+		process.BroadcastEvent(Event{Name: KubernetesReady, Payload: nil})
 		err := kubeServer.Serve(listener)
 		if err != nil {
 			if err == http.ErrServerClosed {

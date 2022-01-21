@@ -40,9 +40,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -75,11 +76,17 @@ const (
 )
 
 // SetTestTimeouts affects global timeouts inside Teleport, making connections
-// work faster but consuming more CPU (useful for integration testing)
+// work faster but consuming more CPU (useful for integration testing).
+// NOTE: This function modifies global values for timeouts, etc. If your tests
+// call this function, they MUST NOT BE RUN IN PARALLEL, as they may stomp on
+// other tests.
 func SetTestTimeouts(t time.Duration) {
-	apidefaults.KeepAliveInterval = t
+	// TODO(tcsc): Remove this altogether and replace with per-test timeout
+	//             config (as per #8913)
+
+	apidefaults.SetTestTimeouts(t, t)
+
 	defaults.ResyncInterval = t
-	apidefaults.ServerKeepAliveTTL = t
 	defaults.SessionRefreshPeriod = t
 	defaults.HeartbeatCheckPeriod = t
 	defaults.CachePollPeriod = t
@@ -581,10 +588,22 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		tconf.Proxy.MySQLAddr = utils.NetAddr{}
 		tconf.Proxy.SSHAddr = utils.NetAddr{}
 	} else {
-		tconf.Proxy.ReverseTunnelListenAddr.Addr = i.Secrets.TunnelAddr
+		tunAddr, err := utils.ParseAddr(i.Secrets.TunnelAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tconf.Proxy.ReverseTunnelListenAddr = *tunAddr
 		tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
 		tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
 		tconf.Proxy.MySQLAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMySQL())
+		if i.Postgres != nil {
+			// Postgres proxy port was configured on a separate listener.
+			tconf.Proxy.PostgresAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortPostgres())
+		}
+		if i.Mongo != nil {
+			// Mongo proxy port was configured on a separate listener.
+			tconf.Proxy.MongoAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMongo())
+		}
 	}
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
 	tconf.Auth.StorageConfig = backend.Config{
@@ -595,6 +614,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
 
 	tconf.Keygen = testauthority.New()
+	tconf.MaxRetryPeriod = defaults.HighResPollingPeriod
 	i.Config = tconf
 	return tconf, nil
 }
@@ -706,10 +726,8 @@ func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*servi
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
 	tconf.Token = "token"
 	tconf.UploadEventsC = i.UploadEventsC
-	var ttl time.Duration
 	tconf.CachePolicy = service.CachePolicy{
-		Enabled:   true,
-		RecentTTL: &ttl,
+		Enabled: true,
 	}
 	tconf.SSH.PublicAddrs = []utils.NetAddr{
 		{
@@ -873,10 +891,8 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	tconf.Hostname = name
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.DataDir = dataDir
-	var ttl time.Duration
 	tconf.CachePolicy = service.CachePolicy{
-		Enabled:   true,
-		RecentTTL: &ttl,
+		Enabled: true,
 	}
 
 	tconf.Auth.Enabled = false
@@ -1024,6 +1040,9 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 func (i *TeleInstance) Reset() (err error) {
 	if i.Process != nil {
 		if err := i.Process.Close(); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := i.Process.Wait(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1182,19 +1201,19 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 	}
 
 	cconf := &client.Config{
-		Username:               cfg.Login,
-		Host:                   cfg.Host,
-		HostPort:               cfg.Port,
-		HostLogin:              cfg.Login,
-		InsecureSkipVerify:     true,
-		KeysDir:                keyDir,
-		SiteName:               cfg.Cluster,
-		ForwardAgent:           fwdAgentMode,
-		Labels:                 cfg.Labels,
-		WebProxyAddr:           webProxyAddr,
-		SSHProxyAddr:           sshProxyAddr,
-		Interactive:            cfg.Interactive,
-		ALPNSNIListenerEnabled: i.isSinglePortSetup,
+		Username:           cfg.Login,
+		Host:               cfg.Host,
+		HostPort:           cfg.Port,
+		HostLogin:          cfg.Login,
+		InsecureSkipVerify: true,
+		KeysDir:            keyDir,
+		SiteName:           cfg.Cluster,
+		ForwardAgent:       fwdAgentMode,
+		Labels:             cfg.Labels,
+		WebProxyAddr:       webProxyAddr,
+		SSHProxyAddr:       sshProxyAddr,
+		Interactive:        cfg.Interactive,
+		TLSRoutingEnabled:  i.isSinglePortSetup,
 	}
 
 	// JumpHost turns on jump host mode
@@ -1280,16 +1299,20 @@ func (i *TeleInstance) StopNodes() error {
 // StopAuth stops the auth server process. If removeData is true, the data
 // directory is also cleaned up.
 func (i *TeleInstance) StopAuth(removeData bool) error {
-	if i.Config != nil && removeData {
-		err := os.RemoveAll(i.Config.DataDir)
-		if err != nil {
-			i.log.WithError(err).Error("Failed removing temporary local Teleport directory.")
+	defer func() {
+		if i.Config != nil && removeData {
+			i.log.Infoln("Removing data dir", i.Config.DataDir)
+			if err := os.RemoveAll(i.Config.DataDir); err != nil {
+				i.log.WithError(err).Error("Failed removing temporary local Teleport directory.")
+			}
 		}
-	}
+		i.Process = nil
+	}()
+
 	if i.Process == nil {
 		return nil
 	}
-	i.log.Infof("Asking Teleport to stop")
+	i.log.Infof("Asking Teleport instance %q to stop", i.Secrets.SiteName)
 	err := i.Process.Close()
 	if err != nil {
 		i.log.WithError(err).Error("Failed closing the teleport process.")
@@ -1316,7 +1339,7 @@ func (i *TeleInstance) StopAll() error {
 		errors = append(errors, os.RemoveAll(dir))
 	}
 
-	i.log.Info("Stopped all teleport services.")
+	i.log.Infof("Stopped all teleport services for site %q", i.Secrets.SiteName)
 	return trace.NewAggregate(errors...)
 }
 
@@ -1644,4 +1667,27 @@ func fatalIf(err error) {
 	if err != nil {
 		log.Fatalf("%v at %v", string(debug.Stack()), err)
 	}
+}
+
+func enableKubernetesService(t *testing.T, config *service.Config) {
+	kubeConfigPath := filepath.Join(t.TempDir(), "kube_config")
+
+	err := kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
+		TeleportClusterName: "teleport-cluster",
+		ClusterAddr:         net.JoinHostPort(Host, ports.Pop()),
+		Credentials: &client.Key{
+			Cert:    []byte("cert"),
+			TLSCert: []byte("tls-cert"),
+			Priv:    []byte("priv"),
+			Pub:     []byte("pub"),
+			TrustedCA: []auth.TrustedCerts{{
+				TLSCertificates: [][]byte{[]byte("ca-cert")},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	config.Kube.Enabled = true
+	config.Kube.KubeconfigPath = kubeConfigPath
+	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, ports.Pop()))
 }

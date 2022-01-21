@@ -87,7 +87,7 @@ EOF
 Create the user assigned the `db` role we've just created:
 
 ```code
-$ tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
+$ tctl --config=/path/to/teleport.yaml users add --roles=access,db testuser
 ```
 
 ### Start Database service with CLI flags
@@ -212,12 +212,6 @@ $ tsh db connect aurora
   The `psql` command-line client should be available in PATH in order to be
   able to connect.
 </Admonition>
-
-If you would like to see the native `psql` shell connect command, run:
-
-```code
-$ tsh db config --format=cmd aurora
-```
 
 To log out of the database and remove credentials:
 

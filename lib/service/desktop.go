@@ -29,10 +29,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -78,7 +78,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	cfg := process.Config
 
 	// Create a caching auth client.
-	accessPoint, err := process.newLocalCache(conn.Client, cache.ForWindowsDesktop, []string{teleport.ComponentWindowsDesktop})
+	accessPoint, err := process.newLocalCacheForWindowsDesktop(conn.Client, []string{teleport.ComponentWindowsDesktop})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -102,7 +102,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 
 	// Start a local listener and let proxies dial in.
 	case !conn.UseTunnel() && !cfg.WindowsDesktop.ListenAddr.IsEmpty():
-		log.Debug("Turning on Windows desktop service listening address.")
+		log.Info("Using local listener and registering directly with auth server")
 		listener, err = process.importOrCreateListener(listenerWindowsDesktop, cfg.WindowsDesktop.ListenAddr.Addr)
 		if err != nil {
 			return trace.Wrap(err)
@@ -142,7 +142,26 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				agentPool.Stop()
 			}
 		}()
-		log.Info("Started reverse tunnel client.")
+		log.Info("Using a reverse tunnel to register and handle proxy connections")
+	}
+
+	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentWindowsDesktop,
+			Log:       log,
+			Clock:     cfg.Clock,
+			Client:    conn.Client,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
+
+	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	tlsConfig, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
@@ -186,25 +205,25 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	}
 
 	srv, err := desktop.NewWindowsService(desktop.WindowsServiceConfig{
-		Log:         log,
-		Clock:       process.Clock,
-		TLS:         tlsConfig,
-		AccessPoint: accessPoint,
-		AuthClient:  conn.Client,
-		ConnLimiter: connLimiter,
+		Log:          log,
+		Clock:        process.Clock,
+		Authorizer:   authorizer,
+		Emitter:      conn.Client,
+		TLS:          tlsConfig,
+		AccessPoint:  accessPoint,
+		ConnLimiter:  connLimiter,
+		LockWatcher:  lockWatcher,
+		AuthClient:   conn.Client,
+		HostLabelsFn: cfg.WindowsDesktop.HostLabels.LabelsForHost,
 		Heartbeat: desktop.HeartbeatConfig{
-			HostUUID:    process.Config.HostUUID,
+			HostUUID:    cfg.HostUUID,
 			PublicAddr:  publicAddr,
 			StaticHosts: cfg.WindowsDesktop.Hosts,
-			OnHeartbeat: func(err error) {
-				if err != nil {
-					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentWindowsDesktop})
-				} else {
-					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentWindowsDesktop})
-				}
-			},
+			OnHeartbeat: process.onHeartbeat(teleport.ComponentWindowsDesktop),
 		},
-		LDAPConfig: desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		LDAPConfig:           desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		DiscoveryBaseDN:      cfg.WindowsDesktop.Discovery.BaseDN,
+		DiscoveryLDAPFilters: cfg.WindowsDesktop.Discovery.Filters,
 	})
 	if err != nil {
 		return trace.Wrap(err)

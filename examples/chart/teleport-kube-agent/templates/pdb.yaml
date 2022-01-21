@@ -1,0 +1,18 @@
+{{- if .Values.highAvailability.podDisruptionBudget.enabled }}
+{{- if .Capabilities.APIVersions.Has "policy/v1" }}
+apiVersion: policy/v1
+{{- else }}
+apiVersion: policy/v1beta1
+{{- end }}
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  minAvailable: {{ .Values.highAvailability.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+{{- end }}
