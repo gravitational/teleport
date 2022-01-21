@@ -25,19 +25,66 @@ import (
 // TestDatabaseRDSEndpoint verifies AWS info is correctly populated
 // based on the RDS endpoint.
 func TestDatabaseRDSEndpoint(t *testing.T) {
-	database, err := NewDatabaseV3(Metadata{
-		Name: "rds",
-	}, DatabaseSpecV3{
-		Protocol: "postgres",
-		URI:      "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
-	})
-	require.NoError(t, err)
-	require.Equal(t, AWS{
-		Region: "us-west-1",
-		RDS: RDS{
-			InstanceID: "aurora-instance-1",
+	t.Parallel()
+	tests := []struct {
+		name      string
+		uri       string
+		expectAWS AWS
+	}{
+		{
+			name: "rds instance",
+			uri:  "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+			expectAWS: AWS{
+				Region: "us-west-1",
+				RDS: RDS{
+					InstanceID: "aurora-instance-1",
+				},
+			},
 		},
-	}, database.GetAWS())
+		{
+			name: "aurora cluster",
+			uri:  "my-aurora.cluster-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+			expectAWS: AWS{
+				Region: "us-west-1",
+				RDS: RDS{
+					ClusterID: "my-aurora",
+				},
+			},
+		},
+		{
+			name: "rds proxy",
+			uri:  "my-proxy.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+			expectAWS: AWS{
+				Region: "us-west-1",
+				RDS: RDS{
+					ProxyName: "my-proxy",
+				},
+			},
+		},
+		{
+			name: "rds proxy custom",
+			uri:  "my-proxy-custom.endpoint.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+			expectAWS: AWS{
+				Region: "us-west-1",
+				RDS: RDS{
+					ProxyEndpointName: "my-proxy-custom",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			database, err := NewDatabaseV3(Metadata{
+				Name: "rds",
+			}, DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      test.uri,
+			})
+			require.NoError(t, err)
+			require.Equal(t, test.expectAWS, database.GetAWS())
+		})
+	}
 }
 
 // TestDatabaseRedshiftEndpoint verifies AWS info is correctly populated
@@ -75,68 +122,4 @@ func TestDatabaseStatus(t *testing.T) {
 	awsMeta := AWS{AccountID: "account-id"}
 	database.SetStatusAWS(awsMeta)
 	require.Equal(t, awsMeta, database.GetAWS())
-}
-
-func TestRDSEndpointDetails(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name            string
-		uri             string
-		expectedDetails *rdsEndpointDetails
-		expectedErrorIs func(error) bool
-	}{
-		{
-			name: "rds instance",
-			uri:  "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
-			expectedDetails: &rdsEndpointDetails{
-				instanceID: "aurora-instance-1",
-				region:     "us-west-1",
-			},
-		},
-		{
-			name: "aurora cluster",
-			uri:  "my-aurora.cluster-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
-			expectedDetails: &rdsEndpointDetails{
-				clusterID: "my-aurora",
-				region:    "us-west-1",
-			},
-		},
-		{
-			name: "aurora cluster custom",
-			uri:  "my-aurora.cluster-custom-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
-			expectedDetails: &rdsEndpointDetails{
-				clusterID: "my-aurora",
-				region:    "us-west-1",
-			},
-		},
-		{
-			name: "rds proxy",
-			uri:  "my-proxy.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
-			expectedDetails: &rdsEndpointDetails{
-				proxyName: "my-proxy",
-				region:    "us-west-1",
-			},
-		},
-		{
-			name: "rds proxy custom",
-			uri:  "my-proxy-custom.endpoint.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
-			expectedDetails: &rdsEndpointDetails{
-				proxyEndpointName: "my-proxy-custom",
-				region:            "us-west-1",
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			actualDetails, err := newRDSEndpointDetails(test.uri)
-			if test.expectedErrorIs != nil {
-				require.Error(t, err)
-				require.True(t, test.expectedErrorIs(err))
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, test.expectedDetails, actualDetails)
-			}
-		})
-	}
 }

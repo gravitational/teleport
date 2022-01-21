@@ -47,7 +47,7 @@ arn:aws:rds-db:<region>:<account-id>:dbuser:<resource-id>/<db-user>
 | ------------- | ----------- |
 | `region`      | AWS region where the database cluster is deployed. |
 | `account-id`  | AWS account ID the database cluster is deployed under. |
-| `resource-id` | Database AWS resource identifier: `db-XXX` for RDS, `cluster-XXX` for Aurora. Can be found under Configuration section in the RDS control panel. |
+| `resource-id` | Database AWS resource identifier: `db-XXX` for RDS, `cluster-XXX` for Aurora, `prx-XXX` for RDS Proxies. Can be found under Configuration section in the RDS control panel. |
 | `db-user`     | Database user to associate with IAM authentication. Can be a wildcard. |
 
 See [Creating and using an IAM policy for IAM database access](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html)

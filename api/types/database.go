@@ -361,7 +361,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
 	case strings.Contains(d.Spec.URI, rdsEndpointSuffix):
-		rdsDetails, err := newRDSEndpointDetails(d.Spec.URI)
+		rdsDetails, err := parseRDSEndnpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -412,8 +412,8 @@ type rdsEndpointDetails struct {
 	region            string
 }
 
-// newRDSEndpointDetails extracts identifiers and region from the provided RDS endpoint.
-func newRDSEndpointDetails(endpoint string) (*rdsEndpointDetails, error) {
+// parseRDSEndnpoint extracts identifiers and region from the provided RDS endpoint.
+func parseRDSEndnpoint(endpoint string) (*rdsEndpointDetails, error) {
 	host, _, err := net.SplitHostPort(endpoint)
 	if err != nil {
 		return nil, err
@@ -425,7 +425,7 @@ func newRDSEndpointDetails(endpoint string) (*rdsEndpointDetails, error) {
 	// Aurora cluster endpoints look like this:
 	// my-cluster.cluster-abcdefghijklmnop.us-west-1.rds.amazonaws.com
 	// my-cluster.cluster-ro-abcdefghijklmnop.us-west-1.rds.amazonaws.com
-	// my-cluster.cluster-custom-abcdefghijklmnop.us-west-1.rds.amazonaws.com
+	// my-custom.cluster-custom-abcdefghijklmnop.us-west-1.rds.amazonaws.com
 	//
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html
 	//
@@ -441,7 +441,8 @@ func newRDSEndpointDetails(endpoint string) (*rdsEndpointDetails, error) {
 	parts := strings.Split(host, ".")
 	details := &rdsEndpointDetails{}
 
-	// Note that the RDS Proxy custom endpoints have 7 parts.
+	// Note that the RDS Proxy custom endpoints have one extra level of
+	// subdomains.
 	if len(parts) == 7 && strings.HasPrefix(parts[2], "proxy-") {
 		details.proxyEndpointName = parts[0]
 		details.region = parts[3]
