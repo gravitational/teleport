@@ -1309,7 +1309,7 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		})
 	}
 
-	v2, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV3{
 		IssuerURL:     o.IssuerURL,
 		ClientID:      o.ClientID,
 		ClientSecret:  o.ClientSecret,
@@ -1322,12 +1322,12 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	v2.SetACR(o.ACR)
-	v2.SetProvider(o.Provider)
-	if err := v2.CheckAndSetDefaults(); err != nil {
+	connector.SetACR(o.ACR)
+	connector.SetProvider(o.Provider)
+	if err := connector.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return v2, nil
+	return connector, nil
 }
 
 // Metrics is a `metrics_service` section of the config file:
