@@ -149,8 +149,7 @@ values to match your identity provider:
 - `netiq` (OIDC): Used to enable NetIQ-specific ACR value processing; refer to
   the [OIDC guide](./sso/oidc.mdx#optional-acr-values) for details.
 - `ping` (SAML and OIDC): Required for compatibility with Ping Identity (including
-  PingOne and PingFederate). For SAML compatibility when "Enforced Signed Authn Requests" is enabled in
-  the application settings. For OIDC compatibility to use client secret authentication method to avoid duplicate client ids.
+  PingOne and PingFederate).
 
 At this time, the `spec.provider` field should not be set for any other identity providers.
 
