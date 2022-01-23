@@ -19,7 +19,7 @@ import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 import { Context, ContextProvider } from 'teleport';
 import Recordings from './Recordings';
-import makeRecording from 'teleport/services/recordings/makeRecording';
+import { makeRecording } from 'teleport/services/recordings/makeRecording';
 
 export default {
   title: 'Teleport/Recordings',
@@ -76,6 +76,66 @@ function render(ctx) {
 }
 
 const recordings = [
+  // desktop recording
+  {
+    cluster_name: 'Isaiahs-MacBook-Pro.local',
+    code: 'TDP01I',
+    desktop_addr: '172.16.97.130:3389',
+    desktop_labels: {
+      env: 'prod',
+      foo: 'bar',
+      'teleport.dev/computer_name': 'WIN-JR2L4P7KN15',
+      'teleport.dev/dns_host_name': 'WIN-JR2L4P7KN15.teleport.dev',
+      'teleport.dev/origin': 'dynamic',
+      'teleport.dev/os': 'Windows Server 2012 R2 Standard Evaluation',
+      'teleport.dev/os_version': '6.3 (9600)',
+      'teleport.dev/windows_domain': 'teleport.dev',
+    },
+    desktop_name: 'WIN-JR2L4P7KN15-teleport-dev',
+    ei: 0,
+    event: 'windows.desktop.session.end',
+    login: 'Administrator',
+    session_recording: 'node',
+    session_start: '2022-01-19T15:49:47.939Z',
+    session_stop: '2022-01-19T15:49:50.18Z',
+    sid: 'fe41659b-a611-4b08-974b-69564f766403',
+    time: '2022-01-19T15:49:50.182Z',
+    uid: '1540d599-b868-4afb-8bcd-1da98c18c9f9',
+    user: 'joe',
+    windows_desktop_service: '8f1ed2bc-65fb-48de-b32f-cac76676f8db',
+    windows_domain: 'teleport.dev',
+    windows_user: 'Administrator',
+  },
+  // desktop recording with session_recording set to "off"
+  {
+    cluster_name: 'Isaiahs-MacBook-Pro.local',
+    code: 'TDP01I',
+    desktop_addr: '172.16.97.130:3389',
+    desktop_labels: {
+      env: 'prod',
+      foo: 'bar',
+      'teleport.dev/computer_name': 'WIN-JR2L4P7KN15',
+      'teleport.dev/dns_host_name': 'WIN-JR2L4P7KN15.teleport.dev',
+      'teleport.dev/origin': 'dynamic',
+      'teleport.dev/os': 'Windows Server 2012 R2 Standard Evaluation',
+      'teleport.dev/os_version': '6.3 (9600)',
+      'teleport.dev/windows_domain': 'teleport.dev',
+    },
+    desktop_name: 'WIN-JR2L4P7KN15-teleport-dev',
+    ei: 0,
+    event: 'windows.desktop.session.end',
+    login: 'Administrator',
+    session_recording: 'off',
+    session_start: '2022-01-19T15:19:41.553Z',
+    session_stop: '2022-01-19T15:19:46.991Z',
+    sid: '3b8d6d4b-1096-43e8-a18c-1ce784911a8e',
+    time: '2022-01-19T15:19:46.992Z',
+    uid: '5bfce6cd-94ac-4545-9d27-0afa6d39b682',
+    user: 'joe',
+    windows_desktop_service: '8f1ed2bc-65fb-48de-b32f-cac76676f8db',
+    windows_domain: 'teleport.dev',
+    windows_user: 'Administrator',
+  },
   {
     code: 'T2004I',
     ei: 10,

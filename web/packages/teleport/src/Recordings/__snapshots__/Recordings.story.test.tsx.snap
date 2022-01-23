@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`rendering of Session Recordings 1`] = `
-.c15 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -28,20 +28,20 @@ exports[`rendering of Session Recordings 1`] = `
   width: 80px;
 }
 
-.c15:active {
+.c16:active {
   opacity: 0.56;
 }
 
-.c15:hover,
-.c15:focus {
+.c16:hover,
+.c16:focus {
   background: #651FFF;
 }
 
-.c15:active {
+.c16:active {
   background: #354AA4;
 }
 
-.c15:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -57,6 +57,15 @@ exports[`rendering of Session Recordings 1`] = `
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
+}
+
+.c15 {
+  display: inline-block;
+  transition: color .3s;
+  margin-right: 16px;
+  padding: 4px;
+  color: #FFFFFF;
+  font-size: 16px;
 }
 
 .c9 {
@@ -620,12 +629,12 @@ exports[`rendering of Session Recordings 1`] = `
             </strong>
              - 
             <strong>
-              4
+              6
             </strong>
              of
              
             <strong>
-              4
+              6
             </strong>
           </div>
           <button
@@ -659,10 +668,31 @@ exports[`rendering of Session Recordings 1`] = `
       <thead>
         <tr>
           <th>
-            Node
+            <a>
+              Type
+              <span
+                class="c11 c14 icon icon-chevrons-expand-vertical "
+                color="light"
+              />
+            </a>
           </th>
           <th>
-            User(s)
+            <a>
+              Name
+              <span
+                class="c11 c14 icon icon-chevrons-expand-vertical "
+                color="light"
+              />
+            </a>
+          </th>
+          <th>
+            <a>
+              User(s)
+              <span
+                class="c11 c14 icon icon-chevrons-expand-vertical "
+                color="light"
+              />
+            </a>
           </th>
           <th>
             <a>
@@ -691,6 +721,77 @@ exports[`rendering of Session Recordings 1`] = `
       <tbody>
         <tr>
           <td>
+            <span
+              class="c11 c15 icon icon-desktop c11 c15"
+              color="light"
+              font-size="3"
+            />
+          </td>
+          <td>
+            WIN-JR2L4P7KN15-teleport-dev
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            joe
+          </td>
+          <td>
+            a few seconds
+          </td>
+          <td>
+            2022-01-19 15:49:50
+          </td>
+          <td>
+            fe41659b-a611-4b08-974b-69564f766403
+          </td>
+          <td
+            align="right"
+            style="color: rgb(159, 159, 159);"
+          >
+            recording disabled
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span
+              class="c11 c15 icon icon-desktop c11 c15"
+              color="light"
+              font-size="3"
+            />
+          </td>
+          <td>
+            WIN-JR2L4P7KN15-teleport-dev
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            joe
+          </td>
+          <td>
+            a few seconds
+          </td>
+          <td>
+            2022-01-19 15:19:46
+          </td>
+          <td>
+            3b8d6d4b-1096-43e8-a18c-1ce784911a8e
+          </td>
+          <td
+            align="right"
+            style="color: rgb(159, 159, 159);"
+          >
+            recording disabled
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span
+              class="c11 c15 icon icon-terminal c11 c15"
+              color="light"
+              font-size="3"
+            />
+          </td>
+          <td>
             im-a-nodename
           </td>
           <td
@@ -715,6 +816,13 @@ exports[`rendering of Session Recordings 1`] = `
           </td>
         </tr>
         <tr>
+          <td>
+            <span
+              class="c11 c15 icon icon-terminal c11 c15"
+              color="light"
+              font-size="3"
+            />
+          </td>
           <td>
             ip-172-31-30-254
           </td>
@@ -741,6 +849,13 @@ exports[`rendering of Session Recordings 1`] = `
         </tr>
         <tr>
           <td>
+            <span
+              class="c11 c15 icon icon-terminal c11 c15"
+              color="light"
+              font-size="3"
+            />
+          </td>
+          <td>
             peach-node
           </td>
           <td
@@ -762,7 +877,7 @@ exports[`rendering of Session Recordings 1`] = `
             style=""
           >
             <a
-              class="c15"
+              class="c16"
               href="/web/cluster/localhost/session/377875-6491-11e9-80a1-427cfde50f5a"
               kind="primary"
               target="_blank"
@@ -773,6 +888,13 @@ exports[`rendering of Session Recordings 1`] = `
           </td>
         </tr>
         <tr>
+          <td>
+            <span
+              class="c11 c15 icon icon-terminal c11 c15"
+              color="light"
+              font-size="3"
+            />
+          </td>
           <td>
             apple-node
           </td>
@@ -795,7 +917,7 @@ exports[`rendering of Session Recordings 1`] = `
             style=""
           >
             <a
-              class="c15"
+              class="c16"
               href="/web/cluster/localhost/session/426485-6491-11e9-80a1-427cfde50f5a"
               kind="primary"
               target="_blank"

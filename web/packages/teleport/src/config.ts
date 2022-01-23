@@ -90,8 +90,7 @@ const cfg = {
     clustersPath: '/v1/webapi/sites',
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
     clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
-    scp:
-      '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
+    scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
     renewTokenPath: '/v1/webapi/sessions/renew',
     resetPasswordTokenPath: '/v1/webapi/users/password/token',
     sessionPath: '/v1/webapi/sessions',
@@ -146,16 +145,6 @@ const cfg = {
 
   getClusterEventsUrl(clusterId: string, params: UrlClusterEventsParams) {
     return generatePath(cfg.api.clusterEventsPath, {
-      clusterId,
-      ...params,
-    });
-  },
-
-  getClusterEventsRecordingsUrl(
-    clusterId: string,
-    params: UrlSessionRecordingsParams
-  ) {
-    return generatePath(cfg.api.clusterEventsRecordingsPath, {
       clusterId,
       ...params,
     });

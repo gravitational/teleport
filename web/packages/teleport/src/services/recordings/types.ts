@@ -10,6 +10,8 @@ export type RecordingsResponse = {
   startKey: string;
 };
 
+export type RecordingType = 'ssh' | 'desktop';
+
 export type Recording = {
   duration: number;
   durationText: string;
@@ -18,4 +20,6 @@ export type Recording = {
   users: string;
   hostname: string;
   description: string;
+  recordingType: RecordingType;
+  playable: boolean;
 };
