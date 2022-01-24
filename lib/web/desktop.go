@@ -174,10 +174,14 @@ func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
 	return trace.NewAggregate(retErrs...)
 }
 
+const actionToggle = "toggle"
+
 // playbackAction is a message passed from the playback client
-// to the server over the websocket connection.
+// to the server over the websocket connection in order to modify
+// the playback state.
 type playbackAction struct {
-	// Action is one of "play" | "pause"
+	// Action is one of actionToggle | TODO: actionMove
+	// actionToggle toggles the playbackState.playing
 	Action string `json:"action"`
 }
 
@@ -185,9 +189,23 @@ type playbackAction struct {
 // the global state of the playback websocket connection.
 type playbackState struct {
 	ws      *websocket.Conn
-	playing bool
+	playing bool // false means the playback is paused
 	wsOpen  bool
 	mu      sync.RWMutex
+}
+
+// GetPlaying returns ps.playing
+func (ps *playbackState) GetPlaying() bool {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	return ps.playing
+}
+
+// TogglePlaying toggles the boolean state of ps.playing
+func (ps *playbackState) TogglePlaying() {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	ps.playing = !ps.playing
 }
 
 // GetWsOpen gets the wsOpen value. It should be called at the top of continuously
@@ -221,26 +239,30 @@ func (h *Handler) desktopPlaybackHandle(
 	}
 
 	websocket.Handler(func(ws *websocket.Conn) {
+		defer h.log.Debug("playback websocket closed")
 		rCtx := r.Context()
 		ws.PayloadType = websocket.BinaryFrame
 		ps := playbackState{
 			ws:      ws,
-			playing: true,
 			wsOpen:  true,
+			playing: true, // system always starts in a playing state
 		}
 		defer ps.Close()
-		defer h.log.Debug("playback websocket closed")
 
 		// Handle incoming playback actions.
 		go func() {
-			defer ps.Close()
 			defer h.log.Debug("playback action-recieving goroutine returned")
+			defer ps.Close()
+
 			for {
 				if !ps.GetWsOpen() {
 					return
 				}
 
 				action := playbackAction{}
+				// websocket.JSON.Receive will return even if there's no
+				// message waiting on the websocket, in which case action will
+				// just have it's default values (i.e. action.Action == "")
 				err := websocket.JSON.Receive(ws, &action)
 				if err != nil {
 					h.log.WithError(err).Error("error reading from websocket")
@@ -248,20 +270,30 @@ func (h *Handler) desktopPlaybackHandle(
 				}
 				if action.Action != "" {
 					h.log.Debugf("recieved playback action: %+v", action)
-					// TODO
+					if action.Action == actionToggle {
+						ps.TogglePlaying()
+					} else {
+						h.log.Errorf("received unknown action: %v", action.Action)
+						return
+					}
 				}
 			}
 		}()
 
 		// Stream session events back to browser.
 		go func() {
+			defer h.log.Debug("playback event-streaming goroutine returned")
 			defer ps.Close()
-			defer h.log.Debug("playback event streaming goroutine returned")
+
 			var lastDelay int64
 			eventsC, errC := ctx.clt.StreamSessionEvents(rCtx, session.ID(sID), 0)
 			for {
 				if !ps.GetWsOpen() {
 					return
+				}
+
+				if !ps.GetPlaying() {
+					continue
 				}
 
 				select {
@@ -297,12 +329,12 @@ func (h *Handler) desktopPlaybackHandle(
 
 		// Hang until the request context is cancelled or the websocket is closed by another goroutine.
 		for {
-			// Return if websocket is closed by another goroutine calling ps.Close()
+			// Return if websocket is closed by another goroutine.
 			if !ps.GetWsOpen() {
 				return
 			}
 
-			// Return if websocket is closed by the browser.
+			// Return if the request context is cancelled.
 			select {
 			case <-rCtx.Done():
 				return
