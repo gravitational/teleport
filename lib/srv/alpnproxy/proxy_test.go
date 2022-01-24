@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -271,6 +272,8 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 	tests := []struct {
 		name                string
 		handlers            []HandlerDecs
+		kubeHandler         HandlerDecs
+		ServerName          string
 		ClientNextProtos    []string
 		wantProtocolHandler string
 	}{
@@ -281,6 +284,7 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 				makeHandler(common.ProtocolProxySSH),
 			},
 			ClientNextProtos:    []string{string(common.ProtocolProxySSH)},
+			ServerName:          "localhost",
 			wantProtocolHandler: string(common.ProtocolProxySSH),
 		},
 		{
@@ -294,6 +298,7 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 				"unknown-protocol2",
 				"unknown-protocol3",
 				string(common.ProtocolProxySSH)},
+			ServerName:          "localhost",
 			wantProtocolHandler: string(common.ProtocolProxySSH),
 		},
 		{
@@ -303,7 +308,58 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 				makeHandler(common.ProtocolProxySSH),
 			},
 			ClientNextProtos:    nil,
+			ServerName:          "localhost",
 			wantProtocolHandler: string(common.ProtocolHTTP),
+		},
+		{
+			name:             "kube ServerName prefix should route to kube handler",
+			ClientNextProtos: nil,
+			ServerName:       fmt.Sprintf("%s%s", constants.KubeSNIPrefix, "localhost"),
+			handlers: []HandlerDecs{
+				makeHandler(common.ProtocolHTTP),
+			},
+			kubeHandler: HandlerDecs{
+				Handler: func(ctx context.Context, conn net.Conn) error {
+					defer conn.Close()
+					_, err := fmt.Fprint(conn, "kube")
+					require.NoError(t, err)
+					return nil
+				},
+			},
+			wantProtocolHandler: "kube",
+		},
+		{
+			name:       "kubeapp app access should route to web handler",
+			ServerName: "kubeapp.localhost",
+			handlers: []HandlerDecs{
+				makeHandler(common.ProtocolHTTP),
+			},
+			wantProtocolHandler: string(common.ProtocolHTTP),
+		},
+		{
+			name:       "kubernetes servername prefix should route to web handler",
+			ServerName: "kubernetes.localhost",
+			handlers: []HandlerDecs{
+				makeHandler(common.ProtocolHTTP),
+			},
+			wantProtocolHandler: string(common.ProtocolHTTP),
+		},
+		{
+			name:             "kube ServerName prefix should route to kube handler",
+			ClientNextProtos: nil,
+			ServerName:       fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, "localhost"),
+			handlers: []HandlerDecs{
+				makeHandler(common.ProtocolHTTP),
+			},
+			kubeHandler: HandlerDecs{
+				Handler: func(ctx context.Context, conn net.Conn) error {
+					defer conn.Close()
+					_, err := fmt.Fprint(conn, "kube")
+					require.NoError(t, err)
+					return nil
+				},
+			},
+			wantProtocolHandler: "kube",
 		},
 	}
 
@@ -314,12 +370,13 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 			for _, r := range tc.handlers {
 				router.Add(r)
 			}
+			router.kubeHandler = &tc.kubeHandler
 			suite.router = router
 			suite.Start(t)
 
 			conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
 				NextProtos: tc.ClientNextProtos,
-				ServerName: "localhost",
+				ServerName: tc.ServerName,
 				RootCAs:    suite.GetCertPool(),
 			})
 			require.NoError(t, err)
