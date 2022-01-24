@@ -74,7 +74,7 @@ client will be able to call the gRPC method with either a Proxy or Auth address
 and it will "just work" transparently.
 
 #### Auth `rpc RegisterUsingIAM(stream RegisterUsingIAMRequest) returns (stream RegisterUsingIAMResponse)`
-Join mathods: IAM
+Join methods: IAM
 Server trust: CA pins
 This is the Auth endpoint that will complete the IAM join request.
 
