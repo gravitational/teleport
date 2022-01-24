@@ -117,15 +117,17 @@ func (b *Bot) findWorkflow(ctx context.Context, organization string, repository 
 // deleteRuns deletes all workflow runs except the most recent one because that is
 // the run in the current context.
 func (b *Bot) deleteRuns(ctx context.Context, organization string, repository string, runs []github.Run) error {
-	// Sorting runs by time from oldest to newest.
+	// Sort runs oldest to newest then pop off last item (newest).
 	sort.Slice(runs, func(i, j int) bool {
 		time1, time2 := runs[i].CreatedAt, runs[j].CreatedAt
 		return time1.Before(time2)
 	})
+	if len(runs) > 0 {
+		runs = runs[:len(runs)-1]
+	}
 
 	// Deleting all runs except the most recent one.
-	for i := 0; i < len(runs)-1; i++ {
-		run := runs[i]
+	for _, run := range runs {
 		err := b.c.GitHub.DeleteWorkflowRun(ctx,
 			organization,
 			repository,

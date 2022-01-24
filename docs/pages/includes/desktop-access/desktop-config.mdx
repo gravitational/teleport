@@ -17,15 +17,13 @@ windows_desktop_service:
     # Active Directory domain name you are connecting to.
     domain:   '$LDAP_DOMAIN_NAME'
     # LDAP username for authentication. This username must include the domain
-    # NetBIOS name.
+    # NetBIOS name. The use of single quotes here is intentional in order to
+    # avoid the need to escape the backslash (\) character.
     #
     # For example, if your domain is "example.com", the NetBIOS name for it is
-    # likely "EXAMPLE". When connecting as the "Administrator" user, you should
-    # use the format: "EXAMPLE\Administrator".
+    # likely "EXAMPLE". When connecting as the "svc-teleport" user, you should
+    # use the format: "EXAMPLE\svc-teleport".
     username: '$LDAP_USERNAME'
-    # Plain text file containing the LDAP password for authentication.
-    # This is usually the same password you use to login to the Domain Controller.
-    password_file: /var/lib/ldap-pass
     # You can skip LDAPS certificate verification by setting
     # this to true. It is recommended that this be set to false
     # and the certificate added your system's trusted repository,

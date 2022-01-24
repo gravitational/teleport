@@ -38,6 +38,7 @@ func TestLabel(t *testing.T) {
 			branch: "foo",
 			files: []string{
 				"file.go",
+				"examples/README.md",
 			},
 			labels: []string{},
 		},

@@ -44,8 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -271,7 +271,7 @@ func New(c ServerConfig) (*Server, error) {
 				"dst-addr": c.DstAddr.String(),
 			},
 		}),
-		id:              uuid.New(),
+		id:              uuid.New().String(),
 		targetConn:      c.TargetConn,
 		serverConn:      utils.NewTrackingConn(serverConn),
 		clientConn:      clientConn,
