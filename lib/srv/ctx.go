@@ -931,12 +931,19 @@ func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleTargets := services.RolesToLockTargets(apiutils.Deduplicate(append(id.RoleSet.RoleNames(), id.UnmappedRoles...)))
-	return append([]types.LockTarget{
+	lockTargets := []types.LockTarget{
 		{User: id.TeleportUser},
 		{Login: id.Login},
 		{Node: s.HostUUID()},
 		{Node: auth.HostFQDN(s.HostUUID(), clusterName.GetClusterName())},
 		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
-	}, roleTargets...), nil
+	}
+	roles := apiutils.Deduplicate(append(id.RoleSet.RoleNames(), id.UnmappedRoles...))
+	lockTargets = append(lockTargets,
+		services.RolesToLockTargets(roles)...,
+	)
+	lockTargets = append(lockTargets,
+		services.AccessRequestsToLockTargets(id.ActiveRequests)...,
+	)
+	return lockTargets, nil
 }
