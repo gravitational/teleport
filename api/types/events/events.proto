@@ -1706,6 +1706,8 @@ message WindowsDesktopSessionEnd {
     ];
     // DesktopName is the name of the desktop resource.
     string DesktopName = 11 [ (gogoproto.jsontag) = "desktop_name" ];
+    // Recorded is true if the session was recorded, false otherwise.
+    bool Recorded = 12 [ (gogoproto.jsontag) = "recorded" ];
 }
 
 // CertificateCreate is emitted when a certificate is issued.

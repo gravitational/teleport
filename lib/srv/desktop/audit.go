@@ -65,7 +65,7 @@ func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity,
 	s.emit(ctx, event)
 }
 
-func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, startedAt time.Time, windowsUser, sessionID string, desktop types.WindowsDesktop) {
+func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, startedAt time.Time, recorded bool, windowsUser, sessionID string, desktop types.WindowsDesktop) {
 	userMetadata := id.GetUserMetadata()
 	userMetadata.Login = windowsUser
 
@@ -88,6 +88,7 @@ func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, s
 		StartTime:             startedAt,
 		EndTime:               s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		DesktopName:           desktop.GetName(),
+		Recorded:              recorded,
 	}
 	s.emit(ctx, event)
 }
