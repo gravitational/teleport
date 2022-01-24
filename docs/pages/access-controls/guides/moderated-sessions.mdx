@@ -1,0 +1,99 @@
+---
+title: Moderated Sessions
+description: Session moderation with RBAC and humans
+h1: Moderated Sessions
+---
+
+## Introduction
+
+Moderated sessions allows Teleport administrators to
+define requirements for other users to be present in a Server or Kubernetes Access session.
+
+Moderated Sessions are useful in the following scenarios:
+- When you have stringent security requirements and need to have people watching over user-initiated sessions to a set of servers.
+- When you want to share a terminal with someone else to be able to instruct or collaborate.
+
+## Core Features
+
+With Moderated Sessions you can:
+- Join SSH and Kubernetes sessions from the terminal as an observer, moderator or peer.
+- Require auditors to be present in certain sessions.
+- Allow people to join your session to observe what you are doing in real time.
+
+## Getting Started
+
+In this guide we'll be using Moderated Sessions to define required participants for a Kubernetes session.
+This guide assumes an already running Teleport cluster with a connected Kubernetes cluster named `minikube`.
+
+<Admonition type="tip">
+  If you don't have a cluster that meets the aforementioned requirements,
+  you can create one by following [this guide](https://goteleport.com/docs/kubernetes-access/getting-started/).
+</Admonition>
+
+### Step 1/4: Create the prod-access role
+
+```code
+$ cat > prod-access.yaml <<EOF
+kind: role
+metadata:
+  name: prod-access
+spec:
+  allow:
+    kubernetes_groups:
+      - view
+    require_session_join:
+      - name: Auditor oversight
+        filter: 'contains(user.roles, "auditor")'
+        kinds: ['k8s']
+        modes: ['moderator']
+        count: 1
+EOF
+
+$ tctl create -f prod-access.yaml
+```
+
+### Step 2/4: Create the auditor role
+
+```code
+$ cat > auditor.yaml <<EOF
+kind: role
+metadata:
+  name: auditor
+spec:
+  allow:
+    join_sessions:
+    - kinds:
+      - k8s
+      modes:
+      - moderator
+      name: Auditor
+      roles:
+      - member
+EOF
+
+$ tctl create -f auditor.yaml
+```
+
+### Step 3/4: Add users
+
+```code
+$ tctl users add adam --roles=prod-access
+$ tctl users add bob --roles=auditor
+```
+
+### Step 4/4: Try it out
+
+Please substitute `$SESSION_ID` with the UUID shown when starting the session.
+
+```code
+# adam
+
+$ tsh kube login minikube
+$ tsh kube exec -st nginx /bin/bash
+```
+
+```code
+# bob
+
+$ tsh kube join $SESSION_ID
+```
