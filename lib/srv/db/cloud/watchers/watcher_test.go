@@ -31,7 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,55 +42,109 @@ func TestWatcher(t *testing.T) {
 	rdsInstance1, rdsDatabase1 := makeRDSInstance(t, "instance-1", "us-east-1", map[string]string{"env": "prod"})
 	rdsInstance2, _ := makeRDSInstance(t, "instance-2", "us-east-2", map[string]string{"env": "prod"})
 	rdsInstance3, _ := makeRDSInstance(t, "instance-3", "us-east-1", map[string]string{"env": "dev"})
+	rdsInstance4, rdsDatabase4 := makeRDSInstance(t, "instance-4", "us-west-1", nil)
 
 	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
 	auroraCluster2, auroraDatabase2 := makeRDSCluster(t, "cluster-2", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "dev"})
 	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
 	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", services.RDSEngineModeServerless, map[string]string{"env": "prod"})
 
-	watcher, err := NewWatcher(ctx, WatcherConfig{
-		AWSMatchers: []services.AWSMatcher{
-			{
+	tests := []struct {
+		name              string
+		awsMatchers       []services.AWSMatcher
+		clients           common.CloudClients
+		expectedDatabases types.Databases
+	}{
+		{
+			name: "rds labels matching",
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{services.AWSMatcherRDS},
+					Regions: []string{"us-east-1"},
+					Tags:    types.Labels{"env": []string{"prod"}},
+				},
+				{
+					Types:   []string{services.AWSMatcherRDS},
+					Regions: []string{"us-east-2"},
+					Tags:    types.Labels{"env": []string{"dev"}},
+				},
+			},
+			clients: &common.TestCloudClients{
+				RDSPerRegion: map[string]rdsiface.RDSAPI{
+					"us-east-1": &cloud.RDSMock{
+						DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstance3},
+						DBClusters:  []*rds.DBCluster{auroraCluster1},
+					},
+					"us-east-2": &cloud.RDSMock{
+						DBInstances: []*rds.DBInstance{rdsInstance2},
+						DBClusters:  []*rds.DBCluster{auroraCluster2, auroraCluster3},
+					},
+				},
+			},
+			expectedDatabases: types.Databases{rdsDatabase1, auroraDatabase1, auroraDatabase2},
+		},
+		{
+			name: "rds aurora unsupported",
+			awsMatchers: []services.AWSMatcher{{
 				Types:   []string{services.AWSMatcherRDS},
 				Regions: []string{"us-east-1"},
-				Tags:    types.Labels{"env": []string{"prod"}},
+				Tags:    types.Labels{"*": []string{"*"}},
+			}},
+			clients: &common.TestCloudClients{
+				RDSPerRegion: map[string]rdsiface.RDSAPI{
+					"us-east-1": &cloud.RDSMock{
+						DBClusters: []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
+					},
+				},
 			},
-			{
+			expectedDatabases: types.Databases{auroraDatabase1},
+		},
+		{
+			name: "skip access denied errors",
+			awsMatchers: []services.AWSMatcher{{
 				Types:   []string{services.AWSMatcherRDS},
-				Regions: []string{"us-east-2"},
-				Tags:    types.Labels{"env": []string{"dev"}},
-			},
-		},
-		Clients: &common.TestCloudClients{
-			RDSPerRegion: map[string]rdsiface.RDSAPI{
-				"us-east-1": &cloud.RDSMock{
-					DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstance3},
-					DBClusters:  []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
+				Regions: []string{"ca-central-1", "us-west-1", "us-east-1"},
+				Tags:    types.Labels{"*": []string{"*"}},
+			}},
+			clients: &common.TestCloudClients{
+				RDSPerRegion: map[string]rdsiface.RDSAPI{
+					"ca-central-1": &cloud.RDSMockUnauth{},
+					"us-west-1": &cloud.RDSMockByDBType{
+						DBInstances: &cloud.RDSMock{DBInstances: []*rds.DBInstance{rdsInstance4}},
+						DBClusters:  &cloud.RDSMockUnauth{},
+					},
+					"us-east-1": &cloud.RDSMockByDBType{
+						DBInstances: &cloud.RDSMockUnauth{},
+						DBClusters:  &cloud.RDSMock{DBClusters: []*rds.DBCluster{auroraCluster1}},
+					},
 				},
-				"us-east-2": &cloud.RDSMock{
-					DBInstances: []*rds.DBInstance{rdsInstance2},
-					DBClusters:  []*rds.DBCluster{auroraCluster2, auroraCluster3},
-				},
 			},
+			expectedDatabases: types.Databases{rdsDatabase4, auroraDatabase1},
 		},
-	})
-	require.NoError(t, err)
-
-	go watcher.fetchAndSend()
-	select {
-	case databases := <-watcher.DatabasesC():
-		require.Equal(t, types.Databases{
-			rdsDatabase1, auroraDatabase1, auroraDatabase2}, databases)
-	case <-time.After(time.Second):
-		t.Fatal("didn't receive databases after 1 second")
 	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			watcher, err := NewWatcher(ctx, WatcherConfig{AWSMatchers: test.awsMatchers, Clients: test.clients})
+			require.NoError(t, err)
+
+			go watcher.fetchAndSend()
+			select {
+			case databases := <-watcher.DatabasesC():
+				require.Equal(t, test.expectedDatabases, databases)
+			case <-time.After(time.Second):
+				t.Fatal("didn't receive databases after 1 second")
+			}
+		})
+	}
+
 }
 
 func makeRDSInstance(t *testing.T, name, region string, labels map[string]string) (*rds.DBInstance, types.Database) {
 	instance := &rds.DBInstance{
 		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:db:%v", region, name)),
 		DBInstanceIdentifier: aws.String(name),
-		DbiResourceId:        aws.String(uuid.New()),
+		DbiResourceId:        aws.String(uuid.New().String()),
 		Engine:               aws.String(services.RDSEnginePostgres),
 		Endpoint: &rds.Endpoint{
 			Address: aws.String("localhost"),
@@ -107,7 +161,7 @@ func makeRDSCluster(t *testing.T, name, region, engineMode string, labels map[st
 	cluster := &rds.DBCluster{
 		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:cluster:%v", region, name)),
 		DBClusterIdentifier: aws.String(name),
-		DbClusterResourceId: aws.String(uuid.New()),
+		DbClusterResourceId: aws.String(uuid.New().String()),
 		Engine:              aws.String(services.RDSEngineAuroraMySQL),
 		EngineMode:          aws.String(engineMode),
 		Endpoint:            aws.String("localhost"),

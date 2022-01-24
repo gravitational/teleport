@@ -1326,11 +1326,11 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
 func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OIDCConnector) error {
-	oidcConnectorV2, ok := oidcConnector.(*types.OIDCConnectorV2)
+	connector, ok := oidcConnector.(*types.OIDCConnectorV3)
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
-	_, err := c.grpc.UpsertOIDCConnector(ctx, oidcConnectorV2, c.callOpts...)
+	_, err := c.grpc.UpsertOIDCConnector(ctx, connector, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
@@ -2148,6 +2148,16 @@ func (c *Client) UpdateWindowsDesktop(ctx context.Context, desktop types.Windows
 		return trace.BadParameter("invalid type %T", desktop)
 	}
 	_, err := c.grpc.UpdateWindowsDesktop(ctx, d, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// UpsertWindowsDesktop updates a windows desktop resource, creating it if it doesn't exist.
+func (c *Client) UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	d, ok := desktop.(*types.WindowsDesktopV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.UpsertWindowsDesktop(ctx, d, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 

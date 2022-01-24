@@ -440,7 +440,6 @@ docs-test-whitespace:
 	fi
 
 
-ifeq (${DISABLE_TEST_TARGETS},)
 
 
 #
@@ -463,8 +462,8 @@ test: test-sh test-api test-go
 .PHONY: test-go
 test-go: ensure-webassets bpf-bytecode roletester rdpclient $(RENDER_TESTS)
 test-go: FLAGS ?= '-race'
-test-go: PACKAGES := $(shell go list ./... | grep -v integration)
-test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
+test-go: PACKAGES = $(shell go list ./... | grep -v integration)
+test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| ${RENDER_TESTS}
@@ -478,7 +477,7 @@ UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
 test-go-root: ensure-webassets bpf-bytecode roletester rdpclient
 test-go-root: FLAGS ?= '-race'
-test-go-root: PACKAGES := $(shell go list $(ADDFLAGS) ./... | grep -v integration)
+test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
@@ -487,7 +486,7 @@ test-go-root: $(VERSRC)
 .PHONY: test-api
 test-api:
 test-api: FLAGS ?= '-race'
-test-api: PACKAGES := $(shell cd api && go list ./...)
+test-api: PACKAGES = $(shell cd api && go list ./...)
 test-api: $(VERSRC)
 	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
@@ -511,7 +510,7 @@ run-etcd:
 #
 .PHONY: integration
 integration: FLAGS ?= -v -race
-integration: PACKAGES := $(shell go list ./... | grep integration)
+integration: PACKAGES = $(shell go list ./... | grep integration)
 integration: $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
@@ -524,11 +523,10 @@ integration: $(RENDER_TESTS)
 INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
 integration-root: FLAGS ?= -v -race
-integration-root: PACKAGES := $(shell go list ./... | grep integration)
+integration-root: PACKAGES = $(shell go list ./... | grep integration)
 integration-root: $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
 		| $(RENDER_TESTS) -report-by test
-endif
 
 #
 # Lint the source code.
@@ -731,14 +729,14 @@ enter:
 	make -C build.assets enter
 
 # grpc generates GRPC stubs from service definitions.
-# This target runs in the devbox container.
+# This target runs in the buildbox container.
 .PHONY: grpc
 grpc:
 	$(MAKE) -C build.assets grpc
 
-# devbox-grpc generates GRPC stubs
-.PHONY: devbox-grpc
-devbox-grpc:
+# buildbox-grpc generates GRPC stubs
+.PHONY: buildbox-grpc
+buildbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
 	$(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}' \

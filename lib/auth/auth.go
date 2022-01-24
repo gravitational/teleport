@@ -44,9 +44,9 @@ import (
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/sirupsen/logrus"
@@ -640,6 +640,9 @@ type certRequest struct {
 	mfaVerified string
 	// clientIP is an IP of the client requesting the certificate.
 	clientIP string
+	// disallowReissue flags that a cert should not be allowed to issue future
+	// certificates.
+	disallowReissue bool
 }
 
 // check verifies the cert request is valid.
@@ -728,7 +731,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	}
 	sessionID := req.SessionID
 	if sessionID == "" {
-		sessionID = uuid.New()
+		sessionID = uuid.New().String()
 	}
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
@@ -739,7 +742,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
 		traits: wrappers.Traits(map[string][]string{
-			teleport.TraitLogins: {uuid.New()},
+			teleport.TraitLogins: {uuid.New().String()},
 		}),
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
@@ -915,6 +918,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		ActiveRequests:        req.activeRequests,
 		MFAVerified:           req.mfaVerified,
 		ClientIP:              req.clientIP,
+		DisallowReissue:       req.disallowReissue,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -986,12 +990,13 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			Username:    req.dbUser,
 			Database:    req.dbName,
 		},
-		DatabaseNames:  dbNames,
-		DatabaseUsers:  dbUsers,
-		MFAVerified:    req.mfaVerified,
-		ClientIP:       req.clientIP,
-		AWSRoleARNs:    roleARNs,
-		ActiveRequests: req.activeRequests.AccessRequests,
+		DatabaseNames:   dbNames,
+		DatabaseUsers:   dbUsers,
+		MFAVerified:     req.mfaVerified,
+		ClientIP:        req.clientIP,
+		AWSRoleARNs:     roleARNs,
+		ActiveRequests:  req.activeRequests.AccessRequests,
+		DisallowReissue: req.disallowReissue,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
