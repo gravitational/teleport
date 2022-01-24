@@ -27,7 +27,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"unicode"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -78,19 +77,14 @@ type NodeSession struct {
 
 	terminal *terminal.Terminal
 
-	// x11Display is the client's local display.
-	x11Display string
-	// x11Proto is the xauth protocol for this session.
-	x11Proto string
-	// x11RealCookie in an xauth cookie which provides
-	// access to the client's local display.
-	x11RealCookie string
-	// x11FakeCookie is a spoof of the real cookie. This is used
-	// to authenticate x11 channel requests from the server without
-	// exposing the real cookie. The fake cookie is replaced with
-	// the real cookie within x11 requests to the client's display.
-	x11FakeCookie string
-	// x11RefuseTime is an optional time at which x11 channel
+	// clientXAuthEntry contains xauth data which provides
+	// access to the client's local XServer.
+	clientXAuthEntry *x11.XAuthEntry
+	// spoofedXAuthEntry is a copy of the client's xauth data with a
+	// spoofed cookie. This cookie will be used to authenticate server
+	// requests without exposing the client's cookie.
+	spoofedXAuthEntry *x11.XAuthEntry
+	// x11RefuseTime is an optional time at which X11 channel
 	// requests using the xauth cookie will be rejected.
 	x11RefuseTime time.Time
 }
@@ -201,9 +195,9 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*ssh.Session, e
 		return nil, trace.Wrap(err)
 	}
 
-	// If x11 forwading is requested and the server accepts,
-	// x11 channel requests from the server will be accepted.
-	// Otherwise, all x11 channel requests must be rejected.
+	// If X11 forwading is requested and the server accepts,
+	// X11 channel requests from the server will be accepted.
+	// Otherwise, all X11 channel requests must be rejected.
 	if err := ns.handleX11Forwarding(ctx, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -244,169 +238,6 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*ssh.Session, e
 	}
 
 	return sess, nil
-}
-
-// handleX11Forwarding handles x11 channel requests for the given server session.
-// If x11 forwarding is not requested by the client, or it is rejected by the server,
-// then x11 channel requests will be rejected.
-func (ns *NodeSession) handleX11Forwarding(ctx context.Context, sess *ssh.Session) error {
-	if !ns.nodeClient.TC.X11ForwardingEnabled {
-		return ns.rejectX11Channels(ctx)
-	}
-
-	if err := ns.setupX11Forwarding(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := x11.RequestX11Forwarding(sess, ns.x11Display, ns.x11Proto, ns.x11FakeCookie); err != nil {
-		// If the x11 forwarding request fails, we must reject all x11 channel requests.
-		return ns.rejectX11Channels(ctx)
-	}
-
-	// Start listening for new x11 channel requests from the server
-	// and start x11 forwarding on those channels
-	err := ns.serveX11Channels(ctx, sess)
-	return trace.Wrap(err)
-}
-
-// setupX11Forwarding sets up x11 forwarding for the client session.
-func (ns *NodeSession) setupX11Forwarding(ctx context.Context) error {
-	var xauthEntry *x11.XAuthEntry
-	var err error
-
-	ns.x11Display = os.Getenv(x11.DisplayEnv)
-	if ns.x11Display == "" {
-		log.Info("X11 forwarding requested but $DISPLAY not set")
-		return trace.BadParameter("$DISPLAY not set")
-	}
-
-	// Validate the client given display.
-	for _, c := range ns.x11Display {
-		if !(unicode.IsLetter(c) || unicode.IsNumber(c) || c == ':' || c == '/' || c == '.' || c == '-' || c == '_') {
-			return trace.BadParameter("display contains invalid character %q", c)
-		}
-	}
-
-	if ns.nodeClient.TC.X11ForwardingTimeout != 0 {
-		ns.x11RefuseTime = time.Now().Add(time.Second * time.Duration(ns.nodeClient.TC.X11ForwardingTimeout))
-	}
-
-	log.Debug("creating an xauth cookie for x11 forwarding")
-	if xauthEntry == nil {
-		if ns.nodeClient.TC.X11ForwardingTrusted {
-			xauthEntry, err = x11.NewTrustedXauthEntry(ns.x11Display)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		} else {
-			// Generate the xauth entry in a temporary file so
-			// it only exists within the context of this request.
-			xauthDir, err := os.MkdirTemp(os.TempDir(), "tsh-*")
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			defer os.RemoveAll(xauthDir)
-			xauthFile, err := os.CreateTemp(xauthDir, "xauthfile")
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			cmd := x11.NewXAuthCommand(ctx, xauthFile.Name())
-			if err := cmd.GenerateUntrustedCookie(ns.x11Display, ns.x11Proto, ns.nodeClient.TC.X11ForwardingTimeout); err != nil {
-				return trace.Wrap(err)
-			}
-
-			xauthEntry, err = x11.NewXAuthCommand(ctx, xauthFile.Name()).ReadEntry(ns.x11Display)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	ns.x11Proto, ns.x11RealCookie = xauthEntry.Proto, xauthEntry.Cookie
-
-	// The client's xauth cookie should never be sent to the server,
-	// so instead we create a spoof of the cookie to authenticate the server.
-	// During forwarding, the fake cookie will be replaced with the real
-	// cookie in order to connect to the client's local X display.
-	ns.x11FakeCookie, err = xauthEntry.SpoofCookie()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// serveX11Channels serves incoming x11 channels by starting x11 forwarding with the session.
-func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *ssh.Session) error {
-	err := x11.ServeX11ChannelRequests(ctx, ns.nodeClient.Client, func(ctx context.Context, nch ssh.NewChannel) {
-		if !ns.x11RefuseTime.IsZero() && time.Now().After(ns.x11RefuseTime) {
-			nch.Reject(ssh.Prohibited, "rejected x11 channel request after ForwardX11Timeout")
-		}
-
-		var req x11.X11ChannelRequestPayload
-		if err := ssh.Unmarshal(nch.ExtraData(), &req); err != nil {
-			nch.Reject(ssh.Prohibited, "invalid payload")
-			log.Debug("rejected x11 channel request with invalid payload")
-			return
-		}
-
-		log.Debugf("received x11 channel request from %s:%d", req.OriginatorAddress, req.OriginatorPort)
-		xchan, sin, err := nch.Accept()
-		if err != nil {
-			log.WithError(err).Debug("failed to accept x11 channel request")
-			return
-		}
-		defer xchan.Close()
-
-		// The x11 channel's initial auth packet is scanned for the fakeCookie.
-		// If the cookie is present, it will be replaced with the real cookie.
-		// Otherwise, an access denied error will be returned.
-		authPacket, err := x11.ReadAndRewriteXAuthPacket(xchan, ns.x11Proto, ns.x11FakeCookie, ns.x11RealCookie)
-		if trace.IsAccessDenied(err) {
-			log.Error("x11 connection rejected due to wrong authentication")
-			return
-		} else if err != nil {
-			log.WithError(err).Debug("Failed to read auth packet from x11 channel request")
-			return
-		}
-
-		xconn, err := x11.DialXDisplay(ns.x11Display)
-		if err != nil {
-			log.WithError(err).Debug("Failed to connect to client's display")
-			return
-		}
-
-		// send the connection the pre-processed x11 auth packet
-		if _, err := xconn.Write(authPacket); err != nil {
-			log.WithError(err).Debug("Failed to write xauth packet")
-			return
-		}
-
-		// Forward ssh requests on the x11 channel until x11 forwarding is complete
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		go func() {
-			if err := sshutils.ForwardRequests(ctx, sin, sess); err != nil {
-				log.WithError(err).Debug("Failed to forward ssh request during x11 forwarding")
-			}
-		}()
-
-		x11.Forward(xconn, xchan)
-	})
-	return trace.Wrap(err)
-}
-
-// rejectX11Channels rejects any incomign x11 channels for this node session.
-func (ns *NodeSession) rejectX11Channels(ctx context.Context) error {
-	err := x11.ServeX11ChannelRequests(ctx, ns.nodeClient.Client, func(_ context.Context, nch ssh.NewChannel) {
-		// According to RFC 4254, client "implementations MUST reject any X11 channel
-		// open requests if they have not requested X11 forwarding. Following openssh's
-		// example, we treat such a request as a break in attempt and warn the user.
-		log.Warn("server tried x11 forwarding without client requesting it, this is likely a break-in attempt by a malicious user")
-		nch.Reject(ssh.Prohibited, "")
-	})
-	return trace.Wrap(err)
 }
 
 // selectKeyAgent picks the appropriate key agent for forwarding to the

@@ -162,7 +162,7 @@ func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
 // CheckX11Forward checks if X11 forwarding is permitted for the user's RoleSet.
 func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
 	if !ctx.Identity.RoleSet.PermitX11Forwarding() {
-		return trace.Wrap(trace.AccessDenied("x11 forwarding not permitted"))
+		return trace.AccessDenied("x11 forwarding not permitted")
 	}
 	return nil
 }

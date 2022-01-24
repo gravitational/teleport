@@ -928,23 +928,23 @@ func (r *RestrictedSession) Parse() (*restricted.Config, error) {
 	}, nil
 }
 
-// X11 is a configuration for x11 forwarding
+// X11 is a configuration for X11 forwarding
 type X11 struct {
-	// Enabled controls whether x11 forwarding requests can be granted.
+	// Enabled controls whether X11 forwarding requests can be granted.
 	Enabled string `yaml:"enabled"`
 	// DisplayOffset tells the server what display to start searching from
 	// for an open X11 Server reverse tunnel port (6000 + offset).
 	DisplayOffset *uint `yaml:"display_offset,omitempty"`
 }
 
-// Parse will parse the enhanced session recording configuration.
+// Parse will parse the X11 forwarding server configuration.
 func (x *X11) Parse() (*x11.ServerConfig, error) {
 	enabled, err := apiutils.ParseBool(x.Enabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Follow openssh default for x11DisplayOffset if not set
+	// Follow openssh default for X11 display offset if not set.
 	displayOffset := x11.DefaultDisplayOffset
 	if x.DisplayOffset != nil {
 		displayOffset = int(*x.DisplayOffset)

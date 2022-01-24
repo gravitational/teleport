@@ -20,7 +20,6 @@ package regular
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -184,7 +183,7 @@ type Server struct {
 	// TCP port forwarding.
 	allowTCPForwarding bool
 
-	// x11 is the x11 forwarding configuration for the server
+	// x11 is the X11 forwarding configuration for the server
 	x11 *x11.ServerConfig
 
 	// lockWatcher is the server's lock watcher.
@@ -556,7 +555,7 @@ func SetLockWatcher(lockWatcher *services.LockWatcher) ServerOption {
 	}
 }
 
-// SetX11ForwardingConfig sets the server's x11 forwarding configuration
+// SetX11ForwardingConfig sets the server's X11 forwarding configuration
 func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
 	return func(s *Server) error {
 		s.x11 = xc
@@ -1431,7 +1430,6 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 		return s.termHandlers.HandleWinChange(ch, req, ctx)
 	case sshutils.EnvRequest:
 		return s.handleEnv(ch, req, ctx)
-
 	case sshutils.SubsystemRequest:
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
@@ -1533,11 +1531,11 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 			event.Metadata.Code = events.X11ForwardFailureCode
 			event.Status.Success = false
 			event.Status.Error = err.Error()
-
-			// failed X11 requests are ok from a protocol perspective so don't
-			// return the error, just log error and send generic error to client.
-			log.Errorf("Request for x11 forwarding denied: %s", err)
-			s.replyError(ch, req, errors.New("x11 forwarding request failed"))
+		}
+		if trace.IsAccessDenied(err) {
+			// denied X11 requests are ok from a protocol perspective so we
+			// don't return them, just reply over ssh and emit the audit log.
+			s.replyError(ch, req, err)
 			err = nil
 		}
 		if err := s.EmitAuditEvent(s.ctx, event); err != nil {
@@ -1545,8 +1543,9 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 		}
 	}()
 
-	if !s.x11.Enabled {
-		return trace.AccessDenied("x11 forwarding is not enabled")
+	// check if X11 forwarding is disabled, or if xauth can't be handled.
+	if !s.x11.Enabled || x11.CheckXAuthPath() != nil {
+		return trace.AccessDenied("X11 forwarding is not enabled")
 	}
 
 	// Check if the user's RBAC role allows X11 forwarding.

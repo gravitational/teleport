@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
@@ -145,10 +146,10 @@ type Options struct {
 	// trusted or untrusted mode when enabled. Supported option values are "yes" and "no".
 	ForwardX11Trusted bool
 
-	// ForwardX11Timeout specifies a timeout in seconds after which x11 forwarding
-	// attempts will become unauthorized. Only available in untrusted x11 forwarding.
+	// ForwardX11Timeout specifies a timeout in seconds after which X11 forwarding
+	// attempts will become unauthorized. Only available in untrusted X11 forwarding.
 	// Supports uint option values.
-	ForwardX11Timeout uint
+	ForwardX11Timeout time.Duration
 }
 
 type setOption func(*Options, string) error
@@ -186,11 +187,14 @@ func setForwardX11Option(o *Options, val string) error {
 }
 
 func setForwardX11TimeoutOption(o *Options, val string) error {
-	parsedValue, err := parseUintOption(val)
+	// ForwardX11Timeout should be a non-negative integer
+	// representing a duration in seconds.
+	timeoutSeconds, err := strconv.ParseUint(val, 10, 0)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	o.ForwardX11Timeout = parsedValue
+
+	o.ForwardX11Timeout = time.Duration(timeoutSeconds) * time.Second
 	return nil
 }
 
@@ -235,14 +239,6 @@ func parseBoolTrueOption(val string) (bool, error) {
 	return utils.AsBool(val), nil
 }
 
-func parseUintOption(val string) (uint, error) {
-	valUint, err := strconv.ParseUint(val, 10, 0)
-	if err != nil {
-		return 0, trace.BadParameter("invalid uint option value: %s", val)
-	}
-	return uint(valUint), nil
-}
-
 func parseOptions(opts []string) (Options, error) {
 	options := Options{
 		// By default, Teleport prefers strict host key checking and adding keys
@@ -250,10 +246,10 @@ func parseOptions(opts []string) (Options, error) {
 		StrictHostKeyChecking: true,
 		AddKeysToAgent:        true,
 		// As in OpenSSH, untrusted mode is the default unless explicitly set to false.
-		// Although it makes clients using x11 forwarding vulnerable to some XServer
+		// Although it makes clients using X11 forwarding vulnerable to some XServer
 		// related attacks (such as Keystroke monitoring), most programs do not properly
 		// support untrusted mode and will crash. For these reasons, users are encouraged
-		// to enable x11 forwarding with caution, as an attacker that can bypass file
+		// to enable X11 forwarding with caution, as an attacker that can bypass file
 		// permissions on the remote host may be able to carry out such attacks.
 		ForwardX11Trusted: true,
 	}

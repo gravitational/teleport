@@ -812,7 +812,7 @@ func TestOptions(t *testing.T) {
 				AddKeysToAgent:        true,
 				StrictHostKeyChecking: true,
 				ForwardX11Trusted:     true,
-				ForwardX11Timeout:     10,
+				ForwardX11Timeout:     time.Second * 10,
 			},
 		},
 		{

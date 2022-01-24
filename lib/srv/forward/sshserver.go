@@ -952,7 +952,7 @@ func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel
 	// accept inbound X11 channel from server
 	sch, sin, err := nch.Accept()
 	if err != nil {
-		s.log.Errorf("x11 channel fwd failed: %v", err)
+		s.log.Errorf("X11 channel fwd failed: %v", err)
 		return
 	}
 	defer sch.Close()
@@ -960,36 +960,43 @@ func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel
 	// setup outbound X11 channel to client
 	cch, cin, err := s.sconn.OpenChannel(sshutils.X11ChannelRequest, nch.ExtraData())
 	if err != nil {
-		s.log.Errorf("x11 channel fwd failed: %v", err)
+		s.log.Errorf("X11 channel fwd failed: %v", err)
 		return
 	}
 	defer cch.Close()
 
-	// Forward ssh requests on the x11 channels until x11 forwarding is complete
+	// Forward ssh requests on the X11 channels until X11 forwarding is complete
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
 	go func() {
 		err := sshutils.ForwardRequests(ctx, cin, sch)
 		if err != nil {
-			s.log.WithError(err).Debug("Failed to forward ssh request during x11 forwarding")
+			s.log.WithError(err).Debug("Failed to forward ssh request from client during X11 forwarding")
 		}
 	}()
+
 	go func() {
 		err := sshutils.ForwardRequests(ctx, sin, cch)
 		if err != nil {
-			s.log.WithError(err).Debug("Failed to forward ssh request during x11 forwarding")
+			s.log.WithError(err).Debug("Failed to forward ssh request from server during X11 forwarding")
 		}
 	}()
 
-	// Begin x11 forwarding and cancel ctx once complete.
-	x11.Forward(cch, sch)
+	if err := x11.Forward(ctx, cch, sch); err != nil {
+		s.log.WithError(err).Debug("Encountered error during x11 forwarding")
+	}
 }
 
 // handleX11Forward handles an X11 forwarding request from the client.
-func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
+func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) (err error) {
 	event := &apievents.X11Forward{
+		Status: apievents.Status{
+			Success: true,
+		},
 		Metadata: apievents.Metadata{
 			Type: events.X11ForwardEvent,
+			Code: events.X11ForwardCode,
 		},
 		UserMetadata: s.identityContext.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
@@ -999,41 +1006,40 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 	}
 
 	defer func() {
+		if err != nil {
+			event.Metadata.Code = events.X11ForwardFailureCode
+			event.Status.Success = false
+			event.Status.Error = err.Error()
+		}
+		if trace.IsAccessDenied(err) {
+			// denied X11 requests are ok from a protocol perspective so we
+			// don't return them, just reply over ssh and emit the audit log.
+			s.replyError(ch, req, err)
+			err = nil
+		}
 		if err := s.EmitAuditEvent(ctx, event); err != nil {
-			s.log.WithError(err).Warn("Failed to emit X11 forward event.")
+			s.log.WithError(err).Warn("Failed to emit x11-forward event.")
 		}
 	}()
 
 	// Check if the user's RBAC role allows X11 forwarding.
 	if err := s.authHandlers.CheckX11Forward(scx); err != nil {
-		s.replyError(ch, req, err)
-		event.Metadata.Code = events.X11ForwardFailureCode
-		event.Status.Success = false
-		event.Status.Error = err.Error()
-		// failed X11 requests are ok from a protocol perspective, so we
-		// don't actually return an error here.
-		return nil
+		return trace.Wrap(err)
 	}
 
 	// send X11 forwarding request to remote
 	ok, err := sshutils.ForwardRequest(scx.RemoteSession, req)
-	if err != nil || !ok {
-		// request failed or was denied
-		event.Metadata.Code = events.X11ForwardFailureCode
-		event.Status.Success = false
-		if err != nil {
-			event.Status.Error = err.Error()
-		}
+	if err != nil {
 		return trace.Wrap(err)
+	} else if !ok {
+		return trace.Errorf("Failed to get reply from forwarded ssh request")
 	}
 
-	err = x11.ServeX11ChannelRequests(ctx, s.remoteClient, s.handleX11ChannelRequest)
+	err = x11.ServeChannelRequests(ctx, s.remoteClient, s.handleX11ChannelRequest)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	event.Status.Success = true
-	event.Metadata.Code = events.X11ForwardCode
 	return nil
 }
 

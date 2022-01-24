@@ -1,4 +1,4 @@
-// Copyright 2021 Gravitational, Inc
+// Copyright 2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,14 +21,14 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// sshSender represents a resource capable of sending
+// RequestForwarder represents a resource capable of sending
 // an ssh request such as an ssh.Channel or ssh.Session.
-type sshSender interface {
+type RequestForwarder interface {
 	SendRequest(name string, wantReply bool, payload []byte) (bool, error)
 }
 
 // ForwardRequest is a helper for forwarding a request across a session or channel.
-func ForwardRequest(sender sshSender, req *ssh.Request) (bool, error) {
+func ForwardRequest(sender RequestForwarder, req *ssh.Request) (bool, error) {
 	reply, err := sender.SendRequest(req.Type, req.WantReply, req.Payload)
 	if err != nil || !req.WantReply {
 		return reply, trace.Wrap(err)
@@ -36,15 +36,15 @@ func ForwardRequest(sender sshSender, req *ssh.Request) (bool, error) {
 	return reply, trace.Wrap(req.Reply(reply, nil))
 }
 
-// ForwardRequests forwards all ssh requests received from sin until the context is closed.
-func ForwardRequests(ctx context.Context, sin <-chan *ssh.Request, sender sshSender) error {
+// ForwardRequests forwards all ssh requests received from the
+// given channel until the channel or context is closed.
+func ForwardRequests(ctx context.Context, sin <-chan *ssh.Request, sender RequestForwarder) error {
 	for {
 		select {
 		case sreq, ok := <-sin:
 			if !ok {
 				// channel closed, stop processing
-				sin = nil
-				continue
+				return nil
 			}
 			switch sreq.Type {
 			case WindowChangeRequest:
@@ -58,6 +58,9 @@ func ForwardRequests(ctx context.Context, sin <-chan *ssh.Request, sender sshSen
 				continue
 			}
 		case <-ctx.Done():
+			if ctx.Err() != context.Canceled {
+				return trace.Wrap(ctx.Err())
+			}
 			return nil
 		}
 	}
