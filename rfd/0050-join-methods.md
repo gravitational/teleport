@@ -101,17 +101,18 @@ and a special ALPN ProtocolName of `teleport-proxy-grpc` that will be passed by
 the client.
 
 ### Certificate Bot
-The Certificate Bot needs to get an initial certificate for the cluster which
-will be renawable. It will either provide a token or use the new EC2 or IAM
-methods to get the initial certificate. This is very similar to a node joining a
-cluster, except that the obtained certificate will be renewable.
+The Certificate Bot needs to get an initial renewable user certificate for the
+cluster. It will either provide a token or use the new EC2 or IAM methods to get
+the initial certificate. This is very similar to a node joining a cluster,
+except that the obtained certificate will be renewable user cert rather than a
+host cert.
 
 We can re-use the existing `/tokens/register` (on Auth) and
 `/webapi/host/credentials` (on Proxy) endpoints and extend the backend
-implementations to provide renewable certs if allowed by the corresponding token
-in the backend. This will also allow the client-side logic on the bot to reuse
-the `auth.Register` function which handles CA pins and supports joining through
-both Auth and Proxy.
+implementations to provide renewable user certs if allowed by the corresponding
+token in the backend. This will also allow the client-side logic on the bot to
+reuse the `auth.Register` function which handles CA pins and supports joining
+through both Auth and Proxy.
 
-The existing `ProvisionTokenV2` type can be extended to allow renewable certs
-and to encode the allows `bot_user` and `bot_roles`.
+The existing `ProvisionTokenV2` type can be extended to allow renewable user
+certs and to encode the allows `bot_user` and `bot_roles`.
