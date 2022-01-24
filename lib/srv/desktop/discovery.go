@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
@@ -57,8 +58,7 @@ const (
 
 // startDesktopDiscovery starts fetching desktops from LDAP, periodically
 // registering and unregistering them as necessary.
-// Desktop discovery runs in the background until the context is canceled.
-func (s *WindowsService) startDesktopDiscovery(ctx context.Context) error {
+func (s *WindowsService) startDesktopDiscovery() error {
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig{
 		// Use a matcher that matches all resources, since our desktops are
 		// pre-filtered by nature of using an LDAP search with filters.
@@ -77,7 +77,9 @@ func (s *WindowsService) startDesktopDiscovery(ctx context.Context) error {
 
 	go func() {
 		// reconcile once before starting the ticker, so that desktops show up immediately
-		if err := reconciler.Reconcile(ctx); err != nil && err != context.Canceled {
+		// (we still have a small delay to give the LDAP client time to initialize)
+		time.Sleep(15 * time.Second)
+		if err := reconciler.Reconcile(s.closeCtx); err != nil && err != context.Canceled {
 			s.cfg.Log.Errorf("desktop reconciliation failed: %v", err)
 		}
 
@@ -87,10 +89,10 @@ func (s *WindowsService) startDesktopDiscovery(ctx context.Context) error {
 		defer t.Stop()
 		for {
 			select {
-			case <-ctx.Done():
+			case <-s.closeCtx.Done():
 				return
 			case <-t.Chan():
-				if err := reconciler.Reconcile(ctx); err != nil && err != context.Canceled {
+				if err := reconciler.Reconcile(s.closeCtx); err != nil && err != context.Canceled {
 					s.cfg.Log.Errorf("desktop reconciliation failed: %v", err)
 				}
 			}
@@ -111,6 +113,11 @@ func (s *WindowsService) ldapSearchFilter() string {
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
 func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabels {
+	if atomic.LoadInt32(&s.ldapInitialized) == 0 {
+		s.cfg.Log.Warn("skipping desktop discovery: LDAP not yet initialized")
+		return nil
+	}
+
 	filter := s.ldapSearchFilter()
 	s.cfg.Log.Debugf("searching for desktops with LDAP filter %v", filter)
 

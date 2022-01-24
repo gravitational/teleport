@@ -18,13 +18,14 @@ package types
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // Application represents a web app.
@@ -270,6 +271,27 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	if a.Spec.URI == "" {
 		return trace.BadParameter("app %q URI is empty", a.GetName())
 	}
+
+	url, err := url.Parse(a.Spec.PublicAddr)
+	if err != nil {
+		return trace.BadParameter("invalid PublicAddr format: %v", err)
+	}
+	host := a.Spec.PublicAddr
+	if url.Host != "" {
+		host = url.Host
+	}
+
+	// DEPRECATED DELETE IN 11.0 use KubeTeleportProxyALPNPrefix check only.
+	if strings.HasPrefix(host, constants.KubeSNIPrefix) {
+		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
+			constants.KubeSNIPrefix, a.Spec.PublicAddr)
+	}
+
+	if strings.HasPrefix(host, constants.KubeTeleportProxyALPNPrefix) {
+		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
+			constants.KubeTeleportProxyALPNPrefix, a.Spec.PublicAddr)
+	}
+
 	return nil
 }
 

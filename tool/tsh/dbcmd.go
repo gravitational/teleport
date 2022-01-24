@@ -42,6 +42,8 @@ const (
 	mysqlBin = "mysql"
 	// mariadbBin is the MariaDB client binary name.
 	mariadbBin = "mariadb"
+	// mongoshBin is the Mongo Shell client binary name.
+	mongoshBin = "mongosh"
 	// mongoBin is the Mongo client binary name.
 	mongoBin = "mongo"
 )
@@ -240,6 +242,12 @@ func (c *cliCommandBuilder) isMySQLBinAvailable() bool {
 	return err == nil
 }
 
+// isMongoshBinAvailable returns true if "mongosh" binary is found in the system PATH.
+func (c *cliCommandBuilder) isMongoshBinAvailable() bool {
+	_, err := c.exe.LookPath(mongoshBin)
+	return err == nil
+}
+
 // isMySQLBinMariaDBFlavor checks if mysql binary comes from Oracle or MariaDB.
 // true is returned when binary comes from MariaDB, false when from Oracle.
 func (c *cliCommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
@@ -260,20 +268,47 @@ func (c *cliCommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 }
 
 func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
+	// look for `mongosh`
+	hasMongosh := c.isMongoshBinAvailable()
+
+	// Starting with Mongo 4.2 there is an updated set of flags.
+	// We are using them with `mongosh` as otherwise warnings will get displayed.
+	type tlsFlags struct {
+		tls            string
+		tlsCertKeyFile string
+		tlsCAFile      string
+	}
+
+	var flags tlsFlags
+
+	if hasMongosh {
+		flags = tlsFlags{tls: "--tls", tlsCertKeyFile: "--tlsCertificateKeyFile", tlsCAFile: "--tlsCAFile"}
+	} else {
+		flags = tlsFlags{tls: "--ssl", tlsCertKeyFile: "--sslPEMKeyFile", tlsCAFile: "--sslCAFile"}
+	}
+
 	args := []string{
 		"--host", c.host,
 		"--port", strconv.Itoa(c.port),
-		"--ssl",
-		"--sslPEMKeyFile", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+		flags.tls,
+		flags.tlsCertKeyFile, c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
 	}
 
 	if c.options.caPath != "" {
 		// caPath is set only if mongo connects to the Teleport Proxy via ALPN SNI Local Proxy
 		// and connection is terminated by proxy identity certificate.
-		args = append(args, []string{"--sslCAFile", c.options.caPath}...)
+		args = append(args, []string{flags.tlsCAFile, c.options.caPath}...)
 	}
+
 	if c.db.Database != "" {
 		args = append(args, c.db.Database)
 	}
+
+	// use `mongosh` if available
+	if hasMongosh {
+		return exec.Command(mongoshBin, args...)
+	}
+
+	// fall back to `mongo` if `mongosh` isn't found
 	return exec.Command(mongoBin, args...)
 }
