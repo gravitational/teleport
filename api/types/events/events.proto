@@ -117,9 +117,6 @@ message KubernetesPodMetadata {
 
 // SessionStart is a session start event
 message SessionStart {
-    reserved 11;
-    reserved "AccessRequests";
-
     // Metadata is a common event metadata
     Metadata Metadata = 1
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
@@ -157,6 +154,11 @@ message SessionStart {
 
     // SessionRecording is the type of session recording.
     string SessionRecording = 10 [ (gogoproto.jsontag) = "session_recording,omitempty" ];
+
+    // AccessRequests used to be here, it is now part of UserMetadata
+    reserved "AccessRequests";
+    reserved 11;
+    // reserved jsontag "access_requests"
 }
 
 // SessionJoin emitted when another user joins a session
