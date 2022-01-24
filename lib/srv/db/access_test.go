@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	goredis "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
@@ -764,6 +766,42 @@ func TestRedisGetSet(t *testing.T) {
 	getResult := redisClient.Get(ctx, "key1")
 	require.NoError(t, getResult.Err())
 	require.Equal(t, getResult.Val(), "123")
+
+	// Disconnect.
+	err = redisClient.Close()
+	require.NoError(t, err)
+}
+
+func TestRedisPubSub(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	// Try to connect to the database as this user.
+	redisClient, err := testCtx.redisClient(ctx, "alice", "redis", "admin")
+	require.NoError(t, err)
+
+	var fooSub *goredis.PubSub
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		fooSub = redisClient.Subscribe(ctx, "foo")
+		defer fooSub.Close()
+
+		chanVal1 := <-fooSub.Channel()
+		require.Equal(t, "bar1", chanVal1.Payload)
+		wg.Done()
+	}()
+
+	time.Sleep(time.Second) // TODO(jakub): fix me.
+	err = redisClient.Publish(ctx, "foo", "bar1").Err()
+	require.NoError(t, err)
+
+	wg.Wait()
 
 	// Disconnect.
 	err = redisClient.Close()
