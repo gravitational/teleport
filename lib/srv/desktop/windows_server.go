@@ -800,7 +800,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	defer cancel()
 
 	delay := timer()
-	tdpConn := tdp.NewConn(proxyConn)
 	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay)
 	tdpConn.OnRecv = s.makeTDPRecieveHandler(ctx, sw, delay)
 

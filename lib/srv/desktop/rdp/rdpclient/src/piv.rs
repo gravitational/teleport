@@ -43,6 +43,7 @@ pub struct Card<const S: usize> {
     chuid: Vec<u8>,
     piv_auth_cert: Vec<u8>,
     piv_auth_key: Rsa<Private>,
+    pin: String,
     // Pending command and response to receive/send over multiple messages when they don't fit into
     // one.
     pending_command: Option<Command<S>>,
@@ -50,7 +51,7 @@ pub struct Card<const S: usize> {
 }
 
 impl<const S: usize> Card<S> {
-    pub fn new(uuid: Uuid, cert_der: &[u8], key_der: &[u8]) -> RdpResult<Self> {
+    pub fn new(uuid: Uuid, cert_der: &[u8], key_der: &[u8], pin: String) -> RdpResult<Self> {
         let piv_auth_key = Rsa::private_key_from_der(key_der).map_err(|e| {
             invalid_data_error(&format!("failed to parse private key from DER: {:?}", e))
         })?;
@@ -59,6 +60,7 @@ impl<const S: usize> Card<S> {
             chuid: Self::build_chuid(uuid),
             piv_auth_cert: Self::build_piv_auth_cert(cert_der),
             piv_auth_key,
+            pin,
             pending_command: None,
             pending_response: None,
         })
@@ -135,9 +137,16 @@ impl<const S: usize> Card<S> {
         Ok(Response::with_data(Status::Success, resp.to_vec()))
     }
 
-    fn handle_verify(&mut self, _cmd: Command<S>) -> RdpResult<Response> {
-        // No PIN verification needed.
-        Ok(Response::new(Status::Success))
+    fn handle_verify(&mut self, cmd: Command<S>) -> RdpResult<Response> {
+        return if cmd.data() == self.pin.as_bytes() {
+            Ok(Response::new(Status::Success))
+        } else {
+            warn!("PIN mismatch, want {}, got {:?}", self.pin, cmd.data());
+            Err(rdp::model::error::Error::RdpError(RdpError::new(
+                RdpErrorKind::Unknown,
+                "Invalid PIN",
+            )))
+        };
     }
 
     fn handle_get_data(&mut self, cmd: Command<S>) -> RdpResult<Response> {
