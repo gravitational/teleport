@@ -4,14 +4,16 @@ description: Session moderation with RBAC and humans
 h1: Moderated Sessions
 ---
 
-This is an upcoming feature expected to land in Teleport 8.2.
+<Details title="Details title" min="8.2" opened>
+  This is an upcoming feature expected to land in Teleport 8.2.
+</Details>
 
 ## Introduction
 
 Moderated sessions allows Teleport administrators to
 define requirements for other users to be present in a Server or Kubernetes Access session.
 
-Moderated Sessions is useful in the following scenarios:
+Moderated Sessions are useful in the following scenarios:
 - When you have stringent security requirements and need to have people watching over user-initiated sessions to a set of servers.
 - When you want to share a terminal with someone else to be able to instruct or collaborate.
 
@@ -34,29 +36,30 @@ This guide assumes an already running Teleport cluster with a connected Kubernet
 
 ### Step 1/4: Create the prod-access role
 
-```sh
-cat > prod-access.yaml <<EOF
+```code
+$ cat > prod-access.yaml <<EOF
 kind: role
 metadata:
   name: prod-access
 spec:
   allow:
     kubernetes_groups:
-      - system:masters
+      - view
     require_session_join:
-      - name: Audtor oversight
+      - name: Auditor oversight
         filter: 'contains(user.roles, "auditor")'
         kinds: ['k8s']
         modes: ['moderator']
+        count: 1
 EOF
 
-tctl create -f prod-access.yaml
+$ tctl create -f prod-access.yaml
 ```
 
 ### Step 2/4: Create the auditor role
 
-```sh
-cat > auditor.yaml <<EOF
+```code
+$ cat > auditor.yaml <<EOF
 kind: role
 metadata:
   name: auditor
@@ -72,31 +75,31 @@ spec:
       - member
 EOF
 
-tctl create -f auditor.yaml
+$ tctl create -f auditor.yaml
 ```
 
 ### Step 3/4: Add users
 
-```sh
-tctl users add adam --roles=prod-access
-tctl users add bob --roles=auditor
+```code
+$ tctl users add adam --roles=prod-access
+$ tctl users add bob --roles=auditor
 ```
 
 ### Step 4/4: Try it out
 
 Please substitute `$SESSION_ID` with the UUID shown when starting the session.
 
-```sh
+```code
 # adam
 
-tsh kube login minikube
-tsh kube exec -st nginx /bin/bash
+$ tsh kube login minikube
+$ tsh kube exec -st nginx /bin/bash
 ```
 
-```sh
+```code
 # bob
 
-tsh kube join $SESSION_ID
+$ tsh kube join $SESSION_ID
 ```
 
 ## RBAC
@@ -115,6 +118,11 @@ and under what conditions they may join a session.
 Require and allow policies have to specify which sessions they apply to. Valid options are `ssh` and `k8s`.
 
 ### Filters
+
+A filter expression or predicate is a string statement used to define logic based on a set of input variables.
+These follow common programming language syntax and allow for more detailed control.
+`user.name == "adam" || contains(user.traits, "view")` is a simple example of a filter expression
+that evaluates to true if the user is Adam or if the user has the trait `view`.
 
 Require policies can specify which users they consider as valid with a filter expression. They work like
 other filters used within Teleport such with access requests. The filter context has a `user` object defined
