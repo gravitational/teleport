@@ -198,7 +198,7 @@ func rdsCAURLForDatabase(database types.Database) string {
 		return u
 	}
 
-	return fmt.Sprintf("https://truststore.pki.rds.amazonaws.com/%s/%s-bundle.pem", region, region)
+	return fmt.Sprintf(rdsDefaultCAURLTemplate, region, region)
 }
 
 // redshiftCAURLForDatabase returns root certificate download URL based on the region
@@ -211,6 +211,11 @@ func redshiftCAURLForDatabase(database types.Database) string {
 }
 
 const (
+	// rdsDefaultCAURLTemplate is the string format template that creates URLs
+	// for region based RDS CA bundles.
+	//
+	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
+	rdsDefaultCAURLTemplate = "https://truststore.pki.rds.amazonaws.com/%s/%s-bundle.pem"
 	// redshiftDefaultCAURL is the Redshift CA bundle download URL.
 	//
 	// https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-ssl-support.html
