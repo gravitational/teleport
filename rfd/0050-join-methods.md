@@ -79,7 +79,7 @@ Server trust: CA pins
 This is the Auth endpoint that will complete the IAM join request.
 
 #### Proxy `rpc RegisterUsingIAM(stream RegisterUsingIAMRequest) returns (stream RegisterUsingIAMResponse)`
-Join mathods: IAM
+Join methods: IAM
 Server trust: PKI
 Normally, authenticated gRPC calls from IoT nodes are tunnelled through the
 proxy over SSH. This will not work for unauthenticated clients which don't yet
