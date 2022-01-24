@@ -358,6 +358,7 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 		teleport.TraitLogins:     []string{p.username},
 		teleport.TraitKubeGroups: p.kubeGroups,
 		teleport.TraitKubeUsers:  p.kubeUsers,
+		teleport.TraitTeams:      claims.Teams,
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
@@ -448,9 +449,11 @@ func populateGithubClaims(client githubAPIClientI) (*types.GithubClaims, error) 
 	log.Debugf("Retrieved %v teams for GitHub user %v.", len(teams), user.Login)
 
 	orgToTeams := make(map[string][]string)
+	teamList := make([]string, 0, len(teams))
 	for _, team := range teams {
 		orgToTeams[team.Org.Login] = append(
 			orgToTeams[team.Org.Login], team.Slug)
+		teamList = append(teamList, team.Name)
 	}
 	if len(orgToTeams) == 0 {
 		return nil, trace.AccessDenied(
@@ -459,6 +462,7 @@ func populateGithubClaims(client githubAPIClientI) (*types.GithubClaims, error) 
 	claims := &types.GithubClaims{
 		Username:            user.Login,
 		OrganizationToTeams: orgToTeams,
+		Teams:               teamList,
 	}
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Claims: %#v.", claims)
