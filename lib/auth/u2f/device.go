@@ -21,9 +21,9 @@ import (
 	"crypto/x509"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/tstranex/u2f"
 )
 
@@ -37,7 +37,7 @@ type DeviceStorage interface {
 // This function is not in lib/services due to an import cycle (lib/services
 // depends on lib/auth/u2f).
 func NewDevice(name string, reg *Registration, addedAt time.Time) (*types.MFADevice, error) {
-	d := types.NewMFADevice(name, uuid.New(), addedAt)
+	d := types.NewMFADevice(name, uuid.New().String(), addedAt)
 	pubKey, err := x509.MarshalPKIXPublicKey(&reg.PubKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
