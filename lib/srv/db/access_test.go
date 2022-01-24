@@ -745,6 +745,31 @@ func TestCompatibilityWithOldAgents(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestRedisGetSet(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	// Try to connect to the database as this user.
+	redisClient, err := testCtx.redisClient(ctx, "alice", "redis", "admin")
+	require.NoError(t, err)
+
+	// Execute a query.
+	result := redisClient.Set(ctx, "key1", "123", 0)
+	require.NoError(t, result.Err())
+
+	getResult := redisClient.Get(ctx, "key1")
+	require.NoError(t, getResult.Err())
+	require.Equal(t, getResult.Val(), "123")
+
+	// Disconnect.
+	err = redisClient.Close()
+	require.NoError(t, err)
+}
+
 type testContext struct {
 	hostID         string
 	clusterName    string
