@@ -687,7 +687,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 
 	s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, nil)
 	err = rdpc.Wait()
-	s.onSessionEnd(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop)
+	// TODO(isaiah): use of recConfig for desktop recordings is temporary, this will eventually be determined by RBAC
+	recorded := recConfig.GetMode() != "off"
+	s.onSessionEnd(ctx, &identity, sessionStartTime, recorded, windowsUser, string(sessionID), desktop)
 
 	return trace.Wrap(err)
 }
