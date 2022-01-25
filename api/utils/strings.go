@@ -18,6 +18,7 @@ package utils
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -97,4 +98,9 @@ func CopyStrings(in []string) []string {
 	copy(out, in)
 
 	return out
+}
+
+// ContainsIgnoreCase reports whether substr is within s, ignoring case.
+func ContainsIgnoreCase(s string, substr string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }

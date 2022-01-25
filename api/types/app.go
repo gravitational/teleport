@@ -30,7 +30,7 @@ import (
 
 // Application represents a web app.
 type Application interface {
-	// ResourceWithOrigin provides common resource methods.
+	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
 	// GetNamespace returns the app namespace.
 	GetNamespace() string
@@ -247,6 +247,13 @@ func (a *AppV3) String() string {
 // Copy returns a copy of this database resource.
 func (a *AppV3) Copy() *AppV3 {
 	return proto.Clone(a).(*AppV3)
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (a *AppV3) MatchSearch(values []string) bool {
+	fieldVals := []string{a.GetName(), a.GetDescription(), a.GetPublicAddr(), fmt.Sprint(a.GetAllLabels())}
+	return MatchSearch(fieldVals, values, nil)
 }
 
 // setStaticFields sets static resource header and metadata fields.

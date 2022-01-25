@@ -81,6 +81,9 @@ type ResourceWithLabels interface {
 	ResourceWithOrigin
 	// GetAllLabels returns all resource's labels.
 	GetAllLabels() map[string]string
+	// MatchSearch goes through select field values of a resource
+	// and tries to match against the list of search values.
+	MatchSearch(searchValues []string) bool
 }
 
 // ResourcesWithLabels is a list of labeled resources.
@@ -276,4 +279,35 @@ var validLabelKey = regexp.MustCompile(LabelPattern)
 // label key regexp.
 func IsValidLabelKey(s string) bool {
 	return validLabelKey.MatchString(s)
+}
+
+// MatchSearch goes through select field values from a resource
+// and tries to match against the list of search values.
+// Returns true if all search vals were matched (or if nil search vals).
+// Returns false if no or partial match (or nil field values).
+func MatchSearch(fieldVals []string, searchVals []string, customMatch func(val string) bool) bool {
+	for _, searchV := range searchVals {
+		foundMatch := false
+
+		// Iterate through field values to look for a match.
+		for _, fieldV := range fieldVals {
+			if utils.ContainsIgnoreCase(fieldV, searchV) {
+				foundMatch = true
+				break
+			}
+		}
+
+		if foundMatch {
+			continue
+		}
+
+		if customMatch != nil && customMatch(searchV) {
+			continue
+		}
+
+		// When no fields matched a value, prematurely end if we can.
+		return false
+	}
+
+	return true
 }
