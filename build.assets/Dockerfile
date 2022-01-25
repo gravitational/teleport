@@ -22,7 +22,7 @@ ENV LANGUAGE="en_US.UTF-8" \
 ARG BUILDARCH
 
 # Install packages.
-# Java JRE is resuired by gcloud firestore emulator.
+# Java JRE is required by gcloud firestore emulator.
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
@@ -67,9 +67,10 @@ RUN apt-get update -y --fix-missing && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install gcloud SDK and Firestore emulator
+# Install gcloud SDK and Firestore emulator.
 RUN curl -sSL https://sdk.cloud.google.com | bash
 ENV PATH="$PATH:/root/google-cloud-sdk/bin"
+# beta component is required by firestore emulator: https://cloud.google.com/sdk/gcloud/reference/beta/emulators/firestore/start
 RUN gcloud components install cloud-firestore-emulator beta
 
 ARG UID
