@@ -47,10 +47,7 @@ func (ac *cloudWithRoles) RemoveCard(ctx context.Context, req *v1.RemoveCardRequ
 			Type: events.BillingCardDeleteEvent,
 			Code: events.BillingCardDeleteCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         auth.ClientUsername(ctx),
-			Impersonator: auth.ClientImpersonator(ctx),
-		},
+		UserMetadata: auth.ClientUserMetadata(ctx),
 	}
 	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
 		ac.plugin.Log.WithError(err).WithFields(logrus.Fields{
@@ -79,10 +76,7 @@ func (ac *cloudWithRoles) UpdateCard(ctx context.Context, req *v1.UpdateCardRequ
 			Type: events.BillingCardUpdateEvent,
 			Code: events.BillingCardUpdateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         auth.ClientUsername(ctx),
-			Impersonator: auth.ClientImpersonator(ctx),
-		},
+		UserMetadata: auth.ClientUserMetadata(ctx),
 	}
 	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
 		ac.plugin.Log.WithError(err).WithFields(logrus.Fields{
@@ -111,10 +105,7 @@ func (ac *cloudWithRoles) UpdateAccount(ctx context.Context, req *v1.UpdateAccou
 			Type: events.BillingInformationUpdateEvent,
 			Code: events.BillingInformationUpdateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         auth.ClientUsername(ctx),
-			Impersonator: auth.ClientImpersonator(ctx),
-		},
+		UserMetadata: auth.ClientUserMetadata(ctx),
 	}
 	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
 		ac.plugin.Log.WithError(err).WithFields(logrus.Fields{
@@ -143,10 +134,7 @@ func (ac *cloudWithRoles) AddCard(ctx context.Context, req *v1.AddCardRequest) (
 			Type: events.BillingCardCreateEvent,
 			Code: events.BillingCardCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         auth.ClientUsername(ctx),
-			Impersonator: auth.ClientImpersonator(ctx),
-		},
+		UserMetadata: auth.ClientUserMetadata(ctx),
 	}
 	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
 		ac.plugin.Log.WithError(err).WithFields(logrus.Fields{
