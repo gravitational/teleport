@@ -87,7 +87,6 @@ func (l *ConnectionsLimiter) AcquireConnection(token string) error {
 
 // ReleaseConnection decrements the counter
 func (l *ConnectionsLimiter) ReleaseConnection(token string) {
-
 	l.Lock()
 	defer l.Unlock()
 

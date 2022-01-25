@@ -27,9 +27,9 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -176,7 +176,7 @@ type rotationReq struct {
 // the newly issued CA is no longer used, but set up as trusted,
 // so components can reload and receive credentials issued by "old" CA back.
 // This phase is useful when administrator makes a mistake, or there are some
-// offline components that will loose the connection in case if rotation
+// offline components that will lose the connection in case if rotation
 // completes. It is only possible to transition from this phase to "Standby".
 // When transitioning to "Standby" phase from "Rollback" phase, all components
 // reload again, but the "new" CA is discarded and is no longer trusted,
@@ -396,7 +396,7 @@ func (a *Server) processRotationRequest(req rotationReq) (types.CertAuthority, e
 		switch rotation.State {
 		case types.RotationStateStandby, "":
 		default:
-			return nil, trace.BadParameter("can not initate rotation while another is in progress")
+			return nil, trace.BadParameter("can not initiate rotation while another is in progress")
 		}
 		if err := a.startNewRotation(req, ca); err != nil {
 			return nil, trace.Wrap(err)
@@ -468,7 +468,7 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 	gracePeriod := req.gracePeriod
 
 	rotation := ca.GetRotation()
-	id := uuid.New()
+	id := uuid.New().String()
 
 	rotation.Mode = req.mode
 	rotation.Schedule = req.schedule
@@ -650,7 +650,7 @@ func completeRotation(clock clockwork.Clock, ca types.CertAuthority) {
 	rotation.Started = time.Time{}
 	rotation.State = types.RotationStateStandby
 	rotation.Phase = types.RotationPhaseStandby
-	rotation.LastRotated = clock.Now()
+	rotation.LastRotated = clock.Now().UTC()
 	rotation.Mode = ""
 	rotation.Schedule = types.RotationSchedule{}
 	ca.SetRotation(rotation)

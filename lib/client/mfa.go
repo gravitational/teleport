@@ -57,6 +57,16 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 	// either Webauthn (preferred) or U2F.
 	hasTOTP := c.TOTP != nil
 	hasNonTOTP := len(c.U2F) > 0 || c.WebauthnChallenge != nil
+
+	// Does the current platform support hardware MFA? Adjust accordingly.
+	switch {
+	case !hasTOTP && !wancli.HasPlatformSupport():
+		return nil, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
+	case !wancli.HasPlatformSupport():
+		// Do not prompt for hardware devices, it won't work.
+		hasNonTOTP = false
+	}
+
 	var numGoroutines int
 	if hasTOTP && hasNonTOTP {
 		numGoroutines = 2
@@ -99,23 +109,17 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		fmt.Fprintf(os.Stderr, "Tap any %ssecurity key\n", promptDevicePrefix)
 	}
 
-	// TODO(codingllama): Make sure users get a reasonable error back when the
-	//  origin doesn't match the RPID. Webauthn isn't as flexible as U2F in this
-	//  regard.
+	// Fire Webauthn or U2F goroutine.
 	origin := proxyAddr
 	if !strings.HasPrefix(origin, "https://") {
 		origin = "https://" + origin
 	}
-
-	// Fire Webauthn or U2F goroutine.
 	switch {
 	case c.WebauthnChallenge != nil:
 		go func() {
 			log.Debugf("WebAuthn: prompting U2F devices with origin %q", origin)
 			resp, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge))
-			// Technically it's kind="Webauthn", but we are not changing CLI
-			// nomenclature yet.
-			respC <- response{kind: "U2F", resp: resp, err: err}
+			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
 		}()
 	case len(c.U2F) > 0:
 		go func() {
@@ -145,7 +149,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		}
 	}
 	return nil, trace.BadParameter(
-		"failed to authenticate using all U2F and TOTP devices, rerun the command with '-d' to see error details for each device")
+		"failed to authenticate using all MFA devices, rerun the command with '-d' to see error details for each device")
 }
 
 func promptU2FChallenges(ctx context.Context, origin string, challenges []*proto.U2FChallenge) (*proto.MFAAuthenticateResponse, error) {
@@ -201,7 +205,7 @@ type TOTPRegisterChallenge struct {
 	QRCode []byte `json:"qrCode"`
 }
 
-// MFAAuthenticateChallenge is an MFA register challenge sent on new MFA register.
+// MFARegisterChallenge is an MFA register challenge sent on new MFA register.
 type MFARegisterChallenge struct {
 	// U2F contains U2F register challenge.
 	U2F *u2f.RegisterChallenge `json:"u2f"`

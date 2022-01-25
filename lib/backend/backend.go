@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
 )
@@ -90,6 +91,24 @@ type Backend interface {
 	Migrate(context.Context) error
 }
 
+// IterateRange is a helper for stepping over a range
+func IterateRange(ctx context.Context, bk Backend, startKey []byte, endKey []byte, limit int, fn func([]Item) (stop bool, err error)) error {
+	for {
+		rslt, err := bk.GetRange(ctx, startKey, endKey, limit)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		stop, err := fn(rslt.Items)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if stop || len(rslt.Items) < limit {
+			return nil
+		}
+		startKey = nextKey(rslt.Items[limit-1].Key)
+	}
+}
+
 // Batch implements some batch methods
 // that are not mandatory for all interfaces,
 // only the ones used in bulk operations.
@@ -105,7 +124,7 @@ type Batch interface {
 //
 // lease, err := backend.Create()
 // lease.Expires = time.Now().Add(time.Second)
-// // Item TTL is extended
+// Item TTL is extended
 // err = backend.KeepAlive(lease)
 //
 type Lease struct {
@@ -248,8 +267,17 @@ func RangeEnd(key []byte) []byte {
 }
 
 // NextPaginationKey returns the next pagination key.
+// For resources that have the HostID in their keys, the next key will also
+// have the HostID part.
 func NextPaginationKey(r types.Resource) string {
-	return string(nextKey([]byte(r.GetName())))
+	switch resourceWithType := r.(type) {
+	case types.DatabaseServer:
+		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
+	case types.AppServer:
+		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
+	default:
+		return string(nextKey([]byte(r.GetName())))
+	}
 }
 
 // MaskKeyName masks the given key name.

@@ -40,8 +40,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"
@@ -73,7 +73,7 @@ func (s *suiteBase) SetUpSuite(c *check.C) {
 	fakeClock := clockwork.NewFakeClock()
 	log, err := New(context.Background(), Config{
 		Region:       "eu-north-1",
-		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New()),
+		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 		Clock:        fakeClock,
 		UIDGenerator: utils.NewFakeUID(),
 	}, backend)
@@ -85,13 +85,13 @@ func (s *suiteBase) SetUpSuite(c *check.C) {
 }
 
 func (s *suiteBase) SetUpTest(c *check.C) {
-	err := s.log.deleteAllItems()
+	err := s.log.deleteAllItems(context.Background())
 	c.Assert(err, check.IsNil)
 }
 
 func (s *suiteBase) TearDownSuite(c *check.C) {
 	if s.log != nil {
-		if err := s.log.deleteTable(s.log.Tablename, true); err != nil {
+		if err := s.log.deleteTable(context.Background(), s.log.Tablename, true); err != nil {
 			c.Fatalf("Failed to delete table: %#v", trace.DebugReport(err))
 		}
 	}
@@ -161,7 +161,7 @@ func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
 
 // TestIndexExists tests functionality of the `Log.indexExists` function.
 func (s *DynamoeventsSuite) TestIndexExists(c *check.C) {
-	hasIndex, err := s.log.indexExists(s.log.Tablename, indexTimeSearchV2)
+	hasIndex, err := s.log.indexExists(context.Background(), s.log.Tablename, indexTimeSearchV2)
 	c.Assert(err, check.IsNil)
 	c.Assert(hasIndex, check.Equals, true)
 }
@@ -184,7 +184,7 @@ func TestDateRangeGenerator(t *testing.T) {
 
 func (s *DynamoeventsSuite) TestRFD24Migration(c *check.C) {
 	eventTemplate := preRFD24event{
-		SessionID:      uuid.New(),
+		SessionID:      uuid.New().String(),
 		EventIndex:     -1,
 		EventType:      "test.event",
 		Fields:         "{}",
@@ -206,7 +206,7 @@ func (s *DynamoeventsSuite) TestRFD24Migration(c *check.C) {
 	end := start.Add(time.Hour * time.Duration(24*11))
 	var eventArr []event
 	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-		eventArr, _, err = s.log.searchEventsRaw(start, end, apidefaults.Namespace, []string{"test.event"}, 1000, types.EventOrderAscending, "")
+		eventArr, _, err = s.log.searchEventsRaw(start, end, apidefaults.Namespace, 1000, types.EventOrderAscending, "", searchEventsFilter{eventTypes: []string{"test.event"}})
 		return err
 	})
 	c.Assert(err, check.IsNil)
@@ -231,7 +231,7 @@ type preRFD24event struct {
 func (s *DynamoeventsSuite) TestFieldsMapMigration(c *check.C) {
 	ctx := context.Background()
 	eventTemplate := eventWithJSONFields{
-		SessionID:      uuid.New(),
+		SessionID:      uuid.New().String(),
 		EventIndex:     -1,
 		EventType:      "test.event",
 		Fields:         "{}",
@@ -260,7 +260,7 @@ func (s *DynamoeventsSuite) TestFieldsMapMigration(c *check.C) {
 	err = s.log.convertFieldsToDynamoMapFormat(ctx)
 	c.Assert(err, check.IsNil)
 
-	eventArr, _, err := s.log.searchEventsRaw(start, end, apidefaults.Namespace, nil, 1000, types.EventOrderAscending, "")
+	eventArr, _, err := s.log.searchEventsRaw(start, end, apidefaults.Namespace, 1000, types.EventOrderAscending, "", searchEventsFilter{})
 	c.Assert(err, check.IsNil)
 
 	for _, event := range eventArr {
@@ -335,4 +335,27 @@ func (s *DynamoeventsLargeTableSuite) TestLargeTableRetrieve(c *check.C) {
 
 	// `check.HasLen` prints the entire array on failure, which pollutes the output.
 	c.Assert(len(history), check.Equals, eventCount)
+}
+
+func TestFromWhereExpr(t *testing.T) {
+	t.Parallel()
+
+	// !(equals(login, "root") || equals(login, "admin")) && contains(participants, "test-user")
+	cond := &types.WhereExpr{And: types.WhereExpr2{
+		L: &types.WhereExpr{Not: &types.WhereExpr{Or: types.WhereExpr2{
+			L: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}},
+			R: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "admin"}}},
+		}}},
+		R: &types.WhereExpr{Contains: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: "test-user"}}},
+	}}
+
+	params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]interface{}{}}
+	expr, err := fromWhereExpr(cond, &params)
+	require.NoError(t, err)
+
+	require.Equal(t, "(NOT ((FieldsMap.#condName0 = :condValue0) OR (FieldsMap.#condName0 = :condValue1))) AND (contains(FieldsMap.#condName1, :condValue2))", expr)
+	require.Equal(t, condFilterParams{
+		attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
+		attrValues: map[string]interface{}{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"},
+	}, params)
 }

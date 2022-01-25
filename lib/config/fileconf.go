@@ -18,6 +18,7 @@ package config
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -61,11 +62,12 @@ var validCASigAlgos = []string{
 //
 // Use config.ReadFromFile() to read the parsed FileConfig from a YAML file.
 type FileConfig struct {
-	Global `yaml:"teleport,omitempty"`
-	Auth   Auth  `yaml:"auth_service,omitempty"`
-	SSH    SSH   `yaml:"ssh_service,omitempty"`
-	Proxy  Proxy `yaml:"proxy_service,omitempty"`
-	Kube   Kube  `yaml:"kubernetes_service,omitempty"`
+	Version string `yaml:"version,omitempty"`
+	Global  `yaml:"teleport,omitempty"`
+	Auth    Auth  `yaml:"auth_service,omitempty"`
+	SSH     SSH   `yaml:"ssh_service,omitempty"`
+	Proxy   Proxy `yaml:"proxy_service,omitempty"`
+	Kube    Kube  `yaml:"kubernetes_service,omitempty"`
 
 	// Apps is the "app_service" section in Teleport file configuration which
 	// defines application access configuration.
@@ -134,13 +136,30 @@ type SampleFlags struct {
 	ACMEEmail string
 	// ACMEEnabled turns on ACME
 	ACMEEnabled bool
+	// Version is the Teleport Configuration version.
+	Version string
+	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
+	PublicAddr string
+	// KeyFile is a TLS key file
+	KeyFile string
+	// CertFile is a TLS Certificate file
+	CertFile string
 }
 
 // MakeSampleFileConfig returns a sample config to start
 // a standalone server
 func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
-	if flags.ACMEEnabled && flags.ClusterName == "" {
-		return nil, trace.BadParameter("please provide --cluster-name when using acme, for example --cluster-name=example.com")
+	if (flags.KeyFile == "") != (flags.CertFile == "") { // xor
+		return nil, trace.BadParameter("please provide both --key-file and --cert-file")
+	}
+
+	if flags.ACMEEnabled {
+		if flags.ClusterName == "" {
+			return nil, trace.BadParameter("please provide --cluster-name when using ACME, for example --cluster-name=example.com")
+		}
+		if flags.CertFile != "" {
+			return nil, trace.BadParameter("could not use --key-file/--cert-file when ACME is enabled")
+		}
 	}
 
 	conf := service.MakeDefaultConfig()
@@ -177,6 +196,10 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		a.LicenseFile = flags.LicensePath
 	}
 
+	if flags.Version == defaults.TeleportConfigVersionV2 {
+		a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
+	}
+
 	// sample proxy config:
 	var p Proxy
 	p.EnabledFlag = "yes"
@@ -189,12 +212,35 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
 		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
 	}
+	if flags.PublicAddr != "" {
+		// default to 443 if port is not specified
+		publicAddr, err := utils.ParseHostPortAddr(flags.PublicAddr, teleport.StandardHTTPSPort)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		p.PublicAddr = apiutils.Strings{publicAddr.String()}
+
+		// use same port for web addr
+		webPort := publicAddr.Port(teleport.StandardHTTPSPort)
+		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", webPort))
+	}
+	if flags.KeyFile != "" && flags.CertFile != "" {
+		if _, err := tls.LoadX509KeyPair(flags.CertFile, flags.KeyFile); err != nil {
+			return nil, trace.Wrap(err, "failed to load x509 key pair from --key-file and --cert-file")
+		}
+
+		p.KeyPairs = append(p.KeyPairs, KeyPair{
+			PrivateKey:  flags.KeyFile,
+			Certificate: flags.CertFile,
+		})
+	}
 
 	fc = &FileConfig{
-		Global: g,
-		Proxy:  p,
-		SSH:    s,
-		Auth:   a,
+		Version: flags.Version,
+		Global:  g,
+		Proxy:   p,
+		SSH:     s,
+		Auth:    a,
 	}
 	return fc, nil
 }
@@ -216,6 +262,9 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	conf.Proxy.defaultEnabled = true
 	conf.SSH.defaultEnabled = true
 	conf.Kube.defaultEnabled = false
+	if conf.Version == "" {
+		conf.Version = defaults.TeleportConfigVersionV1
+	}
 
 	var sc ssh.Config
 	sc.SetDefaults()
@@ -240,6 +289,12 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// JoinParams configures the parameters for Simplified Node Joining.
+type JoinParams struct {
+	TokenName string `yaml:"token_name"`
+	Method    string `yaml:"method"`
 }
 
 // ConnectionRate configures rate limiter
@@ -321,6 +376,7 @@ type Global struct {
 	DataDir     string           `yaml:"data_dir,omitempty"`
 	PIDFile     string           `yaml:"pid_file,omitempty"`
 	AuthToken   string           `yaml:"auth_token,omitempty"`
+	JoinParams  JoinParams       `yaml:"join_params,omitempty"`
 	AuthServers []string         `yaml:"auth_servers,omitempty"`
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
@@ -368,14 +424,6 @@ type CachePolicy struct {
 	TTL string `yaml:"ttl,omitempty"`
 }
 
-func isNever(v string) bool {
-	switch v {
-	case "never", "no", "0":
-		return true
-	}
-	return false
-}
-
 // Enabled determines if a given "_service" section has been set to 'true'
 func (c *CachePolicy) Enabled() bool {
 	if c.EnabledFlag == "" {
@@ -385,26 +433,11 @@ func (c *CachePolicy) Enabled() bool {
 	return enabled
 }
 
-// NeverExpires returns if cache never expires by itself
-func (c *CachePolicy) NeverExpires() bool {
-	return isNever(c.TTL)
-}
-
 // Parse parses cache policy from Teleport config
 func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
 	out := service.CachePolicy{
-		Type:         c.Type,
-		Enabled:      c.Enabled(),
-		NeverExpires: c.NeverExpires(),
-	}
-	if !out.NeverExpires {
-		var err error
-		if c.TTL != "" {
-			out.TTL, err = time.ParseDuration(c.TTL)
-			if err != nil {
-				return nil, trace.BadParameter("cache.ttl invalid duration: %v, accepted format '10h'", c.TTL)
-			}
-		}
+		Type:    c.Type,
+		Enabled: c.Enabled(),
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -539,6 +572,12 @@ type Auth struct {
 
 	// CAKeyParams configures how CA private keys will be created and stored.
 	CAKeyParams *CAKeyParams `yaml:"ca_key_params,omitempty"`
+
+	// ProxyListenerMode is a listener mode user by the proxy.
+	ProxyListenerMode types.ProxyListenerMode `yaml:"proxy_listener_mode,omitempty"`
+
+	// RoutingStrategy configures the routing strategy to nodes.
+	RoutingStrategy types.RoutingStrategy `yaml:"routing_strategy,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -654,7 +693,7 @@ type AuthenticationConfig struct {
 func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	var err error
 
-	var u types.U2F
+	var u *types.U2F
 	if a.U2F != nil {
 		u, err = a.U2F.Parse()
 		if err != nil {
@@ -674,7 +713,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
 		ConnectorName:     a.ConnectorName,
-		U2F:               &u,
+		U2F:               u,
 		Webauthn:          w,
 		RequireSessionMFA: a.RequireSessionMFA,
 		LockingMode:       a.LockingMode,
@@ -688,12 +727,12 @@ type UniversalSecondFactor struct {
 	DeviceAttestationCAs []string `yaml:"device_attestation_cas"`
 }
 
-func (u *UniversalSecondFactor) Parse() (types.U2F, error) {
+func (u *UniversalSecondFactor) Parse() (*types.U2F, error) {
 	attestationCAs, err := getAttestationPEMs(u.DeviceAttestationCAs)
 	if err != nil {
-		return types.U2F{}, trace.BadParameter("u2f.device_attestation_cas: %v", err)
+		return nil, trace.BadParameter("u2f.device_attestation_cas: %v", err)
 	}
-	return types.U2F{
+	return &types.U2F{
 		AppID:                u.AppID,
 		Facets:               u.Facets,
 		DeviceAttestationCAs: attestationCAs,
@@ -893,14 +932,26 @@ type Databases struct {
 	Service `yaml:",inline"`
 	// Databases is a list of databases proxied by the service.
 	Databases []*Database `yaml:"databases"`
-	// Selectors defines resource monitor selectors.
-	Selectors []Selector `yaml:"selectors,omitempty"`
+	// ResourceMatchers match cluster database resources.
+	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
+	// AWSMatchers match AWS hosted databases.
+	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
 }
 
-// Selector represents a single resource monitor selector.
-type Selector struct {
-	// MatchLabels represents a selector that matches labels.
-	MatchLabels map[string]apiutils.Strings `yaml:"match_labels,omitempty"`
+// ResourceMatcher matches cluster resources.
+type ResourceMatcher struct {
+	// Labels match resource labels.
+	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+}
+
+// AWSMatcher matches AWS databases.
+type AWSMatcher struct {
+	// Types are AWS database types to match, "rds" or "redshift".
+	Types []string `yaml:"types,omitempty"`
+	// Regions are AWS regions to query for databases.
+	Regions []string `yaml:"regions,omitempty"`
+	// Tags are AWS tags to match.
+	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 }
 
 // Database represents a single database proxied by the service.
@@ -914,7 +965,10 @@ type Database struct {
 	// URI is the database address to connect to.
 	URI string `yaml:"uri"`
 	// CACertFile is an optional path to the database CA certificate.
+	// Deprecated in favor of TLS.CACertFile.
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
+	// TLS keeps an optional TLS configuration options.
+	TLS DatabaseTLS `yaml:"tls"`
 	// StaticLabels is a map of database static labels.
 	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 	// DynamicLabels is a list of database dynamic labels.
@@ -923,6 +977,18 @@ type Database struct {
 	AWS DatabaseAWS `yaml:"aws"`
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP `yaml:"gcp"`
+}
+
+// DatabaseTLS keeps TLS settings used when connecting to database.
+type DatabaseTLS struct {
+	// Mode is a TLS verification mode. Available options are 'verify-full', 'verify-ca' or 'insecure',
+	// 'verify-full' is the default option.
+	Mode string `yaml:"mode"`
+	// ServerName allows providing custom server name.
+	// This name will override DNS name when validating certificate presented by the database.
+	ServerName string `yaml:"server_name,omitempty"`
+	// CACertFile is an optional path to the database CA certificate.
+	CACertFile string `yaml:"ca_cert_file,omitempty"`
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
@@ -971,8 +1037,8 @@ type Apps struct {
 	// Apps is a list of applications that will be run by this service.
 	Apps []*App `yaml:"apps"`
 
-	// Selectors defines resource monitor selectors.
-	Selectors []Selector `yaml:"selectors,omitempty"`
+	// ResourceMatchers match cluster application resources.
+	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
 }
 
 // App is the specific application that will be proxied by the application
@@ -991,10 +1057,11 @@ type App struct {
 	// the application at.
 	PublicAddr string `yaml:"public_addr"`
 
-	// Labels is a map of static labels to apply to this application.
+	// StaticLabels is a map of static labels to apply to this application.
 	StaticLabels map[string]string `yaml:"labels,omitempty"`
 
-	// Commands is a list of dynamic labels to apply to this application.
+	// DynamicLabels is a list of commands that generate dynamic labels
+	// to apply to this application.
 	DynamicLabels []CommandLabel `yaml:"commands,omitempty"`
 
 	// InsecureSkipVerify is used to skip validating the servers certificate.
@@ -1063,9 +1130,18 @@ type Proxy struct {
 	// MySQLPublicAddr is the hostport the proxy advertises for MySQL
 	// client connections.
 	MySQLPublicAddr apiutils.Strings `yaml:"mysql_public_addr,omitempty"`
+
+	// PostgresAddr is Postgres proxy listen address.
+	PostgresAddr string `yaml:"postgres_listen_addr,omitempty"`
 	// PostgresPublicAddr is the hostport the proxy advertises for Postgres
 	// client connections.
 	PostgresPublicAddr apiutils.Strings `yaml:"postgres_public_addr,omitempty"`
+
+	// MongoAddr is Mongo proxy listen address.
+	MongoAddr string `yaml:"mongo_listen_addr,omitempty"`
+	// MongoPublicAddr is the hostport the proxy advertises for Mongo
+	// client connections.
+	MongoPublicAddr apiutils.Strings `yaml:"mongo_public_addr,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
@@ -1233,7 +1309,7 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		})
 	}
 
-	v2, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV3{
 		IssuerURL:     o.IssuerURL,
 		ClientID:      o.ClientID,
 		ClientSecret:  o.ClientSecret,
@@ -1246,12 +1322,12 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	v2.SetACR(o.ACR)
-	v2.SetProvider(o.Provider)
-	if err := v2.CheckAndSetDefaults(); err != nil {
+	connector.SetACR(o.ACR)
+	connector.SetProvider(o.Provider)
+	if err := connector.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return v2, nil
+	return connector, nil
 }
 
 // Metrics is a `metrics_service` section of the config file:
@@ -1280,22 +1356,45 @@ type WindowsDesktopService struct {
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig `yaml:"ldap"`
+	// Discovery configures desktop discovery via LDAP.
+	Discovery service.LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
 	// Hosts is a list of static Windows hosts connected to this service in
 	// gateway mode.
 	Hosts []string `yaml:"hosts,omitempty"`
+	// HostLabels optionally applies labels to Windows hosts for RBAC.
+	// A host can match multiple rules and will get a union of all
+	// the matched labels.
+	HostLabels []WindowsHostLabelRule `yaml:"host_labels,omitempty"`
+}
+
+// WindowsHostLabelRule describes how a set of labels should be a applied to
+// a Windows host.
+type WindowsHostLabelRule struct {
+	// Match is a regexp that is checked against the Windows host's DNS name.
+	// If the regexp matches, this rule's labels will be applied to the host.
+	Match string `yaml:"match"`
+	// Labels is the set of labels to apply to hosts that match this rule.
+	Labels map[string]string `yaml:"labels"`
 }
 
 // LDAPConfig is the LDAP connection parameters.
-//
-// TODO(awly): these credentials are very sensitive. Add support for loading
-// from a file.
 type LDAPConfig struct {
-	// Addr is the address:port of the LDAP server (typically port 389).
+	// Addr is the host:port of the LDAP server (typically port 389).
 	Addr string `yaml:"addr"`
 	// Domain is the ActiveDirectory domain name.
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
 	Username string `yaml:"username"`
-	// Password for LDAP authentication.
-	Password string `yaml:"password"`
+	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
+	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
+
+	// PasswordFile was used in Teleport 8 before we supported client certificates
+	// for LDAP authentication. Support for LDAP passwords was removed for Teleport 9
+	// and this field remains only to issue a warning to users who are upgrading to
+	// Teleport 9.
+	//
+	// TODO(zmb3) DELETE IN 10.0
+	PasswordFile string `yaml:"password_file"`
 }

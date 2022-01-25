@@ -141,11 +141,7 @@ func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(ctx.SessionID()),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ctx.Identity.TeleportUser,
-			Login:        ctx.Identity.Login,
-			Impersonator: ctx.Identity.Impersonator,
-		},
+		UserMetadata: ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
@@ -264,7 +260,7 @@ func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 			ServerAddr:      party.ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: apievents.SessionMetadata{
-			SessionID: party.id.String(),
+			SessionID: party.s.ID(),
 		},
 		UserMetadata: apievents.UserMetadata{
 			User: party.user,
@@ -411,11 +407,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(sid),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ctx.Identity.TeleportUser,
-			Login:        ctx.Identity.Login,
-			Impersonator: ctx.Identity.Impersonator,
-		},
+		UserMetadata: ctx.Identity.GetUserMetadata(),
 		TerminalSize: params.Serialize(),
 	}
 
@@ -676,7 +668,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		s.recorder, err = events.NewAuditWriter(events.AuditWriterConfig{
+		rec, err := events.NewAuditWriter(events.AuditWriterConfig{
 			// Audit stream is using server context, not session context,
 			// to make sure that session is uploaded even after it is closed
 			Context:      ctx.srv.Context(),
@@ -692,6 +684,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		s.recorder = rec
 	}
 	s.writer.addWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder), true)
 
@@ -761,17 +754,12 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ctx.Identity.TeleportUser,
-			Login:        ctx.Identity.Login,
-			Impersonator: ctx.Identity.Impersonator,
-		},
+		UserMetadata: ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
 		TerminalSize:     params.Serialize(),
 		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
-		AccessRequests:   ctx.Identity.ActiveRequests,
 	}
 
 	// Local address only makes sense for non-tunnel nodes.
@@ -874,7 +862,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		s.recorder, err = events.NewAuditWriter(events.AuditWriterConfig{
+		rec, err := events.NewAuditWriter(events.AuditWriterConfig{
 			// Audit stream is using server context, not session context,
 			// to make sure that session is uploaded even after it is closed
 			Context:      ctx.srv.Context(),
@@ -890,6 +878,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		s.recorder = rec
 	}
 
 	// Emit a session.start event for the exec session.
@@ -909,16 +898,11 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ctx.Identity.TeleportUser,
-			Login:        ctx.Identity.Login,
-			Impersonator: ctx.Identity.Impersonator,
-		},
+		UserMetadata: ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
 		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
-		AccessRequests:   ctx.Identity.ActiveRequests,
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
@@ -1010,11 +994,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			SessionMetadata: apievents.SessionMetadata{
 				SessionID: string(s.id),
 			},
-			UserMetadata: apievents.UserMetadata{
-				User:         ctx.Identity.TeleportUser,
-				Login:        ctx.Identity.Login,
-				Impersonator: ctx.Identity.Impersonator,
-			},
+			UserMetadata:      ctx.Identity.GetUserMetadata(),
 			EnhancedRecording: s.hasEnhancedRecording,
 			Interactive:       false,
 			Participants: []string{

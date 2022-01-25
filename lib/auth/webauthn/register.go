@@ -167,6 +167,9 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string) (*CredentialC
 		return nil, trace.Wrap(err)
 	}
 
+	// Copy AuthenticatorSelection settings manually, the framework doesn't do it.
+	credentialCreation.Response.AuthenticatorSelection = web.Config.AuthenticatorSelection
+
 	// TODO(codingllama): Send U2F App ID back in creation requests too. Useful to
 	//  detect duplicate devices.
 
@@ -203,6 +206,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, user, deviceName string, 
 
 	origin := parsedResp.Response.CollectedClientData.Origin
 	if err := validateOrigin(origin, f.Webauthn.RPID); err != nil {
+		log.WithError(err).Debugf("WebAuthn: origin validation failed")
 		return nil, trace.Wrap(err)
 	}
 

@@ -59,8 +59,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/coreos/go-oidc/jose"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	. "gopkg.in/check.v1"
 )
@@ -576,7 +576,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// unsuccessful registration (wrong role)
-	certs, err := s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+	certs, err := s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
 		Token:        tok,
 		HostID:       "bad-host-id",
 		NodeName:     "bad-node-name",
@@ -609,7 +609,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// use it twice:
-	certs, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+	certs, err = s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
 		Token:                multiUseToken,
 		HostID:               "once",
 		NodeName:             "node-name",
@@ -626,7 +626,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	comment := Commentf("can't find example.com in %v", hostCert.ValidPrincipals)
 	c.Assert(apiutils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), Equals, true, comment)
 
-	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+	_, err = s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
 		Token:        multiUseToken,
 		HostID:       "twice",
 		NodeName:     "node-name",
@@ -638,7 +638,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 
 	// try to use after TTL:
 	s.a.SetClock(clockwork.NewFakeClockAt(time.Now().UTC().Add(time.Hour + 1)))
-	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+	_, err = s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
 		Token:        multiUseToken,
 		HostID:       "late.bird",
 		NodeName:     "node-name",
@@ -664,7 +664,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 	err = s.a.SetStaticTokens(st)
 	c.Assert(err, IsNil)
-	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+	_, err = s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
 		Token:        "static-token-value",
 		HostID:       "static.host",
 		NodeName:     "node-name",
@@ -673,7 +673,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		PublicSSHKey: pub,
 	})
 	c.Assert(err, IsNil)
-	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+	_, err = s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
 		Token:        "static-token-value",
 		HostID:       "wrong.role",
 		NodeName:     "node-name",
@@ -1000,7 +1000,7 @@ func (s *AuthSuite) TestGithubConnectorCRUDEventsEmitted(c *C) {
 func (s *AuthSuite) TestOIDCConnectorCRUDEventsEmitted(c *C) {
 	ctx := context.Background()
 	// test oidc create event
-	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV2{ClientID: "a"})
+	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{ClientID: "a"})
 	c.Assert(err, IsNil)
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	c.Assert(err, IsNil)
@@ -1132,20 +1132,22 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	user, role, err := CreateUserAndRole(p.a, "test-user", []string{})
 	require.NoError(t, err)
 	mfaID := "test-mfa-id"
+	requestID := "test-access-request"
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
 	certReq := certRequest{
-		user:        user,
-		checker:     services.NewRoleSet(role),
-		mfaVerified: mfaID,
-		publicKey:   pub,
+		user:           user,
+		checker:        services.NewRoleSet(role),
+		mfaVerified:    mfaID,
+		publicKey:      pub,
+		activeRequests: services.RequestIDs{AccessRequests: []string{requestID}},
 	}
 	_, err = p.a.generateUserCert(certReq)
 	require.NoError(t, err)
 
 	testTargets := append(
-		[]types.LockTarget{{User: user.GetName()}, {MFADevice: mfaID}},
+		[]types.LockTarget{{User: user.GetName()}, {MFADevice: mfaID}, {AccessRequest: requestID}},
 		services.RolesToLockTargets(user.GetRoles())...,
 	)
 	for _, target := range testTargets {
@@ -1179,7 +1181,7 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
-	hostID := uuid.New()
+	hostID := uuid.New().String()
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)

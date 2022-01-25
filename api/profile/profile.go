@@ -65,6 +65,9 @@ type Profile struct {
 	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
 	MySQLProxyAddr string `yaml:"mysql_proxy_addr,omitempty"`
 
+	// MongoProxyAddr is the host:port the Mongo proxy can be accessed at.
+	MongoProxyAddr string `yaml:"mongo_proxy_addr,omitempty"`
+
 	// Username is the Teleport username for the client.
 	Username string `yaml:"user,omitempty"`
 
@@ -84,9 +87,9 @@ type Profile struct {
 	// Dir is the directory of this profile.
 	Dir string
 
-	// ALPNSNIListenerEnabled indicates that proxy supports ALPN SNI server where
+	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
-	ALPNSNIListenerEnabled bool `yaml:"alpn_sni_listener_enabled,omitempty"`
+	TLSRoutingEnabled bool `yaml:"tls_routing_enabled,omitempty"`
 }
 
 // Name returns the name of the profile.

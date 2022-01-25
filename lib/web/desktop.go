@@ -22,8 +22,10 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
 
 	"github.com/gravitational/trace"
@@ -31,33 +33,69 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/desktop"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func (h *Handler) handleDesktopAccessWebsocket(
+// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
+func (h *Handler) desktopConnectHandle(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
 	ctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) (interface{}, error) {
-	desktopUUID := p.ByName("desktopUUID")
-	if desktopUUID == "" {
-		return nil, trace.BadParameter("missing desktopUUID in request URL")
+	desktopName := p.ByName("desktopName")
+	if desktopName == "" {
+		return nil, trace.BadParameter("missing desktopName in request URL")
 	}
-	log := ctx.log.WithField("desktop-uuid", desktopUUID)
+
+	log := ctx.log.WithField("desktop-name", desktopName)
 	log.Debug("New desktop access websocket connection")
+
+	if err := createDesktopConnection(w, r, desktopName, log, ctx, site); err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, nil
+}
+
+func createDesktopConnection(
+	w http.ResponseWriter,
+	r *http.Request,
+	desktopName string,
+	log *logrus.Entry,
+	ctx *SessionContext,
+	site reversetunnel.RemoteSite,
+) error {
+
+	q := r.URL.Query()
+	username := q.Get("username")
+	if username == "" {
+		return trace.BadParameter("missing username")
+	}
+	width, err := strconv.Atoi(q.Get("width"))
+	if err != nil {
+		return trace.BadParameter("width missing or invalid")
+	}
+	height, err := strconv.Atoi(q.Get("height"))
+	if err != nil {
+		return trace.BadParameter("height missing or invalid")
+	}
+
+	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
 
 	winServices, err := ctx.unsafeCachedAuthClient.GetWindowsDesktopServices(r.Context())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// TODO(awly): trusted cluster support - if this request is for a different
 	// cluster, dial their proxy and forward the websocket request as is.
 
 	if len(winServices) == 0 {
-		return nil, trace.NotFound("No windows_desktop_services are registered in this cluster")
+		return trace.NotFound("No windows_desktop_services are registered in this cluster")
 	}
 	// Pick a random Windows desktop service as our gateway.
 	// When agent mode is implemented in the service, we'll have to filter out
@@ -72,24 +110,34 @@ func (h *Handler) handleDesktopAccessWebsocket(
 		From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: r.RemoteAddr},
 		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
 		ConnType: types.WindowsDesktopTunnel,
-		ServerID: service.GetName(),
+		ServerID: service.GetName() + "." + ctx.parent.clusterName,
 	})
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "failed to connect to windows_desktop_service at %q: %v", service.GetAddr(), err)
+		return trace.WrapWithMessage(err, "failed to connect to windows_desktop_service at %q: %v", service.GetAddr(), err)
 	}
 	defer serviceCon.Close()
 	tlsConfig := ctx.clt.Config()
 	// Pass target desktop UUID via SNI.
-	tlsConfig.ServerName = desktopUUID + desktop.SNISuffix
+	tlsConfig.ServerName = desktopName + desktop.SNISuffix
 	serviceConTLS := tls.Client(serviceCon, ctx.clt.Config())
 	log.Debug("Connected to windows_desktop_service")
+
+	tdpConn := tdp.NewConn(serviceConTLS)
+	err = tdpConn.OutputMessage(tdp.ClientUsername{Username: username})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = tdpConn.OutputMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	websocket.Handler(func(conn *websocket.Conn) {
 		if err := proxyWebsocketConn(conn, serviceConTLS); err != nil {
 			log.WithError(err).Warningf("Error proxying a desktop protocol websocket to windows_desktop_service")
 		}
 	}).ServeHTTP(w, r)
-	return nil, nil
+	return nil
 }
 
 func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {

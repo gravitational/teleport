@@ -173,10 +173,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 			Type: events.ResetPasswordTokenCreateEvent,
 			Code: events.ResetPasswordTokenCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),
@@ -492,8 +489,7 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	// For a user to add a device, second factor must be enabled.
 	// A nil request will be interpreted as a user who has second factor enabled
 	// but does not have any MFA registered, as can be the case with second factor optional.
-	secondFactor := authPref.GetSecondFactor()
-	if secondFactor == constants.SecondFactorOff {
+	if authPref.GetSecondFactor() == constants.SecondFactorOff {
 		return nil, trace.AccessDenied("second factor must be enabled")
 	}
 

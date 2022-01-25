@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"cloud.google.com/go/storage"
 	"github.com/prometheus/client_golang/prometheus"
@@ -167,15 +168,15 @@ func composerRun(ctx context.Context, composer *storage.Composer) (*storage.Obje
 }
 
 // DefaultNewHandler returns a new handler with default GCS client settings derived from the config
-func DefaultNewHandler(cfg Config) (*Handler, error) {
+func DefaultNewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	var args []option.ClientOption
 	if len(cfg.Endpoint) != 0 {
-		args = append(args, option.WithoutAuthentication(), option.WithEndpoint(cfg.Endpoint), option.WithGRPCDialOption(grpc.WithInsecure()))
+		args = append(args, option.WithoutAuthentication(), option.WithEndpoint(cfg.Endpoint), option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())))
 	} else if len(cfg.CredentialsPath) != 0 {
 		args = append(args, option.WithCredentialsFile(cfg.CredentialsPath))
 	}
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(ctx)
 	client, err := storage.NewClient(ctx, args...)
 	if err != nil {
 		cancelFunc()

@@ -171,7 +171,7 @@ type HeartbeatConfig struct {
 	GetServerInfo GetServerInfoFn
 	// ServerTTL is a server TTL used in announcements
 	ServerTTL time.Duration
-	// KeepAlivePeriod is a period between lights weight
+	// KeepAlivePeriod is a period between light-weight
 	// keep alive calls, that only update TTLs and don't consume
 	// bandwidh, also is used to derive time between
 	// failed attempts as well for auth and proxy modes
@@ -440,7 +440,7 @@ func (h *Heartbeat) announce() error {
 			if !ok {
 				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
-			err := h.Announcer.UpsertKubeService(context.TODO(), kube)
+			err := h.Announcer.UpsertKubeService(h.cancelCtx, kube)
 			if err != nil {
 				h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
 				h.setState(HeartbeatStateAnnounceWait)

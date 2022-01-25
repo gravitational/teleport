@@ -67,6 +67,13 @@ This reference details available values for the `teleport-cluster` chart.
 
 `authenticationType` controls the authentication scheme used by Teleport. Possible values are `local` and `github` for OSS, plus `oidc`, `saml`, and `false` for Enterprise.
 
+## `proxyListenerMode`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `nil` | no | `auth_service.proxy_listener_mode` | ❌ |
+
+`proxyListenerMode` controls proxy TLS routing used by Teleport. Possible values are `multiplex`.
 
 ## `enterprise`
 
@@ -490,6 +497,40 @@ cluster deployed in HA mode.
   and the relevant sections of the [AWS](./guides/aws.mdx#step-4-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-4-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
+### `highAvailability.certManager.addCommonName`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `bool` | `false` | ❌ | `proxy_service.https_keypairs` (to provide your own certificates) |
+
+Setting `highAvailability.certManager.addCommonName` to `true` will instruct `cert-manager` to set the commonName field in its certificate signing request to the issuing CA.
+
+<Admonition type="note" title="Enabling common name field">
+  You must install and configure `cert-manager` in your Kubernetes cluster yourself.
+
+  See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
+  and the relevant sections of the [AWS](./guides/aws.mdx#step-4-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-4-install-and-configure-cert-manager) guides for more information.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    certManager:
+      enabled: true
+      addCommonName: true
+      issuerName: letsencrypt-production
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set highAvailability.certManager.enabled=true \
+  --set highAvailability.certManager.addCommonName=true \
+  --set highAvailability.certManager.issuerName=letsencrypt-production
+  ```
+  </TabItem>
+</Tabs>
+
 ### `highAvailability.certManager.issuerName`
 
 | Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
@@ -546,6 +587,29 @@ scoped to a single namespace.
   </TabItem>
 </Tabs>
 
+### `highAvailability.certManager.issuerGroup`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `cert-manager.io` | ❌ | None |
+
+Sets the `Group` of `Issuer` to be used when issuing certificates with `cert-manager`. Defaults to `cert-manager.io` to use built-in issuers.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    certManager:
+      issuerGroup: cert-manager.io
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set highAvailability.certManager.issuerGroup=cert-manager.io
+  ```
+  </TabItem>
+</Tabs>
+
 ## `image`
 
 | Type | Default value | Can be used in `custom` mode? |
@@ -592,13 +656,19 @@ You can override this to use your own Teleport Enterprise image rather than a Te
   </TabItem>
 </Tabs>
 
-## `logLevel`
+## `log`
+
+### `log.level`
+
+<Admonition type="note">
+  This field used to be called `logLevel`. For backwards compatibility this name can still be used, but we recommend changing your values file to use `log.level`.
+</Admonition>
 
 | Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - | - | - |
 | `string` | `INFO` | ❌ | `teleport.log.severity` |
 
-`logLevel` sets the log level used for the Teleport process.
+`log.level` sets the log level used for the Teleport process.
 
 Available log levels (in order of most to least verbose) are: `DEBUG`, `INFO`, `WARNING`, `ERROR`.
 
@@ -609,12 +679,88 @@ The default is `INFO`, which is recommended in production.
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  logLevel: DEBUG
+  log:
+    level: DEBUG
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  --set logLevel=DEBUG
+  --set log.level=DEBUG
+  ```
+  </TabItem>
+</Tabs>
+
+### `log.output`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `stderr` | ❌ | `teleport.log.output` |
+
+`log.output` sets the output destination for the Teleport process.
+
+This can be set to any of the built-in values: `stdout`, `stderr` or `syslog` to use that destination.
+
+The value can also be set to a file path (such as `/var/log/teleport.log`) to write logs to a file. Bear in mind that a few service startup messages will still go to `stderr` for resilience.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    output: stderr
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set log.output=stderr
+  ```
+  </TabItem>
+</Tabs>
+
+### `log.format`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `text` | ❌ | `teleport.log.format.output` |
+
+`log.format` sets the output type for the Teleport process.
+
+Possible values are `text` (default) or `json`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    format: json
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set log.format=json
+  ```
+  </TabItem>
+</Tabs>
+
+### `log.extraFields`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `list` | `["timestamp", "level", "component", "caller"]` | ❌ | `teleport.log.format.extra_fields` |
+
+`log.extraFields` sets the fields used in logging for the Teleport process.
+
+See the [Teleport config file reference](../../setup/reference/config.mdx) for more details on possible values for `extra_fields`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    extraFields: ["timestamp", "level"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set "log.extraFields[0]=timestamp" \
+  --set "log.extraFields[1]=level"
   ```
   </TabItem>
 </Tabs>
@@ -806,6 +952,87 @@ Kubernetes annotations which should be applied to the `serviceAccount` created b
   </TabItem>
 </Tabs>
 
+## `annotations.certSecret`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `secret` generated by
+`cert-manager` from the `certificate` created by the chart.  Only valid when
+`highAvailability.certManager.enabled` is set to `true` and requires
+`cert-manager` v1.5.0+.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  annotations:
+    certSecret:
+      kubernetes.io/annotation: value
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set annotations.certSecret."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
+
+## `service.type`
+
+| Type | Default value | Required? | Can be used in `custom` mode? |
+| - | - | - | - |
+| `string` | `LoadBalancer` | Yes | ✅ |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/services-networking/service/)
+
+Allows to specify the service type.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  service:
+    type: LoadBalancer
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set service.type=LoadBalancer
+  ```
+  </TabItem>
+</Tabs>
+
+## `service.spec.loadBalancerIP`
+
+| Type | Default value | Required? | Can be used in `custom` mode? |
+| - | - | - | - |
+| `string` | `nil` | No | ✅ |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer)
+
+Allows to specify the `loadBalancerIP`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  service:
+    spec:
+      loadBalancerIP: 1.2.3.4
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set service.spec.loadBalancerIP=1.2.3.4
+  ```
+  </TabItem>
+</Tabs>
+
 ## `extraArgs`
 
 | Type | Default value | Can be used in `custom` mode? |
@@ -899,7 +1126,7 @@ mounts will also be mounted into any `initContainers` configured by the chart.
   ```yaml
   extraVolumeMounts:
   - name: myvolume
-    path: /path/to/mount/volume
+    mountPath: /path/to/mount/volume
   ```
   </TabItem>
   <TabItem label="--set">
@@ -1038,6 +1265,29 @@ Kubernetes Tolerations to set for pod assignment.
   --set tolerations[0].operator=Equal \
   --set tolerations[0].value=teleport \
   --set tolerations[0].effect=NoSchedule
+  ```
+  </TabItem>
+</Tabs>
+
+## `priorityClassName`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `string` | `""` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)
+
+Kubernetes PriorityClass to set for pod.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  priorityClassName: "system-cluster-critical"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set priorityClassName=system-cluster-critical
   ```
   </TabItem>
 </Tabs>
@@ -1560,32 +1810,123 @@ A list of secrets containing authorization tokens which can be optionally used t
   </TabItem>
 </Tabs>
 
-## `replicaCount`
+### `highAvailability`
+
+## `highAvailability.replicaCount`
 
 | Type | Default value |
 | - | - |
 | `int` | `1` |
 
-`replicaCount` can be used to set the number of replicas used in the deployment.
+`highAvailability.replicaCount` can be used to set the number of replicas used in the deployment.
 
-Set to a number higher than `1` for a high availability mode where multiple Teleport agent pods will be deployed to provide some redundancy.
+Set to a number higher than `1` for a high availability mode where multiple Teleport agent pods will be deployed.
 
-<Admonition type="warning">
-  Simply setting `replicaCount` to a value higher than `1` is not a panacea for getting a highly available Teleport agent deployment.
+<Admonition type="tip" title="Sizing guidelines">
+  As a rough guide, we recommend configuring one replica per distinct availability zone where your cluster has worker nodes.
 
-  Teleport does not yet ensure that requests to Teleport agents are guaranteed to always only be routed to active, healthy agents, so you
-  may still find that you get sporadic request errors during pod outages when requests are routed to offline pods.
+  2 replicas/availability zones will be fine for smaller workloads. 3-5 replicas/availability zones will be more appropriate for bigger
+  clusters with more traffic.
 </Admonition>
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  replicaCount: 3
+  highAvailability:
+    replicaCount: 3
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set replicaCount=3
+  ```shell
+  --set highAvailability.replicaCount=3
+  ```
+  </TabItem>
+</Tabs>
+
+## `highAvailability.requireAntiAffinity`
+
+| Type | Default value |
+| - | - |
+| `bool` | `false` |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity)
+
+Setting `highAvailability.requireAntiAffinity` to `true` will use `requiredDuringSchedulingIgnoredDuringExecution` to require that multiple
+Teleport pods must not be scheduled on the same physical host.
+
+<Admonition type="warning">
+  This can result in Teleport pods failing to be scheduled in very small clusters or during node downtime, so should be used with caution.
+</Admonition>
+
+ Setting `highAvailability.requireAntiAffinity` to `false` (the default) uses `preferredDuringSchedulingIgnoredDuringExecution` to make node
+ anti-affinity a soft requirement.
+
+<Admonition type="note">
+  This setting only has any effect when `highAvailability.replicaCount` is greater than `1`.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    requireAntiAffinity: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.requireAntiAffinity=true
+  ```
+  </TabItem>
+</Tabs>
+
+## `highAvailability.podDisruptionBudget`
+
+### `highAvailability.podDisruptionBudget.enabled`
+
+| Type | Default value |
+| - | - |
+| `bool` | `false` |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/run-application/configure-pdb/)
+
+Enable a Pod Disruption Budget for the Teleport Pod to ensure HA during voluntary disruptions.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    podDisruptionBudget:
+      enabled: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.podDisruptionBudget.enabled=true
+  ```
+  </TabItem>
+</Tabs>
+
+### `highAvailability.podDisruptionBudget.minAvailable`
+
+| Type | Default value |
+| - | - |
+| `int` | `1` |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/run-application/configure-pdb/)
+
+Ensures that this number of replicas is available during voluntary disruptions, can be a number of replicas or a percentage.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    podDisruptionBudget:
+      minAvailable: 1
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.podDisruptionBudget.minAvailable=1
   ```
   </TabItem>
 </Tabs>
@@ -1701,13 +2042,19 @@ $ kubectl --namespace teleport create secret generic teleport-kube-agent-join-to
   </TabItem>
 </Tabs>
 
-## `logLevel`
+## `log`
+
+### `log.level`
+
+<Admonition type="note">
+  This field used to be called `logLevel`. For backwards compatibility this name can still be used, but we recommend changing your values file to use `log.level`.
+</Admonition>
 
 | Type | Default value |
 | - | - |
 | `string` | `INFO` |
 
-`logLevel` sets the log level used for the Teleport process.
+`log.level` sets the log level used for the Teleport process.
 
 Available log levels (in order of most to least verbose) are: `DEBUG`, `INFO`, `WARNING`, `ERROR`.
 
@@ -1718,12 +2065,88 @@ The default is `INFO`, which is recommended in production.
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  logLevel: DEBUG
+  log:
+    level: DEBUG
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set logLevel=DEBUG
+  --set log.level=DEBUG
+  ```
+  </TabItem>
+</Tabs>
+
+### `log.output`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `stderr` | ❌ | `teleport.log.output` |
+
+`log.output` sets the output destination for the Teleport process.
+
+This can be set to any of the built-in values: `stdout`, `stderr` or `syslog` to use that destination.
+
+The value can also be set to a file path (such as `/var/log/teleport.log`) to write logs to a file. Bear in mind that a few service startup messages will still go to `stderr` for resilience.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    output: stderr
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set log.output=stderr
+  ```
+  </TabItem>
+</Tabs>
+
+### `log.format`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `text` | ❌ | `teleport.log.format.output` |
+
+`log.format` sets the output type for the Teleport process.
+
+Possible values are `text` (default) or `json`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    format: json
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set log.format=json
+  ```
+  </TabItem>
+</Tabs>
+
+### `log.extraFields`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `list` | `["timestamp", "level", "component", "caller"]` | ❌ | `teleport.log.format.extra_fields` |
+
+`log.extraFields` sets the fields used in logging for the Teleport process.
+
+See the [Teleport config file reference](../../setup/reference/config.mdx) for more details on possible values for `extra_fields`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    extraFields: ["timestamp", "level"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set "log.extraFields[0]=timestamp" \
+  --set "log.extraFields[1]=level"
   ```
   </TabItem>
 </Tabs>
@@ -1771,7 +2194,7 @@ Kubernetes affinity to set for pod assignments.
 | - | - |
 | `object` | `{}` |
 
-`nodeSelector` can be used to add a map of key-value pairs to constrain the nodes the agent pods will run on. 
+`nodeSelector` can be used to add a map of key-value pairs to constrain the nodes the agent pods will run on.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/)
 
@@ -1956,7 +2379,7 @@ mounts will also be mounted into any `initContainers` configured by the chart.
   ```yaml
   extraVolumeMounts:
   - name: myvolume
-    path: /path/to/mount/volume
+    mountPath: /path/to/mount/volume
   ```
   </TabItem>
   <TabItem label="--set">

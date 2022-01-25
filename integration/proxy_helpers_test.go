@@ -34,18 +34,21 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth"
+	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -85,20 +88,20 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 
 	rc := NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
-		log:         testlog.FailureOnly(t),
+		log:         utils.NewLoggerForTests(),
 		Ports:       options.rootClusterPorts,
 	})
 
 	// Create leaf cluster.
 	lc := NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        rc.Secrets.PrivKey,
 		Pub:         rc.Secrets.PubKey,
-		log:         testlog.FailureOnly(t),
+		log:         utils.NewLoggerForTests(),
 		Ports:       options.leafClusterPorts,
 	})
 	suite := &ProxySuite{
@@ -132,7 +135,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	}
 	leafConfig := options.leafConfigFunc(suite)
 	for _, v := range options.leafConfigModFunc {
-		v(rootConfig)
+		v(leafConfig)
 	}
 	err = lc.CreateEx(t, leafTrustedSecrets, leafConfig)
 	require.NoError(t, err)
@@ -168,7 +171,7 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 	nodeConfig := func() *service.Config {
 		tconf := service.MakeDefaultConfig()
 		tconf.Console = nil
-		tconf.Log = testlog.FailureOnly(t)
+		tconf.Log = utils.NewLoggerForTests()
 		tconf.Hostname = tunnelNodeHostname
 		tconf.Token = "token"
 		tconf.AuthServers = []utils.NetAddr{
@@ -297,6 +300,7 @@ func rootClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
+		config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		config.Proxy.Enabled = true
 		config.Proxy.WebAddr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortWeb())
 		config.Proxy.DisableWebService = false
@@ -315,6 +319,7 @@ func leafClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
+		config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		config.Proxy.Enabled = true
 		config.Proxy.WebAddr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortWeb())
 		config.Proxy.DisableWebService = false
@@ -326,8 +331,8 @@ func leafClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 	}
 }
 
-func createAdminRole(username string) types.Role {
-	role := services.NewAdminRole()
+func createTestRole(username string) types.Role {
+	role := services.NewImplicitRole()
 	role.SetName("test")
 	role.SetLogins(types.Allow, []string{username})
 	role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{"env": []string{"{{external.testing}}"}})
@@ -454,7 +459,7 @@ func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
 	return configPath
 }
 
-func mustStartALPNLocalProxy(t *testing.T, addr string, protocol common.Protocol) *alpnproxy.LocalProxy {
+func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Protocol) *alpnproxy.LocalProxy {
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 
@@ -478,4 +483,49 @@ func mustStartALPNLocalProxy(t *testing.T, addr string, protocol common.Protocol
 		require.NoError(t, err)
 	}()
 	return lp
+}
+
+func makeNodeConfig(nodeName, authAddr string) *service.Config {
+	nodeConfig := service.MakeDefaultConfig()
+	nodeConfig.Hostname = nodeName
+	nodeConfig.Token = "token"
+	nodeConfig.AuthServers = []utils.NetAddr{
+		{
+			AddrNetwork: "tcp",
+			Addr:        authAddr,
+		},
+	}
+	nodeConfig.Auth.Enabled = false
+	nodeConfig.Proxy.Enabled = false
+	nodeConfig.SSH.Enabled = true
+	return nodeConfig
+}
+
+func mustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string) string {
+	key, err := libclient.NewKey()
+	require.NoError(t, err)
+	key.ClusterName = tc.Secrets.SiteName
+
+	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(
+		key.Pub, username, time.Hour,
+		constants.CertificateFormatStandard,
+		tc.Secrets.SiteName,
+	)
+	require.NoError(t, err)
+
+	key.Cert = sshCert
+	key.TLSCert = tlsCert
+
+	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(types.HostCA, false)
+	require.NoError(t, err)
+	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
+
+	idPath := filepath.Join(t.TempDir(), "user_identity")
+	_, err = identityfile.Write(identityfile.WriteConfig{
+		OutputPath: idPath,
+		Key:        key,
+		Format:     identityfile.FormatFile,
+	})
+	require.NoError(t, err)
+	return idPath
 }

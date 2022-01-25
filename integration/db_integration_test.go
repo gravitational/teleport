@@ -37,11 +37,10 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/siddontang/go-mysql/client"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -318,6 +317,106 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 	})
 }
 
+// TestDatabaseAccessUnspecifiedHostname tests DB agent reverse tunnel connection in case where host address is
+// unspecified thus is not present in the valid principal list. The DB agent should replace unspecified address (0.0.0.0)
+// with localhost and successfully establish reverse tunnel connection.
+func TestDatabaseAccessUnspecifiedHostname(t *testing.T) {
+	pack := setupDatabaseTest(t,
+		withNodeName("0.0.0.0"),
+	)
+
+	// Connect to the database service in root cluster.
+	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.postgresService.Name,
+			Protocol:    pack.root.postgresService.Protocol,
+			Username:    "postgres",
+			Database:    "test",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+	require.Equal(t, uint32(1), pack.root.postgres.QueryCount())
+	require.Equal(t, uint32(0), pack.leaf.postgres.QueryCount())
+
+	// Disconnect.
+	err = client.Close(context.Background())
+	require.NoError(t, err)
+}
+
+// TestDatabaseAccessPostgresSeparateListener tests postgres proxy listener running on separate port.
+func TestDatabaseAccessPostgresSeparateListener(t *testing.T) {
+	pack := setupDatabaseTest(t,
+		withPortSetupDatabaseTest(separatePostgresPortSetup),
+	)
+
+	// Connect to the database service in root cluster.
+	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortPostgres()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.postgresService.Name,
+			Protocol:    pack.root.postgresService.Protocol,
+			Username:    "postgres",
+			Database:    "test",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+	require.Equal(t, uint32(1), pack.root.postgres.QueryCount())
+	require.Equal(t, uint32(0), pack.leaf.postgres.QueryCount())
+
+	// Disconnect.
+	err = client.Close(context.Background())
+	require.NoError(t, err)
+}
+
+// TestDatabaseAccessMongoSeparateListener tests mongo proxy listener running on separate port.
+func TestDatabaseAccessMongoSeparateListener(t *testing.T) {
+	pack := setupDatabaseTest(t,
+		withPortSetupDatabaseTest(separateMongoPortSetup),
+	)
+
+	// Connect to the database service in root cluster.
+	client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortMongo()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.mongoService.Name,
+			Protocol:    pack.root.mongoService.Protocol,
+			Username:    "admin",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+	require.NoError(t, err)
+
+	// Disconnect.
+	err = client.Disconnect(context.Background())
+	require.NoError(t, err)
+}
+
 func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
 	max := time.Second
 	timeout := time.After(max)
@@ -379,6 +478,9 @@ type databaseClusterPack struct {
 type testOptions struct {
 	clock             clockwork.Clock
 	instancePortsFunc func() *InstancePorts
+	rootConfig        func(config *service.Config)
+	leafConfig        func(config *service.Config)
+	nodeName          string
 }
 
 type testOptionFunc func(*testOptions)
@@ -390,6 +492,9 @@ func (o *testOptions) setDefaultIfNotSet() {
 	if o.instancePortsFunc == nil {
 		o.instancePortsFunc = standardPortSetup
 	}
+	if o.nodeName == "" {
+		o.nodeName = Host
+	}
 }
 
 func withClock(clock clockwork.Clock) testOptionFunc {
@@ -398,9 +503,27 @@ func withClock(clock clockwork.Clock) testOptionFunc {
 	}
 }
 
+func withNodeName(nodeName string) testOptionFunc {
+	return func(o *testOptions) {
+		o.nodeName = nodeName
+	}
+}
+
 func withPortSetupDatabaseTest(portFn func() *InstancePorts) testOptionFunc {
 	return func(o *testOptions) {
 		o.instancePortsFunc = portFn
+	}
+}
+
+func withRootConfig(fn func(*service.Config)) testOptionFunc {
+	return func(o *testOptions) {
+		o.rootConfig = fn
+	}
+}
+
+func withLeafConfig(fn func(*service.Config)) testOptionFunc {
+	return func(o *testOptions) {
+		o.leafConfig = fn
 	}
 }
 
@@ -416,7 +539,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	t.Cleanup(func() { tracer.Stop() })
 	lib.SetInsecureDevMode(true)
 	SetTestTimeouts(100 * time.Millisecond)
-	log := testlog.FailureOnly(t)
+	log := utils.NewLoggerForTests()
 
 	// Generate keypair.
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
@@ -439,8 +562,8 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	// Create root cluster.
 	p.root.cluster = NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
-		HostID:      uuid.New(),
-		NodeName:    Host,
+		HostID:      uuid.New().String(),
+		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
@@ -450,8 +573,8 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	// Create leaf cluster.
 	p.leaf.cluster = NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
-		HostID:      uuid.New(),
-		NodeName:    Host,
+		HostID:      uuid.New().String(),
+		NodeName:    opts.nodeName,
 		Ports:       opts.instancePortsFunc(),
 		Priv:        privateKey,
 		Pub:         publicKey,
@@ -466,6 +589,9 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Clock = p.clock
+	if opts.rootConfig != nil {
+		opts.rootConfig(rcConf)
+	}
 
 	// Make leaf cluster config.
 	lcConf := service.MakeDefaultConfig()
@@ -475,6 +601,9 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.Clock = p.clock
+	if opts.leafConfig != nil {
+		opts.rootConfig(lcConf)
+	}
 
 	// Establish trust b/w root and leaf.
 	err = p.root.cluster.CreateEx(t, p.leaf.cluster.Secrets.AsSlice(), rcConf)
@@ -689,10 +818,13 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 	accessPoint, err := site.CachingAccessPoint()
 	require.NoError(t, err)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	for {
 		select {
 		case <-time.Tick(500 * time.Millisecond):
-			servers, err := accessPoint.GetDatabaseServers(context.Background(), apidefaults.Namespace)
+			servers, err := accessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
 			if err != nil {
 				logrus.WithError(err).Debugf("Leaf cluster access point is unavailable.")
 				continue
@@ -706,7 +838,7 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 				continue
 			}
 			return
-		case <-time.After(10 * time.Second):
+		case <-ctx.Done():
 			t.Fatal("Leaf cluster access point is unavailable.")
 		}
 	}

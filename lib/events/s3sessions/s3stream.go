@@ -47,6 +47,13 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 	}
 	if !h.Config.DisableServerSideEncryption {
 		input.ServerSideEncryption = aws.String(s3.ServerSideEncryptionAwsKms)
+
+		if h.Config.SSEKMSKey != "" {
+			input.SSEKMSKeyId = aws.String(h.Config.SSEKMSKey)
+		}
+	}
+	if h.Config.ACL != "" {
+		input.ACL = aws.String(h.Config.ACL)
 	}
 
 	resp, err := h.client.CreateMultipartUploadWithContext(ctx, input)
@@ -75,6 +82,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 		Body:       partBody,
 		PartNumber: aws.Int64(partNumber),
 	}
+
 	resp, err := h.client.UploadPartWithContext(ctx, params)
 	if err != nil {
 		return nil, ConvertS3Error(err)
@@ -119,7 +127,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 	var parts []events.StreamPart
 	var partNumberMarker *int64
 	for i := 0; i < defaults.MaxIterationLimit; i++ {
-		re, err := h.client.ListParts(&s3.ListPartsInput{
+		re, err := h.client.ListPartsWithContext(ctx, &s3.ListPartsInput{
 			Bucket:           aws.String(h.Bucket),
 			Key:              aws.String(h.path(upload.SessionID)),
 			UploadId:         aws.String(upload.ID),
@@ -164,7 +172,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			KeyMarker:      keyMarker,
 			UploadIdMarker: uploadIDMarker,
 		}
-		re, err := h.client.ListMultipartUploads(input)
+		re, err := h.client.ListMultipartUploadsWithContext(ctx, input)
 		if err != nil {
 			return nil, ConvertS3Error(err)
 		}

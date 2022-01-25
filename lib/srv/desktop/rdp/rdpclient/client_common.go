@@ -19,11 +19,12 @@ package rdpclient
 
 import (
 	"context"
+	"image/png"
+	"time"
 
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/lib/srv/desktop/deskproto"
 )
 
 // Config for creating a new Client.
@@ -32,21 +33,24 @@ type Config struct {
 	Addr string
 	// UserCertGenerator generates user certificates for RDP authentication.
 	GenerateUserCert GenerateUserCertFn
+	CertTTL          time.Duration
 
-	// TODO(awly): replace these callbacks with a deskproto.Conn
+	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
+	AuthorizeFn func(login string) error
 
-	// InputMessage is called to receive a message from the client for the RDP
-	// server. This function should block until there is a message.
-	InputMessage func() (deskproto.Message, error)
-	// OutputMessage is called to send a message from RDP server to the client.
-	OutputMessage func(deskproto.Message) error
+	// Conn handles TDP messages between Windows Desktop Service
+	// and a Teleport Proxy.
+	Conn *tdp.Conn
+
+	// Encoder is an optional override for PNG encoding.
+	Encoder *png.Encoder
 
 	// Log is the logger for status messages.
 	Log logrus.FieldLogger
 }
 
 // GenerateUserCertFn generates user certificates for RDP authentication.
-type GenerateUserCertFn func(ctx context.Context, username string) (certDER, keyDER []byte, err error)
+type GenerateUserCertFn func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error)
 
 //nolint:unused
 func (c *Config) checkAndSetDefaults() error {
@@ -56,11 +60,14 @@ func (c *Config) checkAndSetDefaults() error {
 	if c.GenerateUserCert == nil {
 		return trace.BadParameter("missing GenerateUserCert in rdpclient.Config")
 	}
-	if c.InputMessage == nil {
-		return trace.BadParameter("missing InputMessage in rdpclient.Config")
+	if c.Conn == nil {
+		return trace.BadParameter("missing Conn in rdpclient.Config")
 	}
-	if c.OutputMessage == nil {
-		return trace.BadParameter("missing OutputMessage in rdpclient.Config")
+	if c.AuthorizeFn == nil {
+		return trace.BadParameter("missing AuthorizeFn in rdpclient.Config")
+	}
+	if c.Encoder == nil {
+		c.Encoder = tdp.PNGEncoder()
 	}
 	if c.Log == nil {
 		c.Log = logrus.New()

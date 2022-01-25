@@ -64,3 +64,6 @@ ssh.config
 
 # Code signing certificate for Windows binaries
 /windows-signing-cert.pfx
+
+# build tooling
+build.assets/tooling/bin/** 

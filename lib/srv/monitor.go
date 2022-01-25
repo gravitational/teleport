@@ -42,7 +42,7 @@ import (
 type ActivityTracker interface {
 	// GetClientLastActive returns the time of the last recorded activity
 	GetClientLastActive() time.Time
-	// UpdateClient updates client activity
+	// UpdateClientActivity updates the last active timestamp
 	UpdateClientActivity()
 }
 
@@ -146,8 +146,8 @@ func StartMonitor(cfg MonitorConfig) error {
 }
 
 // Monitor monitors the activity on a single connection and disconnects
-// that connection if the certificate expires or after
-// periods of inactivity
+// that connection if the certificate expires, if a new lock is placed
+// that applies to the connection, or after periods of inactivity
 type Monitor struct {
 	// MonitorConfig is a connection monitor configuration
 	MonitorConfig
@@ -223,8 +223,9 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 				lock, ok := lockEvent.Resource.(types.Lock)
 				if !ok {
 					w.Entry.Warnf("Skipping unexpected lock event resource type %T.", lockEvent.Resource)
+				} else {
+					lockErr = services.LockInForceAccessDenied(lock)
 				}
-				lockErr = services.LockInForceAccessDenied(lock)
 			case types.OpDelete:
 				// Lock deletion can be ignored.
 			case types.OpUnreliable:
@@ -256,12 +257,14 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 
 func (w *Monitor) disconnectClientOnExpiredCert() {
 	reason := fmt.Sprintf("client certificate expired at %v", w.Clock.Now().UTC())
-	if err := w.emitDisconnectEvent(reason); err != nil {
-		w.Entry.WithError(err).Warn("Failed to emit audit event.")
-	}
+
 	w.Entry.Debugf("Disconnecting client: %v", reason)
 	if err := w.Conn.Close(); err != nil {
 		w.Entry.WithError(err).Error("Failed to close connection.")
+	}
+
+	if err := w.emitDisconnectEvent(reason); err != nil {
+		w.Entry.WithError(err).Warn("Failed to emit audit event.")
 	}
 }
 

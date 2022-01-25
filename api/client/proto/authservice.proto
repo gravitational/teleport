@@ -254,6 +254,12 @@ message UserCertsRequest {
     // RouteToApp specifies application to issue certificate for.
     RouteToApp RouteToApp = 11
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "route_to_app,omitempty" ];
+
+    // RoleRequests specify an alternative set of named roles to apply to the
+    // certificate, assuming the requestor is allowed to impersonate said roles
+    // directly. An empty set of requests returns the user's normal set of
+    // roles.
+    repeated string RoleRequests = 12 [ (gogoproto.jsontag) = "role_requests,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -278,6 +284,8 @@ message RouteToApp {
     string PublicAddr = 3 [ (gogoproto.jsontag) = "public_addr" ];
     // ClusterName is the cluster where the application resides.
     string ClusterName = 4 [ (gogoproto.jsontag) = "cluster_name" ];
+    // AWSRoleARN is the AWS role to assume when accessing AWS API.
+    string AWSRoleARN = 5 [ (gogoproto.jsontag) = "aws_role_arn,omitempty" ];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -387,6 +395,8 @@ message Features {
     bool Cloud = 8 [ (gogoproto.jsontag) = "cloud" ];
     // HSM enables PKCS#11 HSM support
     bool HSM = 9 [ (gogoproto.jsontag) = "hsm" ];
+    // Desktop enables desktop access product
+    bool Desktop = 10 [ (gogoproto.jsontag) = "desktop" ];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -447,12 +457,14 @@ message CompleteStream {}
 message FlushAndCloseStream {}
 
 // GetApplicationServersRequest is a request to fetch all registered apps.
+// DELETE IN 10.0.
 message GetApplicationServersRequest {
     // Namespace is the app servers namespace.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
 }
 
 // GetApplicationServersResponse contains all registered app servers.
+// DELETE IN 10.0.
 message GetApplicationServersResponse {
     // Servers is a list of proxied applications.
     repeated types.AppServerV3 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
@@ -606,9 +618,11 @@ message GetWebTokensResponse {
 }
 
 // GetKubeServicesRequest are the parameters used to request kubernetes services.
+// DELETE IN 10.0
 message GetKubeServicesRequest {}
 
 // GetKubeServicesResponse contains all requested kubernetes services.
+// DELETE IN 10.0
 message GetKubeServicesResponse {
     // Servers is a slice of types.Server that represent kubernetes
     // services.
@@ -629,6 +643,7 @@ message DeleteKubeServiceRequest {
 message DeleteAllKubeServicesRequest {}
 
 // GetDatabaseServersRequest is a request to return all registered database servers.
+// DELETE IN 10.0.
 message GetDatabaseServersRequest {
     // Namespace is the database server namespace.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
@@ -637,6 +652,7 @@ message GetDatabaseServersRequest {
 }
 
 // GetDatabaseServersResponse contains all registered database servers.
+// DELETE IN 10.0.
 message GetDatabaseServersResponse {
     // Servers is a list of database proxy servers.
     repeated types.DatabaseServerV3 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
@@ -1074,6 +1090,7 @@ message Events {
     string LastKey = 2;
 }
 
+// DELETE IN 10.0
 message ListNodesRequest {
     // Namespace is the namespace of resources.
     string Namespace = 1;
@@ -1082,8 +1099,11 @@ message ListNodesRequest {
     // StartKey is used to start listing nodes from a specific spot. This should
     // be set to the previous NextKey value if using pagination, or left empty.
     string StartKey = 3;
+    // Labels is a label-based matcher if non-empty.
+    map<string, string> Labels = 4;
 }
 
+// DELETE IN 10.0
 message ListNodesResponse {
     // Servers is a list of servers.
     repeated types.ServerV2 Servers = 1;
@@ -1205,12 +1225,12 @@ message ChangeUserAuthenticationRequest {
 message ChangeUserAuthenticationResponse {
     // WebSession is a user's web sesssion created from successful changing of password.
     types.WebSessionV2 WebSession = 1 [ (gogoproto.jsontag) = "web_session" ];
-    // RecoveryCodes are user's new recovery codes. Previous recovery codes become invalid.
+    // Recovery holds user's new recovery related fields. Previous recovery codes become invalid.
     // This field can be empty if a user does not meet the following
     // requirements to receive recovery codes:
     //  - cloud feature is enabled
     //  - username is in valid email format
-    repeated string RecoveryCodes = 2 [ (gogoproto.jsontag) = "recovery_codes,omitempty" ];
+    RecoveryCodes Recovery = 2 [ (gogoproto.jsontag) = "recovery,omitempty" ];
 }
 
 // StartAccountRecoveryRequest defines a request to create a recovery start token for a user who is
@@ -1270,6 +1290,20 @@ message CompleteAccountRecoveryRequest {
     }
 }
 
+// RecoveryCodes describes account recovery fields. Used as a RPC
+// response or as part of a RPC response that requires any of these fields.
+message RecoveryCodes {
+    // Codes holds the list of recovery phrase words.
+    // Field is only used when new recovery codes are generated and returned to user.
+    repeated string Codes = 1 [ (gogoproto.jsontag) = "codes,omitempty" ];
+    // Created is the date the recovery codes were created.
+    google.protobuf.Timestamp Created = 2 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "created"
+    ];
+}
+
 // CreateAccountRecoveryCodesRequest is a request to create new set of recovery codes for a user,
 // replacing and invalidating any previously existing codes. Recovery codes can only be given to
 // users who meet the following requirements:
@@ -1281,13 +1315,6 @@ message CreateAccountRecoveryCodesRequest {
     //   - Recovery approved token that is obtained with RPC VerifyAccountRecovery
     //   - Privilege token that is obtained with RPC CreatePrivilegeToken
     string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
-}
-
-// CreateAccountRecoveryCodesResponse is the response to CreateAccountRecoveryCodesRequest.
-message CreateAccountRecoveryCodesResponse {
-    // RecoveryCodes are user's new account recovery codes. Any previous codes are invalidated by
-    // the replacement of new codes.
-    repeated string RecoveryCodes = 1 [ (gogoproto.jsontag) = "recovery_codes" ];
 }
 
 // GetAccountRecoveryTokenRequest is a request to return a user token resource after verifying that
@@ -1348,6 +1375,48 @@ message CreateRegisterChallengeRequest {
     DeviceType DeviceType = 2 [ (gogoproto.jsontag) = "device_type" ];
 }
 
+// PaginatedResource represents one of the supported resources.
+message PaginatedResource {
+    // Resource is the resource itself.
+    oneof resource {
+        // DatabaseServer represents a DatabaseServer resource.
+        types.DatabaseServerV3 DatabaseServer = 1;
+        // AppServer represents a AppServer resource.
+        types.AppServerV3 AppServer = 2;
+        // Nodes represents a Server resource.
+        types.ServerV2 Node = 3 [ (gogoproto.jsontag) = "node,omitempty" ];
+        // KubeService represents a KubernetesService resource.
+        types.ServerV2 KubeService = 4 [ (gogoproto.jsontag) = "kube_service,omitempty" ];
+    }
+}
+
+// ListResourcesRequest defines a request to retrieve resources paginated. Only
+// one type of resource can be retrieved per request.
+message ListResourcesRequest {
+    // ResourceType is the resource that is going to be retrieved.
+    string ResourceType = 1 [ (gogoproto.jsontag) = "resource_type,omitempty" ];
+    // Namespace is the namespace of resources.
+    string Namespace = 2 [ (gogoproto.jsontag) = "namespace,omitempty" ];
+    // Limit is the maximum amount of resources to retrieve.
+    int32 Limit = 3 [ (gogoproto.jsontag) = "limit,omitempty" ];
+    // StartKey is used to start listing resources from a specific spot. It
+    // should be set to the previous NextKey value if using pagination, or
+    // left empty.
+    string StartKey = 4 [ (gogoproto.jsontag) = "start_key,omitempty" ];
+    // Labels is a label-based matcher if non-empty.
+    map<string, string> Labels = 5 [ (gogoproto.jsontag) = "labels,omitempty" ];
+}
+
+// ListResourceResponse response of ListResources.
+message ListResourcesResponse {
+    // Resources is a list of resource.
+    repeated PaginatedResource Resources = 1 [ (gogoproto.jsontag) = "resources,omitempty" ];
+    // NextKey is the next Key to use as StartKey in a ListResourcesRequest to
+    // continue retrieving pages of resource. If NextKey is empty, there are no
+    // more pages.
+    string NextKey = 2 [ (gogoproto.jsontag) = "next_key,omitempty" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -1361,7 +1430,8 @@ service AuthService {
     // DELETE IN 8.0.0 in favor of ListNodes
     rpc GetNodes(types.ResourcesInNamespaceRequest) returns (types.ServerV2List);
     // ListNodes retrieves a paginated list of nodes.
-    rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
+    // DELETE IN 10.0. Deprecated, use ListResources.
+    rpc ListNodes(ListNodesRequest) returns (ListNodesResponse) { option deprecated = true; };
     // UpsertNode upserts a node in a backend.
     rpc UpsertNode(types.ServerV2) returns (types.KeepAlive);
     // DeleteNode deletes an existing node in a backend described by the given request.
@@ -1441,7 +1511,11 @@ service AuthService {
     rpc CreateAuditStream(stream AuditStreamRequest) returns (stream events.StreamStatus);
 
     // GetApplicationServers gets all application servers.
-    rpc GetApplicationServers(GetApplicationServersRequest) returns (GetApplicationServersResponse);
+    // DELETE IN 10.0. Deprecated, use ListResources.
+    rpc GetApplicationServers(GetApplicationServersRequest)
+        returns (GetApplicationServersResponse) {
+        option deprecated = true;
+    };
     // UpsertApplicationServer adds an application server.
     rpc UpsertApplicationServer(UpsertApplicationServerRequest) returns (types.KeepAlive);
     // DeleteApplicationServer removes an application server.
@@ -1512,7 +1586,10 @@ service AuthService {
     rpc UpdateRemoteCluster(types.RemoteClusterV3) returns (google.protobuf.Empty);
 
     // GetKubeServices gets all kubernetes services.
-    rpc GetKubeServices(GetKubeServicesRequest) returns (GetKubeServicesResponse);
+    // DELETE IN 10.0. Deprecated, use ListResources.
+    rpc GetKubeServices(GetKubeServicesRequest) returns (GetKubeServicesResponse) {
+        option deprecated = true;
+    };
     // UpsertKubeService adds or updates a kubernetes service.
     rpc UpsertKubeService(UpsertKubeServiceRequest) returns (google.protobuf.Empty);
     // DeleteKubeService removes a kubernetes service.
@@ -1521,7 +1598,10 @@ service AuthService {
     rpc DeleteAllKubeServices(DeleteAllKubeServicesRequest) returns (google.protobuf.Empty);
 
     // GetDatabaseServers returns all registered database proxy servers.
-    rpc GetDatabaseServers(GetDatabaseServersRequest) returns (GetDatabaseServersResponse);
+    // DELETE IN 10.0. Deprecated, use ListResources.
+    rpc GetDatabaseServers(GetDatabaseServersRequest) returns (GetDatabaseServersResponse) {
+        option deprecated = true;
+    };
     // UpsertDatabaseServer registers a new database proxy server.
     rpc UpsertDatabaseServer(UpsertDatabaseServerRequest) returns (types.KeepAlive);
     // DeleteDatabaseServer removes the specified database proxy server.
@@ -1580,11 +1660,11 @@ service AuthService {
     rpc CreateRegisterChallenge(CreateRegisterChallengeRequest) returns (MFARegisterChallenge);
 
     // GetOIDCConnector gets an OIDC connector resource by name.
-    rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV2);
+    rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV3);
     // GetOIDCConnectors gets all current OIDC connector resources.
-    rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV2List);
+    rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV3List);
     // UpsertOIDCConnector upserts an OIDC connector in a backend.
-    rpc UpsertOIDCConnector(types.OIDCConnectorV2) returns (google.protobuf.Empty);
+    rpc UpsertOIDCConnector(types.OIDCConnectorV3) returns (google.protobuf.Empty);
     // DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
     rpc DeleteOIDCConnector(types.ResourceRequest) returns (google.protobuf.Empty);
 
@@ -1649,9 +1729,9 @@ service AuthService {
     // ResetAuthPreference resets cluster auth preference to defaults.
     rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty);
 
-    // Out-of-session request for audit events.
+    // GetEvents gets events from the audit log.
     rpc GetEvents(GetEventsRequest) returns (Events);
-    // In-session request for audit events.
+    // GetSessionEvents gets completed session events from the audit log.
     rpc GetSessionEvents(GetSessionEventsRequest) returns (Events);
 
     // GetLock gets a lock by name.
@@ -1720,6 +1800,8 @@ service AuthService {
     rpc CreateWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
     // UpdateWindowsDesktop updates an existing Windows desktop host.
     rpc UpdateWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
+    // UpsertWindowsDesktop updates a Windows desktop host, creating it if it doesn't exist.
+    rpc UpsertWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
     // DeleteWindowsDesktop removes the specified Windows desktop host.
     rpc DeleteWindowsDesktop(DeleteWindowsDesktopRequest) returns (google.protobuf.Empty);
     // DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
@@ -1780,8 +1862,7 @@ service AuthService {
     // CreateAccountRecoveryCodes (exclusive to cloud users) creates new set of recovery codes for a
     // user, replacing and invalidating any previously owned codes. Users can only get recovery
     // codes if their username is in a valid email format.
-    rpc CreateAccountRecoveryCodes(CreateAccountRecoveryCodesRequest)
-        returns (CreateAccountRecoveryCodesResponse);
+    rpc CreateAccountRecoveryCodes(CreateAccountRecoveryCodesRequest) returns (RecoveryCodes);
     // GetAccountRecoveryToken (exclusive to cloud users) returns a user token resource after
     // verifying that the token requested has not expired and is of the correct recovery kind.
     // Besides checking for validity of a token ID, it is also used to get basic information from
@@ -1791,10 +1872,13 @@ service AuthService {
     // GetAccountRecoveryCodes (exclusive to cloud users) is a request to return the user in context
     // their recovery codes. This request will not return any secrets (the values of recovery
     // codes), but instead returns non-sensitive data eg. when the recovery codes were created.
-    rpc GetAccountRecoveryCodes(GetAccountRecoveryCodesRequest) returns (types.RecoveryCodesV1);
+    rpc GetAccountRecoveryCodes(GetAccountRecoveryCodesRequest) returns (RecoveryCodes);
 
     // CreatePrivilegeToken returns a new privilege token after a logged in user successfully
     // re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and
     // is used to gain access to privileged actions eg: deleting/adding a MFA device.
     rpc CreatePrivilegeToken(CreatePrivilegeTokenRequest) returns (types.UserTokenV3);
+
+    // ListResources retrieves a paginated list of resources.
+    rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
 }

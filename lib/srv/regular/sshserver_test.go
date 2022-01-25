@@ -55,9 +55,9 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -148,7 +148,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
-	nodeID := uuid.New()
+	nodeID := uuid.New().String()
 	nodeClient, err := testServer.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     types.RoleNode,
@@ -249,7 +249,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 
 func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string) {
 	// create proxy client used in some tests
-	proxyID := uuid.New()
+	proxyID := uuid.New().String()
 	proxyClient, err := testSvr.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     types.RoleProxy,
@@ -261,7 +261,7 @@ func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, strin
 }
 
 func newNodeClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string) {
-	nodeID := uuid.New()
+	nodeID := uuid.New().String()
 	nodeClient, err := testSvr.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     types.RoleNode,
@@ -297,7 +297,7 @@ func waitForBytes(ch <-chan []byte) ([]byte, error) {
 }
 
 func TestInactivityTimeout(t *testing.T) {
-	const timeoutMessage = "You snooze, you loose."
+	const timeoutMessage = "You snooze, you lose."
 
 	// Given
 	//  * a running auth server configured with a 5s inactivity timeout,
@@ -935,6 +935,10 @@ func mustListen(t *testing.T) (net.Listener, utils.NetAddr) {
 	return l, addr
 }
 
+func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+	return clt, nil
+}
+
 func TestProxyReverseTunnel(t *testing.T) {
 	t.Parallel()
 
@@ -977,8 +981,8 @@ func TestProxyReverseTunnel(t *testing.T) {
 		HostSigners:                   []ssh.Signer{proxySigner},
 		LocalAuthClient:               proxyClient,
 		LocalAccessPoint:              proxyClient,
-		NewCachingAccessPoint:         auth.NoCache,
-		NewCachingAccessPointOldProxy: auth.NoCache,
+		NewCachingAccessPoint:         noCache,
+		NewCachingAccessPointOldProxy: noCache,
 		DirectClusters:                []reversetunnel.DirectCluster{{Name: f.testSrv.ClusterName(), Client: proxyClient}},
 		DataDir:                       t.TempDir(),
 		Component:                     teleport.ComponentProxy,
@@ -1000,7 +1004,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		SetUUID(proxyID),
-		SetProxyMode(reverseTunnelServer),
+		SetProxyMode(reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
@@ -1025,6 +1029,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 		AccessPoint:         proxyClient,
 		ReverseTunnelServer: reverseTunnelServer,
 		LocalCluster:        f.testSrv.ClusterName(),
+		Log:                 logger,
 	})
 	require.NoError(t, err)
 
@@ -1168,8 +1173,8 @@ func TestProxyRoundRobin(t *testing.T) {
 		HostSigners:                   []ssh.Signer{f.signer},
 		LocalAuthClient:               proxyClient,
 		LocalAccessPoint:              proxyClient,
-		NewCachingAccessPoint:         auth.NoCache,
-		NewCachingAccessPointOldProxy: auth.NoCache,
+		NewCachingAccessPoint:         noCache,
+		NewCachingAccessPointOldProxy: noCache,
 		DirectClusters:                []reversetunnel.DirectCluster{{Name: f.testSrv.ClusterName(), Client: proxyClient}},
 		DataDir:                       t.TempDir(),
 		Emitter:                       proxyClient,
@@ -1190,7 +1195,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
-		SetProxyMode(reverseTunnelServer),
+		SetProxyMode(reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
@@ -1290,8 +1295,8 @@ func TestProxyDirectAccess(t *testing.T) {
 		HostSigners:                   []ssh.Signer{f.signer},
 		LocalAuthClient:               proxyClient,
 		LocalAccessPoint:              proxyClient,
-		NewCachingAccessPoint:         auth.NoCache,
-		NewCachingAccessPointOldProxy: auth.NoCache,
+		NewCachingAccessPoint:         noCache,
+		NewCachingAccessPointOldProxy: noCache,
 		DirectClusters:                []reversetunnel.DirectCluster{{Name: f.testSrv.ClusterName(), Client: proxyClient}},
 		DataDir:                       t.TempDir(),
 		Emitter:                       proxyClient,
@@ -1313,7 +1318,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
-		SetProxyMode(reverseTunnelServer),
+		SetProxyMode(reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),

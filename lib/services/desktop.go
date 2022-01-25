@@ -31,6 +31,7 @@ type WindowsDesktops interface {
 	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
 	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
 	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
+	UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error
 	DeleteWindowsDesktop(ctx context.Context, name string) error
 	DeleteAllWindowsDesktops(context.Context) error
 }
