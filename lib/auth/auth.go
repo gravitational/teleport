@@ -44,9 +44,9 @@ import (
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/sirupsen/logrus"
@@ -731,7 +731,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	}
 	sessionID := req.SessionID
 	if sessionID == "" {
-		sessionID = uuid.New()
+		sessionID = uuid.New().String()
 	}
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
@@ -742,7 +742,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
 		traits: wrappers.Traits(map[string][]string{
-			teleport.TraitLogins: {uuid.New()},
+			teleport.TraitLogins: {uuid.New().String()},
 		}),
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
@@ -814,12 +814,19 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if lockErr := a.checkLockInForce(req.checker.LockingMode(authPref.GetLockingMode()), append(
-		services.RolesToLockTargets(req.checker.RoleNames()),
-		types.LockTarget{User: req.user.GetName()},
-		types.LockTarget{MFADevice: req.mfaVerified},
-	)); lockErr != nil {
-		return nil, trace.Wrap(lockErr)
+	lockingMode := req.checker.LockingMode(authPref.GetLockingMode())
+	lockTargets := []types.LockTarget{
+		{User: req.user.GetName()},
+		{MFADevice: req.mfaVerified},
+	}
+	lockTargets = append(lockTargets,
+		services.RolesToLockTargets(req.checker.RoleNames())...,
+	)
+	lockTargets = append(lockTargets,
+		services.AccessRequestsToLockTargets(req.activeRequests.AccessRequests)...,
+	)
+	if err := a.checkLockInForce(lockingMode, lockTargets); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// reuse the same RSA keys for SSH and TLS keys
@@ -2733,7 +2740,7 @@ func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesReques
 }
 
 // ResourcePageFunc is a function to run on each page iterated over.
-type ResourcePageFunc func(next []types.Resource) (stop bool, err error)
+type ResourcePageFunc func(next []types.ResourceWithLabels) (stop bool, err error)
 
 // IterateResourcePages can be used to iterate over pages of resources.
 func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (string, error) {
@@ -3032,7 +3039,7 @@ func (a *Server) GetDatabase(ctx context.Context, name string) (types.Database, 
 }
 
 // GetDatabases returns all database resources.
-func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.Resource, string, error) {
+func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
 	return a.GetCache().ListResources(ctx, req)
 }
 

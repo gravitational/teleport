@@ -75,6 +75,8 @@ type GithubClaims struct {
 	Username string
 	// OrganizationToTeams is the user's organization and team membership
 	OrganizationToTeams map[string][]string
+	// Teams is the users team membership
+	Teams []string
 }
 
 // GetVersion returns resource version

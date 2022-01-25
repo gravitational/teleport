@@ -483,82 +483,44 @@ func TestTLSConfiguration(t *testing.T) {
 }
 
 func TestRDSCAURLForDatabase(t *testing.T) {
-	t.Parallel()
-
-	regionSpecific, err := types.NewDatabaseV3(types.Metadata{
-		Name: "rds-special-region",
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
-		AWS:      types.AWS{Region: "ap-east-1"},
-	})
-	require.NoError(t, err)
-
-	rdsDefault, err := types.NewDatabaseV3(types.Metadata{
-		Name: "rds-default",
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
-		AWS:      types.AWS{Region: "us-east-1"},
-	})
-	require.NoError(t, err)
-
-	rdsProxy, err := types.NewDatabaseV3(types.Metadata{
-		Name: "rds-proxy",
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
-		AWS: types.AWS{
-			RDS: types.RDS{
-				ProxyName: "rds-proxy",
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	rdsProxyCustomEndpoint, err := types.NewDatabaseV3(types.Metadata{
-		Name: "rds-proxy",
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
-		AWS: types.AWS{
-			RDS: types.RDS{
-				ProxyEndpointName: "custom-proxy",
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	tests := []struct {
-		name        string
-		input       types.Database
-		expectedURL string
-	}{
-		{
-			name:        "region specific",
-			input:       regionSpecific,
-			expectedURL: rdsCAURLs["ap-east-1"],
-		},
-		{
-			name:        "rds default",
-			input:       rdsDefault,
-			expectedURL: rdsDefaultCAURL,
-		},
-		{
-			name:        "rds proxy",
-			input:       rdsProxy,
-			expectedURL: rdsProxyCAURL,
-		},
-		{
-			name:        "rds proxy custom endpoint",
-			input:       rdsProxyCustomEndpoint,
-			expectedURL: rdsProxyCAURL,
-		},
+	tests := map[string]string{
+		"us-west-1":     "https://truststore.pki.rds.amazonaws.com/us-west-1/us-west-1-bundle.pem",
+		"ca-central-1":  "https://truststore.pki.rds.amazonaws.com/ca-central-1/ca-central-1-bundle.pem",
+		"us-gov-east-1": "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-east-1/us-gov-east-1-bundle.pem",
+		"us-gov-west-1": "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-west-1/us-gov-west-1-bundle.pem",
 	}
+	for region, expectURL := range tests {
+		t.Run(region, func(t *testing.T) {
+			database, err := types.NewDatabaseV3(types.Metadata{
+				Name: "db",
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				AWS:      types.AWS{Region: region},
+			})
+			require.NoError(t, err)
+			require.Equal(t, expectURL, rdsCAURLForDatabase(database))
+		})
+	}
+}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.expectedURL, rdsCAURLForDatabase(test.input))
+func TestRedshiftCAURLForDatabase(t *testing.T) {
+	tests := map[string]string{
+		"us-west-1":    "https://s3.amazonaws.com/redshift-downloads/amazon-trust-ca-bundle.crt",
+		"ca-central-1": "https://s3.amazonaws.com/redshift-downloads/amazon-trust-ca-bundle.crt",
+		"cn-north-1":   "https://s3.cn-north-1.amazonaws.com.cn/redshift-downloads-cn/amazon-trust-ca-bundle.crt",
+	}
+	for region, expectURL := range tests {
+		t.Run(region, func(t *testing.T) {
+			database, err := types.NewDatabaseV3(types.Metadata{
+				Name: "db",
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				AWS:      types.AWS{Region: region},
+			})
+			require.NoError(t, err)
+			require.Equal(t, expectURL, redshiftCAURLForDatabase(database))
 		})
 	}
 }
