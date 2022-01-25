@@ -35,8 +35,6 @@ import (
 )
 
 func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name        string
 		credentials *credentials.Credentials
@@ -94,6 +92,7 @@ func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			session := &awssession.Session{
 				Config: &aws.Config{
 					Credentials: test.credentials,
@@ -111,7 +110,6 @@ func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
 }
 
 func TestCloudGetFederationDuration(t *testing.T) {
-	t.Parallel()
 	now := time.Now()
 	tests := []struct {
 		name             string
@@ -147,6 +145,7 @@ func TestCloudGetFederationDuration(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			c, err := NewCloud(CloudConfig{
 				Session: &awssession.Session{
 					Config: &aws.Config{
@@ -182,7 +181,6 @@ func TestCloudGetFederationDuration(t *testing.T) {
 }
 
 func TestCloudGetAWSSigninToken(t *testing.T) {
-	t.Parallel()
 	tests := []struct {
 		name                    string
 		sessionCredentials      *credentials.Credentials
@@ -214,6 +212,19 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 				values := r.URL.Query()
 				require.Equal(t, "getSigninToken", values.Get("Action"))
 				require.Equal(t, `{"sessionId":"keyid","sessionKey":"accesskey","sessionToken":"sessiontoken"}`, values.Get("Session"))
+				require.Equal(t, "43200", values.Get("SessionDuration"))
+				w.Write([]byte(`{"SigninToken":"generated-token"}`))
+			}),
+			expectedToken: "generated-token",
+		},
+		{
+			name:               "validate URL parameters termporary session",
+			sessionCredentials: credentials.NewStaticCredentials("id", "secret", "sessiontoken"),
+			federationServerHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				values := r.URL.Query()
+				require.Equal(t, "getSigninToken", values.Get("Action"))
+				require.Equal(t, `{"sessionId":"keyid","sessionKey":"accesskey","sessionToken":"sessiontoken"}`, values.Get("Session"))
+				require.Equal(t, "", values.Get("SessionDuration"))
 				w.Write([]byte(`{"SigninToken":"generated-token"}`))
 			}),
 			expectedToken: "generated-token",
@@ -222,6 +233,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			mockProviderClient := func(provider *stscreds.AssumeRoleProvider) {
 				provider.Client = &mockAssumeRoler{
 					output: &sts.AssumeRoleOutput{

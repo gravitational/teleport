@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -178,7 +179,20 @@ func (c *cloud) getAWSSigninToken(req *AWSSigninRequest, endpoint string, option
 		// associate CloudTrail events with the Teleport user.
 		creds.RoleSessionName = req.Identity.Username
 
-		creds.Duration = duration
+		// Setting web console session duration through AssumeRole call for AWS
+		// sessions with temporary credentials.
+		// Technically the session duration can be set this way for
+		// non-temporary sessions. However, the AssumeRole call will fail if we
+		// are requesting duration longer than the maximum session duration of
+		// the role we are assuming. In addition, the session credentials may
+		// not have permission to perform a get-role on the role. Therefore,
+		// "SessionDuration" parameter will be defined when calling federation
+		// endpoint below instead of here, for non-temporary sessions.
+		//
+		// https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
+		if temporarySession {
+			creds.Duration = duration
+		}
 	})
 	stsCredentials, err := stscreds.NewCredentials(c.cfg.Session, req.Identity.RouteToApp.AWSRoleARN, options...).Get()
 	if err != nil {
@@ -202,6 +216,9 @@ func (c *cloud) getAWSSigninToken(req *AWSSigninRequest, endpoint string, option
 	values := url.Values{
 		"Action":  []string{"getSigninToken"},
 		"Session": []string{string(sessionBytes)},
+	}
+	if !temporarySession {
+		values["SessionDuration"] = []string{strconv.Itoa(int(duration.Seconds()))}
 	}
 
 	tokenURL.RawQuery = values.Encode()
@@ -277,12 +294,6 @@ func isSessionUsingTemporaryCredentials(session *awssession.Session) (bool, erro
 
 // getFederationDuration calculates the duration of the federated session.
 func (c *cloud) getFederationDuration(req *AWSSigninRequest, temporarySession bool) (time.Duration, error) {
-	// Max AWS federation session duration is 12 hours. The federation endpoint
-	// will error out if we request more.
-	//
-	// For AWS sessions using temporary credentials, the maximum is one hour,
-	// which is the maximum duration you can set when role chaining.
-	// https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_terms-and-concepts.html
 	maxDuration := maxSessionDuration
 	if temporarySession {
 		maxDuration = maxTemporarySessionDuration
@@ -293,7 +304,6 @@ func (c *cloud) getFederationDuration(req *AWSSigninRequest, temporarySession bo
 		duration = maxDuration
 	}
 
-	// The AssumeRole call will error out if we request less than 15 minutes.
 	if duration < minimumSessionDuration {
 		return 0, trace.BadParameter("minimum session duration is %v", minimumSessionDuration)
 	}
@@ -321,11 +331,20 @@ const (
 	federationURL = "https://signin.aws.amazon.com/federation"
 	// consoleURL is the default AWS console destination.
 	consoleURL = "https://console.aws.amazon.com/ec2/v2/home"
-	// maxSessionDuration is the max federation session duration.
+	// maxSessionDuration is the max federation session duration, which is 12
+	// hours. The federation endpoint will error out if we request more.
+	//
+	// https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-custom-url.html
 	maxSessionDuration = 12 * time.Hour
 	// maxTemporarySessionDuration is the max federation session duration when
-	// the AWS session is using temporary credentials.
+	// the AWS session is using temporary credentials. The maximum is one hour,
+	// which is the maximum duration you can set when role chaining.
+	//
+	// https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_terms-and-concepts.html
 	maxTemporarySessionDuration = time.Hour
-	// minimumSessionDuration is the minimum federation session duration.
+	// minimumSessionDuration is the minimum federation session duration. The
+	// AssumeRole call will error out if we request less than 15 minutes.
+	//
+	// https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
 	minimumSessionDuration = 15 * time.Minute
 )
