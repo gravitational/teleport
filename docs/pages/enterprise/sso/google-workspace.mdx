@@ -54,9 +54,9 @@ fetching just the groups with direct membership is also supported. The preferred
 behavior is selected depending on the OAuth scopes granted to the service
 account associated with the connector.
 
-<Details title="Version Warning: Before 8.1.1" opened={false}>
+<Details title="Version Warning: Before 8.1.2" opened={false}>
 
-Teleport versions prior to 8.1.1 only support fetching groups with direct
+Teleport versions prior to 8.1.2 only support fetching groups with direct
 membership with the
 `https://www.googleapis.com/auth/admin.directory.group.readonly` scope.
 Furthermore, the list of groups is filtered by domain name, and any group registered
@@ -152,7 +152,7 @@ Create the connector using `tctl` tool:
 $ tctl create gworkspace-connector.yaml
 ```
 
-If you have a configured connector from a version of Teleport older than 8.1.1, you can upgrade your connector from `v2` to `v3`:
+If you have a configured connector from a version of Teleport older than 8.1.2, you can upgrade your connector from `v2` to `v3`:
 
 First, fetch the connector data:
 ```code
@@ -176,7 +176,7 @@ change, remove that scope and add
 `https://www.googleapis.com/auth/admin.directory.group.readonly` again.
 
 While a `v3` connector is configured, you can no longer downgrade Teleport to a
-version before 8.1.1. Before such a downgrade, follow the above instructions and
+version before 8.1.2. Before such a downgrade, follow the above instructions and
 change the version number back to `v2`.
 
 ## Testing
