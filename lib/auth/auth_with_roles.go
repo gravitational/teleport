@@ -667,6 +667,25 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 
 // filterNodes filters nodes based off the role of the logged in user.
 func (a *ServerWithRoles) filterNodes(nodes []types.Server) ([]types.Server, error) {
+	// Loop over all nodes and check if the caller has access.
+	var filteredNodes []types.Server
+	for _, node := range nodes {
+		err := a.checkAccessToNode(node)
+		if err != nil {
+			if trace.IsAccessDenied(err) {
+				continue
+			}
+
+			return nil, trace.Wrap(err)
+		}
+
+		filteredNodes = append(filteredNodes, node)
+	}
+
+	return filteredNodes, nil
+}
+
+func (a *ServerWithRoles) checkAccessToNode(server types.Server) error {
 	// For certain built-in roles, continue to allow full access and return
 	// the full set of nodes to not break existing clusters during migration.
 	//
@@ -676,42 +695,28 @@ func (a *ServerWithRoles) filterNodes(nodes []types.Server) ([]types.Server, err
 	if a.hasBuiltinRole(string(types.RoleAdmin)) ||
 		a.hasBuiltinRole(string(types.RoleProxy)) ||
 		a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) {
-		return nodes, nil
+		return nil
 	}
 
 	roleset, err := services.FetchRoles(a.context.User.GetRoles(), a.authServer, a.context.User.GetTraits())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	// Extract all unique allowed logins across all roles.
-	allowedLogins := make(map[string]bool)
-	for _, role := range roleset {
-		for _, login := range role.GetLogins(types.Allow) {
-			allowedLogins[login] = true
-		}
-	}
-
-	// Loop over all nodes and check if the caller has access.
-	filteredNodes := make([]types.Server, 0, len(nodes))
 	// MFA is not required to list the nodes, but will be required to connect
 	// to them.
 	mfaParams := services.AccessMFAParams{Verified: true}
-NextNode:
-	for _, node := range nodes {
-		for login := range allowedLogins {
-			err := roleset.CheckAccess(
-				node,
-				mfaParams,
-				services.NewLoginMatcher(login))
+
+	for _, role := range roleset {
+		for _, login := range role.GetLogins(types.Allow) {
+			err := roleset.CheckAccess(server, mfaParams, services.NewLoginMatcher(login))
 			if err == nil {
-				filteredNodes = append(filteredNodes, node)
-				continue NextNode
+				return nil
 			}
 		}
 	}
 
-	return filteredNodes, nil
+	return trace.AccessDenied("access to node %q denied", server.GetHostname())
 }
 
 // DeleteAllNodes deletes all nodes in a given namespace
@@ -783,36 +788,49 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 }
 
 // ListResources returns a paginated list of resources filtered by user access.
-func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.Resource, string, error) {
+func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	limit := int(req.Limit)
-
-	var resourceKind string
 	switch req.ResourceType {
-	case types.KindDatabaseServer:
-		resourceKind = types.KindDatabaseServer
-	case types.KindAppServer:
-		resourceKind = types.KindAppServer
+	case types.KindDatabaseServer,
+		types.KindAppServer,
+		types.KindNode,
+		types.KindKubeService:
 	default:
 		return nil, "", trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 	}
 
-	if err := a.action(req.Namespace, resourceKind, types.VerbList); err != nil {
+	if err := a.action(req.Namespace, req.ResourceType, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	var resources []types.Resource
-	nextKey, err := a.authServer.IterateResourcePages(ctx, req, func(nextPage []types.Resource) (bool, error) {
+	// Perform the label filtering here (instead of at the backend
+	// `ListResources`) to ensure that it will be applied only to resources
+	// the user has access to.
+	requestLabels := req.Labels
+	req.Labels = nil
+
+	var resources []types.ResourceWithLabels
+	nextKey, err := a.authServer.IterateResourcePages(ctx, req, func(nextPage []types.ResourceWithLabels) (bool, error) {
 		for _, resource := range nextPage {
+			if len(resources) == limit {
+				break
+			}
+
 			if err := a.checkAccessToResource(resource); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}
 
 				return false, trace.Wrap(err)
+			}
+
+			// Label filtering the resource.
+			if !types.MatchLabels(resource, requestLabels) {
+				continue
 			}
 
 			resources = append(resources, resource)
@@ -833,12 +851,26 @@ func (a *ServerWithRoles) checkAccessToResource(resource types.Resource) error {
 		return a.checkAccessToApp(r.GetApp())
 	case types.DatabaseServer:
 		return a.checkAccessToDatabase(r.GetDatabase())
+	case types.Server:
+		switch resource.GetKind() {
+		case types.KindKubeService:
+			// KubeServices are present inside the type Server. We need to
+			// filter out the ones that the user doesn't have access to. This
+			// function won't return an AccessDenied because we're not checking
+			// access to the Server itself.
+			return a.filterKubeServices(r)
+		case types.KindNode:
+			return a.checkAccessToNode(r)
+		default:
+			return trace.BadParameter("could not check access to server type %q", resource.GetKind())
+		}
 	default:
 		return trace.BadParameter("could not check access to resource type %T", r)
 	}
 }
 
 // ListNodes returns a paginated list of nodes filtered by user access.
+// DELETE IN 10.0
 func (a *ServerWithRoles) ListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
 	if err := a.action(req.Namespace, types.KindNode, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
@@ -847,6 +879,7 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, req proto.ListNodesRequ
 	return a.filterAndListNodes(ctx, req)
 }
 
+// DELETE in 10.0
 func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
 	limit := int(req.Limit)
 	if limit <= 0 {
@@ -3226,30 +3259,43 @@ func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, 
 		return nil, trace.Wrap(err)
 	}
 
-	// Loop over all servers, filter out kube clusters on each server and only
-	// return the kube cluster the caller has access to.
-	//
+	for _, server := range servers {
+		err = a.filterKubeServices(server)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return servers, nil
+}
+
+// filterKubeServices filters out kube clusters on server and only
+// return the kube clusters the caller has access to.
+func (a *ServerWithRoles) filterKubeServices(server types.Server) error {
 	// MFA is not required to list the clusters, but will be required to
 	// connect to them.
 	mfaParams := services.AccessMFAParams{Verified: true}
-	for _, server := range servers {
-		filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
-		for _, kube := range server.GetKubernetesClusters() {
-			k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if err := a.context.Checker.CheckAccess(k8sV3, mfaParams); err != nil {
-				if trace.IsAccessDenied(err) {
-					continue
-				}
-				return nil, trace.Wrap(err)
-			}
-			filtered = append(filtered, kube)
+
+	filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
+	for _, kube := range server.GetKubernetesClusters() {
+		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
+		if err != nil {
+			return trace.Wrap(err)
 		}
-		server.SetKubernetesClusters(filtered)
+
+		if err := a.context.Checker.CheckAccess(k8sV3, mfaParams); err != nil {
+			if trace.IsAccessDenied(err) {
+				continue
+			}
+
+			return trace.Wrap(err)
+		}
+
+		filtered = append(filtered, kube)
 	}
-	return servers, nil
+
+	server.SetKubernetesClusters(filtered)
+	return nil
 }
 
 // DeleteKubeService deletes a named kubernetes service.
