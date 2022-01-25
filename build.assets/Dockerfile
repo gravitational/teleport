@@ -22,7 +22,7 @@ ENV LANGUAGE="en_US.UTF-8" \
 ARG BUILDARCH
 
 # Install packages.
-# We install curl first to allow setting up the Google SDK as part of the same layer.
+# Java JRE is resuired by gcloud firestore emulator.
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
@@ -32,6 +32,7 @@ RUN apt-get update -y --fix-missing && \
         clang-format-10 \
         ca-certificates \
         curl \
+        default-jre \
         gcc \
         `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
         git \
@@ -66,9 +67,10 @@ RUN apt-get update -y --fix-missing && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Install gcloud SDK and Firestore emulator
 RUN curl -sSL https://sdk.cloud.google.com | bash
 ENV PATH="$PATH:/root/google-cloud-sdk/bin"
-RUN gcloud components install cloud-firestore-emulator
+RUN gcloud components install cloud-firestore-emulator beta
 
 ARG UID
 ARG GID
