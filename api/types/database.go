@@ -24,6 +24,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -331,10 +332,16 @@ func (d *DatabaseV3) Copy() *DatabaseV3 {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (d *DatabaseV3) MatchSearch(values []string) bool {
-	fieldVals := []string{d.GetName(), d.GetDescription(), d.GetProtocol(), d.GetType(), fmt.Sprint(d.GetAllLabels())}
-	custom := func(val string) bool {
-		return d.GetType() == DatabaseTypeCloudSQL && (strings.EqualFold(val, "cloud") || strings.EqualFold(val, "cloud sql"))
+	fieldVals := []string{d.GetName(), d.GetDescription(), d.GetProtocol(), d.GetType(), utils.MapToString(d.GetAllLabels())}
+
+	var custom func(string) bool
+	switch d.GetType() {
+	case DatabaseTypeCloudSQL:
+		custom = func(val string) bool {
+			return strings.EqualFold(val, "cloud") || strings.EqualFold(val, "cloud sql")
+		}
 	}
+
 	return MatchSearch(fieldVals, values, custom)
 }
 

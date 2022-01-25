@@ -26,77 +26,81 @@ func TestMatchSearch(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name       string
-		wantMatch  bool
-		fieldVals  []string
-		searchVals []string
-		customFn   func(v string) bool
+		name        string
+		expectMatch require.BoolAssertionFunc
+		fieldVals   []string
+		searchVals  []string
+		customFn    func(v string) bool
 	}{
 		{
-			name:       "no match",
-			fieldVals:  []string{"foo", "bar", "baz"},
-			searchVals: []string{"cat"},
+			name:        "no match",
+			expectMatch: require.False,
+			fieldVals:   []string{"foo", "bar", "baz"},
+			searchVals:  []string{"cat"},
 			customFn: func(v string) bool {
 				return false
 			},
 		},
 		{
-			name:       "no match for partial match",
-			fieldVals:  []string{"foo"},
-			searchVals: []string{"foo", "dog"},
+			name:        "no match for partial match",
+			expectMatch: require.False,
+			fieldVals:   []string{"foo"},
+			searchVals:  []string{"foo", "dog"},
 		},
 		{
-			name:       "no match for partial custom match",
-			fieldVals:  []string{"foo", "bar", "baz"},
-			searchVals: []string{"foo", "bee", "rat"},
+			name:        "no match for partial custom match",
+			expectMatch: require.False,
+			fieldVals:   []string{"foo", "bar", "baz"},
+			searchVals:  []string{"foo", "bee", "rat"},
 			customFn: func(v string) bool {
 				return v == "bee"
 			},
 		},
 		{
-			name:       "no match for search phrase",
-			fieldVals:  []string{"foo", "dog", "dog foo", "foodog"},
-			searchVals: []string{"foo dog"},
+			name:        "no match for search phrase",
+			expectMatch: require.False,
+			fieldVals:   []string{"foo", "dog", "dog foo", "foodog"},
+			searchVals:  []string{"foo dog"},
 		},
 		{
-			name:       "match",
-			wantMatch:  true,
-			fieldVals:  []string{"foo", "bar", "baz"},
-			searchVals: []string{"baz"},
+			name:        "match",
+			expectMatch: require.True,
+			fieldVals:   []string{"foo", "bar", "baz"},
+			searchVals:  []string{"baz"},
 		},
 		{
-			name:      "match with nil search values",
-			wantMatch: true,
+			name:        "match with nil search values",
+			expectMatch: require.True,
 		},
 		{
-			name:       "match with repeat search vals",
-			wantMatch:  true,
-			fieldVals:  []string{"foo", "bar", "baz"},
-			searchVals: []string{"foo", "foo", "baz"},
+			name:        "match with repeat search vals",
+			expectMatch: require.True,
+			fieldVals:   []string{"foo", "bar", "baz"},
+			searchVals:  []string{"foo", "foo", "baz"},
 		},
 		{
-			name:       "match for a list of search vals contained within one field value",
-			wantMatch:  true,
-			fieldVals:  []string{"foo barbaz"},
-			searchVals: []string{"baz", "foo", "bar"},
+			name:        "match for a list of search vals contained within one field value",
+			expectMatch: require.True,
+			fieldVals:   []string{"foo barbaz"},
+			searchVals:  []string{"baz", "foo", "bar"},
 		},
 		{
-			name:       "match with mix of single vals and phrases",
-			wantMatch:  true,
-			fieldVals:  []string{"foo baz", "bar"},
-			searchVals: []string{"baz", "foo", "foo baz", "bar"},
+			name:        "match with mix of single vals and phrases",
+			expectMatch: require.True,
+			fieldVals:   []string{"foo baz", "bar"},
+			searchVals:  []string{"baz", "foo", "foo baz", "bar"},
 		},
 		{
-			name:       "match ignore case",
-			wantMatch:  true,
-			fieldVals:  []string{"FOO barBaz"},
-			searchVals: []string{"baZ", "foo", "BaR"},
+			name:        "match ignore case",
+			expectMatch: require.True,
+			fieldVals:   []string{"FOO barBaz"},
+			searchVals:  []string{"baZ", "foo", "BaR"},
 		},
 		{
-			name:       "match with custom match",
-			wantMatch:  true,
-			fieldVals:  []string{"foo", "bar", "baz"},
-			searchVals: []string{"foo", "bar", "tunnel"},
+			name:        "match with custom match",
+			expectMatch: require.True,
+			fieldVals:   []string{"foo", "bar", "baz"},
+			searchVals:  []string{"foo", "bar", "tunnel"},
 			customFn: func(v string) bool {
 				return v == "tunnel"
 			},
@@ -109,13 +113,7 @@ func TestMatchSearch(t *testing.T) {
 			t.Parallel()
 
 			matched := MatchSearch(tc.fieldVals, tc.searchVals, tc.customFn)
-
-			switch {
-			case tc.wantMatch:
-				require.True(t, matched)
-			default:
-				require.False(t, matched)
-			}
+			tc.expectMatch(t, matched)
 		})
 	}
 }

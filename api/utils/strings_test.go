@@ -22,12 +22,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestContainsIgnoreCase(t *testing.T) {
+func TestMapToString(t *testing.T) {
 	t.Parallel()
 
-	match := ContainsIgnoreCase("FOO BARr baz", "foO bar")
-	require.True(t, match)
-
-	match = ContainsIgnoreCase("foo ba", "foo bar")
-	require.False(t, match)
+	s := MapToString(map[string]string{"env": "prod", "Os": "Mac"})
+	require.Equal(t, s, "envprodOsMac")
 }

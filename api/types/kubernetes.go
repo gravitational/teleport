@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -167,7 +168,7 @@ func (k *KubernetesClusterV3) Copy() *KubernetesClusterV3 {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (k *KubernetesClusterV3) MatchSearch(values []string) bool {
-	fieldVals := []string{k.GetName(), fmt.Sprint(k.GetAllLabels())}
+	fieldVals := []string{k.GetName(), utils.MapToString(k.GetAllLabels())}
 	return MatchSearch(fieldVals, values, nil)
 }
 

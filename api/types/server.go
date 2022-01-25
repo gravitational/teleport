@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -375,7 +376,7 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 	var custom func(val string) bool
 
 	if s.GetKind() == KindNode {
-		fieldVals = []string{s.GetName(), s.GetHostname(), s.GetAddr(), fmt.Sprint(s.GetAllLabels())}
+		fieldVals = []string{s.GetName(), s.GetHostname(), s.GetAddr(), utils.MapToString(s.GetAllLabels())}
 		custom = func(val string) bool {
 			return strings.EqualFold(val, "tunnel") && s.GetUseTunnel()
 		}

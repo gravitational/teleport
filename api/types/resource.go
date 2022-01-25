@@ -18,6 +18,7 @@ package types
 
 import (
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -282,23 +283,25 @@ func IsValidLabelKey(s string) bool {
 }
 
 // MatchSearch goes through select field values from a resource
-// and tries to match against the list of search values.
+// and tries to match against the list of search values, ignoring case and order.
 // Returns true if all search vals were matched (or if nil search vals).
 // Returns false if no or partial match (or nil field values).
 func MatchSearch(fieldVals []string, searchVals []string, customMatch func(val string) bool) bool {
-	for _, searchV := range searchVals {
-		foundMatch := false
+	// Case fold all values to avoid repeated case folding while matching.
+	for i, val := range fieldVals {
+		fieldVals[i] = strings.ToLower(val)
+	}
+	for i, val := range searchVals {
+		searchVals[i] = strings.ToLower(val)
+	}
 
+Outer:
+	for _, searchV := range searchVals {
 		// Iterate through field values to look for a match.
 		for _, fieldV := range fieldVals {
-			if utils.ContainsIgnoreCase(fieldV, searchV) {
-				foundMatch = true
-				break
+			if strings.Contains(fieldV, searchV) {
+				continue Outer
 			}
-		}
-
-		if foundMatch {
-			continue
 		}
 
 		if customMatch != nil && customMatch(searchV) {

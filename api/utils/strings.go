@@ -100,7 +100,12 @@ func CopyStrings(in []string) []string {
 	return out
 }
 
-// ContainsIgnoreCase reports whether substr is within s, ignoring case.
-func ContainsIgnoreCase(s string, substr string) bool {
-	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
+// MapToString converts a map into a string.
+func MapToString(m map[string]string) string {
+	var sb strings.Builder
+	for key, value := range m {
+		sb.WriteString(key)
+		sb.WriteString(value)
+	}
+	return sb.String()
 }
