@@ -1529,6 +1529,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -1691,6 +1692,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -1847,6 +1849,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -1995,6 +1998,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -2292,6 +2296,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -2448,6 +2453,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -2589,6 +2595,7 @@ steps:
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
     WORKSPACE_DIR: /tmp/build-darwin-amd64
+  failure: ignore
 - name: Clean up exec runner storage (post)
   commands:
   - set -u
@@ -3351,6 +3358,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -3502,6 +3510,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -3662,6 +3671,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -3827,6 +3837,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -4781,6 +4792,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: eca997f3fb73cd8be0e33009c0bfbde3b7f546d73f70dd9d93cd1c88fed41374
+hmac: 29163f8bfe10e8fd1c8374e552383cd31b3a57b69e7b963015a064765caceefc
 
 ...
