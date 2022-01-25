@@ -33,6 +33,8 @@ type Reviewer struct {
 	Team string `json:"team"`
 	// Owner is true if the reviewer is a code or docs owner (required for all reviews).
 	Owner bool `json:"owner"`
+	// GithubUsername is the reviewer's Github username
+	GithubUsername string `json:"username"`
 }
 
 // Config holds code reviewer configuration.
@@ -41,12 +43,12 @@ type Config struct {
 	// operations.
 	Rand *rand.Rand
 
-	// CodeReviewers and CodeReviewersOmit is a map of code reviews and code
+	// CodeReviewers and CodeReviewersOmit is a map of code reviewers and code
 	// reviewers to omit.
 	CodeReviewers     map[string]Reviewer `json:"codeReviewers"`
 	CodeReviewersOmit map[string]bool     `json:"codeReviewersOmit"`
 
-	// DocsReviewers and DocsReviewersOmit is a map of docs reviews and docs
+	// DocsReviewers and DocsReviewersOmit is a map of docs reviewers and docs
 	// reviewers to omit.
 	DocsReviewers     map[string]Reviewer `json:"docsReviewers"`
 	DocsReviewersOmit map[string]bool     `json:"docsReviewersOmit"`
@@ -115,9 +117,17 @@ func New(c *Config) (*Assignments, error) {
 
 // IsInternal returns if the author of a PR is internal.
 func (r *Assignments) IsInternal(author string) bool {
-	_, code := r.c.CodeReviewers[author]
-	_, docs := r.c.DocsReviewers[author]
-	return code || docs
+	for _, reviewer := range r.c.CodeReviewers {
+		if reviewer.GithubUsername == author {
+			return true
+		}
+	}
+	for _, reviewer := range r.c.DocsReviewers {
+		if reviewer.GithubUsername == author {
+			return true
+		}
+	}
+	return false
 }
 
 // Get will return a list of code reviewers a given author.
@@ -178,14 +188,22 @@ func (r *Assignments) getAdminReviewers(author string) []string {
 func (r *Assignments) getCodeReviewerSets(author string) ([]string, []string) {
 	// Internal non-Core contributors get assigned from the admin reviewer set.
 	// Admins will review, triage, and re-assign.
-	v, ok := r.c.CodeReviewers[author]
-	if !ok || v.Team == "Internal" {
+	var githubAuthor *Reviewer
+	for _, reviewer := range r.c.CodeReviewers {
+		if reviewer.GithubUsername == author {
+			githubAuthor = &reviewer
+			break
+		}
+	}
+
+	if githubAuthor == nil || githubAuthor.Team == "Internal" {
 		reviewers := r.getAdminReviewers(author)
 		n := len(reviewers) / 2
 		return reviewers[:n], reviewers[n:]
 	}
 
-	return getReviewerSets(author, v.Team, r.c.CodeReviewers, r.c.CodeReviewersOmit)
+	return getReviewerSets(author, githubAuthor.Team, r.c.CodeReviewers, r.c.CodeReviewersOmit)
+
 }
 
 // CheckExternal requires two admins have approved.
@@ -254,14 +272,20 @@ func (r *Assignments) checkDocsReviews(author string, reviews map[string]*github
 func (r *Assignments) checkCodeReviews(author string, reviews map[string]*github.Review) error {
 	// External code reviews should never hit this path, if they do, fail and
 	// return an error.
-	v, ok := r.c.CodeReviewers[author]
-	if !ok {
+	var rev *Reviewer
+	for _, reviewer := range r.c.CodeReviewers {
+		if reviewer.GithubUsername == author {
+			rev = &reviewer
+			break
+		}
+	}
+	if rev == nil {
 		return trace.BadParameter("rejecting checking external review")
 	}
 
 	// Internal Teleport reviews get checked by same Core rules. Other teams do
 	// own internal reviews.
-	team := v.Team
+	team := rev.Team
 	if team == "Internal" {
 		team = "Core"
 	}
@@ -284,27 +308,26 @@ func getReviewerSets(author string, team string, reviewers map[string]Reviewer, 
 	var setA []string
 	var setB []string
 
-	for k, v := range reviewers {
+	for _, v := range reviewers {
 		// Only assign within a team.
 		if v.Team != team {
 			continue
 		}
 		// Skip over reviewers that are marked as omit.
-		if _, ok := reviewersOmit[k]; ok {
+		if _, ok := reviewersOmit[v.GithubUsername]; ok {
 			continue
 		}
 		// Skip author, can't assign/review own PR.
-		if k == author {
+		if v.GithubUsername == author {
 			continue
 		}
 
 		if v.Owner {
-			setA = append(setA, k)
+			setA = append(setA, v.GithubUsername)
 		} else {
-			setB = append(setB, k)
+			setB = append(setB, v.GithubUsername)
 		}
 	}
-
 	return setA, setB
 }
 
