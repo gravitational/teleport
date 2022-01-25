@@ -27,6 +27,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -743,6 +744,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			Type:        events.SessionStartEvent,
 			Code:        events.SessionStartCode,
 			ClusterName: ctx.ClusterName,
+			ID:          uuid.New().String(),
 		},
 		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
@@ -887,6 +889,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			Type:        events.SessionStartEvent,
 			Code:        events.SessionStartCode,
 			ClusterName: ctx.ClusterName,
+			ID:          uuid.New().String(),
 		},
 		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
