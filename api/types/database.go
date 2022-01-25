@@ -79,6 +79,8 @@ type Database interface {
 	GetIAMResources() []string
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
+	// IsRDSProxy returns true if this is an RDS Proxy database.
+	IsRDSProxy() bool
 	// IsRedshift returns true if this is a Redshift database.
 	IsRedshift() bool
 	// IsCloudSQL returns true if this is a Cloud SQL database.
@@ -277,9 +279,14 @@ func (d *DatabaseV3) GetAzure() Azure {
 	return d.Spec.Azure
 }
 
-// IsRDS returns true if this is an AWS RDS/Aurora instance.
+// IsRDS returns true if this is an RDS/Aurora database.
 func (d *DatabaseV3) IsRDS() bool {
 	return d.GetType() == DatabaseTypeRDS
+}
+
+// IsRDSProxy returns true if this is an RDS Proxy database.
+func (d *DatabaseV3) IsRDSProxy() bool {
+	return d.IsRDS() && (d.Spec.AWS.RDS.ProxyName != "" || d.Spec.AWS.RDS.ProxyEndpointName != "")
 }
 
 // IsRedshift returns true if this is a Redshift database instance.
@@ -443,7 +450,7 @@ func parseRDSEndnpoint(endpoint string) (*rdsEndpointDetails, error) {
 
 	// Note that the RDS Proxy custom endpoints have one extra level of
 	// subdomains.
-	if len(parts) == 7 && strings.HasPrefix(parts[2], "proxy-") {
+	if len(parts) == 7 && strings.HasPrefix(parts[2], rdsProxySubdomainPrefix) {
 		details.proxyEndpointName = parts[0]
 		details.region = parts[3]
 		return details, nil
@@ -453,9 +460,9 @@ func parseRDSEndnpoint(endpoint string) (*rdsEndpointDetails, error) {
 		return nil, trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
 	}
 
-	if strings.HasPrefix(parts[1], "proxy-") {
+	if strings.HasPrefix(parts[1], rdsProxySubdomainPrefix) {
 		details.proxyName = parts[0]
-	} else if strings.HasPrefix(parts[1], "cluster-") {
+	} else if strings.HasPrefix(parts[1], rdsClusterSubdomainPrefix) {
 		details.clusterID = parts[0]
 	} else {
 		details.instanceID = parts[0]
@@ -644,6 +651,14 @@ const (
 	redshiftEndpointSuffix = ".redshift.amazonaws.com"
 	// azureEndpointSuffix is the Azure database endpoint suffix.
 	azureEndpointSuffix = ".database.azure.com"
+)
+
+const (
+	// rdsClusterSubdomainPrefix is the subdomain prefix of RDS Aurora
+	// cluster endpoints.
+	rdsClusterSubdomainPrefix = "cluster-"
+	// rdsProxySubdomainPrefix is the subdomain prefix of RDS proxy endpoints.
+	rdsProxySubdomainPrefix = "proxy-"
 )
 
 var (

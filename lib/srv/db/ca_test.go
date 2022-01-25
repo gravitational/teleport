@@ -483,23 +483,49 @@ func TestTLSConfiguration(t *testing.T) {
 }
 
 func TestRDSCAURLForDatabase(t *testing.T) {
-	tests := map[string]string{
-		"us-west-1":     "https://truststore.pki.rds.amazonaws.com/us-west-1/us-west-1-bundle.pem",
-		"ca-central-1":  "https://truststore.pki.rds.amazonaws.com/ca-central-1/ca-central-1-bundle.pem",
-		"us-gov-east-1": "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-east-1/us-gov-east-1-bundle.pem",
-		"us-gov-west-1": "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-west-1/us-gov-west-1-bundle.pem",
+	tests := []struct {
+		region    string
+		proxyName string
+		expectURL string
+	}{
+		{
+			region:    "us-west-1",
+			expectURL: "https://truststore.pki.rds.amazonaws.com/us-west-1/us-west-1-bundle.pem",
+		},
+		{
+			region:    "ca-central-1",
+			expectURL: "https://truststore.pki.rds.amazonaws.com/ca-central-1/ca-central-1-bundle.pem",
+		},
+		{
+			region:    "us-gov-east-1",
+			expectURL: "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-east-1/us-gov-east-1-bundle.pem",
+		},
+		{
+			region:    "us-gov-west-1",
+			expectURL: "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-west-1/us-gov-west-1-bundle.pem",
+		},
+		{
+			region:    "us-east-1",
+			proxyName: "rds-proxy",
+			expectURL: "https://www.amazontrust.com/repository/AmazonRootCA1.pem",
+		},
 	}
-	for region, expectURL := range tests {
-		t.Run(region, func(t *testing.T) {
+	for _, test := range tests {
+		t.Run(test.region+test.proxyName, func(t *testing.T) {
 			database, err := types.NewDatabaseV3(types.Metadata{
 				Name: "db",
 			}, types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
-				AWS:      types.AWS{Region: region},
+				AWS: types.AWS{
+					Region: test.region,
+					RDS: types.RDS{
+						ProxyName: test.proxyName,
+					},
+				},
 			})
 			require.NoError(t, err)
-			require.Equal(t, expectURL, rdsCAURLForDatabase(database))
+			require.Equal(t, test.expectURL, rdsCAURLForDatabase(database))
 		})
 	}
 }

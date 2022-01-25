@@ -193,12 +193,11 @@ func (d *realDownloader) downloadForCloudSQL(ctx context.Context, database types
 //
 // https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
 func rdsCAURLForDatabase(database types.Database) string {
-	awsMetadata := database.GetAWS()
-	if awsMetadata.RDS.ProxyName != "" || awsMetadata.RDS.ProxyEndpointName != "" {
+	if database.IsRDSProxy() {
 		return rdsProxyCAURL
 	}
 
-	region := awsMetadata.Region
+	region := database.GetAWS().Region
 	if u, ok := rdsGovCloudCAURLs[region]; ok {
 		return u
 	}

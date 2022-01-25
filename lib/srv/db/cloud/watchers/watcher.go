@@ -145,13 +145,21 @@ func (w *Watcher) DatabasesC() <-chan types.Databases {
 // makeFetchers returns cloud fetchers for the provided matchers.
 func makeFetchers(clients common.CloudClients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
 	for _, matcher := range matchers {
-		if utils.SliceContainsStr(matcher.Types, services.AWSMatcherRDS) {
-			for _, region := range matcher.Regions {
+		for _, region := range matcher.Regions {
+			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherRDS) {
 				fetchers, err := makeRDSFetchers(clients, region, matcher.Tags)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 				result = append(result, fetchers...)
+			}
+
+			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherRDSProxy) {
+				fetcher, err := makeRDSProxyFetcher(clients, region, matcher.Tags)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				result = append(result, fetcher)
 			}
 		}
 	}
@@ -182,4 +190,18 @@ func makeRDSFetchers(clients common.CloudClients, region string, tags types.Labe
 	}
 
 	return fetchers, nil
+}
+
+// makeRDSProxyFetcher returns RDS proxy fetcher for the provided region and tags.
+func makeRDSProxyFetcher(clients common.CloudClients, region string, tags types.Labels) (Fetcher, error) {
+	rds, err := clients.GetAWSRDSClient(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newRDSDBProxyFetcher(rdsFetcherConfig{
+		Region: region,
+		Labels: tags,
+		RDS:    rds,
+	})
 }

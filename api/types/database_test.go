@@ -25,7 +25,6 @@ import (
 // TestDatabaseRDSEndpoint verifies AWS info is correctly populated
 // based on the RDS endpoint.
 func TestDatabaseRDSEndpoint(t *testing.T) {
-	t.Parallel()
 	tests := []struct {
 		name      string
 		uri       string
@@ -74,7 +73,9 @@ func TestDatabaseRDSEndpoint(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			database, err := NewDatabaseV3(Metadata{
 				Name: "rds",
 			}, DatabaseSpecV3{
