@@ -26,6 +26,7 @@ import (
 	"time"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -33,103 +34,189 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-const actionToggle = "toggle"
+const actionPlayPause = "play/pause"
+
+const (
+	playStatePlaying  = "playing"
+	playStatePaused   = "paused"
+	playStateFinished = "finished"
+)
 
 // playbackAction is a message passed from the playback client
 // to the server over the websocket connection in order to modify
 // the playback state.
 type playbackAction struct {
-	// Action is one of actionToggle | TODO: actionMove
-	// actionToggle toggles the playbackState.playing
+	// Action is one of actionPlayPause | TODO: actionMove
+	// actionPlayPause toggles the playbackState.playState
 	Action string `json:"action"`
 }
 
-// playbackState is a thread-safe struct for managing
+// playbackPlayer is a thread-safe struct for managing
 // the global state of the playback websocket connection.
-type playbackState struct {
+type playbackPlayer struct {
 	ws        *websocket.Conn
-	playing   bool // false means the playback is paused
+	playState string // one of playStatePlaying | playStatePaused | playStateFinished
 	cond      *sync.Cond
-	wsOpen    bool
 	mu        *sync.RWMutex
 	log       logrus.FieldLogger
 	closeOnce sync.Once
+	ctx       context.Context
 	cancel    context.CancelFunc
+	clt       *auth.Client
+	sID       string
 }
 
-func newPlaybackState(ws *websocket.Conn, ctx context.Context, playing, wsOpen bool, log logrus.FieldLogger) (playbackState, context.Context) {
+func NewPlaybackPlayer(sID string, ws *websocket.Conn, clt *auth.Client, ctx context.Context, log logrus.FieldLogger) *playbackPlayer {
+	ws.PayloadType = websocket.BinaryFrame
 	var mu sync.RWMutex
 	cond := sync.NewCond(&mu)
 	ctx, cancel := context.WithCancel(ctx)
-	return playbackState{
-		ws:      ws,
-		playing: playing,
-		cond:    cond,
-		wsOpen:  wsOpen,
-		mu:      &mu,
-		log:     log,
-		cancel:  cancel,
-	}, ctx
-}
 
-// HangWhilePaused hangs while the playback state is paused and the websocket remains open,
-// and returns the state of the websocket connection once either of those conditions are no longer met
-// (true if the websocket is open, false is websocket is closed).
-// After HangWhilePaused is called in one goroutine, it can only be triggered to check its conditions again
-// by another goroutine calling ps.TogglePlaying() or ps.Close() (because those functions call ps.cond.Broadcast()).
-func (ps *playbackState) HangWhilePaused() bool {
-	ps.cond.L.Lock()
-	defer ps.cond.L.Unlock()
-
-	for !ps.playing && ps.wsOpen {
-		ps.cond.Wait()
+	return &playbackPlayer{
+		ws:        ws,
+		playState: playStatePlaying,
+		cond:      cond,
+		mu:        &mu,
+		log:       log,
+		ctx:       ctx,
+		cancel:    cancel,
+		clt:       clt,
+		sID:       sID,
 	}
-	return ps.wsOpen
 }
 
-// IsPlaying returns ps.playing
-func (ps *playbackState) IsPlaying() bool {
-	ps.mu.RLock()
-	defer ps.mu.RUnlock()
-	return ps.playing
+// hangWhilePaused hangs while pp.playState = playStatePaused. When hangWhilePaused is called in one goroutine,
+// it will only be triggered to check its condition again by another goroutine calling pp.TogglePlaying() or pp.Close()
+// (because those functions call pp.cond.Broadcast()).
+func (pp *playbackPlayer) hangWhilePaused() {
+	pp.cond.L.Lock()
+	defer pp.cond.L.Unlock()
+
+	for pp.playState == playStatePaused {
+		pp.cond.Wait()
+	}
 }
 
-// TogglePlaying toggles the boolean state of ps.playing
-func (ps *playbackState) TogglePlaying() {
-	ps.cond.L.Lock()
-	defer ps.cond.L.Unlock()
-	ps.playing = !ps.playing
-	ps.cond.Broadcast()
+// togglePlaying toggles the state of pp.playState between
+// playStatePlaying and playStatePaused.
+func (pp *playbackPlayer) togglePlaying() {
+	pp.cond.L.Lock()
+	defer pp.cond.L.Unlock()
+	if pp.playState == playStatePlaying {
+		pp.playState = playStatePaused
+	} else if pp.playState == playStatePaused {
+		pp.playState = playStatePlaying
+	}
+	pp.cond.Broadcast()
 }
 
-// IsWsOpen gets the wsOpen value. It should be called at the top of continuously
-// looping goroutines that use playbackState, who should return if it returns false.
-func (ps *playbackState) IsWsOpen() bool {
-	ps.mu.RLock()
-	defer ps.mu.RUnlock()
-	return ps.wsOpen
-}
+// close closes the websocket connection, wakes up any goroutines waiting on the playState condition,
+// and cancels the playbackPlayer's context.
+//
+// It should be deferred by all the goroutines that use playbackPlayer,
+// in order to ensure that when one goroutine closes, all the others do too.
+func (pp *playbackPlayer) close() {
+	pp.closeOnce.Do(func() {
+		pp.mu.Lock()
+		defer pp.mu.Unlock()
 
-// Close closes the websocket connection and sets IsWsOpen() to false, and wakes
-// up any goroutines that were hanging on HangIfPaused().
-// It should be deferred by all the goroutines that use playbackState,
-// in order to ensure that when one goroutine closes, all the others do too
-// (when used in conjunction with IsWsOpen).
-func (ps *playbackState) Close() {
-	ps.closeOnce.Do(func() {
-		err := ps.ws.Close()
+		err := pp.ws.Close()
 		if err != nil {
-			ps.log.WithError(err).Errorf("websocket.Close() failed")
+			pp.log.WithError(err).Errorf("websocket.Close() failed")
 		}
 
-		ps.cancel()
-
-		ps.mu.Lock()
-		defer ps.mu.Unlock()
-		ps.wsOpen = false
-
-		ps.cond.Broadcast()
+		pp.playState = playStateFinished
+		pp.cond.Broadcast()
+		pp.cancel()
 	})
+}
+
+// ReceiveActions handles logic for recieving playbackAction jsons
+// over the websocket and modifying playbackPlayer's state accordingly.
+func (pp *playbackPlayer) ReceiveActions() {
+	defer pp.log.Debug("playbackPlayer.ReceiveActions returned")
+	defer pp.close()
+
+	for {
+		action := playbackAction{}
+		// Hangs until there is data to be received, or until an error.
+		err := websocket.JSON.Receive(pp.ws, &action)
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
+				// Only a warning as we expect this case if the websocket is
+				// closed by another goroutine (net.ErrClosed) or by the browser (io.EOF)
+				// while websocket.JSON.Receive() is hanging.
+				pp.log.WithError(err).Warn("error reading from websocket")
+			} else {
+				pp.log.WithError(err).Error("error reading from websocket")
+			}
+			return
+		}
+		pp.log.Debugf("recieved playback action: %+v", action)
+		if action.Action == actionPlayPause {
+			pp.togglePlaying()
+		} else {
+			pp.log.Errorf("received unknown action: %v", action.Action)
+			return
+		}
+	}
+}
+
+// StreamSessionEvents streams the session's events as playback events over the websocket.
+func (pp *playbackPlayer) StreamSessionEvents() {
+	defer pp.log.Debug("playbackPlayer.StreamSessionEvents returned")
+	defer pp.close()
+
+	var lastDelay int64
+	eventsC, errC := pp.clt.StreamSessionEvents(pp.ctx, session.ID(pp.sID), 0)
+	for {
+		pp.hangWhilePaused()
+
+		select {
+		case err := <-errC:
+			if errors.Is(err, context.Canceled) {
+				// Expected if the request context is cancelled.
+				pp.log.WithError(err).Warningf("streaming session %v", pp.sID)
+			} else {
+				pp.log.WithError(err).Errorf("streaming session %v", pp.sID)
+			}
+			return
+		case evt := <-eventsC:
+			if evt == nil {
+				pp.log.Debug("reached end of playback")
+				// deferred ps.Close() will set ps.playState = playStateFinished for us
+				return
+			}
+			switch e := evt.(type) {
+			case *apievents.DesktopRecording:
+				if e.DelayMilliseconds > lastDelay {
+					time.Sleep(time.Duration(e.DelayMilliseconds-lastDelay) * time.Millisecond)
+					lastDelay = e.DelayMilliseconds
+				}
+				if _, err := pp.ws.Write(e.Message); err != nil {
+					if errors.Is(err, net.ErrClosed) {
+						// Only a warning as we expect this case to arise when another
+						// goroutine returns before this one or the browser window is closed,
+						// both of which cause the websocket to close.
+						pp.log.WithError(err).Warn("failed to write TDP message over websocket")
+					} else {
+						pp.log.WithError(err).Error("failed to write TDP message over websocket")
+					}
+					return
+				}
+			default:
+				pp.log.Warnf("session %v contains unexpected event type %T", pp.sID, evt)
+			}
+		}
+	}
+}
+
+// Wait waits until the playbackPlayer's context is cancelled.
+func (pp *playbackPlayer) Wait() {
+	defer pp.log.Debug("playbackPlayer.Wait returned")
+	defer pp.close()
+	<-pp.ctx.Done()
+	return
 }
 
 func (h *Handler) desktopPlaybackHandle(
@@ -144,92 +231,18 @@ func (h *Handler) desktopPlaybackHandle(
 	}
 
 	websocket.Handler(func(ws *websocket.Conn) {
-		defer h.log.Debug("playback websocket closed")
-		ws.PayloadType = websocket.BinaryFrame
-		ps, playbackCtx := newPlaybackState(ws, r.Context(), true, true, h.log)
-		defer ps.Close()
+		defer h.log.Debug("desktopPlaybackHandle websocket handler returned")
+
+		pp := NewPlaybackPlayer(sID, ws, ctx.clt, r.Context(), h.log)
 
 		// Handle incoming playback actions.
-		go func() {
-			defer h.log.Debug("playback action-recieving goroutine returned")
-			defer ps.Close()
-
-			for {
-				action := playbackAction{}
-				// Hangs until there is data to be received,
-				// or returns io.EOF if websocket connection is closed.
-				err := websocket.JSON.Receive(ws, &action)
-				if err != nil {
-					if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
-						// Only a warning as we expect this case if the websocket is
-						// closed by another goroutine (net.ErrClosed) or by the browser (io.EOF)
-						// while websocket.JSON.Receive() is hanging.
-						h.log.WithError(err).Warn("error reading from websocket")
-					} else {
-						h.log.WithError(err).Error("error reading from websocket")
-					}
-					return
-				}
-				h.log.Debugf("recieved playback action: %+v", action)
-				if action.Action == actionToggle {
-					ps.TogglePlaying()
-				} else {
-					h.log.Errorf("received unknown action: %v", action.Action)
-					return
-				}
-			}
-		}()
+		go pp.ReceiveActions()
 
 		// Stream session events back to browser.
-		go func() {
-			defer h.log.Debug("playback event-streaming goroutine returned")
-			defer ps.Close()
+		go pp.StreamSessionEvents()
 
-			var lastDelay int64
-			eventsC, errC := ctx.clt.StreamSessionEvents(playbackCtx, session.ID(sID), 0)
-			for {
-				if ps.HangWhilePaused() == false {
-					// Websocket closed by browser or another goroutine.
-					return
-				}
-
-				select {
-				case err := <-errC:
-					h.log.WithError(err).Errorf("streaming session %v", sID)
-					return
-				case evt := <-eventsC:
-					if evt == nil {
-						h.log.Debug("reached end of playback")
-						return
-					}
-					switch e := evt.(type) {
-					case *apievents.DesktopRecording:
-						if e.DelayMilliseconds > lastDelay {
-							time.Sleep(time.Duration(e.DelayMilliseconds-lastDelay) * time.Millisecond)
-							lastDelay = e.DelayMilliseconds
-						}
-						if _, err := ws.Write(e.Message); err != nil {
-							if errors.Is(err, net.ErrClosed) {
-								// Only a warning as we expect this case to arise when another
-								// goroutine returns before this one or the browser window is closed,
-								// both of which cause the websocket to close.
-								h.log.WithError(err).Warn("failed to write TDP message over websocket")
-							} else {
-								h.log.WithError(err).Error("failed to write TDP message over websocket")
-							}
-							return
-						}
-					default:
-						h.log.Warnf("session %v contains unexpected event type %T", sID, evt)
-					}
-				}
-			}
-		}()
-
-		// Hang until the playback context is cancelled, either by
-		// r.Context() being cancelled or its corresponding cancel
-		// being called by a ps.Close() calling another goroutine.
-		<-playbackCtx.Done()
+		// Hang until the playback context is cancelled.
+		pp.Wait()
 	}).ServeHTTP(w, r)
 	return nil, nil
 }
