@@ -185,8 +185,12 @@ $ tsh db connect mongodb-atlas
 ```
 
 <Admonition type="note" title="Note">
-  The `mongo` command-line client should be available in PATH in order to be
-  able to connect.
+  Either the `mongosh` or `mongo` command-line clients should be available in PATH in order to be
+  able to connect. The Database Service attempts to run `mongosh` first and, if `mongosh` is not in PATH, runs `mongo`.
+</Admonition>
+
+<Admonition type="note" title="Note">
+  Teleport 9.0 added support for `mongosh` and made it the default Mongo DB client.
 </Admonition>
 
 To log out of the database and remove credentials:
