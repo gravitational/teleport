@@ -17,6 +17,7 @@ limitations under the License.
 package web
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -53,11 +54,13 @@ type playbackState struct {
 	mu        *sync.RWMutex
 	log       logrus.FieldLogger
 	closeOnce sync.Once
+	cancel    context.CancelFunc
 }
 
-func newPlaybackState(ws *websocket.Conn, playing bool, wsOpen bool, log logrus.FieldLogger) playbackState {
+func newPlaybackState(ws *websocket.Conn, ctx context.Context, playing, wsOpen bool, log logrus.FieldLogger) (playbackState, context.Context) {
 	var mu sync.RWMutex
 	cond := sync.NewCond(&mu)
+	ctx, cancel := context.WithCancel(ctx)
 	return playbackState{
 		ws:      ws,
 		playing: playing,
@@ -65,17 +68,19 @@ func newPlaybackState(ws *websocket.Conn, playing bool, wsOpen bool, log logrus.
 		wsOpen:  wsOpen,
 		mu:      &mu,
 		log:     log,
-	}
+		cancel:  cancel,
+	}, ctx
 }
 
-// HangIfPlaybackPausedAndWsOpen hangs while the playback state is paused and the websocket remains open,
+// HangWhilePaused hangs while the playback state is paused and the websocket remains open,
 // and returns the state of the websocket connection once either of those conditions are no longer met
-// (true if the websocket is open and playback state is unpaused, false is websocket is closed).
-// After it's first called in one goroutine, it can only be triggered to check the conditions again upon
-// another goroutine calling ps.TogglePlaying() or ps.Close() (because those functions call ps.cond.Broadcast()).
-func (ps *playbackState) HangIfPlaybackPausedAndWsOpen() bool {
+// (true if the websocket is open, false is websocket is closed).
+// After HangWhilePaused is called in one goroutine, it can only be triggered to check its conditions again
+// by another goroutine calling ps.TogglePlaying() or ps.Close() (because those functions call ps.cond.Broadcast()).
+func (ps *playbackState) HangWhilePaused() bool {
 	ps.cond.L.Lock()
 	defer ps.cond.L.Unlock()
+
 	for !ps.playing && ps.wsOpen {
 		ps.cond.Wait()
 	}
@@ -117,6 +122,8 @@ func (ps *playbackState) Close() {
 			ps.log.WithError(err).Errorf("websocket.Close() failed")
 		}
 
+		ps.cancel()
+
 		ps.mu.Lock()
 		defer ps.mu.Unlock()
 		ps.wsOpen = false
@@ -138,9 +145,8 @@ func (h *Handler) desktopPlaybackHandle(
 
 	websocket.Handler(func(ws *websocket.Conn) {
 		defer h.log.Debug("playback websocket closed")
-		rCtx := r.Context()
 		ws.PayloadType = websocket.BinaryFrame
-		ps := newPlaybackState(ws, true, true, h.log)
+		ps, playbackCtx := newPlaybackState(ws, r.Context(), true, true, h.log)
 		defer ps.Close()
 
 		// Handle incoming playback actions.
@@ -154,10 +160,10 @@ func (h *Handler) desktopPlaybackHandle(
 				// or returns io.EOF if websocket connection is closed.
 				err := websocket.JSON.Receive(ws, &action)
 				if err != nil {
-					if errors.Is(err, io.EOF) {
+					if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
 						// Only a warning as we expect this case if the websocket is
-						// closed by another goroutine or by the browser while
-						// websocket.JSON.Receive() is hanging.
+						// closed by another goroutine (net.ErrClosed) or by the browser (io.EOF)
+						// while websocket.JSON.Receive() is hanging.
 						h.log.WithError(err).Warn("error reading from websocket")
 					} else {
 						h.log.WithError(err).Error("error reading from websocket")
@@ -180,9 +186,9 @@ func (h *Handler) desktopPlaybackHandle(
 			defer ps.Close()
 
 			var lastDelay int64
-			eventsC, errC := ctx.clt.StreamSessionEvents(rCtx, session.ID(sID), 0)
+			eventsC, errC := ctx.clt.StreamSessionEvents(playbackCtx, session.ID(sID), 0)
 			for {
-				if ps.HangIfPlaybackPausedAndWsOpen() == false {
+				if ps.HangWhilePaused() == false {
 					// Websocket closed by browser or another goroutine.
 					return
 				}
@@ -220,22 +226,10 @@ func (h *Handler) desktopPlaybackHandle(
 			}
 		}()
 
-		// Hang until the request context is cancelled or the websocket is closed by another goroutine.
-		for {
-			// Return if websocket is closed by another goroutine.
-			if !ps.IsWsOpen() {
-				return
-			}
-
-			// Return if the request context is cancelled.
-			select {
-			case <-rCtx.Done():
-				return
-			default:
-				continue
-			}
-		}
-
+		// Hang until the playback context is cancelled, either by
+		// r.Context() being cancelled or its corresponding cancel
+		// being called by a ps.Close() calling another goroutine.
+		<-playbackCtx.Done()
 	}).ServeHTTP(w, r)
 	return nil, nil
 }
