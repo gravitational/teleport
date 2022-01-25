@@ -45,7 +45,7 @@ func TestWatcher(t *testing.T) {
 	rdsInstance4, rdsDatabase4 := makeRDSInstance(t, "instance-4", "us-west-1", nil)
 
 	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
-	auroraCluster2, auroraDatabase2 := makeRDSCluster(t, "cluster-2", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "dev"})
+	auroraCluster2, auroraDatabases2 := makeRDSClusterWithExtraEndpoints(t, "cluster-2", "us-east-2", map[string]string{"env": "dev"})
 	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
 	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", services.RDSEngineModeServerless, map[string]string{"env": "prod"})
 
@@ -81,7 +81,7 @@ func TestWatcher(t *testing.T) {
 					},
 				},
 			},
-			expectedDatabases: types.Databases{rdsDatabase1, auroraDatabase1, auroraDatabase2},
+			expectedDatabases: append(types.Databases{rdsDatabase1, auroraDatabase1}, auroraDatabases2...),
 		},
 		{
 			name: "rds aurora unsupported",
@@ -137,7 +137,6 @@ func TestWatcher(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func makeRDSInstance(t *testing.T, name, region string, labels map[string]string) (*rds.DBInstance, types.Database) {
@@ -171,6 +170,36 @@ func makeRDSCluster(t *testing.T, name, region, engineMode string, labels map[st
 	database, err := services.NewDatabaseFromRDSCluster(cluster)
 	require.NoError(t, err)
 	return cluster, database
+}
+
+func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels map[string]string) (*rds.DBCluster, types.Databases) {
+	cluster := &rds.DBCluster{
+		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:cluster:%v", region, name)),
+		DBClusterIdentifier: aws.String(name),
+		DbClusterResourceId: aws.String(uuid.New().String()),
+		Engine:              aws.String(services.RDSEngineAuroraMySQL),
+		EngineMode:          aws.String(services.RDSEngineModeProvisioned),
+		Endpoint:            aws.String("localhost"),
+		ReaderEndpoint:      aws.String("reader.host"),
+		Port:                aws.Int64(3306),
+		TagList:             labelsToTags(labels),
+		DBClusterMembers:    []*rds.DBClusterMember{&rds.DBClusterMember{}, &rds.DBClusterMember{}},
+		CustomEndpoints: []*string{
+			aws.String("custom1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
+			aws.String("custom2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
+		},
+	}
+
+	primaryDatabase, err := services.NewDatabaseFromRDSCluster(cluster)
+	require.NoError(t, err)
+
+	readerDatabase, err := services.NewDatabaseFromRDSClusterReaderEndpoint(cluster)
+	require.NoError(t, err)
+
+	customDatabases, err := services.NewDatabasesFromRDSClusterCustomEndpoints(cluster)
+	require.NoError(t, err)
+
+	return cluster, append(types.Databases{primaryDatabase, readerDatabase}, customDatabases...)
 }
 
 func labelsToTags(labels map[string]string) (tags []*rds.Tag) {

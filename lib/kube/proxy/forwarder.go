@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -327,6 +326,14 @@ func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
 		KubernetesUsers:   utils.StringsSliceFromSet(c.kubeUsers),
 		KubernetesGroups:  utils.StringsSliceFromSet(c.kubeGroups),
 	}
+}
+
+func (c *authContext) eventUserMeta() apievents.UserMetadata {
+	name := c.User.GetName()
+	meta := c.Identity.GetIdentity().GetUserMetadata()
+	meta.User = name
+	meta.Login = name
+	return meta
 }
 
 type dialFunc func(ctx context.Context, network, addr, serverID string) (net.Conn, error)
@@ -783,11 +790,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: apievents.UserMetadata{
-					User:         ctx.User.GetName(),
-					Login:        ctx.User.GetName(),
-					Impersonator: ctx.Identity.GetIdentity().Impersonator,
-				},
+				UserMetadata:              ctx.eventUserMeta(),
 				TerminalSize:              params.Serialize(),
 				KubernetesClusterMetadata: ctx.eventClusterMeta(),
 				KubernetesPodMetadata:     eventPodMeta,
@@ -826,11 +829,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				SessionID: string(sessionID),
 				WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 			},
-			UserMetadata: apievents.UserMetadata{
-				User:         ctx.User.GetName(),
-				Login:        ctx.User.GetName(),
-				Impersonator: ctx.Identity.GetIdentity().Impersonator,
-			},
+			UserMetadata: ctx.eventUserMeta(),
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				RemoteAddr: req.RemoteAddr,
 				LocalAddr:  sess.kubeAddress,
@@ -908,11 +907,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: apievents.UserMetadata{
-					User:         ctx.User.GetName(),
-					Login:        ctx.User.GetName(),
-					Impersonator: ctx.Identity.GetIdentity().Impersonator,
-				},
+				UserMetadata: ctx.eventUserMeta(),
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: req.RemoteAddr,
 					LocalAddr:  sess.kubeAddress,
@@ -940,11 +935,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: apievents.UserMetadata{
-					User:         ctx.User.GetName(),
-					Login:        ctx.User.GetName(),
-					Impersonator: ctx.Identity.GetIdentity().Impersonator,
-				},
+				UserMetadata: ctx.eventUserMeta(),
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: req.RemoteAddr,
 					LocalAddr:  sess.kubeAddress,
@@ -978,11 +969,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: apievents.UserMetadata{
-					User:         ctx.User.GetName(),
-					Login:        ctx.User.GetName(),
-					Impersonator: ctx.Identity.GetIdentity().Impersonator,
-				},
+				UserMetadata: ctx.eventUserMeta(),
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: req.RemoteAddr,
 					LocalAddr:  sess.kubeAddress,
@@ -1047,11 +1034,7 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 				Type: events.PortForwardEvent,
 				Code: events.PortForwardCode,
 			},
-			UserMetadata: apievents.UserMetadata{
-				Login:        ctx.User.GetName(),
-				User:         ctx.User.GetName(),
-				Impersonator: ctx.Identity.GetIdentity().Impersonator,
-			},
+			UserMetadata: ctx.eventUserMeta(),
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  sess.kubeAddress,
 				RemoteAddr: req.RemoteAddr,
@@ -1113,8 +1096,9 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 	req.RequestURI = req.URL.Path + "?" + req.URL.RawQuery
 
 	// We only have a direct host to provide when using local creds.
-	// Otherwise, use kube.teleport.cluster.local to pass TLS handshake and leverage TLS Routing.
-	req.URL.Host = fmt.Sprintf("%s.%s", alpnproxy.KubeSNIPrefix, constants.APIDomain)
+	// Otherwise, use kube-teleport-proxy-alpn.teleport.cluster.local to pass TLS handshake and leverage TLS Routing.
+	// TODO(smallinsky) UPDATE IN 11.0. use KubeTeleportProxyALPNPrefix instead.
+	req.URL.Host = fmt.Sprintf("%s%s", constants.KubeSNIPrefix, constants.APIDomain)
 	if sess.creds != nil {
 		req.URL.Host = sess.creds.targetAddr
 	}
@@ -1245,11 +1229,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 			Type: events.KubeRequestEvent,
 			Code: events.KubeRequestCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ctx.User.GetName(),
-			Login:        ctx.User.GetName(),
-			Impersonator: ctx.Identity.GetIdentity().Impersonator,
-		},
+		UserMetadata: ctx.eventUserMeta(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: req.RemoteAddr,
 			LocalAddr:  sess.kubeAddress,
