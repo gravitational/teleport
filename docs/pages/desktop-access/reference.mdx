@@ -25,57 +25,30 @@ description: Teleport Desktop Access configuration and CLI reference.
 # You can have multiple Desktop Access services in your cluster (but not in the
 # same teleport.yaml), connected to the same or different Active Directory
 # domains.
-windows_desktop_service:
-  enabled: yes
-  # This is the address that windows_desktop_service will listen on.
-  listen_addr: "localhost:3028"
-  # (optional) This is the address that windows_desktop_service will advertise
-  # to the rest of Teleport for incoming connections. Only proxy_service should
-  # connect to windows_desktop_service, users connect to the proxy's web UI
-  # instead.
-  public_addr: "desktop-access.example.com:3028"
-  ldap:
-    # Address of the Domain Controller for LDAP connections. Usually, this
-    # address will use port 389, like: domain-controller.example.com:389.
-    addr:     '$LDAP_SERVER_ADDRESS'
-    # Active Directory domain name you are connecting to.
-    domain:   '$LDAP_DOMAIN_NAME'
-    # LDAP username for authentication. This username must include the domain
-    # NetBIOS name.
-    #
-    # For example, if your domain is "example.com", the NetBIOS name for it is
-    # likely "EXAMPLE". When connecting as the "Administrator" user, you should
-    # use the format: "EXAMPLE\Administrator".
-    username: '$LDAP_USERNAME'
-    # Plain text file containing the LDAP password for authentication.
-    # This is usually the same password you use to login to the Domain Controller.
-    password_file: /var/lib/ldap-pass
-  # (optional) settings for enabling automatic desktop discovery via LDAP
-  discovery:
-    # The wildcard '*' character tells Teleport to discover all the hosts in
-    # the Active Directory Domain. To refine the search, specify a custom DN.
-    # To disable automatic discovery, leave this field blank.
-    base_dn: '*'
-    # (optional) LDAP filters for further customizing the LDAP search.
-    # See https://ldap.com/ldap-filters for details on LDAP filter syntax.
-    filters:
-    - '(location=Oakland)'
-    - '(!(primaryGroupID=516))' # exclude domain controllers
-  # Rules for applying labels to Windows hosts based on regular expressions
-  # matched against the host name. If multiple rules match, the desktop will
-  # get the union of all matching labels.
-  host_labels:
-  - match: '^.*\.dev\.example\.com$'
-    labels:
-      environment: dev
-  - match: '^.*\.prod\.example\.com$'
-    labels:
-      environment: prod
+(!docs/pages/includes/desktop-access/desktop-config.mdx!)
 ```
 
 This `host_labels` configuration would apply the `environment: dev` label to a
 Windows desktop named `test.dev.example.com`, and the `environment: prod` label
 to a desktop named `desktop.prod.example.com`.
+
+## Deployment
+
+The Windows Desktop Service can be deployed in two modes.
+
+In _direct_ mode, Windows Desktop Services registers directly with the Teleport
+Auth Server, and listens for desktop connections from the Teleport Proxy. To
+enable direct mode, set `windows_desktop_service.listen_addr` in
+`teleport.yaml`, and ensure that `teleport.auth_servers` points directly at the
+auth server. Direct mode requires network connectivity from the Teleport Proxy
+to Windows Desktop Service, and from Windows Desktop Service to the auth server.
+
+In _IoT mode_, Windows Desktop Service only needs to be able to make an outbound
+connection to a Teleport Proxy. The Windows Desktop Service establishes a
+reverse tunnel to the proxy, and both registration with the auth server and
+desktop sessions are performed over this tunnel. To enable this mode, ensure
+that `windows_desktop_service.listen_addr` is *unset*, and point
+`teleport.auth_servers` at a Teleport Proxy.
 
 ## RBAC
 
