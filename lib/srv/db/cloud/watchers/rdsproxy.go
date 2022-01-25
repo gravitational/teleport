@@ -160,10 +160,8 @@ func getRDSDBProxyEndpoints(ctx context.Context, rdsClient rdsiface.RDSAPI, maxP
 // getRDSDBProxyPort gets the port number that the target of the RDS DB proxy
 // is using.
 func getRDSDBProxyPort(ctx context.Context, rdsClient rdsiface.RDSAPI, dbProxyName *string) (port int64, err error) {
-	// The proxy may have multiple targets. Only one is needed to get the port.
 	output, err := rdsClient.DescribeDBProxyTargetsWithContext(ctx, &rds.DescribeDBProxyTargetsInput{
 		DBProxyName: dbProxyName,
-		MaxRecords:  aws.Int64(1),
 	})
 	if err != nil {
 		return 0, common.ConvertError(err)

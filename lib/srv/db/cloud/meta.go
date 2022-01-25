@@ -103,7 +103,7 @@ func (m *Metadata) fetchRDSMetadata(ctx context.Context, database types.Database
 	awsMetadata := database.GetAWS()
 
 	if awsMetadata.RDS.ProxyEndpointName != "" {
-		return fetchRDSProxyEndpointMetadata(ctx, rds, awsMetadata.RDS.ProxyName)
+		return fetchRDSProxyEndpointMetadata(ctx, rds, awsMetadata.RDS.ProxyEndpointName)
 	}
 
 	if awsMetadata.RDS.ProxyName != "" {
