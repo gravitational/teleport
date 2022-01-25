@@ -153,7 +153,7 @@ func TestGenerateCredentials(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	certb, keyb, err := w.generateCredentials(ctx, user, domain)
+	certb, keyb, err := w.generateCredentials(ctx, user, domain, windowsDesktopCertTTL)
 	require.NoError(t, err)
 	require.NotNil(t, certb)
 	require.NotNil(t, keyb)

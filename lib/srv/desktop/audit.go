@@ -33,10 +33,7 @@ func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity,
 			Code:        libevents.DesktopSessionStartCode,
 			ClusterName: s.clusterName,
 		},
-		UserMetadata: events.UserMetadata{
-			User:         id.Username,
-			Impersonator: id.Impersonator,
-		},
+		UserMetadata: id.GetUserMetadata(),
 		SessionMetadata: events.SessionMetadata{
 			SessionID: sessionID,
 			WithMFA:   id.MFAVerified,
@@ -70,10 +67,7 @@ func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, w
 			Code:        libevents.DesktopSessionEndCode,
 			ClusterName: s.clusterName,
 		},
-		UserMetadata: events.UserMetadata{
-			User:         id.Username,
-			Impersonator: id.Impersonator,
-		},
+		UserMetadata: id.GetUserMetadata(),
 		SessionMetadata: events.SessionMetadata{
 			SessionID: sessionID,
 			WithMFA:   id.MFAVerified,
