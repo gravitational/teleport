@@ -91,6 +91,7 @@ func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			session := &awssession.Session{
@@ -144,6 +145,7 @@ func TestCloudGetFederationDuration(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			c, err := NewCloud(CloudConfig{
@@ -232,6 +234,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			mockProviderClient := func(provider *stscreds.AssumeRoleProvider) {
