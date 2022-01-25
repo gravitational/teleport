@@ -17,34 +17,34 @@ description: How to configure Teleport Database Access with Azure Database for P
 This guide will help you to:
 
 - Install and configure Teleport.
-- Set up access to your Azure database for [PostgreSQL](https://azure.microsoft.com/en-us/services/postgresql/)
-  or [MySQL](https://azure.microsoft.com/en-us/services/mysql/) server.
+- Set up access to Azure Database for PostgreSQL or Azure Database for MySQL.
 - Connect to the database server through Teleport.
 
 <Admonition type="note">
     Teleport uses Azure Active Directory authentication with Azure PostgreSQL
     and MySQL databases which at the moment of this writing is only supported
-    by Single server. Flexible Server does not support Azure AD authentication.
+    by Single Server. Flexible Server does not support Azure AD authentication.
 </Admonition>
 
 ## Prerequisites
 
 - Teleport version >= `8.1`.
-- Deployed Azure Database for [PostgreSQL](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.DBforPostgreSQL%2Fservers)
-  or [MySQL](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.DBforMySQL%2Fservers) server.
+- Deployed Azure Database for PostgreSQL or MySQL server.
 - Azure Active Directory administrative privileges.
 
 ## Step 1/4. Install and configure Teleport
 
-### Setup Teleport Auth and Proxy services
+### Set up Teleport Auth and Proxy Services
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
-### Setup Teleport Database agent
+### Set up Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-Start Teleport Database service:
+Start Teleport Database Service. Make sure to update `--auth-server` to point to
+your Teleport Proxy Service address and `--uri` to the Azure database server
+endpoint.
 
 <Tabs>
 <TabItem label="PostgreSQL">
@@ -71,15 +71,9 @@ Start Teleport Database service:
 </TabItem>
 </Tabs>
 
-<Admonition type="note">
-  The `--auth-server` flag must point to the Teleport cluster's proxy endpoint
-  because database service always connects back to the cluster over a reverse
-  tunnel.
-</Admonition>
-
 <Admonition type="tip">
-  You can start Database service using configuration file instead of CLI flags.
-  See [YAML reference](../reference/configuration.mdx).
+  You can start Teleport Database Service using a configuration file instead of
+  CLI flags. See [YAML reference](../reference/configuration.mdx).
 </Admonition>
 
 ### Create Teleport user
@@ -92,13 +86,13 @@ To authenticate with PostgreSQL or MySQL databases, Teleport Database Service
 needs to obtain access tokens from Azure AD. There are a couple of ways to
 achieve that:
 
-- Database Service can be registered as Azure AD application (via AD's "App
-  registrations") and configured with its credentials. This is similar to
-  using AWS credentials file and is only recommended for development and testing
-  purposes.
+- Database Service can be registered as an Azure AD application (via AD's "App
+  registrations") and configured with its credentials. This is only recommended
+  for development and testing purposes since it requires Azure credentials to
+  be present in the Database Service's environment.
 - Database Service can run on an Azure VM with attached managed identity. This
-  is similar to AWS IAM roles and is the recommended way of deploying the agent
-  in production scenarios.
+  is the recommended way of deploying the Database Service in production since
+  it eliminates the need to manage Azure credentials.
 
 <Tabs>
 <TabItem label="Using managed identity">
@@ -116,19 +110,19 @@ achieve that:
 
   ![Created identity](../../../img/database-access/guides/azure/created-identity@2x.png)
 
-  Next, go to the Azure VM which will run your Database Service agent and add
-  the identity you've just created to it:
+  Next, navigate to the Azure VM that will run your Database Service agent and
+  add the identity you've just created to it:
 
   ![VM identity](../../../img/database-access/guides/azure/vm-identity@2x.png)
 
-  Attach this identity to all Azure VMs that will be running Database Service
-  agents.
+  Attach this identity to all Azure VMs that will be running the Database
+  Service.
 </TabItem>
 <TabItem label="Using app registrations">
   <Admonition type="note">
-    Registering Database Service as Azure AD application is suitable for test
-    and development scenarios, or if your Database Service does not run on an
-    Azure VM. For production scenarios prefer to use the managed identity
+    Registering the Database Service as Azure AD application is suitable for
+    test and development scenarios, or if your Database Service does not run on
+    an Azure VM. For production scenarios prefer to use the managed identity
     approach.
   </Admonition>
 
@@ -143,15 +137,15 @@ achieve that:
 
   ![Registered app](../../../img/database-access/guides/azure/registered-app@2x.png)
 
-  Create a new client secret that Database Service agent will use to
-  authenticate with Azure API:
+  Create a new client secret that the Database Service agent will use to
+  authenticate with the Azure API:
 
   ![Registered app secrets](../../../img/database-access/guides/azure/registered-app-secrets@2x.png)
 
-  Teleport Database Service uses Azure SDK default credential provider chain to
+  Teleport Database Service uses Azure SDK's default credential provider chain to
   look for credentials. Refer to [Authentication methods](https://docs.microsoft.com/en-us/azure/developer/go/azure-sdk-authorization)
   to pick a method suitable for your use-case. For example, to use
-  environment-based authentication with client secret, Database Service should
+  environment-based authentication with a client secret, Database Service should
   have the following environment variables set:
 
   ```bash
@@ -169,19 +163,19 @@ principal you need to create Azure AD users for that principal in the database.
 
 ### Assign Azure AD administrator
 
-Only Azure AD administrator for the database can connect to it and create
-subsequent Azure AD users. Go to your database _Active Directory admin_ page
-and set the AD admin using _Set admin_ button:
+Only the Azure AD administrator for the database can connect to it and create
+Azure AD users. Go to your database's _Active Directory admin_ page
+and set the AD admin using the _Set admin_ button:
 
 ![Set AD admin](../../../img/database-access/guides/azure/set-ad-admin@2x.png)
 
 Note that only one AD user can be set as an admin for the database.
 
-### Connect to database as AD admin
+### Connect to the database as an AD admin
 
 Next, you need to connect to your database as the AD admin user.
 
-Use Azure `az` CLI utility to log in as the user that you set as the AD admin,
+Use the Azure `az` CLI utility to log in as the user that you set as the AD admin,
 fetch the access token and use it as a password when connecting to the database:
 
 <Tabs>
@@ -207,7 +201,7 @@ name of the Azure database instance you're connecting to.
 ### Create AD users
 
 Once connected to the database as AD admin, create database users for the
-service principal Teleport Database Service will be using. Use `Client ID`
+service principal that Teleport Database Service will be using. Use `Client ID`
 when using managed identities and `Application (client) ID` when using app
 registrations:
 
@@ -233,7 +227,7 @@ You can create multiple database users for the same service principal.
 
 ## Step 4/4. Connect
 
-Log into your Teleport cluster, your Azure database should appear in the list of
+Log into your Teleport cluster. Your Azure database should appear in the list of
 available databases:
 
 ```code
@@ -262,7 +256,7 @@ $ tsh db connect azure-db
 
 <Admonition type="note">
   The appropriate database command-line client (`psql`, `mysql`) should be
-  available in PATH in order to be able to connect.
+  available in PATH of the machine you're running `tsh db connect` from.
 </Admonition>
 
 To log out of the database and remove credentials:
