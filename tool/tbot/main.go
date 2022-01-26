@@ -65,8 +65,6 @@ func Run(args []string) error {
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
 	app.Flag("config", "tbot.yaml path").Short('c').StringVar(&cf.ConfigPath)
 
-	configCmd := app.Command("config", "Parse and dump a config file")
-
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
 	startCmd.Flag("auth-server", "Specify the Teleport auth server host").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
 	startCmd.Flag("token", "A bot join token, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
@@ -75,6 +73,12 @@ func Run(args []string) error {
 	startCmd.Flag("destination-dir", "Directory to write generated certificates").StringVar(&cf.DestinationDir)
 	startCmd.Flag("certificate-ttl", "TTL of generated certificates").Default("60m").DurationVar(&cf.CertificateTTL)
 	startCmd.Flag("renew-interval", "Interval at which certificates are renewed; must be less than the certificate TTL.").Default("20m").DurationVar(&cf.RenewInterval)
+
+	configCmd := app.Command("config", "Parse and dump a config file")
+
+	initCmd := app.Command("init", "Initialize a certificate destination directory.")
+
+	watchCmd := app.Command("watch", "Watch a destination directory for changes.")
 
 	command, err := app.Parse(args)
 	if err != nil {
@@ -92,10 +96,14 @@ func Run(args []string) error {
 	}
 
 	switch command {
-	case configCmd.FullCommand():
-		err = onConfig(botConfig)
 	case startCmd.FullCommand():
 		err = onStart(botConfig)
+	case configCmd.FullCommand():
+		err = onConfig(botConfig)
+	case initCmd.FullCommand():
+		err = onInit(botConfig)
+	case watchCmd.FullCommand():
+		err = onWatch(botConfig)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
@@ -108,6 +116,14 @@ func onConfig(botConfig *config.BotConfig) error {
 	pretty.Println(botConfig)
 
 	return nil
+}
+
+func onInit(botConfig *config.BotConfig) error {
+	return trace.NotImplemented("init not yet implemented")
+}
+
+func onWatch(botConfig *config.BotConfig) error {
+	return trace.NotImplemented("watch not yet implemented")
 }
 
 func onStart(botConfig *config.BotConfig) error {
