@@ -114,7 +114,7 @@ func TestUserInfoBlockHTTP(t *testing.T) {
 		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
 	})
 	require.NoError(t, err)
-	oidcClient, err := s.a.getOrCreateOIDCClient(connector, false)
+	oidcClient, err := s.a.getOrCreateOIDCClient(connector, false /* insecure */)
 	require.NoError(t, err)
 
 	// Verify HTTP endpoints return trace.NotFound.
@@ -136,7 +136,7 @@ func TestUserInfoBadStatus(t *testing.T) {
 		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
 	})
 	require.NoError(t, err)
-	oidcClient, err := s.a.getOrCreateOIDCClient(connector, true)
+	oidcClient, err := s.a.getOrCreateOIDCClient(connector, true /* insecure */)
 	require.NoError(t, err)
 
 	// Verify HTTP endpoints return trace.AccessDenied.
@@ -159,7 +159,7 @@ func TestPingProvider(t *testing.T) {
 		Provider:     teleport.Ping,
 	})
 	require.NoError(t, err)
-	oidcClient, err := s.a.getOrCreateOIDCClient(connector, false)
+	oidcClient, err := s.a.getOrCreateOIDCClient(connector, false /* insecure */)
 
 	require.NoError(t, err)
 
