@@ -824,7 +824,8 @@ and non interactive tsh bench loads.
   - [ ] Can update registered database using `tctl create -f`.
   - [ ] Can delete registered database using `tctl rm`.
 - [ ] Verify discovery.
-  - [ ] Can detect and register RDS instances and Aurora clusters.
+  - [ ] Can detect and register RDS instances.
+  - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column

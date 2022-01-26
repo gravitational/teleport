@@ -474,13 +474,32 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:       "mongodb",
+			name:       "mongodb (legacy)",
 			dbProtocol: defaults.ProtocolMongoDB,
+			execer: &fakeExec{
+				execOutput: map[string][]byte{},
+			},
 			cmd: []string{"mongo",
 				"--host", "localhost",
 				"--port", "12345",
 				"--ssl",
 				"--sslPEMKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
+				"mydb"},
+			wantErr: false,
+		},
+		{
+			name:       "mongosh",
+			dbProtocol: defaults.ProtocolMongoDB,
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"mongosh": []byte("1.1.6"),
+				},
+			},
+			cmd: []string{"mongosh",
+				"--host", "localhost",
+				"--port", "12345",
+				"--tls",
+				"--tlsCertificateKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"mydb"},
 			wantErr: false,
 		},

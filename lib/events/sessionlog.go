@@ -32,9 +32,9 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -415,7 +415,7 @@ func EventFromChunk(sessionID string, chunk *SessionChunk) (EventFields, error) 
 	fields[EventTime] = eventStart
 	fields[EventType] = chunk.EventType
 	if fields[EventID] == "" {
-		fields[EventID] = uuid.New()
+		fields[EventID] = uuid.New().String()
 	}
 	return fields, nil
 }

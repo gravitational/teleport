@@ -83,7 +83,7 @@ spec:
           name: "license"
           readOnly: true
   {{- end }}
-  {{- if eq .Values.chartMode "gcp" }}
+  {{- if and (.Values.gcp.credentialSecretName) (eq .Values.chartMode "gcp") }}
         - mountPath: /etc/teleport-secrets
           name: "gcp-credentials"
           readOnly: true
@@ -152,7 +152,7 @@ spec:
           name: "license"
           readOnly: true
 {{- end }}
-{{- if eq .Values.chartMode "gcp" }}
+  {{- if and (.Values.gcp.credentialSecretName) (eq .Values.chartMode "gcp") }}
         - mountPath: /etc/teleport-secrets
           name: "gcp-credentials"
           readOnly: true
