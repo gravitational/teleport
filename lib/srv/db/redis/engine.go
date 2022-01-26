@@ -188,6 +188,29 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 	return redis.NewCmd(ctx, val...), nil
 }
 
+func (e *Engine) processCmd(ctx context.Context, redisClient redis.UniversalClient, cmd *redis.Cmd) error {
+	switch cmd.Name() {
+	case "hello":
+		return redis.RedisError("RESP3 is not supported")
+	case "subscribe":
+		args := []string{}
+		for _, a := range cmd.Args() {
+			args = append(args, a.(string))
+		}
+		pubSub := redisClient.Subscribe(ctx, args...)
+		for msg := range pubSub.Channel() {
+			if err := e.sendToClient(msg.Payload); err != nil {
+				return err // No wrap
+			}
+		}
+
+		return nil
+	default:
+		// Here the command is sent to the DB.
+		return redisClient.Process(ctx, cmd)
+	}
+}
+
 func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient) error {
 	for {
 		cmd, err := e.readClientCmd(ctx)
@@ -197,15 +220,11 @@ func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient)
 
 		e.Log.Debugf("redis cmd: %s", cmd.String())
 
-		// Here the command is sent to the DB.
-		err = redisClient.Process(ctx, cmd)
+		err = e.processCmd(ctx, redisClient, cmd)
 
-		var (
-			vals     interface{}
-			redisErr redis.Error
-		)
+		var vals interface{}
 
-		if errors.As(err, &redisErr) {
+		if _, ok := err.(redis.Error); ok {
 			vals = err
 		} else if errors.Is(err, context.DeadlineExceeded) {
 			// Do not return Deadline Exceeded to the client as it's not very self-explanatory.
