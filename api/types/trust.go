@@ -51,7 +51,7 @@ func (c CertAuthType) Check() error {
 		}
 	}
 
-	return trace.BadParameter("'%v' authority type is not supported", c)
+	return trace.BadParameter("%q authority type is not supported", c)
 }
 
 // CertAuthID - id of certificate authority (it's type and domain name)

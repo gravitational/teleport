@@ -18,6 +18,7 @@ package services
 
 import (
 	"crypto"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"time"
@@ -103,7 +104,12 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 
 	for _, pair := range ca.GetTrustedTLSKeyPairs() {
 		if len(pair.Key) > 0 && pair.KeyType == types.PrivateKeyType_RAW {
-			_, err := utils.ParsePrivateKey(pair.Key)
+			var err error
+			if len(pair.Cert) > 0 {
+				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
+			} else {
+				_, err = utils.ParsePrivateKey(pair.Key)
+			}
 			if err != nil {
 				return trace.Wrap(err)
 			}

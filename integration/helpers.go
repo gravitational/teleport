@@ -331,11 +331,6 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 		Type:        types.DatabaseCA,
 		ClusterName: s.SiteName,
 		ActiveKeys: types.CAKeySet{
-			SSH: []*types.SSHKeyPair{{
-				PrivateKey:     s.PrivKey,
-				PrivateKeyType: types.PrivateKeyType_RAW,
-				PublicKey:      s.PubKey,
-			}},
 			TLS: []*types.TLSKeyPair{{
 				Key:     s.PrivKey,
 				KeyType: types.PrivateKeyType_RAW,
