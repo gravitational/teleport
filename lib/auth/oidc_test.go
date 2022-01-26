@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -31,10 +32,12 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/coreos/go-oidc/oauth2"
+	"github.com/coreos/go-oidc/oidc"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	directory "google.golang.org/api/admin/directory/v1"
@@ -76,6 +79,34 @@ func setUpSuite(t *testing.T) *OIDCSuite {
 	return &s
 }
 
+// createInsecureOIDCClient creates an insecure client for testing.
+func createInsecureOIDCClient(t *testing.T, connector types.OIDCConnector) *oidc.Client {
+	conf := oidcConfig(connector)
+	conf.HTTPClient = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	client, err := oidc.NewClient(conf)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaults.WebHeadersTimeout)
+	defer cancel()
+
+	go func() {
+		defer cancel()
+		client.SyncProviderConfig(connector.GetIssuerURL())
+	}()
+
+	<-ctx.Done()
+	if ctx.Err() != nil {
+		require.ErrorIs(t, err, context.Canceled)
+	}
+	return client
+}
+
 func TestCreateOIDCUser(t *testing.T) {
 	s := setUpSuite(t)
 	// Create OIDC user with 1 minute expiry.
@@ -114,7 +145,7 @@ func TestUserInfoBlockHTTP(t *testing.T) {
 		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
 	})
 	require.NoError(t, err)
-	oidcClient, err := s.a.getOrCreateOIDCClient(connector, false /* insecure */)
+	oidcClient, err := s.a.getOrCreateOIDCClient(connector)
 	require.NoError(t, err)
 
 	// Verify HTTP endpoints return trace.NotFound.
@@ -125,7 +156,6 @@ func TestUserInfoBlockHTTP(t *testing.T) {
 // TestUserInfoBadStatus asserts that a 4xx response from userinfo results
 // in AccessDenied.
 func TestUserInfoBadStatus(t *testing.T) {
-	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP(t, true /* tls */)
 
@@ -136,8 +166,7 @@ func TestUserInfoBadStatus(t *testing.T) {
 		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
 	})
 	require.NoError(t, err)
-	oidcClient, err := s.a.getOrCreateOIDCClient(connector, true /* insecure */)
-	require.NoError(t, err)
+	oidcClient := createInsecureOIDCClient(t, connector)
 
 	// Verify HTTP endpoints return trace.AccessDenied.
 	_, err = claimsFromUserInfo(oidcClient, idp.s.URL, "")
@@ -159,7 +188,7 @@ func TestPingProvider(t *testing.T) {
 		Provider:     teleport.Ping,
 	})
 	require.NoError(t, err)
-	oidcClient, err := s.a.getOrCreateOIDCClient(connector, false /* insecure */)
+	oidcClient, err := s.a.getOrCreateOIDCClient(connector)
 
 	require.NoError(t, err)
 
