@@ -137,12 +137,10 @@ func (pp *playbackPlayer) receiveActions(cancel context.CancelFunc) {
 		// Hangs until there is data to be received, or until an error.
 		err := websocket.JSON.Receive(pp.ws, &action)
 		if err != nil {
-			if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
-				// Only a warning as we expect this case if the websocket is
-				// closed by another goroutine (net.ErrClosed) or by the browser (io.EOF)
-				// while websocket.JSON.Receive() is hanging.
-				pp.log.WithError(err).Warn("error reading from websocket")
-			} else {
+			// We expect net.ErrClosed if the websocket is closed by another
+			// goroutine and io.EOF if the websocket is closed by the browser
+			// while websocket.JSON.Receive() is hanging.
+			if !(errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF)) {
 				pp.log.WithError(err).Error("error reading from websocket")
 			}
 			return
@@ -169,10 +167,7 @@ func (pp *playbackPlayer) streamSessionEvents(ctx context.Context, cancel contex
 
 		select {
 		case err := <-errC:
-			if errors.Is(err, context.Canceled) {
-				// Expected if the request context is cancelled.
-				pp.log.WithError(err).Warningf("streaming session %v", pp.sID)
-			} else {
+			if !errors.Is(err, context.Canceled) {
 				pp.log.WithError(err).Errorf("streaming session %v", pp.sID)
 			}
 			return
@@ -189,12 +184,9 @@ func (pp *playbackPlayer) streamSessionEvents(ctx context.Context, cancel contex
 					lastDelay = e.DelayMilliseconds
 				}
 				if _, err := pp.ws.Write(e.Message); err != nil {
-					if errors.Is(err, net.ErrClosed) {
-						// Only a warning as we expect this case to arise when another
-						// goroutine returns before this one or the browser window is closed,
-						// both of which cause the websocket to close.
-						pp.log.WithError(err).Warn("failed to write TDP message over websocket")
-					} else {
+					// We expect net.ErrClosed to arise when another goroutine returns before
+					// this one or the browser window is closed, both of which cause the websocket to close.
+					if !errors.Is(err, net.ErrClosed) {
 						pp.log.WithError(err).Error("failed to write TDP message over websocket")
 					}
 					return
