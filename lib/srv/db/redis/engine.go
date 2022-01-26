@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gravitational/teleport/lib/services"
@@ -193,13 +194,29 @@ func (e *Engine) processCmd(ctx context.Context, redisClient redis.UniversalClie
 	case "hello":
 		return redis.RedisError("RESP3 is not supported")
 	case "subscribe":
+		if len(cmd.Args()) < 2 {
+			return redis.RedisError("invalid command")
+		}
+
 		args := []string{}
-		for _, a := range cmd.Args() {
+		for _, a := range cmd.Args()[1:] {
 			args = append(args, a.(string))
 		}
 		pubSub := redisClient.Subscribe(ctx, args...)
+
+		msg, err := pubSub.Receive(ctx)
+		if err != nil {
+			return err
+		}
+
+		e.Log.Errorf("got PubSub MSG: %v", msg)
+
+		if err := e.sendToClient([]interface{}{"subscribe", cmd.Args()[1], int64(1)}); err != nil {
+			return err
+		}
+
 		for msg := range pubSub.Channel() {
-			if err := e.sendToClient(msg.Payload); err != nil {
+			if err := e.sendToClient([]interface{}{"message", msg.Channel, msg.Payload}); err != nil {
 				return err // No wrap
 			}
 		}
@@ -277,7 +294,19 @@ func writeCmd(wr *redis.Writer, vals interface{}) error {
 		if _, err := wr.Write([]byte("\r\n")); err != nil {
 			return trace.Wrap(err)
 		}
+	case int64: // TODO(jakub): Add other type serialization.
+		if err := wr.WriteByte(redis.IntReply); err != nil {
+			return trace.Wrap(err)
+		}
 
+		v := strconv.FormatInt(val, 10)
+		if _, err := wr.WriteString(v); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if _, err := wr.Write([]byte("\r\n")); err != nil {
+			return trace.Wrap(err)
+		}
 	case []interface{}:
 		if err := wr.WriteByte(redis.ArrayReply); err != nil {
 			return trace.Wrap(err)
