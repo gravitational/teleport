@@ -1,3 +1,18 @@
+/*
+Copyright 2021-2022 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package identity
 
 import (
@@ -14,7 +29,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tbot/config"
+	botutils "github.com/gravitational/teleport/tool/tbot/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -319,28 +334,28 @@ func ReadSSHIdentityFromKeyPair(keyBytes, publicKeyBytes, certBytes []byte) (*Id
 	}, nil
 }
 
-func SaveIdentity(id *Identity, d config.Destination) error {
+func SaveIdentity(id *Identity, d botutils.Destination) error {
 	for _, data := range []struct {
-		name string
-		data []byte
+		name     string
+		data     []byte
+		modeHint botutils.ModeHint
 	}{
-		{TLSCertKey, id.TLSCertBytes},
-		{SSHCertKey, id.CertBytes},
-		{TLSCACertsKey, bytes.Join(id.TLSCACertsBytes, []byte("$"))},
-		{SSHCACertsKey, bytes.Join(id.SSHCACertBytes, []byte("\n"))},
-		{PrivateKeyKey, id.KeyBytes},
-		{PublicKeyKey, id.SSHPublicKeyBytes},
-		//{MetadataKey, []byte(id.ID.HostUUID)},
+		{TLSCertKey, id.TLSCertBytes, botutils.ModeHintSecret},
+		{SSHCertKey, id.CertBytes, botutils.ModeHintSecret},
+		{TLSCACertsKey, bytes.Join(id.TLSCACertsBytes, []byte("$")), botutils.ModeHintSecret},
+		{SSHCACertsKey, bytes.Join(id.SSHCACertBytes, []byte("\n")), botutils.ModeHintSecret},
+		{PrivateKeyKey, id.KeyBytes, botutils.ModeHintSecret},
+		{PublicKeyKey, id.SSHPublicKeyBytes, botutils.ModeHintUnspecified},
 	} {
 		log.Debugf("Writing %s", data.name)
-		if err := d.Write(data.name, data.data); err != nil {
+		if err := d.Write(data.name, data.data, data.modeHint); err != nil {
 			return trace.Wrap(err, "could not write to %v", data.name)
 		}
 	}
 	return nil
 }
 
-func LoadIdentity(d config.Destination) (*Identity, error) {
+func LoadIdentity(d botutils.Destination) (*Identity, error) {
 	// TODO: encode the whole thing using the identityfile package?
 	var key, sshPublicKey, tlsCA, sshCA []byte
 	var certs proto.Certs

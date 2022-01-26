@@ -1,10 +1,25 @@
+/*
+Copyright 2021-2022 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package main
 
 import (
 	"context"
 	"crypto/x509"
-	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -31,6 +46,8 @@ var log = logrus.WithFields(logrus.Fields{
 const (
 	authServerEnvVar = "TELEPORT_AUTH_SERVER"
 	tokenEnvVar      = "TELEPORT_BOT_TOKEN"
+
+	nologinPrefix = "-teleport-nologin-"
 )
 
 func main() {
@@ -208,7 +225,7 @@ func watchCARotations(watcher types.Watcher) {
 	for {
 		select {
 		case event := <-watcher.Events():
-			fmt.Printf("CA event: %+v", event)
+			log.Debugf("CA event: %+v", event)
 		case <-watcher.Done():
 			if err := watcher.Error(); err != nil {
 				log.WithError(err).Warnf("error watching for CA rotations")
@@ -320,12 +337,64 @@ func renewIdentityViaAuth(
 	return newIdentity, nil
 }
 
+// fetchDefaultRoles requests the bot's own role from the auth server and
+// extracts its full list of allowed roles.
+func fetchDefaultRoles(ctx context.Context, client *auth.Client, botRole string) ([]string, error) {
+	role, err := client.GetRole(ctx, botRole)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conditions := role.GetImpersonateConditions(types.Allow)
+	return conditions.Roles, nil
+}
+
+// describeIdentity writes an informational message about the given identity to
+// the log.
+func describeIdentity(ident *identity.Identity) error {
+	tlsIdent, err := tlsca.FromSubject(ident.XCert.Subject, ident.XCert.NotAfter)
+	if err != nil {
+		return trace.WrapWithMessage(err, "bot TLS certificate can not be parsed as an identity")
+	}
+
+	// certType describes which type of certificates this is
+	var certType string
+	if tlsIdent.Impersonator == "" {
+		certType = "bot"
+	} else {
+		certType = "impersonated"
+	}
+
+	var principals []string
+	for _, principal := range ident.Cert.ValidPrincipals {
+		if !strings.HasPrefix(principal, nologinPrefix) {
+			principals = append(principals, principal)
+		}
+	}
+
+	duration := time.Second * time.Duration(ident.Cert.ValidBefore-ident.Cert.ValidAfter)
+	log.Infof(
+		"Successfully fetched new %s certificates, now valid: after=%v, before=%v, duration=%s, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v",
+		certType,
+		time.Unix(int64(ident.Cert.ValidAfter), 0),
+		time.Unix(int64(ident.Cert.ValidBefore), 0),
+		duration,
+		tlsIdent.Renewable,
+		tlsIdent.DisallowReissue,
+		tlsIdent.Groups,
+		principals,
+	)
+
+	return nil
+}
+
 func renewLoop(cfg *config.BotConfig, client *auth.Client, ident *identity.Identity) error {
 	// TODO: failures here should probably not just end the renewal loop, there
 	// should be some retry / back-off logic.
 
 	// TODO: what should this interval be? should it be user configurable?
 	// Also, must be < the validity period.
+	// TODO: validate that cert is actually renewable.
 
 	log.Infof("Beginning renewal loop: ttl=%s interval=%s", cfg.CertificateTTL, cfg.RenewInterval)
 	if cfg.RenewInterval > cfg.CertificateTTL {
@@ -346,19 +415,15 @@ func renewLoop(cfg *config.BotConfig, client *auth.Client, ident *identity.Ident
 	ticker := time.NewTicker(cfg.RenewInterval)
 	defer ticker.Stop()
 	for {
-		log.Info("Attempting to renew certificates...")
+		log.Info("Attempting to renew bot certificates...")
 		newIdentity, err := renewIdentityViaAuth(client, ident, cfg.CertificateTTL)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		duration := time.Second * time.Duration(newIdentity.Cert.ValidBefore-newIdentity.Cert.ValidAfter)
-		log.Infof(
-			"Successfully fetched new certificates, now valid: after=%v, before=%v duration=%s",
-			time.Unix(int64(newIdentity.Cert.ValidAfter), 0),
-			time.Unix(int64(newIdentity.Cert.ValidBefore), 0),
-			duration,
-		)
+		if err := describeIdentity(ident); err != nil {
+			return trace.WrapWithMessage(err, "Could not describe bot identity at %s", botDestination)
+		}
 
 		// TODO: warn if duration < certTTL? would indicate TTL > server's max renewable cert TTL
 		// TODO: error if duration < renewalInterval? next renewal attempt will fail
@@ -370,7 +435,7 @@ func renewLoop(cfg *config.BotConfig, client *auth.Client, ident *identity.Ident
 			return trace.Wrap(err)
 		}
 
-		log.Info("Auth client now using renewed credentials.")
+		log.Debug("Auth client now using renewed credentials.")
 		client = newClient
 		ident = newIdentity
 
@@ -379,8 +444,16 @@ func renewLoop(cfg *config.BotConfig, client *auth.Client, ident *identity.Ident
 			return trace.Wrap(err)
 		}
 
+		// Determine the default role list based on the bot role. The role's
+		// name should match the certificate's Key ID (user and role names
+		// should all match bot-$name)
+		defaultRoles, err := fetchDefaultRoles(context.Background(), client, ident.Cert.KeyId)
+		if err != nil {
+			log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
+			defaultRoles = []string{}
+		}
+
 		// Next, generate impersonated certs
-		// TODO: real role requests
 		expires := time.Unix(int64(ident.Cert.ValidBefore), 0)
 		for _, dest := range cfg.Destinations {
 			destImpl, err := dest.GetDestination()
@@ -388,27 +461,37 @@ func renewLoop(cfg *config.BotConfig, client *auth.Client, ident *identity.Ident
 				return trace.Wrap(err)
 			}
 
-			impersonatedIdent, err := generateImpersonatedIdentity(client, ident, expires, dest.Roles)
-			if err != nil {
-				log.Warnf("could not generate impersonated certs: %+v", err)
+			var desiredRoles []string
+			if len(dest.Roles) > 0 {
+				desiredRoles = dest.Roles
 			} else {
-				log.Infof("impersonated identity: %+v", impersonatedIdent)
-
-				if err := identity.SaveIdentity(impersonatedIdent, destImpl); err != nil {
-					log.WithError(err).Warn("failed to save impersonated identity")
-				}
+				log.Debugf("Destination specified no roles, defaults will be requested: %v", defaultRoles)
+				desiredRoles = defaultRoles
 			}
 
-			// TODO: these auth api calls require an authenticated user so we can't
-			// store them in the identity, at least initially; for now we'll just
-			// reuse/abuse the hard-coded data dir. Unfortunately the SSH config file
-			// requires path references to other values so the lack of exported
-			// filesystem paths in our Destination impl is a problem.
-			// TODO! reenable this for refactored destinations (need to at least
-			// provide a unix permission hint)
-			//if err := configtemplate.WriteSSHConfig(client, cf.DataDir, impersonatedIdent.Cert.ValidPrincipals); err != nil {
-			//	return trace.Wrap(err)
-			//}
+			impersonatedIdent, err := generateImpersonatedIdentity(client, ident, expires, desiredRoles)
+			if err != nil {
+				return trace.WrapWithMessage(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
+			}
+
+			if err := describeIdentity(impersonatedIdent); err != nil {
+				return trace.WrapWithMessage(err, "could not describe impersonated certs for destination %s", destImpl)
+			}
+
+			if err := identity.SaveIdentity(impersonatedIdent, destImpl); err != nil {
+				return trace.WrapWithMessage(err, "failed to save impersonated identity to destination %s", destImpl)
+			}
+
+			for _, templateConfig := range dest.Configs {
+				template, err := templateConfig.GetConfigTemplate()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				if err := template.Render(client, impersonatedIdent, &dest); err != nil {
+					log.WithError(err).Warnf("Failed to render config template %+v", templateConfig)
+				}
+			}
 		}
 
 		log.Infof("Persisted new certificates to disk. Next renewal in approximately %s", cfg.RenewInterval)

@@ -1,3 +1,18 @@
+/*
+Copyright 2022 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package config
 
 import (
@@ -14,13 +29,6 @@ import (
 )
 
 const (
-	STORAGE_DEFAULT_PATH = "/var/lib/teleport/bot"
-
-	CONFIG_KIND_SSH = "ssh"
-	CONFIG_KIND_TLS = "tls"
-
-	CONFIG_TEMPLATE_SSH_CLIENT = "ssh_client"
-
 	CONFIG_DEFAULT_CERTIFICATE_TTL = 60 * time.Minute
 	CONFIG_DEFAULT_RENEW_INTERVAL  = 20 * time.Minute
 )
@@ -28,13 +36,6 @@ const (
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTBot,
 })
-
-// AllKinds lists all valid config kinds, intended for validation purposes.
-var AllKinds = [...]string{CONFIG_KIND_SSH, CONFIG_KIND_TLS}
-
-// AllConfigTemplates lists all valid config templates, intended for help
-// messages
-var AllConfigTemplates = [...]string{CONFIG_TEMPLATE_SSH_CLIENT}
 
 // CLIConf is configuration from the CLI.
 type CLIConf struct {
@@ -63,120 +64,6 @@ type CLIConf struct {
 	// CertificateTTL is the requested TTL of certificates. It should be some
 	// multiple of the renewal interval to allow for failed renewals.
 	CertificateTTL time.Duration
-}
-
-// StorageConfig contains config parameters for the bot's internal certificate
-// storage.
-type StorageConfig struct {
-	DestinationMixin `yaml:",inline"`
-}
-
-// storageDefaults applies default destinations for the bot's internal storage
-// section.
-func storageDefaults(dm *DestinationMixin) error {
-	dm.Directory = &DestinationDirectory{
-		Path: STORAGE_DEFAULT_PATH,
-	}
-
-	return nil
-}
-
-func (sc *StorageConfig) CheckAndSetDefaults() error {
-	if err := sc.DestinationMixin.CheckAndSetDefaults(storageDefaults); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// ConfigTemplateSSHClient contains parameters for the ssh_config config
-// template
-type ConfigTemplateSSHClient struct {
-}
-
-// ConfigTemplate contains all possible config template variants. Exactly one
-// variant must be set to be considered valid.
-type ConfigTemplate struct {
-	SSHClient *ConfigTemplateSSHClient `yaml:"ssh_client,omitempty"`
-}
-
-func (c *ConfigTemplate) UnmarshalYAML(node *yaml.Node) error {
-	var simpleTemplate string
-	if err := node.Decode(&simpleTemplate); err == nil {
-		switch simpleTemplate {
-		case CONFIG_TEMPLATE_SSH_CLIENT:
-			c.SSHClient = &ConfigTemplateSSHClient{}
-		default:
-			return trace.BadParameter(
-				"invalid config template '%s' on line %d, expected one of: %s",
-				simpleTemplate, node.Line, strings.Join(AllConfigTemplates[:], ", "),
-			)
-		}
-		return nil
-	}
-
-	type rawTemplate ConfigTemplate
-	if err := node.Decode((*rawTemplate)(c)); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *ConfigTemplate) CheckAndSetDefaults() error {
-	notNilCount := 0
-
-	if c.SSHClient != nil {
-		notNilCount += 1
-	}
-
-	if notNilCount == 0 {
-		return trace.BadParameter("config template must not be empty")
-	} else if notNilCount > 1 {
-		return trace.BadParameter("config template must have exactly one configuration")
-	}
-
-	return nil
-}
-
-// DestinationConfig configures a user certificate destination.
-type DestinationConfig struct {
-	DestinationMixin `yaml:",inline"`
-
-	Roles   []string         `yaml:"roles,omitempty"`
-	Kinds   []string         `yaml:"kinds,omitempty"`
-	Configs []ConfigTemplate `yaml:"configs,omitempty"`
-}
-
-// destinationDefaults applies defaults for an output sink's destination. Since
-// these have no sane defaults, in practice it just returns an error if no
-// config is provided.
-func destinationDefaults(dm *DestinationMixin) error {
-	return trace.BadParameter("destinations require some valid output sink")
-}
-
-func (dc *DestinationConfig) CheckAndSetDefaults() error {
-	if err := dc.DestinationMixin.CheckAndSetDefaults(destinationDefaults); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Note: empty roles is allowed; interpreted to mean "all" at generation
-	// time
-
-	if len(dc.Kinds) == 0 && len(dc.Configs) == 0 {
-		dc.Kinds = []string{CONFIG_KIND_SSH}
-		dc.Configs = []ConfigTemplate{{
-			SSHClient: &ConfigTemplateSSHClient{},
-		}}
-	} else {
-		for _, cfg := range dc.Configs {
-			if err := cfg.CheckAndSetDefaults(); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	return nil
 }
 
 // OnboardingConfig contains values only required on first connect.
@@ -253,6 +140,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	if cf.ConfigPath != "" {
 		config, err = ReadConfigFromFile(cf.ConfigPath)
+
 		if err != nil {
 			return nil, trace.WrapWithMessage(err, "loading bot config from path %s", cf.ConfigPath)
 		}

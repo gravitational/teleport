@@ -1,17 +1,24 @@
+/*
+Copyright 2022 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package config
 
 import (
+	"github.com/gravitational/teleport/tool/tbot/utils"
 	"github.com/gravitational/trace"
 )
-
-// Destination can persist renewable certificates.
-type Destination interface {
-	// Write stores data to the destination with the given name.
-	Write(name string, data []byte) error
-
-	// Read fetches data from the destination with a given name.
-	Read(name string) ([]byte, error)
-}
 
 // DestinationMixin is a reusable struct for all config elements that accept a
 // destination. Note that if embedded, DestinationMixin.CheckAndSetDefaults()
@@ -57,7 +64,7 @@ func (dm *DestinationMixin) CheckAndSetDefaults(applyDefaults DestinationDefault
 // GetDestination returns the first non-nil Destination set. Note that
 // CheckAndSetDefaults() does attempt to ensure that only a single
 // destination is set, though this may change at runtime.
-func (dm *DestinationMixin) GetDestination() (Destination, error) {
+func (dm *DestinationMixin) GetDestination() (utils.Destination, error) {
 	if dm.Directory != nil {
 		return dm.Directory, nil
 	}
