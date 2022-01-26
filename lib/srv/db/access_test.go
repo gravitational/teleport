@@ -1023,17 +1023,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 	testAuth, err := newTestAuth(common.AuthConfig{
 		AuthClient: c.authClient,
 		Clock:      c.clock,
-		Clients: &common.TestCloudClients{
-			GCPSQL: &cloud.GCPSQLAdminClientMock{
-				DatabaseInstance: &sqladmin.DatabaseInstance{
-					Settings: &sqladmin.Settings{
-						IpConfiguration: &sqladmin.IpConfiguration{
-							RequireSsl: false,
-						},
-					},
-				},
-			},
-		},
+		Clients:    &common.TestCloudClients{},
 	})
 	require.NoError(t, err)
 
@@ -1077,6 +1067,15 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 			RDS:      &cloud.RDSMock{},
 			Redshift: &cloud.RedshiftMock{},
 			IAM:      &cloud.IAMMock{},
+			GCPSQL: &cloud.GCPSQLAdminClientMock{
+				DatabaseInstance: &sqladmin.DatabaseInstance{
+					Settings: &sqladmin.Settings{
+						IpConfiguration: &sqladmin.IpConfiguration{
+							RequireSsl: false,
+						},
+					},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
