@@ -176,7 +176,7 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 	cluster := &rds.DBCluster{
 		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:cluster:%v", region, name)),
 		DBClusterIdentifier: aws.String(name),
-		DbClusterResourceId: aws.String(uuid.New().String()),
+		DbClusterResourceId: aws.String(uuid.New()),
 		Engine:              aws.String(services.RDSEngineAuroraMySQL),
 		EngineMode:          aws.String(services.RDSEngineModeProvisioned),
 		Endpoint:            aws.String("localhost"),
