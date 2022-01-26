@@ -14,14 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { DesktopSession } from './DesktopSession';
 import { State } from './useDesktopSession';
 import TdpClient, {
   TdpClientEvent,
   ImageFragment,
 } from 'teleport/lib/tdp/client';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import { arrayBuf2260x1130 } from '../lib/tdp/fixtures';
 
 export default {
@@ -53,14 +52,14 @@ const props: State = {
   wsConnection: 'closed',
   disconnected: false,
   setDisconnected: () => null,
-  onImageFragment: (ctx: CanvasRenderingContext2D, data: ImageFragment) => {},
-  onTdpError: (err: Error) => {},
-  onKeyDown: (cli: TdpClient, e: KeyboardEvent) => {},
-  onKeyUp: (cli: TdpClient, e: KeyboardEvent) => {},
-  onMouseMove: (cli: TdpClient, canvas: HTMLCanvasElement, e: MouseEvent) => {},
-  onMouseDown: (cli: TdpClient, e: MouseEvent) => {},
-  onMouseUp: (cli: TdpClient, e: MouseEvent) => {},
-  onMouseWheelScroll: (cli: TdpClient, e: WheelEvent) => {},
+  onImageFragment: () => {},
+  onTdpError: () => {},
+  onKeyDown: () => {},
+  onKeyUp: () => {},
+  onMouseMove: () => {},
+  onMouseDown: () => {},
+  onMouseUp: () => {},
+  onMouseWheelScroll: () => {},
 };
 
 export const Processing = () => (
@@ -89,7 +88,7 @@ export const ConnectedSettingsFalse = () => {
       disconnected={false}
       clipboard={false}
       recording={false}
-      onImageFragment={(ctx: CanvasRenderingContext2D, data: ImageFragment) => {
+      onImageFragment={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);
       }}
     />
@@ -112,7 +111,7 @@ export const ConnectedSettingsTrue = () => {
       disconnected={false}
       clipboard={true}
       recording={true}
-      onImageFragment={(ctx: CanvasRenderingContext2D, data: ImageFragment) => {
+      onImageFragment={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);
       }}
     />
