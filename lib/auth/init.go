@@ -1069,12 +1069,26 @@ func migrateDBAuthority(asrv *Server) error {
 		return trace.BadParameter("expected host CA to be of *types.CertAuthorityV2 type, got: %T", hostCA)
 	}
 
-	// Copy the Host CA with a different type.
-	cav2.Spec.Type = types.DatabaseCA
-	cav2.SetSubKind(string(types.DatabaseCA))
-
-	err = asrv.Trust.CreateCertAuthority(cav2)
+	dbCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.DatabaseCA,
+		ClusterName: clusterName.GetClusterName(),
+		ActiveKeys: types.CAKeySet{
+			// Copy only TLS keys as SSH are not needed.
+			TLS: cav2.Spec.ActiveKeys.TLS,
+		},
+		SigningAlg: cav2.Spec.SigningAlg,
+	})
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = asrv.Trust.CreateCertAuthority(dbCA)
+	switch {
+	case trace.IsAlreadyExists(err):
+		// Probably another auth server have created the DB CA since we last check.
+		// This shouldn't be a problem, but let's log it to know when it happens.
+		log.Warn("DB CA has already been created by a different Auth server instance")
+	case err != nil:
 		return trace.Wrap(err)
 	}
 
