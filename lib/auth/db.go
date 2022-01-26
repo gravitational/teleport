@@ -48,7 +48,17 @@ func (s *Server) GenerateDatabaseCert(_ context.Context, req *proto.DatabaseCert
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if trace.IsNotFound(err) {
+			// Database CA doesn't exist. Fallback to Host CA.
+			// https://github.com/gravitational/teleport/issues/5029
+			databaseCA, err = s.GetCertAuthority(types.CertAuthID{
+				Type:       types.HostCA,
+				DomainName: clusterName.GetClusterName(),
+			}, true)
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(databaseCA)
 	if err != nil {
