@@ -44,9 +44,10 @@ func TestWatcher(t *testing.T) {
 	rdsInstance3, _ := makeRDSInstance(t, "instance-3", "us-east-1", map[string]string{"env": "dev"})
 	rdsInstance4, rdsDatabase4 := makeRDSInstance(t, "instance-4", "us-west-1", nil)
 
-	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", map[string]string{"env": "prod"})
-	auroraCluster2, auroraDatabase2 := makeRDSCluster(t, "cluster-2", "us-east-2", map[string]string{"env": "dev"})
-	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", map[string]string{"env": "prod"})
+	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
+	auroraCluster2, auroraDatabase2 := makeRDSCluster(t, "cluster-2", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "dev"})
+	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
+	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", services.RDSEngineModeServerless, map[string]string{"env": "prod"})
 
 	tests := []struct {
 		name              string
@@ -81,6 +82,22 @@ func TestWatcher(t *testing.T) {
 				},
 			},
 			expectedDatabases: types.Databases{rdsDatabase1, auroraDatabase1, auroraDatabase2},
+		},
+		{
+			name: "rds aurora unsupported",
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRDS},
+				Regions: []string{"us-east-1"},
+				Tags:    types.Labels{"*": []string{"*"}},
+			}},
+			clients: &common.TestCloudClients{
+				RDSPerRegion: map[string]rdsiface.RDSAPI{
+					"us-east-1": &cloud.RDSMock{
+						DBClusters: []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
+					},
+				},
+			},
+			expectedDatabases: types.Databases{auroraDatabase1},
 		},
 		{
 			name: "skip access denied errors",
@@ -140,12 +157,13 @@ func makeRDSInstance(t *testing.T, name, region string, labels map[string]string
 	return instance, database
 }
 
-func makeRDSCluster(t *testing.T, name, region string, labels map[string]string) (*rds.DBCluster, types.Database) {
+func makeRDSCluster(t *testing.T, name, region, engineMode string, labels map[string]string) (*rds.DBCluster, types.Database) {
 	cluster := &rds.DBCluster{
 		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:cluster:%v", region, name)),
 		DBClusterIdentifier: aws.String(name),
 		DbClusterResourceId: aws.String(uuid.New()),
 		Engine:              aws.String(services.RDSEngineAuroraMySQL),
+		EngineMode:          aws.String(engineMode),
 		Endpoint:            aws.String("localhost"),
 		Port:                aws.Int64(3306),
 		TagList:             labelsToTags(labels),
