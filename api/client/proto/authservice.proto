@@ -618,9 +618,11 @@ message GetWebTokensResponse {
 }
 
 // GetKubeServicesRequest are the parameters used to request kubernetes services.
+// DELETE IN 10.0
 message GetKubeServicesRequest {}
 
 // GetKubeServicesResponse contains all requested kubernetes services.
+// DELETE IN 10.0
 message GetKubeServicesResponse {
     // Servers is a slice of types.Server that represent kubernetes
     // services.
@@ -1088,6 +1090,7 @@ message Events {
     string LastKey = 2;
 }
 
+// DELETE IN 10.0
 message ListNodesRequest {
     // Namespace is the namespace of resources.
     string Namespace = 1;
@@ -1100,6 +1103,7 @@ message ListNodesRequest {
     map<string, string> Labels = 4;
 }
 
+// DELETE IN 10.0
 message ListNodesResponse {
     // Servers is a list of servers.
     repeated types.ServerV2 Servers = 1;
@@ -1377,8 +1381,12 @@ message PaginatedResource {
     oneof resource {
         // DatabaseServer represents a DatabaseServer resource.
         types.DatabaseServerV3 DatabaseServer = 1;
-        // ApplicationServer represents a AppServer resource.
+        // AppServer represents a AppServer resource.
         types.AppServerV3 AppServer = 2;
+        // Nodes represents a Server resource.
+        types.ServerV2 Node = 3 [ (gogoproto.jsontag) = "node,omitempty" ];
+        // KubeService represents a KubernetesService resource.
+        types.ServerV2 KubeService = 4 [ (gogoproto.jsontag) = "kube_service,omitempty" ];
     }
 }
 
@@ -1395,6 +1403,8 @@ message ListResourcesRequest {
     // should be set to the previous NextKey value if using pagination, or
     // left empty.
     string StartKey = 4 [ (gogoproto.jsontag) = "start_key,omitempty" ];
+    // Labels is a label-based matcher if non-empty.
+    map<string, string> Labels = 5 [ (gogoproto.jsontag) = "labels,omitempty" ];
 }
 
 // ListResourceResponse response of ListResources.
@@ -1420,7 +1430,8 @@ service AuthService {
     // DELETE IN 8.0.0 in favor of ListNodes
     rpc GetNodes(types.ResourcesInNamespaceRequest) returns (types.ServerV2List);
     // ListNodes retrieves a paginated list of nodes.
-    rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
+    // DELETE IN 10.0. Deprecated, use ListResources.
+    rpc ListNodes(ListNodesRequest) returns (ListNodesResponse) { option deprecated = true; };
     // UpsertNode upserts a node in a backend.
     rpc UpsertNode(types.ServerV2) returns (types.KeepAlive);
     // DeleteNode deletes an existing node in a backend described by the given request.
@@ -1575,7 +1586,10 @@ service AuthService {
     rpc UpdateRemoteCluster(types.RemoteClusterV3) returns (google.protobuf.Empty);
 
     // GetKubeServices gets all kubernetes services.
-    rpc GetKubeServices(GetKubeServicesRequest) returns (GetKubeServicesResponse);
+    // DELETE IN 10.0. Deprecated, use ListResources.
+    rpc GetKubeServices(GetKubeServicesRequest) returns (GetKubeServicesResponse) {
+        option deprecated = true;
+    };
     // UpsertKubeService adds or updates a kubernetes service.
     rpc UpsertKubeService(UpsertKubeServiceRequest) returns (google.protobuf.Empty);
     // DeleteKubeService removes a kubernetes service.
