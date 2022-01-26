@@ -475,7 +475,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	// add remote cluster resource to keep track of the remote cluster
 	var remoteClusterName string
 	for _, certAuthority := range validateRequest.CAs {
-		// don't add a ca with the same as as local cluster name
+		// don't add a ca with the same as a local cluster name
 		if certAuthority.GetName() == domainName {
 			return nil, trace.AccessDenied("remote certificate authority has same name as cluster certificate authority: %v", domainName)
 		}
@@ -510,7 +510,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	validateResponse := ValidateTrustedClusterResponse{
 		CAs: []types.CertAuthority{},
 	}
-	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA} {
+	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA} {
 		certAuthority, err := a.GetCertAuthority(
 			types.CertAuthID{Type: caType, DomainName: domainName},
 			false)
