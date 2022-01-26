@@ -305,7 +305,7 @@ func (c *cloud) getFederationDuration(req *AWSSigninRequest, temporarySession bo
 	}
 
 	if duration < minimumSessionDuration {
-		return 0, trace.BadParameter("minimum session duration is %v", minimumSessionDuration)
+		return 0, trace.AccessDenied("minimum AWS session duration is %v but Teleport identity expires in %v", minimumSessionDuration, duration)
 	}
 	return duration, nil
 }

@@ -140,7 +140,7 @@ func TestCloudGetFederationDuration(t *testing.T) {
 		{
 			name:            "minimum session",
 			expiresAt:       now.Add(time.Minute),
-			expectedErrorIs: trace.IsBadParameter,
+			expectedErrorIs: trace.IsAccessDenied,
 		},
 	}
 
