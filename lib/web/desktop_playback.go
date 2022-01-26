@@ -85,10 +85,10 @@ func NewPlaybackPlayer(sID string, ws *websocket.Conn, clt *auth.Client, ctx con
 	}
 }
 
-// hangWhilePaused hangs while pp.playState = playStatePaused. When hangWhilePaused is called in one goroutine,
-// it will only be triggered to check its condition again by another goroutine calling pp.TogglePlaying() or pp.Close()
+// waitWhilePaused waits while pp.playState = playStatePaused. When waitWhilePaused is called in one goroutine,
+// it will only be triggered to check its condition again by another goroutine calling pp.togglePlaying() or pp.close()
 // (because those functions call pp.cond.Broadcast()).
-func (pp *playbackPlayer) hangWhilePaused() {
+func (pp *playbackPlayer) waitWhilePaused() {
 	pp.cond.L.Lock()
 	defer pp.cond.L.Unlock()
 
@@ -170,7 +170,7 @@ func (pp *playbackPlayer) StreamSessionEvents() {
 	var lastDelay int64
 	eventsC, errC := pp.clt.StreamSessionEvents(pp.ctx, session.ID(pp.sID), 0)
 	for {
-		pp.hangWhilePaused()
+		pp.waitWhilePaused()
 
 		select {
 		case err := <-errC:
