@@ -70,7 +70,16 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 	if config.Address != "" {
 		address = config.Address
 	}
-	listener, err := net.Listen("tcp", address)
+	tlsConfig, err := common.MakeTestServerTLSConfig(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var listener net.Listener
+	if config.ListenTLS {
+		listener, err = tls.Listen("tcp", address, tlsConfig)
+	} else {
+		listener, err = net.Listen("tcp", address)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -78,22 +87,21 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig, err := common.MakeTestServerTLSConfig(config)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: defaults.ProtocolMySQL,
 		"name":          config.Name,
 	})
-	return &TestServer{
-		cfg:       config,
-		listener:  listener,
-		port:      port,
-		tlsConfig: tlsConfig,
-		log:       log,
-		handler:   &testHandler{log: log},
-	}, nil
+	server := &TestServer{
+		cfg:      config,
+		listener: listener,
+		port:     port,
+		log:      log,
+		handler:  &testHandler{log: log},
+	}
+	if !config.ListenTLS {
+		server.tlsConfig = tlsConfig
+	}
+	return server, nil
 }
 
 // Serve starts serving client connections.

@@ -359,6 +359,70 @@ func TestAccessMySQLServerPacket(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestGCPRequireSSL tests connecting to GCP Cloud SQL
+// Postgres and MySQL databases with RequireSsl enabled.
+func TestGCPRequireSSL(t *testing.T) {
+	ctx := context.Background()
+	user := "alice"
+	testCtx := setupTestContext(ctx, t)
+	testCtx.createUserAndRole(ctx, t, user, "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	// generate ephemeral cert returned from mock GCP API
+	ephemeralCert, err := common.MakeTestClientTLSCert(common.TestClientConfig{
+		AuthClient: testCtx.authClient,
+		AuthServer: testCtx.authServer,
+		Cluster:    testCtx.clusterName,
+		Username:   user,
+	})
+	require.NoError(t, err)
+
+	// setup database servers for postgres and mysql with a mock GCP API
+	// that will require SSL and return our ephemeralCert created above.
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: []types.Database{
+			withCloudSQLPostgres("postgres", cloudSQLAuthToken)(t, ctx, testCtx),
+			withCloudSQLMySQLTLS("mysql", user, cloudSQLPassword)(t, ctx, testCtx),
+		},
+		GCPSQL: &cloud.GCPSQLAdminClientMock{
+			EphemeralCert: ephemeralCert,
+			DatabaseInstance: &sqladmin.DatabaseInstance{
+				Settings: &sqladmin.Settings{
+					IpConfiguration: &sqladmin.IpConfiguration{
+						RequireSsl: true,
+					},
+				},
+			},
+		},
+	})
+	go testCtx.startHandlingConnections()
+
+	// Try to connect to postgres
+	pgConn, err := testCtx.postgresClient(ctx, user, "postgres", "postgres", "postgres")
+	require.NoError(t, err)
+
+	// Execute a query.
+	pgResult, err := pgConn.Exec(ctx, "select 1").ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, pgResult)
+
+	// Disconnect.
+	err = pgConn.Close(ctx)
+	require.NoError(t, err)
+
+	// Try to connect to mysql
+	mysqlConn, err := testCtx.mysqlClient(user, "mysql", user)
+	require.NoError(t, err)
+
+	// Execute a query.
+	msResult, err := mysqlConn.Execute("select 1")
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, msResult)
+
+	// Disconnect.
+	err = mysqlConn.Close()
+	require.NoError(t, err)
+}
+
 // TestAccessMongoDB verifies access scenarios to a MongoDB database based
 // on the configured RBAC rules.
 func TestAccessMongoDB(t *testing.T) {
@@ -991,11 +1055,24 @@ type agentParams struct {
 	OnReconcile func(types.Databases)
 	// NoStart indicates server should not be started.
 	NoStart bool
+	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
+	GCPSQL *cloud.GCPSQLAdminClientMock
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
 	if p.HostID == "" {
 		p.HostID = c.hostID
+	}
+	if p.GCPSQL == nil {
+		p.GCPSQL = &cloud.GCPSQLAdminClientMock{
+			DatabaseInstance: &sqladmin.DatabaseInstance{
+				Settings: &sqladmin.Settings{
+					IpConfiguration: &sqladmin.IpConfiguration{
+						RequireSsl: false,
+					},
+				},
+			},
+		}
 	}
 }
 
@@ -1022,8 +1099,8 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 	// Create test database auth tokens generator.
 	testAuth, err := newTestAuth(common.AuthConfig{
 		AuthClient: c.authClient,
-		Clock:      c.clock,
 		Clients:    &common.TestCloudClients{},
+		Clock:      c.clock,
 	})
 	require.NoError(t, err)
 
@@ -1067,15 +1144,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 			RDS:      &cloud.RDSMock{},
 			Redshift: &cloud.RedshiftMock{},
 			IAM:      &cloud.IAMMock{},
-			GCPSQL: &cloud.GCPSQLAdminClientMock{
-				DatabaseInstance: &sqladmin.DatabaseInstance{
-					Settings: &sqladmin.Settings{
-						IpConfiguration: &sqladmin.IpConfiguration{
-							RequireSsl: false,
-						},
-					},
-				},
-			},
+			GCPSQL:   p.GCPSQL,
 		},
 	})
 	require.NoError(t, err)
@@ -1311,6 +1380,44 @@ func withCloudSQLMySQL(name, authUser, authToken string) withDatabaseOption {
 			// Cloud SQL presented certificate must have <project-id>:<instance-id>
 			// in its CN.
 			CN: "project-1:instance-1",
+		})
+		require.NoError(t, err)
+		go mysqlServer.Serve()
+		t.Cleanup(func() { mysqlServer.Close() })
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolMySQL,
+			URI:           net.JoinHostPort("localhost", mysqlServer.Port()),
+			DynamicLabels: dynamicLabels,
+			GCP: types.GCPCloudSQL{
+				ProjectID:  "project-1",
+				InstanceID: "instance-1",
+			},
+			// Set CA cert to pass cert validation.
+			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+		})
+		require.NoError(t, err)
+		testCtx.mysql[name] = testMySQL{
+			db:       mysqlServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withCloudSQLMySQLTLS(name, authUser, authToken string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+			AuthUser:   authUser,
+			AuthToken:  authToken,
+			// Cloud SQL presented certificate must have <project-id>:<instance-id>
+			// in its CN.
+			CN: "project-1:instance-1",
+			// enable TLS listener
+			ListenTLS: true,
 		})
 		require.NoError(t, err)
 		go mysqlServer.Serve()

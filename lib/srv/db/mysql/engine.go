@@ -208,7 +208,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		// use TLS dialer instead of mysql client when GCP requires SSL
 		if requireSSL {
 			connectOpt = func(*client.Conn) {}
-			dialer = e.gcpGCPTLSDialer(ctx, sessionCtx, tlsConfig)
+			dialer = e.newGCPTLSDialer(ctx, sessionCtx, tlsConfig)
 		}
 	case sessionCtx.Database.IsAzure():
 		password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
@@ -384,9 +384,9 @@ func (e *Engine) appendGCPClientCert(ctx context.Context, sessionCtx *common.Ses
 	return false, nil
 }
 
-// getGCPTLSDialer returns a TLS dialer configured to connect to the Cloud Proxy
+// newGCPTLSDialer returns a TLS dialer configured to connect to the Cloud Proxy
 // port rather than the default mysql port.
-func (e *Engine) gcpGCPTLSDialer(ctx context.Context, sessionCtx *common.Session, tlsConfig *tls.Config) client.Dialer {
+func (e *Engine) newGCPTLSDialer(ctx context.Context, sessionCtx *common.Session, tlsConfig *tls.Config) client.Dialer {
 	return func(ctx context.Context, network, address string) (net.Conn, error) {
 		// workaround issue generating ephemeral certs for secure connections
 		// by creating a TLS connection to the cloud proxy port overridding

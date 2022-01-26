@@ -51,6 +51,9 @@ type TestServerConfig struct {
 	// Used when simulating test Cloud SQL database which should contains
 	// <project-id>:<instance-id> in its certificate.
 	CN string
+	// ListenTLS creates a TLS listener when true. This is used to simulate
+	// MySQL connections through the GCP Cloud SQL Proxy.
+	ListenTLS bool
 }
 
 // MakeTestServerTLSConfig returns TLS config suitable for configuring test
@@ -114,6 +117,31 @@ type TestClientConfig struct {
 // MakeTestClientTLSConfig returns TLS config suitable for configuring test
 // database Postgres/MySQL clients.
 func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
+	tlsCert, err := MakeTestClientTLSCert(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := config.AuthClient.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: config.Cluster,
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pool, err := services.CertPool(ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &tls.Config{
+		RootCAs:            pool,
+		Certificates:       []tls.Certificate{*tlsCert},
+		InsecureSkipVerify: true,
+	}, nil
+}
+
+// MakeTestClientCert returns TLS certificate suitable for configuring test
+// database Postgres/MySQL clients.
+func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
 	key, err := client.NewKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -132,20 +160,5 @@ func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := config.AuthClient.GetCertAuthority(types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: config.Cluster,
-	}, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pool, err := services.CertPool(ca)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &tls.Config{
-		RootCAs:            pool,
-		Certificates:       []tls.Certificate{tlsCert},
-		InsecureSkipVerify: true,
-	}, nil
+	return &tlsCert, nil
 }
