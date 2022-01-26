@@ -105,7 +105,7 @@ func TestCreateOIDCUser(t *testing.T) {
 func TestUserInfoBlockHTTP(t *testing.T) {
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
-	idp := newFakeIDP(t, false)
+	idp := newFakeIDP(t, false /* tls */)
 
 	// Create OIDC connector and client.
 	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
@@ -127,7 +127,7 @@ func TestUserInfoBlockHTTP(t *testing.T) {
 func TestUserInfoBadStatus(t *testing.T) {
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
-	idp := newFakeIDP(t, true)
+	idp := newFakeIDP(t, true /* tls */)
 
 	// Create OIDC connector and client.
 	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
@@ -149,7 +149,7 @@ func TestUserInfoBadStatus(t *testing.T) {
 func TestPingProvider(t *testing.T) {
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
-	idp := newFakeIDP(t, false)
+	idp := newFakeIDP(t, false /* tls */)
 
 	// Create OIDC connector and client.
 	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
