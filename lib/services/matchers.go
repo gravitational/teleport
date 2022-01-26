@@ -61,7 +61,7 @@ const (
 	// AWSMatcherRDS is the AWS matcher type for RDS databases.
 	AWSMatcherRDS = "rds"
 	// AWSMatcherRDSProxy is the AWS matcher type for RDS proxies.
-	AWSMatcherRDSProxy = "rdsproxy"
+	AWSMatcherRDSProxy = "rds-proxy"
 	// AWSMatcherRedshift is the AWS matcher type for Redshift databases.
 	AWSMatcherRedshift = "redshift"
 )

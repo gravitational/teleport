@@ -228,7 +228,7 @@ func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, port int64) (types.Database, 
 }
 
 // NewDatabaseFromRDSProxyEndpiont creates database resource from RDS proxy
-// custom endpoint.
+// endpoint.
 func NewDatabaseFromRDSProxyEndpoint(dbProxy *rds.DBProxy, dbProxyEndpoint *rds.DBProxyEndpoint, port int64) (types.Database, error) {
 	metadata, err := MetadataFromRDSProxyEndpoint(dbProxy, dbProxyEndpoint)
 	if err != nil {
@@ -236,21 +236,21 @@ func NewDatabaseFromRDSProxyEndpoint(dbProxy *rds.DBProxy, dbProxyEndpoint *rds.
 	}
 	return types.NewDatabaseV3(types.Metadata{
 		Name:        fmt.Sprintf("%s-%s", aws.StringValue(dbProxy.DBProxyName), aws.StringValue(dbProxyEndpoint.DBProxyEndpointName)),
-		Description: fmt.Sprintf("RDS Proxy custom endpoint in %v", metadata.Region),
+		Description: fmt.Sprintf("RDS Proxy endpoint in %v", metadata.Region),
 		Labels:      labelsFromRDSProxyEndpoint(dbProxy, dbProxyEndpoint, metadata),
 	}, types.DatabaseSpecV3{
 		Protocol: rdsEngineFamilyToProtocol(aws.StringValue(dbProxy.EngineFamily)),
-		URI:      fmt.Sprintf("%s:%d", aws.StringValue(dbProxy.Endpoint), port),
+		URI:      fmt.Sprintf("%s:%d", aws.StringValue(dbProxyEndpoint.Endpoint), port),
 		AWS:      *metadata,
 
 		// RDS proxies serve wildcard certs like this:
 		// *.proxy-<xxx>.<region>.rds.amazonaws.com
 		//
-		// The custom endpoints have one extra level of subdomains like:
+		// The proxy endpoints have one extra level of subdomains like:
 		// <name>.endpoint.proxy-<xxx>.<region>.rds.amazonaws.com
 		// which will fail verify_full against the wildcard certs.
 		//
-		// Using proxy's main endpoint as server name as it should always
+		// Using proxy's default endpoint as server name as it should always
 		// succeed.
 		TLS: types.DatabaseTLS{
 			ServerName: aws.StringValue(dbProxy.Endpoint),
@@ -324,7 +324,7 @@ func MetadataFromRDSProxy(rdsProxy *rds.DBProxy) (*types.AWS, error) {
 // MetadataFromRDSProxyEndpoint creates AWS metadata from the provided RDS
 // proxy endpoint.
 func MetadataFromRDSProxyEndpoint(rdsProxy *rds.DBProxy, rdsProxyEndpoint *rds.DBProxyEndpoint) (*types.AWS, error) {
-	// Using resource ID from the main proxy for IAM policies to gain the
+	// Using resource ID from the default proxy for IAM policies to gain the
 	// RDS connection access.
 	metadata, err := MetadataFromRDSProxy(rdsProxy)
 	if err != nil {
@@ -401,9 +401,13 @@ func labelsFromRDSProxy(rdsProxy *rds.DBProxy, meta *types.AWS) map[string]strin
 	// rds.DBProxy has no TagList.
 	labels := make(map[string]string)
 	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelVPCID] = aws.StringValue(rdsProxy.VpcId)
 	labels[labelAccountID] = meta.AccountID
 	labels[labelRegion] = meta.Region
 	labels[labelEngine] = strings.ToLower(aws.StringValue(rdsProxy.EngineFamily))
+
+	// TargetRole is read/write for default proxy
+	labels[labelTargetRole] = strings.ToLower(rds.DBProxyEndpointTargetRoleReadWrite)
 	return labels
 }
 
@@ -411,13 +415,7 @@ func labelsFromRDSProxy(rdsProxy *rds.DBProxy, meta *types.AWS) map[string]strin
 // proxy endpoint.
 func labelsFromRDSProxyEndpoint(rdsProxy *rds.DBProxy, rdsProxyEndpoint *rds.DBProxyEndpoint, meta *types.AWS) map[string]string {
 	labels := labelsFromRDSProxy(rdsProxy, meta)
-
-	// Possible values for TargetRole:
-	// - rds.DBProxyEndpointTargetRoleReadOnly
-	// - rds.DBProxyEndpointTargetRoleReadWrite
-	if rdsProxyEndpoint.TargetRole != nil {
-		labels[labelTargetRole] = strings.ToLower(aws.StringValue(rdsProxyEndpoint.TargetRole))
-	}
+	labels[labelTargetRole] = strings.ToLower(aws.StringValue(rdsProxyEndpoint.TargetRole))
 	return labels
 }
 
@@ -496,6 +494,8 @@ const (
 	labelEndpointType = "endpoint-type"
 	// labelTargetRole is the label key containing the RDS target role.
 	labelTargetRole = "target-role"
+	// labelVPCID is the label key containing the VPC ID.
+	labelVPCID = "vpc-id"
 )
 
 const (

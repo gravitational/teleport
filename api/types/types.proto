@@ -299,7 +299,7 @@ message RDS {
     bool IAMAuth = 4 [ (gogoproto.jsontag) = "iam_auth" ];
     // ProxyName is the RDS proxy name.
     string ProxyName = 5 [ (gogoproto.jsontag) = "proxy_name,omitempty" ];
-    // ProxyEndpointName is the custom RDS proxy endpoint name.
+    // ProxyEndpointName is the RDS proxy endpoint name.
     string ProxyEndpointName = 6 [ (gogoproto.jsontag) = "proxy_name,omitempty" ];
 }
 

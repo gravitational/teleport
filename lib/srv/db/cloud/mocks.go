@@ -45,10 +45,11 @@ func (m *STSMock) GetCallerIdentityWithContext(aws.Context, *sts.GetCallerIdenti
 // RDSMock mocks AWS RDS API.
 type RDSMock struct {
 	rdsiface.RDSAPI
-	DBInstances      []*rds.DBInstance
-	DBClusters       []*rds.DBCluster
-	DBProxies        []*rds.DBProxy
-	DBProxyEndpoints []*rds.DBProxyEndpoint
+	DBInstances       []*rds.DBInstance
+	DBClusters        []*rds.DBCluster
+	DBProxies         []*rds.DBProxy
+	DBProxyEndpoints  []*rds.DBProxyEndpoint
+	DBProxyTargetPort int64
 }
 
 func (m *RDSMock) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
@@ -168,6 +169,27 @@ func (m *RDSMock) DescribeDBProxyEndpointsWithContext(context aws.Context, input
 		return nil, trace.NotFound("proxy endpoint %v not found", aws.StringValue(input.DBProxyEndpointName))
 	}
 	return &rds.DescribeDBProxyEndpointsOutput{DBProxyEndpoints: endpoints}, nil
+}
+
+func (m *RDSMock) DescribeDBProxyTargetsWithContext(context aws.Context, input *rds.DescribeDBProxyTargetsInput, options ...request.Option) (*rds.DescribeDBProxyTargetsOutput, error) {
+	// only mocking to return a port here
+	return &rds.DescribeDBProxyTargetsOutput{
+		Targets: []*rds.DBProxyTarget{{
+			Port: aws.Int64(m.DBProxyTargetPort),
+		}},
+	}, nil
+}
+func (m *RDSMock) DescribeDBProxiesPagesWithContext(context aws.Context, input *rds.DescribeDBProxiesInput, fn func(*rds.DescribeDBProxiesOutput, bool) bool, options ...request.Option) error {
+	fn(&rds.DescribeDBProxiesOutput{
+		DBProxies: m.DBProxies,
+	}, true)
+	return nil
+}
+func (m *RDSMock) DescribeDBProxyEndpointsPagesWithContext(context aws.Context, input *rds.DescribeDBProxyEndpointsInput, fn func(*rds.DescribeDBProxyEndpointsOutput, bool) bool, options ...request.Option) error {
+	fn(&rds.DescribeDBProxyEndpointsOutput{
+		DBProxyEndpoints: m.DBProxyEndpoints,
+	}, true)
+	return nil
 }
 
 // IAMMock mocks AWS IAM API.

@@ -49,6 +49,11 @@ func TestWatcher(t *testing.T) {
 	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
 	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", services.RDSEngineModeServerless, map[string]string{"env": "prod"})
 
+	rdsProxyVPC1, rdsProxyDatabaseVPC1 := makeRDSProxy(t, "rds-proxy-1", "us-east-1", "vpc1")
+	rdsProxyVPC2, _ := makeRDSProxy(t, "rds-proxy-2", "us-east-1", "vpc2")
+	rdsProxyEndpointVPC1, rdsProxyEndpointDatabaseVPC1 := makeRDSProxyEndpoint(t, rdsProxyVPC1, "endpoint-1", "us-east-1")
+	rdsProxyEndpointVPC2, _ := makeRDSProxyEndpoint(t, rdsProxyVPC2, "endpoint-2", "us-east-1")
+
 	tests := []struct {
 		name              string
 		awsMatchers       []services.AWSMatcher
@@ -120,6 +125,22 @@ func TestWatcher(t *testing.T) {
 				},
 			},
 			expectedDatabases: types.Databases{rdsDatabase4, auroraDatabase1},
+		},
+		{
+			name: "rds proxy",
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRDSProxy},
+				Regions: []string{"us-east-1"},
+				Tags:    types.Labels{"vpc-id": []string{"vpc1"}},
+			}},
+			clients: &common.TestCloudClients{
+				RDS: &cloud.RDSMock{
+					DBProxies:         []*rds.DBProxy{rdsProxyVPC1, rdsProxyVPC2},
+					DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVPC1, rdsProxyEndpointVPC2},
+					DBProxyTargetPort: 9999,
+				},
+			},
+			expectedDatabases: types.Databases{rdsProxyDatabaseVPC1, rdsProxyEndpointDatabaseVPC1},
 		},
 	}
 
@@ -200,6 +221,33 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 	require.NoError(t, err)
 
 	return cluster, append(types.Databases{primaryDatabase, readerDatabase}, customDatabases...)
+}
+
+func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types.Database) {
+	rdsProxy := &rds.DBProxy{
+		DBProxyArn:   aws.String(fmt.Sprintf("arn:aws:rds:%s:1234567890:db-proxy:prx-%s", region, name)),
+		DBProxyName:  aws.String(name),
+		EngineFamily: aws.String(rds.EngineFamilyMysql),
+		Endpoint:     aws.String("localhost"),
+		VpcId:        aws.String(vpcID),
+	}
+
+	rdsProxyDatabase, err := services.NewDatabaseFromRDSProxy(rdsProxy, 9999)
+	require.NoError(t, err)
+	return rdsProxy, rdsProxyDatabase
+}
+
+func makeRDSProxyEndpoint(t *testing.T, rdsProxy *rds.DBProxy, name, region string) (*rds.DBProxyEndpoint, types.Database) {
+	rdsProxyEndpoint := &rds.DBProxyEndpoint{
+		Endpoint:            aws.String("localhost"),
+		DBProxyEndpointName: aws.String(name),
+		DBProxyName:         rdsProxy.DBProxyName,
+		DBProxyEndpointArn:  aws.String(fmt.Sprintf("arn:aws:rds:%v:123456:db-proxy-endpoint:prx-endpoint-%v", region, name)),
+		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
+	}
+	rdsProxyEndpointDatabase, err := services.NewDatabaseFromRDSProxyEndpoint(rdsProxy, rdsProxyEndpoint, 9999)
+	require.NoError(t, err)
+	return rdsProxyEndpoint, rdsProxyEndpointDatabase
 }
 
 func labelsToTags(labels map[string]string) (tags []*rds.Tag) {

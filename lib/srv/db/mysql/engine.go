@@ -209,19 +209,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 			conn.SetTLSConfig(tlsConfig)
 		})
 	if err != nil {
-		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Database.IsRDS() {
-			return nil, trace.AccessDenied(`Could not connect to database:
-
-  %v
-
-Make sure that IAM auth is enabled for MySQL user %q and Teleport database
-agent's IAM policy has "rds-connect" permissions (note that IAM changes may
-take a few minutes to propagate):
-
-%v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
-		}
-		return nil, trace.Wrap(err)
+		return nil, convertConnectionError(err, sessionCtx)
 	}
 	return conn, nil
 }
@@ -330,3 +318,44 @@ func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *common.Session) services
 		},
 	}
 }
+
+// convertConnectionError converts client connection errors to trace errors.
+func convertConnectionError(err error, sessionCtx *common.Session) error {
+	err = common.ConvertError(err)
+
+	if trace.IsAccessDenied(err) {
+		if sessionCtx.Database.IsRDSProxy() {
+			return trace.AccessDenied(rdsProxyAccessDeniedErrorTemplate, err, sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
+		} else if sessionCtx.Database.IsRDS() {
+			return trace.AccessDenied(rdsAccessDeniedErrorTemplate, err, sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
+		}
+	}
+	return trace.Wrap(err)
+}
+
+const (
+	// rdsAccessDeniedErrorTemplate is the string format template for RDS
+	// access denied error.
+	rdsAccessDeniedErrorTemplate = `Could not connect to database:
+
+  %v
+
+Make sure that IAM auth is enabled for MySQL user %q and Teleport database
+agent's IAM policy has "rds-connect" permissions (note that IAM changes may
+take a few minutes to propagate):
+
+%v
+`
+	// rdsProxyAccessDeniedErrorTemplate is the string format template for RDS
+	// Proxy access denied error.
+	rdsProxyAccessDeniedErrorTemplate = `Could not connect to database:
+
+  %v
+
+Make sure that the RDS Proxy possesses credentials for MySQL user %q and
+Teleport database agent's IAM policy has "rds-connect" permissions (note that
+IAM changes may take a few minutes to propagate):
+
+%v
+`
+)

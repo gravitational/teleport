@@ -73,7 +73,7 @@ func (f *rdsDBProxyFetcher) Get(ctx context.Context) (types.Databases, error) {
 }
 
 // getRDSProxyDatabases returns a list of database resources representing RDS
-// proxies and their custom endpoints.
+// proxies and proxy endpoints.
 func (f *rdsDBProxyFetcher) getRDSProxyDatabases(ctx context.Context) (types.Databases, error) {
 	dbProxies, err := getRDSDBProxies(ctx, f.cfg.RDS, maxPages)
 	if err != nil {
@@ -95,7 +95,7 @@ func (f *rdsDBProxyFetcher) getRDSProxyDatabases(ctx context.Context) (types.Dat
 			continue
 		}
 
-		// Add a database from RDS proxy (main endpoint).
+		// Add a database from RDS proxy (default endpoint).
 		database, err := services.NewDatabaseFromRDSProxy(dbProxy, port)
 		if err != nil {
 			f.log.Debugf("Could not convert RDS proxy %q to database resource: %v.",
@@ -104,7 +104,7 @@ func (f *rdsDBProxyFetcher) getRDSProxyDatabases(ctx context.Context) (types.Dat
 			databases = append(databases, database)
 		}
 
-		// Add custom endpoints from the same proxy.
+		// Add proxy endpoints from the same proxy.
 		for key, dbProxyEndpoint := range dbProxyEndpoints {
 			if aws.StringValue(dbProxyEndpoint.DBProxyName) != aws.StringValue(dbProxy.DBProxyName) {
 				continue
@@ -139,7 +139,7 @@ func getRDSDBProxies(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages in
 	return dbProxies, common.ConvertError(err)
 }
 
-// getRDSDBProxyEndpoints fetches all RDS proxy custom endpoints using the
+// getRDSDBProxyEndpoints fetches all RDS proxy endpoints using the
 // provided client, up to the specified max number of pages.
 func getRDSDBProxyEndpoints(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int) (dbProxyEndpoints map[string]*rds.DBProxyEndpoint, err error) {
 	dbProxyEndpoints = make(map[string]*rds.DBProxyEndpoint)

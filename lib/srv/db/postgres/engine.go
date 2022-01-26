@@ -222,19 +222,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
 	// messages b/w server and client e.g. to get client's password.
 	conn, err := pgconn.ConnectConfig(ctx, connectConfig)
 	if err != nil {
-		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Database.IsRDS() {
-			return nil, nil, trace.AccessDenied(`Could not connect to database:
-
-  %v
-
-Make sure that Postgres user %q has "rds_iam" role and Teleport database
-agent's IAM policy has "rds-connect" permissions (note that IAM changes may
-take a few minutes to propagate):
-
-%v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
-		}
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, convertConnectionError(err, sessionCtx)
 	}
 	// Hijacked connection exposes some internal connection data, such as
 	// parameters we'll need to relay back to the client (e.g. database
@@ -495,6 +483,20 @@ func formatParameters(parameters [][]byte, formatCodes []int16) (formatted []str
 	return formatted
 }
 
+// convertConnectionError converts client connection errors to trace errors.
+func convertConnectionError(err error, sessionCtx *common.Session) error {
+	err = common.ConvertError(err)
+
+	if trace.IsAccessDenied(err) {
+		if sessionCtx.Database.IsRDSProxy() {
+			return trace.AccessDenied(rdsProxyAccessDeniedErrorTemplate, err, sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
+		} else if sessionCtx.Database.IsRDS() {
+			return trace.AccessDenied(rdsAccessDeniedErrorTemplate, err, sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
+		}
+	}
+	return trace.Wrap(err)
+}
+
 const (
 	// parameterFormatCodeText indicates that this is a text query parameter.
 	parameterFormatCodeText = 0
@@ -507,4 +509,31 @@ const (
 	// closeTypeDestinationPortal indicates that a destination portal is being
 	// closed by the Close message.
 	closeTypeDestinationPortal = 'P'
+)
+
+const (
+	// rdsAccessDeniedErrorTemplate is the string format template for RDS
+	// access denied error.
+	rdsAccessDeniedErrorTemplate = `Could not connect to database:
+
+  %v
+
+Make sure that Postgres user %q has "rds_iam" role and Teleport database
+agent's IAM policy has "rds-connect" permissions (note that IAM changes may
+take a few minutes to propagate):
+
+%v
+`
+	// rdsProxyAccessDeniedErrorTemplate is the string format template for RDS
+	// Proxy access denied error.
+	rdsProxyAccessDeniedErrorTemplate = `Could not connect to database:
+
+  %v
+
+Make sure that the RDS Proxy possesses credentials for Postgres user %q and
+Teleport database agent's IAM policy has "rds-connect" permissions (note that
+IAM changes may take a few minutes to propagate):
+
+%v
+`
 )

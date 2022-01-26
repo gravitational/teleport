@@ -380,3 +380,90 @@ func TestRDSTagsToLabels(t *testing.T) {
 	labels := rdsTagsToLabels(rdsTags)
 	require.Equal(t, map[string]string{"Name": "test", "Env": "dev"}, labels)
 }
+
+func TestDatabaseFromRDSProxy(t *testing.T) {
+	var port int64 = 9999
+	dbProxy := &rds.DBProxy{
+		DBProxyArn:   aws.String("arn:aws:rds:ca-central-1:123456:db-proxy:prx-abcdef"),
+		DBProxyName:  aws.String("testproxy"),
+		EngineFamily: aws.String(rds.EngineFamilyMysql),
+		Endpoint:     aws.String("proxy.rds.test"),
+		VpcId:        aws.String("test-vpc-id"),
+	}
+
+	dbProxyEndpoint := &rds.DBProxyEndpoint{
+		Endpoint:            aws.String("custom.proxy.rds.test"),
+		DBProxyEndpointName: aws.String("custom"),
+		DBProxyName:         aws.String("testproxy"),
+		DBProxyEndpointArn:  aws.String("arn:aws:rds:ca-central-1:123456:db-proxy-endpoint:prx-endpoint-abcdef"),
+		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
+	}
+
+	t.Run("default endpoint", func(t *testing.T) {
+		expected, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "testproxy",
+			Description: "RDS Proxy in ca-central-1",
+			Labels: map[string]string{
+				types.OriginLabel: types.OriginCloud,
+				labelAccountID:    "123456",
+				labelRegion:       "ca-central-1",
+				labelEngine:       RDSEngineMySQL,
+				labelVPCID:        "test-vpc-id",
+				labelTargetRole:   "read_write",
+			},
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "proxy.rds.test:9999",
+			AWS: types.AWS{
+				Region:    "ca-central-1",
+				AccountID: "123456",
+				RDS: types.RDS{
+					ResourceID: "prx-abcdef",
+					IAMAuth:    true,
+					ProxyName:  "testproxy",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		actual, err := NewDatabaseFromRDSProxy(dbProxy, port)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("custom endpoint", func(t *testing.T) {
+		expected, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "testproxy-custom",
+			Description: "RDS Proxy endpoint in ca-central-1",
+			Labels: map[string]string{
+				types.OriginLabel: types.OriginCloud,
+				labelAccountID:    "123456",
+				labelRegion:       "ca-central-1",
+				labelEngine:       RDSEngineMySQL,
+				labelVPCID:        "test-vpc-id",
+				labelTargetRole:   "read_only",
+			},
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "custom.proxy.rds.test:9999",
+			AWS: types.AWS{
+				Region:    "ca-central-1",
+				AccountID: "123456",
+				RDS: types.RDS{
+					ResourceID:        "prx-abcdef",
+					IAMAuth:           true,
+					ProxyName:         "testproxy",
+					ProxyEndpointName: "custom",
+				},
+			},
+			TLS: types.DatabaseTLS{
+				ServerName: "proxy.rds.test",
+			},
+		})
+		require.NoError(t, err)
+
+		actual, err := NewDatabaseFromRDSProxyEndpoint(dbProxy, dbProxyEndpoint, port)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+}
