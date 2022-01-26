@@ -332,7 +332,7 @@ func (d *DatabaseV3) Copy() *DatabaseV3 {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (d *DatabaseV3) MatchSearch(values []string) bool {
-	fieldVals := []string{d.GetName(), d.GetDescription(), d.GetProtocol(), d.GetType(), utils.MapToString(d.GetAllLabels())}
+	fieldVals := append(utils.MapToStrings(d.GetAllLabels()), d.GetName(), d.GetDescription(), d.GetProtocol(), d.GetType())
 
 	var custom func(string) bool
 	switch d.GetType() {

@@ -22,9 +22,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMapToString(t *testing.T) {
+func TestMapToStrings(t *testing.T) {
 	t.Parallel()
 
-	s := MapToString(map[string]string{"env": "prod", "Os": "Mac"})
-	require.Equal(t, s, "envprodOsMac")
+	s := MapToStrings(map[string]string{"env": "prod", "Os": "Mac"})
+	require.ElementsMatch(t, []string{"env", "prod", "Os", "Mac"}, s)
+}
+
+func TestToLowerStrings(t *testing.T) {
+	t.Parallel()
+
+	s := ToLowerStrings([]string{"FOO", "bAr", "baz"})
+	require.ElementsMatch(t, []string{"foo", "bar", "baz"}, s)
 }

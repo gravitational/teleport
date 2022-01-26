@@ -253,7 +253,7 @@ func (a *AppV3) Copy() *AppV3 {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (a *AppV3) MatchSearch(values []string) bool {
-	fieldVals := []string{a.GetName(), a.GetDescription(), a.GetPublicAddr(), utils.MapToString(a.GetAllLabels())}
+	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName(), a.GetDescription(), a.GetPublicAddr())
 	return MatchSearch(fieldVals, values, nil)
 }
 

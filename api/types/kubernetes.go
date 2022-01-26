@@ -168,7 +168,7 @@ func (k *KubernetesClusterV3) Copy() *KubernetesClusterV3 {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (k *KubernetesClusterV3) MatchSearch(values []string) bool {
-	fieldVals := []string{k.GetName(), utils.MapToString(k.GetAllLabels())}
+	fieldVals := append(utils.MapToStrings(k.GetAllLabels()), k.GetName())
 	return MatchSearch(fieldVals, values, nil)
 }
 

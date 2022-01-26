@@ -184,6 +184,6 @@ func (d *WindowsDesktopV3) SetOrigin(o string) {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (d *WindowsDesktopV3) MatchSearch(values []string) bool {
-	fieldVals := []string{d.GetName(), d.GetAddr(), utils.MapToString(d.GetAllLabels())}
+	fieldVals := append(utils.MapToStrings(d.GetAllLabels()), d.GetName(), d.GetAddr())
 	return MatchSearch(fieldVals, values, nil)
 }

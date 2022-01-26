@@ -376,9 +376,12 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 	var custom func(val string) bool
 
 	if s.GetKind() == KindNode {
-		fieldVals = []string{s.GetName(), s.GetHostname(), s.GetAddr(), utils.MapToString(s.GetAllLabels())}
-		custom = func(val string) bool {
-			return strings.EqualFold(val, "tunnel") && s.GetUseTunnel()
+		fieldVals = append(utils.MapToStrings(s.GetAllLabels()), s.GetName(), s.GetHostname(), s.GetAddr())
+
+		if s.GetUseTunnel() {
+			custom = func(val string) bool {
+				return strings.EqualFold(val, "tunnel")
+			}
 		}
 	}
 

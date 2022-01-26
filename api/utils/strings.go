@@ -100,12 +100,21 @@ func CopyStrings(in []string) []string {
 	return out
 }
 
-// MapToString converts a map into a string.
-func MapToString(m map[string]string) string {
-	var sb strings.Builder
+// MapToStrings collects keys and values of a map into a slice of strings.
+func MapToStrings(m map[string]string) []string {
+	s := make([]string, 0, len(m)*2)
 	for key, value := range m {
-		sb.WriteString(key)
-		sb.WriteString(value)
+		s = append(s, key, value)
 	}
-	return sb.String()
+	return s
+}
+
+// ToLowerStrings lower cases each string in a slice.
+func ToLowerStrings(strs []string) []string {
+	lowerCasedStrs := make([]string, len(strs))
+	for i, s := range strs {
+		lowerCasedStrs[i] = strings.ToLower(s)
+	}
+
+	return lowerCasedStrs
 }
