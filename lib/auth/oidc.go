@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -40,18 +41,18 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (a *Server) getOrCreateOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
-	client, err := a.getOIDCClient(conn)
+func (a *Server) getOrCreateOIDCClient(conn types.OIDCConnector, insecure bool) (*oidc.Client, error) {
+	client, err := a.getOIDCClient(conn, insecure)
 	if err == nil {
 		return client, nil
 	}
 	if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	return a.createOIDCClient(conn)
+	return a.createOIDCClient(conn, insecure)
 }
 
-func (a *Server) getOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
+func (a *Server) getOIDCClient(conn types.OIDCConnector, insecure bool) (*oidc.Client, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
@@ -60,7 +61,7 @@ func (a *Server) getOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
 		return nil, trace.NotFound("connector %v is not found", conn.GetName())
 	}
 
-	config := oidcConfig(conn)
+	config := oidcConfig(conn, insecure)
 	if ok && oidcConfigsEqual(clientPack.config, config) {
 		return clientPack.client, nil
 	}
@@ -70,8 +71,8 @@ func (a *Server) getOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
 
 }
 
-func (a *Server) createOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
-	config := oidcConfig(conn)
+func (a *Server) createOIDCClient(conn types.OIDCConnector, insecure bool) (*oidc.Client, error) {
+	config := oidcConfig(conn, insecure)
 	client, err := oidc.NewClient(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -115,8 +116,8 @@ func (a *Server) createOIDCClient(conn types.OIDCConnector) (*oidc.Client, error
 	return client, nil
 }
 
-func oidcConfig(conn types.OIDCConnector) oidc.ClientConfig {
-	return oidc.ClientConfig{
+func oidcConfig(conn types.OIDCConnector, insecure bool) oidc.ClientConfig {
+	conf := oidc.ClientConfig{
 		RedirectURL: conn.GetRedirectURL(),
 		Credentials: oidc.ClientCredentials{
 			ID:     conn.GetClientID(),
@@ -125,6 +126,18 @@ func oidcConfig(conn types.OIDCConnector) oidc.ClientConfig {
 		// open id notifies provider that we are using OIDC scopes
 		Scope: apiutils.Deduplicate(append([]string{"openid", "email"}, conn.GetScope()...)),
 	}
+
+	if insecure {
+		conf.HTTPClient = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		}
+	}
+
+	return conf
 }
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
@@ -180,7 +193,7 @@ func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	oidcClient, err := a.getOrCreateOIDCClient(connector)
+	oidcClient, err := a.getOrCreateOIDCClient(connector, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -305,7 +318,7 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 		return nil, trace.Wrap(err)
 	}
 
-	oidcClient, err := a.getOrCreateOIDCClient(connector)
+	oidcClient, err := a.getOrCreateOIDCClient(connector, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -653,6 +666,10 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 	if err != nil {
 		if trace.IsNotFound(err) {
 			log.Debugf("OIDC provider doesn't offer valid UserInfo endpoint. Returning token claims: %v.", idTokenClaims)
+			return idTokenClaims, nil
+		}
+		if trace.IsAccessDenied(err) {
+			log.Debugf("UserInfo endpoint returned an error. Returning token claims: %v.", idTokenClaims)
 			return idTokenClaims, nil
 		}
 		log.Debugf("Unable to fetch UserInfo claims: %v.", err)
