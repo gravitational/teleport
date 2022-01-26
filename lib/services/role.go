@@ -1544,8 +1544,8 @@ type kubernetesClusterLabelMatcher struct {
 	clusterLabels map[string]string
 }
 
-// NewKubernetesClusterLabelMatcher creates a RoleMatcher that checks whether the role's
-// matches Kubernetes service labels.
+// NewKubernetesClusterLabelMatcher creates a RoleMatcher that checks whether a role's
+// Kubernetes service labels match.
 func NewKubernetesClusterLabelMatcher(clustersLabels map[string]string) RoleMatcher {
 	return &kubernetesClusterLabelMatcher{clusterLabels: clustersLabels}
 }
