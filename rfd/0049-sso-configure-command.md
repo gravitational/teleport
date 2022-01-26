@@ -30,29 +30,27 @@ interactive shell, the desired configuration will be queried interactively.
 $ tctl sso configure
 ```
 
-Users provide choices using command line flags. The `--kind` flag determines the kind of auth connector,
-while `--preset`
-chooses template suited for particular vendor:
+The `--preset` flag chooses the template to use. Additionally, each template may define its own flags.
 
 ```bash
-$ tctl sso configure --kind={oidc,saml,github} --preset={google,okta,adfs,generic} --interactive --template-specific-flags=...
+$ tctl sso configure --preset={google,okta,adfs,saml,oidc,github} --template-specific-flags=...
 ```
 
 Valid flag combinations (initial implementation scope):
 
-| `--kind` | `--preset` | interactive behavior                                      | batch behaviour                    |
-|----------|------------|-----------------------------------------------------------|------------------------------------|
-|          |            | Ask for `--kind` to use.                                  | Exit with error: missing `--kind`. |
-| `github` |            | Ask for `client_id` and `client_secret`.                  |                                    |
-| `oidc`   |            | Ask for `--preset`.                                       | Default to `--preset=generic`.     |
-| `oidc`   | `generic`  | Generic OIDC template.                                    |                                    |
-| `oidc`   | `okta`     | Okta OIDC template. Fill in details from `.well-known`.   |                                    |
-| `oidc`   | `google`   | Google OIDC template. Fill in details from `.well-known`. |                                    |
-| `saml`   |            | Ask for `--preset`.                                       | Default to `--preset=generic`.     |
-| `saml`   | `generic`  | Generic SAML template.                                    |                                    |
-| `saml`   | `okta`     | Okta SAML template.                                       |                                    |
-| `saml`   | `google`   | Google SAML template.                                     |                                    |
-| `saml`   | `adfs`     | ADFS SAML template.                                       |                                    |
+| `--preset`    | description                                                                         |
+|---------------|-------------------------------------------------------------------------------------|
+|               | Error: missing `--preset`. If possible (interactive TTY) ask user which one to use. |
+| `github`      | Ask for `client_id` and `client_secret`.                                            |
+| `oidc`        | Generic OIDC template.                                                              |
+| `saml`        | Generic SAML template.                                                              |
+|               |                                                                                     |
+| `okta`        | Okta template (SAML).                                                               |
+| `google`      | Google template (SAML).                                                             |
+| `adfs`        | ADFS SAML template.                                                                 |
+|               |                                                                                     |
+| `okta-oidc`   | Okta OIDC template. Fill in details from `.well-known`.                             |
+| `google-oidc` | Google OIDC template. Fill in details from `.well-known`.                           |
 
 Individual templates can accept additional non-standard flags. For example `--entity-descriptor=FILE` flag used by SAML
 templates will read Entity Descriptor XML from the provided file and properly embed it in the resulting YAML file. The
@@ -69,32 +67,30 @@ $ tctl sso configure --help
 ...
 ```
 
-## Interactive and batch modes
+## Interactive mode
 
-We support two modes: interactive and batch (non-interactive). In interactive mode we may provide the user with
-choices (e.g. preset) or ask them to provide details (secrets, identifiers etc.) In batch mode we never ask but use
-defaults (when possible) or insert comments asking for the data to be filled manually afterwards. Some
+If the terminal attached to stdin is interactive we default to interactive mode. In interactive mode we may provide the
+user with choices (e.g. preset) or ask them to provide details (secrets, identifiers...). In non-interactive mode we
+always use defaults or return error if no sensible defaults are possible.
 
-Interactive mode is used when we detect TTY or `--interactive` flag is provided, batch mode is used otherwise.
+The interactive mode may be forced on and off with `--interactive` flag.
 
 ## Proxy URL discovery
 
-The command will make an effort to discover the correct proxy URL. Failing that, an appropriate default along with
-comment will be put into the configuration file.
+The command will make an effort to discover the correct proxy URL from client profile. Failing that, an appropriate
+default along with comment will be put into the configuration file.
 
-## Implementation details
+## Initial scope for POC
 
-Each combination of `--kind` and `--provider` will be mapped to single template based
-on [text/template](https://pkg.go.dev/text/template) package. The extension points will be handled by calls to functions
-or conditionals, with functions handling the input fetching and state management.
+Only `--preset=okta` and non-interactive mode are in scope of POC. 
 
 ## Security
 
 The command will never modify existing Teleport configuration, this will be done by the user by further invocation
 of `tctl create` command or by other means.
 
-The command may handle user secrets. The implementation must ensure these are silently written anywhere (e.g. we must
-not save partially filled-in configuration files to temp files).
+The command may handle user secrets. The implementation must ensure these are not silently written anywhere (e.g. we
+must never save partially filled-in configuration files to temp files).
 
 When asking for secrets we should disable local echo (same as when asking for passwords).
 
