@@ -1909,9 +1909,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 
 	// If the user is renewing a renewable cert, make sure the renewable flag
-	// remains for subsequent requests.
-	// TODO: need a way to opt-out of renewable certs (new cert request field?)
-	if req.Username == a.context.User.GetName() && a.context.Identity.GetIdentity().Renewable {
+	// remains for subsequent requests of the primary certificate. The
+	// renewable flag should never be carried over for impersonation, role
+	// requests, or when the disallow-reissue flag has already been set.
+	if a.context.Identity.GetIdentity().Renewable &&
+		req.Username == a.context.User.GetName() &&
+		len(req.RoleRequests) == 0 &&
+		!certReq.disallowReissue {
 		certReq.renewable = true
 	}
 
