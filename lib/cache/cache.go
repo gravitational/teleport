@@ -456,6 +456,10 @@ type Config struct {
 	// CacheInitTimeout is the maximum amount of time that cache.New
 	// will block, waiting for initialization (default=20s).
 	CacheInitTimeout time.Duration
+	// RelativeExpiryCheckInterval determines how often the cache performs special
+	// "relative expiration" checks which are used to compensate for real backends
+	// that have suffer from overly lazy ttl'ing of resources.
+	RelativeExpiryCheckInterval time.Duration
 	// EventsC is a channel for event notifications,
 	// used in tests
 	EventsC chan Event
@@ -496,6 +500,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.CacheInitTimeout == 0 {
 		c.CacheInitTimeout = time.Second * 20
+	}
+	if c.RelativeExpiryCheckInterval == 0 {
+		c.RelativeExpiryCheckInterval = defaults.ServerAnnounceTTL / 2
 	}
 	if c.Component == "" {
 		c.Component = teleport.ComponentCache
@@ -826,8 +833,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	retry.Reset()
 
 	relativeExpiryInterval := interval.New(interval.Config{
-		Duration:      defaults.ServerAnnounceTTL / 2,
-		FirstDuration: utils.HalfJitter(defaults.ServerAnnounceTTL / 2),
+		Duration:      c.Config.RelativeExpiryCheckInterval,
+		FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
 		Jitter:        utils.NewSeventhJitter(),
 	})
 	defer relativeExpiryInterval.Stop()
@@ -894,11 +901,29 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 }
 
 // performRelativeNodeExpiry performs a special kind of active expiration where we remove nodes
-// which are clearly stale *relative* to ther more recently heartbeated counterparts. this
-// strategy lets us side-step the issue of clock drift or general cache staleness by only
-// removing items which are stale from within the cache's own "frame of reference". this is
-// necessary because some backends (notably dynamo) can take a *very* long time to emit expiry
-// events (>24 hours).
+// which are clearly stale relative to their more recently heartbeated counterparts as well as
+// the current time. This strategy lets us side-step issues of clock drift or general cache
+// staleness by only removing items which are stale from within the cache's own "frame of
+// reference".
+//
+// to better understand why we use this expiry strategy, its important to understand the two
+// distinct scenarios that we're trying to accommodate:
+//
+// 1. Expiry events are being emitted very lazily by the real backend (*hours* after the time
+// at which the resource was supposed to expire).
+//
+// 2. The event stream itself is stale (i.e. all events show up late, not just expiry events).
+//
+// In the first scenario, removing items from the cache after they have passed some designated
+// threshold of staleness seems reasonable.  In the second scenario, your best option is to
+// faithfully serve the delayed, but internally consistent, view created by the event stream and
+// not expire any items.
+//
+// Relative expiry is the compromise between the two above scenarios. We calculate a staleness
+// threshold after which items would be removed, but we calculate it relative to the most recent
+// expiry *or* the current time, depending on which is earlier. The result is that nodes are
+// removed only if they are both stale from the perspective of the current clock, *and* stale
+// relative to our current view of the world.
 //
 // *note*: this function is only sane to call when the cache and event stream are healthy, and
 // cannot run concurrently with event processing. this function injects additional events into
@@ -910,6 +935,7 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
+	// most recent expiry among nodes
 	var latestExp time.Time
 
 	nodes, err := c.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
@@ -922,7 +948,9 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) (int, error) {
 			continue
 		}
 
-		if node.Expiry().After(latestExp) {
+		if node.Expiry().After(latestExp) || latestExp.IsZero() {
+			// this node's expiry is more recent than the previously
+			// recorded value.
 			latestExp = node.Expiry()
 		}
 	}
@@ -931,12 +959,21 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
+	// if the lastest expiry is in the future, we use the current time instead. unless the event stream
+	// is unhealthy or all nodes were recently removed, this aught to be the case.
+	if now := c.Clock.Now(); latestExp.After(now) {
+		latestExp = now
+	}
+
 	var removed int
 	for _, node := range nodes {
-		if node.Expiry().IsZero() || latestExp.Sub(node.Expiry()) < cutoff {
+		if node.Expiry().IsZero() || node.Expiry().Add(cutoff).After(latestExp) {
 			continue
 		}
 
+		// event stream processing is paused while this function runs.  we perform the
+		// actual expiry by constructing a fake delete event for the resource which both
+		// updates this cache, and all downstream caches.
 		err = c.processEvent(ctx, types.Event{
 			Type: types.OpDelete,
 			Resource: &types.ResourceHeader{

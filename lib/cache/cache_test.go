@@ -1790,6 +1790,53 @@ func TestDatabaseServers(t *testing.T) {
 	require.Equal(t, 0, len(out))
 }
 
+func TestRelativeExpiry(t *testing.T) {
+	const checkInterval = time.Millisecond * 500
+	const nodeCount = int64(100)
+
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
+	p := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = checkInterval
+		c.Clock = clock
+		return ForAuth(c)
+	})
+	t.Cleanup(p.Close)
+
+	// add servers that expire at a range of times
+	now := clock.Now()
+	for i := int64(0); i < nodeCount; i++ {
+		exp := now.Add(time.Minute * time.Duration(i))
+		server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+		server.SetExpiry(exp)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(t, err)
+		// Check that information has been replicated to the cache.
+		select {
+		case event := <-p.eventsC:
+			require.Equal(t, EventProcessed, event.Type)
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for event")
+		}
+	}
+
+	nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, nodes, 100)
+
+	clock.Advance(time.Minute * 50)
+	time.Sleep(checkInterval * 3)
+
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+
+	// half the nodes are now "expired", but relative expiry waits until nodes are
+	// expired by an extra 10-20 minutes, so just require that we're in a roughly
+	// expected range.
+	require.True(t, len(nodes) < 100 && len(nodes) > 50, "node_count=%d", len(nodes))
+}
+
 func TestCache_Backoff(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	p := newTestPack(t, func(c Config) Config {
