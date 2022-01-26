@@ -18,6 +18,7 @@ package postgres
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -50,6 +51,8 @@ type Engine struct {
 	Context context.Context
 	// Clock is the clock interface.
 	Clock clockwork.Clock
+	// CloudClients provides access to cloud API clients.
+	CloudClients common.CloudClients
 	// Log is used for logging.
 	Log logrus.FieldLogger
 	// client is a client connection.
@@ -410,6 +413,12 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TLS config will use client certificate for an onprem database or
+	// will contain RDS root certificate for RDS/Aurora.
+	config.TLSConfig, err = e.Auth.GetTLSConfig(ctx, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	config.User = sessionCtx.DatabaseUser
 	config.Database = sessionCtx.DatabaseName
 	// Pgconn adds fallbacks to retry connection without TLS if the TLS
@@ -436,6 +445,12 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// create ephemeral cert and append to TLS config
+		// when instance's RequireSsl setting is true
+		err = e.appendGCPClientCert(ctx, sessionCtx, config.TLSConfig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case types.DatabaseTypeAzure:
 		config.Password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
 		if err != nil {
@@ -445,13 +460,34 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 		// alice@postgres-server-name.
 		config.User = fmt.Sprintf("%v@%v", config.User, sessionCtx.Database.GetAzure().Name)
 	}
-	// TLS config will use client certificate for an onprem database or
-	// will contain RDS root certificate for RDS/Aurora.
-	config.TLSConfig, err = e.Auth.GetTLSConfig(ctx, sessionCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return config, nil
+}
+
+// appendGCPClientCert calls the GCP API to generate an ephemeral cert when
+// the instance's RequireSsl setting is true. Return requireSSL so the caller
+// can configure a custom dialer.
+func (e *Engine) appendGCPClientCert(ctx context.Context, sessionCtx *common.Session, tlsConfig *tls.Config) error {
+	svc, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	dbi, err := svc.GetDatabaseInstance(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err, "failed to get Cloud SQL instance information for %q", tlsConfig.ServerName)
+	} else if dbi.Settings == nil || dbi.Settings.IpConfiguration == nil {
+		return trace.BadParameter("failed to find Cloud SQL settings for %q. GCP returned %+v", tlsConfig.ServerName, dbi)
+	}
+
+	if dbi.Settings.IpConfiguration.RequireSsl {
+		cert, err := svc.GenerateEphemeralCert(ctx, sessionCtx)
+		if err != nil {
+			return trace.Wrap(err, "failed to generate Cloud SQL ephemeral client certificate for %q", tlsConfig.ServerName)
+		}
+		tlsConfig.Certificates = []tls.Certificate{*cert}
+	}
+
+	return nil
 }
 
 // formatParameters converts parameters from the Postgres wire message into
