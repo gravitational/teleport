@@ -157,41 +157,62 @@ At the time of this writing:
   on the clipboard API. Most importantly, the system clipboard can only be read
   from or written to in response to a user gesture.
 
-Until browser support is improved, using the clipboard API with these
-restrcitions would require that we maintain a large amount of browser-specific
-code. Additionally, even with browser-specific code, some browsers simpy won't
-work, as we need:
+Fortunately, Chrome does provide enough support in both the permissions and
+clipboard APIs to implement clipboard sharing in a way that is natural to users
+and won't require them to change their behavior.
 
-- access to the clipboard upon receiving a TDP message, which will be decoupled
-  from the user gesture
-- to detect copy actions that were performed outside the browser
+Since Chrome has the largest market share of any browser, we will officially
+support clipboard sharing in Chrome. For other browsers, desktop access will
+continue to function as it does today, without clipboard support.
 
-Until then, we will take an approach similar to
-[Apache Guacamole](https://guacamole.apache.org/doc/gug/using-guacamole.html#using-the-clipboard). This approach places a native browser textbox
-in the UI that acts as a bridge between the local clipboard and the remote
-desktop.
+If clipboard support is disabled due to an incompatible browser, the Teleport UI
+will present a clear warning and recommend the use of a Chrome-based browser. We
+will extend support for other browsers if and when they support the required APIs.
 
-- Pasting (or even typing) in this text box will send the data to the remote
-  desktop and place it on the desktop's system clipboard.
-- Cutting/copying text in the remote desktop will update the text in this
-  textbox. It is then up to the user to copy the text from here in order to
-  place it on their local clipboard.
+### Implementation Notes
 
-This approach allows us to leverage standard browser APIs for detecting changes
-to the text box, and isolates the Teleport user's system clipboard from the
-remote machine. In other words, Teleport will never write to the system
-clipboard, it will only make data from the remote clipboard available, and allow
-the user to copy that data to the system clipboard should they decide to.
+Since the TDP protocol does not implement the delayed rendering appraoch used by
+RDP, the Windows Desktop Service will be responsible for storing and
+synchronizing the state of the clipboard between the local workstation and the
+remote Windows desktop.
 
-This approach protects against the issues mentioned in the previous section,
-as the remote desktop can only "see" what you put in the textbox and can never
-directly access your clipboard. It does require slightly more user interaction
-to complete a task though.
+There are two scenarios to consider.
 
-- A copy-paste from local workstation to remote desktop requires a single copy
-  and two pastes (one paste into the browser textbox and then a second paste
-  from inside the remote desktop session).
-- A copy-paste from a remote desktop to the local workstation requires two
-  copies (one copy from within the remote session, and a second copy from the
-  browser textbox) and a single paste.
+#### Local Copy, Remote Paste
 
+In this scenario, a user copies text on their local workstation running the
+Teleport UI. The web UI must detect a change to the local clipboard and notify
+the Teleport backend of the latest data. The general sequence of operations is:
+
+- When a desktop session is initiated, the web UI uses the permissions API to
+  request access to the clipboard. The user is presented with a dialog asking
+  whether Teleport should be allowed access. The user grants access.
+- The Web UI reads clipboard state on every `mouseenter` event. This approach is
+  more efficient than polling the local clipboard, and works because in order to
+  copy data from the local system and then paste it, they need to leave the
+  Teleport UI and eventually re-enter the canvas.
+- If the web UI detects that the clipboard state has changed, it sends a clipboard
+  data TDP message to the Teleport backend, which contains the new copied text.
+- The Windows Desktop Service handling the RDP connection caches the clipboard text
+  and notifies the Windows Desktop that new clipboard data is available. Remember,
+  the actual contents of the clipboard data are not sent yet due to delayed rendering.
+- The user executes a paste operation in the remote Windows Desktop. The RDP
+  server on the Windows Desktop requests the clipboard data, and the Windows
+  Desktop Service responds with the cached data.
+
+#### Remote Copy, Local Paste
+
+In this scenario, the user copies text in the remote Windows Desktop, and
+expects that data to end up on their system clipboard. The sequence is:
+
+- The Windows Desktop sends a notfication to the Windows Desktop Service that
+  new data has been copied to the clipboard.
+- The Teleport Windows Desktop Service fakes a "paste" operation by immediately
+  responding with a request for the clipboard data.
+- The Windows Desktop Service receives the clipboard data from the Windows
+  desktop, and sends it to the user's browser in a clipboard data message. It
+  also updates its local cache of the clipboard data. This is necessary in case
+  the user decides to paste the text they just copied back in the remote session
+  rather than on their local workstation.
+- The Teleport UI running in the browser unpacks this data and places it on the
+  system clipboard.
