@@ -153,7 +153,7 @@ func (a *AuthCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 	return true, trace.Wrap(err)
 }
 
-var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "tls-user-der", "windows"}
+var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "tls-user-der", "windows", "db"}
 
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
@@ -170,13 +170,15 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 		return a.exportTLSAuthority(client, types.HostCA, false)
 	case "tls-user":
 		return a.exportTLSAuthority(client, types.UserCA, false)
+	case "db":
+		return a.exportTLSAuthority(client, types.DatabaseCA, false)
 	case "tls-user-der", "windows":
 		return a.exportTLSAuthority(client, types.UserCA, true)
 	}
 
 	// if no --type flag is given, export all types
 	if a.authType == "" {
-		typesToExport = []types.CertAuthType{types.HostCA, types.UserCA}
+		typesToExport = []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA}
 	} else {
 		authType := types.CertAuthType(a.authType)
 		if err := authType.Check(); err != nil {
