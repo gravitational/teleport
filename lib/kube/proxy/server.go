@@ -34,7 +34,6 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/net/http2"
 )
 
 // TLSServerConfig is a configuration for TLS server
@@ -125,7 +124,6 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		Server: &http.Server{
 			Handler:           limiter,
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout * 2,
-			TLSConfig:         cfg.TLS,
 		},
 	}
 	server.TLS.GetConfigForClient = server.GetConfigForClient
@@ -175,15 +173,11 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	go mux.Serve()
 	defer mux.Close()
 
 	t.mu.Lock()
 	t.listener = mux.TLS()
-	if err = http2.ConfigureServer(t.Server, &http2.Server{}); err != nil {
-		return trace.Wrap(err)
-	}
 	t.mu.Unlock()
 
 	if t.heartbeat != nil {
