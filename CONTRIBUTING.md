@@ -19,4 +19,4 @@ If your patch depends on new packages, the dependencies must:
 
 - be licensed via Apache2 license
 - be approved by core Teleport contributors ahead of time
-- a dependency package must be vendored as a [Go module](https://blog.golang.org/using-go-modules)
+- a dependency package must be a [Go module](https://blog.golang.org/using-go-modules)

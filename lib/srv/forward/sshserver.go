@@ -44,8 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -271,7 +271,7 @@ func New(c ServerConfig) (*Server, error) {
 				"dst-addr": c.DstAddr.String(),
 			},
 		}),
-		id:              uuid.New(),
+		id:              uuid.New().String(),
 		targetConn:      c.TargetConn,
 		serverConn:      utils.NewTrackingConn(serverConn),
 		clientConn:      clientConn,
@@ -737,11 +737,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 			Type: events.PortForwardEvent,
 			Code: events.PortForwardCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			Login:        s.identityContext.Login,
-			User:         s.identityContext.TeleportUser,
-			Impersonator: s.identityContext.Impersonator,
-		},
+		UserMetadata: s.identityContext.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  s.sconn.LocalAddr().String(),
 			RemoteAddr: s.sconn.RemoteAddr().String(),
@@ -1075,11 +1071,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 		Metadata: apievents.Metadata{
 			Type: events.X11ForwardEvent,
 		},
-		UserMetadata: apievents.UserMetadata{
-			Login:        s.identityContext.Login,
-			User:         s.identityContext.TeleportUser,
-			Impersonator: s.identityContext.Impersonator,
-		},
+		UserMetadata: s.identityContext.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  s.sconn.LocalAddr().String(),
 			RemoteAddr: s.sconn.RemoteAddr().String(),

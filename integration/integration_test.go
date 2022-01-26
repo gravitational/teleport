@@ -65,10 +65,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -120,7 +119,10 @@ type integrationTest func(t *testing.T, suite *integrationTestSuite)
 
 func (s *integrationTestSuite) bind(test integrationTest) func(t *testing.T) {
 	return func(t *testing.T) {
-		s.log = testlog.FailureOnly(t)
+		// Attempt to set a logger for the test. Be warned that parts of the
+		// Teleport codebase do not honour the logger passed in via config and
+		// will create their own. Do not expect to catch _all_ output with this.
+		s.log = utils.NewLoggerForTests()
 		os.RemoveAll(profile.FullProfilePath(""))
 		t.Cleanup(func() { s.log = nil })
 		test(t, s)
@@ -485,7 +487,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			start := findByType(events.SessionStartEvent)
 			require.Equal(t, first, start)
 			require.Equal(t, 0, start.GetInt("bytes"))
-			require.NotEmpty(t, start.GetString(events.SessionEventID))
+			require.Equal(t, string(sessionID), start.GetString(events.SessionEventID))
 			require.NotEmpty(t, start.GetString(events.TerminalSize))
 
 			// If session are being recorded at nodes, the SessionServerID should contain
@@ -510,15 +512,15 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			end := findByType(events.SessionEndEvent)
 			require.NotNil(t, end)
 			require.Equal(t, 0, end.GetInt("bytes"))
-			require.NotEmpty(t, end.GetString(events.SessionEventID))
+			require.Equal(t, string(sessionID), end.GetString(events.SessionEventID))
 
 			// there should always be 'session.leave' event
 			leave := findByType(events.SessionLeaveEvent)
 			require.NotNil(t, leave)
 			require.Equal(t, 0, leave.GetInt("bytes"))
-			require.NotEmpty(t, leave.GetString(events.SessionEventID))
+			require.Equal(t, string(sessionID), leave.GetString(events.SessionEventID))
 
-			// all of them should have a proper time:
+			// all of them should have a proper time
 			for _, e := range history {
 				require.False(t, e.GetTime("time").IsZero())
 			}
@@ -1432,9 +1434,9 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	bcfg.SSH.Enabled = false
 
 	require.NoError(t, b.CreateEx(t, a.Secrets.AsSlice(), bcfg))
-	defer b.StopAll()
+	t.Cleanup(func() { require.NoError(t, b.StopAll()) })
 	require.NoError(t, a.CreateEx(t, b.Secrets.AsSlice(), acfg))
-	defer a.StopAll()
+	t.Cleanup(func() { require.NoError(t, a.StopAll()) })
 
 	require.NoError(t, b.Start())
 	require.NoError(t, a.Start())
@@ -1522,11 +1524,13 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	// try to execute an SSH command using the same old client to Site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
 	// and 'tc' (client) is also supposed to reconnect
+	var sshErr error
 	tcHasReconnected := func() bool {
-		return tc.SSH(context.TODO(), cmd, false) == nil
+		sshErr = tc.SSH(context.TODO(), cmd, false)
+		return sshErr == nil
 	}
-	require.Eventually(t, tcHasReconnected, 2500*time.Millisecond, 250*time.Millisecond,
-		"Timed out waiting for Site A to restart")
+	require.Eventually(t, tcHasReconnected, 10*time.Second, 250*time.Millisecond,
+		"Timed out waiting for Site A to restart: %v", sshErr)
 
 	clientHasEvents := func(site auth.ClientI, count int) func() bool {
 		// only look for exec events
@@ -1546,11 +1550,6 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	siteB := b.GetSiteAPI(b.Secrets.SiteName)
 	require.Eventually(t, clientHasEvents(siteB, execCountSiteB), 5*time.Second, 500*time.Millisecond,
 		"Failed to find %d events on Site B after 5s", execCountSiteB)
-
-	// stop both sites for real
-	require.NoError(t, b.StopAll())
-
-	require.NoError(t, a.StopAll())
 }
 
 // TestTwoClustersProxy checks if the reverse tunnel uses a HTTP PROXY to
@@ -3447,6 +3446,10 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	config, err := teleport.GenerateConfig(t, nil, tconf)
 	require.NoError(t, err)
 
+	// Enable Kubernetes service to test issue where the `KubernetesReady` event was not properly propagated
+	// and in the case where Kube service was enabled cert rotation flow was broken.
+	enableKubernetesService(t, config)
+
 	serviceC := make(chan *service.TeleportProcess, 20)
 
 	runErrCh := make(chan error, 1)
@@ -3707,10 +3710,10 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 // TestRotateTrustedClusters tests CA rotation support for trusted clusters
 func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
-	defer tr.Stop()
+	t.Cleanup(func() { tr.Stop() })
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 
 	clusterMain := "rotate-main"
 	clusterAux := "rotate-aux"
@@ -3769,7 +3772,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	require.NoError(t, err)
-	trustedClusterToken := "trusted-clsuter-token"
+	trustedClusterToken := "trusted-cluster-token"
 	err = svc.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
@@ -3785,7 +3788,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	tryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
 	waitForTunnelConnections(t, svc.GetAuthServer(), aux.Secrets.SiteName, 1)
 
-	// capture credentials before has reload started to simulate old client
+	// capture credentials before reload has started to simulate old client
 	initialCreds, err := GenerateUserCreds(UserCredsRequest{
 		Process:  svc,
 		Username: suite.me.Username,
@@ -3814,24 +3817,43 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service phase update to be broadcasted (init phase does not trigger reload)
+	// wait until service phase update to be broadcast (init phase does not trigger reload)
 	err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
 	require.NoError(t, err)
 
 	// waitForPhase waits until aux cluster detects the rotation
 	waitForPhase := func(phase string) error {
+		ctx, cancel := context.WithTimeout(context.Background(), tconf.PollingPeriod*10)
+		defer cancel()
+
+		watcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component: teleport.ComponentProxy,
+				Clock:     tconf.Clock,
+				Client:    aux.GetSiteAPI(clusterAux),
+			},
+			WatchHostCA: true,
+		})
+		if err != nil {
+			return err
+		}
+		defer watcher.Close()
+
 		var lastPhase string
 		for i := 0; i < 10; i++ {
-			ca, err := aux.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
-				Type:       types.HostCA,
-				DomainName: clusterMain,
-			}, false)
-			require.NoError(t, err)
-			if ca.GetRotation().Phase == phase {
-				return nil
+			select {
+			case <-ctx.Done():
+				return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
+			case cas := <-watcher.CertAuthorityC:
+				for _, ca := range cas {
+					if ca.GetClusterName() == clusterMain &&
+						ca.GetType() == types.HostCA &&
+						ca.GetRotation().Phase == phase {
+						return nil
+					}
+					lastPhase = ca.GetRotation().Phase
+				}
 			}
-			lastPhase = ca.GetRotation().Phase
-			time.Sleep(tconf.PollingPeriod / 2)
 		}
 		return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
 	}
@@ -3912,7 +3934,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	// shut down the service
 	cancel()
 	// close the service without waiting for the connections to drain
-	svc.Close()
+	require.NoError(t, svc.Close())
 
 	select {
 	case err := <-runErrCh:
@@ -4078,6 +4100,7 @@ func (s *integrationTestSuite) rotationConfig(disableWebService bool) *service.C
 	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.ClientTimeout = time.Second
 	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
+	tconf.MaxRetryPeriod = time.Second
 	return tconf
 }
 
@@ -5392,7 +5415,7 @@ func (s *integrationTestSuite) newNamedTeleportInstance(t *testing.T, clusterNam
 		NodeName:    Host,
 		Priv:        s.priv,
 		Pub:         s.pub,
-		log:         s.log,
+		log:         utils.WrapLogger(s.log.WithField("cluster", clusterName)),
 		Ports:       standardPortSetup(),
 	}
 	for _, opt := range opts {
@@ -5481,11 +5504,11 @@ func TestWebProxyInsecure(t *testing.T) {
 
 	rc := NewInstance(InstanceConfig{
 		ClusterName: "example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         testlog.FailureOnly(t),
+		log:         utils.NewLoggerForTests(),
 	})
 
 	rcConf := service.MakeDefaultConfig()
@@ -5517,7 +5540,7 @@ func TestWebProxyInsecure(t *testing.T) {
 // TestTraitsPropagation makes sure that user traits are applied properly to
 // roles in root and leaf clusters.
 func TestTraitsPropagation(t *testing.T) {
-	log := testlog.FailureOnly(t)
+	log := utils.NewLoggerForTests()
 
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
 	require.NoError(t, err)
@@ -5525,7 +5548,7 @@ func TestTraitsPropagation(t *testing.T) {
 	// Create root cluster.
 	rc := NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
@@ -5535,7 +5558,7 @@ func TestTraitsPropagation(t *testing.T) {
 	// Create leaf cluster.
 	lc := NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
@@ -5629,7 +5652,7 @@ func TestTraitsPropagation(t *testing.T) {
 // testSessionStreaming tests streaming events from session recordings.
 func testSessionStreaming(t *testing.T, suite *integrationTestSuite) {
 	ctx := context.Background()
-	sessionID := session.ID(uuid.New())
+	sessionID := session.ID(uuid.New().String())
 	teleport := suite.newTeleport(t, nil, true)
 	defer teleport.StopAll()
 

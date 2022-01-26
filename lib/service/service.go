@@ -91,9 +91,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
@@ -319,9 +319,6 @@ type TeleportProcess struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
-
-	// connectFailureC is a channel to notify of failures to connect to auth (used in tests).
-	connectFailureC chan time.Duration
 }
 
 type keyPairKey struct {
@@ -650,9 +647,9 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		} else {
 			switch cfg.JoinMethod {
 			case JoinMethodToken:
-				cfg.HostUUID = uuid.New()
+				cfg.HostUUID = uuid.New().String()
 			case JoinMethodEC2:
-				cfg.HostUUID, err = getEC2NodeID()
+				cfg.HostUUID, err = utils.GetEC2NodeID()
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -666,7 +663,8 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	}
 
-	if uuid.Parse(cfg.HostUUID) == nil {
+	_, err = uuid.Parse(cfg.HostUUID)
+	if err != nil {
 		cfg.Log.Warnf("Host UUID %q is not a true UUID (not eligible for UUID-based proxying)", cfg.HostUUID)
 	}
 
@@ -713,7 +711,6 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		id:                  processID,
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
-		connectFailureC:     make(chan time.Duration),
 	}
 
 	process.registerAppDepend()
@@ -2594,7 +2591,6 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		}
 	}
 
-	useSeparatePostgresListener := !cfg.Proxy.PostgresAddr.IsEmpty()
 	if cfg.Proxy.Kube.Enabled && !cfg.Proxy.Kube.ListenAddr.IsEmpty() {
 		process.log.Debugf("Setup Proxy: turning on Kubernetes proxy.")
 		listener, err := process.importOrCreateListener(listenerProxyKube, cfg.Proxy.Kube.ListenAddr.Addr)
@@ -2635,20 +2631,21 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		listeners.mux, err = multiplexer.New(multiplexer.Config{
 			EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			Listener:            listener,
-			DisableTLS:          cfg.Proxy.DisableWebService,
-			DisableSSH:          cfg.Proxy.DisableReverseTunnel,
-			DisablePostgres:     cfg.Proxy.DisableDatabaseProxy || useSeparatePostgresListener,
 			ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
 		})
 		if err != nil {
 			listener.Close()
 			return nil, trace.Wrap(err)
 		}
-		listeners.web = listeners.mux.TLS()
+		if !cfg.Proxy.DisableWebService {
+			listeners.web = listeners.mux.TLS()
+		}
 		if err := process.setPostgresListener(cfg, &listeners); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		listeners.reverseTunnel = listeners.mux.SSH()
+		if !cfg.Proxy.DisableReverseTunnel {
+			listeners.reverseTunnel = listeners.mux.SSH()
+		}
 		go listeners.mux.Serve()
 		return &listeners, nil
 	case cfg.Proxy.EnableProxyProtocol && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
@@ -2660,9 +2657,6 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		listeners.mux, err = multiplexer.New(multiplexer.Config{
 			EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			Listener:            listener,
-			DisableTLS:          false,
-			DisableSSH:          true,
-			DisablePostgres:     cfg.Proxy.DisableDatabaseProxy || useSeparatePostgresListener,
 			ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
 		})
 		if err != nil {
@@ -2706,9 +2700,6 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 				listeners.mux, err = multiplexer.New(multiplexer.Config{
 					EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 					Listener:            listener,
-					DisableTLS:          false, // Web service is enabled or we wouldn't have gotten here.
-					DisableSSH:          true,  // Reverse tunnel is on a separate listener created above.
-					DisablePostgres:     false, // Database proxy is enabled or we wouldn't have gotten here.
 					ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
 				})
 				if err != nil {
@@ -3130,6 +3121,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		connLimiter, err := limiter.NewLimiter(process.Config.Databases.Limiter)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		dbProxyServer, err := db.NewProxyServer(process.ExitContext(),
 			db.ProxyServerConfig{
 				AuthClient:  conn.Client,
@@ -3137,6 +3132,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Authorizer:  authorizer,
 				Tunnel:      tsrv,
 				TLSConfig:   tlsConfig,
+				Limiter:     connLimiter,
 				Emitter:     asyncEmitter,
 				Clock:       process.Clock,
 				ServerID:    cfg.HostUUID,

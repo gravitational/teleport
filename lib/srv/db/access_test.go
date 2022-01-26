@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -44,10 +45,10 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/siddontang/go-mysql/client"
 	mysqllib "github.com/siddontang/go-mysql/mysql"
 	"github.com/stretchr/testify/require"
@@ -520,7 +521,7 @@ type testModules struct {
 
 func (m *testModules) Features() modules.Features {
 	return modules.Features{
-		DB: false, // Explicily turn off database access.
+		DB: false, // Explicitly turn off database access.
 	}
 }
 
@@ -849,7 +850,7 @@ func (c *testContext) Close() error {
 func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDatabaseOption) *testContext {
 	testCtx := &testContext{
 		clusterName: "root.example.com",
-		hostID:      uuid.New(),
+		hostID:      uuid.New().String(),
 		postgres:    make(map[string]testPostgres),
 		mysql:       make(map[string]testMySQL),
 		mongo:       make(map[string]testMongoDB),
@@ -938,6 +939,9 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 			testCtx.fakeRemoteSite,
 		},
 	}
+	// Empty config means no limit.
+	connLimiter, err := limiter.NewLimiter(limiter.Config{})
+	require.NoError(t, err)
 
 	// Create test audit events emitter.
 	testCtx.emitter = newTestEmitter()
@@ -949,6 +953,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		Authorizer:  proxyAuthorizer,
 		Tunnel:      tunnel,
 		TLSConfig:   tlsConfig,
+		Limiter:     connLimiter,
 		Emitter:     testCtx.emitter,
 		Clock:       testCtx.clock,
 		ServerID:    "proxy-server",
@@ -1021,6 +1026,10 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 	})
 	require.NoError(t, err)
 
+	// Create default limiter.
+	connLimiter, err := limiter.NewLimiter(limiter.Config{})
+	require.NoError(t, err)
+
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
 		Clock:            clockwork.NewFakeClockAt(time.Now()),
@@ -1032,6 +1041,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		Hostname:         constants.APIDomain,
 		HostID:           p.HostID,
 		TLSConfig:        tlsConfig,
+		Limiter:          connLimiter,
 		Auth:             testAuth,
 		Databases:        p.Databases,
 		ResourceMatchers: p.ResourceMatchers,

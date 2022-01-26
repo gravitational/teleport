@@ -157,17 +157,14 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		backend.BufferCapacity(cfg.BufferSize),
 	)
 	closeCtx, cancel := context.WithCancel(ctx)
-	watchStarted, signalWatchStart := context.WithCancel(ctx)
 	l := &Backend{
-		Config:           cfg,
-		db:               db,
-		Entry:            log.WithFields(log.Fields{trace.Component: BackendName}),
-		clock:            cfg.Clock,
-		buf:              buf,
-		ctx:              closeCtx,
-		cancel:           cancel,
-		watchStarted:     watchStarted,
-		signalWatchStart: signalWatchStart,
+		Config: cfg,
+		db:     db,
+		Entry:  log.WithFields(log.Fields{trace.Component: BackendName}),
+		clock:  cfg.Clock,
+		buf:    buf,
+		ctx:    closeCtx,
+		cancel: cancel,
 	}
 	l.Debugf("Connected to: %v, poll stream period: %v", connectorURL, cfg.PollStreamPeriod)
 	if err := l.createSchema(); err != nil {
@@ -190,11 +187,9 @@ type Backend struct {
 	// could be swapped in tests for fixed time
 	clock clockwork.Clock
 
-	buf              *backend.CircularBuffer
-	ctx              context.Context
-	cancel           context.CancelFunc
-	watchStarted     context.Context
-	signalWatchStart context.CancelFunc
+	buf    *backend.CircularBuffer
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	// closedFlag is set to indicate that the database is closed
 	closedFlag int32
@@ -287,6 +282,8 @@ func (l *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			defer stmt.Close()
+
 			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
 				return trace.Wrap(err)
 			}
@@ -295,6 +292,8 @@ func (l *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer stmt.Close()
+
 		if _, err := stmt.ExecContext(ctx, string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
 			return trace.Wrap(err)
 		}
@@ -325,6 +324,7 @@ func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer q.Close()
 		row := q.QueryRowContext(ctx, string(expected.Key), now)
 		var value []byte
 		if err := row.Scan(&value); err != nil {
@@ -343,6 +343,8 @@ func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer stmt.Close()
+
 		_, err = stmt.ExecContext(ctx, replaceWith.Value, expires(replaceWith.Expires), id(created), string(replaceWith.Key))
 		if err != nil {
 			return trace.Wrap(err)
@@ -352,6 +354,8 @@ func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			defer stmt.Close()
+
 			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(replaceWith.Key), id(created), expires(replaceWith.Expires), replaceWith.Value); err != nil {
 				return trace.Wrap(err)
 			}
@@ -370,7 +374,7 @@ func id(t time.Time) int64 {
 }
 
 // Put puts value into backend (creates if it does not
-// exists, updates it otherwise)
+// exist, updates it otherwise)
 func (l *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	if i.Key == nil {
 		return nil, trace.BadParameter("missing parameter key")
@@ -386,6 +390,8 @@ func (l *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			defer stmt.Close()
+
 			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), recordID, expires(i.Expires), i.Value); err != nil {
 				return trace.Wrap(err)
 			}
@@ -394,6 +400,8 @@ func (l *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer stmt.Close()
+
 		if _, err := stmt.ExecContext(ctx, string(i.Key), recordID, expires(i.Expires), i.Value); err != nil {
 			return trace.Wrap(err)
 		}
@@ -417,6 +425,8 @@ func (l *Backend) Imported(ctx context.Context) (imported bool, err error) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer q.Close()
+
 		row := q.QueryRowContext(ctx)
 		if err := row.Scan(&imported); err != nil {
 			if err != sql.ErrNoRows {
@@ -442,6 +452,8 @@ func (l *Backend) Import(ctx context.Context, items []backend.Item) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer q.Close()
+
 		var imported bool
 		row := q.QueryRowContext(ctx)
 		if err := row.Scan(&imported); err != nil {
@@ -461,6 +473,7 @@ func (l *Backend) Import(ctx context.Context, items []backend.Item) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer stmt.Close()
 
 		if _, err := stmt.ExecContext(ctx, schemaVersion, true); err != nil {
 			return trace.Wrap(err)
@@ -498,11 +511,14 @@ func (l *Backend) putRangeInTransaction(ctx context.Context, tx *sql.Tx, items [
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer eventsStmt.Close()
 	}
 	stmt, err := tx.PrepareContext(ctx, "INSERT OR REPLACE INTO kv(key, modified, expires, value) values(?, ?, ?, ?)")
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer stmt.Close()
+
 	for i := range items {
 		created := l.clock.Now().UTC()
 		recordID := id(created)
@@ -532,6 +548,8 @@ func (l *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer stmt.Close()
+
 		result, err := stmt.ExecContext(ctx, i.Value, expires(i.Expires), id(created), string(i.Key))
 		if err != nil {
 			return trace.Wrap(err)
@@ -548,6 +566,8 @@ func (l *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			defer stmt.Close()
+
 			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
 				return trace.Wrap(err)
 			}
@@ -589,6 +609,8 @@ func (l *Backend) getInTransaction(ctx context.Context, key []byte, tx *sql.Tx, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer q.Close()
+
 	row := q.QueryRowContext(ctx, string(key), now)
 	var expires NullTime
 	if err := row.Scan(&item.Key, &item.Value, &expires, &item.ID); err != nil {
@@ -627,6 +649,8 @@ func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer q.Close()
+
 		rows, err := q.QueryContext(ctx, string(startKey), string(endKey), now, limit)
 		if err != nil {
 			return trace.Wrap(err)
@@ -671,6 +695,8 @@ func (l *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			defer stmt.Close()
+
 			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(item.Key), id(created), expires.UTC(), item.Value); err != nil {
 				return trace.Wrap(err)
 			}
@@ -679,6 +705,8 @@ func (l *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer stmt.Close()
+
 		result, err := stmt.ExecContext(ctx, expires.UTC(), id(now), string(lease.Key))
 		if err != nil {
 			return trace.Wrap(err)
@@ -699,6 +727,8 @@ func (l *Backend) deleteInTransaction(ctx context.Context, key []byte, tx *sql.T
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer stmt.Close()
+
 	result, err := stmt.ExecContext(ctx, string(key))
 	if err != nil {
 		return trace.Wrap(err)
@@ -716,6 +746,8 @@ func (l *Backend) deleteInTransaction(ctx context.Context, key []byte, tx *sql.T
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer stmt.Close()
+
 		if _, err := stmt.ExecContext(ctx, types.OpDelete, created, string(key), created.UnixNano()); err != nil {
 			return trace.Wrap(err)
 		}
@@ -749,6 +781,8 @@ func (l *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) erro
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer q.Close()
+
 		rows, err := q.QueryContext(ctx, string(startKey), string(endKey))
 		if err != nil {
 			return trace.Wrap(err)
@@ -918,7 +952,7 @@ func isReadonlyError(err error) bool {
 }
 
 // NullTime represents a time.Time that may be null. NullTime implements the
-// sql.Scanner interface so it can be used as a scan destination, similar to
+// sql.Scanner interface, so it can be used as a scan destination, similar to
 // sql.NullString.
 type NullTime struct {
 	Time  time.Time
