@@ -1560,6 +1560,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// If the user is generating a certificate, the roles and traits come from the logged in identity.
 	if req.Username == a.context.User.GetName() {
 		roles, traits, err = services.ExtractFromIdentity(a.authServer, a.context.Identity.GetIdentity())
+		// we're going to extend the roles list based on the access requests, so
+		// we ensure that all the current requests are added to the new
+		// certificate (and are checked again)
+		req.AccessRequests = append(req.AccessRequests, a.context.Identity.GetIdentity().ActiveRequests...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
