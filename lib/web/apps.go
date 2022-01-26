@@ -189,6 +189,10 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
+	userMetadata := identity.GetUserMetadata()
+	userMetadata.User = ws.GetUser()
+	userMetadata.AWSRoleARN = req.AWSRole
+
 	// Now that the certificate has been issued, emit a "new session created"
 	// for all events associated with this certificate.
 	appSessionStartEvent := &apievents.AppSessionStart{
@@ -205,10 +209,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 			SessionID: identity.RouteToApp.SessionID,
 			WithMFA:   identity.MFAVerified,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:       ws.GetUser(),
-			AWSRoleARN: req.AWSRole,
-		},
+		UserMetadata: userMetadata,
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: r.RemoteAddr,
 		},

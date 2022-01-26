@@ -3558,3 +3558,186 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 	_, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.True(t, trace.IsAccessDenied(err))
 }
+
+func TestCheckKubeGroupsAndUsers(t *testing.T) {
+	roleA := &types.RoleV4{
+		Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				KubeGroups: []string{"system:masters"},
+				KubeUsers:  []string{"dev-user"},
+				KubernetesLabels: map[string]apiutils.Strings{
+					"env": []string{"dev"},
+				},
+			},
+		},
+	}
+	roleB := &types.RoleV4{
+		Metadata: types.Metadata{Name: "roleB", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				KubeGroups: []string{"limited"},
+				KubeUsers:  []string{"limited-user"},
+				KubernetesLabels: map[string]apiutils.Strings{
+					"env": []string{"prod"},
+				},
+			},
+		},
+	}
+	roleC := &types.RoleV4{
+		Metadata: types.Metadata{Name: "roleC", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				KubeGroups: []string{"system:masters", "groupB"},
+				KubeUsers:  []string{"user"},
+				KubernetesLabels: map[string]apiutils.Strings{
+					"env": []string{"dev", "prod"},
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name          string
+		kubeResLabels map[string]string
+		roles         RoleSet
+		wantUsers     []string
+		wantGroups    []string
+	}{
+		{
+			name: "empty kube labels should returns all kube users/groups",
+			roles: RoleSet{
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "role-dev", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubeUsers:  []string{"dev-user"},
+							KubeGroups: []string{"system:masters"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"*": []string{"*"},
+							},
+						},
+					},
+				},
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "role-prod", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubeUsers:  []string{"limited-user"},
+							KubeGroups: []string{"limited"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"*": []string{"*"},
+							},
+						},
+					},
+				},
+			},
+			wantUsers:  []string{"dev-user", "limited-user"},
+			wantGroups: []string{"limited", "system:masters"},
+		},
+		{
+			name:  "dev accesses should allow system:masters roles",
+			roles: RoleSet{roleA, roleB},
+			kubeResLabels: map[string]string{
+				"env": "dev",
+			},
+			wantUsers:  []string{"dev-user"},
+			wantGroups: []string{"system:masters"},
+		},
+		{
+			name:  "prod limited access",
+			roles: RoleSet{roleA, roleB},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"limited-user"},
+			wantGroups: []string{"limited"},
+		},
+		{
+			name:  "combine kube users/groups for different roles",
+			roles: RoleSet{roleA, roleB, roleC},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"limited-user", "user"},
+			wantGroups: []string{"groupB", "limited", "system:masters"},
+		},
+		{
+			name:  "all prod group",
+			roles: RoleSet{roleC},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"user"},
+			wantGroups: []string{"system:masters", "groupB"},
+		},
+		{
+			name: "deny system:masters prod kube group",
+			roles: RoleSet{
+				roleC,
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "roleD", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Deny: types.RoleConditions{
+							KubeGroups: []string{"system:masters"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"env": []string{"prod", "dev"},
+							},
+						},
+					},
+				},
+			},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"user"},
+			wantGroups: []string{"groupB"},
+		},
+		{
+			name: "deny access with system:masters kube group",
+			kubeResLabels: map[string]string{
+				"env":     "prod",
+				"release": "test",
+			},
+			roles: RoleSet{
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubeGroups: []string{"system:masters", "groupA"},
+							KubeUsers:  []string{"dev-user"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"env":     []string{"prod"},
+								"release": []string{"test"},
+							},
+						},
+					},
+				},
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "deny", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Deny: types.RoleConditions{
+							KubeGroups: []string{"system:masters"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"env": []string{"prod"},
+							},
+						},
+					},
+				},
+			},
+			wantUsers:  []string{"dev-user"},
+			wantGroups: []string{"groupA"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels)
+			gotGroups, gotUsers, err := tc.roles.CheckKubeGroupsAndUsers(time.Hour, true, matcher)
+			require.NoError(t, err)
+
+			require.ElementsMatch(t, tc.wantUsers, gotUsers)
+			require.ElementsMatch(t, tc.wantGroups, gotGroups)
+		})
+	}
+}
