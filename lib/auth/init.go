@@ -316,7 +316,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// Migrate Host CA as Database CA before certificates generation. Otherwise, the Database CA will be
 	// generated which we don't want for existing installations.
 	if err := migrateDBAuthority(asrv); err != nil {
-		return nil, trace.Wrap(err, "Failed to migrate database CA.")
+		return nil, trace.Wrap(err, "failed to migrate database CA")
 	}
 
 	// generate certificate authorities if they don't exist
@@ -1033,6 +1033,8 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 // the first run after update to v9.0+.
 // Function does nothing for databases created with Teleport v9.0+.
 // https://github.com/gravitational/teleport/issues/5029
+//
+// DELETE IN 10.0
 func migrateDBAuthority(asrv *Server) error {
 	clusterName, err := asrv.GetClusterName()
 	if err != nil {
@@ -1064,7 +1066,7 @@ func migrateDBAuthority(asrv *Server) error {
 
 	cav2, ok := hostCA.(*types.CertAuthorityV2)
 	if !ok {
-		return trace.Errorf("Failed to cast Host CA to concrete type.")
+		return trace.BadParameter("expected host CA to be of *types.CertAuthorityV2 type, got: %T", hostCA)
 	}
 
 	// Copy the Host CA with a different type.
