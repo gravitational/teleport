@@ -60,17 +60,14 @@ type playbackPlayer struct {
 	mu        *sync.RWMutex
 	log       logrus.FieldLogger
 	closeOnce sync.Once
-	ctx       context.Context
-	cancel    context.CancelFunc
 	clt       *auth.Client
 	sID       string
 }
 
-func NewPlaybackPlayer(sID string, ws *websocket.Conn, clt *auth.Client, ctx context.Context, log logrus.FieldLogger) *playbackPlayer {
+func NewPlaybackPlayer(sID string, ws *websocket.Conn, clt *auth.Client, log logrus.FieldLogger) *playbackPlayer {
 	ws.PayloadType = websocket.BinaryFrame
 	var mu sync.RWMutex
 	cond := sync.NewCond(&mu)
-	ctx, cancel := context.WithCancel(ctx)
 
 	return &playbackPlayer{
 		ws:        ws,
@@ -78,8 +75,6 @@ func NewPlaybackPlayer(sID string, ws *websocket.Conn, clt *auth.Client, ctx con
 		cond:      cond,
 		mu:        &mu,
 		log:       log,
-		ctx:       ctx,
-		cancel:    cancel,
 		clt:       clt,
 		sID:       sID,
 	}
@@ -115,7 +110,7 @@ func (pp *playbackPlayer) togglePlaying() {
 //
 // It should be deferred by all the goroutines that use playbackPlayer,
 // in order to ensure that when one goroutine closes, all the others do too.
-func (pp *playbackPlayer) close() {
+func (pp *playbackPlayer) close(cancel context.CancelFunc) {
 	pp.closeOnce.Do(func() {
 		pp.mu.Lock()
 		defer pp.mu.Unlock()
@@ -127,15 +122,15 @@ func (pp *playbackPlayer) close() {
 
 		pp.playState = playStateFinished
 		pp.cond.Broadcast()
-		pp.cancel()
+		cancel()
 	})
 }
 
-// ReceiveActions handles logic for recieving playbackAction jsons
+// receiveActions handles logic for recieving playbackAction jsons
 // over the websocket and modifying playbackPlayer's state accordingly.
-func (pp *playbackPlayer) ReceiveActions() {
+func (pp *playbackPlayer) receiveActions(cancel context.CancelFunc) {
 	defer pp.log.Debug("playbackPlayer.ReceiveActions returned")
-	defer pp.close()
+	defer pp.close(cancel)
 
 	for {
 		action := playbackAction{}
@@ -162,13 +157,13 @@ func (pp *playbackPlayer) ReceiveActions() {
 	}
 }
 
-// StreamSessionEvents streams the session's events as playback events over the websocket.
-func (pp *playbackPlayer) StreamSessionEvents() {
+// streamSessionEvents streams the session's events as playback events over the websocket.
+func (pp *playbackPlayer) streamSessionEvents(ctx context.Context, cancel context.CancelFunc) {
 	defer pp.log.Debug("playbackPlayer.StreamSessionEvents returned")
-	defer pp.close()
+	defer pp.close(cancel)
 
 	var lastDelay int64
-	eventsC, errC := pp.clt.StreamSessionEvents(pp.ctx, session.ID(pp.sID), 0)
+	eventsC, errC := pp.clt.StreamSessionEvents(ctx, session.ID(pp.sID), 0)
 	for {
 		pp.waitWhilePaused()
 
@@ -211,12 +206,23 @@ func (pp *playbackPlayer) StreamSessionEvents() {
 	}
 }
 
-// Wait waits until the playbackPlayer's context is cancelled.
-func (pp *playbackPlayer) Wait() {
+// wait waits until the playbackPlayer's context is cancelled.
+func (pp *playbackPlayer) wait(ctx context.Context, cancel context.CancelFunc) {
 	defer pp.log.Debug("playbackPlayer.Wait returned")
-	defer pp.close()
-	<-pp.ctx.Done()
+	defer pp.close(cancel)
+	<-ctx.Done()
 	return
+}
+
+// Play kicks off goroutines for receiving actions
+// and playing back the session over the websocket,
+// and then hangs until the websocket is closed.
+func (pp *playbackPlayer) Play(ctx context.Context) {
+	defer pp.log.Debug("playbackPlayer.Play returned")
+	ppCtx, cancel := context.WithCancel(ctx)
+	go pp.receiveActions(cancel)
+	go pp.streamSessionEvents(ppCtx, cancel)
+	pp.wait(ppCtx, cancel)
 }
 
 func (h *Handler) desktopPlaybackHandle(
@@ -232,17 +238,8 @@ func (h *Handler) desktopPlaybackHandle(
 
 	websocket.Handler(func(ws *websocket.Conn) {
 		defer h.log.Debug("desktopPlaybackHandle websocket handler returned")
-
-		pp := NewPlaybackPlayer(sID, ws, ctx.clt, r.Context(), h.log)
-
-		// Handle incoming playback actions.
-		go pp.ReceiveActions()
-
-		// Stream session events back to browser.
-		go pp.StreamSessionEvents()
-
-		// Hang until the playback context is cancelled.
-		pp.Wait()
+		pp := NewPlaybackPlayer(sID, ws, ctx.clt, h.log)
+		pp.Play(r.Context())
 	}).ServeHTTP(w, r)
 	return nil, nil
 }
