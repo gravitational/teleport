@@ -122,7 +122,9 @@ func TestUserInfoBlockHTTP(t *testing.T) {
 	fixtures.AssertNotFound(t, err)
 }
 
-func TestUserInfo(t *testing.T) {
+// TestUserInfoBadStatus asserts that a 4xx response from userinfo results
+// in AccessDenied.
+func TestUserInfoBadStatus(t *testing.T) {
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP(t, true)
@@ -137,7 +139,7 @@ func TestUserInfo(t *testing.T) {
 	oidcClient, err := s.a.getOrCreateOIDCClient(connector, true)
 	require.NoError(t, err)
 
-	// Verify HTTP endpoints return trace.NotFound.
+	// Verify HTTP endpoints return trace.AccessDenied.
 	_, err = claimsFromUserInfo(oidcClient, idp.s.URL, "")
 	fixtures.AssertAccessDenied(t, err)
 }
@@ -181,7 +183,7 @@ func newFakeIDP(t *testing.T, tls bool) *fakeIDP {
 	var s fakeIDP
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/userinfo", func(rw http.ResponseWriter, r *http.Request) { http.NotFound(rw, r) })
+	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) { http.NotFound(w, r) })
 	mux.HandleFunc("/", s.configurationHandler)
 
 	if tls {
