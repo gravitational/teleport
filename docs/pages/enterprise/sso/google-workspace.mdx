@@ -29,7 +29,6 @@ Before you get started you’ll need:
 
 - An Enterprise version of Teleport downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/).
 - A Google Workspace Super administrator account. We recommend setting up a separate super admin account with 2FA as opposed to granting your daily user super admin privileges.
-   Use a dedicated account, e.g., `ben-ops@example.com`, as opposed to your daily `ben@example.com` account.
 - Ability to create a Google Cloud Platform project.
    This might require signing up to GCP, but the created project will not require using any paid services. It’s just a side effect of Google Workspace and GCP being closely related.
 - Ability to setup Google Workspace groups.
@@ -101,12 +100,14 @@ to `v3`.
 
 - Configure [domain-wide
   delegation](https://admin.google.com/ac/owl/domainwidedelegation) for your
-  newly-created service account and add either the
-  `https://www.googleapis.com/auth/cloud-identity.groups.readonly` scope or the
-  `https://www.googleapis.com/auth/admin.directory.group.readonly` scope. The
-  scope granted to the service account will determine if Teleport will fetch
-  both direct and indirect groups or just direct groups, respectively.
-  ![domain-wide delegation](../../../img/googleoidc/domainwidedelegation.png)
+  newly-created service account:
+  - Click "Add new" and add the numeric Unique ID that you've copied earlier.
+    ![domain-wide delegation](../../../img/googleoidc/domainwidedelegation.png)
+  - Add either the
+    `https://www.googleapis.com/auth/cloud-identity.groups.readonly` scope or
+    the `https://www.googleapis.com/auth/admin.directory.group.readonly` scope.
+    The scope granted to the service account will determine if Teleport will
+    fetch both direct and indirect groups or just direct groups, respectively.
 
 <Admonition
   type="tip"
