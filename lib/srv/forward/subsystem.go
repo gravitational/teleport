@@ -136,11 +136,7 @@ func (r *remoteSubsystem) emitAuditEvent(err error) {
 		Metadata: apievents.Metadata{
 			Type: events.SubsystemEvent,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         r.serverContext.Identity.TeleportUser,
-			Login:        r.serverContext.Identity.Login,
-			Impersonator: r.serverContext.Identity.Impersonator,
-		},
+		UserMetadata: r.serverContext.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  r.serverContext.RemoteClient.LocalAddr().String(),
 			RemoteAddr: r.serverContext.RemoteClient.RemoteAddr().String(),
