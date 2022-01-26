@@ -764,7 +764,7 @@ type AccessChecker interface {
 
 	// CheckKubeGroupsAndUsers check if role can login into kubernetes
 	// and returns two lists of combined allowed groups and users
-	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool) (groups []string, users []string, err error)
+	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) (groups []string, users []string, err error)
 
 	// CheckAWSRoleARNs returns a list of AWS role ARNs role is allowed to assume.
 	CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error)
@@ -1199,11 +1199,19 @@ func (set RoleSet) AdjustDisconnectExpiredCert(disconnect bool) bool {
 
 // CheckKubeGroupsAndUsers check if role can login into kubernetes
 // and returns two lists of allowed groups and users
-func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool) ([]string, []string, error) {
+func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error) {
 	groups := make(map[string]struct{})
 	users := make(map[string]struct{})
 	var matchedTTL bool
 	for _, role := range set {
+		ok, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		if !ok {
+			continue
+		}
+
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
@@ -1216,6 +1224,14 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool) 
 		}
 	}
 	for _, role := range set {
+		ok, _, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		if !ok {
+			continue
+		}
+
 		for _, group := range role.GetKubeGroups(Deny) {
 			delete(groups, group)
 		}
@@ -1837,6 +1853,22 @@ func matchDenyImpersonateCondition(cond types.ImpersonateConditions, impersonate
 	return false, nil
 }
 
+type kubernetesClusterLabelMatcher struct {
+	clusterLabels map[string]string
+}
+
+// NewKubernetesClusterLabelMatcher creates a RoleMatcher that checks whether a role's
+// Kubernetes service labels match.
+func NewKubernetesClusterLabelMatcher(clustersLabels map[string]string) RoleMatcher {
+	return &kubernetesClusterLabelMatcher{clusterLabels: clustersLabels}
+}
+
+// Match matches a Kubernetes cluster labels against a role.
+func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	ok, _, err := MatchLabels(role.GetKubernetesLabels(typ), l.clusterLabels)
+	return ok, trace.Wrap(err)
+}
+
 // RoleMatcher defines an interface for a generic role matcher.
 type RoleMatcher interface {
 	Match(types.Role, types.RoleConditionType) (bool, error)
@@ -1845,7 +1877,7 @@ type RoleMatcher interface {
 // RoleMatchers defines a list of matchers.
 type RoleMatchers []RoleMatcher
 
-// MatchAll returns true if all matchers in the set match.
+// MatchAll returns true if, matchers ...RoleMatcher all matchers in the set match.
 func (m RoleMatchers) MatchAll(role types.Role, condition types.RoleConditionType) (bool, error) {
 	for _, matcher := range m {
 		match, err := matcher.Match(role, condition)
