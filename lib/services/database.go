@@ -152,7 +152,7 @@ func NewDatabaseFromRDSCluster(cluster *rds.DBCluster) (types.Database, error) {
 	})
 }
 
-// NewDatabaseFromRedshiftCluster creates a database resource from a redshift cluster.
+// NewDatabaseFromRedshiftCluster creates a database resource from a Redshift cluster.
 func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, error) {
 	metadata, err := MetadataFromRedshiftCluster(cluster)
 	if err != nil {
