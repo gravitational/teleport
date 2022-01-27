@@ -34,6 +34,10 @@ type Conn struct {
 	// is sent on the wire. It is passed both the raw bytes and the encoded
 	// message.
 	OnSend func(m Message, b []byte)
+
+	// OnRecv is an optional callback that is invoked when a TDP message
+	// is received on the wire.
+	OnRecv func(m Message)
 }
 
 // NewConn creates a new Conn on top of a ReadWriter, for example a TCP
@@ -48,6 +52,11 @@ func NewConn(rw io.ReadWriter) *Conn {
 // InputMessage reads the next incoming message from the connection.
 func (c *Conn) InputMessage() (Message, error) {
 	m, err := decode(c.bufr)
+
+	if c.OnRecv != nil {
+		c.OnRecv(m)
+	}
+
 	return m, trace.Wrap(err)
 }
 

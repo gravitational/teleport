@@ -629,7 +629,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
 	tdpConn.OnSend = func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypePNGFrame), byte(tdp.TypeClientScreenSpec), byte(tdp.TypeClipboardData), byte(tdp.TypeMouseButton):
+		case byte(tdp.TypePNGFrame), byte(tdp.TypeClipboardData):
 			if err := sw.EmitAuditEvent(ctx, &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
@@ -640,6 +640,27 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			}); err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
+		}
+	}
+	tdpConn.OnRecv = func(m tdp.Message) {
+		switch m.(type) {
+		// TODO: tdp.ClipboardData
+		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
+			b, err := m.Encode()
+			if err != nil {
+				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
+			}
+			if err := sw.EmitAuditEvent(ctx, &events.DesktopRecording{
+				Metadata: events.Metadata{
+					Type: libevents.DesktopRecordingEvent,
+					Time: s.cfg.Clock.Now().UTC().Round(time.Millisecond),
+				},
+				Message:           b,
+				DelayMilliseconds: delay(), // TODO(zmb3): AuditWriter should set this for us if necessary
+			}); err != nil {
+				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
+			}
+
 		}
 	}
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
