@@ -27,10 +27,10 @@ use std::io::{Read, Write};
 
 const CHANNEL_NAME: &str = "rdpdr";
 
-// Client implements a device redirection (RDPDR) client, as defined in
-// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
-//
-// This client only supports a single smartcard device.
+/// Client implements a device redirection (RDPDR) client, as defined in
+/// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
+///
+/// This client only supports a single smartcard device.
 pub struct Client {
     scard: scard::Client,
 }

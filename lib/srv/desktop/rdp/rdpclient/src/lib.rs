@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub mod cliprdr;
 pub mod errors;
 pub mod piv;
 pub mod rdpdr;
