@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package common
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -27,7 +28,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -44,6 +47,7 @@ type BotsCommand struct {
 
 	botName  string
 	botRoles string
+	tokenTTL time.Duration
 
 	botsList   *kingpin.CmdClause
 	botsAdd    *kingpin.CmdClause
@@ -57,11 +61,12 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *service.Confi
 	bots := app.Command("bots", "Operate on certificate renewal bots registered with the cluster.")
 
 	c.botsList = bots.Command("ls", "List all certificate renewal bots registered with the cluster.")
-	c.botsList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default("text").StringVar(&c.format)
+	c.botsList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
 
 	c.botsAdd = bots.Command("add", "Add a new certificate renewal bot to the cluster.")
-	c.botsAdd.Flag("name", "A name to uniquely identify this bot in the cluster.").Required().StringVar(&c.botName)
+	c.botsAdd.Arg("name", "A name to uniquely identify this bot in the cluster.").Required().StringVar(&c.botName)
 	c.botsAdd.Flag("roles", "Roles the bot is able to assume.").Required().StringVar(&c.botRoles)
+	c.botsAdd.Flag("ttl", "TTL for the bot join token.").DurationVar(&c.tokenTTL)
 	// TODO: --token for optionally specifying the join token to use?
 	// TODO: --ttl for setting a ttl on the join token
 
@@ -106,20 +111,31 @@ func (c *BotsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 // ListBots writes a listing of the cluster's certificate renewal bots
 // to standard out.
 func (c *BotsCommand) ListBots(client auth.ClientI) error {
-	// TODO: replace with a user query
-	// bots, err := client.GetBots(context.TODO(), apidefaults.Namespace)
-	// if err != nil {
-	// 	return trace.Wrap(err)
-	// }
-
-	// TODO: handle format (JSON, etc)
-	// TODO: collection is going to also need locks so it can write that status
-	// err = (&botCollection{bots: bots}).writeText(os.Stdout)
-	// if err != nil {
-	// 	return trace.Wrap(err)
-	// }
-
-	return trace.NotImplemented("bots ls not implemented")
+	// TODO: consider adding a custom column for impersonator roles, locks, ??
+	users, err := client.GetBotUsers(context.Background())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if c.format == teleport.Text {
+		if len(users) == 0 {
+			fmt.Println("No users found")
+			return nil
+		}
+		t := asciitable.MakeTable([]string{"User", "Roles"})
+		for _, u := range users {
+			t.AddRow([]string{
+				u.GetName(), strings.Join(u.GetRoles(), ","),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	} else {
+		out, err := json.MarshalIndent(users, "", "  ")
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal users")
+		}
+		fmt.Print(string(out))
+	}
+	return nil
 }
 
 var startMessageTemplate = template.Must(template.New("node").Parse(`The bot token: {{.token}}
@@ -141,64 +157,13 @@ Please note:
 
 // AddBot adds a new certificate renewal bot to the cluster.
 func (c *BotsCommand) AddBot(client auth.ClientI) error {
-	// At this point, we don't know whether the bot will be used to generate
-	// user certs, host certs, or both. We create a user and a host join token
-	// so the bot will just work in either mode.
-	userName := "bot-" + strings.ReplaceAll(c.botName, " ", "-")
-
-	_, err := client.GetRole(context.Background(), userName)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	if roleExists := (err == nil); roleExists {
-		return trace.AlreadyExists("cannot add bot: role %q already exists", userName)
-	}
-
-	roleRequests := splitRoles(c.botRoles)
-
-	if err := c.addBotRole(client, c.botName, userName, roleRequests); err != nil {
-		return trace.Wrap(err)
-	}
-
-	user, err := types.NewUser(userName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	user.SetRoles([]string{userName})
-
-	metadata := user.GetMetadata()
-	metadata.Labels = map[string]string{
-		BOT_LABEL: c.botName,
-	}
-	user.SetMetadata(metadata)
-
-	user.SetTraits(map[string][]string{
-		teleport.TraitLogins:     {},
-		teleport.TraitKubeUsers:  {},
-		teleport.TraitKubeGroups: {},
-	})
-
-	if err := client.CreateUser(context.TODO(), user); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Created bot user: %s\n", userName)
-
-	// TODO: make this user configurable via CLI?
-	ttl := time.Hour * 24 * 7
-
-	// TODO: we create a User for the bot. CreateBotJoinToken authorizes for
-	// Update/Bot, even though we then create a token for the associated User.
-	// Is this sane?
-
-	// Create the user token, used by the bot to generate user SSH certificates.
-	userToken, err := client.CreateBotJoinToken(context.TODO(), auth.CreateUserTokenRequest{
-		Name: userName,
-		TTL:  time.Hour,
-		Type: auth.UserTokenTypeBot,
+	response, err := client.CreateBot(context.Background(), &proto.CreateBotRequest{
+		Name:  c.botName,
+		TTL:   proto.Duration(c.tokenTTL),
+		Roles: splitRoles(c.botRoles),
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.WrapWithMessage(err, "error while creating bot")
 	}
 
 	// Calculate the CA pins for this cluster. The CA pins are used by the
@@ -226,109 +191,25 @@ func (c *BotsCommand) AddBot(client auth.ClientI) error {
 	}
 
 	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
-		"token":       userToken.GetName(),
-		"minutes":     int(ttl.Minutes()),
+		"token":       response.Token,
+		"minutes":     int(c.tokenTTL.Minutes()),
 		"ca_pins":     caPins,
 		"auth_server": addr,
 	})
 }
 
-func (c *BotsCommand) addBotRole(client auth.ClientI, botName, userName string, roleRequests []string) error {
-	return client.UpsertRole(context.Background(), &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V4,
-		Metadata: types.Metadata{
-			Name:        userName,
-			Description: fmt.Sprintf("Automatically generated role for bot %s", c.botName),
-			Labels: map[string]string{
-				BOT_LABEL: botName,
-			},
-		},
-		Spec: types.RoleSpecV4{
-			Options: types.RoleOptions{
-				// TODO: inherit TTLs from cert length?
-				MaxSessionTTL: types.Duration(12 * time.Hour),
-			},
-			Allow: types.RoleConditions{
-				Rules: []types.Rule{
-					// read certificate authorities to watch for CA rotations
-					types.NewRule(types.KindCertAuthority, []string{types.VerbReadNoSecrets}),
-				},
-				Impersonate: &types.ImpersonateConditions{
-					Roles: roleRequests,
-				},
-			},
-		},
-	})
-}
-
-func (c *BotsCommand) addImpersonatorRole(client auth.ClientI, userName, roleName string) error {
-	return client.UpsertRole(context.Background(), &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V4,
-		Metadata: types.Metadata{
-			Name:        roleName,
-			Description: fmt.Sprintf("Automatically generated impersonator role for certificate renewal bot %s", c.botName),
-		},
-		Spec: types.RoleSpecV4{
-			Options: types.RoleOptions{
-				MaxSessionTTL: types.Duration(12 * time.Hour),
-			},
-			Allow: types.RoleConditions{
-				Rules: []types.Rule{
-					// read certificate authorities to watch for CA rotations
-					types.NewRule(types.KindCertAuthority, []string{types.VerbReadNoSecrets}),
-				},
-				Impersonate: &types.ImpersonateConditions{
-					Roles: splitRoles(c.botRoles),
-					Users: []string{userName},
-				},
-			},
-		},
-	})
-}
-
 func (c *BotsCommand) RemoveBot(client auth.ClientI) error {
-	// TODO:
-	// remove the bot's associated impersonator role
-	// remove any locks for the bot's impersonator role?
-	// remove the bot's user
-	userName := "bot-" + strings.ReplaceAll(c.botName, " ", "-")
-
-	user, userErr := client.GetUser(userName, false)
-	if userErr != nil {
-		userErr = trace.WrapWithMessage(userErr, "could not fetch expected bot user %s", userName)
-	} else {
-		label, ok := user.GetMetadata().Labels[BOT_LABEL]
-		if !ok {
-			userErr = trace.Errorf("will not delete user %s that is missing label %s", userName, BOT_LABEL)
-		} else if label != c.botName {
-			userErr = trace.Errorf("will not delete user %s with mismatched label %s = %s", userName, BOT_LABEL, label)
-		} else if userErr = client.DeleteUser(context.Background(), userName); userErr == nil {
-			fmt.Printf("Removed bot user %s.\n", userName)
-		}
+	if err := client.DeleteBot(context.Background(), c.botName); err != nil {
+		return trace.WrapWithMessage(err, "error deleting bot")
 	}
 
-	role, roleErr := client.GetRole(context.Background(), userName)
-	if roleErr != nil {
-		roleErr = trace.WrapWithMessage(roleErr, "could not fetch expected bot role %s", userName)
-	} else {
-		label, ok := role.GetMetadata().Labels[BOT_LABEL]
-		if !ok {
-			roleErr = trace.Errorf("will not delete role %s that is missing label %s", userName, BOT_LABEL)
-		} else if label != c.botName {
-			roleErr = trace.Errorf("will not delete role %s with mismatched label %s = %s", userName, BOT_LABEL, label)
-		} else if roleErr = client.DeleteRole(context.Background(), userName); roleErr == nil {
-			fmt.Printf("Removed bot role %s.\n", userName)
-		}
-	}
+	fmt.Printf("Bot %q deleted successfully.\n", c.botName)
 
-	// TODO: locks, tokens?
-
-	return trace.NewAggregate(userErr, roleErr)
+	return nil
 }
 
 func (c *BotsCommand) LockBot(client auth.ClientI) error {
+	// TODO: this is entirely untested.
 	lockExpiry, err := computeLockExpiry(c.lockExpires, c.lockTTL)
 	if err != nil {
 		return trace.Wrap(err)

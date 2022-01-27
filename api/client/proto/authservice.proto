@@ -363,7 +363,7 @@ message CreateBotJoinTokenRequest {
     // Name is the bot's user name.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
     // TTL specifies how long the generated token is valid for.
-    int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
+    int64 TTL = 2 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
 }
 
 // RenewableCertsRequest is a request to generate a first set of renewable
@@ -374,6 +374,44 @@ message RenewableCertsRequest {
 
     // PublicKey is a public key to be signed.
     bytes PublicKey = 2 [ (gogoproto.jsontag) = "public_key" ];
+}
+
+// CreateBotRequest is used to create a bot User and associated resources.
+message CreateBotRequest {
+    // Name is the name of the bot, i.e. the unprefixed User name.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+
+    // TTL is the desired TTL for the token if one is created.
+    int64 TTL = 2 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
+
+    // Token is an optional token name if an EC2/IAM join token should be used.
+    // If unset, a new random token is created and its name returned.
+    string Token = 3 [ (gogoproto.jsontag) = "token" ];
+
+    // Roles is a list of roles the created bot should be allowed to assume
+    // via role impersonation.
+    repeated string Roles = 4 [ (gogoproto.jsontag) = "roles" ];
+}
+
+// CreateBotResponse returns required details for
+message CreateBotResponse {
+    // UserName is the name of the associated bot user.
+    string UserName = 1 [ (gogoproto.jsontag) = "user_name" ];
+    // RoleName is the name of the associated bot role.
+    string RoleName = 2 [ (gogoproto.jsontag) = "role_name" ];
+    // Token is the name of the join token for the bot.
+    string Token = 3 [ (gogoproto.jsontag) = "token" ];
+}
+
+// DeleteBotRequest is a request to delete a bot user
+message DeleteBotRequest {
+    // Name is the name of the bot, i.e. the unprefixed User name.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
+// GetBotUsersRequest specifies parameters for the GetUsers method.
+message GetBotUsersRequest {
+    // GetBotUsers currently takes no parameters.
 }
 
 // PingRequest is the input value for the Ping method.
@@ -1490,6 +1528,12 @@ service AuthService {
     // password token.
     rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
 
+    // CreateBot creates a new bot user.
+    rpc CreateBot(CreateBotRequest) returns (CreateBotResponse);
+    // DeleteBot deletes a bot user.
+    rpc DeleteBot(DeleteBotRequest) returns (google.protobuf.Empty);
+    // GetBotUsers gets all users with bot labels.
+    rpc GetBotUsers(GetBotUsersRequest) returns (stream types.UserV2);
     // CreateBotJoinToken creates a new bot onboarding user token
     rpc CreateBotJoinToken(CreateBotJoinTokenRequest) returns (types.UserTokenV3);
     // GenerateInitialRenewableUserCerts generates an initial set of renewable

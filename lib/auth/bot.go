@@ -1,0 +1,252 @@
+/*
+Copyright 2021 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package auth
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/trace"
+)
+
+func botResourceName(botName string) string {
+	return "bot-" + strings.ReplaceAll(botName, " ", "-")
+}
+
+func createBotRole(ctx context.Context, s *Server, botName string, resourceName string, roleRequests []string) error {
+	return s.UpsertRole(ctx, &types.RoleV4{
+		Kind:    types.KindRole,
+		Version: types.V4,
+		Metadata: types.Metadata{
+			Name:        resourceName,
+			Description: fmt.Sprintf("Automatically generated role for bot %s", botName),
+			Labels: map[string]string{
+				types.BotLabel: botName,
+			},
+		},
+		Spec: types.RoleSpecV4{
+			Options: types.RoleOptions{
+				// TODO: inherit TTLs from cert length?
+				MaxSessionTTL: types.Duration(12 * time.Hour),
+			},
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					// Bots read certificate authorities to watch for CA rotations
+					types.NewRule(types.KindCertAuthority, []string{types.VerbReadNoSecrets}),
+				},
+				Impersonate: &types.ImpersonateConditions{
+					Roles: roleRequests,
+				},
+			},
+		},
+	})
+}
+
+// createBotUser creates a new backing User for bot use. A resource with a
+// matching name must already exist (see createBotRole).
+func createBotUser(ctx context.Context, s *Server, botName string, resourceName string) error {
+	user, err := types.NewUser(resourceName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	user.SetRoles([]string{resourceName})
+
+	metadata := user.GetMetadata()
+	metadata.Labels = map[string]string{
+		types.BotLabel:           botName,
+		types.BotGenerationLabel: "0",
+	}
+	user.SetMetadata(metadata)
+
+	if err := s.CreateUser(ctx, user); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+	if req.Token != "" {
+		// TODO: IAM joining for bots
+		return nil, trace.NotImplemented("IAM join for bots is not yet supported")
+	}
+
+	if req.Name == "" {
+		return nil, trace.BadParameter("bot name must not be empty")
+	}
+
+	resourceName := botResourceName(req.Name)
+
+	// Ensure existing resources don't already exist.
+	_, err := s.GetRole(ctx, resourceName)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	if roleExists := (err == nil); roleExists {
+		return nil, trace.AlreadyExists("cannot add bot: role %q already exists", resourceName)
+	}
+
+	_, err = s.GetUser(resourceName, false)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	if userExists := (err == nil); userExists {
+		return nil, trace.AlreadyExists("cannot add bot: user %q already exists", resourceName)
+	}
+
+	// Create the resources.
+	if err := createBotRole(ctx, s, req.Name, resourceName, req.Roles); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := createBotUser(ctx, s, req.Name, resourceName); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ttl := time.Duration(req.TTL)
+	if ttl == 0 {
+		ttl = defaults.DefaultBotJoinTTL
+	}
+
+	token, err := s.CreateBotJoinToken(ctx, CreateUserTokenRequest{
+		Name: resourceName,
+		TTL:  ttl,
+		Type: UserTokenTypeBot,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.CreateBotResponse{
+		Token:    token.GetName(),
+		UserName: resourceName,
+		RoleName: resourceName,
+	}, nil
+}
+
+func (s *Server) deleteBot(ctx context.Context, botName string) error {
+	// TODO:
+	// remove any locks for the bot's impersonator role?
+	// remove the bot's user
+	resourceName := botResourceName(botName)
+
+	user, userErr := s.GetUser(resourceName, false)
+	if userErr != nil {
+		userErr = trace.WrapWithMessage(userErr, "could not fetch expected bot user %s", resourceName)
+	} else {
+		label, ok := user.GetMetadata().Labels[types.BotLabel]
+		if !ok {
+			userErr = trace.Errorf("will not delete user %s that is missing label %s", resourceName, types.BotLabel)
+		} else if label != botName {
+			userErr = trace.Errorf("will not delete user %s with mismatched label %s = %s", resourceName, types.BotLabel, label)
+		} else {
+			userErr = s.DeleteUser(ctx, resourceName)
+		}
+	}
+
+	role, roleErr := s.GetRole(ctx, resourceName)
+	if roleErr != nil {
+		roleErr = trace.WrapWithMessage(roleErr, "could not fetch expected bot role %s", resourceName)
+	} else {
+		label, ok := role.GetMetadata().Labels[types.BotLabel]
+		if !ok {
+			roleErr = trace.Errorf("will not delete role %s that is missing label %s", resourceName, types.BotLabel)
+		} else if label != botName {
+			roleErr = trace.Errorf("will not delete role %s with mismatched label %s = %s", resourceName, types.BotLabel, label)
+		} else {
+			roleErr = s.DeleteRole(ctx, resourceName)
+		}
+	}
+
+	return trace.NewAggregate(userErr, roleErr)
+}
+
+// getBotUsers fetches all Users with the BotLabel field set. Users are fetched
+// without secrets.
+func (s *Server) getBotUsers(ctx context.Context) ([]types.User, error) {
+	var botUsers []types.User
+
+	users, err := s.GetUsers(false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, user := range users {
+		if _, ok := user.GetMetadata().Labels[types.BotLabel]; ok {
+			botUsers = append(botUsers, user)
+		}
+	}
+
+	return botUsers, nil
+}
+
+// CreateBotJoinToken creates a new joining token for bots.
+func (s *Server) CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
+	err := req.CheckAndSetDefaults()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Type != UserTokenTypeBot {
+		return nil, trace.BadParameter("invalid bot token request type")
+	}
+
+	_, err = s.GetUser(req.Name, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: ensure that the user is a bot user?
+	token, err := s.newUserToken(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: deleteUserTokens?
+	_, err = s.Identity.CreateUserToken(ctx, token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: audit log event. partially implemented, may need events.proto and
+	// dynamic.go, etc (unless we can reuse existing UserTokenCreate event)
+	// if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
+	// 	Metadata: apievents.Metadata{
+	// 		Type: events.BotTokenCreateEvent,
+	// 		Code: events.ResetPasswordTokenCreateCode,
+	// 	},
+	// 	UserMetadata: apievents.UserMetadata{
+	// 		User:         ClientUsername(ctx),
+	// 		Impersonator: ClientImpersonator(ctx),
+	// 	},
+	// 	ResourceMetadata: apievents.ResourceMetadata{
+	// 		Name:    req.Name,
+	// 		TTL:     req.TTL.String(),
+	// 		Expires: s.GetClock().Now().UTC().Add(req.TTL),
+	// 	},
+	// }); err != nil {
+	// 	log.WithError(err).Warn("Failed to emit create reset password token event.")
+	// }
+
+	return s.GetUserToken(ctx, token.GetName())
+}

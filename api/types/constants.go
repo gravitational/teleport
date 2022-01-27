@@ -357,3 +357,11 @@ const (
 	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
 )
+
+const (
+	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
+	BotLabel = "teleport.dev/bot"
+
+	// BotGenerationLabel is a label used to record the certificate generation counter.
+	BotGenerationLabel = "teleport.dev/bot-generation"
+)

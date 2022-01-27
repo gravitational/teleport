@@ -1582,6 +1582,21 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 	})
 }
 
+// CreateBot creates a bot and associated resources.
+func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+	return c.APIClient.CreateBot(ctx, req)
+}
+
+// DeleteBot deletes a certificate renewal bot and associated resources.
+func (c *Client) DeleteBot(ctx context.Context, botName string) error {
+	return c.APIClient.DeleteBot(ctx, botName)
+}
+
+// GetBotUsers fetches all bot users.
+func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
+	return c.APIClient.GetBotUsers(ctx)
+}
+
 // CreateBotJoinToken creates a bot join token.
 func (c *Client) CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
 	// Note: we reuse CreateUserTokenRequest as we are still fundamentally
@@ -1830,6 +1845,12 @@ type IdentityService interface {
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
+	// CreateBot creates a new certificate renewal bot and associated resources.
+	CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error)
+	// DeleteBot removes a certificate renewal bot and associated resources.
+	DeleteBot(ctx context.Context, botName string) error
+	// GetBotUsers gets all bot users.
+	GetBotUsers(ctx context.Context) ([]types.User, error)
 	// CreateBotJoinToken creates a new bot join token.
 	CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
