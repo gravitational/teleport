@@ -173,6 +173,7 @@ func TestSessionEndEvent(t *testing.T) {
 		context.Background(),
 		id,
 		startTime,
+		true,
 		"Administrator",
 		"sessionID",
 		desktop,
@@ -202,6 +203,7 @@ func TestSessionEndEvent(t *testing.T) {
 		StartTime:             startTime,
 		EndTime:               c.Now().UTC().Round(time.Millisecond),
 		DesktopName:           desktop.GetName(),
+		Recorded:              true,
 	}
 	require.Empty(t, cmp.Diff(expected, endEvent))
 }
