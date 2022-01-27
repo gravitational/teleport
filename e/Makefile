@@ -195,7 +195,7 @@ teleport-fips-check:
 clean:
 	@echo "---> Cleaning up Enterprise build artifacts."
 	rm -rf $(BUILDDIR)
-	cargo clean
+	-cargo clean
 	rm -rf *gz
 
 # make release - Produces a binary release tarball.
