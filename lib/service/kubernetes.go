@@ -20,6 +20,9 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -30,8 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 func (process *TeleportProcess) initKubernetes() {
@@ -270,6 +271,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 				"Kubernetes service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, listener.Addr())
 		}
+		process.BroadcastEvent(Event{Name: KubernetesReady, Payload: nil})
 		err := kubeServer.Serve(listener)
 		if err != nil {
 			if err == http.ErrServerClosed {

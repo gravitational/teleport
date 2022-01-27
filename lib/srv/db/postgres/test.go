@@ -163,6 +163,9 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 			// Bind binds prepared statement with parameters.
 		case *pgproto3.Describe:
 		case *pgproto3.Sync:
+			if err := s.handleSync(client); err != nil {
+				s.log.WithError(err).Error("Failed to handle sync.")
+			}
 		case *pgproto3.Execute:
 			// Execute executes prepared statement.
 			if err := s.handleQuery(client); err != nil {
@@ -265,6 +268,16 @@ func (s *TestServer) handleQuery(client *pgproto3.Backend) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	return nil
+}
+
+func (s *TestServer) handleSync(client *pgproto3.Backend) error {
+	message := &pgproto3.ReadyForQuery{}
+	s.log.Debugf("Sending %#v.", message)
+	err := client.Send(message)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }

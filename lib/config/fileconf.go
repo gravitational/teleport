@@ -965,7 +965,10 @@ type Database struct {
 	// URI is the database address to connect to.
 	URI string `yaml:"uri"`
 	// CACertFile is an optional path to the database CA certificate.
+	// Deprecated in favor of TLS.CACertFile.
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
+	// TLS keeps an optional TLS configuration options.
+	TLS DatabaseTLS `yaml:"tls"`
 	// StaticLabels is a map of database static labels.
 	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 	// DynamicLabels is a list of database dynamic labels.
@@ -974,6 +977,18 @@ type Database struct {
 	AWS DatabaseAWS `yaml:"aws"`
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP `yaml:"gcp"`
+}
+
+// DatabaseTLS keeps TLS settings used when connecting to database.
+type DatabaseTLS struct {
+	// Mode is a TLS verification mode. Available options are 'verify-full', 'verify-ca' or 'insecure',
+	// 'verify-full' is the default option.
+	Mode string `yaml:"mode"`
+	// ServerName allows providing custom server name.
+	// This name will override DNS name when validating certificate presented by the database.
+	ServerName string `yaml:"server_name,omitempty"`
+	// CACertFile is an optional path to the database CA certificate.
+	CACertFile string `yaml:"ca_cert_file,omitempty"`
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
@@ -1294,7 +1309,7 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		})
 	}
 
-	v2, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV3{
 		IssuerURL:     o.IssuerURL,
 		ClientID:      o.ClientID,
 		ClientSecret:  o.ClientSecret,
@@ -1307,12 +1322,12 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	v2.SetACR(o.ACR)
-	v2.SetProvider(o.Provider)
-	if err := v2.CheckAndSetDefaults(); err != nil {
+	connector.SetACR(o.ACR)
+	connector.SetProvider(o.Provider)
+	if err := connector.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return v2, nil
+	return connector, nil
 }
 
 // Metrics is a `metrics_service` section of the config file:
@@ -1370,10 +1385,16 @@ type LDAPConfig struct {
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
 	Username string `yaml:"username"`
-	// PasswordFile is a text file containing the password for LDAP authentication.
-	PasswordFile string `yaml:"password_file"`
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
+
+	// PasswordFile was used in Teleport 8 before we supported client certificates
+	// for LDAP authentication. Support for LDAP passwords was removed for Teleport 9
+	// and this field remains only to issue a warning to users who are upgrading to
+	// Teleport 9.
+	//
+	// TODO(zmb3) DELETE IN 10.0
+	PasswordFile string `yaml:"password_file"`
 }

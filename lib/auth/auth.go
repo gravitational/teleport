@@ -44,9 +44,9 @@ import (
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/sirupsen/logrus"
@@ -325,6 +325,7 @@ type Server struct {
 	// if not set, cache uses itself
 	cache Cache
 
+	// limiter limits the number of active connections per client IP.
 	limiter *limiter.ConnectionsLimiter
 
 	// Emitter is events emitter, used to submit discrete events
@@ -639,6 +640,9 @@ type certRequest struct {
 	mfaVerified string
 	// clientIP is an IP of the client requesting the certificate.
 	clientIP string
+	// disallowReissue flags that a cert should not be allowed to issue future
+	// certificates.
+	disallowReissue bool
 }
 
 // check verifies the cert request is valid.
@@ -727,7 +731,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	}
 	sessionID := req.SessionID
 	if sessionID == "" {
-		sessionID = uuid.New()
+		sessionID = uuid.New().String()
 	}
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
@@ -738,7 +742,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
 		traits: wrappers.Traits(map[string][]string{
-			teleport.TraitLogins: {uuid.New()},
+			teleport.TraitLogins: {uuid.New().String()},
 		}),
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
@@ -810,12 +814,19 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if lockErr := a.checkLockInForce(req.checker.LockingMode(authPref.GetLockingMode()), append(
-		services.RolesToLockTargets(req.checker.RoleNames()),
-		types.LockTarget{User: req.user.GetName()},
-		types.LockTarget{MFADevice: req.mfaVerified},
-	)); lockErr != nil {
-		return nil, trace.Wrap(lockErr)
+	lockingMode := req.checker.LockingMode(authPref.GetLockingMode())
+	lockTargets := []types.LockTarget{
+		{User: req.user.GetName()},
+		{MFADevice: req.mfaVerified},
+	}
+	lockTargets = append(lockTargets,
+		services.RolesToLockTargets(req.checker.RoleNames())...,
+	)
+	lockTargets = append(lockTargets,
+		services.AccessRequestsToLockTargets(req.activeRequests.AccessRequests)...,
+	)
+	if err := a.checkLockInForce(lockingMode, lockTargets); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// reuse the same RSA keys for SSH and TLS keys
@@ -914,6 +925,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		ActiveRequests:        req.activeRequests,
 		MFAVerified:           req.mfaVerified,
 		ClientIP:              req.clientIP,
+		DisallowReissue:       req.disallowReissue,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -985,11 +997,13 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			Username:    req.dbUser,
 			Database:    req.dbName,
 		},
-		DatabaseNames: dbNames,
-		DatabaseUsers: dbUsers,
-		MFAVerified:   req.mfaVerified,
-		ClientIP:      req.clientIP,
-		AWSRoleARNs:   roleARNs,
+		DatabaseNames:   dbNames,
+		DatabaseUsers:   dbUsers,
+		MFAVerified:     req.mfaVerified,
+		ClientIP:        req.clientIP,
+		AWSRoleARNs:     roleARNs,
+		ActiveRequests:  req.activeRequests.AccessRequests,
+		DisallowReissue: req.disallowReissue,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -1103,9 +1117,10 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (t
 		return nil, trace.Wrap(err)
 	}
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:   user,
-		Roles:  roles,
-		Traits: traits,
+		User:           user,
+		Roles:          roles,
+		Traits:         traits,
+		AccessRequests: identity.ActiveRequests,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1732,6 +1747,7 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 		return nil, trace.Wrap(err)
 	}
 
+	accessRequests := identity.ActiveRequests
 	if req.AccessRequestID != "" {
 		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(req.User, req.AccessRequestID)
 		if err != nil {
@@ -1740,6 +1756,7 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 
 		roles = append(roles, newRoles...)
 		roles = apiutils.Deduplicate(roles)
+		accessRequests = apiutils.Deduplicate(append(accessRequests, req.AccessRequestID))
 
 		// Let session expire with the shortest expiry time.
 		if expiresAt.After(requestExpiry) {
@@ -1769,14 +1786,16 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 		// Set default roles and expiration.
 		expiresAt = prevSession.GetLoginTime().UTC().Add(sessionTTL)
 		roles = user.GetRoles()
+		accessRequests = nil
 	}
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:       req.User,
-		Roles:      roles,
-		Traits:     traits,
-		SessionTTL: sessionTTL,
+		User:           req.User,
+		Roles:          roles,
+		Traits:         traits,
+		SessionTTL:     sessionTTL,
+		AccessRequests: accessRequests,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1903,7 +1922,7 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 		return "", trace.Wrap(err)
 	}
 
-	user := ClientUsername(ctx)
+	userMetadata := ClientUserMetadata(ctx)
 	for _, role := range req.Roles {
 		if role == types.RoleTrustedCluster {
 			if err := a.emitter.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
@@ -1911,10 +1930,7 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 					Type: events.TrustedClusterTokenCreateEvent,
 					Code: events.TrustedClusterTokenCreateCode,
 				},
-				UserMetadata: apievents.UserMetadata{
-					User:         user,
-					Impersonator: ClientImpersonator(ctx),
-				},
+				UserMetadata: userMetadata,
 			}); err != nil {
 				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
 			}
@@ -2307,11 +2323,12 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
 	}
 	certs, err := a.generateUserCert(certRequest{
-		user:      user,
-		ttl:       sessionTTL,
-		publicKey: pub,
-		checker:   checker,
-		traits:    req.Traits,
+		user:           user,
+		ttl:            sessionTTL,
+		publicKey:      pub,
+		checker:        checker,
+		traits:         req.Traits,
+		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2421,10 +2438,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         req.GetUser(),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadataWithUser(ctx, req.GetUser()),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
@@ -2435,6 +2449,23 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	})
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
+	}
+	return nil
+}
+
+func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
+	if err := a.DynamicAccessExt.DeleteAccessRequest(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AccessRequestDelete{
+		Metadata: apievents.Metadata{
+			Type: events.AccessRequestDeleteEvent,
+			Code: events.AccessRequestDeleteCode,
+		},
+		UserMetadata: ClientUserMetadata(ctx),
+		RequestID:    name,
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit access request delete event.")
 	}
 	return nil
 }
@@ -2699,6 +2730,32 @@ func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesReques
 	}
 }
 
+// ResourcePageFunc is a function to run on each page iterated over.
+type ResourcePageFunc func(next []types.ResourceWithLabels) (stop bool, err error)
+
+// IterateResourcePages can be used to iterate over pages of resources.
+func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (string, error) {
+	for {
+		nextPage, nextKey, err := a.ListResources(ctx, req)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		stop, err := f(nextPage)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// Iterator stopped before end of pages or
+		// there are no more pages, return nextKey
+		if stop || nextKey == "" {
+			return nextKey, nil
+		}
+
+		req.StartKey = nextKey
+	}
+}
+
 // GetReverseTunnels returns reverse tunnels from the cache
 func (a *Server) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	return a.GetCache().GetReverseTunnels(opts...)
@@ -2787,10 +2844,7 @@ func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
 			Type: events.AppCreateEvent,
 			Code: events.AppCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    app.GetName(),
 			Expires: app.Expiry(),
@@ -2816,10 +2870,7 @@ func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
 			Type: events.AppUpdateEvent,
 			Code: events.AppUpdateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    app.GetName(),
 			Expires: app.Expiry(),
@@ -2845,10 +2896,7 @@ func (a *Server) DeleteApp(ctx context.Context, name string) error {
 			Type: events.AppDeleteEvent,
 			Code: events.AppDeleteCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
@@ -2883,10 +2931,7 @@ func (a *Server) CreateDatabase(ctx context.Context, database types.Database) er
 			Type: events.DatabaseCreateEvent,
 			Code: events.DatabaseCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    database.GetName(),
 			Expires: database.Expiry(),
@@ -2916,10 +2961,7 @@ func (a *Server) UpdateDatabase(ctx context.Context, database types.Database) er
 			Type: events.DatabaseUpdateEvent,
 			Code: events.DatabaseUpdateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    database.GetName(),
 			Expires: database.Expiry(),
@@ -2949,10 +2991,7 @@ func (a *Server) DeleteDatabase(ctx context.Context, name string) error {
 			Type: events.DatabaseDeleteEvent,
 			Code: events.DatabaseDeleteCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
@@ -2970,6 +3009,11 @@ func (a *Server) GetDatabases(ctx context.Context) ([]types.Database, error) {
 // GetDatabase returns the specified database resource.
 func (a *Server) GetDatabase(ctx context.Context, name string) (types.Database, error) {
 	return a.GetCache().GetDatabase(ctx, name)
+}
+
+// GetDatabases returns all database resources.
+func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+	return a.GetCache().ListResources(ctx, req)
 }
 
 // GetLock gets a lock by name from the auth server's cache.

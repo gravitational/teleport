@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -469,27 +470,6 @@ func TestConfigReading(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, conf)
 	checkStaticConfig(t, conf)
-}
-
-func TestReadLDAPPasswordFromFile(t *testing.T) {
-	tmp := t.TempDir()
-	passwordFile := filepath.Join(tmp, "ldap-password")
-	require.NoError(t, os.WriteFile(passwordFile, []byte(" super-secret-password\n"), 0644))
-
-	fc := FileConfig{
-		WindowsDesktop: WindowsDesktopService{
-			LDAP: LDAPConfig{
-				Addr:         "test.example.com",
-				Domain:       "example.com",
-				Username:     "admin",
-				PasswordFile: passwordFile,
-			},
-		},
-	}
-
-	var sc service.Config
-	require.NoError(t, applyWindowsDesktopConfig(&fc, &sc))
-	require.Equal(t, "super-secret-password", sc.WindowsDesktop.LDAP.Password)
 }
 
 func TestLabelParsing(t *testing.T) {
@@ -1550,10 +1530,6 @@ func TestProxyConfigurationVersion(t *testing.T) {
 func TestWindowsDesktopService(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
-	ldapPasswordFile := filepath.Join(tmp, "ldap-pass")
-	require.NoError(t, os.WriteFile(ldapPasswordFile, []byte("foo"), 0644))
-
 	for _, test := range []struct {
 		desc        string
 		mutate      func(fc *FileConfig)
@@ -1596,15 +1572,16 @@ func TestWindowsDesktopService(t *testing.T) {
 				}
 			},
 		},
+		{
+			desc:        "NOK - uses deprecated password_file field",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.LDAP.PasswordFile = "/path/to/some/file"
+			},
+		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			fc := &FileConfig{
-				WindowsDesktop: WindowsDesktopService{
-					LDAP: LDAPConfig{
-						PasswordFile: ldapPasswordFile,
-					},
-				},
-			}
+			fc := &FileConfig{}
 			test.mutate(fc)
 			cfg := &service.Config{}
 			err := applyWindowsDesktopConfig(fc, cfg)
@@ -1882,6 +1859,9 @@ func TestDatabaseCLIFlags(t *testing.T) {
 						Command: []string{"hostname"},
 					},
 				},
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
+				},
 			},
 		},
 		{
@@ -1928,6 +1908,9 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
+				},
 			},
 		},
 		{
@@ -1952,6 +1935,9 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
+				},
 			},
 		},
 		{
@@ -1968,7 +1954,10 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Name:     "gcp",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
-				CACert:   fixtures.LocalhostCert,
+				TLS: service.DatabaseTLS{
+					Mode:   service.VerifyFull,
+					CACert: fixtures.LocalhostCert,
+				},
 				GCP: service.DatabaseGCP{
 					ProjectID:  "gcp-project-1",
 					InstanceID: "gcp-instance-1",
@@ -1987,9 +1976,10 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				require.Contains(t, err.Error(), tt.outError)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, []service.Database{
-					tt.outDatabase,
-				}, config.Databases.Databases)
+				require.Equal(t,
+					config.Databases.Databases,
+					[]service.Database{tt.outDatabase},
+				)
 			}
 		})
 	}
@@ -2015,7 +2005,7 @@ func TestTextFormatter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
-			formatter := &textFormatter{
+			formatter := &utils.TextFormatter{
 				ExtraFields: tt.formatConfig,
 			}
 			tt.assertErr(t, formatter.CheckAndSetDefaults())
@@ -2043,10 +2033,74 @@ func TestJSONFormatter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
-			formatter := &jsonFormatter{
-				extraFields: tt.extraFields,
+			formatter := &utils.JSONFormatter{
+				ExtraFields: tt.extraFields,
 			}
 			tt.assertErr(t, formatter.CheckAndSetDefaults())
+		})
+	}
+}
+
+func TestTLSCert(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpCA := path.Join(tmpDir, "ca.pem")
+
+	err := os.WriteFile(tmpCA, fixtures.LocalhostCert, 0644)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name string
+		conf *FileConfig
+	}{
+		{
+			"read deprecated DB cert field",
+			&FileConfig{
+				Databases: Databases{
+					Service: Service{
+						EnabledFlag: "true",
+					},
+					Databases: []*Database{
+						{
+							Name:       "test-db-1",
+							Protocol:   "mysql",
+							URI:        "localhost:1234",
+							CACertFile: tmpCA,
+						},
+					},
+				},
+			},
+		},
+		{
+			"read DB cert field",
+			&FileConfig{
+				Databases: Databases{
+					Service: Service{
+						EnabledFlag: "true",
+					},
+					Databases: []*Database{
+						{
+							Name:     "test-db-1",
+							Protocol: "mysql",
+							URI:      "localhost:1234",
+							TLS: DatabaseTLS{
+								CACertFile: tmpCA,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := service.MakeDefaultConfig()
+
+			err = ApplyFileConfig(tt.conf, cfg)
+			require.NoError(t, err)
+
+			require.Len(t, cfg.Databases.Databases, 1)
+			require.Equal(t, fixtures.LocalhostCert, cfg.Databases.Databases[0].TLS.CACert)
 		})
 	}
 }

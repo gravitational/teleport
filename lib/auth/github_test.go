@@ -80,6 +80,7 @@ func (s *GithubSuite) TestPopulateClaims(c *check.C) {
 			"org1": {"team1", "team2"},
 			"org2": {"team1"},
 		},
+		Teams: []string{"team1", "team2", "team1"},
 	})
 }
 

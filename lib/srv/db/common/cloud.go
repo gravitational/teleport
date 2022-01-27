@@ -34,6 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -280,14 +281,14 @@ func (c *TestCloudClients) GetAWSSTSClient(region string) (stsiface.STSAPI, erro
 // GetGCPIAMClient returns GCP IAM client.
 func (c *TestCloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
 	return gcpcredentials.NewIamCredentialsClient(ctx,
-		option.WithGRPCDialOption(grpc.WithInsecure()), // Insecure must be set for unauth client.
+		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())), // Insecure must be set for unauth client.
 		option.WithoutAuthentication())
 }
 
 // GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
 func (c *TestCloudClients) GetGCPSQLAdminClient(ctx context.Context) (*sqladmin.Service, error) {
 	return sqladmin.NewService(ctx,
-		option.WithGRPCDialOption(grpc.WithInsecure()), // Insecure must be set for unauth client.
+		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())), // Insecure must be set for unauth client.
 		option.WithoutAuthentication())
 }
 
@@ -296,7 +297,7 @@ func (c *TestCloudClients) GetAzureCredential() (azcore.TokenCredential, error) 
 	return &azidentity.ChainedTokenCredential{}, nil
 }
 
-// Closer closes all initialized clients.
+// Close closes all initialized clients.
 func (c *TestCloudClients) Close() error {
 	return nil
 }

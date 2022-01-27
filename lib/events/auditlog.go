@@ -31,6 +31,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -348,6 +349,7 @@ func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 	}
 	l.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Debugf("Session upload completed.")
 	return l.EmitAuditEventLegacy(SessionUploadE, EventFields{
+		EventID:        uuid.New().String(),
 		SessionEventID: string(r.SessionID),
 		URL:            url,
 		EventIndex:     SessionUploadIndex,

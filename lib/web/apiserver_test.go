@@ -83,9 +83,9 @@ import (
 	"github.com/beevik/etree"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	lemma_secret "github.com/mailgun/lemma/secret"
-	"github.com/pborman/uuid"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -1177,10 +1177,6 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
 	c.Assert(err, IsNil)
 
-	// flush out raw event (pty texts)
-	err = s.waitForRawEvent(ws, 5*time.Second)
-	c.Assert(err, IsNil)
-
 	var numPings int
 	start := time.Now()
 	for {
@@ -1194,8 +1190,8 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 		if numPings > 1 {
 			break
 		}
-		if time.Since(start) > 5*time.Second {
-			c.Fatalf("received %d ping frames within 5s of opening a socket, expected at least 2", numPings)
+		if deadline := 15 * time.Second; time.Since(start) > deadline {
+			c.Fatalf("Received %v ping frames within %v of opening a socket, expected at least 2", numPings, deadline)
 		}
 	}
 
@@ -1675,7 +1671,7 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 	wc := s.client()
 
 	// create two oidc connectors, one named "foo" and another named "bar"
-	oidcConnectorSpec := types.OIDCConnectorSpecV2{
+	oidcConnectorSpec := types.OIDCConnectorSpecV3{
 		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
 		ClientID:     "000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com",
 		ClientSecret: "AAAAAAAAAAAAAAAAAAAAAAAA",
@@ -2102,7 +2098,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 		PublicAddr: "panel.example.com",
 	})
 	require.NoError(t, err)
-	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), server)
 	require.NoError(t, err)
@@ -2501,7 +2497,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		PublicAddr: "panel.example.com",
 	})
 	c.Assert(err, IsNil)
-	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 	c.Assert(err, IsNil)
 	_, err = s.server.Auth().UpsertApplicationServer(context.Background(), server)
 	c.Assert(err, IsNil)

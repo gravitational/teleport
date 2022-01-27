@@ -2,7 +2,6 @@ teleport:
   log:
     severity: DEBUG
 
-  diag_addr: 0.0.0.0:3434
   data_dir: /var/lib/teleport
   auth_servers: ["auth:3025"]
   auth_token: "proxy-${PROXY_TOKEN}"

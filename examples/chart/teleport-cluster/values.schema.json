@@ -11,7 +11,7 @@
         "highAvailability",
         "image",
         "enterpriseImage",
-        "logLevel",
+        "log",
         "affinity",
         "annotations",
         "extraVolumes",
@@ -31,6 +31,11 @@
             "$id": "#/properties/authenticationType",
             "type": "string",
             "default": "local"
+        },
+        "proxyListenerMode": {
+            "$id": "#/properties/proxyListenerMode",
+            "type": "string",
+            "default": ""
         },
         "teleportVersionOverride": {
             "$id": "#/properties/teleportVersionOverride",
@@ -79,7 +84,12 @@
         "chartMode": {
             "$id": "#/properties/chartMode",
             "type": "string",
-            "enum": ["standalone", "aws", "gcp", "custom"],
+            "enum": [
+                "standalone",
+                "aws",
+                "gcp",
+                "custom"
+            ],
             "default": "standalone"
         },
         "standalone": {
@@ -120,6 +130,11 @@
                     "type": "string",
                     "default": ""
                 },
+                "auditLogMirrorOnStdout": {
+                    "$id": "#/properties/aws/properties/auditLogMirrorOnStdout",
+                    "type": "boolean",
+                    "default": "false"
+                },
                 "sessionRecordingBucket": {
                     "$id": "#/properties/aws/properties/sessionRecordingBucket",
                     "type": "string",
@@ -153,6 +168,11 @@
                     "$id": "#/properties/gcp/properties/auditLogTable",
                     "type": "string",
                     "default": ""
+                },
+                "auditLogMirrorOnStdout": {
+                    "$id": "#/properties/aws/properties/auditLogMirrorOnStdout",
+                    "type": "boolean",
+                    "default": "false"
                 },
                 "sessionRecordingBucket": {
                     "$id": "#/properties/gcp/properties/sessionRecordingBucket",
@@ -192,9 +212,15 @@
                     "required": [
                         "enabled",
                         "issuerName",
-                        "issuerKind"
+                        "issuerKind",
+                        "issuerGroup"
                     ],
                     "properties": {
+                        "addCommonName": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/addCommonName",
+                            "type": "boolean",
+                            "default": "false"
+                        },
                         "enabled": {
                             "$id": "#/properties/highAvailability/properties/certManager/properties/enabled",
                             "type": "boolean",
@@ -209,6 +235,11 @@
                             "$id": "#/properties/highAvailability/properties/certManager/properties/issuerKind",
                             "type": "string",
                             "default": "Issuer"
+                        },
+                        "issuerGroup": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/issuerGroup",
+                            "type": "string",
+                            "default": "cert-manager.io"
                         }
                     }
                 },
@@ -247,8 +278,46 @@
         "logLevel": {
             "$id": "#/properties/logLevel",
             "type": "string",
-            "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
+            "enum": [
+                "DEBUG",
+                "INFO",
+                "WARN",
+                "WARNING",
+                "ERROR"
+            ],
             "default": "INFO"
+        },
+        "log": {
+            "$id": "#/properties/log",
+            "type": "object",
+            "required": [
+                "output",
+                "format",
+                "extraFields"
+            ],
+            "properties": {
+                "level": {
+                    "$id": "#/properties/log/properties/level",
+                    "type": "string",
+                    "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
+                    "default": "INFO"
+                },
+                "deployment": {
+                    "$id": "#/properties/log/properties/output",
+                    "type": "string",
+                    "default": {}
+                },
+                "pod": {
+                    "$id": "#/properties/log/properties/format",
+                    "type": "string",
+                    "default": {}
+                },
+                "service": {
+                    "$id": "#/properties/log/properties/extraFields",
+                    "type": "array",
+                    "default": {}
+                }
+            }
         },
         "affinity": {
             "$id": "#/properties/affinity",
@@ -299,6 +368,25 @@
                 }
             }
         },
+        "service": {
+            "$id": "#/properties/service",
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "type": {
+                    "$id": "#properties/service/type",
+                    "type": "string",
+                    "default": "LoadBalancer"
+                },
+                "spec": {
+                    "$id": "#/properties/service/spec",
+                    "type": "object",
+                    "default": {}
+                }
+            }
+        },
         "extraArgs": {
             "$id": "#/properties/extraArgs",
             "type": "array",
@@ -322,7 +410,11 @@
         "imagePullPolicy": {
             "$id": "#/properties/imagePullPolicy",
             "type": "string",
-            "enum": ["Never", "IfNotPresent", "Always"],
+            "enum": [
+                "Never",
+                "IfNotPresent",
+                "Always"
+            ],
             "default": "IfNotPresent"
         },
         "initContainers": {

@@ -35,6 +35,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
@@ -326,9 +327,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	srv.LockWatcher, err = services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentAuth,
-			Client:    srv.AuthServer,
-			Clock:     cfg.Clock,
+			Component:      teleport.ComponentAuth,
+			Client:         srv.AuthServer,
+			Clock:          cfg.Clock,
+			MaxRetryPeriod: defaults.HighResPollingPeriod,
 		},
 	})
 	if err != nil {
@@ -898,6 +900,21 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Iden
 type clt interface {
 	UpsertRole(context.Context, types.Role) error
 	UpsertUser(types.User) error
+}
+
+// CreateRole creates a role without assigning any users. Used in tests.
+func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV4) (types.Role, error) {
+	role, err := types.NewRole(name, spec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = clt.UpsertRole(ctx, role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return role, nil
 }
 
 // CreateUserRoleAndRequestable creates two roles for a user, one base role with allowed login
