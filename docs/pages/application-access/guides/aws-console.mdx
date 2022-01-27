@@ -241,6 +241,11 @@ federated login and the name of your assumed IAM role:
 
 Note that your federated login session is marked with your Teleport username.
 
+<Admonition type="note" title="Session Duration">
+    If the Teleport agent is running with [temporary security credentials](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html),
+    the management console session will be limited to a maximum of one hour.
+</Admonition>
+
 ## Step 7. Use CloudTrail to see Teleport user activity
 
 To view CloudTrail events for your federated sessions, navigate to the CloudTrail
@@ -272,7 +277,7 @@ $ tsh aws s3 ls
 ```
 
 <Admonition type="note" title="Note">
-    The `aws` command-line tool should be available in PATH
+    The `aws` command-line tool should be available in PATH.
 </Admonition>
 
 To log out of the aws application and remove credentials:
