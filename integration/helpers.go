@@ -626,6 +626,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
 
 	tconf.Keygen = testauthority.New()
+	tconf.MaxRetryPeriod = defaults.HighResPollingPeriod
 	i.Config = tconf
 	return tconf, nil
 }
