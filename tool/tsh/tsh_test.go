@@ -17,11 +17,13 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1141,6 +1143,14 @@ func TestMakeTableWithTruncatedColumn(t *testing.T) {
 			require.Equal(t, testCase.expectedOutput, rows)
 		})
 	}
+}
+
+func TestPrintCommand(t *testing.T) {
+	var buff bytes.Buffer
+	cmd := exec.Command("path-to-binary", "arg1", "arg2&need&quote", "arg3")
+
+	printCommand(&buff, cmd)
+	require.Equal(t, "path-to-binary arg1 \"arg2&need&quote\" arg3\n", buff.String())
 }
 
 type testServersOpts struct {

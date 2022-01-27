@@ -23,6 +23,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path"
 	"path/filepath"
@@ -2468,4 +2469,16 @@ func handleUnimplementedError(ctx context.Context, perr error, cf CLIConf) error
 		return trace.WrapWithMessage(perr, errMsgFormat, unknownServerVersion, teleport.Version)
 	}
 	return trace.WrapWithMessage(perr, errMsgFormat, pr.ServerVersion, teleport.Version)
+}
+
+// printCommand prints command to standard output.
+func printCommand(output io.Writer, cmd *exec.Cmd) {
+	// Add quotes for arguments with '&' to prevent sending the command to
+	// background in terminal.
+	for i, arg := range cmd.Args {
+		if strings.ContainsRune(arg, '&') {
+			cmd.Args[i] = fmt.Sprintf("%q", arg)
+		}
+	}
+	fmt.Fprintln(output, cmd.Path, strings.Join(cmd.Args[1:], " "))
 }

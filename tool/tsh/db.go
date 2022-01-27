@@ -251,7 +251,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(cmd.Path, strings.Join(cmd.Args[1:], " "))
+		printCommand(cf.Stdout(), cmd)
 	default:
 		fmt.Printf(`Name:      %v
 Host:      %v
