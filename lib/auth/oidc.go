@@ -595,7 +595,7 @@ func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken s
 
 	code := resp.StatusCode
 	if code < 200 || code > 299 {
-		// these are expected userinfo failures.
+		// These are expected userinfo failures.
 		if code == http.StatusBadRequest || code == http.StatusUnauthorized ||
 			code == http.StatusForbidden || code == http.StatusMethodNotAllowed {
 			return nil, trace.AccessDenied("bad status code: %v", code)
