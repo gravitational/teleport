@@ -792,12 +792,19 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if lockErr := a.checkLockInForce(req.checker.LockingMode(authPref.GetLockingMode()), append(
-		services.RolesToLockTargets(req.checker.RoleNames()),
-		types.LockTarget{User: req.user.GetName()},
-		types.LockTarget{MFADevice: req.mfaVerified},
-	)); lockErr != nil {
-		return nil, trace.Wrap(lockErr)
+	lockingMode := req.checker.LockingMode(authPref.GetLockingMode())
+	lockTargets := []types.LockTarget{
+		{User: req.user.GetName()},
+		{MFADevice: req.mfaVerified},
+	}
+	lockTargets = append(lockTargets,
+		services.RolesToLockTargets(req.checker.RoleNames())...,
+	)
+	lockTargets = append(lockTargets,
+		services.AccessRequestsToLockTargets(req.activeRequests.AccessRequests)...,
+	)
+	if err := a.checkLockInForce(lockingMode, lockTargets); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// reuse the same RSA keys for SSH and TLS keys
@@ -967,11 +974,12 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 			Username:    req.dbUser,
 			Database:    req.dbName,
 		},
-		DatabaseNames: dbNames,
-		DatabaseUsers: dbUsers,
-		MFAVerified:   req.mfaVerified,
-		ClientIP:      req.clientIP,
-		AWSRoleARNs:   roleARNs,
+		DatabaseNames:  dbNames,
+		DatabaseUsers:  dbUsers,
+		MFAVerified:    req.mfaVerified,
+		ClientIP:       req.clientIP,
+		AWSRoleARNs:    roleARNs,
+		ActiveRequests: req.activeRequests.AccessRequests,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -1064,9 +1072,10 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (t
 		return nil, trace.Wrap(err)
 	}
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:   user,
-		Roles:  roles,
-		Traits: traits,
+		User:           user,
+		Roles:          roles,
+		Traits:         traits,
+		AccessRequests: identity.ActiveRequests,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1171,6 +1180,7 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 		return nil, trace.Wrap(err)
 	}
 
+	accessRequests := identity.ActiveRequests
 	if req.AccessRequestID != "" {
 		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(req.User, req.AccessRequestID)
 		if err != nil {
@@ -1179,6 +1189,7 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 
 		roles = append(roles, newRoles...)
 		roles = apiutils.Deduplicate(roles)
+		accessRequests = apiutils.Deduplicate(append(accessRequests, req.AccessRequestID))
 
 		// Let session expire with the shortest expiry time.
 		if expiresAt.After(requestExpiry) {
@@ -1208,14 +1219,16 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 		// Set default roles and expiration.
 		expiresAt = prevSession.GetLoginTime().UTC().Add(sessionTTL)
 		roles = user.GetRoles()
+		accessRequests = nil
 	}
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:       req.User,
-		Roles:      roles,
-		Traits:     traits,
-		SessionTTL: sessionTTL,
+		User:           req.User,
+		Roles:          roles,
+		Traits:         traits,
+		SessionTTL:     sessionTTL,
+		AccessRequests: accessRequests,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1342,7 +1355,7 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 		return "", trace.Wrap(err)
 	}
 
-	user := ClientUsername(ctx)
+	userMetadata := ClientUserMetadata(ctx)
 	for _, role := range req.Roles {
 		if role == types.RoleTrustedCluster {
 			if err := a.emitter.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
@@ -1350,10 +1363,7 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 					Type: events.TrustedClusterTokenCreateEvent,
 					Code: events.TrustedClusterTokenCreateCode,
 				},
-				UserMetadata: apievents.UserMetadata{
-					User:         user,
-					Impersonator: ClientImpersonator(ctx),
-				},
+				UserMetadata: userMetadata,
 			}); err != nil {
 				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
 			}
@@ -1848,11 +1858,12 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
 	}
 	certs, err := a.generateUserCert(certRequest{
-		user:      user,
-		ttl:       sessionTTL,
-		publicKey: pub,
-		checker:   checker,
-		traits:    req.Traits,
+		user:           user,
+		ttl:            sessionTTL,
+		publicKey:      pub,
+		checker:        checker,
+		traits:         req.Traits,
+		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1962,10 +1973,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         req.GetUser(),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadataWithUser(ctx, req.GetUser()),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
@@ -1989,11 +1997,8 @@ func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
 			Type: events.AccessRequestDeleteEvent,
 			Code: events.AccessRequestDeleteCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
-		RequestID: name,
+		UserMetadata: ClientUserMetadata(ctx),
+		RequestID:    name,
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit access request delete event.")
 	}
@@ -2318,7 +2323,6 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	var noMFAAccessErr, notFoundErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:
-		notFoundErr = trace.NotFound("node %q not found", t.Node)
 		if t.Node.Node == "" {
 			return nil, trace.BadParameter("empty Node field")
 		}
@@ -2358,7 +2362,9 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// If at least one node requires MFA, we'll catch it.
 		for _, n := range matches {
 			err := checker.CheckAccessToServer(t.Node.Login, n, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
-			if err != nil {
+
+			// Ignore other errors; they'll be caught on the real access attempt.
+			if err != nil && errors.Is(err, services.ErrSessionMFARequired) {
 				noMFAAccessErr = err
 				break
 			}
@@ -2421,17 +2427,14 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	// Errors other than ErrSessionMFARequired mean something else is wrong,
 	// most likely access denied.
 	if !errors.Is(noMFAAccessErr, services.ErrSessionMFARequired) {
-		if trace.IsAccessDenied(noMFAAccessErr) {
-			log.Infof("Access to resource denied: %v", noMFAAccessErr)
-			// notFoundErr should always be set by this point, but check it
-			// just in case.
-			if notFoundErr == nil {
-				notFoundErr = trace.NotFound("target resource not found")
-			}
-			// Mask access denied errors to prevent resource name oracles.
-			return nil, trace.Wrap(notFoundErr)
+		if !trace.IsAccessDenied(noMFAAccessErr) {
+			log.WithError(noMFAAccessErr).Warn("Could not determine MFA access")
 		}
-		return nil, trace.Wrap(noMFAAccessErr)
+
+		// Mask the access denied errors by returning false to prevent resource
+		// name oracles. Auth will be denied (and generate an audit log entry)
+		// when the client attempts to connect.
+		return &proto.IsMFARequiredResponse{Required: false}, nil
 	}
 	// If we reach here, the error from AccessChecker was
 	// ErrSessionMFARequired.

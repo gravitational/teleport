@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 
 	"github.com/gravitational/trace"
@@ -126,6 +127,8 @@ type Identity struct {
 	ClientIP string
 	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
 	AWSRoleARNs []string
+	// ActiveRequests is a list of UUIDs of active requests for this Identity.
+	ActiveRequests []string
 }
 
 // RouteToApp holds routing information for applications.
@@ -281,6 +284,10 @@ var (
 	// ImpersonatorASN1ExtensionOID is an extension OID used when encoding/decoding
 	// impersonator user
 	ImpersonatorASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 7}
+
+	// ActiveRequestsASN1ExtensionOID is an extension OID used when encoding/decoding
+	// active access requests into certificates.
+	ActiveRequestsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 8}
 )
 
 // Subject converts identity to X.509 subject name
@@ -452,6 +459,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	for _, activeRequest := range id.ActiveRequests {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  ActiveRequestsASN1ExtensionOID,
+				Value: activeRequest,
+			})
+	}
+
 	return subject, nil
 }
 
@@ -571,6 +586,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.Impersonator = val
 			}
+		case attr.Type.Equal(ActiveRequestsASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.ActiveRequests = append(id.ActiveRequests, val)
+			}
 		}
 	}
 
@@ -585,6 +605,14 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 	return id, nil
+}
+
+func (id Identity) GetUserMetadata() events.UserMetadata {
+	return events.UserMetadata{
+		User:           id.Username,
+		Impersonator:   id.Impersonator,
+		AccessRequests: id.ActiveRequests,
+	}
 }
 
 // CertificateRequest is a X.509 signing certificate request

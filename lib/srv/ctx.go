@@ -606,11 +606,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			SessionID: string(c.SessionID()),
 			WithMFA:   c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         c.Identity.TeleportUser,
-			Login:        c.Identity.Login,
-			Impersonator: c.Identity.Impersonator,
-		},
+		UserMetadata: c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: c.ServerConn.RemoteAddr().String(),
 		},
@@ -830,6 +826,15 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	}, nil
 }
 
+func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
+	return apievents.UserMetadata{
+		Login:          id.Login,
+		User:           id.TeleportUser,
+		Impersonator:   id.Impersonator,
+		AccessRequests: id.ActiveRequests,
+	}
+}
+
 // buildEnvironment constructs a list of environment variables from
 // cluster information.
 func buildEnvironment(ctx *ServerContext) []string {
@@ -925,12 +930,19 @@ func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleTargets := services.RolesToLockTargets(apiutils.Deduplicate(append(id.RoleSet.RoleNames(), id.UnmappedRoles...)))
-	return append([]types.LockTarget{
+	lockTargets := []types.LockTarget{
 		{User: id.TeleportUser},
 		{Login: id.Login},
 		{Node: s.HostUUID()},
 		{Node: auth.HostFQDN(s.HostUUID(), clusterName.GetClusterName())},
 		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
-	}, roleTargets...), nil
+	}
+	roles := apiutils.Deduplicate(append(id.RoleSet.RoleNames(), id.UnmappedRoles...))
+	lockTargets = append(lockTargets,
+		services.RolesToLockTargets(roles)...,
+	)
+	lockTargets = append(lockTargets,
+		services.AccessRequestsToLockTargets(id.ActiveRequests)...,
+	)
+	return lockTargets, nil
 }
