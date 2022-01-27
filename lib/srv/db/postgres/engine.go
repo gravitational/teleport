@@ -530,7 +530,7 @@ take a few minutes to propagate):
 
   %v
 
-Make sure that the RDS Proxy possesses credentials for Postgres user %q and
+Make sure that the RDS proxy possesses credentials for Postgres user %q and
 Teleport database agent's IAM policy has "rds-connect" permissions (note that
 IAM changes may take a few minutes to propagate):
 

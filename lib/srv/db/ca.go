@@ -222,7 +222,7 @@ const (
 	rdsDefaultCAURLTemplate = "https://truststore.pki.rds.amazonaws.com/%s/%s-bundle.pem"
 	// rdsProxyCAURL is the URL of the CA certificate used by the RDS proxies.
 	//
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/rds-proxy.howitworks.html#rds-proxy-security
+	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.howitworks.html#rds-proxy-security.tls
 	rdsProxyCAURL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem"
 	// redshiftDefaultCAURL is the Redshift CA bundle download URL.
 	//

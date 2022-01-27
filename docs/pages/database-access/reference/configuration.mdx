@@ -20,7 +20,9 @@ db_service:
 
   # Matchers for registering AWS-hosted databases.
   aws:
-    # Database types, only "rds" is supported currently.
+    # Database matcher types. Valid options are:
+    # 'rds' - discovers and registers AWS RDS and Aurora databases.
+    # 'rds-proxy' - discovers and registers AWS RDS proxy databases.
   - types: ["rds"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]

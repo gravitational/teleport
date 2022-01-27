@@ -402,13 +402,13 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 	t.Run("default endpoint", func(t *testing.T) {
 		expected, err := types.NewDatabaseV3(types.Metadata{
 			Name:        "testproxy",
-			Description: "RDS Proxy in ca-central-1",
+			Description: "RDS proxy in ca-central-1",
 			Labels: map[string]string{
 				types.OriginLabel: types.OriginCloud,
 				labelAccountID:    "123456",
 				labelRegion:       "ca-central-1",
 				labelEngine:       RDSEngineMySQL,
-				labelVPCID:        "test-vpc-id",
+				labelVpcID:        "test-vpc-id",
 				labelTargetRole:   "read_write",
 			},
 		}, types.DatabaseSpecV3{
@@ -434,13 +434,13 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 	t.Run("custom endpoint", func(t *testing.T) {
 		expected, err := types.NewDatabaseV3(types.Metadata{
 			Name:        "testproxy-custom",
-			Description: "RDS Proxy endpoint in ca-central-1",
+			Description: "RDS proxy endpoint in ca-central-1",
 			Labels: map[string]string{
 				types.OriginLabel: types.OriginCloud,
 				labelAccountID:    "123456",
 				labelRegion:       "ca-central-1",
 				labelEngine:       RDSEngineMySQL,
-				labelVPCID:        "test-vpc-id",
+				labelVpcID:        "test-vpc-id",
 				labelTargetRole:   "read_only",
 			},
 		}, types.DatabaseSpecV3{

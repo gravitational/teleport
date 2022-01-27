@@ -311,12 +311,6 @@ func (m *RDSMockUnauth) ModifyDBInstanceWithContext(ctx aws.Context, input *rds.
 func (m *RDSMockUnauth) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyDBClusterInput, options ...request.Option) (*rds.ModifyDBClusterOutput, error) {
 	return nil, trace.AccessDenied("unauthorized")
 }
-func (m *RDSMockUnauth) DescribeDBProxiesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, options ...request.Option) (*rds.DescribeDBProxiesOutput, error) {
-	return nil, trace.AccessDenied("unauthorized")
-}
-func (m *RDSMockUnauth) DescribeDBProxyEndpointsWithContext(context aws.Context, input *rds.DescribeDBProxyEndpointsInput, options ...request.Option) (*rds.DescribeDBProxyEndpointsOutput, error) {
-	return nil, trace.AccessDenied("unauthorized")
-}
 
 func (m *RDSMockUnauth) DescribeDBInstancesPagesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, fn func(*rds.DescribeDBInstancesOutput, bool) bool, options ...request.Option) error {
 	return trace.AccessDenied("unauthorized")
@@ -324,6 +318,13 @@ func (m *RDSMockUnauth) DescribeDBInstancesPagesWithContext(ctx aws.Context, inp
 
 func (m *RDSMockUnauth) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
 	return trace.AccessDenied("unauthorized")
+}
+
+func (m *RDSMockUnauth) DescribeDBProxiesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, options ...request.Option) (*rds.DescribeDBProxiesOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+func (m *RDSMockUnauth) DescribeDBProxyEndpointsWithContext(context aws.Context, input *rds.DescribeDBProxyEndpointsInput, options ...request.Option) (*rds.DescribeDBProxyEndpointsOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
 }
 
 // RDSMockByDBType is a mock RDS client that mocks API calls by DB type

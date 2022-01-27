@@ -65,7 +65,7 @@ func TestAWSMetadata(t *testing.T) {
 		},
 		DBProxyEndpoints: []*rds.DBProxyEndpoint{
 			{
-				DBProxyEndpointName: aws.String("custom-proxy-endpoint"),
+				DBProxyEndpointName: aws.String("rds-proxy-endpoint"),
 				DBProxyName:         aws.String("rds-proxy"),
 			},
 		},
@@ -197,11 +197,11 @@ func TestAWSMetadata(t *testing.T) {
 			},
 		},
 		{
-			name: "RDS proxy custom endpoint",
+			name: "RDS proxy endpoint",
 			inAWS: types.AWS{
 				Region: "us-east-1",
 				RDS: types.RDS{
-					ProxyEndpointName: "custom-proxy-endpoint",
+					ProxyEndpointName: "rds-proxy-endpoint",
 				},
 			},
 			outAWS: types.AWS{
@@ -209,7 +209,7 @@ func TestAWSMetadata(t *testing.T) {
 				Region:    "us-east-1",
 				RDS: types.RDS{
 					ProxyName:         "rds-proxy",
-					ProxyEndpointName: "custom-proxy-endpoint",
+					ProxyEndpointName: "rds-proxy-endpoint",
 					ResourceID:        "prx-resource-id",
 					IAMAuth:           true,
 				},
@@ -269,6 +269,14 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 			meta: types.AWS{
 				RDS: types.RDS{
 					ProxyName: "rds-proxy",
+				},
+			},
+		},
+		{
+			name: "RDS proxy endpoint",
+			meta: types.AWS{
+				RDS: types.RDS{
+					ProxyEndpointName: "rds-proxy-endpoint",
 				},
 			},
 		},

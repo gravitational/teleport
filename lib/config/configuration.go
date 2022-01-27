@@ -135,9 +135,9 @@ type CommandLineFlags struct {
 	DatabaseAWSRDSInstanceID string
 	// DatabaseAWSRDSClusterID is RDS cluster (Aurora) cluster identifier.
 	DatabaseAWSRDSClusterID string
-	// DatabaseAWSRDSProxyName is RDS proxy name.
+	// DatabaseAWSRDSProxyName is the identifier for the RDS proxy.
 	DatabaseAWSRDSProxyName string
-	// DatabaseAWSRDSProxyEndpointName is the custom RDS proxy endpoint name.
+	// DatabaseAWSRDSProxyEndpointName is name for the RDS proxy endpoint.
 	DatabaseAWSRDSProxyEndpointName string
 	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
 	DatabaseGCPProjectID string

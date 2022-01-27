@@ -218,7 +218,7 @@ func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, port int64) (types.Database, 
 	}
 	return types.NewDatabaseV3(types.Metadata{
 		Name:        aws.StringValue(dbProxy.DBProxyName),
-		Description: fmt.Sprintf("RDS Proxy in %v", metadata.Region),
+		Description: fmt.Sprintf("RDS proxy in %v", metadata.Region),
 		Labels:      labelsFromRDSProxy(dbProxy, metadata),
 	}, types.DatabaseSpecV3{
 		Protocol: rdsEngineFamilyToProtocol(aws.StringValue(dbProxy.EngineFamily)),
@@ -236,7 +236,7 @@ func NewDatabaseFromRDSProxyEndpoint(dbProxy *rds.DBProxy, dbProxyEndpoint *rds.
 	}
 	return types.NewDatabaseV3(types.Metadata{
 		Name:        fmt.Sprintf("%s-%s", aws.StringValue(dbProxy.DBProxyName), aws.StringValue(dbProxyEndpoint.DBProxyEndpointName)),
-		Description: fmt.Sprintf("RDS Proxy endpoint in %v", metadata.Region),
+		Description: fmt.Sprintf("RDS proxy endpoint in %v", metadata.Region),
 		Labels:      labelsFromRDSProxyEndpoint(dbProxy, dbProxyEndpoint, metadata),
 	}, types.DatabaseSpecV3{
 		Protocol: rdsEngineFamilyToProtocol(aws.StringValue(dbProxy.EngineFamily)),
@@ -401,7 +401,7 @@ func labelsFromRDSProxy(rdsProxy *rds.DBProxy, meta *types.AWS) map[string]strin
 	// rds.DBProxy has no TagList.
 	labels := make(map[string]string)
 	labels[types.OriginLabel] = types.OriginCloud
-	labels[labelVPCID] = aws.StringValue(rdsProxy.VpcId)
+	labels[labelVpcID] = aws.StringValue(rdsProxy.VpcId)
 	labels[labelAccountID] = meta.AccountID
 	labels[labelRegion] = meta.Region
 	labels[labelEngine] = strings.ToLower(aws.StringValue(rdsProxy.EngineFamily))
@@ -494,8 +494,8 @@ const (
 	labelEndpointType = "endpoint-type"
 	// labelTargetRole is the label key containing the RDS target role.
 	labelTargetRole = "target-role"
-	// labelVPCID is the label key containing the VPC ID.
-	labelVPCID = "vpc-id"
+	// labelVpcID is the label key containing the VPC ID.
+	labelVpcID = "vpc-id"
 )
 
 const (

@@ -1013,9 +1013,9 @@ type DatabaseAWSRDS struct {
 	InstanceID string `yaml:"instance_id,omitempty"`
 	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string `yaml:"cluster_id,omitempty"`
-	// ProxyName is the RDS proxy name.
+	// ProxyName is the identifier for the RDS proxy.
 	ProxyName string `yaml:"proxy_name,omitempty"`
-	// ProxyEndpointName is the custom RDS proxy endpoint name.
+	// ProxyEndpointName is the name for the RDS proxy endpoint.
 	ProxyEndpointName string `yaml:"proxy_name,omitempty"`
 }
 

@@ -58,9 +58,10 @@ func MatchResourceLabels(matchers []ResourceMatcher, resource types.ResourceWith
 }
 
 const (
-	// AWSMatcherRDS is the AWS matcher type for RDS databases.
+	// AWSMatcherRDS is the AWS matcher type for RDS/Aurora databases.
 	AWSMatcherRDS = "rds"
-	// AWSMatcherRDSProxy is the AWS matcher type for RDS proxies.
+	// AWSMatcherRDSProxy is the AWS matcher type for RDS proxies and proxy
+	// endpoints.
 	AWSMatcherRDSProxy = "rds-proxy"
 	// AWSMatcherRedshift is the AWS matcher type for Redshift databases.
 	AWSMatcherRedshift = "redshift"

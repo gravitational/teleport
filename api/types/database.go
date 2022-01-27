@@ -79,7 +79,7 @@ type Database interface {
 	GetIAMResources() []string
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
-	// IsRDSProxy returns true if this is an RDS Proxy database.
+	// IsRDSProxy returns true if this is a RDS proxy database.
 	IsRDSProxy() bool
 	// IsRedshift returns true if this is a Redshift database.
 	IsRedshift() bool
@@ -284,7 +284,7 @@ func (d *DatabaseV3) IsRDS() bool {
 	return d.GetType() == DatabaseTypeRDS
 }
 
-// IsRDSProxy returns true if this is an RDS Proxy database.
+// IsRDSProxy returns true if this is a RDS proxy database.
 func (d *DatabaseV3) IsRDSProxy() bool {
 	return d.IsRDS() && (d.Spec.AWS.RDS.ProxyName != "" || d.Spec.AWS.RDS.ProxyEndpointName != "")
 }
@@ -434,13 +434,15 @@ func parseRDSEndnpoint(endpoint string) (*rdsEndpointDetails, error) {
 	// my-cluster.cluster-ro-abcdefghijklmnop.us-west-1.rds.amazonaws.com
 	// my-custom.cluster-custom-abcdefghijklmnop.us-west-1.rds.amazonaws.com
 	//
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html
-	//
-	// RDS proxy endpoints look like this:
+	// RDS proxy "default" endpoints look like this:
 	// my-proxy.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com
+	//
+	// Additional "proxy endpoints" can be added to a RDS proxy and look like:
 	// my-proxy-custom.endpoint.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com
 	//
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/rds-proxy-setup.html#rds-proxy-connecting
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html
+	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-setup.html#rds-proxy-connecting
+	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-endpoints.html
 	if !strings.HasSuffix(host, rdsEndpointSuffix) {
 		return nil, trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
 	}
@@ -448,8 +450,7 @@ func parseRDSEndnpoint(endpoint string) (*rdsEndpointDetails, error) {
 	parts := strings.Split(host, ".")
 	details := &rdsEndpointDetails{}
 
-	// Note that the RDS Proxy custom endpoints have one extra level of
-	// subdomains.
+	// Note that the RDS proxy endpoints have one extra level of subdomains.
 	if len(parts) == 7 && strings.HasPrefix(parts[2], rdsProxySubdomainPrefix) {
 		details.proxyEndpointName = parts[0]
 		details.region = parts[3]

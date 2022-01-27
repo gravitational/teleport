@@ -793,6 +793,7 @@ and non interactive tsh bench loads.
   - [ ] Self-hosted CockroachDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+  - [ ] AWS RDS proxy.
   - [ ] AWS Redshift.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
@@ -803,6 +804,7 @@ and non interactive tsh bench loads.
   - [ ] Self-hosted CockroachDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+  - [ ] AWS RDS proxy.
   - [ ] AWS Redshift.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
@@ -826,6 +828,7 @@ and non interactive tsh bench loads.
 - [ ] Verify discovery.
   - [ ] Can detect and register RDS instances.
   - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
+  - [ ] Can detect and register RDS proxies and proxy endpoints.
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column

@@ -30,6 +30,8 @@ To connect to an RDS database, the database agent's IAM identity needs to have
              "arn:aws:rds-db:us-east-2:1234567890:dbuser:db-ABCDEFGHIJKL01234/*",
              // Use cluster-XXX as a resource identifier for Aurora clusters.
              "arn:aws:rds-db:us-east-2:1234567890:dbuser:cluster-ABCDEFGHIJKL01234/*"
+             // Use prx-XXX as a resource identifier for RDS proxies.
+             "arn:aws:rds-db:us-east-2:1234567890:dbuser:prx-ABCDEFGHIJKL01234/*"
          ]
       }
    ]

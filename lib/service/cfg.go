@@ -713,9 +713,9 @@ type DatabaseAWSRDS struct {
 	InstanceID string
 	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string
-	// ProxyName is the RDS proxy name.
+	// ProxyName is the identifier for the RDS proxy.
 	ProxyName string
-	// ProxyEndpointName is the custom RDS proxy endpoint name.
+	// ProxyEndpointName is the name for the RDS proxy endpoint.
 	ProxyEndpointName string
 }
 

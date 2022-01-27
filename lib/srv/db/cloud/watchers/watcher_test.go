@@ -49,10 +49,10 @@ func TestWatcher(t *testing.T) {
 	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
 	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", services.RDSEngineModeServerless, map[string]string{"env": "prod"})
 
-	rdsProxyVPC1, rdsProxyDatabaseVPC1 := makeRDSProxy(t, "rds-proxy-1", "us-east-1", "vpc1")
-	rdsProxyVPC2, _ := makeRDSProxy(t, "rds-proxy-2", "us-east-1", "vpc2")
-	rdsProxyEndpointVPC1, rdsProxyEndpointDatabaseVPC1 := makeRDSProxyEndpoint(t, rdsProxyVPC1, "endpoint-1", "us-east-1")
-	rdsProxyEndpointVPC2, _ := makeRDSProxyEndpoint(t, rdsProxyVPC2, "endpoint-2", "us-east-1")
+	rdsProxyVpc1, rdsProxyDatabaseVpc1 := makeRDSProxy(t, "rds-proxy-1", "us-east-1", "vpc1")
+	rdsProxyVpc2, _ := makeRDSProxy(t, "rds-proxy-2", "us-east-1", "vpc2")
+	rdsProxyEndpointVpc1, rdsProxyEndpointDatabaseVpc1 := makeRDSProxyEndpoint(t, rdsProxyVpc1, "endpoint-1", "us-east-1")
+	rdsProxyEndpointVpc2, _ := makeRDSProxyEndpoint(t, rdsProxyVpc2, "endpoint-2", "us-east-1")
 
 	tests := []struct {
 		name              string
@@ -135,12 +135,12 @@ func TestWatcher(t *testing.T) {
 			}},
 			clients: &common.TestCloudClients{
 				RDS: &cloud.RDSMock{
-					DBProxies:         []*rds.DBProxy{rdsProxyVPC1, rdsProxyVPC2},
-					DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVPC1, rdsProxyEndpointVPC2},
+					DBProxies:         []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
+					DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
 					DBProxyTargetPort: 9999,
 				},
 			},
-			expectedDatabases: types.Databases{rdsProxyDatabaseVPC1, rdsProxyEndpointDatabaseVPC1},
+			expectedDatabases: types.Databases{rdsProxyDatabaseVpc1, rdsProxyEndpointDatabaseVpc1},
 		},
 	}
 
