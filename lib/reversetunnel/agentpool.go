@@ -59,7 +59,7 @@ type AgentPool struct {
 	spawnLimiter utils.Retry
 
 	mu     sync.Mutex
-	agents map[utils.NetAddr][]*Agent
+	agents []*Agent
 }
 
 // AgentPoolConfig holds configuration parameters for the agent pool
@@ -89,8 +89,8 @@ type AgentPoolConfig struct {
 	Component string
 	// ReverseTunnelServer holds all reverse tunnel connections.
 	ReverseTunnelServer Server
-	// ProxyAddr points to the address of the ssh proxy
-	ProxyAddr string
+	// Resolver retrieves the reverse tunnel address
+	Resolver Resolver
 	// Cluster is a cluster name of the proxy.
 	Cluster string
 	// FIPS indicates if Teleport was started in FIPS mode.
@@ -135,11 +135,6 @@ func NewAgentPool(ctx context.Context, cfg AgentPoolConfig) (*AgentPool, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	proxyAddr, err := utils.ParseAddr(cfg.ProxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	ctx, cancel := context.WithCancel(ctx)
 	tr, err := track.New(ctx, track.Config{ClusterName: cfg.Cluster})
 	if err != nil {
@@ -148,7 +143,7 @@ func NewAgentPool(ctx context.Context, cfg AgentPoolConfig) (*AgentPool, error) 
 	}
 
 	pool := &AgentPool{
-		agents:       make(map[utils.NetAddr][]*Agent),
+		agents:       nil,
 		proxyTracker: tr,
 		cfg:          cfg,
 		ctx:          ctx,
@@ -161,7 +156,7 @@ func NewAgentPool(ctx context.Context, cfg AgentPoolConfig) (*AgentPool, error) 
 			},
 		}),
 	}
-	pool.proxyTracker.Start(*proxyAddr)
+	pool.proxyTracker.Start()
 	return pool, nil
 }
 
@@ -204,7 +199,6 @@ func (m *AgentPool) processSeekEvents() {
 		// The proxy tracker has given us permission to act on a given
 		// tunnel address
 		case lease := <-m.proxyTracker.Acquire():
-			m.log.Debugf("Seeking: %+v.", lease.Key())
 			m.withLock(func() {
 				// Note that ownership of the lease is transferred to agent
 				// pool for the lifetime of the connection
@@ -232,11 +226,11 @@ func (m *AgentPool) withLock(f func()) {
 type matchAgentFn func(a *Agent) bool
 
 func (m *AgentPool) closeAgents() {
-	for key, agents := range m.agents {
-		m.agents[key] = filterAndClose(agents, func(*Agent) bool { return true })
-		if len(m.agents[key]) == 0 {
-			delete(m.agents, key)
-		}
+	agents := filterAndClose(m.agents, func(*Agent) bool { return true })
+	if len(agents) <= 0 {
+		m.agents = nil
+	} else {
+		m.agents = agents
 	}
 }
 
@@ -246,7 +240,9 @@ func filterAndClose(agents []*Agent, matchAgent matchAgentFn) []*Agent {
 		agent := agents[i]
 		if matchAgent(agent) {
 			agent.log.Debugf("Pool is closing agent.")
-			agent.Close()
+			if err := agent.Close(); err != nil {
+				agent.log.WithError(err).Warnf("Failed to close agent")
+			}
 		} else {
 			filtered = append(filtered, agent)
 		}
@@ -271,21 +267,24 @@ func (m *AgentPool) pollAndSyncAgents() {
 
 // getReverseTunnelDetails gets the cached ReverseTunnelDetails obtained during the oldest cached agent.connect call.
 // This function should be called under a lock.
-func (m *AgentPool) getReverseTunnelDetails(addr utils.NetAddr) *reverseTunnelDetails {
-	agents, ok := m.agents[addr]
-	if !ok || len(agents) == 0 {
+func (m *AgentPool) getReverseTunnelDetails() *reverseTunnelDetails {
+	if len(m.agents) <= 0 {
 		return nil
 	}
-	return agents[0].reverseTunnelDetails
+	return m.agents[0].reverseTunnelDetails
 }
 
 // addAgent adds a new agent to the pool. Note that ownership of the lease
 // transfers into the AgentPool, and will be released when the AgentPool
 // is done with it.
 func (m *AgentPool) addAgent(lease track.Lease) error {
-	addr := lease.Key().(utils.NetAddr)
+	addr, err := m.cfg.Resolver()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	agent, err := NewAgent(AgentConfig{
-		Addr:                 addr,
+		Addr:                 *addr,
 		ClusterName:          m.cfg.Cluster,
 		Username:             m.cfg.HostUUID,
 		Signer:               m.cfg.HostSigner,
@@ -300,7 +299,7 @@ func (m *AgentPool) addAgent(lease track.Lease) error {
 		Tracker:              m.proxyTracker,
 		Lease:                lease,
 		FIPS:                 m.cfg.FIPS,
-		reverseTunnelDetails: m.getReverseTunnelDetails(addr),
+		reverseTunnelDetails: m.getReverseTunnelDetails(),
 	})
 	if err != nil {
 		// ensure that lease has been released; OK to call multiple times.
@@ -311,21 +310,19 @@ func (m *AgentPool) addAgent(lease track.Lease) error {
 	// start the agent in a goroutine. no need to handle Start() errors: Start() will be
 	// retrying itself until the agent is closed
 	go agent.Start()
-	m.agents[addr] = append(m.agents[addr], agent)
+	m.agents = append(m.agents, agent)
 	return nil
 }
 
-// Counts returns a count of the number of proxies a outbound tunnel is
+// Count returns a count of the number of proxies an outbound tunnel is
 // connected to. Used in tests to determine if a proxy has been found and/or
 // removed.
 func (m *AgentPool) Count() int {
 	var out int
 	m.withLock(func() {
-		for _, agents := range m.agents {
-			for _, agent := range agents {
-				if agent.getState() == agentStateConnected {
-					out++
-				}
+		for _, agent := range m.agents {
+			if agent.getState() == agentStateConnected {
+				out++
 			}
 		}
 	})
@@ -336,18 +333,15 @@ func (m *AgentPool) Count() int {
 // removeDisconnected removes disconnected agents from the list of agents.
 // This function should be called under a lock.
 func (m *AgentPool) removeDisconnected() {
-	for agentKey, agentSlice := range m.agents {
-		// Filter and close all disconnected agents.
-		validAgents := filterAndClose(agentSlice, func(agent *Agent) bool {
-			return agent.getState() == agentStateDisconnected
-		})
+	// Filter and close all disconnected agents.
+	agents := filterAndClose(m.agents, func(agent *Agent) bool {
+		return agent.getState() == agentStateDisconnected
+	})
 
-		// Update (or delete) agent key with filter applied.
-		if len(validAgents) > 0 {
-			m.agents[agentKey] = validAgents
-		} else {
-			delete(m.agents, agentKey)
-		}
+	if len(agents) <= 0 {
+		m.agents = nil
+	} else {
+		m.agents = agents
 	}
 }
 

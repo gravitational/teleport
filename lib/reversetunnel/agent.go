@@ -384,12 +384,19 @@ func (a *Agent) run() {
 		a.log.Warningf("Failed to create remote tunnel: %v, conn: %v.", err, conn)
 		return
 	}
-	defer conn.Close()
+
+	local := conn.LocalAddr().String()
+	remote := conn.RemoteAddr().String()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			a.log.Warnf("Failed to close remote tunnel: %v, local addr: %s remote addr: %s", err, local, remote)
+		}
+	}()
 
 	// Successfully connected to remote cluster.
 	a.log.WithFields(log.Fields{
-		"addr":        conn.LocalAddr().String(),
-		"remote-addr": conn.RemoteAddr().String(),
+		"addr":        local,
+		"remote-addr": remote,
 	}).Info("Connected.")
 
 	// wrap up remaining business logic in closure for easy
@@ -414,14 +421,14 @@ func (a *Agent) run() {
 		// or permanent loss of a proxy.
 		err = a.processRequests(conn)
 		if err != nil {
-			a.log.Warnf("Unable to continue processesing requests: %v.", err)
+			a.log.Warnf("Unable to continue processioning requests: %v.", err)
 			return
 		}
 	}
 	// if Tracker was provided, then the agent shouldn't continue unless
 	// no other agents hold a claim.
 	if a.Tracker != nil {
-		if !a.Tracker.WithProxy(doWork, a.Lease, a.getPrincipalsList()...) {
+		if !a.Tracker.WithProxy(doWork, a.getPrincipalsList()...) {
 			a.log.Debugf("Proxy already held by other agent: %v, releasing.", a.getPrincipalsList())
 		}
 	} else {
@@ -518,7 +525,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 	}
 }
 
-// handleDisovery receives discovery requests from the reverse tunnel
+// handleDiscovery receives discovery requests from the reverse tunnel
 // server, that informs agent about proxies registered in the remote
 // cluster and the reverse tunnels already established
 //
@@ -526,7 +533,11 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 // reqC : request payload
 func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	a.log.Debugf("handleDiscovery requests channel.")
-	defer ch.Close()
+	defer func() {
+		if err := ch.Close(); err != nil {
+			a.log.Warnf("Failed to closed connection: %v", err)
+		}
+	}()
 
 	for {
 		var req *ssh.Request

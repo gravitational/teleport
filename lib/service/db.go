@@ -69,14 +69,17 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	var tunnelAddr string
-	if conn.TunnelProxy() != "" {
-		tunnelAddr = conn.TunnelProxy()
-	} else {
-		if tunnelAddr, ok = process.singleProcessMode(resp.GetProxyListenerMode()); !ok {
-			return trace.BadParameter("failed to find reverse tunnel address, " +
-				"if running in a single-process mode, make sure auth_service, " +
-				"proxy_service, and db_service are all enabled")
+	tunnelAddrResolver := conn.TunnelProxyResolver()
+	if tunnelAddrResolver == nil {
+		tunnelAddrResolver = func() (*utils.NetAddr, error) {
+			addr, ok := process.singleProcessMode(resp.GetProxyListenerMode())
+			if !ok {
+				return nil, trace.BadParameter("failed to find reverse tunnel address, " +
+					"if running in a single-process mode, make sure auth_service, " +
+					"proxy_service, and db_service are all enabled")
+			}
+
+			return addr, nil
 		}
 	}
 
@@ -208,11 +211,12 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}()
 
 	// Create and start the agent pool.
-	agentPool, err := reversetunnel.NewAgentPool(process.ExitContext(),
+	agentPool, err := reversetunnel.NewAgentPool(
+		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
 			Component:   teleport.ComponentDatabase,
 			HostUUID:    conn.ServerIdentity.ID.HostUUID,
-			ProxyAddr:   tunnelAddr,
+			Resolver:    tunnelAddrResolver,
 			Client:      conn.Client,
 			Server:      dbService,
 			AccessPoint: conn.Client,

@@ -20,12 +20,12 @@ import (
 	"context"
 	"fmt"
 	pr "math/rand"
+	"os"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
 type simpleTestProxies struct {
@@ -102,7 +102,7 @@ func (s *simpleTestProxies) ProxyLoop(tracker *Tracker, lease Lease, proxy testP
 				break Loop
 			}
 		}
-	}, lease, proxy.principals...)
+	}, proxy.principals...)
 	return
 }
 
@@ -133,29 +133,26 @@ func jitter(t time.Duration) time.Duration {
 	return t + j
 }
 
-func Test(t *testing.T) {
+func TestMain(m *testing.M) {
 	pr.Seed(time.Now().UnixNano())
-	check.TestingT(t)
+	os.Exit(m.Run())
 }
 
-type StateSuite struct{}
+func TestBasic(t *testing.T) {
+	const (
+		timeout    = time.Second * 16
+		proxyCount = 16
+	)
 
-var _ = check.Suite(&StateSuite{})
+	ctx := context.Background()
 
-func (s *StateSuite) TestBasic(c *check.C) {
-	s.runBasicProxyTest(c, time.Second*16)
-}
-
-func (s *StateSuite) runBasicProxyTest(c *check.C, timeout time.Duration) {
-	const proxyCount = 16
 	timeoutC := time.After(timeout)
 	ticker := time.NewTicker(time.Millisecond * 100)
-	defer ticker.Stop()
-	tracker, err := New(context.TODO(), Config{ClusterName: "test-cluster"})
-	c.Assert(err, check.IsNil)
-	defer tracker.StopAll()
-	addr := utils.NetAddr{Addr: "test-cluster"}
-	tracker.Start(addr)
+	t.Cleanup(ticker.Stop)
+	tracker, err := New(ctx, Config{ClusterName: "test-cluster"})
+	require.NoError(t, err)
+	t.Cleanup(tracker.StopAll)
+	tracker.Start()
 	min, max := time.Duration(0), timeout
 	var proxies simpleTestProxies
 	proxies.AddRandProxies(proxyCount, min, max)
@@ -165,18 +162,18 @@ Discover:
 		case lease := <-tracker.Acquire():
 			go proxies.Discover(tracker, lease)
 		case <-ticker.C:
-			counts := tracker.wp.Get(addr)
-			c.Logf("Counts: %+v", counts)
+			counts := tracker.wp.Get()
+			t.Logf("Counts: %+v", counts)
 			if counts.Active == proxyCount {
 				break Discover
 			}
 		case <-timeoutC:
-			c.Fatal("timeout")
+			t.Fatal("timeout")
 		}
 	}
 }
 
-func (s *StateSuite) TestFullRotation(c *check.C) {
+func TestFullRotation(t *testing.T) {
 	const (
 		proxyCount = 8
 		minConnA   = time.Second * 2
@@ -185,37 +182,37 @@ func (s *StateSuite) TestFullRotation(c *check.C) {
 		maxConnB   = time.Second * 25
 		timeout    = time.Second * 30
 	)
+
+	ctx := context.Background()
 	ticker := time.NewTicker(time.Millisecond * 100)
-	defer ticker.Stop()
+	t.Cleanup(ticker.Stop)
 	var proxies simpleTestProxies
 	proxies.AddRandProxies(proxyCount, minConnA, maxConnA)
-	tracker, err := New(context.TODO(), Config{ClusterName: "test-cluster"})
-	c.Assert(err, check.IsNil)
-	defer tracker.StopAll()
-	addr := utils.NetAddr{Addr: "test-cluster"}
-	tracker.Start(addr)
+	tracker, err := New(ctx, Config{ClusterName: "test-cluster"})
+	require.NoError(t, err)
+	t.Cleanup(tracker.StopAll)
+	tracker.Start()
 	timeoutC := time.After(timeout)
 Loop0:
 	for {
 		select {
 		case lease := <-tracker.Acquire():
-			c.Assert(lease.Key(), check.DeepEquals, addr)
 			// get our "discovered" proxy in the foreground
 			// to prevent race with the call to RemoveRandProxies
 			// that comes after this loop.
 			proxy, ok := proxies.GetRandProxy()
 			if !ok {
-				c.Fatal("failed to get test proxy")
+				t.Fatal("failed to get test proxy")
 			}
 			go proxies.ProxyLoop(tracker, lease, proxy)
 		case <-ticker.C:
-			counts := tracker.wp.Get(addr)
-			c.Logf("Counts0: %+v", counts)
+			counts := tracker.wp.Get()
+			t.Logf("Counts0: %+v", counts)
 			if counts.Active == proxyCount {
 				break Loop0
 			}
 		case <-timeoutC:
-			c.Fatal("timeout")
+			t.Fatal("timeout")
 		}
 	}
 	proxies.RemoveRandProxies(proxyCount)
@@ -223,13 +220,13 @@ Loop1:
 	for {
 		select {
 		case <-ticker.C:
-			counts := tracker.wp.Get(addr)
-			c.Logf("Counts1: %+v", counts)
+			counts := tracker.wp.Get()
+			t.Logf("Counts1: %+v", counts)
 			if counts.Active < 1 {
 				break Loop1
 			}
 		case <-timeoutC:
-			c.Fatal("timeout")
+			t.Fatal("timeout")
 		}
 	}
 	proxies.AddRandProxies(proxyCount, minConnB, maxConnB)
@@ -239,13 +236,13 @@ Loop2:
 		case lease := <-tracker.Acquire():
 			go proxies.Discover(tracker, lease)
 		case <-ticker.C:
-			counts := tracker.wp.Get(addr)
-			c.Logf("Counts2: %+v", counts)
+			counts := tracker.wp.Get()
+			t.Logf("Counts2: %+v", counts)
 			if counts.Active >= proxyCount {
 				break Loop2
 			}
 		case <-timeoutC:
-			c.Fatal("timeout")
+			t.Fatal("timeout")
 		}
 	}
 }
@@ -253,41 +250,40 @@ Loop2:
 // TestUUIDHandling verifies that host UUIDs are correctly extracted
 // from the expected teleport principal format, and that gossip messages
 // consisting only of uuid don't create duplicate entries.
-func (s *StateSuite) TestUUIDHandling(c *check.C) {
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*6)
-	defer cancel()
+func TestUUIDHandling(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*6)
+	t.Cleanup(cancel)
 	ticker := time.NewTicker(time.Millisecond * 10)
-	defer ticker.Stop()
-	tracker, err := New(context.TODO(), Config{ClusterName: "test-cluster"})
-	c.Assert(err, check.IsNil)
-	defer tracker.StopAll()
-	addr := utils.NetAddr{Addr: "test-cluster"}
-	tracker.Start(addr)
+	t.Cleanup(ticker.Stop)
+	tracker, err := New(context.Background(), Config{ClusterName: "test-cluster"})
+	require.NoError(t, err)
+	t.Cleanup(tracker.StopAll)
+	tracker.Start()
 	lease := <-tracker.Acquire()
 	// claim a proxy using principal of the form <uuid>.<cluster>
 	go tracker.WithProxy(func() {
-		c.Logf("Successfully claimed proxy")
+		t.Logf("Successfully claimed proxy")
 		<-ctx.Done()
-	}, lease, "my-proxy.test-cluster")
+	}, "my-proxy.test-cluster")
 
 	// Wait for proxy to be claimed
 Wait:
 	for {
 		select {
 		case <-ticker.C:
-			counts := tracker.wp.Get(addr)
-			c.Logf("Counts: %+v", counts)
+			counts := tracker.wp.Get()
+			t.Logf("Counts: %+v", counts)
 			if counts.Active == counts.Target {
 				break Wait
 			}
 		case <-ctx.Done():
-			c.Errorf("pool never reached expected state")
+			t.Errorf("pool never reached expected state")
 		}
 	}
 
 	// Send a gossip message containing host UUID only
 	tracker.TrackExpected(lease, "my-proxy")
-	c.Logf("Sent uuid-only gossip message; watching status...")
+	t.Logf("Sent uuid-only gossip message; watching status...")
 
 	// Let pool go through a few ticks, monitoring status to ensure that
 	// we don't incorrectly enter seek mode (entering seek mode here would
@@ -296,13 +292,13 @@ Wait:
 	for i := 0; i < 3; i++ {
 		select {
 		case <-ticker.C:
-			counts := tracker.wp.Get(addr)
-			c.Logf("Counts: %+v", counts)
+			counts := tracker.wp.Get()
+			t.Logf("Counts: %+v", counts)
 			if counts.Active != counts.Target {
-				c.Errorf("incorrectly entered seek mode")
+				t.Errorf("incorrectly entered seek mode")
 			}
 		case <-ctx.Done():
-			c.Errorf("timeout")
+			t.Errorf("timeout")
 		}
 	}
 }

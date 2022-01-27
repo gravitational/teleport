@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/workpool"
 	"github.com/gravitational/trace"
 )
@@ -31,7 +30,7 @@ type Lease = workpool.Lease
 
 // Config configures basic Tracker parameters.
 type Config struct {
-	// ProxyExpiry is the duration an entry will be held sice the last
+	// ProxyExpiry is the duration an entry will be held since the last
 	// successful connection to, or message about, a given proxy.
 	ProxyExpiry time.Duration
 	// TickRate is the rate at which expired entries are cleared from
@@ -41,7 +40,7 @@ type Config struct {
 	ClusterName string
 }
 
-// SetDefaults set default values for Config.
+// CheckAndSetDefaults set default values for Config.
 func (c *Config) CheckAndSetDefaults() error {
 	if c.ProxyExpiry < 1 {
 		c.ProxyExpiry = 3 * time.Minute
@@ -66,7 +65,7 @@ type Tracker struct {
 	Config
 	mu     sync.Mutex
 	wp     *workpool.Pool
-	sets   map[utils.NetAddr]*proxySet
+	sets   *proxySet
 	cancel context.CancelFunc
 }
 
@@ -79,7 +78,6 @@ func New(ctx context.Context, c Config) (*Tracker, error) {
 	t := &Tracker{
 		Config: c,
 		wp:     workpool.NewPool(ctx),
-		sets:   make(map[utils.NetAddr]*proxySet),
 		cancel: cancel,
 	}
 	go t.run(ctx)
@@ -110,38 +108,38 @@ func (t *Tracker) Acquire() <-chan Lease {
 func (t *Tracker) TrackExpected(lease Lease, proxies ...string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	addr := lease.Key().(utils.NetAddr)
-	set, ok := t.sets[addr]
-	if !ok {
+
+	if t.sets == nil {
 		return
 	}
 	now := time.Now()
 	for _, name := range proxies {
-		set.markSeen(now, name)
+		t.sets.markSeen(now, name)
 	}
-	count := len(set.proxies)
+	count := len(t.sets.proxies)
 	if count < 1 {
 		count = 1
 	}
-	t.wp.Set(addr, uint64(count))
+	t.wp.Set(uint64(count))
 }
 
 // Start starts tracking for specified proxy address.
-func (t *Tracker) Start(addr utils.NetAddr) {
+func (t *Tracker) Start() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.getOrCreate(addr)
+	t.getOrCreate()
 }
 
 // Stop stops tracking for specified proxy address.
-func (t *Tracker) Stop(addr utils.NetAddr) {
+func (t *Tracker) Stop() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if _, ok := t.sets[addr]; !ok {
+	if t.sets == nil {
 		return
 	}
-	delete(t.sets, addr)
-	t.wp.Set(addr, 0)
+
+	t.sets = nil
+	t.wp.Set(0)
 }
 
 // StopAll permanently deactivates this tracker and cleans
@@ -153,59 +151,59 @@ func (t *Tracker) StopAll() {
 func (t *Tracker) tick() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	cutoff := time.Now().Add(-1 * t.ProxyExpiry)
-	for addr, set := range t.sets {
-		if set.expire(cutoff) > 0 {
-			count := len(set.proxies)
-			if count < 1 {
-				count = 1
-			}
-			t.wp.Set(addr, uint64(count))
-		}
+	if t.sets == nil {
+		return
 	}
+
+	cutoff := time.Now().Add(-1 * t.ProxyExpiry)
+	if t.sets.expire(cutoff) > 0 {
+		count := len(t.sets.proxies)
+		if count < 1 {
+			count = 1
+		}
+		t.wp.Set(uint64(count))
+	}
+
 }
 
-func (t *Tracker) getOrCreate(addr utils.NetAddr) *proxySet {
-	if s, ok := t.sets[addr]; ok {
-		return s
+func (t *Tracker) getOrCreate() *proxySet {
+	if t.sets == nil {
+		t.sets = newProxySet(t.ClusterName)
+		t.wp.Set(1)
 	}
-	set := newProxySet(addr, t.ClusterName)
-	t.sets[addr] = set
-	t.wp.Set(addr, 1)
-	return set
+
+	return t.sets
 }
 
 // WithProxy runs the supplied closure if and only if
 // no other work is currently being done with the proxy
 // identified by principals.
-func (t *Tracker) WithProxy(work func(), lease Lease, principals ...string) (didWork bool) {
-	addr := lease.Key().(utils.NetAddr)
-	if ok := t.claim(addr, principals...); !ok {
+func (t *Tracker) WithProxy(work func(), principals ...string) (didWork bool) {
+	if ok := t.claim(principals...); !ok {
 		return false
 	}
-	defer t.unclaim(addr, principals...)
+	defer t.release(principals...)
 	work()
 	return true
 }
 
-func (t *Tracker) claim(addr utils.NetAddr, principals ...string) (ok bool) {
+func (t *Tracker) claim(principals ...string) (ok bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	set, ok := t.sets[addr]
-	if !ok {
+	if t.sets == nil {
 		return false
 	}
-	return set.claim(principals...)
+	return t.sets.claim(principals...)
 }
 
-func (t *Tracker) unclaim(addr utils.NetAddr, principals ...string) {
+func (t *Tracker) release(principals ...string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	set, ok := t.sets[addr]
-	if !ok {
+	if t.sets == nil {
 		return
 	}
-	set.unclaim(principals...)
+
+	t.sets.release(principals...)
 }
 
 type entry struct {
@@ -213,16 +211,14 @@ type entry struct {
 	claimed  bool
 }
 
-func newProxySet(addr utils.NetAddr, clusterName string) *proxySet {
+func newProxySet(clusterName string) *proxySet {
 	return &proxySet{
-		addr:        addr,
 		clusterName: clusterName,
 		proxies:     make(map[string]entry),
 	}
 }
 
 type proxySet struct {
-	addr        utils.NetAddr
 	clusterName string
 	proxies     map[string]entry
 }
@@ -244,7 +240,7 @@ func (p *proxySet) claim(principals ...string) (ok bool) {
 	return true
 }
 
-func (p *proxySet) unclaim(principals ...string) {
+func (p *proxySet) release(principals ...string) {
 	proxy := p.resolveName(principals)
 	p.proxies[proxy] = entry{
 		lastSeen: time.Now(),
