@@ -19,8 +19,10 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -141,12 +143,71 @@ func NewDatabaseFromRDSCluster(cluster *rds.DBCluster) (types.Database, error) {
 	return types.NewDatabaseV3(types.Metadata{
 		Name:        aws.StringValue(cluster.DBClusterIdentifier),
 		Description: fmt.Sprintf("Aurora cluster in %v", metadata.Region),
-		Labels:      labelsFromRDSCluster(cluster, metadata),
+		Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypePrimary),
 	}, types.DatabaseSpecV3{
 		Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
 		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint), aws.Int64Value(cluster.Port)),
 		AWS:      *metadata,
 	})
+}
+
+// NewDatabaseFromRDSClusterReaderEndpoint creates a database resource from an RDS cluster reader endpoint (Aurora).
+func NewDatabaseFromRDSClusterReaderEndpoint(cluster *rds.DBCluster) (types.Database, error) {
+	metadata, err := MetadataFromRDSCluster(cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return types.NewDatabaseV3(types.Metadata{
+		Name:        fmt.Sprintf("%v-%v", aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeReader)),
+		Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeReader)),
+		Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeReader),
+	}, types.DatabaseSpecV3{
+		Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
+		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ReaderEndpoint), aws.Int64Value(cluster.Port)),
+		AWS:      *metadata,
+	})
+}
+
+// NewDatabasesFromRDSClusterCustomEndpoints creates database resources from RDS cluster custom endpoints (Aurora).
+func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Databases, error) {
+	metadata, err := MetadataFromRDSCluster(cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var errors []error
+	var databases types.Databases
+	for _, endpoint := range cluster.CustomEndpoints {
+		endpointName, err := parseRDSCustomEndpoint(aws.StringValue(endpoint))
+		if err != nil {
+			errors = append(errors, trace.Wrap(err))
+			continue
+		}
+
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name:        fmt.Sprintf("%v-%v-%v", aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeCustom), endpointName),
+			Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeCustom)),
+			Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeCustom),
+		}, types.DatabaseSpecV3{
+			Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
+			URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint), aws.Int64Value(cluster.Port)),
+			AWS:      *metadata,
+
+			// Aurora instances update their certificates upon restart, and thus custom endpoint SAN may not be available right
+			// away. Using primary endpoint instead as server name since it's always available.
+			TLS: types.DatabaseTLS{
+				ServerName: aws.StringValue(cluster.Endpoint),
+			},
+		})
+		if err != nil {
+			errors = append(errors, trace.Wrap(err))
+			continue
+		}
+
+		databases = append(databases, database)
+	}
+
+	return databases, trace.NewAggregate(errors...)
 }
 
 // MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
@@ -195,6 +256,21 @@ func engineToProtocol(engine string) string {
 	return ""
 }
 
+// parseRDSCustomEndpoint endpoint name from the provided RDS custom endpoint.
+func parseRDSCustomEndpoint(endpoint string) (name string, err error) {
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html#Aurora.Endpoints.Custom
+	//
+	// RDS custom endpoint format:
+	// <endpointName>.cluster-custom-<customerDnsIdentifier>.<dnsSuffix>
+	//
+	// Note that endpoint name can only contain letters, numbers, and hyphens, so it's safe to to split on ".".
+	parts := strings.Split(endpoint, ".")
+	if !strings.HasSuffix(endpoint, rdsEndpointSuffix) || len(parts) != 6 {
+		return "", trace.BadParameter("failed to parse %v as RDS custom endpoint", endpoint)
+	}
+	return parts[0], nil
+}
+
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
 func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[string]string {
 	labels := rdsTagsToLabels(rdsInstance.TagList)
@@ -203,17 +279,19 @@ func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[str
 	labels[labelRegion] = meta.Region
 	labels[labelEngine] = aws.StringValue(rdsInstance.Engine)
 	labels[labelEngineVersion] = aws.StringValue(rdsInstance.EngineVersion)
+	labels[labelEndpointType] = string(RDSEndpointTypeInstance)
 	return labels
 }
 
 // labelsFromRDSCluster creates database labels for the provided RDS cluster.
-func labelsFromRDSCluster(rdsCluster *rds.DBCluster, meta *types.AWS) map[string]string {
+func labelsFromRDSCluster(rdsCluster *rds.DBCluster, meta *types.AWS, endpointType RDSEndpointType) map[string]string {
 	labels := rdsTagsToLabels(rdsCluster.TagList)
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelAccountID] = meta.AccountID
 	labels[labelRegion] = meta.Region
 	labels[labelEngine] = aws.StringValue(rdsCluster.Engine)
 	labels[labelEngineVersion] = aws.StringValue(rdsCluster.EngineVersion)
+	labels[labelEndpointType] = string(endpointType)
 	return labels
 }
 
@@ -236,6 +314,49 @@ func rdsTagsToLabels(tags []*rds.Tag) map[string]string {
 	return labels
 }
 
+// IsRDSClusterSupported checks whether the aurora cluster is supported and logs
+// related info if not.
+func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
+	switch aws.StringValue(cluster.EngineMode) {
+	// Aurora Serverless (v1 and v2) does not support IAM authentication
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless.html#aurora-serverless.limitations
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-2.limitations.html
+	case RDSEngineModeServerless:
+		return false
+
+	// Aurora MySQL 1.22.2, 1.20.1, 1.19.6, and 5.6.10a only: Parallel query doesn't support AWS Identity and Access Management (IAM) database authentication.
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-mysql-parallel-query.html#aurora-mysql-parallel-query-limitations
+	case RDSEngineModeParallelQuery:
+		if apiutils.SliceContainsStr([]string{"1.22.2", "1.20.1", "1.19.6", "5.6.10a"}, auroraMySQLVersion(cluster)) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// auroraMySQLVersion extracts aurora mysql version from engine version
+func auroraMySQLVersion(cluster *rds.DBCluster) string {
+	// version guide: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Updates.Versions.html
+	// a list of all the available versions: https://docs.aws.amazon.com/cli/latest/reference/rds/describe-db-engine-versions.html
+	//
+	// some examples of possible inputs:
+	// 5.6.10a
+	// 5.7.12
+	// 5.6.mysql_aurora.1.22.0
+	// 5.6.mysql_aurora.1.22.1
+	// 5.6.mysql_aurora.1.22.1.3
+	//
+	// general format is: <mysql-major-version>.mysql_aurora.<aurora-mysql-version>
+	// 5.6.10a and 5.7.12 are "legacy" versions and they are returned as it is
+	version := aws.StringValue(cluster.EngineVersion)
+	parts := strings.Split(version, ".mysql_aurora.")
+	if len(parts) == 2 {
+		return parts[1]
+	}
+	return version
+}
+
 const (
 	// labelAccountID is the label key containing AWS account ID.
 	labelAccountID = "account-id"
@@ -245,6 +366,13 @@ const (
 	labelEngine = "engine"
 	// labelEngineVersion is the label key containing RDS database engine version.
 	labelEngineVersion = "engine-version"
+	// labelEndpointType is the label key containing the RDS endpoint type.
+	labelEndpointType = "endpoint-type"
+)
+
+const (
+	// rdsEndpointSuffix is the RDS/Aurora endpoint suffix.
+	rdsEndpointSuffix = ".rds.amazonaws.com"
 )
 
 const (
@@ -258,4 +386,32 @@ const (
 	RDSEngineAuroraMySQL = "aurora-mysql"
 	// RDSEngineAuroraPostgres is RDS engine name for Aurora Postgres clusters.
 	RDSEngineAuroraPostgres = "aurora-postgresql"
+)
+
+// RDSEndpointType specifies the endpoint type
+type RDSEndpointType string
+
+const (
+	// RDSEndpointTypePrimary is the endpoint that specifies the connection for the primary instance of the RDS cluster.
+	RDSEndpointTypePrimary RDSEndpointType = "primary"
+	// RDSEndpointTypeReader is the endpoint that load-balances connections across the Aurora Replicas that are
+	// available in a RDS cluster.
+	RDSEndpointTypeReader RDSEndpointType = "reader"
+	// RDSEndpointTypeCustom is the endpoint that specifieds one of the custom endpoints associated with the RDS cluster.
+	RDSEndpointTypeCustom RDSEndpointType = "custom"
+	// RDSEndpointTypeInstance is the endpoint of a RDS DB instance.
+	RDSEndpointTypeInstance RDSEndpointType = "instance"
+)
+
+const (
+	// RDSEngineModeProvisioned is the RDS engine mode for provisioned Aurora clusters
+	RDSEngineModeProvisioned = "provisioned"
+	// RDSEngineModeServerless is the RDS engine mode for Aurora Serverless DB clusters
+	RDSEngineModeServerless = "serverless"
+	// RDSEngineModeParallelQuery is the RDS engine mode for Aurora MySQL clusters with parallel query enabled
+	RDSEngineModeParallelQuery = "parallelquery"
+	// RDSEngineModeGlobal is the RDS engine mode for Aurora Global databases
+	RDSEngineModeGlobal = "global"
+	// RDSEngineModeMultiMaster is the RDS engine mode for Multi-master clusters
+	RDSEngineModeMultiMaster = "multimaster"
 )

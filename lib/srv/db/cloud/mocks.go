@@ -222,7 +222,7 @@ func (m *RedshiftMock) DescribeClustersWithContext(ctx aws.Context, input *redsh
 	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.ClusterIdentifier))
 }
 
-// rdsMockUnath is a mock RDS client that returns access denied to each call.
+// RDSMockUnauth is a mock RDS client that returns access denied to each call.
 type RDSMockUnauth struct {
 	rdsiface.RDSAPI
 }
@@ -241,6 +241,41 @@ func (m *RDSMockUnauth) ModifyDBInstanceWithContext(ctx aws.Context, input *rds.
 
 func (m *RDSMockUnauth) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyDBClusterInput, options ...request.Option) (*rds.ModifyDBClusterOutput, error) {
 	return nil, trace.AccessDenied("unauthorized")
+}
+
+func (m *RDSMockUnauth) DescribeDBInstancesPagesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, fn func(*rds.DescribeDBInstancesOutput, bool) bool, options ...request.Option) error {
+	return trace.AccessDenied("unauthorized")
+}
+
+func (m *RDSMockUnauth) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
+	return trace.AccessDenied("unauthorized")
+}
+
+// RDSMockByDBType is a mock RDS client that mocks API calls by DB type
+type RDSMockByDBType struct {
+	rdsiface.RDSAPI
+	DBInstances rdsiface.RDSAPI
+	DBClusters  rdsiface.RDSAPI
+}
+
+func (m *RDSMockByDBType) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
+	return m.DBInstances.DescribeDBInstancesWithContext(ctx, input, options...)
+}
+func (m *RDSMockByDBType) ModifyDBInstanceWithContext(ctx aws.Context, input *rds.ModifyDBInstanceInput, options ...request.Option) (*rds.ModifyDBInstanceOutput, error) {
+	return m.DBInstances.ModifyDBInstanceWithContext(ctx, input, options...)
+}
+func (m *RDSMockByDBType) DescribeDBInstancesPagesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, fn func(*rds.DescribeDBInstancesOutput, bool) bool, options ...request.Option) error {
+	return m.DBInstances.DescribeDBInstancesPagesWithContext(ctx, input, fn, options...)
+}
+
+func (m *RDSMockByDBType) DescribeDBClustersWithContext(ctx aws.Context, input *rds.DescribeDBClustersInput, options ...request.Option) (*rds.DescribeDBClustersOutput, error) {
+	return m.DBClusters.DescribeDBClustersWithContext(ctx, input, options...)
+}
+func (m *RDSMockByDBType) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyDBClusterInput, options ...request.Option) (*rds.ModifyDBClusterOutput, error) {
+	return m.DBClusters.ModifyDBClusterWithContext(ctx, input, options...)
+}
+func (m *RDSMockByDBType) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
+	return m.DBClusters.DescribeDBClustersPagesWithContext(aws, input, fn, options...)
 }
 
 // RedshiftMockUnauth is a mock Redshift client that returns access denied to each call.

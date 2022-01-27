@@ -1560,6 +1560,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// If the user is generating a certificate, the roles and traits come from the logged in identity.
 	if req.Username == a.context.User.GetName() {
 		roles, traits, err = services.ExtractFromIdentity(a.authServer, a.context.Identity.GetIdentity())
+		// we're going to extend the roles list based on the access requests, so
+		// we ensure that all the current requests are added to the new
+		// certificate (and are checked again)
+		req.AccessRequests = append(req.AccessRequests, a.context.Identity.GetIdentity().ActiveRequests...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3621,6 +3625,30 @@ func (a *ServerWithRoles) UpdateWindowsDesktop(ctx context.Context, s types.Wind
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpdateWindowsDesktop(ctx, s)
+}
+
+// UpsertWindowsDesktop updates a windows desktop resource, creating it if it doesn't exist.
+func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+	// Ensure caller has both Create and Update permissions.
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If the desktop exists, check access,
+	// if it doesn't, continue.
+	existing, err := a.authServer.GetWindowsDesktop(ctx, s.GetName())
+	if err == nil {
+		if err := a.checkAccessToWindowsDesktop(existing); err != nil {
+			return trace.Wrap(err)
+		}
+	} else if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	if err := a.checkAccessToWindowsDesktop(s); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertWindowsDesktop(ctx, s)
 }
 
 // DeleteWindowsDesktop removes the specified windows desktop host.

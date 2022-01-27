@@ -1,3 +1,4 @@
+{{- $logLevel := (coalesce .Values.logLevel .Values.log.level "INFO") -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -12,8 +13,11 @@ data:
       auth_token: "/etc/teleport-secrets/auth-token"
       auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]
       log:
-        severity: {{ .Values.logLevel }}
-        output: stderr
+        severity: {{ $logLevel }}
+        output: {{ .Values.log.output }}
+        format:
+          output: {{ .Values.log.format }}
+          extra_fields: {{ .Values.log.extraFields | toJson }}
 
     kubernetes_service:
       {{- if or (contains "kube" (.Values.roles | toString)) (empty .Values.roles) }}
