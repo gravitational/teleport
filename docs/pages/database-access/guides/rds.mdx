@@ -253,7 +253,9 @@ created above, plus `rds-db:connect`.
 Attach created policy and permission boundary to the IAM identity your Teleport
 database agent will be using. For example, if the agent runs as an IAM user:
 
+<Figure align="left">
 ![IAM user](../../../img/database-access/guides/rds/iam@2x.png)
+</Figure>
 
 <Admonition type="note" title="Self-managed IAM">
   If you prefer to self-manage IAM for your RDS databases, take a look at
@@ -292,10 +294,13 @@ $ teleport start --config=/etc/teleport.yaml
 ```
 
 The agent will discover all RDS instances and Aurora clusters according to the
-configuration and register them in the cluster. It will also attempt to enable
-IAM auth and configure IAM access policies for the discovered databases. Keep in
-mind that AWS IAM changes may not propagate immediately and can take a few
-minutes to come into effect.
+configuration and register them in the cluster. In addition to the primary
+endpoints of the discovered Aurora clusters, their reader and custom endpoints
+will also be registered.
+
+The agent will also attempt to enable IAM auth and configure IAM access
+policies for the discovered databases. Keep in mind that AWS IAM changes may
+not propagate immediately and can take a few minutes to come into effect.
 
 <Admonition type="note" title="AWS credentials">
   Teleport database agent uses the default credential provider chain to find AWS
@@ -344,11 +349,19 @@ registered databases:
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
-# Name         Description                 Labels
-# ------------ --------------------------- --------
-# postgres-rds RDS instance in us-west-1   ...
-# aurora-mysql Aurora cluster in us-west-1 ...
+# Name                           Description                                   Labels
+# ------------------------------ --------------------------------------------- --------
+# postgres-rds                   RDS instance in us-west-1                     ...
+# aurora-mysql                   Aurora cluster in us-west-1                   ...
+# aurora-mysql-custom-myendpoint Aurora cluster in us-west-1 (custom endpoint) ...
+# aurora-mysql-reader            Aurora cluster in us-west-1 (reader endpoint) ...
 ```
+
+<Admonition type="note" title="Note">
+  Primary, reader, and custom endpoints of Aurora clusters have names of
+  `<cluster-id>`, `<cluster-id>-reader`, and
+  `<cluster-id>-custom-<endpoint-name>` respectively.
+</Admonition>
 
 Log into particular database using `tsh db login` command:
 

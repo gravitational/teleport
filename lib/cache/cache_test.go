@@ -780,6 +780,21 @@ func TestListNodesTTLVariant(t *testing.T) {
 	}
 
 	require.Len(t, nodes, nodeCount)
+
+	var resources []types.ResourceWithLabels
+	var listResourcesStartKey string
+	require.Eventually(t, func() bool {
+		page, nextKey, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+			Namespace:    apidefaults.Namespace,
+			ResourceType: types.KindNode,
+			StartKey:     listResourcesStartKey,
+			Limit:        int32(pageSize),
+		})
+		require.NoError(t, err)
+		resources = append(resources, page...)
+		listResourcesStartKey = nextKey
+		return len(resources) == nodeCount
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 func initStrategy(t *testing.T) {

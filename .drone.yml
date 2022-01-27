@@ -1143,6 +1143,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -1282,6 +1283,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -1419,6 +1421,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -1556,6 +1559,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -1696,6 +1700,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -1711,7 +1716,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -1856,6 +1861,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -1876,7 +1882,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -2018,6 +2024,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -2038,7 +2045,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -2174,6 +2181,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -2189,7 +2197,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -2322,6 +2330,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -2459,6 +2468,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -2474,7 +2484,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -2619,6 +2629,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -2639,7 +2650,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -2775,6 +2786,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -2943,6 +2955,7 @@ steps:
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
     WORKSPACE_DIR: /tmp/build-darwin-amd64
+  failure: ignore
 - name: Clean up toolchains (post)
   commands:
   - set -u
@@ -3131,6 +3144,7 @@ steps:
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
+  failure: ignore
 - name: Clean up exec runner storage (post)
   commands:
   - set -u
@@ -3301,6 +3315,7 @@ steps:
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
+  failure: ignore
 - name: Clean up exec runner storage (post)
   commands:
   - set -u
@@ -3435,6 +3450,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -3572,6 +3588,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -3587,7 +3604,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -3723,6 +3740,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -3738,7 +3756,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -3874,6 +3892,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -3889,7 +3908,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -4034,6 +4053,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -4054,7 +4074,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:418
+# Generated at dronegen/tag.go:419
 ################################################
 
 kind: pipeline
@@ -4199,6 +4219,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -4344,6 +4365,7 @@ steps:
       from_secret: RELEASES_CERT_STAGING
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
+  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -5170,6 +5192,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 698a7e7554027d5c3c875c3c5e26bc6dcf955506df1bb8e3869ff4d52774f74a
+hmac: 99a2fb84d52277bf71a7c325b55b3a7ff9e61a820a11603a7a741ba83b100e98
 
 ...
