@@ -32,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -328,6 +329,14 @@ func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
 	}
 }
 
+func (c *authContext) eventUserMeta() apievents.UserMetadata {
+	name := c.User.GetName()
+	meta := c.Identity.GetIdentity().GetUserMetadata()
+	meta.User = name
+	meta.Login = name
+	return meta
+}
+
 type dialFunc func(ctx context.Context, network, addr, serverID string) (net.Conn, error)
 
 // teleportClusterClient is a client for either a k8s endpoint in local cluster or a
@@ -481,6 +490,21 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		return nil, trace.AccessDenied("access denied: remote user can not access remote cluster")
 	}
 
+	kubeCluster := identity.KubernetesCluster
+	if !isRemoteCluster {
+		kc, err := kubeutils.CheckOrSetKubeCluster(req.Context(), f.cfg.CachingAuthClient, identity.KubernetesCluster, teleportClusterName)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			// Fallback for old clusters and old user certs. Assume that the
+			// user is trying to access the default cluster name.
+			kubeCluster = teleportClusterName
+		} else {
+			kubeCluster = kc
+		}
+	}
+
 	var kubeUsers, kubeGroups []string
 	// Only check k8s principals for local clusters.
 	//
@@ -488,8 +512,8 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// leaf and checked there.
 	if !isRemoteCluster {
 		var err error
-		// check signing TTL and return a list of allowed logins
-		kubeGroups, kubeUsers, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false)
+		// check signing TTL and return a list of allowed logins for local cluster based on Kubernetes service labels.
+		kubeGroups, kubeUsers, err = f.getKubeGroupsAndUsers(roles, kubeCluster, sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -577,6 +601,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		kubeGroups:        utils.StringsSet(kubeGroups),
 		kubeUsers:         utils.StringsSet(kubeUsers),
 		recordingConfig:   recordingConfig,
+		kubeCluster:       kubeCluster,
 		teleportCluster: teleportClusterClient{
 			name:           teleportClusterName,
 			remoteAddr:     utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -584,20 +609,6 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 			isRemote:       isRemoteCluster,
 			isRemoteClosed: isRemoteClosed,
 		},
-	}
-
-	authCtx.kubeCluster = identity.KubernetesCluster
-	if !isRemoteCluster {
-		kubeCluster, err := kubeutils.CheckOrSetKubeCluster(req.Context(), f.cfg.CachingAuthClient, identity.KubernetesCluster, teleportClusterName)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			// Fallback for old clusters and old user certs. Assume that the
-			// user is trying to access the default cluster name.
-			kubeCluster = teleportClusterName
-		}
-		authCtx.kubeCluster = kubeCluster
 	}
 
 	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(req.Context())
@@ -611,6 +622,38 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	}
 
 	return authCtx, nil
+}
+
+// getKubeGroupsAndUsers returns the allowed kube groups/users names for a local kube cluster.
+func (f *Forwarder) getKubeGroupsAndUsers(
+	roles services.AccessChecker,
+	kubeClusterName string,
+	sessionTTL time.Duration) (groups, users []string, err error) {
+
+	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Find requested kubernetes cluster name and get allowed kube users/groups names.
+	for _, s := range kubeServices {
+		for _, c := range s.GetKubernetesClusters() {
+			if c.Name != kubeClusterName {
+				continue
+			}
+
+			// Get list of allowed kube user/groups based on kubernetes service labels.
+			labels := types.CombineLabels(c.StaticLabels, c.DynamicLabels)
+			labelsMatcher := services.NewKubernetesClusterLabelMatcher(labels)
+			groups, users, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			return groups, users, nil
+		}
+	}
+	// kubeClusterName not found. Empty list of allowed kube users/groups is returned.
+	return []string{}, []string{}, nil
 }
 
 func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
@@ -782,11 +825,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: apievents.UserMetadata{
-					User:         ctx.User.GetName(),
-					Login:        ctx.User.GetName(),
-					Impersonator: ctx.Identity.GetIdentity().Impersonator,
-				},
+				UserMetadata:              ctx.eventUserMeta(),
 				TerminalSize:              params.Serialize(),
 				KubernetesClusterMetadata: ctx.eventClusterMeta(),
 				KubernetesPodMetadata:     eventPodMeta,
@@ -814,6 +853,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				Type:        events.SessionStartEvent,
 				Code:        events.SessionStartCode,
 				ClusterName: f.cfg.ClusterName,
+				ID:          uuid.New().String(),
 			},
 			ServerMetadata: apievents.ServerMetadata{
 				ServerID:        f.cfg.ServerID,
@@ -825,11 +865,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				SessionID: string(sessionID),
 				WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 			},
-			UserMetadata: apievents.UserMetadata{
-				User:         ctx.User.GetName(),
-				Login:        ctx.User.GetName(),
-				Impersonator: ctx.Identity.GetIdentity().Impersonator,
-			},
+			UserMetadata: ctx.eventUserMeta(),
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				RemoteAddr: req.RemoteAddr,
 				LocalAddr:  sess.kubeAddress,
@@ -907,11 +943,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: apievents.UserMetadata{
-					User:         ctx.User.GetName(),
-					Login:        ctx.User.GetName(),
-					Impersonator: ctx.Identity.GetIdentity().Impersonator,
-				},
+				UserMetadata: ctx.eventUserMeta(),
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: req.RemoteAddr,
 					LocalAddr:  sess.kubeAddress,
@@ -939,11 +971,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: apievents.UserMetadata{
-					User:         ctx.User.GetName(),
-					Login:        ctx.User.GetName(),
-					Impersonator: ctx.Identity.GetIdentity().Impersonator,
-				},
+				UserMetadata: ctx.eventUserMeta(),
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: req.RemoteAddr,
 					LocalAddr:  sess.kubeAddress,
@@ -977,11 +1005,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					SessionID: string(sessionID),
 					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata: apievents.UserMetadata{
-					User:         ctx.User.GetName(),
-					Login:        ctx.User.GetName(),
-					Impersonator: ctx.Identity.GetIdentity().Impersonator,
-				},
+				UserMetadata: ctx.eventUserMeta(),
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: req.RemoteAddr,
 					LocalAddr:  sess.kubeAddress,
@@ -1046,11 +1070,7 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 				Type: events.PortForwardEvent,
 				Code: events.PortForwardCode,
 			},
-			UserMetadata: apievents.UserMetadata{
-				Login:        ctx.User.GetName(),
-				User:         ctx.User.GetName(),
-				Impersonator: ctx.Identity.GetIdentity().Impersonator,
-			},
+			UserMetadata: ctx.eventUserMeta(),
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  sess.kubeAddress,
 				RemoteAddr: req.RemoteAddr,
@@ -1245,11 +1265,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 			Type: events.KubeRequestEvent,
 			Code: events.KubeRequestCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ctx.User.GetName(),
-			Login:        ctx.User.GetName(),
-			Impersonator: ctx.Identity.GetIdentity().Impersonator,
-		},
+		UserMetadata: ctx.eventUserMeta(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: req.RemoteAddr,
 			LocalAddr:  sess.kubeAddress,
