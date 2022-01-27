@@ -110,7 +110,7 @@ func createDesktopConnection(
 		From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: r.RemoteAddr},
 		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
 		ConnType: types.WindowsDesktopTunnel,
-		ServerID: service.GetName(),
+		ServerID: service.GetName() + "." + ctx.parent.clusterName,
 	})
 	if err != nil {
 		return trace.WrapWithMessage(err, "failed to connect to windows_desktop_service at %q: %v", service.GetAddr(), err)

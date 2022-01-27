@@ -428,15 +428,19 @@ var (
 	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
 	// errors in the preceding `ConnectionErrorMeasurementPeriod`
 	MaxConnectionErrorsBeforeRestart = 5
+
+	// MaxWatcherBackoff is the maximum retry time a watcher should use in
+	// the event of connection issues
+	MaxWatcherBackoff = time.Minute
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
 // services (SSH, auth, proxy)
 const (
-	// Number of max. simultaneous connections to a service
+	// LimiterMaxConnections Number of max. simultaneous connections to a service
 	LimiterMaxConnections = 15000
 
-	// Number of max. simultaneous connected users/logins
+	// LimiterMaxConcurrentUsers Number of max. simultaneous connected users/logins
 	LimiterMaxConcurrentUsers = 250
 
 	// LimiterMaxConcurrentSignatures limits maximum number of concurrently
@@ -489,13 +493,13 @@ const (
 const (
 	// ProtocolPostgres is the PostgreSQL database protocol.
 	ProtocolPostgres = "postgres"
-	// ProtocolMySQL is the MySQL database protocol.
+	// ProtocolMySQL is the MySQL/MariaDB database protocol.
 	ProtocolMySQL = "mysql"
 	// ProtocolMongoDB is the MongoDB database protocol.
 	ProtocolMongoDB = "mongodb"
 	// ProtocolCockroachDB is the CockroachDB database protocol.
 	//
-	// Technically it's the same as the Postgres protocol but it's used to
+	// Technically it's the same as the Postgres protocol, but it's used to
 	// differentiate between Cockroach and Postgres databases e.g. when
 	// selecting a CLI client to use.
 	ProtocolCockroachDB = "cockroachdb"

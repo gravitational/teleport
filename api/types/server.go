@@ -32,7 +32,7 @@ import (
 // Server represents a Node, Proxy or Auth server in a Teleport cluster
 type Server interface {
 	// Resource provides common resource headers
-	Resource
+	ResourceWithLabels
 	// GetTeleportVersion returns the teleport version the server is running on
 	GetTeleportVersion() string
 	// GetAddr return server address
@@ -235,6 +235,16 @@ func (s *ServerV2) GetCmdLabels() map[string]CommandLabel {
 	return V2ToLabels(s.Spec.CmdLabels)
 }
 
+// Origin returns the origin value of the resource.
+func (s *ServerV2) Origin() string {
+	return s.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (s *ServerV2) SetOrigin(origin string) {
+	s.Metadata.SetOrigin(origin)
+}
+
 // SetCmdLabels sets dynamic labels.
 func (s *ServerV2) SetCmdLabels(cmdLabels map[string]CommandLabel) {
 	s.Spec.CmdLabels = LabelsToV2(cmdLabels)
@@ -262,7 +272,22 @@ func (s *ServerV2) GetNamespace() string {
 // GetAllLabels returns the full key:value map of both static labels and
 // "command labels"
 func (s *ServerV2) GetAllLabels() map[string]string {
-	return CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
+	// server labels (static and dynamic)
+	labels := CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
+
+	// server-specific labels
+	switch s.Kind {
+	case KindKubeService:
+		for _, cluster := range s.Spec.KubernetesClusters {
+			// Combine cluster static and dynamic labels, and merge into
+			// `labels`.
+			for name, value := range CombineLabels(cluster.StaticLabels, cluster.DynamicLabels) {
+				labels[name] = value
+			}
+		}
+	}
+
+	return labels
 }
 
 // CombineLabels combines the passed in static and dynamic labels.
@@ -291,15 +316,7 @@ func (s *ServerV2) SetKubernetesClusters(clusters []*KubernetesCluster) {
 //
 // Any server matches against an empty label set
 func (s *ServerV2) MatchAgainst(labels map[string]string) bool {
-	if labels != nil {
-		myLabels := s.GetAllLabels()
-		for key, value := range labels {
-			if myLabels[key] != value {
-				return false
-			}
-		}
-	}
-	return true
+	return MatchLabels(s, labels)
 }
 
 // LabelsString returns a comma separated string of all labels.

@@ -39,6 +39,7 @@ func TestParseChanges(t *testing.T) {
 			desc: "code-only",
 			files: []string{
 				"file.go",
+				"examples/README.md",
 			},
 			docs: false,
 			code: true,
@@ -107,6 +108,10 @@ func (f *fakeGithub) ListPullRequests(ctx context.Context, organization string, 
 
 func (f *fakeGithub) ListFiles(ctx context.Context, organization string, repository string, number int) ([]string, error) {
 	return f.files, nil
+}
+
+func (f *fakeGithub) AddLabels(ctx context.Context, organization string, repository string, number int, labels []string) error {
+	return nil
 }
 
 func (f *fakeGithub) ListWorkflows(ctx context.Context, organization string, repository string) ([]github.Workflow, error) {

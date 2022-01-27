@@ -67,6 +67,13 @@ This reference details available values for the `teleport-cluster` chart.
 
 `authenticationType` controls the authentication scheme used by Teleport. Possible values are `local` and `github` for OSS, plus `oidc`, `saml`, and `false` for Enterprise.
 
+## `proxyListenerMode`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `nil` | no | `auth_service.proxy_listener_mode` | ❌ |
+
+`proxyListenerMode` controls proxy TLS routing used by Teleport. Possible values are `multiplex`.
 
 ## `enterprise`
 
@@ -490,6 +497,40 @@ cluster deployed in HA mode.
   and the relevant sections of the [AWS](./guides/aws.mdx#step-4-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-4-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
+### `highAvailability.certManager.addCommonName`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `bool` | `false` | ❌ | `proxy_service.https_keypairs` (to provide your own certificates) |
+
+Setting `highAvailability.certManager.addCommonName` to `true` will instruct `cert-manager` to set the commonName field in its certificate signing request to the issuing CA.
+
+<Admonition type="note" title="Enabling common name field">
+  You must install and configure `cert-manager` in your Kubernetes cluster yourself.
+
+  See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
+  and the relevant sections of the [AWS](./guides/aws.mdx#step-4-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-4-install-and-configure-cert-manager) guides for more information.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    certManager:
+      enabled: true
+      addCommonName: true
+      issuerName: letsencrypt-production
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set highAvailability.certManager.enabled=true \
+  --set highAvailability.certManager.addCommonName=true \
+  --set highAvailability.certManager.issuerName=letsencrypt-production
+  ```
+  </TabItem>
+</Tabs>
+
 ### `highAvailability.certManager.issuerName`
 
 | Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
@@ -546,6 +587,29 @@ scoped to a single namespace.
   </TabItem>
 </Tabs>
 
+### `highAvailability.certManager.issuerGroup`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `cert-manager.io` | ❌ | None |
+
+Sets the `Group` of `Issuer` to be used when issuing certificates with `cert-manager`. Defaults to `cert-manager.io` to use built-in issuers.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    certManager:
+      issuerGroup: cert-manager.io
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set highAvailability.certManager.issuerGroup=cert-manager.io
+  ```
+  </TabItem>
+</Tabs>
+
 ## `image`
 
 | Type | Default value | Can be used in `custom` mode? |
@@ -592,13 +656,19 @@ You can override this to use your own Teleport Enterprise image rather than a Te
   </TabItem>
 </Tabs>
 
-## `logLevel`
+## `log`
+
+### `log.level`
+
+<Admonition type="note">
+  This field used to be called `logLevel`. For backwards compatibility this name can still be used, but we recommend changing your values file to use `log.level`.
+</Admonition>
 
 | Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - | - | - |
 | `string` | `INFO` | ❌ | `teleport.log.severity` |
 
-`logLevel` sets the log level used for the Teleport process.
+`log.level` sets the log level used for the Teleport process.
 
 Available log levels (in order of most to least verbose) are: `DEBUG`, `INFO`, `WARNING`, `ERROR`.
 
@@ -609,12 +679,88 @@ The default is `INFO`, which is recommended in production.
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  logLevel: DEBUG
+  log:
+    level: DEBUG
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  --set logLevel=DEBUG
+  --set log.level=DEBUG
+  ```
+  </TabItem>
+</Tabs>
+
+### `log.output`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `stderr` | ❌ | `teleport.log.output` |
+
+`log.output` sets the output destination for the Teleport process.
+
+This can be set to any of the built-in values: `stdout`, `stderr` or `syslog` to use that destination.
+
+The value can also be set to a file path (such as `/var/log/teleport.log`) to write logs to a file. Bear in mind that a few service startup messages will still go to `stderr` for resilience.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    output: stderr
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set log.output=stderr
+  ```
+  </TabItem>
+</Tabs>
+
+### `log.format`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `text` | ❌ | `teleport.log.format.output` |
+
+`log.format` sets the output type for the Teleport process.
+
+Possible values are `text` (default) or `json`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    format: json
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set log.format=json
+  ```
+  </TabItem>
+</Tabs>
+
+### `log.extraFields`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `list` | `["timestamp", "level", "component", "caller"]` | ❌ | `teleport.log.format.extra_fields` |
+
+`log.extraFields` sets the fields used in logging for the Teleport process.
+
+See the [Teleport config file reference](../../setup/reference/config.mdx) for more details on possible values for `extra_fields`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    extraFields: ["timestamp", "level"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set "log.extraFields[0]=timestamp" \
+  --set "log.extraFields[1]=level"
   ```
   </TabItem>
 </Tabs>
@@ -835,6 +981,55 @@ Kubernetes annotations which should be applied to the `secret` generated by
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
     using a `values.yaml` file instead to avoid confusion and errors.
   </Admonition>
+  </TabItem>
+</Tabs>
+
+## `service.type`
+
+| Type | Default value | Required? | Can be used in `custom` mode? |
+| - | - | - | - |
+| `string` | `LoadBalancer` | Yes | ✅ |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/services-networking/service/)
+
+Allows to specify the service type.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  service:
+    type: LoadBalancer
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set service.type=LoadBalancer
+  ```
+  </TabItem>
+</Tabs>
+
+## `service.spec.loadBalancerIP`
+
+| Type | Default value | Required? | Can be used in `custom` mode? |
+| - | - | - | - |
+| `string` | `nil` | No | ✅ |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer)
+
+Allows to specify the `loadBalancerIP`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  service:
+    spec:
+      loadBalancerIP: 1.2.3.4
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set service.spec.loadBalancerIP=1.2.3.4
+  ```
   </TabItem>
 </Tabs>
 
@@ -1847,13 +2042,19 @@ $ kubectl --namespace teleport create secret generic teleport-kube-agent-join-to
   </TabItem>
 </Tabs>
 
-## `logLevel`
+## `log`
+
+### `log.level`
+
+<Admonition type="note">
+  This field used to be called `logLevel`. For backwards compatibility this name can still be used, but we recommend changing your values file to use `log.level`.
+</Admonition>
 
 | Type | Default value |
 | - | - |
 | `string` | `INFO` |
 
-`logLevel` sets the log level used for the Teleport process.
+`log.level` sets the log level used for the Teleport process.
 
 Available log levels (in order of most to least verbose) are: `DEBUG`, `INFO`, `WARNING`, `ERROR`.
 
@@ -1864,12 +2065,88 @@ The default is `INFO`, which is recommended in production.
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  logLevel: DEBUG
+  log:
+    level: DEBUG
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set logLevel=DEBUG
+  --set log.level=DEBUG
+  ```
+  </TabItem>
+</Tabs>
+
+### `log.output`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `stderr` | ❌ | `teleport.log.output` |
+
+`log.output` sets the output destination for the Teleport process.
+
+This can be set to any of the built-in values: `stdout`, `stderr` or `syslog` to use that destination.
+
+The value can also be set to a file path (such as `/var/log/teleport.log`) to write logs to a file. Bear in mind that a few service startup messages will still go to `stderr` for resilience.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    output: stderr
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set log.output=stderr
+  ```
+  </TabItem>
+</Tabs>
+
+### `log.format`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `text` | ❌ | `teleport.log.format.output` |
+
+`log.format` sets the output type for the Teleport process.
+
+Possible values are `text` (default) or `json`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    format: json
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set log.format=json
+  ```
+  </TabItem>
+</Tabs>
+
+### `log.extraFields`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `list` | `["timestamp", "level", "component", "caller"]` | ❌ | `teleport.log.format.extra_fields` |
+
+`log.extraFields` sets the fields used in logging for the Teleport process.
+
+See the [Teleport config file reference](../../setup/reference/config.mdx) for more details on possible values for `extra_fields`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    extraFields: ["timestamp", "level"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set "log.extraFields[0]=timestamp" \
+  --set "log.extraFields[1]=level"
   ```
   </TabItem>
 </Tabs>

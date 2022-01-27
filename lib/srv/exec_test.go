@@ -178,7 +178,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	// Empty command (simple shell).
 	execCmd, err := s.ctx.ExecCommand()
 	c.Assert(err, check.IsNil)
-	cmd, err := buildCommand(execCmd, nil, nil, nil)
+	cmd, err := buildCommand(execCmd, s.usr, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
 	c.Assert(cmd.Path, check.Equals, "/bin/sh")
@@ -191,7 +191,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	s.ctx.ExecRequest.SetCommand("ls -lh /etc")
 	execCmd, err = s.ctx.ExecCommand()
 	c.Assert(err, check.IsNil)
-	cmd, err = buildCommand(execCmd, nil, nil, nil)
+	cmd, err = buildCommand(execCmd, s.usr, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
 	c.Assert(cmd.Path, check.Equals, "/bin/sh")
@@ -204,11 +204,20 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	s.ctx.ExecRequest.SetCommand("top")
 	execCmd, err = s.ctx.ExecCommand()
 	c.Assert(err, check.IsNil)
-	cmd, err = buildCommand(execCmd, nil, nil, nil)
+	cmd, err = buildCommand(execCmd, s.usr, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd.Path, check.Equals, "/bin/sh")
 	c.Assert(cmd.Args, check.DeepEquals, []string{"/bin/sh", "-c", "top"})
 	c.Assert(cmd.SysProcAttr.Pdeathsig, check.Equals, syscall.SIGKILL)
+
+	// Missing home directory
+	s.usr.HomeDir = "/wrong/place"
+	root := string(os.PathSeparator)
+	expectedEnv[2] = fmt.Sprintf("HOME=%s", root)
+	cmd, err = buildCommand(execCmd, s.usr, nil, nil, nil)
+	c.Assert(err, check.IsNil)
+	c.Assert(cmd.Dir, check.Equals, root)
+	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
 }
 
 func (s *ExecSuite) TestLoginDefsParser(c *check.C) {

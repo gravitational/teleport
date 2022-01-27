@@ -35,6 +35,8 @@ type Audit interface {
 	OnSessionEnd(ctx context.Context, session *Session)
 	// OnQuery is called when a database query or command is executed.
 	OnQuery(ctx context.Context, session *Session, query Query)
+	// EmitEvent emits the provided audit event.
+	EmitEvent(ctx context.Context, event events.AuditEvent)
 }
 
 // Query combines database query parameters.
@@ -85,30 +87,13 @@ func NewAudit(config AuditConfig) (Audit, error) {
 // OnSessionStart emits an audit event when database session starts.
 func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr error) {
 	event := &events.DatabaseSessionStart{
-		Metadata: events.Metadata{
-			Type:        libevents.DatabaseSessionStartEvent,
-			Code:        libevents.DatabaseSessionStartCode,
-			ClusterName: session.ClusterName,
-		},
-		ServerMetadata: events.ServerMetadata{
-			ServerID:        session.HostID,
-			ServerNamespace: apidefaults.Namespace,
-		},
-		UserMetadata: events.UserMetadata{
-			User:         session.Identity.Username,
-			Impersonator: session.Identity.Impersonator,
-		},
-		SessionMetadata: events.SessionMetadata{
-			SessionID: session.ID,
-			WithMFA:   session.Identity.MFAVerified,
-		},
-		DatabaseMetadata: events.DatabaseMetadata{
-			DatabaseService:  session.Database.GetName(),
-			DatabaseProtocol: session.Database.GetProtocol(),
-			DatabaseURI:      session.Database.GetURI(),
-			DatabaseName:     session.DatabaseName,
-			DatabaseUser:     session.DatabaseUser,
-		},
+		Metadata: MakeEventMetadata(session,
+			libevents.DatabaseSessionStartEvent,
+			libevents.DatabaseSessionStartCode),
+		ServerMetadata:   MakeServerMetadata(session),
+		UserMetadata:     MakeUserMetadata(session),
+		SessionMetadata:  MakeSessionMetadata(session),
+		DatabaseMetadata: MakeDatabaseMetadata(session),
 		Status: events.Status{
 			Success: true,
 		},
@@ -123,64 +108,35 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 			UserMessage: sessionErr.Error(),
 		}
 	}
-	a.emitAuditEvent(ctx, event)
+	a.EmitEvent(ctx, event)
 }
 
 // OnSessionEnd emits an audit event when database session ends.
 func (a *audit) OnSessionEnd(ctx context.Context, session *Session) {
-	a.emitAuditEvent(ctx, &events.DatabaseSessionEnd{
-		Metadata: events.Metadata{
-			Type:        libevents.DatabaseSessionEndEvent,
-			Code:        libevents.DatabaseSessionEndCode,
-			ClusterName: session.ClusterName,
-		},
-		UserMetadata: events.UserMetadata{
-			User:         session.Identity.Username,
-			Impersonator: session.Identity.Impersonator,
-		},
-		SessionMetadata: events.SessionMetadata{
-			SessionID: session.ID,
-			WithMFA:   session.Identity.MFAVerified,
-		},
-		DatabaseMetadata: events.DatabaseMetadata{
-			DatabaseService:  session.Database.GetName(),
-			DatabaseProtocol: session.Database.GetProtocol(),
-			DatabaseURI:      session.Database.GetURI(),
-			DatabaseName:     session.DatabaseName,
-			DatabaseUser:     session.DatabaseUser,
-		},
+	a.EmitEvent(ctx, &events.DatabaseSessionEnd{
+		Metadata: MakeEventMetadata(session,
+			libevents.DatabaseSessionEndEvent,
+			libevents.DatabaseSessionEndCode),
+		UserMetadata:     MakeUserMetadata(session),
+		SessionMetadata:  MakeSessionMetadata(session),
+		DatabaseMetadata: MakeDatabaseMetadata(session),
 	})
 }
 
 // OnQuery emits an audit event when a database query is executed.
 func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
-	database := session.DatabaseName
-	if query.Database != "" {
-		database = query.Database
-	}
 	event := &events.DatabaseSessionQuery{
-		Metadata: events.Metadata{
-			Type:        libevents.DatabaseSessionQueryEvent,
-			Code:        libevents.DatabaseSessionQueryCode,
-			ClusterName: session.ClusterName,
-		},
-		UserMetadata: events.UserMetadata{
-			User:         session.Identity.Username,
-			Impersonator: session.Identity.Impersonator,
-		},
-		SessionMetadata: events.SessionMetadata{
-			SessionID: session.ID,
-			WithMFA:   session.Identity.MFAVerified,
-		},
-		DatabaseMetadata: events.DatabaseMetadata{
-			DatabaseService:  session.Database.GetName(),
-			DatabaseProtocol: session.Database.GetProtocol(),
-			DatabaseURI:      session.Database.GetURI(),
-			DatabaseName:     database,
-			DatabaseUser:     session.DatabaseUser,
-		},
+		Metadata: MakeEventMetadata(session,
+			libevents.DatabaseSessionQueryEvent,
+			libevents.DatabaseSessionQueryCode),
+		UserMetadata:            MakeUserMetadata(session),
+		SessionMetadata:         MakeSessionMetadata(session),
+		DatabaseMetadata:        MakeDatabaseMetadata(session),
 		DatabaseQuery:           query.Query,
 		DatabaseQueryParameters: query.Parameters,
+	}
+	if query.Database != "" {
+		event.DatabaseMetadata.DatabaseName = query.Database
 	}
 	if query.Error != nil {
 		event.Metadata.Type = libevents.DatabaseSessionQueryFailedEvent
@@ -191,11 +147,53 @@ func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
 			UserMessage: query.Error.Error(),
 		}
 	}
-	a.emitAuditEvent(ctx, event)
+	a.EmitEvent(ctx, event)
 }
 
-func (a *audit) emitAuditEvent(ctx context.Context, event events.AuditEvent) {
+// EmitEvent emits the provided audit event using configured emitter.
+func (a *audit) EmitEvent(ctx context.Context, event events.AuditEvent) {
 	if err := a.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
 		a.log.WithError(err).Errorf("Failed to emit audit event: %v.", event)
+	}
+}
+
+// MakeEventMetadata returns common event metadata for database session.
+func MakeEventMetadata(session *Session, eventType, eventCode string) events.Metadata {
+	return events.Metadata{
+		Type:        eventType,
+		Code:        eventCode,
+		ClusterName: session.ClusterName,
+	}
+}
+
+// MakeServerMetadata returns common server metadata for database session.
+func MakeServerMetadata(session *Session) events.ServerMetadata {
+	return events.ServerMetadata{
+		ServerID:        session.HostID,
+		ServerNamespace: apidefaults.Namespace,
+	}
+}
+
+// MakeUserMetadata returns common user metadata for database session.
+func MakeUserMetadata(session *Session) events.UserMetadata {
+	return session.Identity.GetUserMetadata()
+}
+
+// MakeSessionMetadata returns common session metadata for database session.
+func MakeSessionMetadata(session *Session) events.SessionMetadata {
+	return events.SessionMetadata{
+		SessionID: session.ID,
+		WithMFA:   session.Identity.MFAVerified,
+	}
+}
+
+// MakeDatabaseMetadata returns common database metadata for database session.
+func MakeDatabaseMetadata(session *Session) events.DatabaseMetadata {
+	return events.DatabaseMetadata{
+		DatabaseService:  session.Database.GetName(),
+		DatabaseProtocol: session.Database.GetProtocol(),
+		DatabaseURI:      session.Database.GetURI(),
+		DatabaseName:     session.DatabaseName,
+		DatabaseUser:     session.DatabaseUser,
 	}
 }
