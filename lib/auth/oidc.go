@@ -660,7 +660,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 			log.Debugf("OIDC provider doesn't offer valid UserInfo endpoint. Returning token claims: %v.", idTokenClaims)
 			return idTokenClaims, nil
 		}
-		// note: this captures 400, 401, 403, and 405.
+		// This captures 400, 401, 403, and 405.
 		if trace.IsAccessDenied(err) {
 			log.Debugf("UserInfo endpoint returned an error: %v. Returning token claims: %v.", err, idTokenClaims)
 			return idTokenClaims, nil
