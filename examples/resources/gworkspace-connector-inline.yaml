@@ -33,4 +33,4 @@ spec:
   scope:
   - openid
   - email
-version: v2
+version: v3
