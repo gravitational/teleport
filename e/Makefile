@@ -157,7 +157,7 @@ endif
 ifeq ("$(with_roletester)", "yes")
 .PHONY: roletester
 roletester:
-	cargo build --manifest-path=../lib/datalog/roletester/Cargo.toml --release $(CARGO_TARGET)
+	cargo build -p role_tester --release $(CARGO_TARGET)
 else
 .PHONY: roletester
 roletester:
@@ -166,7 +166,7 @@ endif
 ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
-	cargo build --manifest-path=../lib/srv/desktop/rdp/rdpclient/Cargo.toml --release $(CARGO_TARGET)
+	cargo build -p rdp-client --release $(CARGO_TARGET)
 	cargo install cbindgen
 	cbindgen --quiet --crate rdp-client --output ../lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c ../lib/srv/desktop/rdp/rdpclient/
 else
@@ -195,8 +195,7 @@ teleport-fips-check:
 clean:
 	@echo "---> Cleaning up Enterprise build artifacts."
 	rm -rf $(BUILDDIR)
-	rm -rf ../lib/srv/desktop/rdp/rdpclient/target
-	rm -rf ../lib/datalog/roletester/target
+	cargo clean
 	rm -rf *gz
 
 # make release - Produces a binary release tarball.
