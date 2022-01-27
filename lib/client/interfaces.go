@@ -19,9 +19,11 @@ package client
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -191,6 +193,24 @@ func (k *Key) TLSCAs() (result [][]byte) {
 		result = append(result, ca.TLSCertificates...)
 	}
 	return result
+}
+
+func (k *Key) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName string) (*tls.Config, error) {
+	rootCluster, err := k.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsCert, ok := k.KubeTLSCerts[kubeClusterName]
+	if !ok {
+		return nil, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
+	}
+
+	tlsConfig, err := k.clientTLSConfig(cipherSuites, tlsCert, []string{rootCluster})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConfig.ServerName = fmt.Sprintf("%s%s", constants.KubeSNIPrefix, constants.APIDomain)
+	return tlsConfig, nil
 }
 
 // SSHCAs returns all SSH CA certificates from this key

@@ -251,11 +251,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	}
 	switch cf.Format {
 	case dbFormatCommand:
-		cmdBuilder, err := newCmdBuilder(tc, profile, database)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cmd, err := cmdBuilder.getConnectCommand()
+		cmd, err := newCmdBuilder(tc, profile, database, rootCluster).getConnectCommand()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -321,6 +317,15 @@ func onDatabaseConnect(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 	}
+	key, err := tc.LocalAgent().GetCoreKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	rootClusterName, err := key.RootClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var opts []ConnectCommandFunc
 	if tc.TLSRoutingEnabled {
 		lp, err := startLocalALPNSNIProxy(cf, tc, database.Protocol)
@@ -335,22 +340,9 @@ func onDatabaseConnect(cf *CLIConf) error {
 		// When connecting over TLS, psql only validates hostname against presented certificate's
 		// DNS names. As such, connecting to 127.0.0.1 will fail validation, so connect to localhost.
 		host := "localhost"
-		key, err := tc.LocalAgent().GetCoreKey()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		rootClusterName, err := key.RootClusterName()
-		if err != nil {
-			return trace.Wrap(err)
-		}
 		opts = append(opts, WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)))
 	}
-	cmdBuilder, err := newCmdBuilder(tc, profile, database, opts...)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cmd, err := cmdBuilder.getConnectCommand()
+	cmd, err := newCmdBuilder(tc, profile, database, rootClusterName, opts...).getConnectCommand()
 	if err != nil {
 		return trace.Wrap(err)
 	}

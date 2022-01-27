@@ -85,8 +85,8 @@ type cliCommandBuilder struct {
 }
 
 func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
-	db *tlsca.RouteToDatabase, opts ...ConnectCommandFunc,
-) (*cliCommandBuilder, error) {
+	db *tlsca.RouteToDatabase, rootClusterName string, opts ...ConnectCommandFunc,
+) *cliCommandBuilder {
 	var options connectionCommandOpts
 	for _, opt := range opts {
 		opt(&options)
@@ -99,11 +99,6 @@ func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 		port = options.localProxyPort
 	}
 
-	rootCluster, err := tc.RootClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &cliCommandBuilder{
 		tc:          tc,
 		profile:     profile,
@@ -111,10 +106,10 @@ func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 		host:        host,
 		port:        port,
 		options:     options,
-		rootCluster: rootCluster,
+		rootCluster: rootClusterName,
 
 		exe: &systemExecer{},
-	}, nil
+	}
 }
 
 func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
