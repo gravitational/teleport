@@ -108,7 +108,7 @@ func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Data
 	for _, instance := range instances {
 		database, err := services.NewDatabaseFromRDSInstance(instance)
 		if err != nil {
-			f.log.Infof("Could not convert RDS instance %q to database resource: %v.",
+			f.log.Warnf("Could not convert RDS instance %q to database resource: %v.",
 				aws.StringValue(instance.DBInstanceIdentifier), err)
 		} else {
 			databases = append(databases, database)
@@ -195,12 +195,40 @@ func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (type
 			continue
 		}
 
+		// Add a database from primary endpoint
 		database, err := services.NewDatabaseFromRDSCluster(cluster)
 		if err != nil {
-			f.log.Infof("Could not convert RDS cluster %q to database resource: %v.",
+			f.log.Warnf("Could not convert RDS cluster %q to database resource: %v.",
 				aws.StringValue(cluster.DBClusterIdentifier), err)
 		} else {
 			databases = append(databases, database)
+		}
+
+		// Add a database from reader endpoint, only when the reader endpoint
+		// is available and there is more than one instance. When the cluster
+		// contains only a primary instance and no Aurora Replicas, the reader
+		// endpoint connects to the primary instance, which makes the reader
+		// database entry pointless.
+		// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html#Aurora.Endpoints.Reader
+		if cluster.ReaderEndpoint != nil && len(cluster.DBClusterMembers) > 1 {
+			database, err := services.NewDatabaseFromRDSClusterReaderEndpoint(cluster)
+			if err != nil {
+				f.log.Warnf("Could not convert RDS cluster %q reader endpoint to database resource: %v.",
+					aws.StringValue(cluster.DBClusterIdentifier), err)
+			} else {
+				databases = append(databases, database)
+			}
+		}
+
+		// Add databases from custom endpoints
+		if len(cluster.CustomEndpoints) > 0 {
+			customEndpointDatabases, err := services.NewDatabasesFromRDSClusterCustomEndpoints(cluster)
+			if err != nil {
+				f.log.Warnf("Could not convert RDS cluster %q custom endpoints to database resources: %v.",
+					aws.StringValue(cluster.DBClusterIdentifier), err)
+			}
+
+			databases = append(databases, customEndpointDatabases...)
 		}
 	}
 	return databases, nil
