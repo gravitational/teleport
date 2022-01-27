@@ -18,12 +18,13 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"testing"
 	"time"
 
-	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -32,8 +33,10 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 
+	"github.com/coreos/go-oidc/oauth2"
+	"github.com/coreos/go-oidc/oidc"
 	"github.com/jonboulle/clockwork"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
 type OIDCSuite struct {
@@ -42,23 +45,22 @@ type OIDCSuite struct {
 	c clockwork.FakeClock
 }
 
-var _ = check.Suite(&OIDCSuite{})
-
-func (s *OIDCSuite) SetUpSuite(c *check.C) {
+func setUpSuite(t *testing.T) *OIDCSuite {
+	s := OIDCSuite{}
 	s.c = clockwork.NewFakeClockAt(time.Now())
 
 	var err error
 	s.b, err = lite.NewWithConfig(context.Background(), lite.Config{
-		Path:             c.MkDir(),
+		Path:             t.TempDir(),
 		PollStreamPeriod: 200 * time.Millisecond,
 		Clock:            s.c,
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
@@ -67,10 +69,28 @@ func (s *OIDCSuite) SetUpSuite(c *check.C) {
 		SkipPeriodicOperations: true,
 	}
 	s.a, err = NewServer(authConfig)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
+	return &s
 }
 
-func (s *OIDCSuite) TestCreateOIDCUser(c *check.C) {
+// createInsecureOIDCClient creates an insecure client for testing.
+func createInsecureOIDCClient(t *testing.T, connector types.OIDCConnector) *oidc.Client {
+	conf := oidcConfig(connector)
+	conf.HTTPClient = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	client, err := oidc.NewClient(conf)
+	require.NoError(t, err)
+	client.SyncProviderConfig(connector.GetIssuerURL())
+	return client
+}
+
+func TestCreateOIDCUser(t *testing.T) {
+	s := setUpSuite(t)
 	// Create OIDC user with 1 minute expiry.
 	_, err := s.a.createOIDCUser(&createUserParams{
 		connectorName: "oidcService",
@@ -79,26 +99,26 @@ func (s *OIDCSuite) TestCreateOIDCUser(c *check.C) {
 		roles:         []string{"admin"},
 		sessionTTL:    1 * time.Minute,
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Within that 1 minute period the user should still exist.
 	_, err = s.a.GetUser("foo@example.com", false)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Advance time 2 minutes, the user should be gone.
 	s.c.Advance(2 * time.Minute)
 	_, err = s.a.GetUser("foo@example.com", false)
-	c.Assert(err, check.NotNil)
+	require.Error(t, err)
 }
 
-// TestUserInfo ensures that an insecure userinfo endpoint returns
+// TestUserInfoBlockHTTP ensures that an insecure userinfo endpoint returns
 // trace.NotFound similar to an invalid userinfo endpoint. For these users,
 // all claim information is already within the token and additional claim
 // information does not need to be fetched.
-func (s *OIDCSuite) TestUserInfo(c *check.C) {
+func TestUserInfoBlockHTTP(t *testing.T) {
+	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
-	idp := newFakeIDP()
-	defer idp.Close()
+	idp := newFakeIDP(t, false /* tls */)
 
 	// Create OIDC connector and client.
 	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV2{
@@ -106,21 +126,41 @@ func (s *OIDCSuite) TestUserInfo(c *check.C) {
 		ClientID:     "00000000000000000000000000000000",
 		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	oidcClient, err := s.a.getOrCreateOIDCClient(connector)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Verify HTTP endpoints return trace.NotFound.
 	_, err = claimsFromUserInfo(oidcClient, idp.s.URL, "")
-	fixtures.ExpectNotFound(c, err)
+	fixtures.AssertNotFound(t, err)
+}
+
+// TestUserInfoBadStatus asserts that a 4xx response from userinfo results
+// in AccessDenied.
+func TestUserInfoBadStatus(t *testing.T) {
+	// Create configurable IdP to use in tests.
+	idp := newFakeIDP(t, true /* tls */)
+
+	// Create OIDC connector and client.
+	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV2{
+		IssuerURL:    idp.s.URL,
+		ClientID:     "00000000000000000000000000000000",
+		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
+	})
+	require.NoError(t, err)
+	oidcClient := createInsecureOIDCClient(t, connector)
+
+	// Verify HTTP endpoints return trace.AccessDenied.
+	_, err = claimsFromUserInfo(oidcClient, idp.s.URL, "")
+	fixtures.AssertAccessDenied(t, err)
 }
 
 // TestPingProvider confirms that the client_secret_post auth
 //method was set for a oauthclient.
-func (s *OIDCSuite) TestPingProvider(c *check.C) {
+func TestPingProvider(t *testing.T) {
+	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
-	idp := newFakeIDP()
-	defer idp.Close()
+	idp := newFakeIDP(t, false /* tls */)
 
 	// Create OIDC connector and client.
 	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV2{
@@ -129,17 +169,17 @@ func (s *OIDCSuite) TestPingProvider(c *check.C) {
 		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
 		Provider:     teleport.Ping,
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	oidcClient, err := s.a.getOrCreateOIDCClient(connector)
 
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	oac, err := s.a.getOAuthClient(oidcClient, connector)
 
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// authMethod should be client secret post now
-	c.Assert(oac.GetAuthMethod(), check.Equals, oauth2.AuthMethodClientSecretPost)
+	require.Equal(t, oauth2.AuthMethodClientSecretPost, oac.GetAuthMethod())
 }
 
 // fakeIDP is a configurable OIDC IdP that can be used to mock responses in
@@ -150,15 +190,23 @@ type fakeIDP struct {
 }
 
 // newFakeIDP creates a new instance of a configurable IdP.
-func newFakeIDP() *fakeIDP {
+func newFakeIDP(t *testing.T, tls bool) *fakeIDP {
 	var s fakeIDP
-	s.s = httptest.NewServer(http.HandlerFunc(s.configurationHandler))
-	return &s
-}
 
-// Close will close the underlying server.
-func (s *fakeIDP) Close() {
-	s.s.Close()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	})
+	mux.HandleFunc("/", s.configurationHandler)
+
+	if tls {
+		s.s = httptest.NewTLSServer(mux)
+	} else {
+		s.s = httptest.NewServer(mux)
+	}
+
+	t.Cleanup(s.s.Close)
+	return &s
 }
 
 // configurationHandler returns OpenID configuration.
@@ -169,9 +217,10 @@ func (s *fakeIDP) configurationHandler(w http.ResponseWriter, r *http.Request) {
 	"authorization_endpoint": "%v",
 	"token_endpoint": "%v",
 	"jwks_uri": "%v",
+	"userinfo_endpoint": "%v/userinfo",
 	"subject_types_supported": ["public"],
 	"id_token_signing_alg_values_supported": ["HS256", "RS256"]
-}`, s.s.URL, s.s.URL, s.s.URL, s.s.URL)
+}`, s.s.URL, s.s.URL, s.s.URL, s.s.URL, s.s.URL)
 
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintln(w, resp)
