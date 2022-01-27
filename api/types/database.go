@@ -368,7 +368,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
 	case strings.Contains(d.Spec.URI, rdsEndpointSuffix):
-		rdsDetails, err := parseRDSEndnpoint(d.Spec.URI)
+		rdsDetails, err := parseRDSEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -419,14 +419,14 @@ type rdsEndpointDetails struct {
 	region            string
 }
 
-// parseRDSEndnpoint extracts identifiers and region from the provided RDS endpoint.
-func parseRDSEndnpoint(endpoint string) (*rdsEndpointDetails, error) {
+// parseRDSEndpoint extracts identifiers and region from the provided RDS endpoint.
+func parseRDSEndpoint(endpoint string) (*rdsEndpointDetails, error) {
 	host, _, err := net.SplitHostPort(endpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	// RDS/Aurora instances looks like this:
+	// RDS/Aurora instance endpoints look like this:
 	// aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com
 	//
 	// Aurora cluster endpoints look like this:
@@ -450,7 +450,7 @@ func parseRDSEndnpoint(endpoint string) (*rdsEndpointDetails, error) {
 	parts := strings.Split(host, ".")
 	details := &rdsEndpointDetails{}
 
-	// Note that the RDS proxy endpoints have one extra level of subdomains.
+	// The RDS proxy endpoints have one extra level of subdomains.
 	if len(parts) == 7 && strings.HasPrefix(parts[2], rdsProxySubdomainPrefix) {
 		details.proxyEndpointName = parts[0]
 		details.region = parts[3]

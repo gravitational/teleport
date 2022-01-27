@@ -378,7 +378,7 @@ proxy_service:
 db_service:
   enabled: "yes"
   aws:
-  - types: ["rds", "rds-proxy"] # Database matcher types
+  - types: ["rds", "rds-proxy"] # Database types
     regions: ["us-west-1"] # AWS regions to fetch databases from
     tags: # AWS database resource tags to match
       "*": "*"
@@ -391,12 +391,12 @@ $ teleport start --config=/etc/teleport.yaml
 ```
 
 The agent will discover all RDS instances and Aurora clusters according to the
-configuration and register them in the cluster, when matcher type `rds` is
+configuration and register them in the cluster, when database type `rds` is
 configured. In addition to the primary endpoints of the discovered Aurora
 clusters, their reader and custom endpoints will also be registered.
 
 The agent will discover and register all RDS proxies and proxy endpoints when
-matcher type `rds-proxy` is configured.
+database type `rds-proxy` is configured.
 
 The agent will also attempt to enable IAM auth and configure IAM access
 policies for the discovered databases. Keep in mind that AWS IAM changes may

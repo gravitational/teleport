@@ -243,12 +243,12 @@ func NewDatabaseFromRDSProxyEndpoint(dbProxy *rds.DBProxy, dbProxyEndpoint *rds.
 		URI:      fmt.Sprintf("%s:%d", aws.StringValue(dbProxyEndpoint.Endpoint), port),
 		AWS:      *metadata,
 
-		// RDS proxies serve wildcard certs like this:
+		// RDS proxies serve wildcard certificates like this:
 		// *.proxy-<xxx>.<region>.rds.amazonaws.com
 		//
 		// The proxy endpoints have one extra level of subdomains like:
 		// <name>.endpoint.proxy-<xxx>.<region>.rds.amazonaws.com
-		// which will fail verify_full against the wildcard certs.
+		// which will fail verify_full against the wildcard certificates.
 		//
 		// Using proxy's default endpoint as server name as it should always
 		// succeed.
@@ -302,20 +302,14 @@ func MetadataFromRDSProxy(rdsProxy *rds.DBProxy) (*types.AWS, error) {
 
 	// rds.DBProxy has no resource ID attribute. The resource ID can be found
 	// at the end of the ARN after "db-proxy:".
-	//
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/rds-proxy-setup.html#rds-proxy-connecting
-	// https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html#arns-paths.
-	parts := strings.Split(parsedARN.Resource, ":")
-	if len(parts) != 2 {
-		return nil, trace.BadParameter("failed to find resource ID")
-	}
+	_, resourceID := parseAWSARNResource(parsedARN.Resource)
 
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		RDS: types.RDS{
 			ProxyName:  aws.StringValue(rdsProxy.DBProxyName),
-			ResourceID: parts[1],
+			ResourceID: resourceID,
 			IAMAuth:    true, // always enabled
 		},
 	}, nil
@@ -357,7 +351,8 @@ func rdsEngineFamilyToProtocol(engineFamily string) string {
 	return ""
 }
 
-// parseRDSCustomEndpoint endpoint name from the provided RDS custom endpoint.
+// parseRDSCustomEndpoint extracts endpoint name from the provided RDS custom
+// endpoint.
 func parseRDSCustomEndpoint(endpoint string) (name string, err error) {
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html#Aurora.Endpoints.Custom
 	//
@@ -409,6 +404,24 @@ func labelsFromRDSProxy(rdsProxy *rds.DBProxy, meta *types.AWS) map[string]strin
 	// TargetRole is read/write for default proxy
 	labels[labelTargetRole] = strings.ToLower(rds.DBProxyEndpointTargetRoleReadWrite)
 	return labels
+}
+
+// parseAWSARNResource extracts resource type and resource ID from ARN
+// resource.
+//
+// https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html
+func parseAWSARNResource(resource string) (resourceType string, resourceID string) {
+	fields := strings.FieldsFunc(resource, func(r rune) bool {
+		return r == ':' || r == '/'
+	})
+
+	if len(fields) == 2 {
+		resourceType = fields[0]
+		resourceID = fields[1]
+	} else {
+		resourceID = resource
+	}
+	return
 }
 
 // labelsFromRDSProxyEndpoint creates database labels for the provided RDS
