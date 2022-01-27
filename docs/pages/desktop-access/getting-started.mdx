@@ -22,10 +22,10 @@ This guide requires you to have:
 - An Active Directory domain, configured for LDAPS (Teleport requires an
   encrypted LDAP connection)
 - Access to a Domain Controller
-- An existing Teleport cluster and user, version 8.0 or newer
-  - See [Teleport Getting Started](../getting-started.mdx) if you're new to Teleport
-- A Linux server to run the Teleport Desktop Access service on
-  - You can reuse an existing server running any other Teleport instance
+- An existing Teleport cluster (Teleport Cloud, Open Source, or Enterprise) and user, version 8.0 or newer. 
+  - See [Teleport Getting Started](../getting-started.mdx) if you're new to Teleport.
+- A Linux server to run the Teleport Desktop Access service on. 
+  - You can reuse an existing server running any other Teleport instance.
 
 ## Step 1/6. Create a restrictive service account
 
@@ -95,7 +95,7 @@ dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuratio
 </Admonition>
 
 The Teleport service account is only needed to authenticate over LDAP, meaning
-that it needn't be able to login to Windows machines like an ordinary user.
+that it needn't be able to log in to Windows machines like an ordinary user.
 Restrict it from doing so by creating a new Group Policy Object (GPO) linked to
 your entire domain, and then deny it interactive login.
 
