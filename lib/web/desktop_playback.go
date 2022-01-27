@@ -57,27 +57,26 @@ type playbackPlayer struct {
 	ws        *websocket.Conn
 	playState string // one of playStatePlaying | playStatePaused | playStateFinished
 	cond      *sync.Cond
-	mu        *sync.RWMutex
+	mu        sync.Mutex
 	log       logrus.FieldLogger
 	closeOnce sync.Once
 	clt       *auth.Client
 	sID       string
 }
 
-func NewPlaybackPlayer(sID string, ws *websocket.Conn, clt *auth.Client, log logrus.FieldLogger) *playbackPlayer {
+func newPlaybackPlayer(sID string, ws *websocket.Conn, clt *auth.Client, log logrus.FieldLogger) *playbackPlayer {
 	ws.PayloadType = websocket.BinaryFrame
-	var mu sync.RWMutex
-	cond := sync.NewCond(&mu)
 
-	return &playbackPlayer{
+	pp := &playbackPlayer{
 		ws:        ws,
 		playState: playStatePlaying,
-		cond:      cond,
-		mu:        &mu,
 		log:       log,
 		clt:       clt,
 		sID:       sID,
 	}
+	pp.cond = sync.NewCond(&pp.mu)
+
+	return pp
 }
 
 // waitWhilePaused waits while pp.playState = playStatePaused. When waitWhilePaused is called in one goroutine,
@@ -198,23 +197,21 @@ func (pp *playbackPlayer) streamSessionEvents(ctx context.Context, cancel contex
 	}
 }
 
-// wait waits until the playbackPlayer's context is cancelled.
-func (pp *playbackPlayer) wait(ctx context.Context, cancel context.CancelFunc) {
-	defer pp.log.Debug("playbackPlayer.Wait returned")
-	defer pp.close(cancel)
-	<-ctx.Done()
-	return
-}
-
 // Play kicks off goroutines for receiving actions
 // and playing back the session over the websocket,
 // and then hangs until the websocket is closed.
 func (pp *playbackPlayer) Play(ctx context.Context) {
 	defer pp.log.Debug("playbackPlayer.Play returned")
 	ppCtx, cancel := context.WithCancel(ctx)
+	defer pp.close(cancel)
+
 	go pp.receiveActions(cancel)
 	go pp.streamSessionEvents(ppCtx, cancel)
-	pp.wait(ppCtx, cancel)
+
+	// Wait until the ctx is cancelled, either by
+	// one of the goroutines above or by the http handler.
+	<-ppCtx.Done()
+	return
 }
 
 func (h *Handler) desktopPlaybackHandle(
@@ -230,7 +227,7 @@ func (h *Handler) desktopPlaybackHandle(
 
 	websocket.Handler(func(ws *websocket.Conn) {
 		defer h.log.Debug("desktopPlaybackHandle websocket handler returned")
-		pp := NewPlaybackPlayer(sID, ws, ctx.clt, h.log)
+		pp := newPlaybackPlayer(sID, ws, ctx.clt, h.log)
 		pp.Play(r.Context())
 	}).ServeHTTP(w, r)
 	return nil, nil
