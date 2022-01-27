@@ -205,7 +205,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// use TLS dialer instead of mysql client when GCP requires SSL
+		// use TLS dialer instead of the default net dialer when GCP requires SSL
 		if requireSSL {
 			connectOpt = func(*client.Conn) {}
 			dialer = e.newGCPTLSDialer(ctx, sessionCtx, tlsConfig)
