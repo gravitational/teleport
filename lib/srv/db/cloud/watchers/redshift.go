@@ -111,7 +111,7 @@ func (f *redshiftFetcher) String() string {
 		f.cfg.Region, f.cfg.Labels)
 }
 
-// getRedshiftClusters fetches all Reshift clusterss using the provided client,
+// getRedshiftClusters fetches all Reshift clusters using the provided client,
 // up to the specified max number of pages
 func getRedshiftClusters(ctx context.Context, redshiftClient redshiftiface.RedshiftAPI) ([]*redshift.Cluster, error) {
 	var clusters []*redshift.Cluster

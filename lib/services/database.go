@@ -152,24 +152,6 @@ func NewDatabaseFromRDSCluster(cluster *rds.DBCluster) (types.Database, error) {
 	})
 }
 
-// NewDatabaseFromRedshiftCluster creates a database resource from a redshift cluster.
-func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, error) {
-	metadata, err := MetadataFromRedshiftCluster(cluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return types.NewDatabaseV3(types.Metadata{
-		Name:        aws.StringValue(cluster.ClusterIdentifier),
-		Description: fmt.Sprintf("Redshift cluster in %v", metadata.Region),
-		Labels:      labelsFromRedshiftCluster(cluster, metadata),
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint.Address), aws.Int64Value(cluster.Endpoint.Port)),
-		AWS:      *metadata,
-	})
-}
-
 // NewDatabaseFromRDSClusterReaderEndpoint creates a database resource from an RDS cluster reader endpoint (Aurora).
 func NewDatabaseFromRDSClusterReaderEndpoint(cluster *rds.DBCluster) (types.Database, error) {
 	metadata, err := MetadataFromRDSCluster(cluster)
@@ -227,6 +209,24 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 	}
 
 	return databases, trace.NewAggregate(errors...)
+}
+
+// NewDatabaseFromRedshiftCluster creates a database resource from a Redshift cluster.
+func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, error) {
+	metadata, err := MetadataFromRedshiftCluster(cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return types.NewDatabaseV3(types.Metadata{
+		Name:        aws.StringValue(cluster.ClusterIdentifier),
+		Description: fmt.Sprintf("Redshift cluster in %v", metadata.Region),
+		Labels:      labelsFromRedshiftCluster(cluster, metadata),
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint.Address), aws.Int64Value(cluster.Endpoint.Port)),
+		AWS:      *metadata,
+	})
 }
 
 // MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
