@@ -49,6 +49,7 @@ func LockTargetsFromTLSIdentity(id tlsca.Identity) []types.LockTarget {
 	if id.MFAVerified != "" {
 		lockTargets = append(lockTargets, types.LockTarget{MFADevice: id.MFAVerified})
 	}
+	lockTargets = append(lockTargets, AccessRequestsToLockTargets(id.ActiveRequests)...)
 	return lockTargets
 }
 
@@ -58,6 +59,16 @@ func RolesToLockTargets(roles []string) []types.LockTarget {
 	lockTargets := make([]types.LockTarget, 0, len(roles))
 	for _, role := range roles {
 		lockTargets = append(lockTargets, types.LockTarget{Role: role})
+	}
+	return lockTargets
+}
+
+// AccessRequestsToLockTargets converts a list of access requests to a list of
+// LockTargets (one LockTarget per access request)
+func AccessRequestsToLockTargets(accessRequests []string) []types.LockTarget {
+	lockTargets := make([]types.LockTarget, 0, len(accessRequests))
+	for _, accessRequest := range accessRequests {
+		lockTargets = append(lockTargets, types.LockTarget{AccessRequest: accessRequest})
 	}
 	return lockTargets
 }

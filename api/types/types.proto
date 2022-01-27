@@ -2589,6 +2589,9 @@ message LockTarget {
 
     // WindowsDesktop specifies the name of a Windows desktop.
     string WindowsDesktop = 6 [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
+
+    // AccessRequest specifies the UUID of an access request.
+    string AccessRequest = 7 [ (gogoproto.jsontag) = "access_request,omitempty" ];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specfied
