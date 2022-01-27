@@ -3,7 +3,7 @@ authors: Alan Parra (alan.parra@goteleport.com)
 state: draft
 ---
 
-# RFD 9999 - Passwordless for FIDO2 clients
+# RFD 53 - Passwordless for FIDO2 clients
 
 ## What
 
@@ -438,7 +438,7 @@ explored much further.
 
 <!-- Links -->
 
-[passwordless rfd]: https://github.com/gravitational/teleport/blob/master/rfd/9999-passwordless.md
+[passwordless rfd]: https://github.com/gravitational/teleport/blob/master/rfd/0052-passwordless.md
 
 <!-- Plant UML diagrams -->
 <!--

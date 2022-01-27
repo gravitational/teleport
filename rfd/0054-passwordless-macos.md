@@ -3,7 +3,7 @@ authors: Alan Parra (alan.parra@goteleport.com)
 state: draft
 ---
 
-# RFD 9999 - Passwordless for macOS CLI
+# RFD 54 - Passwordless for macOS CLI
 
 ## What
 
@@ -418,5 +418,5 @@ References:
 
 <!-- Links -->
 
-[passwordless rfd]: https://github.com/gravitational/teleport/blob/master/rfd/9999-passwordless.md
-[passwordless fido2]: https://github.com/gravitational/teleport/blob/master/rfd/9999-passwordless-fido2.md
+[passwordless rfd]: https://github.com/gravitational/teleport/blob/master/rfd/0052-passwordless.md
+[passwordless fido2]: https://github.com/gravitational/teleport/blob/master/rfd/0053-passwordless-fido2.md

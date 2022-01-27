@@ -3,7 +3,7 @@ authors: Alan Parra (alan.parra@goteleport.com)
 state: draft
 ---
 
-# RFD 9999 - Passwordless
+# RFD 52 - Passwordless
 
 ## What
 
@@ -22,9 +22,9 @@ This RFD deals with general concepts and server-side changes, see the following
 documents for client-side aspects of the design:
 
 * [Passwordless for FIDO2 clients](
-  https://github.com/gravitational/teleport/blob/master/rfd/9999-passwordless-fido2.md)
+  https://github.com/gravitational/teleport/blob/master/rfd/0053-passwordless-fido2.md)
 * [Passwordless for macOS CLI](
-  https://github.com/gravitational/teleport/blob/master/rfd/9999-passwordless-macos.md)
+  https://github.com/gravitational/teleport/blob/master/rfd/0054-passwordless-macos.md)
   (aka Touch ID)
 
 ## Why
