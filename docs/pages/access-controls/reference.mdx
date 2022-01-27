@@ -244,7 +244,7 @@ spec:
 
   deny:
     node_labels:
-      # multiple labels are interpreted as an "or" operation. in this case
+      # Multiple labels are interpreted as an "or" operation. In this case,
       # Teleport will deny access to any node labeled as 'workload=database' or
       # 'workload=backup'
       'workload': ['database', 'backup']
