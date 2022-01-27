@@ -1016,7 +1016,7 @@ type DatabaseAWSRDS struct {
 	// ProxyName is the identifier for the RDS proxy.
 	ProxyName string `yaml:"proxy_name,omitempty"`
 	// ProxyEndpointName is the name for the RDS proxy endpoint.
-	ProxyEndpointName string `yaml:"proxy_name,omitempty"`
+	ProxyEndpointName string `yaml:"proxy_endpoint_name,omitempty"`
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.

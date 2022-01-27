@@ -300,7 +300,7 @@ message RDS {
     // ProxyName is the identifier for the RDS proxy.
     string ProxyName = 5 [ (gogoproto.jsontag) = "proxy_name,omitempty" ];
     // ProxyEndpointName is the name for the RDS proxy endpoint.
-    string ProxyEndpointName = 6 [ (gogoproto.jsontag) = "proxy_name,omitempty" ];
+    string ProxyEndpointName = 6 [ (gogoproto.jsontag) = "proxy_endpoint_name,omitempty" ];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
