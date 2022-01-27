@@ -65,7 +65,7 @@ struct ClipboardPDUHeader {
     data_len: u32,
 }
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
+#[derive(Debug)]
 #[allow(non_camel_case_types)]
 enum ClipboardPDUType {
     CB_MONITOR_READY = 0x0001,
@@ -183,4 +183,68 @@ bitflags! {
         /// Indicates support for transferring files greater than 4GB.
         const CB_HUGE_FILE_SUPPORT_ENABLED = 0x0020;
     }
+}
+
+/// Sent by either the client or server when its local system clipboard
+/// is updated with new clipboard data.
+#[derive(Debug)]
+struct FormatListPDU {
+    // the spec also defines long format names (2.2.3.1.2),
+    // but we don't advertise support for them, and the spec
+    // requires that both sides support long format names in
+    // order for them to be used, so it's safe to assume
+    // short names only
+    format_names: Vec<ShortFormatName>,
+}
+
+impl FormatListPDU {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        for name in &self.format_names {
+            w.write_u32::<LittleEndian>(name.format_id)?;
+            w.write_all(&name.format_name)?;
+        }
+
+        Ok(w)
+    }
+
+    fn decode(payload: &mut Payload, mut length: u32) -> RdpResult<Self> {
+        let mut format_names = vec![];
+        while length > 0 {
+            let format_id = payload.read_u32::<LittleEndian>()?;
+            let mut format_name = [0u8; 32];
+            payload.read_exact(&mut format_name)?;
+
+            length -= 8;
+            format_names.push(ShortFormatName {
+                format_id,
+                format_name,
+            })
+        }
+
+        Ok(Self { format_names })
+    }
+}
+
+/// Represents the CLIPRDR_SHORT_FORMAT_NAME structure.
+#[derive(Debug)]
+struct ShortFormatName {
+    format_id: u32,
+    format_name: [u8; 32],
+}
+
+/// All data copied to a system clipboard has to conform to a format
+/// specifiecation. These formats are identified by unique numeric IDs.
+///
+/// See section 1.3.1.2.
+enum ClipboardFormat {
+    Palette = 9,  // 1.3.1.1.2
+    Metafile = 3, // 1.3.1.1.3
+}
+
+/// Sent as a reply to the format list PDU - used to indicate whether
+/// the format list PDU was processed succesfully.
+#[derive(Debug)]
+struct FormatListResponsePDU {
+    // empty, the only information needed is the flags in the header
 }
