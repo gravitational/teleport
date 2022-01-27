@@ -32,7 +32,6 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -91,19 +90,7 @@ func createInsecureOIDCClient(t *testing.T, connector types.OIDCConnector) *oidc
 	}
 	client, err := oidc.NewClient(conf)
 	require.NoError(t, err)
-
-	ctx, cancel := context.WithTimeout(context.Background(), defaults.WebHeadersTimeout)
-	defer cancel()
-
-	go func() {
-		defer cancel()
-		client.SyncProviderConfig(connector.GetIssuerURL())
-	}()
-
-	<-ctx.Done()
-	if ctx.Err() != nil {
-		require.ErrorIs(t, err, context.Canceled)
-	}
+	client.SyncProviderConfig(connector.GetIssuerURL())
 	return client
 }
 
@@ -212,7 +199,9 @@ func newFakeIDP(t *testing.T, tls bool) *fakeIDP {
 	var s fakeIDP
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) { http.NotFound(w, r) })
+	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	})
 	mux.HandleFunc("/", s.configurationHandler)
 
 	if tls {
