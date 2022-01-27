@@ -209,13 +209,16 @@ func (e *Engine) processCmd(ctx context.Context, redisClient redis.UniversalClie
 			return err
 		}
 
-		e.Log.Errorf("got PubSub MSG: %v", msg)
+		sub, ok := msg.(*redis.Subscription)
+		if !ok {
+			return redis.RedisError("wrong subscription response")
+		}
 
-		if err := e.sendToClient([]interface{}{"subscribe", cmd.Args()[1], int64(1)}); err != nil {
+		if err := e.sendToClient([]interface{}{sub.Kind, sub.Channel, sub.Count}); err != nil {
 			return err
 		}
 
-		for msg := range pubSub.Channel() {
+		for msg := range pubSub.Channel() { // TODO(jakub): Channel ignores ping messages
 			if err := e.sendToClient([]interface{}{"message", msg.Channel, msg.Payload}); err != nil {
 				return err // No wrap
 			}
@@ -268,6 +271,15 @@ func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient)
 func writeCmd(wr *redis.Writer, vals interface{}) error {
 	switch val := vals.(type) {
 	case redis.Error:
+		if val == redis.Nil {
+			// go-redis returns nil value as errors, but Redis Wire protocol decodes them differently.
+			// Note: RESP3 has different sequence for nil.
+			if _, err := wr.WriteString("$-1\r\n"); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}
+
 		if err := wr.WriteByte('-'); err != nil {
 			// Redis error passed from DB itself. Just add '-' to mark as error.
 			return trace.Wrap(err)
@@ -295,16 +307,11 @@ func writeCmd(wr *redis.Writer, vals interface{}) error {
 			return trace.Wrap(err)
 		}
 	case int64: // TODO(jakub): Add other type serialization.
-		if err := wr.WriteByte(redis.IntReply); err != nil {
+		if err := writeInteger(wr, val); err != nil {
 			return trace.Wrap(err)
 		}
-
-		v := strconv.FormatInt(val, 10)
-		if _, err := wr.WriteString(v); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if _, err := wr.Write([]byte("\r\n")); err != nil {
+	case int: // TODO(jakub): Add other type serialization.
+		if err := writeInteger(wr, int64(val)); err != nil {
 			return trace.Wrap(err)
 		}
 	case []interface{}:
@@ -328,5 +335,21 @@ func writeCmd(wr *redis.Writer, vals interface{}) error {
 		}
 	}
 
+	return nil
+}
+
+func writeInteger(wr *redis.Writer, val int64) error {
+	if err := wr.WriteByte(redis.IntReply); err != nil {
+		return trace.Wrap(err)
+	}
+
+	v := strconv.FormatInt(val, 10)
+	if _, err := wr.WriteString(v); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := wr.Write([]byte("\r\n")); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
