@@ -83,7 +83,7 @@ func (b *Bot) parseChanges(ctx context.Context) (bool, bool, error) {
 	}
 
 	for _, file := range files {
-		if hasDocs(file) {
+		if strings.HasPrefix(file, "docs/") {
 			docs = true
 		} else {
 			code = true
@@ -91,14 +91,4 @@ func (b *Bot) parseChanges(ctx context.Context) (bool, bool, error) {
 
 	}
 	return docs, code, nil
-}
-
-func hasDocs(filename string) bool {
-	if strings.HasPrefix(filename, "vendor/") {
-		return false
-	}
-	return strings.HasPrefix(filename, "docs/") ||
-		strings.HasSuffix(filename, ".md") ||
-		strings.HasSuffix(filename, ".mdx") ||
-		strings.HasPrefix(filename, "rfd/")
 }
