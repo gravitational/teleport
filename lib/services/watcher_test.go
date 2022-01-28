@@ -18,6 +18,7 @@ package services_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -35,6 +36,64 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
+
+var _ types.Events = (*errorWatcher)(nil)
+
+type errorWatcher struct {
+}
+
+func (e errorWatcher) NewWatcher(context.Context, types.Watch) (types.Watcher, error) {
+	return nil, errors.New("watcher error")
+}
+
+var _ services.ProxyGetter = (*nopProxyGetter)(nil)
+
+type nopProxyGetter struct {
+}
+
+func (n nopProxyGetter) GetProxies() ([]types.Server, error) {
+	return nil, nil
+}
+
+func TestResourceWatcher_Backoff(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	w, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:      "test",
+			Clock:          clock,
+			MaxRetryPeriod: defaults.MaxWatcherBackoff,
+			Client:         &errorWatcher{},
+			ResetC:         make(chan time.Duration, 5),
+		},
+		ProxyGetter: &nopProxyGetter{},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	step := w.MaxRetryPeriod / 5.0
+	for i := 0; i < 5; i++ {
+		// wait for watcher to reload
+		select {
+		case duration := <-w.ResetC:
+			stepMin := step * time.Duration(i) / 2
+			stepMax := step * time.Duration(i+1)
+
+			require.GreaterOrEqual(t, duration, stepMin)
+			require.LessOrEqual(t, duration, stepMax)
+
+			// wait for watcher to get to retry.After
+			clock.BlockUntil(1)
+
+			// add some extra to the duration to ensure the retry occurs
+			clock.Advance(w.MaxRetryPeriod)
+		case <-time.After(time.Minute):
+			t.Fatalf("timeout waiting for reset")
+		}
+	}
+}
 
 func TestProxyWatcher(t *testing.T) {
 	t.Parallel()
@@ -54,8 +113,8 @@ func TestProxyWatcher(t *testing.T) {
 	presence := local.NewPresenceService(bk)
 	w, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   "test",
-			RetryPeriod: 200 * time.Millisecond,
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Presence: presence,
 				Events:   local.NewEventsService(bk, nil),
@@ -147,8 +206,8 @@ func TestLockWatcher(t *testing.T) {
 	access := local.NewAccessService(bk)
 	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   "test",
-			RetryPeriod: 200 * time.Millisecond,
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Access: access,
 				Events: local.NewEventsService(bk, nil),
@@ -252,8 +311,8 @@ func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
 	access := local.NewAccessService(bk)
 	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   "test",
-			RetryPeriod: 200 * time.Millisecond,
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Access: access,
 				Events: local.NewEventsService(bk, nil),
@@ -330,8 +389,8 @@ func TestLockWatcherStale(t *testing.T) {
 	events := &withUnreliability{Events: local.NewEventsService(bk, nil)}
 	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   "test",
-			RetryPeriod: 200 * time.Millisecond,
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Access: access,
 				Events: events,
@@ -341,10 +400,16 @@ func TestLockWatcherStale(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
+	select {
+	case <-w.LoopC:
+	case <-time.After(15 * time.Second):
+		t.Fatal("Timeout waiting for LockWatcher loop.")
+	}
 
 	// Subscribe to lock watcher updates.
 	target := types.LockTarget{Node: "node"}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
 	sub, err := w.Subscribe(ctx, target)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, sub.Close()) })
@@ -361,6 +426,7 @@ func TestLockWatcherStale(t *testing.T) {
 	case <-time.After(2 * time.Second):
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
 
 	// Advance the clock to exceed LockMaxStaleness.
 	clock.Advance(defaults.LockMaxStaleness + time.Second)
@@ -369,7 +435,7 @@ func TestLockWatcherStale(t *testing.T) {
 		require.Equal(t, types.OpUnreliable, event.Type)
 	case <-sub.Done():
 		t.Fatal("Lock watcher subscription has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for OpUnreliable.")
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
@@ -401,7 +467,7 @@ ExpectPut:
 			break ExpectPut
 		case <-sub.Done():
 			t.Fatal("Lock watcher subscription has unexpectedly exited.")
-		case <-time.After(2 * time.Second):
+		case <-time.After(15 * time.Second):
 			t.Fatal("Timeout waiting for OpPut.")
 		}
 	}
