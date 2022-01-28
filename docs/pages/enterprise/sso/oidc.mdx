@@ -23,11 +23,11 @@ administrators to define policies like:
 ## Enable OIDC Authentication
 
 First, configure Teleport auth server to use OIDC authentication instead of the local
-user database. For self-hosted update `/etc/teleport.yaml` and restart the teleport daemon.  
-Use the Dynamic resources for Teleport Cloud and any other deployments.
+user database.  Use the Dynamic resources for Teleport Cloud and any other deployments.
 
 <Tabs>
   <TabItem label="Static Config (self-hosted)">
+ Update `/etc/teleport.yaml` in the `auth_service` and restart the teleport daemon.
   ```yaml
   auth_service:
     authentication:
