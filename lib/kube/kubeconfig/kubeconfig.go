@@ -54,6 +54,9 @@ type Values struct {
 	// If not set, static key/cert from Credentials are written to kubeconfig
 	// instead.
 	Exec *ExecValues
+	// ProxyAddr is the host:port address provided when running tsh kube login.
+	// This value is empty if a proxy was not specified.
+	ProxyAddr string
 
 	// TLSServerName is SNI host value passed to the server.
 	TLSServerName string
@@ -110,14 +113,18 @@ func Update(path string, v Values) error {
 		for _, c := range v.Exec.KubeClusters {
 			contextName := ContextName(v.TeleportClusterName, c)
 			authName := contextName
+			execArgs := []string{"kube", "credentials",
+				fmt.Sprintf("--kube-cluster=%s", c),
+				fmt.Sprintf("--teleport-cluster=%s", v.TeleportClusterName),
+			}
+			if v.ProxyAddr != "" {
+				execArgs = append(execArgs, fmt.Sprintf("--proxy=%s", v.ProxyAddr))
+			}
 			authInfo := &clientcmdapi.AuthInfo{
 				Exec: &clientcmdapi.ExecConfig{
 					APIVersion: "client.authentication.k8s.io/v1beta1",
 					Command:    v.Exec.TshBinaryPath,
-					Args: []string{"kube", "credentials",
-						fmt.Sprintf("--kube-cluster=%s", c),
-						fmt.Sprintf("--teleport-cluster=%s", v.TeleportClusterName),
-					},
+					Args:       execArgs,
 				},
 			}
 			if v.Exec.TshBinaryInsecure {
