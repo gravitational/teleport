@@ -154,13 +154,13 @@ func (s *KubeSuite) bind(test kubeIntegrationTest) func(t *testing.T) {
 
 func TestKube(t *testing.T) {
 	suite := newKubeSuite(t)
-	// t.Run("Exec", suite.bind(testKubeExec))
-	// t.Run("Deny", suite.bind(testKubeDeny))
-	// t.Run("PortForward", suite.bind(testKubePortForward))
+	t.Run("Exec", suite.bind(testKubeExec))
+	t.Run("Deny", suite.bind(testKubeDeny))
+	t.Run("PortForward", suite.bind(testKubePortForward))
 	t.Run("TransportProtocol", suite.bind(testKubeTransportProtocol))
-	// t.Run("TrustedClustersClientCert", suite.bind(testKubeTrustedClustersClientCert))
-	// t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
-	// t.Run("Disconnect", suite.bind(testKubeDisconnect))
+	t.Run("TrustedClustersClientCert", suite.bind(testKubeTrustedClustersClientCert))
+	t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
+	t.Run("Disconnect", suite.bind(testKubeDisconnect))
 }
 
 // TestKubeExec tests kubernetes Exec command set
