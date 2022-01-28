@@ -26,7 +26,7 @@
   "description": "Stores and retrieves potentially large, immutable data objects.",
   "discoveryVersion": "v1",
   "documentationLink": "https://developers.google.com/storage/docs/json_api/",
-  "etag": "\"u9GIe6H63LSGq-9_t39K2Zx_EAc/5Ir-e9ddNPcr5skzvRsSnJlvTYg\"",
+  "etag": "\"3137363332383633313735343831303635323033\"",
   "icons": {
     "x16": "https://www.google.com/images/icons/product/cloud_storage-16.png",
     "x32": "https://www.google.com/images/icons/product/cloud_storage-32.png"
@@ -36,6 +36,7 @@
   "labels": [
     "labs"
   ],
+  "mtlsRootUrl": "https://storage.mtls.googleapis.com/",
   "name": "storage",
   "ownerDomain": "google.com",
   "ownerName": "Google",
@@ -1781,7 +1782,7 @@
               "type": "string"
             },
             "kmsKeyName": {
-              "description": "Not currently supported. Specifying the parameter causes the request to fail with status code 400 - Bad Request.",
+              "description": "Resource name of the Cloud KMS key, of the form projects/my-project/locations/global/keyRings/my-kr/cryptoKeys/my-key, that will be used to encrypt the object. Overrides the object metadata's kms_key_name value, if any.",
               "location": "query",
               "type": "string"
             },
@@ -3229,7 +3230,7 @@
       }
     }
   },
-  "revision": "20200611",
+  "revision": "20211201",
   "rootUrl": "https://storage.googleapis.com/",
   "schemas": {
     "Bucket": {
@@ -3247,6 +3248,21 @@
             "$ref": "BucketAccessControl"
           },
           "type": "array"
+        },
+        "autoclass": {
+          "description": "The bucket's Autoclass configuration.",
+          "properties": {
+            "enabled": {
+              "description": "Whether or not Autoclass is enabled on this bucket",
+              "type": "boolean"
+            },
+            "toggleTime": {
+              "description": "A date and time in RFC 3339 format representing the instant at which \"enabled\" was last toggled.",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          "type": "object"
         },
         "billing": {
           "description": "The bucket's billing configuration.",
@@ -3293,6 +3309,19 @@
           },
           "type": "array"
         },
+        "customPlacementConfig": {
+          "description": "The bucket's custom placement configuration for Custom Dual Regions.",
+          "properties": {
+            "dataLocations": {
+              "description": "The list of regional locations in which data is placed.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
         "defaultEventBasedHold": {
           "description": "The default value for event-based hold on newly created objects in this bucket. Event-based hold is a way to retain objects indefinitely until an event occurs, signified by the hold's release. After being released, such objects will be subject to bucket-level retention (if any). One sample use case of this flag is for banks to hold loan documents for at least 3 years after loan is paid in full. Here, bucket-level retention is 3 years and the event is loan being paid in full. In this example, these objects will be held intact for any number of years until the event has occurred (event-based hold on the object is released) and then 3 more years after that. That means retention duration of the objects begins from the moment event-based hold transitioned from true to false. Objects under event-based hold cannot be deleted, overwritten or archived until the hold is removed.",
           "type": "boolean"
@@ -3335,6 +3364,10 @@
                 }
               },
               "type": "object"
+            },
+            "publicAccessPrevention": {
+              "description": "The bucket's Public Access Prevention configuration. Currently, 'inherited' and 'enforced' are supported.",
+              "type": "string"
             },
             "uniformBucketLevelAccess": {
               "description": "The bucket's uniform bucket-level access configuration.",
@@ -3406,8 +3439,8 @@
                         "type": "string"
                       },
                       "customTimeBefore": {
-                        "description": "A timestamp in RFC 3339 format. This condition is satisfied when the custom time on an object is before this timestamp.",
-                        "format": "date-time",
+                        "description": "A date in RFC 3339 format with only the date part (for instance, \"2013-01-15\"). This condition is satisfied when the custom time on an object is before this date in UTC.",
+                        "format": "date",
                         "type": "string"
                       },
                       "daysSinceCustomTime": {
@@ -3436,8 +3469,8 @@
                         "type": "array"
                       },
                       "noncurrentTimeBefore": {
-                        "description": "A timestamp in RFC 3339 format. This condition is satisfied when the noncurrent time on an object is before this timestamp. This condition is relevant only for versioned objects.",
-                        "format": "date-time",
+                        "description": "A date in RFC 3339 format with only the date part (for instance, \"2013-01-15\"). This condition is satisfied when the noncurrent time on an object is before this date in UTC. This condition is relevant only for versioned objects.",
+                        "format": "date",
                         "type": "string"
                       },
                       "numNewerVersions": {
@@ -3531,6 +3564,14 @@
           },
           "type": "object"
         },
+        "rpo": {
+          "description": "The Recovery Point Objective (RPO) of this bucket. Set to ASYNC_TURBO to turn on Turbo Replication on a bucket.",
+          "type": "string"
+        },
+        "satisfiesPZS": {
+          "description": "Reserved for future use.",
+          "type": "boolean"
+        },
         "selfLink": {
           "description": "The URI of this bucket.",
           "type": "string"
@@ -3572,17 +3613,6 @@
             }
           },
           "type": "object"
-        },
-        "zoneAffinity": {
-          "description": "The zone or zones from which the bucket is intended to use zonal quota. Requests for data from outside the specified affinities are still allowed but won't be able to use zonal quota. The zone or zones need to be within the bucket location otherwise the requests will fail with a 400 Bad Request response.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "zoneSeparation": {
-          "description": "If set, objects placed in this bucket are required to be separated by disaster domain.",
-          "type": "boolean"
         }
       },
       "type": "object"
@@ -4096,7 +4126,7 @@
           "type": "string"
         },
         "kmsKeyName": {
-          "description": "Cloud KMS Key used to encrypt this object, if the object is encrypted by such a key.",
+          "description": "Not currently supported. Specifying the parameter causes the request to fail with status code 400 - Bad Request.",
           "type": "string"
         },
         "md5Hash": {
