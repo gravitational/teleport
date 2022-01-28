@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
+	"github.com/aws/aws-sdk-go/service/redshift"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -48,6 +49,9 @@ func TestWatcher(t *testing.T) {
 	auroraCluster2, auroraDatabases2 := makeRDSClusterWithExtraEndpoints(t, "cluster-2", "us-east-2", map[string]string{"env": "dev"})
 	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
 	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", services.RDSEngineModeServerless, map[string]string{"env": "prod"})
+
+	redshiftUse1Prod, redshiftDatabaseUse1Prod := makeRedshiftCluster(t, "us-east-1", "prod")
+	redshiftUse1Dev, _ := makeRedshiftCluster(t, "us-east-1", "dev")
 
 	tests := []struct {
 		name              string
@@ -121,6 +125,41 @@ func TestWatcher(t *testing.T) {
 			},
 			expectedDatabases: types.Databases{rdsDatabase4, auroraDatabase1},
 		},
+		{
+			name: "redshift",
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{services.AWSMatcherRedshift},
+					Regions: []string{"us-east-1"},
+					Tags:    types.Labels{"env": []string{"prod"}},
+				},
+			},
+			clients: &common.TestCloudClients{
+				Redshift: &cloud.RedshiftMock{
+					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Dev},
+				},
+			},
+			expectedDatabases: types.Databases{redshiftDatabaseUse1Prod},
+		},
+		{
+			name: "matcher with multiple types",
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{services.AWSMatcherRedshift, services.AWSMatcherRDS},
+					Regions: []string{"us-east-1"},
+					Tags:    types.Labels{"env": []string{"prod"}},
+				},
+			},
+			clients: &common.TestCloudClients{
+				RDS: &cloud.RDSMock{
+					DBClusters: []*rds.DBCluster{auroraCluster1},
+				},
+				Redshift: &cloud.RedshiftMock{
+					Clusters: []*redshift.Cluster{redshiftUse1Prod},
+				},
+			},
+			expectedDatabases: types.Databases{auroraDatabase1, redshiftDatabaseUse1Prod},
+		},
 	}
 
 	for _, test := range tests {
@@ -168,6 +207,24 @@ func makeRDSCluster(t *testing.T, name, region, engineMode string, labels map[st
 		TagList:             labelsToTags(labels),
 	}
 	database, err := services.NewDatabaseFromRDSCluster(cluster)
+	require.NoError(t, err)
+	return cluster, database
+}
+
+func makeRedshiftCluster(t *testing.T, region, env string) (*redshift.Cluster, types.Database) {
+	cluster := &redshift.Cluster{
+		ClusterIdentifier:   aws.String(env),
+		ClusterNamespaceArn: aws.String(fmt.Sprintf("arn:aws:redshift:%s:1234567890:namespace:%s", region, env)),
+		Endpoint: &redshift.Endpoint{
+			Address: aws.String("localhost"),
+			Port:    aws.Int64(5439),
+		},
+		Tags: []*redshift.Tag{{
+			Key:   aws.String("env"),
+			Value: aws.String(env),
+		}},
+	}
+	database, err := services.NewDatabaseFromRedshiftCluster(cluster)
 	require.NoError(t, err)
 	return cluster, database
 }
