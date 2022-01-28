@@ -749,7 +749,8 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := f.setSessionForwarder(sess); err != nil {
+	sess.forwarder, err = f.makeSessionForwarder(sess)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1055,7 +1056,8 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 		return nil, trace.Wrap(err)
 	}
 
-	if err := f.setSessionForwarder(sess); err != nil {
+	sess.forwarder, err = f.makeSessionForwarder(sess)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1255,7 +1257,8 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 	}
 
 	sess.upgradeToHTTP2 = true
-	if err := f.setSessionForwarder(sess); err != nil {
+	sess.forwarder, err = f.makeSessionForwarder(sess)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1558,25 +1561,31 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, endpoints []kubeClu
 	}, nil
 }
 
-func (f *Forwarder) setSessionForwarder(sess *clusterSession) error {
+// makeSessionForwader creates a new forward.Forwarder with a transport that
+// is either configured:
+// - for HTTP1 in case it's going to be used against streaming andoints like exec and port forward.
+// - for HTTP2 in all other cases.
+// The reason being is that streaming requests are going to be upgraded to SPDY, which is only
+// supported coming from an HTTP1 request.
+func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forwarder, error) {
 	var err error
 	transport := f.newTransport(sess.Dial, sess.tlsConfig)
 
 	if sess.upgradeToHTTP2 {
 		transport = utilnet.SetTransportDefaults(transport)
 	} else {
-		sess.tlsConfig.NextProtos = []string{}
+		sess.tlsConfig.NextProtos = nil
 	}
 
 	rt := http.RoundTripper(transport)
 	if sess.creds != nil {
 		rt, err = sess.creds.wrapTransport(rt)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
-	sess.forwarder, err = forward.New(
+	forwarder, err := forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(rt),
 		forward.WebsocketDial(sess.Dial),
@@ -1584,10 +1593,10 @@ func (f *Forwarder) setSessionForwarder(sess *clusterSession) error {
 		forward.ErrorHandler(fwdutils.ErrorHandlerFunc(f.formatForwardResponseError)),
 	)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return nil
+	return forwarder, nil
 }
 
 // DialFunc is a network dialer function that returns a network connection
