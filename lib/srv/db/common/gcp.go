@@ -22,6 +22,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
+	"time"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -102,7 +104,8 @@ func (g *gcpSQLAdminClient) GenerateEphemeralCert(ctx context.Context, sessionCt
 	// Make API call.
 	gcp := sessionCtx.Database.GetGCP()
 	req := g.service.Connect.GenerateEphemeralCert(gcp.ProjectID, gcp.InstanceID, &sqladmin.GenerateEphemeralCertRequest{
-		PublicKey: string(pem.EncodeToMemory(&pem.Block{Bytes: pkix, Type: "RSA PUBLIC KEY"})),
+		PublicKey:     string(pem.EncodeToMemory(&pem.Block{Bytes: pkix, Type: "RSA PUBLIC KEY"})),
+		ValidDuration: fmt.Sprintf("%ds", int(sessionCtx.Identity.Expires.Sub(time.Now()).Seconds())),
 	})
 	resp, err := req.Context(ctx).Do()
 	if err != nil {
