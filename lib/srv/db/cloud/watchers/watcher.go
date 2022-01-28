@@ -145,13 +145,21 @@ func (w *Watcher) DatabasesC() <-chan types.Databases {
 // makeFetchers returns cloud fetchers for the provided matchers.
 func makeFetchers(clients common.CloudClients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
 	for _, matcher := range matchers {
-		if utils.SliceContainsStr(matcher.Types, services.AWSMatcherRDS) {
-			for _, region := range matcher.Regions {
+		for _, region := range matcher.Regions {
+			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherRDS) {
 				fetchers, err := makeRDSFetchers(clients, region, matcher.Tags)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 				result = append(result, fetchers...)
+			}
+
+			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherRedshift) {
+				fetcher, err := makeRedshiftFetcher(clients, region, matcher.Tags)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				result = append(result, fetcher)
 			}
 		}
 	}
@@ -182,4 +190,17 @@ func makeRDSFetchers(clients common.CloudClients, region string, tags types.Labe
 	}
 
 	return fetchers, nil
+}
+
+// makeRedshiftFetcher returns Redshift fetcher for the provided region and tags.
+func makeRedshiftFetcher(clients common.CloudClients, region string, tags types.Labels) (Fetcher, error) {
+	redshift, err := clients.GetAWSRedshiftClient(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newRedshiftFetcher(redshiftFetcherConfig{
+		Region:   region,
+		Labels:   tags,
+		Redshift: redshift,
+	})
 }
