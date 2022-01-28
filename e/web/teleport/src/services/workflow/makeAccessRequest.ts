@@ -1,4 +1,4 @@
-import moment from 'moment';
+import { formatDistanceStrict } from 'date-fns';
 import {
   AccessRequest,
   AccessRequestReview,
@@ -74,10 +74,12 @@ function getDurationText(date: Date) {
     return '';
   }
 
-  const duration = moment(new Date()).diff(date);
-  return moment.duration(duration).humanize();
+  const duration = formatDistanceStrict(new Date(), new Date(date));
+  return duration;
 }
 
 function getDurationAgoText(date: Date) {
-  return date ? moment(date).fromNow() : '';
+  return date
+    ? formatDistanceStrict(new Date(date), new Date(), { addSuffix: true })
+    : '';
 }

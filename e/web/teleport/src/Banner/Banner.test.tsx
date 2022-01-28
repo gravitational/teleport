@@ -6,6 +6,15 @@ import history from 'teleport/services/history';
 import session from 'teleport/services/session';
 import TeleportContextE from 'e-teleport/teleportContextE';
 
+beforeAll(() => {
+  jest.useFakeTimers('modern');
+  jest.setSystemTime(new Date('2021-04-08T07:00:00Z'));
+});
+
+afterAll(() => {
+  jest.useRealTimers();
+});
+
 describe('banner time display format testing', () => {
   const ctx = new TeleportContextE();
   const store = ctx.storeAccessRequests;
@@ -19,11 +28,6 @@ describe('banner time display format testing', () => {
     );
 
     jest.spyOn(store, 'getAssumedRoles').mockReturnValue(['dummy']);
-
-    // Lock system date.
-    jest
-      .spyOn(Date, 'now')
-      .mockImplementation(() => Date.parse('2021-04-08T07:00:00Z'));
   });
 
   test('hour only, singular', async () => {

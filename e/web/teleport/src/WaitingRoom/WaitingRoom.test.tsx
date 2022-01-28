@@ -7,6 +7,15 @@ import { render, screen, waitFor, fireEvent } from 'design/utils/testing';
 import historyService from 'teleport/services/history';
 import { makeAccessRequest } from 'e-teleport/services/workflow';
 
+beforeAll(() => {
+  jest.useFakeTimers('modern');
+  jest.setSystemTime(new Date('2020-11-04T19:07:50.693Z'));
+});
+
+afterAll(() => {
+  jest.useRealTimers();
+});
+
 describe('access strategy behavioral testing', () => {
   const ctx = new TeleportContextE();
   const userService = ctx.userService;
@@ -229,6 +238,17 @@ describe('access strategy behavioral testing', () => {
 
     render(<>{Component}</>);
     await waitFor(() => expect(screen.getByText(/hello/i)).toBeInTheDocument());
+  });
+
+  test('date text is formatted corrrectly', async () => {
+    const request = makeAccessRequest({
+      ...sampleRequest,
+      created: '2020-11-04T19:02:50.693Z',
+      expires: '2020-11-04T19:17:50.693Z',
+    });
+
+    expect(request.createdDuration).toBe('5 minutes ago');
+    expect(request.expiresDuration).toBe('10 minutes');
   });
 });
 

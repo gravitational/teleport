@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import moment from 'moment';
+import { intervalToDuration, differenceInMilliseconds } from 'date-fns';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import session from 'teleport/services/session';
 import history from 'teleport/services/history';
@@ -49,19 +49,18 @@ export default function useSwitchback(ctx: TeleportContext) {
       history.reload();
       return;
     }
+    const start = new Date();
+    const end = new Date(accessRequestExpiry);
+    const duration = intervalToDuration({ start, end });
 
-    const end = moment(accessRequestExpiry);
-    const start = moment();
-    const duration = moment.duration(end.diff(start));
-
-    if (duration.asMilliseconds() <= 0) {
+    if (differenceInMilliseconds(end, start) <= 0) {
       session.logout();
     }
 
     setTime({
-      hours: duration.hours(),
-      minutes: duration.minutes(),
-      seconds: duration.seconds(),
+      hours: duration.hours,
+      minutes: duration.minutes,
+      seconds: duration.seconds,
     });
   }
 
