@@ -19,9 +19,20 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rdp::model::error::*;
 
 bitflags! {
+    /// Channel control flags, as specified in section 2.2.6.1.1 of MS-RDPBCGR.
+    ///
+    /// See: https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/f125c65e-6901-43c3-8071-d7d5aaee7ae4
     pub struct ChannelPDUFlags: u32 {
         const CHANNEL_FLAG_FIRST = 0x00000001;
         const CHANNEL_FLAG_LAST = 0x00000002;
+        const CHANNEL_FLAG_SHOW_PROTOCOL = 0x00000010;
+        const CHANNEL_FLAG_SUSPEND = 0x00000020;
+        const CHANNEL_FLAG_RESUME = 0x00000040;
+        const CHANNEL_FLAG_SHADOW_PERSISTENT = 0x00000080;
+        const CHANNEL_PACKET_COMPRESSED = 0x00200000;
+        const CHANNEL_PACKET_AT_FRONT = 0x00400000;
+        const CHANNEL_PACKET_FLUSHED = 0x00800000;
+
         const CHANNEL_FLAG_ONLY = Self::CHANNEL_FLAG_FIRST.bits | Self::CHANNEL_FLAG_LAST.bits;
     }
 }
@@ -37,11 +48,8 @@ pub struct ChannelPDUHeader {
 }
 
 impl ChannelPDUHeader {
-    pub fn new(length: u32) -> Self {
-        Self {
-            length,
-            flags: ChannelPDUFlags::CHANNEL_FLAG_ONLY,
-        }
+    pub fn new(length: u32, flags: ChannelPDUFlags) -> Self {
+        Self { length, flags }
     }
     pub fn decode(payload: &mut Payload) -> RdpResult<Self> {
         Ok(Self {

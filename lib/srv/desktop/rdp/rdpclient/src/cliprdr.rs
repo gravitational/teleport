@@ -43,7 +43,7 @@ impl Client {
         let mut payload = try_let!(tpkt::Payload::Raw, payload)?;
         let _pdu_header = vchan::ChannelPDUHeader::decode(&mut payload)?;
         let header = ClipboardPDUHeader::decode(&mut payload)?;
-        warn!("msgType {:?}", header.msg_type);
+        warn!("received {:?}", header.msg_type);
 
         let resp = match header.msg_type {
             ClipboardPDUType::CB_CLIP_CAPS => self.handle_server_caps(&mut payload)?,
@@ -411,7 +411,7 @@ impl ShortFormatName {
 /// Standard clipboard formats are listed here: https://docs.microsoft.com/en-us/windows/win32/dataxchg/standard-clipboard-formats
 ///
 /// Applications can define their own clipboard formats as well.
-#[allow(non_camel_case_types)]
+#[allow(dead_code, non_camel_case_types)]
 enum ClipboardFormat {
     CF_TEXT = 1,         // CRLF line endings, null-terminated
     CF_BITMAP = 2,       // HBITMAP handle
@@ -490,7 +490,12 @@ fn encode_message(msg_type: ClipboardPDUType, payload: Vec<u8>) -> RdpResult<Vec
     let mut inner = ClipboardPDUHeader::new(msg_type, msg_flags, payload.len() as u32).encode()?;
     inner.extend_from_slice(&payload);
 
-    let mut outer = vchan::ChannelPDUHeader::new(inner.length() as u32).encode()?;
+    let mut pdu_flags = vchan::ChannelPDUFlags::CHANNEL_FLAG_ONLY;
+    if msg_type == ClipboardPDUType::CB_FORMAT_LIST {
+        pdu_flags.set(vchan::ChannelPDUFlags::CHANNEL_FLAG_SHOW_PROTOCOL, true);
+    }
+
+    let mut outer = vchan::ChannelPDUHeader::new(inner.length() as u32, pdu_flags).encode()?;
     outer.extend_from_slice(&inner);
     Ok(outer)
 }
@@ -499,6 +504,38 @@ fn encode_message(msg_type: ClipboardPDUType, payload: Vec<u8>) -> RdpResult<Vec
 mod tests {
     use super::*;
     use std::io::Cursor;
+
+    #[test]
+    fn encode_format_list() {
+        let msg = encode_message(
+            ClipboardPDUType::CB_FORMAT_LIST,
+            FormatListPDU {
+                format_names: vec![ShortFormatName::id(ClipboardFormat::CF_TEXT as u32)],
+            }
+            .encode()
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            msg,
+            vec![
+                // virtual channel header
+                0x2C, 0x00, 0x00, 0x00, // length (44 bytes)
+                0x03, 0x00, 0x00, 0x00, // flags (first + last)
+                // Clipboard PDU Header
+                0x02, 0x00, // message type
+                0x04, 0x00, // message flags (use ASCII names)
+                0x24, 0x00, 0x00, 0x00, // message length (36 bytes after header)
+                // Format List PDU starts here
+                0x01, 0x00, 0x00, 0x00, // format ID (CF_TEXT)
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // format name (bytes 1-8)
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // format name (bytes 9-16)
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // format name (bytes 17-24)
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // format name (bytes 25-32)
+            ]
+        );
+    }
 
     #[test]
     fn encode_clipboard_capabilities() {

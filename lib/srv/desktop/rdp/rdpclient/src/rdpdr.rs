@@ -168,7 +168,11 @@ impl Client {
 fn encode_message(packet_id: PacketId, payload: Vec<u8>) -> RdpResult<Vec<u8>> {
     let mut inner = Header::new(Component::RDPDR_CTYP_CORE, packet_id).encode()?;
     inner.extend_from_slice(&payload);
-    let mut outer = vchan::ChannelPDUHeader::new(inner.length() as u32).encode()?;
+    let mut outer = vchan::ChannelPDUHeader::new(
+        inner.length() as u32,
+        vchan::ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+    )
+    .encode()?;
     outer.extend_from_slice(&inner);
     Ok(outer)
 }
