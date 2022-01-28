@@ -1000,7 +1000,7 @@ func (s *AuthSuite) TestGithubConnectorCRUDEventsEmitted(c *C) {
 func (s *AuthSuite) TestOIDCConnectorCRUDEventsEmitted(c *C) {
 	ctx := context.Background()
 	// test oidc create event
-	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV2{ClientID: "a"})
+	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{ClientID: "a"})
 	c.Assert(err, IsNil)
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	c.Assert(err, IsNil)
