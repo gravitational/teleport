@@ -61,7 +61,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-	// "golang.org/x/net/http2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/httpstream"
@@ -630,7 +629,6 @@ func (f *Forwarder) getKubeGroupsAndUsers(
 	roles services.AccessChecker,
 	kubeClusterName string,
 	sessionTTL time.Duration) (groups, users []string, err error) {
-
 	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
