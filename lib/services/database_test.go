@@ -30,6 +30,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/stretchr/testify/require"
 )
 
@@ -123,6 +124,7 @@ func TestDatabaseFromRDSInstance(t *testing.T) {
 			labelRegion:        "us-west-1",
 			labelEngine:        RDSEnginePostgres,
 			labelEngineVersion: "13.0",
+			labelEndpointType:  "instance",
 			"key":              "val",
 		},
 	}, types.DatabaseSpecV3{
@@ -155,40 +157,135 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 		Engine:                           aws.String(RDSEngineAuroraMySQL),
 		EngineVersion:                    aws.String("8.0.0"),
 		Endpoint:                         aws.String("localhost"),
+		ReaderEndpoint:                   aws.String("reader.host"),
 		Port:                             aws.Int64(3306),
+		CustomEndpoints: []*string{
+			aws.String("myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
+			aws.String("myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
+		},
 		TagList: []*rds.Tag{{
 			Key:   aws.String("key"),
 			Value: aws.String("val"),
 		}},
 	}
-	expected, err := types.NewDatabaseV3(types.Metadata{
-		Name:        "cluster-1",
-		Description: "Aurora cluster in us-east-1",
-		Labels: map[string]string{
+
+	expectedAWS := types.AWS{
+		AccountID: "1234567890",
+		Region:    "us-east-1",
+		RDS: types.RDS{
+			ClusterID:  "cluster-1",
+			ResourceID: "resource-1",
+			IAMAuth:    true,
+		},
+	}
+
+	t.Run("primary", func(t *testing.T) {
+		expected, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "cluster-1",
+			Description: "Aurora cluster in us-east-1",
+			Labels: map[string]string{
+				types.OriginLabel:  types.OriginCloud,
+				labelAccountID:     "1234567890",
+				labelRegion:        "us-east-1",
+				labelEngine:        RDSEngineAuroraMySQL,
+				labelEngineVersion: "8.0.0",
+				labelEndpointType:  "primary",
+				"key":              "val",
+			},
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "localhost:3306",
+			AWS:      expectedAWS,
+		})
+		require.NoError(t, err)
+		actual, err := NewDatabaseFromRDSCluster(cluster)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("reader", func(t *testing.T) {
+		expected, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "cluster-1-reader",
+			Description: "Aurora cluster in us-east-1 (reader endpoint)",
+			Labels: map[string]string{
+				types.OriginLabel:  types.OriginCloud,
+				labelAccountID:     "1234567890",
+				labelRegion:        "us-east-1",
+				labelEngine:        RDSEngineAuroraMySQL,
+				labelEngineVersion: "8.0.0",
+				labelEndpointType:  "reader",
+				"key":              "val",
+			},
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "reader.host:3306",
+			AWS:      expectedAWS,
+		})
+		require.NoError(t, err)
+		actual, err := NewDatabaseFromRDSClusterReaderEndpoint(cluster)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("custom endpoints", func(t *testing.T) {
+		expectedLabels := map[string]string{
 			types.OriginLabel:  types.OriginCloud,
 			labelAccountID:     "1234567890",
 			labelRegion:        "us-east-1",
 			labelEngine:        RDSEngineAuroraMySQL,
 			labelEngineVersion: "8.0.0",
+			labelEndpointType:  "custom",
 			"key":              "val",
-		},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolMySQL,
-		URI:      "localhost:3306",
-		AWS: types.AWS{
-			AccountID: "1234567890",
-			Region:    "us-east-1",
-			RDS: types.RDS{
-				ClusterID:  "cluster-1",
-				ResourceID: "resource-1",
-				IAMAuth:    true,
+		}
+
+		expectedMyEndpoint1, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "cluster-1-custom-myendpoint1",
+			Description: "Aurora cluster in us-east-1 (custom endpoint)",
+			Labels:      expectedLabels,
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com:3306",
+			AWS:      expectedAWS,
+			TLS: types.DatabaseTLS{
+				ServerName: "localhost",
 			},
-		},
+		})
+		require.NoError(t, err)
+
+		expectedMyEndpoint2, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "cluster-1-custom-myendpoint2",
+			Description: "Aurora cluster in us-east-1 (custom endpoint)",
+			Labels:      expectedLabels,
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com:3306",
+			AWS:      expectedAWS,
+			TLS: types.DatabaseTLS{
+				ServerName: "localhost",
+			},
+		})
+		require.NoError(t, err)
+
+		databases, err := NewDatabasesFromRDSClusterCustomEndpoints(cluster)
+		require.NoError(t, err)
+		require.Equal(t, types.Databases{expectedMyEndpoint1, expectedMyEndpoint2}, databases)
 	})
+
+	t.Run("bad custom endpoints ", func(t *testing.T) {
+		badCluster := *cluster
+		badCluster.CustomEndpoints = []*string{
+			aws.String("badendpoint1"),
+			aws.String("badendpoint2"),
+		}
+		_, err := NewDatabasesFromRDSClusterCustomEndpoints(&badCluster)
+		require.Error(t, err)
+	})
+}
+
+func TestParseRDSCustomEndpoint(t *testing.T) {
+	name, err := parseRDSCustomEndpoint("custom-endpoint.cluster-custom-example.ca-central-1.rds.amazonaws.com")
 	require.NoError(t, err)
-	actual, err := NewDatabaseFromRDSCluster(cluster)
-	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Equal(t, "custom-endpoint", name)
 }
 
 func TestAuroraMySQLVersion(t *testing.T) {
@@ -283,4 +380,50 @@ func TestRDSTagsToLabels(t *testing.T) {
 	}
 	labels := rdsTagsToLabels(rdsTags)
 	require.Equal(t, map[string]string{"Name": "test", "Env": "dev"}, labels)
+}
+
+// TestDatabaseFromRedshiftCluster tests converting an Redshift cluster to a database resource.
+func TestDatabaseFromRedshiftCluster(t *testing.T) {
+	cluster := &redshift.Cluster{
+		ClusterIdentifier:   aws.String("mycluster"),
+		ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:1234567890:namespace:u-u-i-d"),
+		Endpoint: &redshift.Endpoint{
+			Address: aws.String("localhost"),
+			Port:    aws.Int64(5439),
+		},
+		Tags: []*redshift.Tag{
+			{
+				Key:   aws.String("key"),
+				Value: aws.String("val"),
+			},
+			{
+				Key:   aws.String("elasticbeanstalk:environment-id"),
+				Value: aws.String("id"),
+			},
+		},
+	}
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "mycluster",
+		Description: "Redshift cluster in us-east-1",
+		Labels: map[string]string{
+			types.OriginLabel: types.OriginCloud,
+			labelAccountID:    "1234567890",
+			labelRegion:       "us-east-1",
+			"key":             "val",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5439",
+		AWS: types.AWS{
+			AccountID: "1234567890",
+			Region:    "us-east-1",
+			Redshift: types.Redshift{
+				ClusterID: "mycluster",
+			},
+		},
+	})
+	require.NoError(t, err)
+	actual, err := NewDatabaseFromRedshiftCluster(cluster)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
 }

@@ -21,6 +21,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/teleport/build.assets/gomod"
+
+	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,43 +39,81 @@ import (
 	"other/mod/path"
 )
 `
+	updatedGoFile := `package main
+
+import "mod/path/v2"
+import "other/mod/path"
+import (
+	"mod/path/v2"
+	alias "mod/path/v2"
+
+	"other/mod/path"
+)
+`
+
 	// Create a dummy go module with go.mod and main.go file
 	pkgDir := t.TempDir()
 	writeFile(t, pkgDir, "go.mod", newGoModFileString("pkg"))
-	goFilePath := writeFile(t, pkgDir, "main.go", goFile)
-	addRollBack := testRollBack(t, goFilePath, goFile)
 
 	// Run main.go file through the update function
-	err := updateGoPkgs(pkgDir, "mod/path", "updated/mod/path", nil, addRollBack)
+	goFilePath := writeFile(t, pkgDir, "main.go", goFile)
+	addRollBack := testRollBack(t, goFilePath, goFile)
+	err := updateGoPkgs(pkgDir, "mod/path", "mod/path/v2", nil, addRollBack)
 	require.NoError(t, err)
+	readAndCompareFile(t, goFilePath, updatedGoFile)
 
-	// Read the updated file and expect all instances of "mod/path" to be replaced with "updated/mod/path"
-	readAndCompareFile(t, goFilePath, strings.ReplaceAll(goFile, "\"mod/path\"", "\"updated/mod/path\""))
+	// Run updated main.go file through update function
+	goFilePath = writeFile(t, pkgDir, "main.go", updatedGoFile)
+	addRollBack = testRollBack(t, goFilePath, updatedGoFile)
+	err = updateGoPkgs(pkgDir, "mod/path/v2", "mod/path", nil, addRollBack)
+	require.NoError(t, err)
+	readAndCompareFile(t, goFilePath, goFile)
 }
 
 func TestUpdateProtoFiles(t *testing.T) {
 	protoFile := `syntax = "proto3";
 package proto;
-
 import "mod/path/types.proto";
-
 message Example {
-	types.Type field = 6 [
+	types.Type field1 = 1 [
+		(gogoproto.casttype) = "mod/path/types.Traits"
+	];
+	types.Type field2 = 2 [
 		(gogoproto.customtype) = "mod/path/types.Traits"
 	];
 }
 `
+
+	// Only update casttype and customtype options.
+	updatedProtoFile := `syntax = "proto3";
+package proto;
+import "mod/path/types.proto";
+message Example {
+	types.Type field1 = 1 [
+		(gogoproto.casttype) = "mod/path/v2/types.Traits"
+	];
+	types.Type field2 = 2 [
+		(gogoproto.customtype) = "mod/path/v2/types.Traits"
+	];
+}
+`
+
 	// Write proto file to disk
 	dir := t.TempDir()
-	protoFilePath := writeFile(t, dir, "proto.proto", protoFile)
-	addRollBack := testRollBack(t, protoFilePath, protoFile)
 
 	// Run proto file through update function
-	err := updateProtoFiles(dir, "mod/path", "updated/mod/path", addRollBack)
+	protoFilePath := writeFile(t, dir, "proto.proto", protoFile)
+	addRollBack := testRollBack(t, protoFilePath, protoFile)
+	err := updateProtoFiles(dir, "mod/path", "mod/path/v2", addRollBack)
 	require.NoError(t, err)
+	readAndCompareFile(t, protoFilePath, updatedProtoFile)
 
-	// Read the updated file and expect all instances of "mod/path" to be replaced with "updated/mod/path"
-	readAndCompareFile(t, protoFilePath, strings.ReplaceAll(protoFile, "mod/path", "updated/mod/path"))
+	// Run updated proto file through update function
+	protoFilePath = writeFile(t, dir, "proto.proto", updatedProtoFile)
+	addRollBack = testRollBack(t, protoFilePath, updatedProtoFile)
+	err = updateProtoFiles(dir, "mod/path/v2", "mod/path", addRollBack)
+	require.NoError(t, err)
+	readAndCompareFile(t, protoFilePath, protoFile)
 }
 
 func TestUpdateGoModulePath(t *testing.T) {
@@ -98,12 +139,12 @@ func TestUpdateGoModulePath(t *testing.T) {
 		newGoModFileString("updated/go/mod/header"),
 	))
 
-	t.Run("updated module in statements", testUpdate("mod/path", "updated/mod/path", "1.2.3",
+	t.Run("updated module in statements", testUpdate("mod/path", "mod/path/v2", "1.2.3",
 		newGoModFileString("go/mod/header", requireStatement("mod/path", "0.1.2")),
-		newGoModFileString("go/mod/header", requireStatement("updated/mod/path", "1.2.3")),
+		newGoModFileString("go/mod/header", requireStatement("mod/path/v2", "1.2.3")),
 	))
 
-	t.Run("updated module not in mod file", testUpdate("mod/path", "updated/mod/path", "1.2.3",
+	t.Run("updated module not in mod file", testUpdate("mod/path", "mod/path/v2", "1.2.3",
 		newGoModFileString("go/mod/header", requireStatement("other/mod/path", "0.1.2")),
 		newGoModFileString("go/mod/header", requireStatement("other/mod/path", "0.1.2")),
 	))
@@ -112,7 +153,7 @@ func TestUpdateGoModulePath(t *testing.T) {
 	// test that every statement and the header gets updated properly.
 	testUpdateAllStatements := func(oldModPath, oldVersion, newVersion string) func(*testing.T) {
 		oldModFile := newGoModFileString(oldModPath, allGoModStatements(oldModPath, oldVersion)...)
-		newModPath := getNewModImportPath(oldModPath, newVersion)
+		newModPath := getNewModImportPath(oldModPath, semver.New(newVersion))
 		newModFile := newGoModFileString(newModPath, allGoModStatements(newModPath, newVersion)...)
 		return testUpdate(oldModPath, newModPath, newVersion, oldModFile, newModFile)
 	}
@@ -134,9 +175,9 @@ func TestGetImportPaths(t *testing.T) {
 			writeFile(t, modDir, "go.mod", newGoModFileString(currentModPath))
 
 			// Get import paths using the mod file in disk
-			oldModPath, err := getModImportPath(modDir)
+			oldModPath, err := gomod.GetImportPath(modDir)
 			require.NoError(t, err)
-			newModPath := getNewModImportPath(oldModPath, newVersion)
+			newModPath := getNewModImportPath(oldModPath, semver.New(newVersion))
 
 			// Compare paths to expected results
 			require.Equal(t, currentModPath, oldModPath)

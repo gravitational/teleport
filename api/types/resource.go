@@ -254,6 +254,19 @@ func (m *Metadata) CheckAndSetDefaults() error {
 	return nil
 }
 
+// MatchLabels takes a map of labels and returns `true` if the resource has ALL
+// of them.
+func MatchLabels(resource ResourceWithLabels, labels map[string]string) bool {
+	resourceLabels := resource.GetAllLabels()
+	for name, value := range labels {
+		if resourceLabels[name] != value {
+			return false
+		}
+	}
+
+	return true
+}
+
 // LabelPattern is a regexp that describes a valid label key
 const LabelPattern = `^[a-zA-Z/.0-9_*-]+$`
 

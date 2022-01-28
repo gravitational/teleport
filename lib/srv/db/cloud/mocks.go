@@ -222,6 +222,13 @@ func (m *RedshiftMock) DescribeClustersWithContext(ctx aws.Context, input *redsh
 	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.ClusterIdentifier))
 }
 
+func (m *RedshiftMock) DescribeClustersPagesWithContext(ctx aws.Context, input *redshift.DescribeClustersInput, fn func(*redshift.DescribeClustersOutput, bool) bool, options ...request.Option) error {
+	fn(&redshift.DescribeClustersOutput{
+		Clusters: m.Clusters,
+	}, true)
+	return nil
+}
+
 // RDSMockUnauth is a mock RDS client that returns access denied to each call.
 type RDSMockUnauth struct {
 	rdsiface.RDSAPI
