@@ -28,7 +28,7 @@ import (
 
 // DatabaseServer represents a database access server.
 type DatabaseServer interface {
-	// Resource provides common resource methods.
+	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
 	// GetNamespace returns server namespace.
 	GetNamespace() string
@@ -274,6 +274,12 @@ func (s *DatabaseServerV3) GetAllLabels() map[string]string {
 // Copy returns a copy of this database server object.
 func (s *DatabaseServerV3) Copy() DatabaseServer {
 	return proto.Clone(s).(*DatabaseServerV3)
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (s *DatabaseServerV3) MatchSearch(values []string) bool {
+	return MatchSearch(nil, values, nil)
 }
 
 // DatabaseServers represents a list of database servers.
