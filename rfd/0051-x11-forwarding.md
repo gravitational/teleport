@@ -83,6 +83,15 @@ to the open socket during an X Client request. X Authorization data will be set 
 the user's default xauthfile (`~/.Xauthority`) by calling 
 `xauth add <$DISPLAY> <x11-req.proto> <x11-req.cookie>`. 
 
+Note: The OpenSSH implementation uses tcp sockets `localhost:6010 - localhost:7009`.
+Due to the re-exec model of Teleport SSH sessions, if we opened tcp sockets such as
+these, we'd either have to open them in the root process as the process user, or open
+them as the Session user and implement a new RPC layer to forward the requests between
+the parent and child processes. Instead, we have chosen to use unix sockets, which we
+can change the ownership of after the fact with `chown`. This also has the side effect
+of ensuring that X11 forwarding sockets for OpenSSH Server and Teleport do not overlap
+in cases where both are running on the same machine.
+
 ### Security
 
 There are four points of contact which concern security within the X11 forwarding flow
