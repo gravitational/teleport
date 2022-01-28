@@ -3,6 +3,14 @@
 - [Kubernetes](https://kubernetes.io) >= v(=kubernetes.major_version=).(=kubernetes.minor_version=).0
 - [Helm](https://helm.sh) >= v(=helm.version=)
 
+<Details scopeOnly={true} scope={["cloud"]} title="Teleport Cloud warning">
+This guide shows you how to install the `teleport-cluster` Helm chart, which is intended to help you get started with Teleport by deploying the Auth Service and Proxy Service in a Kubernetes cluster.
+
+Since the Auth and Proxy Services are fully managed in Teleport Cloud, you should install our `teleport-kube-agent` chart, which is intended for deployments where the Auth Service and Proxy Service run outside your Kubernetes cluster.
+
+For more information, see our [Helm chart reference](../reference.mdx#teleport-kube-agent).
+</Details>
+
 Verify that Helm and Kubernetes are installed and up to date.
 
 (!docs/pages/includes/permission-warning.mdx!)
