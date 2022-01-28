@@ -472,27 +472,6 @@ func TestConfigReading(t *testing.T) {
 	checkStaticConfig(t, conf)
 }
 
-func TestReadLDAPPasswordFromFile(t *testing.T) {
-	tmp := t.TempDir()
-	passwordFile := filepath.Join(tmp, "ldap-password")
-	require.NoError(t, os.WriteFile(passwordFile, []byte(" super-secret-password\n"), 0644))
-
-	fc := FileConfig{
-		WindowsDesktop: WindowsDesktopService{
-			LDAP: LDAPConfig{
-				Addr:         "test.example.com",
-				Domain:       "example.com",
-				Username:     "admin",
-				PasswordFile: passwordFile,
-			},
-		},
-	}
-
-	var sc service.Config
-	require.NoError(t, applyWindowsDesktopConfig(&fc, &sc))
-	require.Equal(t, "super-secret-password", sc.WindowsDesktop.LDAP.Password)
-}
-
 func TestLabelParsing(t *testing.T) {
 	var conf service.SSHConfig
 	var err error
@@ -1551,10 +1530,6 @@ func TestProxyConfigurationVersion(t *testing.T) {
 func TestWindowsDesktopService(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
-	ldapPasswordFile := filepath.Join(tmp, "ldap-pass")
-	require.NoError(t, os.WriteFile(ldapPasswordFile, []byte("foo"), 0644))
-
 	for _, test := range []struct {
 		desc        string
 		mutate      func(fc *FileConfig)
@@ -1597,15 +1572,16 @@ func TestWindowsDesktopService(t *testing.T) {
 				}
 			},
 		},
+		{
+			desc:        "NOK - uses deprecated password_file field",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.LDAP.PasswordFile = "/path/to/some/file"
+			},
+		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			fc := &FileConfig{
-				WindowsDesktop: WindowsDesktopService{
-					LDAP: LDAPConfig{
-						PasswordFile: ldapPasswordFile,
-					},
-				},
-			}
+			fc := &FileConfig{}
 			test.mutate(fc)
 			cfg := &service.Config{}
 			err := applyWindowsDesktopConfig(fc, cfg)

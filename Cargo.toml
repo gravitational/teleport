@@ -1,0 +1,14 @@
+[workspace]
+
+members = [
+    "lib/srv/desktop/rdp/rdpclient",
+    "lib/datalog/roletester"
+]
+
+[profile.dev]
+debug = 1
+lto = "off"
+
+[profile.release]
+debug = 1
+codegen-units = 1

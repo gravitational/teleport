@@ -870,7 +870,7 @@ func TestGetDatabaseServers(t *testing.T) {
 	testServers, err := srv.Auth().GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
 
-	testResources := make([]types.Resource, len(testServers))
+	testResources := make([]types.ResourceWithLabels, len(testServers))
 	for i, server := range testServers {
 		testResources[i] = server
 	}
@@ -913,6 +913,17 @@ func TestGetDatabaseServers(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resources, len(testResources))
 	require.Empty(t, cmp.Diff(testResources, resources))
+	// list only database with label
+	resources, _, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		Namespace: defaults.Namespace,
+		// Guarantee that the list will all the servers.
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindDatabaseServer,
+		Labels:       map[string]string{"name": testServers[0].GetName()},
+	})
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
 
 	// deny user to get the first database
 	role.SetDatabaseLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
@@ -936,7 +947,7 @@ func TestGetDatabaseServers(t *testing.T) {
 	resources, _, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
 	require.Len(t, resources, 0)
-	require.Empty(t, cmp.Diff([]types.Resource{}, resources))
+	require.Empty(t, cmp.Diff([]types.ResourceWithLabels{}, resources))
 }
 
 // TestGetApplicationServers verifies RBAC is applied when fetching app servers.
@@ -964,7 +975,7 @@ func TestGetApplicationServers(t *testing.T) {
 	testServers, err := srv.Auth().GetApplicationServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
 
-	testResources := make([]types.Resource, len(testServers))
+	testResources := make([]types.ResourceWithLabels, len(testServers))
 	for i, server := range testServers {
 		testResources[i] = server
 	}
@@ -1007,6 +1018,17 @@ func TestGetApplicationServers(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resources, len(testResources))
 	require.Empty(t, cmp.Diff(testResources, resources))
+	// list only application with label
+	resources, _, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		Namespace: defaults.Namespace,
+		// Guarantee that the list will all the servers.
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindAppServer,
+		Labels:       map[string]string{"name": testServers[0].GetName()},
+	})
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
 
 	// deny user to get the first app
 	role.SetAppLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
@@ -1029,7 +1051,7 @@ func TestGetApplicationServers(t *testing.T) {
 	resources, _, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
 	require.Len(t, resources, 0)
-	require.Empty(t, cmp.Diff([]types.Resource{}, resources))
+	require.Empty(t, cmp.Diff([]types.ResourceWithLabels{}, resources))
 }
 
 func TestGetAppServers(t *testing.T) {
@@ -1619,4 +1641,98 @@ func TestNoElevatedAccessRequestDeletion(t *testing.T) {
 
 	err = deleterAuth.DeleteAccessRequest(ctx, request.GetName())
 	require.NoError(t, err)
+}
+
+func TestGetKubeServices(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test kube services.
+	for i := 0; i < 5; i++ {
+		name := uuid.NewString()
+		s, err := types.NewServerWithLabels(name, types.KindKubeService, types.ServerSpecV2{
+			KubernetesClusters: []*types.KubernetesCluster{
+				{Name: name, StaticLabels: map[string]string{"name": name}},
+			},
+		}, map[string]string{"name": name})
+		require.NoError(t, err)
+
+		err = srv.Auth().UpsertKubeService(ctx, s)
+		require.NoError(t, err)
+	}
+
+	testServers, err := srv.Auth().GetKubeServices(ctx)
+	require.NoError(t, err)
+
+	testResources := make([]types.ResourceWithLabels, len(testServers))
+	for i, server := range testServers {
+		testResources[i] = server
+	}
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	listRequest := proto.ListResourcesRequest{
+		Namespace: defaults.Namespace,
+		// Guarantee that the list will all the servers.
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindKubeService,
+	}
+
+	// permit user to get all kubernetes service
+	role.SetKubernetesLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err := clt.GetKubeServices(ctx)
+	require.NoError(t, err)
+	require.Len(t, testServers, len(testServers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+	resources, _, err := clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resources))
+	// list only database with label
+	resources, _, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		Namespace: defaults.Namespace,
+		// Guarantee that the list will all the servers.
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindKubeService,
+		Labels:       map[string]string{"name": testServers[0].GetName()},
+	})
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// deny user to get the first kubernetes service
+	role.SetKubernetesLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
+	testServers[0].SetKubernetesClusters(nil)
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetKubeServices(ctx)
+	require.NoError(t, err)
+	require.Len(t, testServers, len(testServers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resources))
+
+	// deny user to get all databases
+	role.SetKubernetesLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	for _, testServer := range testServers {
+		testServer.SetKubernetesClusters(nil)
+	}
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetKubeServices(ctx)
+	require.NoError(t, err)
+	require.Len(t, testServers, len(testServers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resources))
 }

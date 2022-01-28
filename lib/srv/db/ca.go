@@ -108,7 +108,7 @@ func (s *Server) getCACertPath(database types.Database) (string, error) {
 	case types.DatabaseTypeRDS:
 		return filepath.Join(s.cfg.DataDir, filepath.Base(rdsCAURLForDatabase(database))), nil
 	case types.DatabaseTypeRedshift:
-		return filepath.Join(s.cfg.DataDir, filepath.Base(redshiftCAURL)), nil
+		return filepath.Join(s.cfg.DataDir, filepath.Base(redshiftCAURLForDatabase(database))), nil
 	case types.DatabaseTypeCloudSQL:
 		return filepath.Join(s.cfg.DataDir, fmt.Sprintf("%v-root.pem", database.GetName())), nil
 	case types.DatabaseTypeAzure:
@@ -138,7 +138,7 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database) 
 	case types.DatabaseTypeRDS:
 		return d.downloadFromURL(rdsCAURLForDatabase(database))
 	case types.DatabaseTypeRedshift:
-		return d.downloadFromURL(redshiftCAURL)
+		return d.downloadFromURL(redshiftCAURLForDatabase(database))
 	case types.DatabaseTypeCloudSQL:
 		return d.downloadForCloudSQL(ctx, database)
 	case types.DatabaseTypeAzure:
@@ -190,22 +190,36 @@ func (d *realDownloader) downloadForCloudSQL(ctx context.Context, database types
 
 // rdsCAURLForDatabase returns root certificate download URL based on the region
 // of the provided RDS server instance.
+//
+// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
 func rdsCAURLForDatabase(database types.Database) string {
-	if u, ok := rdsCAURLs[database.GetAWS().Region]; ok {
+	region := database.GetAWS().Region
+	if u, ok := rdsGovCloudCAURLs[region]; ok {
 		return u
 	}
-	return rdsDefaultCAURL
+
+	return fmt.Sprintf(rdsDefaultCAURLTemplate, region, region)
+}
+
+// redshiftCAURLForDatabase returns root certificate download URL based on the region
+// of the provided RDS server instance.
+func redshiftCAURLForDatabase(database types.Database) string {
+	if u, ok := redshiftCAURLs[database.GetAWS().Region]; ok {
+		return u
+	}
+	return redshiftDefaultCAURL
 }
 
 const (
-	// rdsDefaultCAURL is the URL of the default RDS root certificate that
-	// works for all regions except the ones specified below.
+	// rdsDefaultCAURLTemplate is the string format template that creates URLs
+	// for region based RDS CA bundles.
 	//
-	// See https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
-	// for details.
-	rdsDefaultCAURL = "https://s3.amazonaws.com/rds-downloads/rds-ca-2019-root.pem"
-	// redshiftCAURL is the Redshift CA bundle download URL.
-	redshiftCAURL = "https://s3.amazonaws.com/redshift-downloads/redshift-ca-bundle.crt"
+	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
+	rdsDefaultCAURLTemplate = "https://truststore.pki.rds.amazonaws.com/%s/%s-bundle.pem"
+	// redshiftDefaultCAURL is the Redshift CA bundle download URL.
+	//
+	// https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-ssl-support.html
+	redshiftDefaultCAURL = "https://s3.amazonaws.com/redshift-downloads/amazon-trust-ca-bundle.crt"
 	// azureCAURL is the URL of the CA certificate for validating certificates
 	// presented by Azure hosted databases. See:
 	//
@@ -227,12 +241,17 @@ To correct the error you can try the following:
     it in the database configuration using "ca_cert_file" configuration field.`
 )
 
-// rdsCAURLs maps opt-in AWS regions to URLs of their RDS root certificates.
-var rdsCAURLs = map[string]string{
-	"af-south-1":    "https://s3.amazonaws.com/rds-downloads/rds-ca-af-south-1-2019-root.pem",
-	"ap-east-1":     "https://s3.amazonaws.com/rds-downloads/rds-ca-ap-east-1-2019-root.pem",
-	"eu-south-1":    "https://s3.amazonaws.com/rds-downloads/rds-ca-eu-south-1-2019-root.pem",
-	"me-south-1":    "https://s3.amazonaws.com/rds-downloads/rds-ca-me-south-1-2019-root.pem",
-	"us-gov-east-1": "https://s3.us-gov-west-1.amazonaws.com/rds-downloads/rds-ca-us-gov-east-1-2017-root.pem",
-	"us-gov-west-1": "https://s3.us-gov-west-1.amazonaws.com/rds-downloads/rds-ca-us-gov-west-1-2017-root.pem",
+// rdsGovCloudCAURLs maps AWS regions to URLs of their RDS root certificates.
+//
+// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
+var rdsGovCloudCAURLs = map[string]string{
+	"us-gov-east-1": "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-east-1/us-gov-east-1-bundle.pem",
+	"us-gov-west-1": "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-west-1/us-gov-west-1-bundle.pem",
+}
+
+// redshiftCAURLs maps opt-in AWS regions to URLs of their Redshift root certificates.
+//
+// https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-ssl-support.html
+var redshiftCAURLs = map[string]string{
+	"cn-north-1": "https://s3.cn-north-1.amazonaws.com.cn/redshift-downloads-cn/amazon-trust-ca-bundle.crt",
 }

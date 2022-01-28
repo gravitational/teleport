@@ -136,7 +136,6 @@ ifneq ($(CHECK_CARGO),)
 with_roletester := yes
 ROLETESTER_MESSAGE := "with access tester"
 ROLETESTER_TAG := roletester
-ROLETESTER_BUILDDIR := lib/datalog/roletester/Cargo.toml
 
 ifneq ("$(ARCH)","arm")
 # Do not build RDP client on ARM. The client includes OpenSSL which requires libatomic on ARM 32bit.
@@ -249,7 +248,7 @@ endif
 ifeq ("$(with_roletester)", "yes")
 .PHONY: roletester
 roletester:
-	cargo build --manifest-path=$(ROLETESTER_BUILDDIR) --release $(CARGO_TARGET)
+	cargo build -p role_tester --release $(CARGO_TARGET)
 else
 .PHONY: roletester
 roletester:
@@ -258,7 +257,7 @@ endif
 ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
-	cargo build --manifest-path=lib/srv/desktop/rdp/rdpclient/Cargo.toml --release $(CARGO_TARGET)
+	cargo build -p rdp-client --release $(CARGO_TARGET)
 	cargo install cbindgen
 	cbindgen --quiet --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
 else
@@ -297,8 +296,7 @@ clean:
 	rm -rf $(BUILDDIR)
 	rm -rf $(ER_BPF_BUILDDIR)
 	rm -rf $(RS_BPF_BUILDDIR)
-	rm -rf lib/srv/desktop/rdp/rdpclient/target
-	rm -rf lib/datalog/roletester/target
+	-cargo clean
 	-go clean -cache
 	rm -rf teleport
 	rm -rf *.gz
@@ -642,7 +640,7 @@ version: $(VERSRC)
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 	# Update api module path, but don't fail on error.
-	$(MAKE) update-api-module-path || true
+	$(MAKE) update-api-import-path || true
 
 # This rule updates the api module path to be in sync with the current api release version.
 # e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
@@ -654,11 +652,10 @@ $(VERSRC): Makefile
 #    - v0.0.0 -> v1.0.0 - both have no version suffix - github.com/gravitational/teleport/api
 #
 # Note: any build flags needed to compile go files (such as build tags) should be provided below.
-.PHONY: update-api-module-path
-update-api-module-path:
-	# update-api-module-path is temporarily disabled because currently `make grpc` does not know how to deal with v2+ go modules.
-	# go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
-	# $(MAKE) grpc
+.PHONY: update-api-import-path
+update-api-import-path:
+	go run build.assets/gomod/update-api-import-path/main.go -tags "bpf fips pam roletester desktop_access_rdp linux"
+	$(MAKE) grpc
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
@@ -734,10 +731,18 @@ enter:
 grpc:
 	$(MAKE) -C build.assets grpc
 
+# proto file dependencies within the api module must be passed with the 'M' flag. This
+# way protoc generated files will use the correct api module import path in the case where
+# the import path has a version suffix, e.g. github.com/gravitational/teleport/api/v8
+GOGOPROTO_IMPORTMAP ?= $\
+	Mgithub.com/gravitational/teleport/api/types/types.proto=$(API_IMPORT_PATH)/types,$\
+	Mgithub.com/gravitational/teleport/api/types/events/events.proto=$(API_IMPORT_PATH)/types/events,$\
+	Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,$\
+	Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn
+
 # buildbox-grpc generates GRPC stubs
 .PHONY: buildbox-grpc
 buildbox-grpc:
-# standard GRPC output
 	echo $$PROTO_INCLUDE
 	$(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}' \
 		api/client/proto/authservice.proto \
@@ -750,46 +755,45 @@ buildbox-grpc:
 		lib/multiplexer/test/ping.proto \
 		lib/web/envelope.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/client/proto \
-		--gogofast_out=plugins=grpc:api/client/proto \
+# we eval within the make target to avoid invoking `go run` with every other call to the makefile
+	$(eval API_IMPORT_PATH := $(shell go run build.assets/gomod/print-import-path/main.go ./api))
+
+	cd api/client/proto && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		authservice.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/types/events \
-		--gogofast_out=plugins=grpc:api/types/events \
+	cd api/types/events && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		events.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/types \
-		--gogofast_out=plugins=grpc:api/types \
+	cd api/types && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		types.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/types/webauthn \
-		--gogofast_out=plugins=grpc:api/types/webauthn \
+	cd api/types/webauthn && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		webauthn.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/types/wrappers \
-		--gogofast_out=plugins=grpc:api/types/wrappers \
+	cd api/types/wrappers && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		wrappers.proto
 
 	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc:. \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		types.proto
 
 	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc:. \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		slice.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc:. \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		ping.proto
 
 	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc:. \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		envelope.proto
+
 
 .PHONY: goinstall
 goinstall:
