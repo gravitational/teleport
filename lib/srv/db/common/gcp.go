@@ -105,7 +105,7 @@ func (g *gcpSQLAdminClient) GenerateEphemeralCert(ctx context.Context, sessionCt
 	gcp := sessionCtx.Database.GetGCP()
 	req := g.service.Connect.GenerateEphemeralCert(gcp.ProjectID, gcp.InstanceID, &sqladmin.GenerateEphemeralCertRequest{
 		PublicKey:     string(pem.EncodeToMemory(&pem.Block{Bytes: pkix, Type: "RSA PUBLIC KEY"})),
-		ValidDuration: fmt.Sprintf("%ds", int(sessionCtx.Identity.Expires.Sub(time.Now()).Seconds())),
+		ValidDuration: fmt.Sprintf("%ds", int(time.Until(sessionCtx.Identity.Expires).Seconds())),
 	})
 	resp, err := req.Context(ctx).Do()
 	if err != nil {
