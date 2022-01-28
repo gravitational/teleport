@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -41,8 +42,6 @@ type Server interface {
 	GetHostname() string
 	// GetNamespace returns server namespace
 	GetNamespace() string
-	// GetAllLabels returns server's static and dynamic label values merged together
-	GetAllLabels() map[string]string
 	// GetLabels returns server's static label key pairs
 	GetLabels() map[string]string
 	// GetCmdLabels gets command labels
@@ -351,6 +350,25 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (s *ServerV2) MatchSearch(values []string) bool {
+	var fieldVals []string
+	var custom func(val string) bool
+
+	if s.GetKind() == KindNode {
+		fieldVals = append(utils.MapToStrings(s.GetAllLabels()), s.GetName(), s.GetHostname(), s.GetAddr())
+
+		if s.GetUseTunnel() {
+			custom = func(val string) bool {
+				return strings.EqualFold(val, "tunnel")
+			}
+		}
+	}
+
+	return MatchSearch(fieldVals, values, custom)
 }
 
 // DeepCopy creates a clone of this server value

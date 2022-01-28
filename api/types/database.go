@@ -24,13 +24,14 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
 // Database represents a database proxied by a database server.
 type Database interface {
-	// ResourceWithOrigin provides common resource methods.
-	ResourceWithOrigin
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
 	// GetNamespace returns the database namespace.
 	GetNamespace() string
 	// GetStaticLabels returns the database static labels.
@@ -41,8 +42,6 @@ type Database interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the database dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
-	// GetAllLabels returns combined static and dynamic labels.
-	GetAllLabels() map[string]string
 	// LabelsString returns all labels as a string.
 	LabelsString() string
 	// String returns string representation of the database.
@@ -328,6 +327,22 @@ func (d *DatabaseV3) String() string {
 // Copy returns a copy of this database resource.
 func (d *DatabaseV3) Copy() *DatabaseV3 {
 	return proto.Clone(d).(*DatabaseV3)
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (d *DatabaseV3) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(d.GetAllLabels()), d.GetName(), d.GetDescription(), d.GetProtocol(), d.GetType())
+
+	var custom func(string) bool
+	switch d.GetType() {
+	case DatabaseTypeCloudSQL:
+		custom = func(val string) bool {
+			return strings.EqualFold(val, "cloud") || strings.EqualFold(val, "cloud sql")
+		}
+	}
+
+	return MatchSearch(fieldVals, values, custom)
 }
 
 // setStaticFields sets static resource header and metadata fields.

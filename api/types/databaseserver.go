@@ -248,6 +248,12 @@ func (s *DatabaseServerV3) Copy() DatabaseServer {
 	return proto.Clone(s).(*DatabaseServerV3)
 }
 
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (s *DatabaseServerV3) MatchSearch(values []string) bool {
+	return MatchSearch(nil, values, nil)
+}
+
 // DatabaseServers represents a list of database servers.
 type DatabaseServers []DatabaseServer
 
