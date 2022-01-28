@@ -296,7 +296,7 @@ clean:
 	rm -rf $(BUILDDIR)
 	rm -rf $(ER_BPF_BUILDDIR)
 	rm -rf $(RS_BPF_BUILDDIR)
-	cargo clean
+	-cargo clean
 	-go clean -cache
 	rm -rf teleport
 	rm -rf *.gz
