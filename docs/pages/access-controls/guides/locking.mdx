@@ -17,7 +17,8 @@ A lock can target the following objects or attributes:
 - an MFA device by the device's UUID;
 - an OS/UNIX login;
 - a Teleport node by the node's UUID (effectively unregistering it from the
-  cluster).
+  cluster);
+- an [access request](../../enterprise/workflow/index.mdx) by UUID.
 
 <Admonition type="warning">
   Locking support was introduced in Teleport v7.1. To fully enforce the locks
