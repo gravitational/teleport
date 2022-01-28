@@ -129,6 +129,9 @@ func initWorkspace(teleportPath string, branch string, workspaceDir string) erro
 		return fmt.Errorf("failed checking out branch %q: %w", branch, err)
 	}
 
+	fmt.Printf(">>> Checked out branch teleport:%s at ", branch)
+	git("rev-parse", "HEAD")
+
 	// This may fail in pre-4.3 Teleport versions that don't use the webassets
 	// submodule - remove this error check if porting to old branches.
 	fmt.Printf(">>> Fetching Webassets...\n")

@@ -10,39 +10,26 @@ steps:
       - WEBASSETS_DEPLOYMENT_KEY
     entrypoint: /bin/bash
     args:
-      - "-c"
-      - "go run .cloudbuild/ci/checkout.go -workspace=/tmp/teleport -target=$_BASE_BRANCH"
+      - -c
+      - go run .cloudbuild/ci/checkout.go -workspace=/tmp/teleport -target=$_BASE_BRANCH
 
-  # Run root integration tests. The root user is selected by docker image.
+  # Run the integration tests. Actual content of this job depends on the changes 
+  # detected in the PR
   - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
-    id: root-integration-test
-    dir: /tmp/teleport
-    timeout: 10m
-    args: ['make', 'rdpclient', 'bpf-bytecode', 'integration-root']
-     
-  # Reconfigure the workspace for the non-root user
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
-    id: reconfigure-for-nonroot-user
-    args: ['chown', '-R', 'ci:ci', '/tmp/teleport']
-
-  # Run non-root integration tests. The non-root user is selected by docker image.
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-nonroot:v0.1.0
-    id: nonroot-integration-test
-    env:
-      - TELEPORT_ETCD_TEST="yes"
-    dir: /tmp/teleport
-    entrypoint: '/bin/bash'    
+    id: run-tests
+    dir: /tmp/teleport/.cloudbuild/scripts
+    entrypoint: /bin/bash
     args: 
-      - '-c'
-      - '(make run-etcd &); sleep 1; make integration'
-    timeout: 15m
+      - -c
+      - go run ./cmd/integration-tests -w=/tmp/teleport -t=$_BASE_BRANCH -c=HEAD
+    timeout: 20m   
 
 availableSecrets:
   secretManager:
   - versionName: projects/771512790633/secrets/webassets-e-deployment-key/versions/2
     env: WEBASSETS_DEPLOYMENT_KEY
 
-timeout: 20m
+timeout: 25m
 
 options:
   volumes:

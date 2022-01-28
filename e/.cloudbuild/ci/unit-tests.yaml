@@ -12,16 +12,16 @@ steps:
       - "-c"
       - "go run .cloudbuild/ci/checkout.go -workspace=/tmp/teleport -target=$_BASE_BRANCH"
 
+  # Run the unit tests. Actual content of this job depends on the changes 
+  # detected in the PR
   - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
-    id: check
-    env:
-      - FLAGS=-cover -race
-      - TELEPORT_ETCD_TEST="yes"
-    entrypoint: /bin/bash
-    dir: /tmp/teleport
-    args:
-      - "-c"
-      - "(make run-etcd &); sleep 1; make test"
+    id: run-tests
+    dir: /tmp/teleport/.cloudbuild/scripts
+    entrypoint: bash 
+    args: 
+      - -c
+      - go run ./cmd/unit-tests -w=/tmp/teleport -t=$_BASE_BRANCH -c=HEAD
+    timeout: 15m
       
 availableSecrets:
   secretManager:
