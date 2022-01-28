@@ -270,12 +270,14 @@ $ tsh touchid diag  # diag output subject to change
 > Secure Enclave check passed: yes
 
 $ tsh touchid list
+<system shows Touch ID prompt>
 > RPID        User    Key Handle
 > ----------- ------- ------------------------------------
 > example.com llama   6ed2d2e4-7933-4988-9eeb-428e8531f122
 > example.com alpaca  cbf251a3-0e44-4068-87cb-91a1eb241eaf
 
 $ tsh touchid delete 6ed2d2e4-7933-4988-9eeb-428e8531f122
+<system shows Touch ID prompt>
 > Credential 6ed2d2e4-7933-4988-9eeb-428e8531f122 / llama@example.com deleted.
 ```
 
