@@ -94,10 +94,7 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 			ServerID:        session.Server.GetHostID(),
 			ServerNamespace: apidefaults.Namespace,
 		},
-		UserMetadata: events.UserMetadata{
-			User:         session.Identity.Username,
-			Impersonator: session.Identity.Impersonator,
-		},
+		UserMetadata: session.Identity.GetUserMetadata(),
 		SessionMetadata: events.SessionMetadata{
 			SessionID: session.ID,
 			WithMFA:   session.Identity.MFAVerified,
@@ -134,10 +131,7 @@ func (a *audit) OnSessionEnd(ctx context.Context, session *Session) {
 			Code:        libevents.DatabaseSessionEndCode,
 			ClusterName: session.ClusterName,
 		},
-		UserMetadata: events.UserMetadata{
-			User:         session.Identity.Username,
-			Impersonator: session.Identity.Impersonator,
-		},
+		UserMetadata: session.Identity.GetUserMetadata(),
 		SessionMetadata: events.SessionMetadata{
 			SessionID: session.ID,
 			WithMFA:   session.Identity.MFAVerified,
@@ -164,10 +158,7 @@ func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
 			Code:        libevents.DatabaseSessionQueryCode,
 			ClusterName: session.ClusterName,
 		},
-		UserMetadata: events.UserMetadata{
-			User:         session.Identity.Username,
-			Impersonator: session.Identity.Impersonator,
-		},
+		UserMetadata: session.Identity.GetUserMetadata(),
 		SessionMetadata: events.SessionMetadata{
 			SessionID: session.ID,
 			WithMFA:   session.Identity.MFAVerified,
