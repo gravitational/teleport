@@ -168,11 +168,7 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 				Type: events.PortForwardEvent,
 				Code: events.PortForwardFailureCode,
 			},
-			UserMetadata: apievents.UserMetadata{
-				Login:        ctx.Identity.Login,
-				User:         ctx.Identity.TeleportUser,
-				Impersonator: ctx.Identity.Impersonator,
-			},
+			UserMetadata: ctx.Identity.GetUserMetadata(),
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  ctx.ServerConn.LocalAddr().String(),
 				RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
