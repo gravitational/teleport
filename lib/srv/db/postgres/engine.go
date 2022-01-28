@@ -18,13 +18,13 @@ package postgres
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
@@ -445,11 +445,23 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// Create ephemeral certificate and append to TLS config when
-		// instance's RequireSsl setting is true.
-		err = e.appendGCPClientCert(ctx, sessionCtx, config.TLSConfig)
+		// Get the client once for subsequent calls (it acquires a read lock).
+		gcpClient, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		// Detect whether the instance is set to require SSL.
+		requireSSL, err := cloud.GetGCPRequireSSL(ctx, sessionCtx, gcpClient)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Create ephemeral certificate and append to TLS config when
+		// the instance requires SSL.
+		if requireSSL {
+			err = cloud.AppendGCPClientCert(ctx, sessionCtx, gcpClient, config.TLSConfig)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	case types.DatabaseTypeAzure:
 		config.Password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
@@ -461,32 +473,6 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 		config.User = fmt.Sprintf("%v@%v", config.User, sessionCtx.Database.GetAzure().Name)
 	}
 	return config, nil
-}
-
-// appendGCPClientCert calls the GCP API to generate an ephemeral certificate
-// when the instance's RequireSsl setting is true.
-func (e *Engine) appendGCPClientCert(ctx context.Context, sessionCtx *common.Session, tlsConfig *tls.Config) error {
-	svc, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	dbi, err := svc.GetDatabaseInstance(ctx, sessionCtx)
-	if err != nil {
-		return trace.Wrap(err, "failed to get Cloud SQL instance information for %q", tlsConfig.ServerName)
-	} else if dbi.Settings == nil || dbi.Settings.IpConfiguration == nil {
-		return trace.BadParameter("failed to find Cloud SQL settings for %q. GCP returned %+v", tlsConfig.ServerName, dbi)
-	}
-
-	if dbi.Settings.IpConfiguration.RequireSsl {
-		cert, err := svc.GenerateEphemeralCert(ctx, sessionCtx)
-		if err != nil {
-			return trace.Wrap(err, "failed to generate Cloud SQL ephemeral client certificate for %q", tlsConfig.ServerName)
-		}
-		tlsConfig.Certificates = []tls.Certificate{*cert}
-	}
-
-	return nil
 }
 
 // formatParameters converts parameters from the Postgres wire message into

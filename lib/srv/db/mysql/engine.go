@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
@@ -199,17 +200,26 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// Create ephemeral cert and append to TLS config when instance's
-		// RequireSsl setting is true.
-		requireSSL, err := e.appendGCPClientCert(ctx, sessionCtx, tlsConfig)
+		// Get the client once for subsequent calls (it acquires a read lock).
+		gcpClient, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// Use TLS dialer instead of the default net dialer when GCP
-		// requires SSL.
+		// Detect whether the instance is set to require SSL.
+		requireSSL, err := cloud.GetGCPRequireSSL(ctx, sessionCtx, gcpClient)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Create ephemeral certificate and append to TLS config when
+		// the instance requires SSL. Also use a TLS dialer instead of
+		// the default net dialer when GCP requires SSL.
 		if requireSSL {
+			err = cloud.AppendGCPClientCert(ctx, sessionCtx, gcpClient, tlsConfig)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			connectOpt = func(*client.Conn) {}
-			dialer = e.newGCPTLSDialer(ctx, sessionCtx, tlsConfig)
+			dialer = e.newGCPTLSDialer(tlsConfig)
 		}
 	case sessionCtx.Database.IsAzure():
 		password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
@@ -357,37 +367,9 @@ func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *common.Session) services
 	}
 }
 
-// appendGCPClientCert calls the GCP API to generate an ephemeral certificate
-// when the instance's RequireSsl setting is true. Return requireSSL so the
-// caller can configure a custom dialer.
-func (e *Engine) appendGCPClientCert(ctx context.Context, sessionCtx *common.Session, tlsConfig *tls.Config) (requireSSL bool, err error) {
-	svc, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	dbi, err := svc.GetDatabaseInstance(ctx, sessionCtx)
-	if err != nil {
-		return false, trace.Wrap(err, "failed to get Cloud SQL instance information for %q", tlsConfig.ServerName)
-	} else if dbi.Settings == nil || dbi.Settings.IpConfiguration == nil {
-		return false, trace.BadParameter("failed to find Cloud SQL settings for %q. GCP returned %+v", tlsConfig.ServerName, dbi)
-	}
-
-	if dbi.Settings.IpConfiguration.RequireSsl {
-		cert, err := svc.GenerateEphemeralCert(ctx, sessionCtx)
-		if err != nil {
-			return false, trace.Wrap(err, "failed to generate Cloud SQL ephemeral client certificate for %q", tlsConfig.ServerName)
-		}
-		tlsConfig.Certificates = []tls.Certificate{*cert}
-		return true, nil
-	}
-
-	return false, nil
-}
-
 // newGCPTLSDialer returns a TLS dialer configured to connect to the Cloud Proxy
 // port rather than the default MySQL port.
-func (e *Engine) newGCPTLSDialer(ctx context.Context, sessionCtx *common.Session, tlsConfig *tls.Config) client.Dialer {
+func (e *Engine) newGCPTLSDialer(tlsConfig *tls.Config) client.Dialer {
 	return func(ctx context.Context, network, address string) (net.Conn, error) {
 		// Workaround issue generating ephemeral certificates for secure connections
 		// by creating a TLS connection to the Cloud Proxy port overridding the
