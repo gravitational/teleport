@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
@@ -782,6 +783,41 @@ func ClientImpersonator(ctx context.Context) string {
 	}
 	identity := userWithIdentity.GetIdentity()
 	return identity.Impersonator
+}
+
+// ClientUserMetadata returns a UserMetadata suitable for events caused by a
+// remote client making a call. If ctx didn't pass through auth middleware or
+// did not come from an HTTP request, metadata for teleport.UserSystem is
+// returned.
+func ClientUserMetadata(ctx context.Context) apievents.UserMetadata {
+	userI := ctx.Value(ContextUser)
+	userWithIdentity, ok := userI.(IdentityGetter)
+	if !ok {
+		return apievents.UserMetadata{
+			User: teleport.UserSystem,
+		}
+	}
+	meta := userWithIdentity.GetIdentity().GetUserMetadata()
+	if meta.User == "" {
+		meta.User = teleport.UserSystem
+	}
+	return meta
+}
+
+// ClientUserMetadataWithUser returns a UserMetadata suitable for events caused
+// by a remote client making a call, with the specified username overriding the one
+// from the remote client.
+func ClientUserMetadataWithUser(ctx context.Context, user string) apievents.UserMetadata {
+	userI := ctx.Value(ContextUser)
+	userWithIdentity, ok := userI.(IdentityGetter)
+	if !ok {
+		return apievents.UserMetadata{
+			User: user,
+		}
+	}
+	meta := userWithIdentity.GetIdentity().GetUserMetadata()
+	meta.User = user
+	return meta
 }
 
 // LocalUser is a local user
