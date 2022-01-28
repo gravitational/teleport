@@ -17,6 +17,7 @@ pub mod errors;
 pub mod piv;
 pub mod rdpdr;
 pub mod scard;
+pub mod vchan;
 
 #[macro_use]
 extern crate log;
@@ -181,10 +182,15 @@ fn connect_rdp_inner(
         screen_width,
         screen_height,
         KeyboardLayout::US,
-        // Request the RDPDR (device redirection) static channel.
-        // For some reason, we also need to request RDPSND (sound) along with it,
-        // although it's never used explicitly from our end.
-        &["rdpdr".to_string(), "rdpsnd".to_string()],
+        // request the static channels we'll need:
+        // rdpdr: derive redirection (smart cards)
+        // rdpsnd: sound (for some reason we need to request this)
+        // cliprdr: clipboard
+        &[
+            rdpdr::CHANNEL_NAME.to_string(),
+            "rdpsnd".to_string(),
+            cliprdr::CHANNEL_NAME.to_string(),
+        ],
     )?;
     // Password must be non-empty for autologin (sec::InfoFlag::InfoPasswordIsScPin) to trigger on
     // a smartcard.
@@ -211,7 +217,15 @@ fn connect_rdp_inner(
     // Client for the "rdpdr" channel - smartcard emulation.
     let rdpdr = rdpdr::Client::new(cert_der, key_der);
 
-    let rdp_client = RdpClient { mcs, global, rdpdr };
+    // Client for the "cliprdr" channel - clipboard sharing.
+    let cliprdr = cliprdr::Client::new();
+
+    let rdp_client = RdpClient {
+        mcs,
+        global,
+        rdpdr,
+        cliprdr,
+    };
     Ok(Client {
         rdp_client: Arc::new(Mutex::new(rdp_client)),
         tcp_fd,
@@ -223,6 +237,7 @@ struct RdpClient<S> {
     mcs: mcs::Client<S>,
     global: global::Client,
     rdpdr: rdpdr::Client,
+    cliprdr: cliprdr::Client,
 }
 
 impl<S: Read + Write> RdpClient<S> {
@@ -235,13 +250,15 @@ impl<S: Read + Write> RdpClient<S> {
         // name.
         match channel_name.as_str() {
             "global" => self.global.read(message, &mut self.mcs, callback),
-            "rdpdr" => self.rdpdr.read(message, &mut self.mcs),
+            rdpdr::CHANNEL_NAME => self.rdpdr.read(message, &mut self.mcs),
+            cliprdr::CHANNEL_NAME => self.cliprdr.read(message, &mut self.mcs),
             _ => Err(RdpError::RdpError(RdpProtocolError::new(
                 RdpErrorKind::UnexpectedType,
                 &format!("Invalid channel name {:?}", channel_name),
             ))),
         }
     }
+
     pub fn write(&mut self, event: RdpEvent) -> RdpResult<()> {
         match event {
             RdpEvent::Pointer(pointer) => {
@@ -254,6 +271,7 @@ impl<S: Read + Write> RdpClient<S> {
             ))),
         }
     }
+
     pub fn shutdown(&mut self) -> RdpResult<()> {
         self.mcs.shutdown()
     }

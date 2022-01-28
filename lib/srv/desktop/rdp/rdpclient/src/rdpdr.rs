@@ -13,9 +13,8 @@
 // limitations under the License.
 
 use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
-use crate::scard;
 use crate::Payload;
-use bitflags::bitflags;
+use crate::{scard, vchan};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::mcs;
@@ -25,7 +24,7 @@ use rdp::model::error::*;
 use rdp::try_let;
 use std::io::{Read, Write};
 
-const CHANNEL_NAME: &str = "rdpdr";
+pub const CHANNEL_NAME: &str = "rdpdr";
 
 /// Client implements a device redirection (RDPDR) client, as defined in
 /// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
@@ -49,7 +48,7 @@ impl Client {
         let mut payload = try_let!(tpkt::Payload::Raw, payload)?;
 
         // Ignore this, we don't need anything from this header.
-        let _pdu_header = ChannelPDUHeader::decode(&mut payload)?;
+        let _pdu_header = vchan::ChannelPDUHeader::decode(&mut payload)?;
 
         let header = Header::decode(&mut payload)?;
         if let Component::RDPDR_CTYP_PRN = header.component {
@@ -169,45 +168,9 @@ impl Client {
 fn encode_message(packet_id: PacketId, payload: Vec<u8>) -> RdpResult<Vec<u8>> {
     let mut inner = Header::new(Component::RDPDR_CTYP_CORE, packet_id).encode()?;
     inner.extend_from_slice(&payload);
-    let mut outer = ChannelPDUHeader::new(inner.length() as u32).encode()?;
+    let mut outer = vchan::ChannelPDUHeader::new(inner.length() as u32).encode()?;
     outer.extend_from_slice(&inner);
     Ok(outer)
-}
-
-bitflags! {
-    struct ChannelPDUFlags: u32 {
-        const CHANNEL_FLAG_FIRST = 0x00000001;
-        const CHANNEL_FLAG_LAST = 0x00000002;
-        const CHANNEL_FLAG_ONLY = Self::CHANNEL_FLAG_FIRST.bits | Self::CHANNEL_FLAG_LAST.bits;
-    }
-}
-
-#[derive(Debug)]
-struct ChannelPDUHeader {
-    length: u32,
-    flags: ChannelPDUFlags,
-}
-
-impl ChannelPDUHeader {
-    fn new(length: u32) -> Self {
-        Self {
-            length,
-            flags: ChannelPDUFlags::CHANNEL_FLAG_ONLY,
-        }
-    }
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
-        Ok(Self {
-            length: payload.read_u32::<LittleEndian>()?,
-            flags: ChannelPDUFlags::from_bits(payload.read_u32::<LittleEndian>()?)
-                .ok_or_else(|| invalid_data_error("invalid flags in ChannelPDUHeader"))?,
-        })
-    }
-    fn encode(&self) -> RdpResult<Vec<u8>> {
-        let mut w = vec![];
-        w.write_u32::<LittleEndian>(self.length)?;
-        w.write_u32::<LittleEndian>(self.flags.bits())?;
-        Ok(w)
-    }
 }
 
 #[derive(Debug)]
