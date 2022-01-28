@@ -18,6 +18,7 @@ package types
 
 import (
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -81,6 +82,9 @@ type ResourceWithLabels interface {
 	ResourceWithOrigin
 	// GetAllLabels returns all resource's labels.
 	GetAllLabels() map[string]string
+	// MatchSearch goes through select field values of a resource
+	// and tries to match against the list of search values.
+	MatchSearch(searchValues []string) bool
 }
 
 // ResourcesWithLabels is a list of labeled resources.
@@ -254,6 +258,19 @@ func (m *Metadata) CheckAndSetDefaults() error {
 	return nil
 }
 
+// MatchLabels takes a map of labels and returns `true` if the resource has ALL
+// of them.
+func MatchLabels(resource ResourceWithLabels, labels map[string]string) bool {
+	resourceLabels := resource.GetAllLabels()
+	for name, value := range labels {
+		if resourceLabels[name] != value {
+			return false
+		}
+	}
+
+	return true
+}
+
 // LabelPattern is a regexp that describes a valid label key
 const LabelPattern = `^[a-zA-Z/.0-9_*-]+$`
 
@@ -263,4 +280,33 @@ var validLabelKey = regexp.MustCompile(LabelPattern)
 // label key regexp.
 func IsValidLabelKey(s string) bool {
 	return validLabelKey.MatchString(s)
+}
+
+// MatchSearch goes through select field values from a resource
+// and tries to match against the list of search values, ignoring case and order.
+// Returns true if all search vals were matched (or if nil search vals).
+// Returns false if no or partial match (or nil field values).
+func MatchSearch(fieldVals []string, searchVals []string, customMatch func(val string) bool) bool {
+	// Case fold all values to avoid repeated case folding while matching.
+	caseFoldedSearchVals := utils.ToLowerStrings(searchVals)
+	caseFoldedFieldVals := utils.ToLowerStrings(fieldVals)
+
+Outer:
+	for _, searchV := range caseFoldedSearchVals {
+		// Iterate through field values to look for a match.
+		for _, fieldV := range caseFoldedFieldVals {
+			if strings.Contains(fieldV, searchV) {
+				continue Outer
+			}
+		}
+
+		if customMatch != nil && customMatch(searchV) {
+			continue
+		}
+
+		// When no fields matched a value, prematurely end if we can.
+		return false
+	}
+
+	return true
 }

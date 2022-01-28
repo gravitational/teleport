@@ -508,7 +508,7 @@ impl RPCETypeHeader {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 struct ScardAccessStartedEvent_Call {
     unused: u32,
 }
@@ -612,7 +612,7 @@ impl Long_Return {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 struct EstablishContext_Call {
     scope: Scope,
 }
@@ -731,7 +731,7 @@ fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<u32> {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 struct ListReaders_Call {
     context: Context,
     groups_length: u32,
@@ -903,7 +903,7 @@ impl Context_Call {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 struct GetStatusChange_Call {
     context: Context,
     timeout: u32,
@@ -1110,7 +1110,7 @@ impl GetStatusChange_Return {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 struct Connect_Call {
     reader: String,
     common: Connect_Common,
@@ -1143,7 +1143,7 @@ bitflags! {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 struct Connect_Common {
     context: Context,
     share_mode: u32,
@@ -1251,7 +1251,7 @@ impl Handle {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 struct HCardAndDisposition_Call {
     handle: Handle,
     disposition: u32,
@@ -1274,7 +1274,7 @@ impl HCardAndDisposition_Call {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 struct Status_Call {
     handle: Handle,
     reader_names_is_null: bool,
@@ -1373,7 +1373,7 @@ impl Status_Return {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 struct Transmit_Call {
     handle: Handle,
     send_pci: SCardIO_Request,
@@ -1427,7 +1427,7 @@ impl Transmit_Call {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 struct SCardIO_Request {
     protocol: CardProtocol,
     extra_bytes_length: u32,
@@ -1486,7 +1486,7 @@ impl Transmit_Return {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 struct GetDeviceTypeId_Call {
     context: Context,
     reader_name: String,
@@ -1565,7 +1565,7 @@ impl ReadCache_Call {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 struct ReadCache_Common {
     context: Context,
     card_uuid: Vec<u8>,
@@ -1658,7 +1658,7 @@ impl WriteCache_Call {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 struct WriteCache_Common {
     context: Context,
     card_uuid: Vec<u8>,
@@ -1696,7 +1696,7 @@ impl WriteCache_Common {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 struct GetReaderIcon_Call {
     context: Context,
     reader_name: String,

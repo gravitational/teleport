@@ -55,10 +55,7 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 			Type: events.SAMLConnectorCreatedEvent,
 			Code: events.SAMLConnectorCreatedCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
@@ -79,10 +76,7 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorName string) 
 			Type: events.SAMLConnectorDeletedEvent,
 			Code: events.SAMLConnectorDeletedCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connectorName,
 		},

@@ -41,7 +41,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"gopkg.in/check.v1"
 )
 
@@ -87,8 +87,8 @@ func (s *Suite) TestWatch(c *check.C) {
 	// have PID 1, so nothing should be captured in the Audit Log.
 	cgroupID, err := service.OpenSession(&SessionContext{
 		Namespace: apidefaults.Namespace,
-		SessionID: uuid.New(),
-		ServerID:  uuid.New(),
+		SessionID: uuid.New().String(),
+		ServerID:  uuid.New().String(),
 		Login:     "foo",
 		User:      "foo@example.com",
 		PID:       cmd.Process.Pid,

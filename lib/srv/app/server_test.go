@@ -47,8 +47,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
@@ -118,7 +118,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
-	s.hostUUID = uuid.New()
+	s.hostUUID = uuid.New().String()
 
 	var err error
 	// Create Auth Server.
@@ -163,7 +163,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	// Create a in-memory HTTP server that will respond with a UUID. This value
 	// will be checked in the client later to ensure a connection was made.
-	s.message = uuid.New()
+	s.message = uuid.New().String()
 
 	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, s.message)
