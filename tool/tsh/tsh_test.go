@@ -1147,10 +1147,10 @@ func TestMakeTableWithTruncatedColumn(t *testing.T) {
 
 func TestPrintCommand(t *testing.T) {
 	var buff bytes.Buffer
-	cmd := exec.Command("path-to-binary", "arg1", "arg2&need&quote", "arg3")
+	cmd := exec.Command("path-to-binary", "arg1", "arg2&need&quote", "\"arg3\"")
 
 	printCommand(&buff, cmd)
-	require.Equal(t, "path-to-binary arg1 \"arg2&need&quote\" arg3\n", buff.String())
+	require.Equal(t, "path-to-binary arg1 \"arg2&need&quote\" \"arg3\"\n", buff.String())
 }
 
 type testServersOpts struct {

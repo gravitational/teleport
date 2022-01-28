@@ -2476,7 +2476,7 @@ func printCommand(output io.Writer, cmd *exec.Cmd) {
 	// Add quotes for arguments with '&' to prevent sending the command to
 	// background in terminal.
 	for i, arg := range cmd.Args {
-		if strings.ContainsRune(arg, '&') {
+		if strings.ContainsRune(arg, '&') && !strings.ContainsRune(arg, '"') {
 			cmd.Args[i] = fmt.Sprintf("%q", arg)
 		}
 	}
