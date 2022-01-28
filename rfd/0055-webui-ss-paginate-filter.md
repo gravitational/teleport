@@ -3,7 +3,7 @@ authors: Lisa Kim (lisa@goteleport.com)
 state: draft
 ---
 
-# RFD TBD - WebUI server-side paginating and filtering
+# RFD 55 - WebUI server-side paginating and filtering
 
 ## What
 
@@ -82,7 +82,7 @@ We can branch off into two functions with current `ListResources` based on if so
   - `listResources` (keeps current behavior)
   - `listResourcesWithSort`
 
-`listResourcesWithSort` will:
+`listResourcesWithSort` will `fake` pagination by:
 
 1. retrieve the entire list of resources ie: `GetNodes` (operating on cache)
 1. apply filters (rbac > label + search)
