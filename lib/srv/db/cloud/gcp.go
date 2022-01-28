@@ -27,8 +27,10 @@ import (
 )
 
 // GetGCPRequireSSL requests settings for the project/instance in session from GCP
-// and returns true when the instance requires SSL. An error is returned when the
-// API call fails or the returned settings are incomplete.
+// and returns true when the instance requires SSL. Unauthorized requests will fallback
+// to returning false for requireSSL with a nil error so callers can attempt to connect
+// without SSL. An error is returned for all other API call errors or the returned settings
+// are incomplete.
 func GetGCPRequireSSL(ctx context.Context, sessionCtx *common.Session, gcpClient common.GCPSQLAdminClient) (requireSSL bool, err error) {
 	dbi, err := gcpClient.GetDatabaseInstance(ctx, sessionCtx)
 	if err != nil {
@@ -44,7 +46,8 @@ func GetGCPRequireSSL(ctx context.Context, sessionCtx *common.Session, gcpClient
 }
 
 // AppendGCPClientCert calls the GCP API to generate an ephemeral certificate
-// and adds it to the TLS config.
+// and adds it to the TLS config. Access denied error is returned when the
+// generate call fails.
 func AppendGCPClientCert(ctx context.Context, sessionCtx *common.Session, gcpClient common.GCPSQLAdminClient, tlsConfig *tls.Config) error {
 	cert, err := gcpClient.GenerateEphemeralCert(ctx, sessionCtx)
 	if err == nil {
