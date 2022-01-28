@@ -203,7 +203,7 @@ func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
 	}
 	s.log.Debugf("Succeeded dialing %v.", params)
 
-	return conn, nil
+	return newEmitConn(s.srv.ctx, conn, s.client, s.srv.ID), nil
 }
 
 // IsClosed always returns false because localSite is never closed.
