@@ -7,15 +7,16 @@ h1: Moderated Sessions
 # Moderated Sessions
 
 Moderated Sessions makes use of RBAC to control access to and within sessions.
-Here is a collection of details on configuring Moderated Sessions.
 
 Moderated Sessions makes use of RBAC policies to allow for fine grained control over
-who can join a session and who are required to be present to start one.
+who can join a session and who is required to be present to start one.
 
-The system is based around **require policies** and allow policies. Require policies define a set of conditions
+The system is based around **require policies** and **allow policies**. 
+
+Require policies define a set of conditions
 that must be a met for a session to start/run.
 
-**Allow policies** are used to define what sessions a user can join
+Allow policies are used to define what sessions a user can join
 and under what conditions they may join a session.
 
 ## Session kinds
@@ -96,12 +97,12 @@ from the session which may pause it, if RBAC policies are no longer met.
 ## Participant Modes
 
 A participant joining a session will always have one of three modes:
-- Peers can join and collaborate in a session. They can view output and send input.
-- Moderators can join and watch a session. They can view output and forcefully terminate the session at will.
-- Observers can join and watch a session. They cannot control the session in any way.
+- **Peers** can join and collaborate in a session. They can view output and send input.
+- **Moderators** can join and watch a session. They can view output and forcefully terminate the session at will.
+- **Observers** can join and watch a session. They cannot control the session in any way.
 
-When joining a session with `tsh join` or `tsh kube join`, a mode can be specified with `--mode <mode>`
-where mode is one of `peer`, `moderator` or `observer`. By default, the mode is `peer` for SSH and
+When joining a session with `tsh join` or `tsh kube join`, a user can specify a mode with the `--mode <mode>` flag
+, where the mode is one of `peer`, `moderator` or `observer`. By default, the mode is `peer` for SSH and
 `moderator` for Kubernetes sessions.
 
 A participant may leave a session with the shortcut `c` while in observer or moderator mode.
