@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import moment from 'moment';
+import { formatDistanceStrict } from 'date-fns';
 import cfg from 'teleport/config';
 import { NodeToken, BashCommand } from './types';
 
@@ -23,8 +23,7 @@ export default function makeAppBashCmd(
   appName = '',
   appUri = ''
 ): BashCommand {
-  const duration = moment(new Date()).diff(token.expiry);
-  const expires = moment.duration(duration).humanize();
+  const expires = formatDistanceStrict(new Date(), token.expiry);
 
   // encode uri so it can be passed around as URL query parameter
   const encoded = encodeURIComponent(appUri)

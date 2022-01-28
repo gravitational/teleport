@@ -1,25 +1,16 @@
-import moment from 'moment';
+import { startOfDay, endOfDay, subDays } from 'date-fns';
 
 export function getRangeOptions(): EventRange[] {
   return [
     {
       name: 'Today',
-      from: moment(new Date())
-        .startOf('day')
-        .toDate(),
-      to: moment(new Date())
-        .endOf('day')
-        .toDate(),
+      from: startOfDay(new Date()),
+      to: endOfDay(new Date()),
     },
     {
       name: '7 days',
-      from: moment()
-        .subtract(6, 'day')
-        .startOf('day')
-        .toDate(),
-      to: moment(new Date())
-        .endOf('day')
-        .toDate(),
+      from: startOfDay(subDays(new Date(), 6)),
+      to: endOfDay(new Date()),
     },
     {
       name: 'Custom Range...',

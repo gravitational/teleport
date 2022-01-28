@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import moment from 'moment';
+import { isAfter, endOfDay, startOfDay, isSameDay, subMonths } from 'date-fns';
 import styled from 'styled-components';
 import DayPicker, { DateUtils } from 'react-day-picker';
 import 'react-day-picker/lib/style.css';
@@ -34,13 +34,13 @@ export default class CustomRange extends React.Component {
   }
 
   handleDayClick = day => {
-    if (moment(day) > moment(new Date()).endOf('day')) {
+    if (isAfter(day, endOfDay(new Date()))) {
       return;
     }
 
     let { from, end } = this.state;
 
-    if (moment(from).isSame(day)) {
+    if (isSameDay(from, day)) {
       return;
     }
 
@@ -54,15 +54,11 @@ export default class CustomRange extends React.Component {
     const range = DateUtils.addDayToRange(day, { from, end });
 
     if (range.from) {
-      range.from = moment(range.from)
-        .startOf('day')
-        .toDate();
+      range.from = startOfDay(range.from);
     }
 
     if (range.to) {
-      range.to = moment(range.to)
-        .endOf('day')
-        .toDate();
+      range.to = endOfDay(range.to);
     }
 
     this.setState(range, this.onChange);
@@ -87,9 +83,7 @@ export default class CustomRange extends React.Component {
         <DayPicker
           className="Selectable"
           numberOfMonths={2}
-          month={moment(to)
-            .subtract(1, 'month')
-            .toDate()}
+          month={subMonths(to, 1)}
           disabledDays={{
             after: new Date(),
           }}

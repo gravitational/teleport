@@ -14,15 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import moment from 'moment';
+import { formatDistanceStrict } from 'date-fns';
 import { map } from 'lodash';
 import { Session, Participant } from './types';
 
 export default function makeSession(json): Session {
   const clusterId = json.cluster_name;
   const created = new Date(json.created);
-  const duration = moment(new Date()).diff(created);
-  const durationText = moment.duration(duration).humanize();
+  const durationText = formatDistanceStrict(new Date(), created);
   const login = json.login;
   const namespace = json.namespace;
   const parties = map(json.parties, makeParticipant);

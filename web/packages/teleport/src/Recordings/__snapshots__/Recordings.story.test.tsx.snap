@@ -736,7 +736,7 @@ exports[`rendering of Session Recordings 1`] = `
             joe
           </td>
           <td>
-            a few seconds
+            2 seconds
           </td>
           <td>
             2022-01-19 15:49:50
@@ -768,7 +768,7 @@ exports[`rendering of Session Recordings 1`] = `
             joe
           </td>
           <td>
-            a few seconds
+            5 seconds
           </td>
           <td>
             2022-01-19 15:19:46
@@ -832,7 +832,7 @@ exports[`rendering of Session Recordings 1`] = `
             foo
           </td>
           <td>
-            a few seconds
+            32 seconds
           </td>
           <td>
             2021-05-21 22:54:27
@@ -864,7 +864,7 @@ exports[`rendering of Session Recordings 1`] = `
             one, two
           </td>
           <td>
-            a few seconds
+            21 seconds
           </td>
           <td>
             2019-04-22 00:00:51

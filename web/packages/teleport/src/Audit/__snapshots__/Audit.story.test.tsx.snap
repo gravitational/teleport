@@ -1293,7 +1293,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] has ended an interactive session lasting a few seconds [5ef7244c-0f7b-4f57-80b0-26a79f960aae] on node [im-a-nodename]
+          User [root] has ended an interactive session lasting 6 seconds [5ef7244c-0f7b-4f57-80b0-26a79f960aae] on node [im-a-nodename]
         </td>
         <td
           style="min-width: 120px;"

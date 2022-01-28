@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import moment from 'moment';
+import { format } from 'date-fns';
 import Logger from 'shared/libs/logger';
 import cfg from 'shared/config';
 
@@ -32,11 +32,9 @@ export function displayUnixDate(seconds: number) {
 export function displayDate(date: Date) {
   try {
     if (isTest) {
-      return moment(date)
-        .utc()
-        .format(cfg.dateFormat);
+      return format(dateToUtc(date), cfg.dateFormat);
     }
-    return moment(date).format(cfg.dateFormat);
+    return format(date, cfg.dateFormat);
   } catch (err) {
     logger.error('displayDate()', err);
     return 'undefined';
@@ -46,13 +44,15 @@ export function displayDate(date: Date) {
 export function displayDateTime(date: Date) {
   try {
     if (isTest) {
-      return moment(date)
-        .utc()
-        .format(cfg.dateTimeFormat);
+      return format(dateToUtc(date), cfg.dateTimeFormat);
     }
-    return moment(date).format(cfg.dateTimeFormat);
+    return format(date, cfg.dateTimeFormat);
   } catch (err) {
     logger.error('displayDateTime()', err);
     return 'undefined';
   }
+}
+
+function dateToUtc(date: Date) {
+  return new Date(date.getTime() + date.getTimezoneOffset() * 60 * 1000);
 }

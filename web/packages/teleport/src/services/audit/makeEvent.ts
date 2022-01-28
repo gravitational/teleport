@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import moment from 'moment';
+import { formatDistanceStrict } from 'date-fns';
 import { Event, RawEvent, Formatters, eventCodes } from './types';
 
 export const formatters: Formatters = {
@@ -39,8 +39,7 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_DELETED]: {
     type: 'access_request.delete',
     desc: 'Access Request Deleted',
-    format: ({ id }) =>
-      `Access request [${id}] has been deleted`,
+    format: ({ id }) => `Access request [${id}] has been deleted`,
   },
   [eventCodes.SESSION_COMMAND]: {
     type: 'session.command',
@@ -219,8 +218,9 @@ export const formatters: Formatters = {
       }
 
       if (event.session_start && event.session_stop) {
-        const duration = moment(event.session_stop).diff(event.session_start);
-        const durationText = moment.duration(duration).humanize();
+        const start = new Date(event.session_start);
+        const end = new Date(event.session_stop);
+        const durationText = formatDistanceStrict(start, end);
         return `User [${user}] has ended an interactive session lasting ${durationText} [${event.sid}] on node [${node}]`;
       }
 
@@ -394,7 +394,10 @@ export const formatters: Formatters = {
     type: 'db.session.postgres.parse',
     desc: 'PostgreSQL Statement Parse',
     format: ({ user, db_service, statement_name, query }) =>
-      `User [${user}] has prepared [${truncateStr(query, 80)}] as statement [${statement_name}] on [${db_service}]`,
+      `User [${user}] has prepared [${truncateStr(
+        query,
+        80
+      )}] as statement [${statement_name}] on [${db_service}]`,
   },
   [eventCodes.POSTGRES_BIND]: {
     type: 'db.session.postgres.bind',
@@ -413,10 +416,10 @@ export const formatters: Formatters = {
     desc: 'PostgreSQL Statement Close',
     format: e => {
       if (e.portal_name) {
-        return `User [${e.user}] has closed portal [${e.portal_name}] on [${e.db_service}]`
+        return `User [${e.user}] has closed portal [${e.portal_name}] on [${e.db_service}]`;
       }
-      return `User [${e.user}] has closed statement [${e.statement_name}] on [${e.db_service}]`
-    }
+      return `User [${e.user}] has closed statement [${e.statement_name}] on [${e.db_service}]`;
+    },
   },
   [eventCodes.POSTGRES_FUNCTION_CALL]: {
     type: 'db.session.postgres.function',
