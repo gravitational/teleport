@@ -178,7 +178,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(clock),
 		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
-		SetX11ForwardingConfig(&x11.ServerConfig{Enabled: true, DisplayOffset: 10}),
+		SetX11ForwardingConfig(&x11.ServerConfig{Enabled: true}),
 	}
 
 	serverOptions = append(serverOptions, sshOpts...)

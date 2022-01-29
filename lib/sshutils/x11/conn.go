@@ -20,12 +20,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-const (
-	// x11MaxDisplays is the number of displays which the
-	// server will support concurrent X11 forwarding for.
-	x11MaxDisplays = 1000
-)
-
 // XServerConn is a connection to an XServer through a direct or forwarded connection.
 // It can either be a tcp conn, unix conn, or an X11 channel.
 type XServerConn interface {
@@ -65,8 +59,17 @@ func (l *xserverTCPListener) Accept() (XServerConn, error) {
 }
 
 // OpenNewXServerListener opens an XServerListener for the first available Display.
-func OpenNewXServerListener(displayOffset int, screen uint32) (XServerListener, Display, error) {
-	for displayNumber := displayOffset; displayNumber < displayOffset+x11MaxDisplays; displayNumber++ {
+// displayOffset will determine what display number to start from when searching for
+// an open display unix socket, and maxDisplays in optional limit for the number of
+// display sockets which can be opened at once.
+func OpenNewXServerListener(displayOffset int, maxDisplay int, screen uint32) (XServerListener, Display, error) {
+	if displayOffset > maxDisplay {
+		return nil, Display{}, trace.BadParameter("displayOffset cannot be larger than maxDisplay")
+	} else if maxDisplay > MaxDisplayNumber {
+		return nil, Display{}, trace.BadParameter("maxDisplay cannot be larger than the max int32 (2147483647)")
+	}
+
+	for displayNumber := displayOffset; displayNumber < maxDisplay; displayNumber++ {
 		display := Display{DisplayNumber: displayNumber}
 		if l, err := display.Listen(); err == nil {
 			return l, display, nil

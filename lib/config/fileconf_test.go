@@ -18,11 +18,13 @@ package config
 
 import (
 	"bytes"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -388,6 +390,34 @@ func TestSSHSection(t *testing.T) {
 				cfg["ssh_service"].(cfgMap)["port_forwarding"] = "banana"
 			},
 			expectError: require.Error,
+		}, {
+			desc: "X11 enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11.enabled"] = "yes"
+			},
+			expectError: require.NoError,
+		}, {
+			desc: "X11 disabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11.enabled"] = "no"
+			},
+			expectError: require.NoError,
+		}, {
+			desc:        "X11 display offset default",
+			mutate:      func(cfg cfgMap) {},
+			expectError: require.NoError,
+		}, {
+			desc: "X11 display offset 100",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11.display_offset"] = 100
+			},
+			expectError: require.NoError,
+		}, {
+			desc: "X11 display offset invalid value",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11.display_offset"] = "banana"
+			},
+			expectError: require.NoError,
 		},
 	}
 
@@ -406,5 +436,161 @@ func TestSSHSection(t *testing.T) {
 				testCase.expectAllowsTCPForwarding(t, cfg.SSH.AllowTCPForwarding())
 			}
 		})
+	}
+
+}
+
+func TestX11Config(t *testing.T) {
+	for _, tc := range []struct {
+		desc            string
+		mutate          func(cfgMap)
+		expectError     require.ErrorAssertionFunc
+		expectX11Config *x11.ServerConfig
+	}{
+		{
+			desc:            "default",
+			mutate:          func(cfg cfgMap) {},
+			expectError:     require.NoError,
+			expectX11Config: &x11.ServerConfig{},
+		}, {
+			desc: "disabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled": "no",
+				}
+			},
+			expectError:     require.NoError,
+			expectX11Config: &x11.ServerConfig{},
+		}, {
+			desc: "x11 enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled": "yes",
+				}
+			},
+			expectError: require.NoError,
+			expectX11Config: &x11.ServerConfig{
+				Enabled:       true,
+				DisplayOffset: x11.DefaultDisplayOffset,
+				MaxDisplay:    x11.DefaultMaxDisplay,
+			},
+		}, {
+			desc: "enabled value invalid",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":        "no",
+					"display_offset": "100",
+				}
+			},
+			expectError: require.Error,
+		}, {
+			desc: "display offset set",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":        "yes",
+					"display_offset": "100",
+				}
+			},
+			expectError: require.NoError,
+			expectX11Config: &x11.ServerConfig{
+				Enabled:       true,
+				DisplayOffset: 100,
+				MaxDisplay:    x11.DefaultMaxDisplay,
+			},
+		}, {
+			desc: "not enabled, display offset set",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":        "no",
+					"display_offset": "100",
+				}
+			},
+			expectError: require.NoError,
+			expectX11Config: &x11.ServerConfig{
+				Enabled: false,
+			},
+		}, {
+			desc: "display offset value invalid",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":        "yes",
+					"display_offset": "banana",
+				}
+			},
+			expectError: require.Error,
+		}, {
+			desc: "display offset value capped",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":        "yes",
+					"display_offset": math.MaxUint32,
+				}
+			},
+			expectError: require.Error,
+			expectX11Config: &x11.ServerConfig{
+				Enabled:       true,
+				DisplayOffset: x11.DefaultDisplayOffset,
+			},
+		}, {
+			desc: "max displays set",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":      "yes",
+					"max_displays": "100",
+				}
+			},
+			expectError: require.NoError,
+			expectX11Config: &x11.ServerConfig{
+				Enabled:       true,
+				DisplayOffset: x11.DefaultDisplayOffset,
+				MaxDisplay:    100,
+			},
+		}, {
+			desc: "not enabled, max displays set",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":      "no",
+					"max_displays": "100",
+				}
+			},
+			expectError: require.NoError,
+			expectX11Config: &x11.ServerConfig{
+				Enabled: false,
+			},
+		}, {
+			desc: "max displays value invalid",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":      "yes",
+					"max_displays": "banana",
+				}
+			},
+			expectError: require.Error,
+		}, {
+			desc: "max displays value capped",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":      "yes",
+					"max_displays": math.MaxUint32,
+				}
+			},
+			expectError: require.Error,
+			expectX11Config: &x11.ServerConfig{
+				Enabled:       true,
+				DisplayOffset: x11.DefaultDisplayOffset,
+				MaxDisplay:    x11.MaxDisplayNumber - x11.DefaultDisplayOffset,
+			},
+		},
+	} {
+		text := bytes.NewBuffer(editConfig(t, tc.mutate))
+		cfg, err := ReadConfig(text)
+		tc.expectError(t, err)
+		if err != nil {
+			return
+		}
+
+		serverCfg, err := cfg.SSH.X11ServerConfig()
+		require.NoError(t, err)
+		require.Equal(t, tc.expectX11Config, serverCfg)
 	}
 }

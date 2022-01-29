@@ -16,6 +16,7 @@ package x11
 
 import (
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -28,8 +29,14 @@ import (
 
 const (
 	// DefaultDisplayOffset is the default display offset when
-	// searching for an X11 Server reverse tunnel port.
+	// searching for an open XServer unix socket.
 	DefaultDisplayOffset = 10
+	// DefaultMaxDisplay is the default maximum display number
+	// supported when searching for an open XServer unix socket.
+	DefaultMaxDisplay = 1000
+	// MaxDisplay is the theoretical max display value which
+	// X Clients and serverwill be able to parse into a unix socket.
+	MaxDisplayNumber = math.MaxInt32
 	// DisplayEnv is an environment variable used to determine what
 	// local display should be connected to during X11 forwarding.
 	DisplayEnv = "DISPLAY"

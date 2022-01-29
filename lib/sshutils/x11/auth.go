@@ -141,16 +141,10 @@ func (x *XAuthCommand) AddEntry(entry *XAuthEntry) error {
 
 // GenerateUntrustedCookie runs "xauth generate untrusted" to create a new xauth entry with
 // an untrusted MIT-MAGIC-COOKIE-1. A timeout can optionally be set for the xauth entry, after
-// which the XServer will no longer accept requests with the generated cookie.
+// which the XServer will ignore this cookie.
 func (x *XAuthCommand) GenerateUntrustedCookie(display Display, timeout time.Duration) error {
 	x.Cmd.Args = append(x.Cmd.Args, "generate", display.String(), mitMagicCookieProto, "untrusted")
-	if timeout != 0 {
-		// Add some slack to the ttl to avoid XServer from denying
-		// access to the ssh session during its lifetime.
-		var timeoutSlack uint = 60
-		timeoutSeconds := uint(timeout/time.Second) + timeoutSlack
-		x.Cmd.Args = append(x.Cmd.Args, "timeout", fmt.Sprint(timeoutSeconds))
-	}
+	x.Cmd.Args = append(x.Cmd.Args, "timeout", fmt.Sprint(timeout/time.Second))
 	return trace.Wrap(x.run())
 }
 

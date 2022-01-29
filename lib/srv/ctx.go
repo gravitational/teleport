@@ -611,7 +611,7 @@ func (c *ServerContext) GetX11Config() *X11Config {
 }
 
 // OpenXServerListener opens a new XServer unix listener.
-func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, displayOffset int) error {
+func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, displayOffset, maxDisplays int) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -619,7 +619,7 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 		return trace.AlreadyExists("X11 forwarding is already set up for this session")
 	}
 
-	l, display, err := x11.OpenNewXServerListener(displayOffset, x11Req.ScreenNumber)
+	l, display, err := x11.OpenNewXServerListener(displayOffset, maxDisplays, x11Req.ScreenNumber)
 	if err != nil {
 		return trace.Wrap(err)
 	}

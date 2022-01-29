@@ -147,8 +147,7 @@ type Options struct {
 	ForwardX11Trusted bool
 
 	// ForwardX11Timeout specifies a timeout in seconds after which X11 forwarding
-	// attempts will become unauthorized. Only available in untrusted X11 forwarding.
-	// Supports uint option values.
+	// attempts will be rejected when in untrusted forwarding mode.
 	ForwardX11Timeout time.Duration
 }
 
@@ -239,20 +238,17 @@ func parseBoolTrueOption(val string) (bool, error) {
 	return utils.AsBool(val), nil
 }
 
-func parseOptions(opts []string) (Options, error) {
-	options := Options{
+func defaultOptions() Options {
+	return Options{
 		// By default, Teleport prefers strict host key checking and adding keys
 		// to system SSH agent.
 		StrictHostKeyChecking: true,
 		AddKeysToAgent:        true,
-		// As in OpenSSH, untrusted mode is the default unless explicitly set to false.
-		// Although it makes clients using X11 forwarding vulnerable to some XServer
-		// related attacks (such as Keystroke monitoring), most programs do not properly
-		// support untrusted mode and will crash. For these reasons, users are encouraged
-		// to enable X11 forwarding with caution, as an attacker that can bypass file
-		// permissions on the remote host may be able to carry out such attacks.
-		ForwardX11Trusted: true,
 	}
+}
+
+func parseOptions(opts []string) (Options, error) {
+	options := defaultOptions()
 
 	for _, o := range opts {
 		key, value, err := splitOption(o)

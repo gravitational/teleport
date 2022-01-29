@@ -956,12 +956,9 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 
 	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
 
-	if fc.SSH.X11 != nil {
-		xc, err := fc.SSH.X11.Parse()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.SSH.X11 = xc
+	cfg.SSH.X11, err = fc.SSH.X11ServerConfig()
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil

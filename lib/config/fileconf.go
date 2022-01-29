@@ -836,6 +836,47 @@ func (ssh *SSH) AllowTCPForwarding() bool {
 	return *ssh.MaybeAllowTCPForwarding
 }
 
+// X11ServerConfig returns the X11 forwarding server configuration.
+func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
+	// Start with default configuration
+	cfg := &x11.ServerConfig{Enabled: false}
+	if ssh.X11 == nil {
+		return cfg, nil
+	}
+
+	var err error
+	cfg.Enabled, err = apiutils.ParseBool(ssh.X11.Enabled)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !cfg.Enabled {
+		return cfg, nil
+	}
+
+	cfg.MaxDisplay = x11.DefaultMaxDisplay
+	if ssh.X11.MaxDisplay != nil {
+		cfg.MaxDisplay = int(*ssh.X11.MaxDisplay)
+		// If set, max display must not be greater than the
+		// max display number supported by X Server
+		if cfg.MaxDisplay > x11.MaxDisplayNumber {
+			cfg.DisplayOffset = x11.MaxDisplayNumber
+		}
+	}
+
+	cfg.DisplayOffset = x11.DefaultDisplayOffset
+	if ssh.X11.DisplayOffset != nil {
+		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
+		// If set, display offset must not be greater than the
+		// max display number
+		if cfg.DisplayOffset > cfg.MaxDisplay {
+			cfg.DisplayOffset = cfg.MaxDisplay
+		}
+	}
+
+	return cfg, nil
+}
+
 // CommandLabel is `command` section of `ssh_service` in the config file
 type CommandLabel struct {
 	Name    string        `yaml:"name"`
@@ -930,30 +971,14 @@ func (r *RestrictedSession) Parse() (*restricted.Config, error) {
 
 // X11 is a configuration for X11 forwarding
 type X11 struct {
-	// Enabled controls whether X11 forwarding requests can be granted.
+	// Enabled controls whether X11 forwarding requests can be granted by the server.
 	Enabled string `yaml:"enabled"`
-	// DisplayOffset tells the server what display to start searching from
-	// for an open X11 Server reverse tunnel port (6000 + offset).
+	// DisplayOffset tells the server what X11 display number to start from when
+	// searching for an open X11 unix socket for XServer proxies.
 	DisplayOffset *uint `yaml:"display_offset,omitempty"`
-}
-
-// Parse will parse the X11 forwarding server configuration.
-func (x *X11) Parse() (*x11.ServerConfig, error) {
-	enabled, err := apiutils.ParseBool(x.Enabled)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Follow openssh default for X11 display offset if not set.
-	displayOffset := x11.DefaultDisplayOffset
-	if x.DisplayOffset != nil {
-		displayOffset = int(*x.DisplayOffset)
-	}
-
-	return &x11.ServerConfig{
-		Enabled:       enabled,
-		DisplayOffset: displayOffset,
-	}, nil
+	// DisplayOffset tells the server what X11 display number to stop at when
+	// searching for an open X11 unix socket for XServer proxies.
+	MaxDisplay *uint `yaml:"max_displays,omitempty"`
 }
 
 // Databases represents the database proxy service configuration.

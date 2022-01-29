@@ -41,10 +41,6 @@ func (ns *NodeSession) handleX11Forwarding(ctx context.Context, sess *ssh.Sessio
 		return ns.rejectX11Channels(ctx)
 	}
 
-	if ns.nodeClient.TC.X11ForwardingTimeout != 0 {
-		ns.x11RefuseTime = time.Now().Add(ns.nodeClient.TC.X11ForwardingTimeout)
-	}
-
 	if err := ns.setXAuthData(ctx, display); err != nil {
 		return trace.Wrap(err)
 	}
@@ -78,7 +74,7 @@ func (ns *NodeSession) setXAuthData(ctx context.Context, display x11.Display) er
 		// as it is only used to validate the server-client connection. Locally,
 		// the client's XServer will ignore the cookie and use whatever authentication
 		// mechanisms it would use as if the client made the request locally.
-		log.Info("Creating a fake xauth token for trusted X11 forwarding.")
+		log.Info("Creating a fake xauth cookie for trusted X11 forwarding.")
 		log.Warn("Trusted X11 forwarding provides unmitigated access to your local XServer, use with caution")
 
 		var err error
@@ -102,6 +98,15 @@ func (ns *NodeSession) setXAuthData(ctx context.Context, display x11.Display) er
 			log.WithError(err).Debug("Failed to remove temporary xauth file")
 		}
 	}()
+
+	// When an untrusted cookie expires, X requests with that cookie are not rejected, rather
+	// the X Server ignores the unrecognized cookie and fail over to whatever authentication
+	// mechanisms are in place. This is the same behavior used with the fake cookie used
+	// above in trusted forwarding. Therefore it is essential that we deny any X requests made
+	// after the cookie has expired, and so we set this timeout before generating the cookie.
+	if ns.nodeClient.TC.X11ForwardingTimeout != 0 {
+		ns.x11RefuseTime = time.Now().Add(ns.nodeClient.TC.X11ForwardingTimeout)
+	}
 
 	log.Info("creating an untrusted xauth cookie for untrusted X11 forwarding")
 	cmd := x11.NewXAuthCommand(ctx, xauthFile.Name())

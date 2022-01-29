@@ -1097,7 +1097,6 @@ func ApplyDefaults(cfg *Config) {
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
 	cfg.SSH.RestrictedSession = &restricted.Config{Enabled: false}
 	cfg.SSH.AllowTCPForwarding = true
-	cfg.SSH.X11 = &x11.ServerConfig{Enabled: false}
 
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false
