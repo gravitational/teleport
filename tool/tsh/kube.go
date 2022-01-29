@@ -347,6 +347,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		ClusterAddr:         kubeStatus.clusterAddr,
 		TeleportClusterName: kubeStatus.teleportClusterName,
 		Credentials:         kubeStatus.credentials,
+		ProxyAddr:           cf.Proxy,
 		TLSServerName:       kubeStatus.tlsServerName,
 	}
 

@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/redshift"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -210,6 +211,24 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 	return databases, trace.NewAggregate(errors...)
 }
 
+// NewDatabaseFromRedshiftCluster creates a database resource from a Redshift cluster.
+func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, error) {
+	metadata, err := MetadataFromRedshiftCluster(cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return types.NewDatabaseV3(types.Metadata{
+		Name:        aws.StringValue(cluster.ClusterIdentifier),
+		Description: fmt.Sprintf("Redshift cluster in %v", metadata.Region),
+		Labels:      labelsFromRedshiftCluster(cluster, metadata),
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint.Address), aws.Int64Value(cluster.Endpoint.Port)),
+		AWS:      *metadata,
+	})
+}
+
 // MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
 func MetadataFromRDSInstance(rdsInstance *rds.DBInstance) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(rdsInstance.DBInstanceArn))
@@ -241,6 +260,21 @@ func MetadataFromRDSCluster(rdsCluster *rds.DBCluster) (*types.AWS, error) {
 			ClusterID:  aws.StringValue(rdsCluster.DBClusterIdentifier),
 			ResourceID: aws.StringValue(rdsCluster.DbClusterResourceId),
 			IAMAuth:    aws.BoolValue(rdsCluster.IAMDatabaseAuthenticationEnabled),
+		},
+	}, nil
+}
+
+// MetadataFromRedshiftCluster creates AWS metadata from the provided Redshift cluster.
+func MetadataFromRedshiftCluster(cluster *redshift.Cluster) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(cluster.ClusterNamespaceArn))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		Redshift: types.Redshift{
+			ClusterID: aws.StringValue(cluster.ClusterIdentifier),
 		},
 	}, nil
 }
@@ -292,6 +326,21 @@ func labelsFromRDSCluster(rdsCluster *rds.DBCluster, meta *types.AWS, endpointTy
 	labels[labelEngine] = aws.StringValue(rdsCluster.Engine)
 	labels[labelEngineVersion] = aws.StringValue(rdsCluster.EngineVersion)
 	labels[labelEndpointType] = string(endpointType)
+	return labels
+}
+
+// labelsFromRedshiftCluster creates database labels for the provided Redshift cluster.
+func labelsFromRedshiftCluster(cluster *redshift.Cluster, meta *types.AWS) map[string]string {
+	labels := make(map[string]string)
+	for _, tag := range cluster.Tags {
+		key := aws.StringValue(tag.Key)
+		if types.IsValidLabelKey(key) {
+			labels[key] = aws.StringValue(tag.Value)
+		}
+	}
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelAccountID] = meta.AccountID
+	labels[labelRegion] = meta.Region
 	return labels
 }
 

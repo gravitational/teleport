@@ -28,6 +28,7 @@ build
 _obj
 _test
 tmp
+target/
 
 # Architecture specific extensions/prefixes
 [568vq].out
