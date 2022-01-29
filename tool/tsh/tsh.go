@@ -212,11 +212,14 @@ type CLIConf struct {
 	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
 	NoRemoteExec bool
 
-	// X11Forwarding will set up X11 forwarding for the session ('ssh -X')
+	// X11Forwarding will set up untrusted X11 forwarding for the session ('ssh -X')
 	X11Forwarding bool
 
 	// X11Forwarding will set up trusted X11 forwarding for the session ('ssh -Y')
 	X11ForwardingTrusted bool
+
+	// X11ForwardingTimeout can optionally set to set a timeout for untrusted X11 forwarding.
+	X11ForwardingTimeout time.Duration
 
 	// Debug sends debug logs to stdout.
 	Debug bool
@@ -392,7 +395,8 @@ func Run(args []string, opts ...cliOption) error {
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
 	ssh.Flag("x11", "Requests trusted (secure) X11 forwarding for this session").Short('X').BoolVar(&cf.X11Forwarding)
-	ssh.Flag("x11-untrusted", "Requests trusted (insecure) X11 forwarding for this session. This can make your local displays vulnerable to attacks, use with caution").Short('Y').BoolVar(&cf.X11ForwardingTrusted)
+	ssh.Flag("x11-trusted", "Requests trusted (insecure) X11 forwarding for this session. This can make your local displays vulnerable to attacks, use with caution").Short('Y').BoolVar(&cf.X11ForwardingTrusted)
+	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
 
 	// AWS.
 	aws := app.Command("aws", "Access AWS API.")
@@ -1993,7 +1997,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	// X11 forwarding will be in untrusted mode unless given -Y or -oForwardX11Trusted=yes
 	c.X11ForwardingTrusted = cf.X11ForwardingTrusted || options.ForwardX11Trusted
 
-	c.X11ForwardingTimeout = options.ForwardX11Timeout
+	c.X11ForwardingTimeout = cf.X11ForwardingTimeout
+	if c.X11ForwardingTimeout == 0 {
+		c.X11ForwardingTimeout = options.ForwardX11Timeout
+	}
 
 	if c.EnableX11Forwarding && os.Getenv(x11.DisplayEnv) == "" {
 		log.Debug("X11 forwarding requested but $DISPLAY not set")
