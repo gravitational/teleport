@@ -118,11 +118,14 @@ func sshProxy(cf *CLIConf, tc *libclient.TeleportClient, targetHost, targetPort 
 	knownHostsPath := keypaths.KnownHostsPath(keysDir)
 
 	sshHost, sshPort := tc.SSHProxyHostPort()
+	if cf.Username == "" {
+		cf.Username = tc.Username
+	}
 	args := []string{
 		"-A",
 		"-o", fmt.Sprintf("UserKnownHostsFile=%s", knownHostsPath),
 		"-p", strconv.Itoa(sshPort),
-		sshHost,
+		fmt.Sprintf("%s@%s", cf.Username, sshHost),
 		"-s",
 		fmt.Sprintf("proxy:%s:%s@%s", targetHost, targetPort, tc.SiteName),
 	}
