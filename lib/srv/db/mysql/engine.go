@@ -206,8 +206,9 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 			return nil, trace.Wrap(err)
 		}
 		// Detect whether the instance is set to require SSL.
+		// Fallback to not requiring SSL for access denied errors.
 		requireSSL, err := cloud.GetGCPRequireSSL(ctx, sessionCtx, gcpClient)
-		if err != nil {
+		if err != nil && !trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)
 		}
 		// Create ephemeral certificate and append to TLS config when
