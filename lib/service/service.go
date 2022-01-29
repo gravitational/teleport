@@ -498,6 +498,11 @@ func Run(ctx context.Context, cfg Config, newTeleport NewProcess) error {
 	copyCfg := cfg
 	srv, err := newTeleport(&copyCfg)
 	if err != nil {
+		//look to see if the typical issue of running teleport start to a data dir it doesn't have permission to access
+		// typical error is lstat /var/lib/teleport/host_uuid: permission denied
+		if strings.Contains(err.Error(), "permission denied") {
+			cfg.Log.Error("Teleport was unable to access a resource it needed. Make sure the Teleport process is running with enough permissions, typically as root or with sudo (sudo teleport start ...).")
+		}
 		return trace.Wrap(err, "initialization failed")
 	}
 	if srv == nil {
