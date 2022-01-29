@@ -9,15 +9,15 @@ state: implemented
 
 X11 forwarding makes it possible to open a graphical application on a remote
 machine and but forward its graphical (X) data to the client's local display.  
-SSH rfc [4254](https://www.rfc-editor.org/rfc/rfc4254#section-6.3) details the
+[RFC4254](https://www.rfc-editor.org/rfc/rfc4254#section-6.3) details the
 protocol for supporting X11 forwarding in an SSH server/client.
 
 ## Why
 
 X11 forwarding is used by some SSH users who are switching over to Teleport.
 Currently, we only support X11 forwarding between an OpenSSH client and server
-in proxy recording mode. As user's move more of their remote fleet to Teleport,
-there is a growing demand for supporting X11 between any combination of OpenSSH
+in proxy recording mode. As users move more of their fleet to Teleport, there
+is a growing demand for supporting X11 between any combination of OpenSSH
 server/client and Teleport server/client.
 
 ## Details
@@ -72,25 +72,17 @@ starts listening on a unix socket so that it can accept requests to the correspo
 display. 
 
 First, the server has to find an open display socket. A display's unix socket can be 
-determined by its display number - `/tmp/.X11-unix/X<display_number>`. So we start
-searching for an open display number between 10 and 1009.
-
-Note: We use the same display offset (10) and max displays (1000) as OpenSSH.
+determined by its display number - `/tmp/.X11-unix/X<display_number>`. In order to avoid
+overlapping with any local display sockets, which start from display number 0, we start
+searching for an open display number between 10 and 1000. Both of these numbers can be
+configured up to their the largest display number supported by the X Protocol - the max 
+Int32 (2147483647).
 
 During session shell creation, we can set `$DISPLAY` and X authorization data for the
 session. The `$DISPLAY` is set to `unix:<display_number>`, which will be translated
 to the open socket during an X Client request. X Authorization data will be set in
 the user's default xauthfile (`~/.Xauthority`) by calling 
 `xauth add <$DISPLAY> <x11-req.proto> <x11-req.cookie>`. 
-
-Note: The OpenSSH implementation uses tcp sockets `localhost:6010 - localhost:7009`.
-Due to the re-exec model of Teleport SSH sessions, if we opened tcp sockets such as
-these, we'd either have to open them in the root process as the process user, or open
-them as the Session user and implement a new RPC layer to forward the requests between
-the parent and child processes. Instead, we have chosen to use unix sockets, which we
-can change the ownership of after the fact with `chown`. This also has the side effect
-of ensuring that X11 forwarding sockets for OpenSSH Server and Teleport do not overlap
-in cases where both are running on the same machine.
 
 ### Security
 
@@ -173,17 +165,16 @@ ignore it and connect as if it received the request locally.
 
 ### tsh UX
 
-`tsh ssh -X` or `tsh ssh -Y` can be used to request a session with `trusted` X11 forwarding.
-However, if `tsh ssh -X` is used with the `-oForwardX11Trusted=yes` flag, it will instead
-request `untrusted` forwarding, while `tsh ssh -Y` would still request `trusted`.
+New `tsh ssh` flags and ssh options:
+ - `-X`/`--x11`: requests `untrusted` X11 forwarding for the session.
+ - `-Y`/`--x11-trusted`: requests `trusted` X11 forwarding for the session.
+ - `--x11-untrusted-timeout=<duration>`: can be used with untrusted X11 forwarding to set
+   a timeout, after which the xauth cookie will expire and the server will reject any new requests.
 
-This may seem unintuitive, and it is, but this is the same UX as OpenSSH client. In OpenSSH,
-to use untrusted X11 forwarding you have to set the `ForwardX11Trusted no` in the client's
-ssh config, so we simply mimic that behavior with our existing OpenSSH flag options.
-
-The reason for this oddity is essentially that `trusted` X11 forwarding (aka the X Security
-extension) is an opt in extension of the X Protocol with negative performance and compatibility
-implications.
+The following option flags can be used to follow OpenSSH's UX choices:
+ - `-oForwardX11=yes`: requests X11 forwarding for the session, defaults to `untrusted`.
+ - `-oForwardX11Trusted=no`: sets the X11 forwarding trust mode, but doesn't override `-Y` or `-X`.
+ - `-oForwardX11Timeout=<int>`: same effect as `--x11-timeout`.
 
 ### X Security extension
 
@@ -200,6 +191,42 @@ local XServer could be subject to attacks such as keystroke monitoring to captur
 
 Unfortunately, since the X Security extension was created as an afterthought, it is not
 built into the X protocol and has some serious performance drawbacks. The performance 
-drop is somewhere in the ballpark of 10x. Additionally, many X Client's don't support
-the X Security Extension properly and may crash immediately or at some point during 
-the connection.
+drop is sometimes in the ballpark of 10x. Additional, on release many X Clients didn't even 
+support the X Security Extension properly and would crash immediately or at some point while
+running. For example, if an X Program reads the user's clipboard and doesn't handle failure,
+then the program would crash when used with the security extension (since Clipboard is a
+privileged action).
+
+### Deviations from OpenSSH
+
+#### Untrusted as default mode
+
+In OpenSSH, the X11 forwarding flags and options have very unintuitive UX. Essentially
+both `-X` and `-Y` will start X11 forwarding in `trusted` mode, unless the client has
+the `ForwardX11Trusted=no` in their ssh client config. The reason for this oddity is
+that, as mentioned in the X Security Extension section, untrusted X11 forwarding has
+some major drawbacks in performance and compatibility.
+
+However, we have no reason to support the same unclear and misleading UX in our
+situation. As a security centered product, the security implications of a users's
+actions should be as clear as possible, rather than obscured as an attempt to reduce
+confusion. Hopefully this will lead Teleport users to always use `-X` or `-Y`
+explicitly, both for `tsh` and `ssh`.
+
+#### Unix sockets instead of TCP sockets for X Server Proxy
+
+In the OpenSSH implementation, The X Server Proxies are opened as tcp sockets, from
+`localhost:6010` to `localhost:7009`. This net listener created by the SSH session
+child process on the server, and served by the parent process which holds the remote
+connection.
+
+Due to the re-execution model of Teleport SSH sessions, the parent and child processes
+cannot share the listener easily like this. Instead, we've opted to use unix sockets
+so that the listener can be opened and served by the parent process, while allowing 
+the child process to perform a `chown` call to become the owner of the socket afterwards.
+
+This decision also comes with a couple additional benefits:
+ - There are many more unix display sockets available than tcp display sockets (65535 vs 2147483647)
+   - For this reason Teleport also allows the max display supported to be configurable,
+     while OpenSSH only allows 1000.
+ - If a server is running both SSHD and Teleport with X11 forwarding, the sockets will not overlap.
