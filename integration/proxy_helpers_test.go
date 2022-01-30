@@ -163,11 +163,6 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 }
 
 func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
-	const (
-		deadline         = time.Second * 10
-		nextIterWaitTime = time.Second * 2
-	)
-
 	nodeConfig := func() *service.Config {
 		tconf := service.MakeDefaultConfig()
 		tconf.Console = nil
@@ -188,13 +183,9 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 	_, err := p.leaf.StartNode(nodeConfig())
 	require.NoError(t, err)
 
-	err = utils.RetryStaticFor(deadline, nextIterWaitTime, func() error {
-		if len(checkGetClusters(t, p.root.Tunnel)) < 2 && len(checkGetClusters(t, p.leaf.Tunnel)) < 2 {
-			return trace.NotFound("two clusters do not see each other: tunnels are not working")
-		}
-		return nil
-	})
-	require.NoError(t, err)
+	// Wait for both cluster to see each other via reverse tunnels.
+	waitForClusters(t, p.root.Tunnel, 1, 10*time.Second)
+	waitForClusters(t, p.leaf.Tunnel, 1, 10*time.Second)
 
 	// Wait for both nodes to show up before attempting to dial to them.
 	err = waitForNodeCount(context.Background(), p.root, p.leaf.Secrets.SiteName, 2)

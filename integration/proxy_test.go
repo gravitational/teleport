@@ -19,7 +19,6 @@ package integration
 import (
 	"bytes"
 	"context"
-	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -225,13 +224,11 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 		withRootAndLeafClusterRoles(createTestRole(username)),
 		withStandardRoleMapping(),
 	)
-	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-	utils.RetryStaticFor(time.Second*10, time.Millisecond*200, func() error {
-		for len(checkGetClusters(t, suite.root.Tunnel)) < 2 && len(checkGetClusters(t, suite.leaf.Tunnel)) < 2 {
-			return errors.New("two sites do not see each other: tunnels are not working")
-		}
-		return nil
-	})
+
+	// Wait for both cluster to see each other via reverse tunnels.
+	waitForClusters(t, suite.root.Tunnel, 1, 10*time.Second)
+	waitForClusters(t, suite.leaf.Tunnel, 1, 10*time.Second)
+
 	require.Greater(t, ps.Count(), 0, "proxy did not intercept any connection")
 }
 
