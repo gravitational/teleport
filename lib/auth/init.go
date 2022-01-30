@@ -842,7 +842,7 @@ func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byt
 
 	clusterName := cert.Issuer.Organization[0]
 	if clusterName == "" {
-		return nil, trace.BadParameter("misssing cluster name")
+		return nil, trace.BadParameter("missing cluster name")
 	}
 	identity := &Identity{
 		ID:              IdentityID{HostUUID: id.Username, Role: types.SystemRole(id.Groups[0])},
@@ -899,7 +899,7 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 
 	// check permissions on certificate
 	if len(cert.Permissions.Extensions) == 0 {
-		return nil, trace.BadParameter("extensions: misssing needed extensions for host roles")
+		return nil, trace.BadParameter("extensions: missing needed extensions for host roles")
 	}
 	roleString := cert.Permissions.Extensions[utils.CertExtensionRole]
 	if roleString == "" {

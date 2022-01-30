@@ -2082,7 +2082,7 @@ func ExtractHostID(hostName string, clusterName string) (string, error) {
 	return strings.TrimSuffix(hostName, suffix), nil
 }
 
-// HostFQDN consits of host UUID and cluster name joined via .
+// HostFQDN consists of host UUID and cluster name joined via .
 func HostFQDN(hostUUID, clusterName string) string {
 	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
 }
@@ -2238,7 +2238,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		DNSNames:  append([]string{}, req.AdditionalPrincipals...),
 	}
 	// API requests need to specify a DNS name, which must be present in the certificate's DNS Names.
-	// The target DNS is not always known in advance so we add a default one to all certificates.
+	// The target DNS is not always known in advance, so we add a default one to all certificates.
 	if (types.SystemRoles{req.Role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleApp) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+constants.APIDomain, constants.APIDomain)
 	}
