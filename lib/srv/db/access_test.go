@@ -422,7 +422,23 @@ func TestAccessMySQLChangeUser(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TODO(jakub): Add redis AUTH cmd
+// TestAccessRedisAUTHCmd checks if AUTH commands is verified against Teleport RBAC before is sent to Redis.
+func TestAccessRedisAUTHCmd(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"alice"}, []string{types.Wildcard})
+
+	// Connect to the database as this user.
+	redisConn, err := testCtx.redisClient(ctx, "alice", "redis", "alice")
+	require.NoError(t, err)
+
+	err = redisConn.Process(ctx, goredis.NewCmd(ctx, "AUTH", "attacker", "secret-password"))
+	require.Error(t, err)
+	require.Contains(t, "ERR access to db denied", err.Error())
+}
 
 // TestAccessMySQLServerPacket verifies some edge-cases related to reading
 // wire packets sent by the MySQL server.

@@ -25,6 +25,7 @@ import (
 	"strconv"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -50,11 +51,14 @@ type Engine struct {
 	proxyConn net.Conn
 
 	clientReader *redis.Reader
+
+	sessionCtx *common.Session
 }
 
-func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
+func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.proxyConn = clientConn
 	e.clientReader = redis.NewReader(clientConn)
+	e.sessionCtx = sessionCtx
 
 	return nil
 }
@@ -190,45 +194,96 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 }
 
 func (e *Engine) processCmd(ctx context.Context, redisClient redis.UniversalClient, cmd *redis.Cmd) error {
+	// go-redis always returns lower-case commands.
 	switch cmd.Name() {
 	case "hello":
 		return redis.RedisError("RESP3 is not supported")
+	case "auth":
+		return e.processAuth(ctx, redisClient, cmd)
 	case "subscribe":
-		if len(cmd.Args()) < 2 {
-			return redis.RedisError("invalid command")
-		}
-
-		args := []string{}
-		for _, a := range cmd.Args()[1:] {
-			args = append(args, a.(string))
-		}
-		pubSub := redisClient.Subscribe(ctx, args...)
-
-		msg, err := pubSub.Receive(ctx)
-		if err != nil {
-			return err
-		}
-
-		sub, ok := msg.(*redis.Subscription)
-		if !ok {
-			return redis.RedisError("wrong subscription response")
-		}
-
-		if err := e.sendToClient([]interface{}{sub.Kind, sub.Channel, sub.Count}); err != nil {
-			return err
-		}
-
-		for msg := range pubSub.Channel() { // TODO(jakub): Channel ignores ping messages
-			if err := e.sendToClient([]interface{}{"message", msg.Channel, msg.Payload}); err != nil {
-				return err // No wrap
-			}
-		}
-
-		return nil
+		return e.subscribeCmd(ctx, redisClient.Subscribe, cmd)
+	case "psubscribe":
+		return e.subscribeCmd(ctx, redisClient.PSubscribe, cmd)
+	case "punsubscribe":
+		// TODO(jakub): go-redis doesn't expose any API for this command. Investigate alternative options.
+		return errors.New("PUNSUBSCRIBE is not supported by Teleport")
+	case "ssubscribe", "sunsubscribe":
+		// go-redis doesn't support Redis 7+ commands yet.
+		return errors.New("Redis 7.0+ is not yet supported")
 	default:
 		// Here the command is sent to the DB.
 		return redisClient.Process(ctx, cmd)
 	}
+}
+
+type redisSubscribeFn = func(ctx context.Context, channels ...string) *redis.PubSub
+
+func (e *Engine) subscribeCmd(ctx context.Context, subscribeFn redisSubscribeFn, cmd *redis.Cmd) error {
+	if len(cmd.Args()) < 2 {
+		return redis.RedisError("invalid command")
+	}
+
+	args := []string{}
+	for _, a := range cmd.Args()[1:] {
+		args = append(args, a.(string))
+	}
+	pubSub := subscribeFn(ctx, args...)
+
+	msg, err := pubSub.Receive(ctx)
+	if err != nil {
+		return err
+	}
+
+	sub, ok := msg.(*redis.Subscription)
+	if !ok {
+		return redis.RedisError("wrong subscription response")
+	}
+
+	if err := e.sendToClient([]interface{}{sub.Kind, sub.Channel, sub.Count}); err != nil {
+		return err
+	}
+
+	for msg := range pubSub.Channel() { // TODO(jakub): Channel ignores ping messages
+		if err := e.sendToClient([]interface{}{"message", msg.Channel, msg.Payload}); err != nil {
+			return err // No wrap
+		}
+	}
+
+	return nil
+}
+
+func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalClient, cmd *redis.Cmd) error {
+	// AUTH command may contain only password or login and password. Depends on the version we need to make sure
+	// that the user has permission to connect as the provided db user.
+	// ref: https://redis.io/commands/auth
+	switch len(cmd.Args()) {
+	case 2:
+		// Old Redis command. Password is the only argument here. Pass to Redis to validate.
+		// ex. AUTH my-secret-password
+		return redisClient.Process(ctx, cmd)
+	case 3:
+		// Redis 6 version that contains username and password. Check the username against our RBAC before sending to Redis.
+		// ex. AUTH bob my-secret-password
+		dbUser, ok := cmd.Args()[1].(string)
+		if !ok {
+			return errors.New("username has a wrong type, expected string")
+		}
+
+		err := e.sessionCtx.Checker.CheckAccess(e.sessionCtx.Database,
+			services.AccessMFAParams{Verified: true},
+			role.DatabaseRoleMatchers(
+				defaults.ProtocolRedis,
+				dbUser,
+				"")...)
+		if err != nil {
+			return err
+		}
+
+		return redisClient.Process(ctx, cmd)
+	default:
+		return errors.New("AUTH wrong ...") // TODO(jakub)
+	}
+
 }
 
 func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient) error {
