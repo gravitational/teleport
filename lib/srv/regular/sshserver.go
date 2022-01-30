@@ -830,11 +830,6 @@ func (s *Server) getServerInfo() (types.Resource, error) {
 	return server, nil
 }
 
-// syncUpdateLabels synchronously updates dynamic labels. Only used in tests.
-func (s *Server) syncUpdateLabels() {
-	s.dynamicLabels.Sync()
-}
-
 // serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.
 func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	// gather information about user and process. this will be used to set the
