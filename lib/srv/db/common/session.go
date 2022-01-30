@@ -52,12 +52,6 @@ type Session struct {
 	LockTargets []types.LockTarget
 }
 
-// GCPServerName returns the GCP database project and instance as "<project-id>:<instance-id>".
-func (c *Session) GCPServerName() string {
-	gcp := c.Database.GetGCP()
-	return fmt.Sprintf("%v:%v", gcp.ProjectID, gcp.InstanceID)
-}
-
 // String returns string representation of the session parameters.
 func (c *Session) String() string {
 	return fmt.Sprintf("db[%v] identity[%v] dbUser[%v] dbName[%v]",

@@ -351,7 +351,7 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		// Cloud SQL server presented certificates encode instance names as
 		// "<project-id>:<instance-id>" in CommonName. This is verified against
 		// the ServerName in a custom connection verification step (see below).
-		tlsConfig.ServerName = sessionCtx.GCPServerName()
+		tlsConfig.ServerName = GCPServerName(sessionCtx)
 		// This just disables default verification.
 		tlsConfig.InsecureSkipVerify = true
 		// This will verify CN and cert chain on each connection.

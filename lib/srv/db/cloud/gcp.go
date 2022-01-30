@@ -36,9 +36,9 @@ func GetGCPRequireSSL(ctx context.Context, sessionCtx *common.Session, gcpClient
 			return false, GCPAccessDeniedErr(err, "Could not get GCP database instance settings",
 				GCPCloudSQLAdminRole, GCPInstancesGetPermission)
 		}
-		return false, trace.Wrap(err, "Failed to get Cloud SQL instance information for %q.", sessionCtx.GCPServerName())
+		return false, trace.Wrap(err, "Failed to get Cloud SQL instance information for %q.", common.GCPServerName(sessionCtx))
 	} else if dbi.Settings == nil || dbi.Settings.IpConfiguration == nil {
-		return false, trace.BadParameter("Failed to find Cloud SQL settings for %q. GCP returned %+v.", sessionCtx.GCPServerName(), dbi)
+		return false, trace.BadParameter("Failed to find Cloud SQL settings for %q. GCP returned %+v.", common.GCPServerName(sessionCtx), dbi)
 	}
 	return dbi.Settings.IpConfiguration.RequireSsl, nil
 }
@@ -53,7 +53,7 @@ func AppendGCPClientCert(ctx context.Context, sessionCtx *common.Session, gcpCli
 			return GCPAccessDeniedErr(err, "Cloud not generate GCP ephemeral client certificate",
 				GCPCloudSQLAdminRole, GCPCreateEphemeralPermission)
 		}
-		return trace.Wrap(err, "Failed to generate GCP ephemeral client certificate for %q.", sessionCtx.GCPServerName())
+		return trace.Wrap(err, "Failed to generate GCP ephemeral client certificate for %q.", common.GCPServerName(sessionCtx))
 	}
 	tlsConfig.Certificates = []tls.Certificate{*cert}
 	return nil

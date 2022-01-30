@@ -32,6 +32,12 @@ import (
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
 
+// GCPServerName returns the GCP database project and instance as "<project-id>:<instance-id>".
+func GCPServerName(sessionCtx *Session) string {
+	gcp := sessionCtx.Database.GetGCP()
+	return fmt.Sprintf("%s:%s", gcp.ProjectID, gcp.InstanceID)
+}
+
 // GCPSQLAdminClient defines an interface providing access to the GCP Cloud SQL API.
 type GCPSQLAdminClient interface {
 	// UpdateUser updates an existing user for the project/instance configured in a session.
