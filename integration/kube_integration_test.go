@@ -578,12 +578,9 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	// make sure we upsert a trusted cluster
 	require.True(t, upsertSuccess)
 
-	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-	abortTime := time.Now().Add(time.Second * 10)
-	for len(checkGetClusters(t, main.Tunnel)) < 2 && len(checkGetClusters(t, aux.Tunnel)) < 2 {
-		time.Sleep(time.Millisecond * 2000)
-		require.False(t, time.Now().After(abortTime), "two clusters do not see each other: tunnels are not working")
-	}
+	// Wait for both cluster to see each other via reverse tunnels.
+	waitForClusters(t, main.Tunnel, 1, 10*time.Second)
+	waitForClusters(t, aux.Tunnel, 1, 10*time.Second)
 
 	// impersonating client requests will be denied
 	impersonatingProxyClient, impersonatingProxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
@@ -834,14 +831,9 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	// make sure we upsert a trusted cluster
 	require.True(t, upsertSuccess)
 
-	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-	abortTime := time.Now().Add(time.Second * 10)
-	for len(checkGetClusters(t, main.Tunnel)) < 2 && len(checkGetClusters(t, aux.Tunnel)) < 2 {
-		time.Sleep(time.Millisecond * 2000)
-		if time.Now().After(abortTime) {
-			t.Fatalf("two clusters do not see each other: tunnels are not working")
-		}
-	}
+	// Wait for both cluster to see each other via reverse tunnels.
+	waitForClusters(t, main.Tunnel, 1, 10*time.Second)
+	waitForClusters(t, aux.Tunnel, 1, 10*time.Second)
 
 	// impersonating client requests will be denied
 	impersonatingProxyClient, impersonatingProxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
