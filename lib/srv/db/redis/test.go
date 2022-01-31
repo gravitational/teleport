@@ -31,8 +31,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Client alias for easier use.
 type Client = redis.Client
 
+// MakeTestClient returns Redis client connection according to the provided
+// parameters.
 func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ...*redis.Options) (*Client, error) {
 	tlsConfig, err := common.MakeTestClientTLSConfig(config)
 	if err != nil {
@@ -51,6 +54,9 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 	return client, nil
 }
 
+// TestServer is a test Redis server used in functional database
+// access tests. Internally is uses github.com/alicebob/miniredis to
+// simulate Redis server behaviour.
 type TestServer struct {
 	cfg    common.TestServerConfig
 	server *miniredis.Miniredis
@@ -72,6 +78,7 @@ func NewTestServer(t *testing.T, config common.TestServerConfig) (*TestServer, e
 		log: log,
 	}
 
+	// Create a new test Redis instance.
 	s := miniredis.NewMiniRedis()
 	err = s.StartTLS(tlsConfig)
 	require.NoError(t, err)
@@ -83,6 +90,7 @@ func NewTestServer(t *testing.T, config common.TestServerConfig) (*TestServer, e
 	return server, nil
 }
 
+// Port returns a port that test Redis instance is listening on.
 func (s *TestServer) Port() string {
 	return s.server.Port()
 }

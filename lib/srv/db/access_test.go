@@ -874,6 +874,7 @@ func TestRedisTransaction(t *testing.T) {
 
 	// Try to connect to the database as this user.
 	redisClient, err := testCtx.redisClient(ctx, "alice", "redis", "admin")
+	require.NoError(t, err)
 
 	// Test below has been taken from go-redis documentation and modify: https://pkg.go.dev/github.com/go-redis/redis/v8#Client.Watch
 	const maxRetries = 100
