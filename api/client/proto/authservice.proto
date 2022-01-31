@@ -1405,6 +1405,9 @@ message ListResourcesRequest {
     string StartKey = 4 [ (gogoproto.jsontag) = "start_key,omitempty" ];
     // Labels is a label-based matcher if non-empty.
     map<string, string> Labels = 5 [ (gogoproto.jsontag) = "labels,omitempty" ];
+    // SearchKeywords is a list of search keywords used to match against select
+    // field values from a resource.
+    repeated string SearchKeywords = 6 [ (gogoproto.jsontag) = "search_keywords,omitempty" ];
 }
 
 // ListResourceResponse response of ListResources.

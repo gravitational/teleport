@@ -109,6 +109,45 @@ func (r ResourcesWithLabels) Less(i, j int) bool { return r[i].GetName() < r[j].
 // Swap swaps two resources.
 func (r ResourcesWithLabels) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 
+// AsAppServers return a list of resources as types AppServer.
+func (r ResourcesWithLabels) AsAppServers() ([]AppServer, error) {
+	servers := make([]AppServer, len(r))
+	for i, resource := range r {
+		appServer, ok := resource.(AppServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.AppServer, got: %T", r[i])
+		}
+		servers[i] = appServer
+	}
+	return servers, nil
+}
+
+// AsDatabaseServers return a list of resources as types DatabaseServer.
+func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
+	servers := make([]DatabaseServer, len(r))
+	for i, resource := range r {
+		dbServer, ok := resource.(DatabaseServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.DatabaseServer, got: %T", r[i])
+		}
+		servers[i] = dbServer
+	}
+	return servers, nil
+}
+
+// AsServers returns a list of resources as types Server.
+func (r ResourcesWithLabels) AsServers() ([]Server, error) {
+	servers := make([]Server, len(r))
+	for i, resource := range r {
+		server, ok := resource.(Server)
+		if !ok {
+			return nil, trace.BadParameter("expected types.Server, got: %T", r[i])
+		}
+		servers[i] = server
+	}
+	return servers, nil
+}
+
 // GetVersion returns resource version
 func (h *ResourceHeader) GetVersion() string {
 	return h.Version

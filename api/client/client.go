@@ -272,14 +272,16 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	}
 }
 
-type connectFunc func(ctx context.Context, params connectParams) (*Client, error)
-type connectParams struct {
-	cfg       Config
-	addr      string
-	tlsConfig *tls.Config
-	dialer    ContextDialer
-	sshConfig *ssh.ClientConfig
-}
+type (
+	connectFunc   func(ctx context.Context, params connectParams) (*Client, error)
+	connectParams struct {
+		cfg       Config
+		addr      string
+		tlsConfig *tls.Config
+		dialer    ContextDialer
+		sshConfig *ssh.ClientConfig
+	}
+)
 
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
@@ -1582,6 +1584,7 @@ type NodeClient interface {
 // GetNodesWithLabels is a helper for getting a list of nodes with optional label-based filtering.  In addition to
 // iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
 func GetNodesWithLabels(ctx context.Context, clt NodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
+	fmt.Println("------ api/client/client.go GetNodesWithLabels")
 	// Retrieve the complete list of nodes in chunks.
 	var (
 		nodes     []types.Server

@@ -206,6 +206,9 @@ type CLIConf struct {
 	// Format is used to change the format of output
 	Format string
 
+	// SearchKeywords TODO
+	SearchKeywords []string
+
 	// NoRemoteExec will not execute a remote command after connecting to a host,
 	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
 	NoRemoteExec bool
@@ -462,6 +465,7 @@ func Run(args []string, opts ...cliOption) error {
 	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
 	ls.Flag("verbose", "One-line output (for text format), including node UUIDs").Short('v').BoolVar(&cf.Verbose)
 	ls.Flag("format", "Format output (text, json, names)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
+	ls.Flag("search", "Search by keywords or phrases enclosed in quotations").StringsVar(&cf.SearchKeywords)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
@@ -1691,7 +1695,8 @@ func onBenchmark(cf *CLIConf) error {
 	fmt.Printf("\nHistogram\n\n")
 	t := asciitable.MakeTable([]string{"Percentile", "Response Duration"})
 	for _, quantile := range []float64{25, 50, 75, 90, 95, 99, 100} {
-		t.AddRow([]string{fmt.Sprintf("%v", quantile),
+		t.AddRow([]string{
+			fmt.Sprintf("%v", quantile),
 			fmt.Sprintf("%v ms", result.Histogram.ValueAtQuantile(quantile)),
 		})
 	}
@@ -2093,7 +2098,6 @@ func refuseArgs(command string, args []string) error {
 		} else {
 			return trace.BadParameter("unexpected argument: %s", arg)
 		}
-
 	}
 	return nil
 }

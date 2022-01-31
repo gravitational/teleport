@@ -1529,6 +1529,10 @@ func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResou
 				continue
 			}
 
+			if !resource.MatchSearch(req.SearchKeywords) {
+				continue
+			}
+
 			resources = append(resources, resource)
 		}
 

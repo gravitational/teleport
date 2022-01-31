@@ -18,10 +18,16 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -286,6 +292,49 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 	}
 
 	return &unknownRes, nil
+}
+
+// listResources gets a list of resources depending on the type of resource.
+func listResources(clt auth.ClientI, r *http.Request, resourceKind string) ([]types.ResourceWithLabels, string, error) {
+	// Check all valid resource kinds.
+	var namespace string
+	switch resourceKind {
+	case types.KindKubeService:
+	case types.KindNode, types.KindAppServer, types.KindDatabaseServer:
+		namespace = apidefaults.Namespace
+	default:
+		return nil, "", trace.NotImplemented("resource kind %q is not supported", resourceKind)
+	}
+
+	values := r.URL.Query()
+
+	limit, err := queryLimit(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// TODO remove when PR
+	query := values.Get("query")
+	fmt.Println("")
+	fmt.Println("-------- query: ", query)
+	fmt.Println("")
+
+	req := proto.ListResourcesRequest{
+		ResourceType:   resourceKind,
+		Namespace:      namespace,
+		Limit:          int32(limit),
+		StartKey:       values.Get("startKey"),
+		SearchKeywords: client.ParseSearchKeywordsSpec(values.Get("search")),
+	}
+
+	return clt.ListResources(r.Context(), req)
+}
+
+type listResourcesGetResponse struct {
+	// Items is a list of resources retrieved.
+	Items interface{} `json:"items"`
+	// StartKey is the position to resume search events.
+	StartKey string `json:"startKey"`
 }
 
 type resourcesAPIGetter interface {

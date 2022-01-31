@@ -19,7 +19,6 @@ package web
 import (
 	"net/http"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -35,13 +34,20 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	// Get a list of kube servers.
-	kubeServers, err := clt.GetKubeServices(r.Context())
+	resources, nextKey, err := listResources(clt, r, types.KindKubeService)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeKubes(h.auth.clusterName, kubeServers), nil
+	kubeServers, err := types.ResourcesWithLabels(resources).AsServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return listResourcesGetResponse{
+		Items:    ui.MakeKubes(h.auth.clusterName, kubeServers),
+		StartKey: nextKey,
+	}, nil
 }
 
 // clusterDatabasesGet returns a list of db servers in a form the UI can present.
@@ -51,8 +57,12 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	// Get a list of database servers.
-	servers, err := clt.GetDatabaseServers(r.Context(), apidefaults.Namespace)
+	resources, nextKey, err := listResources(clt, r, types.KindDatabaseServer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resources).AsDatabaseServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -63,11 +73,14 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 		databases = append(databases, server.GetDatabase())
 	}
 
-	return ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)), nil
+	return listResourcesGetResponse{
+		Items:    ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)),
+		StartKey: nextKey,
+	}, nil
 }
 
-// getDesktopsHandle returns a list of desktops in a form the UI can present.
-func (h *Handler) getDesktopsHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+// clusterDesktopsGet returns a list of desktops in a form the UI can present.
+func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
