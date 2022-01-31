@@ -19,11 +19,9 @@ package cloud
 import (
 	"context"
 	"crypto/tls"
-	"net/http"
 
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
-	"google.golang.org/api/googleapi"
 )
 
 // GetGCPRequireSSL requests settings for the project/instance in session from GCP
@@ -32,9 +30,14 @@ import (
 func GetGCPRequireSSL(ctx context.Context, sessionCtx *common.Session, gcpClient common.GCPSQLAdminClient) (requireSSL bool, err error) {
 	dbi, err := gcpClient.GetDatabaseInstance(ctx, sessionCtx)
 	if err != nil {
-		if IsGCPUnauthorizedError(err) {
-			return false, GCPAccessDeniedError(err, "Could not get GCP database instance settings",
-				GCPCloudSQLAdminRole, GCPInstancesGetPermission)
+		err = common.ConvertError(err)
+		if trace.IsAccessDenied(err) {
+			return false, trace.Wrap(err, `Could not get GCP database instance settings:
+
+  %v
+
+Make sure Teleport db service has "Cloud SQL Admin" GCP IAM role,
+or "cloudsql.instances.get" IAM permission.`, err)
 		}
 		return false, trace.Wrap(err, "Failed to get Cloud SQL instance information for %q.", common.GCPServerName(sessionCtx))
 	} else if dbi.Settings == nil || dbi.Settings.IpConfiguration == nil {
@@ -49,38 +52,17 @@ func GetGCPRequireSSL(ctx context.Context, sessionCtx *common.Session, gcpClient
 func AppendGCPClientCert(ctx context.Context, sessionCtx *common.Session, gcpClient common.GCPSQLAdminClient, tlsConfig *tls.Config) error {
 	cert, err := gcpClient.GenerateEphemeralCert(ctx, sessionCtx)
 	if err != nil {
-		if IsGCPUnauthorizedError(err) {
-			return GCPAccessDeniedError(err, "Cloud not generate GCP ephemeral client certificate",
-				GCPCloudSQLAdminRole, GCPCreateEphemeralPermission)
+		err = common.ConvertError(err)
+		if trace.IsAccessDenied(err) {
+			return trace.Wrap(err, `Cloud not generate GCP ephemeral client certificate:
+
+  %v
+
+Make sure Teleport db service has "Cloud SQL Admin" GCP IAM role,
+or "cloudsql.sslCerts.createEphemeral" IAM permission.`, err)
 		}
 		return trace.Wrap(err, "Failed to generate GCP ephemeral client certificate for %q.", common.GCPServerName(sessionCtx))
 	}
 	tlsConfig.Certificates = []tls.Certificate{*cert}
 	return nil
 }
-
-// IsGCPUnauthorizedError returns true when the error is a googleapi.Error
-// and its error code is StatusForbidden. The error is unwrapped before
-// comparing.
-func IsGCPUnauthorizedError(err error) bool {
-	e, ok := trace.Unwrap(err).(*googleapi.Error)
-	return ok && e.Code == http.StatusForbidden
-}
-
-// GCPAccessDeniedError returns an access denied error with details for the user
-// to help them configure IAM roles.
-func GCPAccessDeniedError(err error, failure, needRole, needPermission string) error {
-	return trace.AccessDenied(`%s:
-
-  %v
-
-Make sure Teleport db service has "%s" GCP IAM role,
-or "%s" IAM permission.
-`, failure, err, needRole, needPermission)
-}
-
-const (
-	GCPCloudSQLAdminRole         = "Cloud SQL Admin"
-	GCPCreateEphemeralPermission = "cloudsql.sslCerts.createEphemeral"
-	GCPInstancesGetPermission    = "cloudsql.instances.get"
-)
