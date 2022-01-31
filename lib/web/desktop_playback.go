@@ -18,7 +18,6 @@ package web
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -29,6 +28,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
@@ -185,7 +185,7 @@ func (pp *playbackPlayer) streamSessionEvents(ctx context.Context, cancel contex
 				}
 				// Note that e.Message is a []byte, which will be marshaled as a base64 encoded string
 				// https://pkg.go.dev/encoding/json#Marshal.
-				msg, err := json.Marshal(e)
+				msg, err := utils.FastMarshal(e)
 				if err != nil {
 					pp.log.WithError(err).Errorf("failed to marshal DesktopRecording event into JSON: %v", msg)
 				}
