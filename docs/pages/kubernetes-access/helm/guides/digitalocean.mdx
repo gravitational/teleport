@@ -55,7 +55,7 @@ NAME               TYPE           CLUSTER-IP      EXTERNAL-IP       PORT(S)     
 # teleport-cluster   LoadBalancer   10.245.163.12   192.168.200.200   443:31959/TCP,3023:30525/TCP,3026:30079/TCP,3024:32437/TCP   19m
 
 ```
-Once you get the value for external IP (it may take a few minutes for this field to be populated), update your DNS record such that the clusterName's A record points to this IP address. For example `192.168.200.200` is the external IP in the above case.
+Once you get the value for the external IP (it may take a few minutes for this field to be populated), update your DNS record such that the clusterName's A record points to this IP address. For example `192.168.200.200` is the external IP in the above case.
 <Figure align="left" bordered caption="Configure DNS">
   ![Configure DNS](../../../../img/helm/digitalocean/fqdn.png)
 </Figure>
