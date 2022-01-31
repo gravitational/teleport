@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -576,11 +577,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			SessionID: string(c.SessionID()),
 			WithMFA:   c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
 		},
-		UserMetadata: events.UserMetadata{
-			User:         c.Identity.TeleportUser,
-			Login:        c.Identity.Login,
-			Impersonator: c.Identity.Impersonator,
-		},
+		UserMetadata: c.Identity.GetUserMetadata(),
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: c.ServerConn.RemoteAddr().String(),
 		},
@@ -798,6 +795,15 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
 	}, nil
+}
+
+func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
+	return apievents.UserMetadata{
+		Login:          id.Login,
+		User:           id.TeleportUser,
+		Impersonator:   id.Impersonator,
+		AccessRequests: id.ActiveRequests,
+	}
 }
 
 // buildEnvironment constructs a list of environment variables from

@@ -154,10 +154,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 			SessionID: identity.RouteToApp.SessionID,
 			WithMFA:   identity.MFAVerified,
 		},
-		UserMetadata: events.UserMetadata{
-			User:         identity.Username,
-			Impersonator: identity.Impersonator,
-		},
+		UserMetadata:   identity.GetUserMetadata(),
 		SessionChunkID: chunkID,
 	}
 	if err := s.c.AuthClient.EmitAuditEvent(s.closeContext, appSessionChunkEvent); err != nil {
