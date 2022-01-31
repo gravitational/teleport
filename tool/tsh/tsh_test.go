@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -1034,6 +1035,205 @@ func TestMakeTableWithTruncatedColumn(t *testing.T) {
 			require.Len(t, rows, 4)
 			require.Len(t, rows[2], testCase.expectedWidth)
 			require.Equal(t, testCase.expectedOutput, rows)
+		})
+	}
+}
+
+func TestSetX11Config(t *testing.T) {
+	t.Parallel()
+
+	envMapGetter := func(envMap map[string]string) envGetter {
+		return func(s string) string {
+			return envMap[s]
+		}
+	}
+
+	for _, tc := range []struct {
+		desc         string
+		cf           CLIConf
+		opts         []string
+		envMap       map[string]string
+		assertError  require.ErrorAssertionFunc
+		expectConfig client.Config
+	}{
+		// Test Teleport flag usage
+		{
+			desc: "-X",
+			cf: CLIConf{
+				X11ForwardingUntrusted: true,
+			},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: false,
+			},
+		}, {
+			desc: "-Y",
+			cf: CLIConf{
+				X11ForwardingTrusted: true,
+			},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc: "--x11-untrustedTimeout=1m",
+			cf: CLIConf{
+				X11ForwardingTimeout: time.Minute,
+			},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				X11ForwardingTimeout: time.Minute,
+			},
+		}, {
+			desc: "$DISPLAY not set",
+			cf: CLIConf{
+				X11ForwardingUntrusted: true,
+			},
+			assertError: require.Error,
+			expectConfig: client.Config{
+				EnableX11Forwarding: false,
+			},
+		},
+		// Test OpenSSH flag usage
+		{
+			desc:        "-oForwardX11=yes",
+			opts:        []string{"ForwardX11=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc:        "-oForwardX11Trusted=yes",
+			opts:        []string{"ForwardX11Trusted=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc:        "-oForwardX11Trusted=yes",
+			opts:        []string{"ForwardX11Trusted=no"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				X11ForwardingTrusted: false,
+			},
+		}, {
+			desc:        "-oForwardX11=yes with -oForwardX11Trusted=yes",
+			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc:        "-oForwardX11=yes with -oForwardX11Trusted=no",
+			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=no"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: false,
+			},
+		}, {
+			desc:        "-oForwardX11Timeout=60",
+			opts:        []string{"ForwardX11Timeout=60"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				X11ForwardingTimeout: time.Minute,
+			},
+		},
+		// Test Combined usage - options generally take priority
+		{
+			desc: "-X with -oForwardX11=yes",
+			cf: CLIConf{
+				X11ForwardingUntrusted: true,
+			},
+			opts:        []string{"ForwardX11=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc: "-X with -oForwardX11Trusted=yes",
+			cf: CLIConf{
+				X11ForwardingUntrusted: true,
+			},
+			opts:        []string{"ForwardX11Trusted=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc: "-X with -oForwardX11Trusted=no",
+			cf: CLIConf{
+				X11ForwardingUntrusted: true,
+			},
+			opts:        []string{"ForwardX11Trusted=no"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: false,
+			},
+		}, {
+			desc: "-Y with -oForwardX11Trusted=yes",
+			cf: CLIConf{
+				X11ForwardingTrusted: true,
+			},
+			opts:        []string{"ForwardX11Trusted=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc: "-Y with -oForwardX11Trusted=no",
+			cf: CLIConf{
+				X11ForwardingTrusted: true,
+			},
+			opts:        []string{"ForwardX11Trusted=no"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc: "--x11-untrustedTimeout=1m with -oForwardX11Timeout=120",
+			cf: CLIConf{
+				X11ForwardingTimeout: time.Minute,
+			},
+			opts:        []string{"ForwardX11Timeout=120"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				X11ForwardingTimeout: time.Minute * 2,
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			opts, err := parseOptions(tc.opts)
+			require.NoError(t, err)
+
+			clt := client.Config{}
+			err = setX11Config(&clt, &tc.cf, opts, envMapGetter(tc.envMap))
+			tc.assertError(t, err)
+			require.Equal(t, tc.expectConfig, clt)
 		})
 	}
 }

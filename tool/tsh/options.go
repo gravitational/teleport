@@ -139,12 +139,18 @@ type Options struct {
 	StrictHostKeyChecking bool
 
 	// ForwardX11 specifies whether X11 forwarding should be enabled for
-	// ssh sessions started by the client. Supported option values are "yes" and "no".
+	// ssh sessions started by the client. Supported option values are "yes".
+	//
+	// When this option is to true, ForwardX11Trusted will default to true.
 	ForwardX11 bool
 
-	// ForwardX11Trusted specifies whether X11Forwarding will be carried out in
-	// trusted or untrusted mode when enabled. Supported option values are "yes" and "no".
-	ForwardX11Trusted bool
+	// ForwardX11Trusted determines what trust mode should be used for X11Forwarding.
+	// Supported option values are "yes" and "no"
+	//
+	// When set to yes, X11 forwarding will always be in trusted mode if requested.
+	// When set to no, X11 forwarding will default to untrusted mode, unless used with
+	// the -Y flag
+	ForwardX11Trusted *bool
 
 	// ForwardX11Timeout specifies a timeout in seconds after which X11 forwarding
 	// attempts will be rejected when in untrusted forwarding mode.
@@ -177,11 +183,15 @@ func setAgentForwardingModeOption(o *Options, val string) error {
 }
 
 func setForwardX11Option(o *Options, val string) error {
-	parsedValue, err := parseBoolOption(val)
+	parsedValue, err := parseBoolTrueOption(val)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	o.ForwardX11 = parsedValue
+	if o.ForwardX11Trusted == nil {
+		trusted := true
+		o.ForwardX11Trusted = &trusted
+	}
 	return nil
 }
 
@@ -202,7 +212,7 @@ func setForwardX11TrustedOption(o *Options, val string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	o.ForwardX11Trusted = parsedValue
+	o.ForwardX11Trusted = &parsedValue
 	return nil
 }
 

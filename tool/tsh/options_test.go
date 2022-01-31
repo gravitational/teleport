@@ -114,14 +114,7 @@ func TestOptions(t *testing.T) {
 			assertError: require.NoError,
 			assertOptions: func(t *testing.T, opts Options) {
 				require.Equal(t, true, opts.ForwardX11)
-			},
-		},
-		{
-			desc:        "Forward X11",
-			inOptions:   []string{"ForwardX11 no"},
-			assertError: require.NoError,
-			assertOptions: func(t *testing.T, opts Options) {
-				require.Equal(t, false, opts.ForwardX11)
+				require.Equal(t, true, *opts.ForwardX11Trusted)
 			},
 		},
 		{
@@ -131,19 +124,28 @@ func TestOptions(t *testing.T) {
 		},
 		// ForwardX11Trusted tests
 		{
-			desc:        "Forward X11 Trusted",
+			desc:        "Forward X11 Trusted yes",
 			inOptions:   []string{"ForwardX11Trusted yes"},
 			assertError: require.NoError,
 			assertOptions: func(t *testing.T, opts Options) {
-				require.Equal(t, true, opts.ForwardX11Trusted)
+				require.Equal(t, true, *opts.ForwardX11Trusted)
 			},
 		},
 		{
-			desc:        "Forward X11 Trusted",
+			desc:        "Forward X11 Trusted no",
 			inOptions:   []string{"ForwardX11Trusted no"},
 			assertError: require.NoError,
 			assertOptions: func(t *testing.T, opts Options) {
-				require.Equal(t, false, opts.ForwardX11Trusted)
+				require.Equal(t, false, *opts.ForwardX11Trusted)
+			},
+		},
+		{
+			desc:        "Forward X11 Trusted with Forward X11",
+			inOptions:   []string{"ForwardX11 yes", "ForwardX11Trusted no"},
+			assertError: require.NoError,
+			assertOptions: func(t *testing.T, opts Options) {
+				require.Equal(t, true, opts.ForwardX11)
+				require.Equal(t, false, *opts.ForwardX11Trusted)
 			},
 		},
 		{
