@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 func TestAuthSignKubeconfig(t *testing.T) {
@@ -60,12 +60,15 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	_, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "example.com"}, nil, time.Minute)
+	require.NoError(t, err)
+
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: "example.com",
 		ActiveKeys: types.CAKeySet{
 			SSH: []*types.SSHKeyPair{{PublicKey: []byte("SSH CA cert")}},
-			TLS: []*types.TLSKeyPair{{Cert: []byte("TLS CA cert")}},
+			TLS: []*types.TLSKeyPair{{Cert: cert}},
 		},
 		Roles:      nil,
 		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
@@ -77,7 +80,10 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		remoteClusters: []types.RemoteCluster{remoteCluster},
 		userCerts: &proto.Certs{
 			SSH: []byte("SSH cert"),
-			TLS: []byte("TLS cert"),
+			TLS: cert,
+			TLSCACerts: [][]byte{
+				cert,
+			},
 		},
 		cas: []types.CertAuthority{ca},
 		proxies: []types.Server{

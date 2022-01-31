@@ -40,9 +40,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -758,20 +758,22 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 	switch sessionCtx.Database.GetProtocol() {
 	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		return &postgres.Engine{
-			Auth:    s.cfg.Auth,
-			Audit:   audit,
-			Context: s.closeContext,
-			Clock:   s.cfg.Clock,
-			Log:     sessionCtx.Log,
+			Auth:         s.cfg.Auth,
+			Audit:        audit,
+			Context:      s.closeContext,
+			Clock:        s.cfg.Clock,
+			CloudClients: s.cfg.CloudClients,
+			Log:          sessionCtx.Log,
 		}, nil
 	case defaults.ProtocolMySQL:
 		return &mysql.Engine{
-			Auth:       s.cfg.Auth,
-			Audit:      audit,
-			AuthClient: s.cfg.AuthClient,
-			Context:    s.closeContext,
-			Clock:      s.cfg.Clock,
-			Log:        sessionCtx.Log,
+			Auth:         s.cfg.Auth,
+			Audit:        audit,
+			AuthClient:   s.cfg.AuthClient,
+			Context:      s.closeContext,
+			Clock:        s.cfg.Clock,
+			CloudClients: s.cfg.CloudClients,
+			Log:          sessionCtx.Log,
 		}, nil
 	case defaults.ProtocolMongoDB:
 		return &mongodb.Engine{
@@ -817,7 +819,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	}
 	s.log.Debugf("Will connect to database %q at %v.", database.GetName(),
 		database.GetURI())
-	id := uuid.New()
+	id := uuid.New().String()
 	return &common.Session{
 		ID:                id,
 		ClusterName:       identity.RouteToCluster,

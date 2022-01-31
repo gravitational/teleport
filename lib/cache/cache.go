@@ -1336,24 +1336,29 @@ func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]ty
 		return rg.presence.ListNodes(ctx, req)
 	}
 
-	// Cache is not healthy.  We need to take advantage of TTL-based caching.  Rather than caching individual page
-	// calls (very messy), we rely on caching the result of the GetNodes endpoint, and then "faking" pagination.
+	// Cache is not healthy. List nodes using TTL cache.
+	return c.listNodesFromTTLCache(ctx, rg, req.Namespace, req.StartKey, req.Labels, int(req.Limit))
+}
 
-	limit := int(req.Limit)
+// listNodesFromTTLCache Used when the cache is not healthy. It takes advantage
+// of TTL-based caching rather than caching individual page calls (very messy).
+// It relies on caching the result of the `GetNodes` endpoint and then "faking"
+// pagination.
+func (c *Cache) listNodesFromTTLCache(ctx context.Context, rg readGuard, namespace, startKey string, labels map[string]string, limit int) ([]types.Server, string, error) {
 	if limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive limit value")
 	}
 
-	cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, req.Namespace)
+	cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	// trim nodes that precede start key
-	if req.StartKey != "" {
+	if startKey != "" {
 		pageStart := 0
 		for i, node := range cachedNodes {
-			if node.GetName() < req.StartKey {
+			if node.GetName() < startKey {
 				pageStart = i + 1
 			} else {
 				break
@@ -1369,7 +1374,7 @@ func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]ty
 			break
 		}
 
-		if node.MatchAgainst(req.Labels) {
+		if node.MatchAgainst(labels) {
 			filtered = append(filtered, node.DeepCopy())
 		}
 	}
@@ -1743,12 +1748,28 @@ func (c *Cache) GetWindowsDesktop(ctx context.Context, name string) (types.Windo
 }
 
 // ListResources is a part of auth.Cache implementation
-func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.Resource, nextKey string, err error) {
+func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.ResourceWithLabels, nextKey string, err error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-
 	defer rg.Release()
+
+	// Cache is not healthy, but right now, only `Node` kind has an
+	// implementation that falls back to TTL cache.
+	if !rg.IsCacheRead() && req.ResourceType == types.KindNode {
+		nodes, nextKey, err := c.listNodesFromTTLCache(ctx, rg, req.Namespace, req.StartKey, req.Labels, int(req.Limit))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		resources := make([]types.ResourceWithLabels, len(nodes))
+		for i, node := range nodes {
+			resources[i] = node
+		}
+
+		return resources, nextKey, nil
+	}
+
 	return rg.presence.ListResources(ctx, req)
 }
