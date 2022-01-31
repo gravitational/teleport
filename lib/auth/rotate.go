@@ -650,7 +650,7 @@ func completeRotation(clock clockwork.Clock, ca types.CertAuthority) {
 	rotation.Started = time.Time{}
 	rotation.State = types.RotationStateStandby
 	rotation.Phase = types.RotationPhaseStandby
-	rotation.LastRotated = clock.Now()
+	rotation.LastRotated = clock.Now().UTC()
 	rotation.Mode = ""
 	rotation.Schedule = types.RotationSchedule{}
 	ca.SetRotation(rotation)
