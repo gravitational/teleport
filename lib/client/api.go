@@ -199,6 +199,9 @@ type Config struct {
 	// PostgresProxyAddr is the host:port the Postgres proxy can be accessed at.
 	PostgresProxyAddr string
 
+	// MongoProxyAddr is the host:port the Mongo proxy can be accessed at.
+	MongoProxyAddr string
+
 	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
 	MySQLProxyAddr string
 
@@ -425,12 +428,18 @@ func (p *ProfileStatus) KeyPath() string {
 	return keypaths.UserKeyPath(p.Dir, p.Name, p.Username)
 }
 
-// DatabaseCertPath returns path to the specified database access certificate
-// for this profile.
+// DatabaseCertPathForCluster returns path to the specified database access
+// certificate for this profile, for the specified cluster.
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
-func (p *ProfileStatus) DatabaseCertPath(name string) string {
-	return keypaths.DatabaseCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
+//
+// If the input cluster name is an empty string, the selected cluster in the
+// profile will be used.
+func (p *ProfileStatus) DatabaseCertPathForCluster(clusterName string, databaseName string) string {
+	if clusterName == "" {
+		clusterName = p.Cluster
+	}
+	return keypaths.DatabaseCertPath(p.Dir, p.Name, p.Username, clusterName, databaseName)
 }
 
 // AppCertPath returns path to the specified app access certificate
@@ -455,6 +464,30 @@ func (p *ProfileStatus) DatabaseServices() (result []string) {
 		result = append(result, db.ServiceName)
 	}
 	return result
+}
+
+// DatabasesForCluster returns a list of databases for this profile, for the
+// specified cluster name.
+func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteToDatabase, error) {
+	if clusterName == "" || clusterName == p.Cluster {
+		return p.Databases, nil
+	}
+
+	idx := KeyIndex{
+		ProxyHost:   p.Name,
+		Username:    p.Username,
+		ClusterName: clusterName,
+	}
+
+	store, err := NewFSLocalKeyStore(p.Dir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	key, err := store.GetKey(idx, WithDBCerts{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return findActiveDatabases(key)
 }
 
 // AppNames returns a list of app names this profile is logged into.
@@ -593,24 +626,9 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	dbCerts, err := key.DBTLSCertificates()
+	databases, err := findActiveDatabases(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	var databases []tlsca.RouteToDatabase
-	for _, cert := range dbCerts {
-		tlsID, err := tlsca.FromSubject(cert.Subject, time.Time{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// If the cert expiration time is less than 5s consider cert as expired and don't add
-		// it to the user profile as an active database.
-		if time.Until(cert.NotAfter) < 5*time.Second {
-			continue
-		}
-		if tlsID.RouteToDatabase.ServiceName != "" {
-			databases = append(databases, tlsID.RouteToDatabase)
-		}
 	}
 
 	appCerts, err := key.AppTLSCertificates()
@@ -785,6 +803,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.SSHProxyAddr = cp.SSHProxyAddr
 	c.PostgresProxyAddr = cp.PostgresProxyAddr
 	c.MySQLProxyAddr = cp.MySQLProxyAddr
+	c.MongoProxyAddr = cp.MongoProxyAddr
 	c.TLSRoutingEnabled = cp.TLSRoutingEnabled
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
@@ -816,6 +835,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.KubeProxyAddr = c.KubeProxyAddr
 	cp.PostgresProxyAddr = c.PostgresProxyAddr
 	cp.MySQLProxyAddr = c.MySQLProxyAddr
+	cp.MongoProxyAddr = c.MongoProxyAddr
 	cp.ForwardedPorts = c.LocalForwardPorts.String()
 	cp.SiteName = c.SiteName
 	cp.TLSRoutingEnabled = c.TLSRoutingEnabled
@@ -981,6 +1001,17 @@ func (c *Config) PostgresProxyHostPort() (string, int) {
 	return c.WebProxyHostPort()
 }
 
+// MongoProxyHostPort returns the host and port of Mongo proxy.
+func (c *Config) MongoProxyHostPort() (string, int) {
+	if c.MongoProxyAddr != "" {
+		addr, err := utils.ParseAddr(c.MongoProxyAddr)
+		if err == nil {
+			return addr.Host(), addr.Port(defaults.MongoListenPort)
+		}
+	}
+	return c.WebProxyHostPort()
+}
+
 // MySQLProxyHostPort returns the host and port of MySQL proxy.
 func (c *Config) MySQLProxyHostPort() (string, int) {
 	if c.MySQLProxyAddr != "" {
@@ -1001,7 +1032,7 @@ func (c *Config) DatabaseProxyHostPort(db tlsca.RouteToDatabase) (string, int) {
 	case defaults.ProtocolMySQL:
 		return c.MySQLProxyHostPort()
 	case defaults.ProtocolMongoDB:
-		return c.WebProxyHostPort()
+		return c.MongoProxyHostPort()
 	}
 	return c.WebProxyHostPort()
 }
@@ -1572,6 +1603,32 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	}
 
 	return playSession(sessionEvents, stream)
+}
+
+func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessionID string) ([]events.EventFields, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter(auth.MissingNamespaceError)
+	}
+	sid, err := session.ParseID(sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
+	}
+	// connect to the auth server (site) who made the recording
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	events, err := site.GetSessionEvents(namespace, *sid, 0, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return events, nil
 }
 
 // PlayFile plays the recorded session from a tar file
@@ -2650,9 +2707,34 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 				proxySettings.DB.PostgresPublicAddr)
 		}
 		tc.PostgresProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(tc.WebProxyPort())))
+	case proxySettings.DB.PostgresListenAddr != "":
+		addr, err := utils.ParseAddr(proxySettings.DB.PostgresListenAddr)
+		if err != nil {
+			return trace.BadParameter("failed to parse Postgres listen address received from server: %q, contact your administrator for help",
+				proxySettings.DB.PostgresListenAddr)
+		}
+		tc.PostgresProxyAddr = net.JoinHostPort(tc.WebProxyHost(), strconv.Itoa(addr.Port(defaults.PostgresListenPort)))
 	default:
 		webProxyHost, webProxyPort := tc.WebProxyHostPort()
 		tc.PostgresProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(webProxyPort))
+	}
+
+	// Read Mongo proxy settings.
+	switch {
+	case proxySettings.DB.MongoPublicAddr != "":
+		addr, err := utils.ParseAddr(proxySettings.DB.MongoPublicAddr)
+		if err != nil {
+			return trace.BadParameter("failed to parse Mongo public address received from server: %q, contact your administrator for help",
+				proxySettings.DB.MongoPublicAddr)
+		}
+		tc.MongoProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(tc.WebProxyPort())))
+	case proxySettings.DB.MongoListenAddr != "":
+		addr, err := utils.ParseAddr(proxySettings.DB.MongoListenAddr)
+		if err != nil {
+			return trace.BadParameter("failed to parse Mongo listen address received from server: %q, contact your administrator for help",
+				proxySettings.DB.MongoListenAddr)
+		}
+		tc.MongoProxyAddr = net.JoinHostPort(tc.WebProxyHost(), strconv.Itoa(addr.Port(defaults.MongoListenPort)))
 	}
 
 	// Read MySQL proxy settings if enabled on the server.
@@ -3275,4 +3357,27 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 	case err := <-errorCh:
 		return trace.Wrap(err)
 	}
+}
+
+func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {
+	dbCerts, err := key.DBTLSCertificates()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var databases []tlsca.RouteToDatabase
+	for _, cert := range dbCerts {
+		tlsID, err := tlsca.FromSubject(cert.Subject, time.Time{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// If the cert expiration time is less than 5s consider cert as expired and don't add
+		// it to the user profile as an active database.
+		if time.Until(cert.NotAfter) < 5*time.Second {
+			continue
+		}
+		if tlsID.RouteToDatabase.ServiceName != "" {
+			databases = append(databases, tlsID.RouteToDatabase)
+		}
+	}
+	return databases, nil
 }

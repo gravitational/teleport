@@ -1547,6 +1547,19 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	_, hasRole = mappedRole["test-request-role"]
 	c.Assert(hasRole, check.Equals, true)
 
+	// certRequests extracts the active requests from a PEM encoded TLS cert.
+	certRequests := func(tlsCert []byte) []string {
+		cert, err := tlsca.ParseCertificatePEM(tlsCert)
+		c.Assert(err, check.IsNil)
+
+		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		c.Assert(err, check.IsNil)
+
+		return identity.ActiveRequests
+	}
+
+	c.Assert(certRequests(sess1.GetTLSCert()), check.DeepEquals, []string{accessReq.GetName()})
+
 	// Test switch back to default role and expiry.
 	sess2, err := web.ExtendWebSession(WebSessionReq{
 		User:          user,
@@ -1563,6 +1576,8 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	roles, _, err = services.ExtractFromCertificate(sshcert)
 	c.Assert(err, check.IsNil)
 	c.Assert(roles, check.DeepEquals, []string{initialRole})
+
+	c.Assert(certRequests(sess2.GetTLSCert()), check.HasLen, 0)
 }
 
 // TestGetCertAuthority tests certificate authority permissions
@@ -1709,6 +1724,17 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 		return apiutils.SliceContainsStr(identity.Groups, role)
 	}
 
+	// certRequests extracts the active requests from a PEM encoded TLS cert.
+	certRequests := func(tlsCert []byte) []string {
+		cert, err := tlsca.ParseCertificatePEM(tlsCert)
+		c.Assert(err, check.IsNil)
+
+		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		c.Assert(err, check.IsNil)
+
+		return identity.ActiveRequests
+	}
+
 	// certLogins extracts the logins from an ssh certificate
 	certLogins := func(sshCert []byte) []string {
 		cert, err := sshutils.ParseCertificate(sshCert)
@@ -1722,6 +1748,8 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	if certContainsRole(userCerts.TLS, role) {
 		c.Errorf("unexpected role %s", role)
 	}
+	// ensure that the default identity doesn't have any active requests
+	c.Assert(certRequests(userCerts.TLS), check.HasLen, 0)
 
 	// verify that cert for user with no static logins is generated with
 	// exactly one login and that it is an invalid unix login (indicated
@@ -1748,12 +1776,35 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	if !certContainsRole(userCerts.TLS, role) {
 		c.Errorf("missing requested role %s", role)
 	}
+	// ensure that the request is stored in the certs
+	c.Assert(certRequests(userCerts.TLS), check.DeepEquals, []string{req.GetName()})
 
 	// verify that dynamically applied role granted a login,
 	// which is is valid and has replaced the dummy login.
 	logins = certLogins(userCerts.SSH)
 	c.Assert(len(logins), check.Equals, 1)
 	c.Assert(rune(logins[0][0]), check.Not(check.Equals), '-')
+
+	elevatedCert, err := tls.X509KeyPair(userCerts.TLS, priv)
+	c.Assert(err, check.IsNil)
+	elevatedClient := s.server.NewClientWithCert(elevatedCert)
+
+	newCerts, err := elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey: pub,
+		Username:  user,
+		Expires:   time.Now().Add(time.Hour).UTC(),
+		Format:    constants.CertificateFormatStandard,
+		// no new access requests
+		AccessRequests: nil,
+	})
+	c.Assert(err, check.IsNil)
+
+	// in spite of having no access requests, we still have elevated roles...
+	if !certContainsRole(newCerts.TLS, role) {
+		c.Errorf("missing requested role %s", role)
+	}
+	// ...and the certificate shows the access request
+	c.Assert(certRequests(newCerts.TLS), check.DeepEquals, []string{req.GetName()})
 
 	// attempt to apply request in DENIED state (should fail)
 	c.Assert(s.server.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{RequestID: req.GetName(), State: types.RequestState_DENIED}), check.IsNil)
@@ -1765,6 +1816,17 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 
 	// ensure that once in the DENIED state, a request cannot be set back to APPROVED state.
 	c.Assert(s.server.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{RequestID: req.GetName(), State: types.RequestState_APPROVED}), check.NotNil)
+
+	// ensure that identities with requests in the DENIED state can't reissue new certs.
+	_, err = elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey: pub,
+		Username:  user,
+		Expires:   time.Now().Add(time.Hour).UTC(),
+		Format:    constants.CertificateFormatStandard,
+		// no new access requests
+		AccessRequests: nil,
+	})
+	c.Assert(err, check.NotNil)
 }
 
 func (s *TLSSuite) TestPluginData(c *check.C) {

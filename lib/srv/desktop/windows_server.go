@@ -438,38 +438,52 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 				return nil
 			}
 			return trace.Wrap(err)
+
+		}
+		proxyConn, ok := conn.(*tls.Conn)
+		if !ok {
+			return trace.ConnectionProblem(nil, "Got %T from TLS listener, expected *tls.Conn", conn)
 		}
 
-		go s.handleConnection(conn)
+		go s.handleConnection(proxyConn)
 	}
 }
 
-func (s *WindowsService) handleConnection(con net.Conn) {
-	defer con.Close()
+// handleConnection handles TLS connections from a Teleport proxy.
+// It authenticates and authorizes the connection, and then begins
+// translating the TDP messages from the proxy into native RDP.
+func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
+	defer proxyConn.Close()
 	log := s.cfg.Log
+	tdpConn := tdp.NewConn(proxyConn)
+
+	// Inline function to enforce that we are centralizing TDP Error sending in this function.
+	sendTdpError := func(message string) {
+		if err := tdpConn.OutputMessage(tdp.Error{Message: message}); err != nil {
+			s.cfg.Log.Errorf("Failed to send TDP error message %v: %v", tdp.Error{Message: message}, err)
+		}
+	}
 
 	// Check connection limits.
-	remoteAddr, _, err := net.SplitHostPort(con.RemoteAddr().String())
+	remoteAddr, _, err := net.SplitHostPort(proxyConn.RemoteAddr().String())
 	if err != nil {
-		log.WithError(err).Errorf("Could not parse client IP from %q", con.RemoteAddr().String())
+		log.WithError(err).Errorf("Could not parse client IP from %q", proxyConn.RemoteAddr().String())
+		sendTdpError("Internal error.")
 		return
 	}
 	log = log.WithField("client-ip", remoteAddr)
 	if err := s.cfg.ConnLimiter.AcquireConnection(remoteAddr); err != nil {
 		log.WithError(err).Warning("Connection limit exceeded, rejecting connection")
+		sendTdpError("Connection limit exceeded.")
 		return
 	}
 	defer s.cfg.ConnLimiter.ReleaseConnection(remoteAddr)
 
 	// Authenticate the client.
-	tlsConn, ok := con.(*tls.Conn)
-	if !ok {
-		log.Errorf("Got %T from TLS listener, expected *tls.Conn", con)
-		return
-	}
-	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, tlsConn)
+	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, proxyConn)
 	if err != nil {
 		log.WithError(err).Warning("mTLS authentication failed for incoming connection")
+		sendTdpError("Connection authentication failed.")
 		return
 	}
 	log.Debug("Authenticated Windows desktop connection")
@@ -477,16 +491,18 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 	authContext, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
 		log.WithError(err).Warning("authorization failed for Windows desktop connection")
+		sendTdpError("Connection authorization failed.")
 		return
 	}
 
 	// Fetch the target desktop info. Name of the desktop is passed via SNI.
-	desktopName := strings.TrimSuffix(tlsConn.ConnectionState().ServerName, SNISuffix)
+	desktopName := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
 	log = log.WithField("desktop-name", desktopName)
 
 	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopName)
 	if err != nil {
 		log.WithError(err).Warning("Failed to fetch desktop by name")
+		sendTdpError("Teleport failed to find the requested desktop in its database.")
 		return
 	}
 
@@ -494,13 +510,14 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 	log.Debug("Connecting to Windows desktop")
 	defer log.Debug("Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, log, tlsConn, desktop, authContext); err != nil {
-		log.WithError(err).Error("RDP connection failed")
+	if err := s.connectRDP(ctx, log, proxyConn, desktop, authContext); err != nil {
+		log.Errorf("RDP connection failed: %v", err)
+		sendTdpError("RDP connection failed.")
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, conn net.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, proxyConn *tls.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
@@ -524,16 +541,15 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			services.NewWindowsLoginMatcher(login))
 	}
 
-	tdpConn := tdp.NewConn(conn)
+	tdpConn := tdp.NewConn(proxyConn)
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
 			return s.generateCredentials(ctx, username, desktop.GetDomain())
 		},
-		Addr:          desktop.GetAddr(),
-		InputMessage:  tdpConn.InputMessage,
-		OutputMessage: tdpConn.OutputMessage,
-		AuthorizeFn:   authorize,
+		Addr:        desktop.GetAddr(),
+		Conn:        tdpConn,
+		AuthorizeFn: authorize,
 	})
 	if err != nil {
 		s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err)
@@ -542,13 +558,14 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 
 	monitorCfg := srv.MonitorConfig{
 		Context:           ctx,
-		Conn:              conn,
+		Conn:              proxyConn,
 		Clock:             s.cfg.Clock,
 		ClientIdleTimeout: authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		Entry:             log,
 		Emitter:           s.cfg.Emitter,
 		LockWatcher:       s.cfg.LockWatcher,
-		LockTargets:       services.LockTargetsFromTLSIdentity(identity),
+		LockingMode:       authCtx.Checker.LockingMode(authPref.GetLockingMode()),
+		LockTargets:       append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
 		Tracker:           rdpc,
 		TeleportUser:      identity.Username,
 		ServerID:          s.cfg.Heartbeat.HostUUID,
@@ -749,8 +766,8 @@ func (s *WindowsService) updateCRL(ctx context.Context, crlDER []byte) error {
 	// after the Teleport cluster name. For example, CRL for cluster "prod"
 	// will be placed at:
 	// ... > CDP > Teleport > prod
-	containerDN := "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.domainDN()
-	crlDN := "CN=" + s.clusterName + "," + containerDN
+	containerDN := s.crlContainerDN()
+	crlDN := s.crlDN()
 
 	// Create the parent container.
 	if err := s.lc.createContainer(containerDN); err != nil {
@@ -778,6 +795,18 @@ func (s *WindowsService) updateCRL(ctx context.Context, crlDER []byte) error {
 		s.cfg.Log.Info("Added CRL for Windows logins via LDAP")
 	}
 	return nil
+}
+
+// crlDN generates the LDAP distinguished name (DN) where this Windows Service
+// will publish its certificate revocation list
+func (s *WindowsService) crlDN() string {
+	return "CN=" + s.clusterName + "," + s.crlContainerDN()
+}
+
+// crlContainerDN generates the LDAP distinguished name (DN) of the container
+// where the certificate revocation list is published
+func (s *WindowsService) crlContainerDN() string {
+	return "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.domainDN()
 }
 
 // generateCredentials generates a private key / certificate pair for the given
@@ -812,7 +841,7 @@ func (s *WindowsService) generateCredentials(ctx context.Context, username, doma
 		//   is a type of SAN distinct from DNSNames, EmailAddresses, IPAddresses
 		//   and URIs)
 		ExtraExtensions: []pkix.Extension{
-			extKeyUsageExtension,
+			enhancedKeyUsageExtension,
 			san,
 		},
 	}
@@ -828,7 +857,7 @@ func (s *WindowsService) generateCredentials(ctx context.Context, username, doma
 	// CRLs in it. Each service can also handle RDP connections for a different
 	// domain, with the assumption that some other windows_desktop_service
 	// published a CRL there.
-	crlDN := "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.domainDN()
+	crlDN := s.crlDN()
 	genResp, err := s.cfg.AuthClient.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
 		CSR: csrPEM,
 		// LDAP URI pointing at the CRL created with updateCRL.
@@ -850,12 +879,39 @@ func (s *WindowsService) generateCredentials(ctx context.Context, username, doma
 	return certDER, keyDER, nil
 }
 
-var extKeyUsageExtension = pkix.Extension{
-	Id: asn1.ObjectIdentifier{2, 5, 29, 37}, // Extended Key Usage OID.
+// The following vars contain the various object identifiers required for smartcard
+// login certificates.
+//
+// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
+var (
+	// enhancedKeyUsageExtensionOID is the object identifier for a
+	// certificate's enhanced key usage extension
+	enhancedKeyUsageExtensionOID = asn1.ObjectIdentifier{2, 5, 29, 37}
+
+	// subjectAltNameExtensionOID is the object identifier for a
+	// certificate's subject alternative name extension
+	subjectAltNameExtensionOID = asn1.ObjectIdentifier{2, 5, 29, 17}
+
+	// clientAuthenticationOID is the object idnetifier that is used to
+	// include client SSL authentication in a certificate's enhanced
+	// key usage
+	clientAuthenticationOID = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 2}
+
+	// smartcardLogonOID is the object identifier that is used to include
+	// smartcard login in a certificate's enhanced key usage
+	smartcardLogonOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2, 2}
+
+	// upnOtherNameOID is the object identifier that is used to include
+	// the user principal name in a certificate's subject alternative name
+	upnOtherNameOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2, 3}
+)
+
+var enhancedKeyUsageExtension = pkix.Extension{
+	Id: enhancedKeyUsageExtensionOID,
 	Value: func() []byte {
 		val, err := asn1.Marshal([]asn1.ObjectIdentifier{
-			{1, 3, 6, 1, 5, 5, 7, 3, 2},       // Client Authentication OID.
-			{1, 3, 6, 1, 4, 1, 311, 20, 2, 2}, // Smartcard Logon OID.
+			clientAuthenticationOID,
+			smartcardLogonOID,
 		})
 		if err != nil {
 			panic(err)
@@ -870,12 +926,12 @@ func subjectAltNameExtension(user, domain string) (pkix.Extension, error) {
 	//
 	// othernName SAN is needed to pass the UPN of the user, per
 	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
-	ext := pkix.Extension{Id: asn1.ObjectIdentifier{2, 5, 29, 17}}
+	ext := pkix.Extension{Id: subjectAltNameExtensionOID}
 	var err error
 	ext.Value, err = asn1.Marshal(
 		subjectAltName{
 			OtherName: otherName{
-				OID: asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2, 3}, // UPN OID
+				OID: upnOtherNameOID,
 				Value: upn{
 					Value: fmt.Sprintf("%s@%s", user, domain), // TODO(zmb3): sanitize username to avoid domain spoofing
 				},

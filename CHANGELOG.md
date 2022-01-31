@@ -1,5 +1,107 @@
 # Changelog
 
+## 8.1.1
+
+This release of Teleport contains a feature, improvement, and fixes.
+
+* Added the `access_request.delete` event to track deleted Access Requests. [#9552](https://github.com/gravitational/teleport/pull/9552) 
+* Improved Kubernetes Access performance by forcing the use of http2. [#9294](https://github.com/gravitational/teleport/pull/9294)
+* Fixed an issue where `tsh kube login` would not respect `TELEPORT_HOME`. [#9760](https://github.com/gravitational/teleport/pull/9760)
+* Fixed an issue where EC2 node could fail if two nodes shared a nodename. [#9722](https://github.com/gravitational/teleport/pull/9722)
+* Fixed an issue where login would fail if the users home directory does not exist. [#9413](https://github.com/gravitational/teleport/pull/9413)
+
+## 8.1.0
+
+This release of Teleport contains features and fixes.
+
+* Added RBAC for sessions. It is now possible to further limit access to [shared sessions](https://goteleport.com/docs/server-access/guides/tsh/#sharing-sessions) and [session recordings](https://goteleport.com/docs/architecture/nodes/#session-recording). See the [RBAC for sessions](https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions) documentation for more details.
+* Added ability to specify level of TLS verification for database connections. [#9197](https://github.com/gravitational/teleport/pull/9197)
+* Added `--cluster` and `--diag_addr` to `tsh db` and `teleport` respectively. [#9220](https://github.com/gravitational/teleport/pull/9220)
+* Fixed an issue with user specification with `tsh db connect` and MongoDB. [#9196](https://github.com/gravitational/teleport/pull/9196)
+* Fixed an issue when connecting to an auth server over a tunnel when running in `proxy_listener_mode`. [#9498](https://github.com/gravitational/teleport/pull/9498)
+* Fixed an issue with Access Requests where the request reason was not being escaped when using `tctl`. [#9381](https://github.com/gravitational/teleport/pull/9381)
+* Fixed an issue where Teleport would incorrectly log `json: unsupported type: utils.Jitter`. [#9417](https://github.com/gravitational/teleport/pull/9417)
+* Fixed an issue with incorrect session ID being emitted in `session.leave` events. [#9651](https://github.com/gravitational/teleport/pull/9651)
+* Update `tctl lock` to allow locking a Windows Desktop. [#9543](https://github.com/gravitational/teleport/pull/9543)
+* Removed the libatomic dependency: Teleport 8.1.0 will run on systems without libatomic, but note that Desktop Access will not be enabled in 32-bit ARM builds. [#9667](https://github.com/gravitational/teleport/pull/9667)
+
+## 8.0.7
+
+This release of Teleport contains multiple features and bug fixes.
+
+* Added support for a configurable event TTL in DynamoDB. [#8840](https://github.com/gravitational/teleport/pull/8840)
+* Added support for `tsh play -f json <ID>` [#9319](https://github.com/gravitational/teleport/pull/9319)
+* Added Helm chart enhancements. [#8105](https://github.com/gravitational/teleport/pull/8105) [#8774](https://github.com/gravitational/teleport/pull/8774) [#9130](https://github.com/gravitational/teleport/pull/9130) [#9263](https://github.com/gravitational/teleport/pull/9263) [#9349](https://github.com/gravitational/teleport/pull/9349) [#9503](https://github.com/gravitational/teleport/pull/9503)
+* Fixed an issue with TLS Routing that would cause Teleport to not respect `NO_PROXY`. [#9287](https://github.com/gravitational/teleport/pull/9287)
+* Fixed an issue with Database Access where running `show tables` MySQL would result in an error. [#9411](https://github.com/gravitational/teleport/pull/9411)
+* Fixed an issue with Server Access where a null route would cause high latency when connecting to hosts. [#9254](https://github.com/gravitational/teleport/pull/9254)
+* Fixed an issue with Database Access that would cause the Web UI to fail to list databases. [#9096](https://github.com/gravitational/teleport/pull/9096)
+* Fixed a goroutine leak in Application Access. [#9332](https://github.com/gravitational/teleport/pull/9332)
+* Fixed potentially short reads from the system random number generator. [#9186](https://github.com/gravitational/teleport/pull/9186)
+* Fixed RPM repository compatibility issues for CentOS 7 users. [#9464](https://github.com/gravitational/teleport/pull/9464)
+* Fixed issue with Kubernetes Access and CA rotation. [#9418](https://github.com/gravitational/teleport/pull/9418)
+
+## 8.0.6
+
+This release of Teleport contains a feature and bug fixes.
+
+* Added ability to run Postgres and MongoDB proxy on separate listener. [#8323](https://github.com/gravitational/teleport/pull/8323)
+* Fixed an issue that could cause search engine crawlers to break signup and login pages.
+* Fixed issue that would cause `tsh login` to hang indefinitely. [#9193](https://github.com/gravitational/teleport/pull/9193)
+
+## 8.0.5
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue with desktop access smart card authentication.
+
+## 8.0.4
+
+This release of Teleport contains multiple security fixes.
+
+### Security fixes
+
+As part of a routine security audit of Teleport, several security
+vulnerabilities and miscellaneous issues were discovered. Below are the issues
+found, their impact, and the components of Teleport they affect.
+
+#### Insufficient authorization check in self-hosted MySQL database access
+
+Teleport MySQL proxy engine did not handle internal MySQL protocol command that
+allows to reauthenticate the active connection.
+
+This could allow an attacker with a valid client certificate for a particular
+database user to reauthenticate as a different MySQL user created using
+`require x509` clause.
+
+#### Insufficient authorization check in MongoDB database access
+
+Teleport MongoDB proxy engine did not implement processing for all possible
+MongoDB wire protocol messages.
+
+This could allow an attacker with a valid client certificate to connect to the
+database in a way that would prevent Teleport from enforcing authorization
+check on the database names.
+
+#### Authorization bypass in application access
+
+When proxying a websocket connection, Teleport did not check for a successful
+connection upgrade response from the target application.
+
+In scenarios where Teleport proxy is located behind a load balancer, this could
+result in the load balancer reusing the cached authenticated connection for
+future unauthenticated requests.
+
+#### Actions
+
+For Database Access users we recommend upgrading database agents that handle
+connections to self-hosted MySQL servers and MongoDB clusters.
+
+For Application Access users we recommend upgrading application agents.
+
+Upgrades should follow the normal Teleport upgrade procedure:
+https://goteleport.com/teleport/docs/admin-guide/#upgrading-teleport.
+
 ## 8.0.1
 
 This release of Teleport contains multiple improvements, bug fixes and a security fix.
@@ -333,7 +435,7 @@ Teleport 7.0 is a major release of Teleport that contains new features, improvem
 
 ### New Features
 
-#### MongoDB 
+#### MongoDB
 
 Added support for [MongoDB](https://www.mongodb.com) to Teleport Database Access. [#6600](https://github.com/gravitational/teleport/issues/6600).
 

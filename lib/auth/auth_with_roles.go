@@ -765,6 +765,62 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 	return filteredNodes, nil
 }
 
+// ListResources returns a paginated list of resources filtered by user access.
+func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.Resource, string, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	limit := int(req.Limit)
+
+	var resourceKind string
+	switch req.ResourceType {
+	case types.KindDatabaseServer:
+		resourceKind = types.KindDatabaseServer
+	case types.KindAppServer:
+		resourceKind = types.KindAppServer
+	default:
+		return nil, "", trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+	}
+
+	if err := a.action(req.Namespace, resourceKind, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	var resources []types.Resource
+	nextKey, err := a.authServer.IterateResourcePages(ctx, req, func(nextPage []types.Resource) (bool, error) {
+		for _, resource := range nextPage {
+			if err := a.checkAccessToResource(resource); err != nil {
+				if trace.IsAccessDenied(err) {
+					continue
+				}
+
+				return false, trace.Wrap(err)
+			}
+
+			resources = append(resources, resource)
+		}
+
+		return len(resources) == limit, nil
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return resources, nextKey, nil
+}
+
+func (a *ServerWithRoles) checkAccessToResource(resource types.Resource) error {
+	switch r := resource.(type) {
+	case types.AppServer:
+		return a.checkAccessToApp(r.GetApp())
+	case types.DatabaseServer:
+		return a.checkAccessToDatabase(r.GetDatabase())
+	default:
+		return trace.BadParameter("could not check access to resource type %T", r)
+	}
+}
+
 // ListNodes returns a paginated list of nodes filtered by user access.
 func (a *ServerWithRoles) ListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
 	if err := a.action(req.Namespace, types.KindNode, types.VerbList); err != nil {
@@ -1504,6 +1560,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// If the user is generating a certificate, the roles and traits come from the logged in identity.
 	if req.Username == a.context.User.GetName() {
 		roles, traits, err = services.ExtractFromIdentity(a.authServer, a.context.Identity.GetIdentity())
+		// we're going to extend the roles list based on the access requests, so
+		// we ensure that all the current requests are added to the new
+		// certificate (and are checked again)
+		req.AccessRequests = append(req.AccessRequests, a.context.Identity.GetIdentity().ActiveRequests...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3565,6 +3625,30 @@ func (a *ServerWithRoles) UpdateWindowsDesktop(ctx context.Context, s types.Wind
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpdateWindowsDesktop(ctx, s)
+}
+
+// UpsertWindowsDesktop updates a windows desktop resource, creating it if it doesn't exist.
+func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+	// Ensure caller has both Create and Update permissions.
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If the desktop exists, check access,
+	// if it doesn't, continue.
+	existing, err := a.authServer.GetWindowsDesktop(ctx, s.GetName())
+	if err == nil {
+		if err := a.checkAccessToWindowsDesktop(existing); err != nil {
+			return trace.Wrap(err)
+		}
+	} else if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	if err := a.checkAccessToWindowsDesktop(s); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertWindowsDesktop(ctx, s)
 }
 
 // DeleteWindowsDesktop removes the specified windows desktop host.

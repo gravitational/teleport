@@ -664,6 +664,20 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.MySQLAddr = *addr
 	}
+	if fc.Proxy.PostgresAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.PostgresAddr, int(defaults.PostgresListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.PostgresAddr = *addr
+	}
+	if fc.Proxy.MongoAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MongoAddr, int(defaults.MongoListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.MongoAddr = *addr
+	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.
@@ -788,22 +802,14 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.TunnelPublicAddrs = addrs
 	}
 	if len(fc.Proxy.PostgresPublicAddr) != 0 {
-		// Postgres proxy is multiplexed on the web proxy port. If the port is
-		// not specified here explicitly, prefer defaults in the following
-		// order, depending on what's set:
-		//   1. Web proxy public port
-		//   2. Web proxy listen port
-		//   3. Web proxy default listen port
-		defaultPort := cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort)
-		if len(cfg.Proxy.PublicAddrs) != 0 {
-			defaultPort = cfg.Proxy.PublicAddrs[0].Port(defaults.HTTPListenPort)
-		}
+		defaultPort := getPostgresDefaultPort(cfg)
 		addrs, err := utils.AddrsFromStrings(fc.Proxy.PostgresPublicAddr, defaultPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.PostgresPublicAddrs = addrs
 	}
+
 	if len(fc.Proxy.MySQLPublicAddr) != 0 {
 		if fc.Proxy.MySQLAddr == "" {
 			return trace.BadParameter("mysql_listen_addr must be set when mysql_public_addr is set")
@@ -816,6 +822,17 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.MySQLPublicAddrs = addrs
 	}
 
+	if len(fc.Proxy.MongoPublicAddr) != 0 {
+		if fc.Proxy.MongoAddr == "" {
+			return trace.BadParameter("mongo_listen_addr must be set when mongo_public_addr is set")
+		}
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.MongoPublicAddr, defaults.MongoListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.MongoPublicAddrs = addrs
+	}
+
 	acme, err := fc.Proxy.ACME.Parse()
 	if err != nil {
 		return trace.Wrap(err)
@@ -825,6 +842,24 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	applyDefaultProxyListenerAddresses(cfg)
 
 	return nil
+}
+
+func getPostgresDefaultPort(cfg *service.Config) int {
+	if !cfg.Proxy.PostgresAddr.IsEmpty() {
+		// If the proxy.PostgresAddr flag was provided return port
+		// from PostgresAddr address or default PostgresListenPort.
+		return cfg.Proxy.PostgresAddr.Port(defaults.PostgresListenPort)
+	}
+	// Postgres proxy is multiplexed on the web proxy port. If the proxy is
+	// not specified here explicitly, prefer defaults in the following
+	// order, depending on what's set:
+	//   1. Web proxy public port
+	//   2. Web proxy listen port
+	//   3. Web proxy default listen port
+	if len(cfg.Proxy.PublicAddrs) != 0 {
+		return cfg.Proxy.PublicAddrs[0].Port(defaults.HTTPListenPort)
+	}
+	return cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort)
 }
 
 func applyDefaultProxyListenerAddresses(cfg *service.Config) {
@@ -1004,14 +1039,12 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				}
 			}
 		}
-		var caBytes []byte
-		var err error
-		if database.CACertFile != "" {
-			caBytes, err = ioutil.ReadFile(database.CACertFile)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+
+		caBytes, err := readCACert(database)
+		if err != nil {
+			return trace.Wrap(err)
 		}
+
 		db := service.Database{
 			Name:          database.Name,
 			Description:   database.Description,
@@ -1019,7 +1052,11 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			URI:           database.URI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
-			CACert:        caBytes,
+			TLS: service.DatabaseTLS{
+				CACert:     caBytes,
+				ServerName: database.TLS.ServerName,
+				Mode:       service.TLSMode(database.TLS.Mode),
+			},
 			AWS: service.DatabaseAWS{
 				Region: database.AWS.Region,
 				Redshift: service.DatabaseAWSRedshift{
@@ -1041,6 +1078,41 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
 	}
 	return nil
+}
+
+// readCACert reads database CA certificate from the config file.
+// First 'tls.ca_cert_file` is being read, then deprecated 'ca_cert_file' if
+// the first one is not set.
+func readCACert(database *Database) ([]byte, error) {
+	var (
+		caBytes []byte
+		err     error
+	)
+	if database.TLS.CACertFile != "" {
+		caBytes, err = os.ReadFile(database.TLS.CACertFile)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+	}
+
+	// ca_cert_file is deprecated, but we still support it.
+	// Print a warning if the old field is still being used.
+	if database.CACertFile != "" {
+		if database.TLS.CACertFile != "" {
+			// New and old fields are set. Ignore the old field.
+			log.Warnf("Ignoring deprecated ca_cert_file in %s configuration; using tls.ca_cert_file.", database.Name)
+		} else {
+			// Only old field is set, inform about deprecation.
+			log.Warnf("ca_cert_file is deprecated, please use tls.ca_cert_file instead for %s.", database.Name)
+
+			caBytes, err = os.ReadFile(database.CACertFile)
+			if err != nil {
+				return nil, trace.ConvertSystemError(err)
+			}
+		}
+	}
+
+	return caBytes, nil
 }
 
 // applyAppsConfig applies file configuration for the "app_service" section.
@@ -1564,7 +1636,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 		var caBytes []byte
 		if clf.DatabaseCACertFile != "" {
-			caBytes, err = ioutil.ReadFile(clf.DatabaseCACertFile)
+			caBytes, err = os.ReadFile(clf.DatabaseCACertFile)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1576,7 +1648,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			URI:           clf.DatabaseURI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
-			CACert:        caBytes,
+			TLS: service.DatabaseTLS{
+				CACert: caBytes,
+			},
 			AWS: service.DatabaseAWS{
 				Region: clf.DatabaseAWSRegion,
 				Redshift: service.DatabaseAWSRedshift{

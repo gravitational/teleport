@@ -623,7 +623,7 @@ type AccessChecker interface {
 
 	// CheckKubeGroupsAndUsers check if role can login into kubernetes
 	// and returns two lists of combined allowed groups and users
-	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool) (groups []string, users []string, err error)
+	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) (groups []string, users []string, err error)
 
 	// CheckAWSRoleARNs returns a list of AWS role ARNs role is allowed to assume.
 	CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error)
@@ -1014,11 +1014,19 @@ func (set RoleSet) AdjustDisconnectExpiredCert(disconnect bool) bool {
 
 // CheckKubeGroupsAndUsers check if role can login into kubernetes
 // and returns two lists of allowed groups and users
-func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool) ([]string, []string, error) {
+func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error) {
 	groups := make(map[string]struct{})
 	users := make(map[string]struct{})
 	var matchedTTL bool
 	for _, role := range set {
+		ok, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		if !ok {
+			continue
+		}
+
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
@@ -1031,6 +1039,13 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool) 
 		}
 	}
 	for _, role := range set {
+		ok, _, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		if !ok {
+			continue
+		}
 		for _, group := range role.GetKubeGroups(types.Deny) {
 			delete(groups, group)
 		}
@@ -1513,6 +1528,22 @@ func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType
 	return false, nil
 }
 
+type kubernetesClusterLabelMatcher struct {
+	clusterLabels map[string]string
+}
+
+// NewKubernetesClusterLabelMatcher creates a RoleMatcher that checks whether a role's
+// Kubernetes service labels match.
+func NewKubernetesClusterLabelMatcher(clustersLabels map[string]string) RoleMatcher {
+	return &kubernetesClusterLabelMatcher{clusterLabels: clustersLabels}
+}
+
+// Match matches a Kubernetes cluster labels against a role.
+func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	ok, _, err := MatchLabels(role.GetKubernetesLabels(typ), l.clusterLabels)
+	return ok, trace.Wrap(err)
+}
+
 // AccessCheckable is the subset of types.Resource required for the RBAC checks.
 type AccessCheckable interface {
 	GetKind() string
@@ -1787,6 +1818,37 @@ func (set RoleSet) String() string {
 	return fmt.Sprintf("roles %v", strings.Join(roleNames, ","))
 }
 
+// GuessIfAccessIsPossible guesses if access is possible for an entire category
+// of resources.
+// It responds the question: "is it possible that there is a resource of this
+// kind that the current user can access?".
+// GuessIfAccessIsPossible is used, mainly, for UI decisions ("should the tab
+// for resource X appear"?). Most callers should use CheckAccessToRule instead.
+func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+	// "Where" clause are handled differently by the method:
+	// - "allow" rules have their "where" clause always match, as it's assumed
+	//   that there could be a resource that matches it.
+	// - "deny" rules have their "where" clause always fail, as it's assumed that
+	//   there could be a resource that passes it.
+	return set.checkAccessToRuleImpl(checkAccessParams{
+		ctx:        ctx,
+		namespace:  namespace,
+		resource:   resource,
+		verb:       verb,
+		allowWhere: boolParser(true),  // always matches
+		denyWhere:  boolParser(false), // never matches
+		silent:     silent,
+	})
+}
+
+type boolParser bool
+
+func (p boolParser) Parse(string) (interface{}, error) {
+	return predicate.BoolPredicate(func() bool {
+		return bool(p)
+	}), nil
+}
+
 // CheckAccessToRule checks if the RoleSet provides access in the given
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
@@ -1795,35 +1857,58 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	actionsParser, err := NewActionsParser(ctx)
+
+	return set.checkAccessToRuleImpl(checkAccessParams{
+		ctx:        ctx,
+		namespace:  namespace,
+		resource:   resource,
+		verb:       verb,
+		allowWhere: whereParser,
+		denyWhere:  whereParser,
+		silent:     silent,
+	})
+}
+
+type checkAccessParams struct {
+	ctx                   RuleContext
+	namespace             string
+	resource              string
+	verb                  string
+	allowWhere, denyWhere predicate.Parser
+	silent                bool
+}
+
+func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) error {
+	actionsParser, err := NewActionsParser(p.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
-		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Deny), types.ProcessNamespace(namespace))
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Deny), types.ProcessNamespace(p.namespace))
 		if matchNamespace {
-			matched, err := MakeRuleSet(role.GetRules(types.Deny)).Match(whereParser, actionsParser, resource, verb)
+			matched, err := MakeRuleSet(role.GetRules(types.Deny)).Match(p.denyWhere, actionsParser, p.resource, p.verb)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			if matched {
-				if !silent {
+				if !p.silent {
 					log.WithFields(log.Fields{
 						trace.Component: teleport.ComponentRBAC,
 					}).Infof("Access to %v %v in namespace %v denied to %v: deny rule matched.",
-						verb, resource, namespace, role.GetName())
+						p.verb, p.resource, p.namespace, role.GetName())
 				}
-				return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+				return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
 			}
 		}
 	}
 
 	// check allow: if rule matches, grant access to resource
 	for _, role := range set {
-		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Allow), types.ProcessNamespace(namespace))
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Allow), types.ProcessNamespace(p.namespace))
 		if matchNamespace {
-			match, err := MakeRuleSet(role.GetRules(types.Allow)).Match(whereParser, actionsParser, resource, verb)
+			match, err := MakeRuleSet(role.GetRules(types.Allow)).Match(p.allowWhere, actionsParser, p.resource, p.verb)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1833,13 +1918,13 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 		}
 	}
 
-	if !silent {
+	if !p.silent {
 		log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentRBAC,
 		}).Infof("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
-			verb, resource, namespace, set)
+			p.verb, p.resource, p.namespace, set)
 	}
-	return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+	return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
 }
 
 // ExtractConditionForIdentifier returns a restrictive filter expression

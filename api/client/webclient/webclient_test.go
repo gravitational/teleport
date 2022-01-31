@@ -22,7 +22,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -104,14 +103,10 @@ func TestPlainHttpFallback(t *testing.T) {
 }
 
 func TestGetTunnelAddr(t *testing.T) {
-	ctx := context.Background()
-	t.Run("should use TELEPORT_TUNNEL_PUBLIC_ADDR", func(t *testing.T) {
-		os.Setenv(defaults.TunnelPublicAddrEnvar, "tunnel.example.com:4024")
-		t.Cleanup(func() { os.Unsetenv(defaults.TunnelPublicAddrEnvar) })
-		tunnelAddr, err := GetTunnelAddr(ctx, "", true, nil)
-		require.NoError(t, err)
-		require.Equal(t, "tunnel.example.com:4024", tunnelAddr)
-	})
+	t.Setenv(defaults.TunnelPublicAddrEnvar, "tunnel.example.com:4024")
+	tunnelAddr, err := GetTunnelAddr(context.Background(), "", true, nil)
+	require.NoError(t, err)
+	require.Equal(t, "tunnel.example.com:4024", tunnelAddr)
 }
 
 func TestTunnelAddr(t *testing.T) {
@@ -282,7 +277,7 @@ func TestExtract(t *testing.T) {
 			require.True(t, (tc.hostPort == "") == (err != nil))
 			require.Equal(t, tc.hostPort, hostPort)
 
-			host, err := extractHost(tc.addr)
+			host, err := ExtractHost(tc.addr)
 			// Expect err if expected value is empty
 			require.True(t, (tc.host == "") == (err != nil))
 			require.Equal(t, tc.host, host)

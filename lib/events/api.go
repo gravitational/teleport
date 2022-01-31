@@ -199,6 +199,8 @@ const (
 	AccessRequestUpdateEvent = "access_request.update"
 	// AccessRequestReviewEvent is emitted when a review is applied to a request.
 	AccessRequestReviewEvent = "access_request.review"
+	// AccessRequestDeleteEvent is emitted when a new access request is deleted.
+	AccessRequestDeleteEvent = "access_request.delete"
 	// AccessRequestDelegator is used by teleport plugins to indicate the identity
 	// which caused them to update state.
 	AccessRequestDelegator = "delegator"
@@ -360,6 +362,9 @@ const (
 	// SessionRejected fires when a user's attempt to create an authenticated
 	// session has been rejected due to exceeding a session control limit.
 	SessionRejectedEvent = "session.rejected"
+
+	// SessionConnect is emitted when any ssh connection is made
+	SessionConnectEvent = "session.connect"
 
 	// AppCreateEvent is emitted when an application resource is created.
 	AppCreateEvent = "app.create"

@@ -965,7 +965,10 @@ type Database struct {
 	// URI is the database address to connect to.
 	URI string `yaml:"uri"`
 	// CACertFile is an optional path to the database CA certificate.
+	// Deprecated in favor of TLS.CACertFile.
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
+	// TLS keeps an optional TLS configuration options.
+	TLS DatabaseTLS `yaml:"tls"`
 	// StaticLabels is a map of database static labels.
 	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 	// DynamicLabels is a list of database dynamic labels.
@@ -974,6 +977,18 @@ type Database struct {
 	AWS DatabaseAWS `yaml:"aws"`
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP `yaml:"gcp"`
+}
+
+// DatabaseTLS keeps TLS settings used when connecting to database.
+type DatabaseTLS struct {
+	// Mode is a TLS verification mode. Available options are 'verify-full', 'verify-ca' or 'insecure',
+	// 'verify-full' is the default option.
+	Mode string `yaml:"mode"`
+	// ServerName allows providing custom server name.
+	// This name will override DNS name when validating certificate presented by the database.
+	ServerName string `yaml:"server_name,omitempty"`
+	// CACertFile is an optional path to the database CA certificate.
+	CACertFile string `yaml:"ca_cert_file,omitempty"`
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
@@ -1115,9 +1130,18 @@ type Proxy struct {
 	// MySQLPublicAddr is the hostport the proxy advertises for MySQL
 	// client connections.
 	MySQLPublicAddr apiutils.Strings `yaml:"mysql_public_addr,omitempty"`
+
+	// PostgresAddr is Postgres proxy listen address.
+	PostgresAddr string `yaml:"postgres_listen_addr,omitempty"`
 	// PostgresPublicAddr is the hostport the proxy advertises for Postgres
 	// client connections.
 	PostgresPublicAddr apiutils.Strings `yaml:"postgres_public_addr,omitempty"`
+
+	// MongoAddr is Mongo proxy listen address.
+	MongoAddr string `yaml:"mongo_listen_addr,omitempty"`
+	// MongoPublicAddr is the hostport the proxy advertises for Mongo
+	// client connections.
+	MongoPublicAddr apiutils.Strings `yaml:"mongo_public_addr,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
@@ -1285,7 +1309,7 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		})
 	}
 
-	v2, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV3{
 		IssuerURL:     o.IssuerURL,
 		ClientID:      o.ClientID,
 		ClientSecret:  o.ClientSecret,
@@ -1298,12 +1322,12 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	v2.SetACR(o.ACR)
-	v2.SetProvider(o.Provider)
-	if err := v2.CheckAndSetDefaults(); err != nil {
+	connector.SetACR(o.ACR)
+	connector.SetProvider(o.Provider)
+	if err := connector.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return v2, nil
+	return connector, nil
 }
 
 // Metrics is a `metrics_service` section of the config file:
