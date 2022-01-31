@@ -453,6 +453,14 @@ $(RENDER_TESTS): $(wildcard ./build.assets/tooling/cmd/render-tests/*.go)
 .PHONY: test
 test: test-sh test-api test-go
 
+# Runs bot Go tests.
+#
+.PHONY: test-bot
+test-bot:
+test-bot: FLAGS ?= '-race'
+test-bot:
+	cd .github/workflows/robot && go test $(FLAGS) ./...
+
 #
 # Runs all Go tests except integration, called by CI/CD.
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
@@ -532,7 +540,7 @@ integration-root: $(RENDER_TESTS)
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go lint-license lint-rdp
+lint: lint-sh lint-helm lint-api lint-version-check lint-bot lint-ci-scripts lint-go lint-license lint-rdp
 
 .PHONY: lint-rdp
 lint-rdp:
@@ -544,6 +552,21 @@ lint-rdp:
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
 	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
+
+.PHONY: lint-version-check
+lint-version-check: GO_LINT_FLAGS ?=
+lint-version-check:
+	cd build.assets/version-check && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
+
+.PHONY: lint-bot
+lint-bot: GO_LINT_FLAGS ?=
+lint-bot:
+	cd .github/workflows/robot && golangci-lint run -c ../../../.golangci.yml $(GO_LINT_FLAGS)
+
+.PHONY: lint-ci-scripts
+lint-ci-scripts: GO_LINT_FLAGS ?=
+lint-ci-scripts:
+	cd .cloudbuild/scripts/ && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
 
 # api is no longer part of the teleport package, so golangci-lint skips it by default
 .PHONY: lint-api
