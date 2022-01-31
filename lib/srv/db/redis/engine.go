@@ -252,11 +252,16 @@ func (e *Engine) subscribeCmd(ctx context.Context, subscribeFn redisSubscribeFn,
 	return nil
 }
 
+// processAuth runs RBAC check on Redis AUTH command if command contains username. Command containing only password
+// is passed to Redis. Commands with incorrect number of arguments are rejected and an error is returned.
 func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalClient, cmd *redis.Cmd) error {
 	// AUTH command may contain only password or login and password. Depends on the version we need to make sure
 	// that the user has permission to connect as the provided db user.
 	// ref: https://redis.io/commands/auth
 	switch len(cmd.Args()) {
+	case 1:
+		// Passed AUTH command without any arguments. Mimic Redis error response.
+		return errors.New("wrong number of arguments for 'auth' command")
 	case 2:
 		// Old Redis command. Password is the only argument here. Pass to Redis to validate.
 		// ex. AUTH my-secret-password
@@ -274,6 +279,7 @@ func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalCli
 			role.DatabaseRoleMatchers(
 				defaults.ProtocolRedis,
 				dbUser,
+				// pass empty database as Redis integration doesn't support db name validation.
 				"")...)
 		if err != nil {
 			return err
@@ -281,9 +287,9 @@ func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalCli
 
 		return redisClient.Process(ctx, cmd)
 	default:
-		return errors.New("AUTH wrong ...") // TODO(jakub)
+		// Redis returns "syntax error" if AUTH has that 2 arguments.
+		return errors.New("syntax error")
 	}
-
 }
 
 func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient) error {
