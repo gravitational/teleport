@@ -23,7 +23,6 @@ import (
 	"net"
 	"os"
 	"sort"
-	"sync"
 	"testing"
 	"time"
 
@@ -801,24 +800,35 @@ func TestRedisPubSub(t *testing.T) {
 	require.NoError(t, err)
 
 	var fooSub *goredis.PubSub
-	var wg sync.WaitGroup
+	syncChan := make(chan bool)
 
-	wg.Add(1)
 	go func() {
 		fooSub = redisClient.Subscribe(ctx, "foo")
 		defer fooSub.Close()
+		defer func() {
+			//TODO(jakub): Works but it's hacky.
+			syncChan <- false
+		}()
 
-		chanVal1 := <-fooSub.Channel()
-		require.Equal(t, "bar1", chanVal1.Payload)
-		wg.Done()
+		event, err := fooSub.Receive(ctx)
+		require.NoError(t, err)
+		require.IsType(t, &goredis.Subscription{}, event)
+		syncChan <- true
+
+		event, err = fooSub.Receive(ctx)
+		require.NoError(t, err)
+
+		msg, ok := event.(*goredis.Message)
+		require.True(t, ok, "Redis message has wrong type")
+		require.Equal(t, "bar1", msg.Payload)
+		syncChan <- true
 	}()
 
-	time.Sleep(time.Second) // TODO(jakub): fix me.
+	require.True(t, <-syncChan)
 	err = redisClient.Publish(ctx, "foo", "bar1").Err()
 	require.NoError(t, err)
 
-	wg.Wait()
-
+	require.True(t, <-syncChan)
 	// Disconnect.
 	err = redisClient.Close()
 	require.NoError(t, err)
