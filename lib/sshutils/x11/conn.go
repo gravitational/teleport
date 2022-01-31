@@ -64,9 +64,9 @@ func (l *xserverTCPListener) Accept() (XServerConn, error) {
 // display sockets which can be opened at once.
 func OpenNewXServerListener(displayOffset int, maxDisplay int, screen uint32) (XServerListener, Display, error) {
 	if displayOffset > maxDisplay {
-		return nil, Display{}, trace.BadParameter("displayOffset cannot be larger than maxDisplay")
+		return nil, Display{}, trace.BadParameter("displayOffset (%d) cannot be larger than maxDisplay (%d)", displayOffset, maxDisplay)
 	} else if maxDisplay > MaxDisplayNumber {
-		return nil, Display{}, trace.BadParameter("maxDisplay cannot be larger than the max int32 (2147483647)")
+		return nil, Display{}, trace.BadParameter("maxDisplay (%d) cannot be larger than the max int32 (2147483647)", maxDisplay)
 	}
 
 	for displayNumber := displayOffset; displayNumber < maxDisplay; displayNumber++ {

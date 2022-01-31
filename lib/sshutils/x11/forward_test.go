@@ -56,7 +56,7 @@ func TestForward(t *testing.T) {
 	}()
 
 	// Create a fake XServer proxy just like the one in sshserver.
-	sl, serverDisplay, err := OpenNewXServerListener(DefaultDisplayOffset, 0, 0)
+	sl, serverDisplay, err := OpenNewXServerListener(DefaultDisplayOffset, DefaultMaxDisplay, 0)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, sl.Close())

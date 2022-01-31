@@ -255,9 +255,17 @@ func RunCommand() (io.Writer, int, error) {
 
 		// Set the open XServer unix socket's owner to the localuser
 		// to prevent a potential privilege escalation vulnerability.
-		// if err := os.Chown(c.X11Config.XServerUnixSocket, int(cmd.SysProcAttr.Credential.Uid), int(cmd.SysProcAttr.Credential.Gid)); err != nil {
-		// 	return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		// }
+		uid, err := strconv.Atoi(localUser.Uid)
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+		gid, err := strconv.Atoi(localUser.Gid)
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+		if err := os.Chown(c.X11Config.XServerUnixSocket, uid, gid); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
 
 		// Update localUser's xauth database for X11 forwarding.
 		removeCmd := x11.NewXAuthCommand(context.Background(), "")
