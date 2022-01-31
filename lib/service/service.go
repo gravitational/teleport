@@ -621,8 +621,10 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	// create the data directory if it's missing
 	_, err = os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
+		cfg.Log.Errorf("Teleport process must have rights to maintain data directory: %v. Run as root or with sudo if not running as process that can maintain that directory. ", cfg.DataDir)
 		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0700)
 		if err != nil {
+
 			return nil, trace.ConvertSystemError(err)
 		}
 	}
@@ -659,6 +661,8 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			cfg.Log.Infof("Generating new host UUID: %v.", cfg.HostUUID)
 		}
 		if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
+			cfg.Log.Errorf("Teleport process must have rights to maintain files in data directory: %v. Run as root or with sudo if not running as process that can maintain that directory. ", cfg.DataDir)
+
 			return nil, trace.Wrap(err)
 		}
 	}
