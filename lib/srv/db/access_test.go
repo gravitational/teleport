@@ -19,10 +19,12 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -833,6 +835,115 @@ func TestRedisPubSub(t *testing.T) {
 	// Disconnect.
 	err = redisClient.Close()
 	require.NoError(t, err)
+}
+
+func TestRedisPipeline(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	// Try to connect to the database as this user.
+	redisClient, err := testCtx.redisClient(ctx, "alice", "redis", "admin")
+	require.NoError(t, err)
+
+	pipeliner := redisClient.Pipeline()
+	for i := 0; i < 10; i++ {
+		err := pipeliner.Set(ctx, fmt.Sprintf("foo%d", i), i, 0).Err()
+		require.NoError(t, err)
+	}
+
+	cmds, err := pipeliner.Exec(ctx)
+	require.NoError(t, err)
+
+	for _, cmd := range cmds {
+		require.NoError(t, cmd.Err())
+	}
+
+}
+
+func TestRedisTransaction(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	// Try to connect to the database as this user.
+	redisClient, err := testCtx.redisClient(ctx, "alice", "redis", "admin")
+
+	// Test below has been taken from go-redis documentation and modify: https://pkg.go.dev/github.com/go-redis/redis/v8#Client.Watch
+	const maxRetries = 100
+
+	// Increment transactional increments key using GET and SET commands.
+	increment := func(key string) error {
+		// Transactional function.
+		txf := func(tx *goredis.Tx) error {
+			// Get current value or zero.
+			n, err := tx.Get(ctx, key).Int()
+			if err != nil && err != goredis.Nil {
+				return err
+			}
+
+			// Actual operation (local in optimistic lock).
+			n++
+
+			// Operation is committed only if the watched keys remain unchanged.
+			_, err = tx.TxPipelined(ctx, func(pipe goredis.Pipeliner) error {
+				pipe.Set(ctx, key, n, 0)
+				return nil
+			})
+			return err
+		}
+
+		for i := 0; i < maxRetries; i++ {
+			err := redisClient.Watch(ctx, txf, key)
+			if err == nil {
+				// Success.
+				return nil
+			}
+			if err == goredis.TxFailedErr {
+				// Optimistic lock lost. Retry.
+				continue
+			}
+			// Return any other error.
+			return err
+		}
+
+		return errors.New("increment reached maximum number of retries")
+	}
+
+	var wg sync.WaitGroup
+
+	// Create a channel for potential transaction errors, as testify require package cannot be used from a goroutine.
+	asyncErrors := make(chan error, 10)
+	defer close(asyncErrors)
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			if err := increment("counter3"); err != nil {
+				asyncErrors <- err
+			}
+		}()
+	}
+	wg.Wait()
+
+	select {
+	case err := <-asyncErrors:
+		require.FailNow(t, "failed to increment counter", err)
+	default:
+	}
+
+	n, err := redisClient.Get(ctx, "counter3").Int()
+
+	require.NoError(t, err)
+	require.Equal(t, 10, n)
 }
 
 type testContext struct {
