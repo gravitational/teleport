@@ -65,6 +65,11 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 // address of the proxy is set.
 func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p launcherURLParams) error {
 	if h.c.WebPublicAddr == "" {
+		// The error below tends to be swallowed by the Web UI, so log a warning for
+		// admins as well.
+		h.log.Error("" +
+			"Application Service needs the Proxy's public_addr to be explicitly set, otherwise it won't work. " +
+			"Please refer to https://goteleport.com/docs/application-access/guides/connecting-apps/#start-authproxy-service.")
 		return trace.BadParameter("public address of the proxy is not set")
 	}
 	addr, err := utils.ParseAddr(r.Host)
