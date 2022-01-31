@@ -32,8 +32,8 @@ import (
 func GetGCPRequireSSL(ctx context.Context, sessionCtx *common.Session, gcpClient common.GCPSQLAdminClient) (requireSSL bool, err error) {
 	dbi, err := gcpClient.GetDatabaseInstance(ctx, sessionCtx)
 	if err != nil {
-		if IsGCPUnauthorizedErr(err) {
-			return false, GCPAccessDeniedErr(err, "Could not get GCP database instance settings",
+		if IsGCPUnauthorizedError(err) {
+			return false, GCPAccessDeniedError(err, "Could not get GCP database instance settings",
 				GCPCloudSQLAdminRole, GCPInstancesGetPermission)
 		}
 		return false, trace.Wrap(err, "Failed to get Cloud SQL instance information for %q.", common.GCPServerName(sessionCtx))
@@ -49,8 +49,8 @@ func GetGCPRequireSSL(ctx context.Context, sessionCtx *common.Session, gcpClient
 func AppendGCPClientCert(ctx context.Context, sessionCtx *common.Session, gcpClient common.GCPSQLAdminClient, tlsConfig *tls.Config) error {
 	cert, err := gcpClient.GenerateEphemeralCert(ctx, sessionCtx)
 	if err != nil {
-		if IsGCPUnauthorizedErr(err) {
-			return GCPAccessDeniedErr(err, "Cloud not generate GCP ephemeral client certificate",
+		if IsGCPUnauthorizedError(err) {
+			return GCPAccessDeniedError(err, "Cloud not generate GCP ephemeral client certificate",
 				GCPCloudSQLAdminRole, GCPCreateEphemeralPermission)
 		}
 		return trace.Wrap(err, "Failed to generate GCP ephemeral client certificate for %q.", common.GCPServerName(sessionCtx))
@@ -59,17 +59,17 @@ func AppendGCPClientCert(ctx context.Context, sessionCtx *common.Session, gcpCli
 	return nil
 }
 
-// IsGCPUnauthorizedErr returns true when the error is a googleapi.Error
+// IsGCPUnauthorizedError returns true when the error is a googleapi.Error
 // and its error code is StatusForbidden. The error is unwrapped before
 // comparing.
-func IsGCPUnauthorizedErr(err error) bool {
+func IsGCPUnauthorizedError(err error) bool {
 	e, ok := trace.Unwrap(err).(*googleapi.Error)
 	return ok && e.Code == http.StatusForbidden
 }
 
-// GCPAccessDeniedErr returns an access denied error with details for the user
+// GCPAccessDeniedError returns an access denied error with details for the user
 // to help them configure IAM roles.
-func GCPAccessDeniedErr(err error, failure, needRole, needPermission string) error {
+func GCPAccessDeniedError(err error, failure, needRole, needPermission string) error {
 	return trace.AccessDenied(`%s:
 
   %v
