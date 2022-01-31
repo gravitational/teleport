@@ -1559,6 +1559,9 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 	}
 
 	if err := ctx.OpenXServerListener(x11Req, s.x11.DisplayOffset, s.x11.MaxDisplay); err != nil {
+		if trace.IsLimitExceeded(err) {
+			return trace.AccessDenied("The server cannot support any more X11 forwarding sessions at this time")
+		}
 		return trace.Wrap(err)
 	}
 
