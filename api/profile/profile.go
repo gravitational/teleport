@@ -20,6 +20,7 @@ package profile
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"io/fs"
 	"io/ioutil"
 	"net"
 	"os"
@@ -109,14 +110,25 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	caCerts, err := ioutil.ReadFile(p.TLSCAsPath())
+	pool := x509.NewCertPool()
+	err = filepath.Walk(p.TLSClusterCASDir(), func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if info.IsDir() {
+			return nil
+		}
+		cert, err := ioutil.ReadFile(path)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+		if !pool.AppendCertsFromPEM(cert) {
+			return trace.BadParameter("invalid CA cert PEM %s", path)
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(caCerts) {
-		return nil, trace.BadParameter("invalid CA cert PEM")
 	}
 
 	return &tls.Config{
@@ -320,9 +332,14 @@ func (p *Profile) TLSCertPath() string {
 	return keypaths.TLSCertPath(p.Dir, p.Name(), p.Username)
 }
 
-// TLSCAsPath returns the path to the profile's TLS certificate authorities.
-func (p *Profile) TLSCAsPath() string {
-	return keypaths.TLSCAsPath(p.Dir, p.Name())
+// TLSCAPathCluster returns CA for particular cluster.
+func (p *Profile) TLSCAPathCluster(cluster string) string {
+	return keypaths.TLSCAsPathCluster(p.Dir, p.Name(), cluster)
+}
+
+// TLSClusterCASDir returns CAS directory where cluster CAs are stored.
+func (p *Profile) TLSClusterCASDir() string {
+	return keypaths.CAsDir(p.Dir, p.Name())
 }
 
 // SSHDir returns the path to the profile's ssh directory.
