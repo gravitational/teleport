@@ -49,12 +49,13 @@ type Engine struct {
 	Log logrus.FieldLogger
 	// proxyConn is a client connection.
 	proxyConn net.Conn
-
+	// clientReader is a go-redis wrapper for Redis client connection.
 	clientReader *redis.Reader
-
+	// sessionCtx is current session context.
 	sessionCtx *common.Session
 }
 
+// InitializeConnection initializes the database connection.
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.proxyConn = clientConn
 	e.clientReader = redis.NewReader(clientConn)
@@ -92,6 +93,7 @@ func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Ses
 	return nil
 }
 
+// SendError sends error message to connected client.
 func (e *Engine) SendError(redisErr error) {
 	if redisErr == nil || utils.IsOKNetworkError(redisErr) {
 		return
@@ -106,6 +108,7 @@ func (e *Engine) SendError(redisErr error) {
 	}
 }
 
+// sendToClient sends a command to connected Redis client.
 func (e *Engine) sendToClient(vals interface{}) error {
 	buf := &bytes.Buffer{}
 	wr := redis.NewWriter(buf)
@@ -121,6 +124,7 @@ func (e *Engine) sendToClient(vals interface{}) error {
 	return nil
 }
 
+// HandleConnection is responsible for connecting to a Redis instance/cluster and
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	// Check that the user has access to the database.
 	err := e.authorizeConnection(ctx, sessionCtx)
@@ -144,6 +148,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	)
 
 	// TODO(jakub): Use system CA bundle if connecting to AWS.
+	// TODO(jakub): Investigate Redis Sentinel.
 	if connectionOptions.cluster {
 		redisConn = redis.NewClusterClient(&redis.ClusterOptions{
 			Addrs:     []string{connectionAddr},
@@ -160,7 +165,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	e.Log.Debug("created a new Redis client, sending ping to test the connection")
 
 	// TODO(jakub): Currently Teleport supports only RESP2 as RESP3 is not supported by go-redis.
-	// When migration to RESP3 protocol this PING should be replaced with "HELLO 3"
+	// When migration to RESP3 protocol this PING should be removed in favor of "HELLO 3" cmd.
 	// https://github.com/antirez/RESP3/blob/master/spec.md#the-hello-command-and-connection-handshake
 	pingResp := redisConn.Ping(context.Background())
 	if pingResp.Err() != nil {
@@ -179,6 +184,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	return nil
 }
 
+// readClientCmd reads commands from connected Redis client.
 func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 	cmd := &redis.Cmd{}
 	if err := cmd.ReadReply(e.clientReader); err != nil {
@@ -193,6 +199,11 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 	return redis.NewCmd(ctx, val...), nil
 }
 
+// processCmd processes commands received from connected client. Most commands are just passed to Redis instance,
+// but some require special actions:
+//  * Redis 7.0+ commands are rejected as at the moment of writing Redis 7.0 hasn't been released and go-redis doesn't support it.
+//  * RESP3 commands are rejected as Teleport currently doesn't support this version of protocol.
+//  * Subscribe related commands created a new DB connection as they change Redis request-response model to Pub/Sub.
 func (e *Engine) processCmd(ctx context.Context, redisClient redis.UniversalClient, cmd *redis.Cmd) error {
 	// go-redis always returns lower-case commands.
 	switch cmd.Name() {
@@ -218,6 +229,8 @@ func (e *Engine) processCmd(ctx context.Context, redisClient redis.UniversalClie
 
 type redisSubscribeFn = func(ctx context.Context, channels ...string) *redis.PubSub
 
+// subscribeCmd handles subscription in Redis. A new connection is created and maintained to read published messages
+// from Redis and send them back to the client.
 func (e *Engine) subscribeCmd(ctx context.Context, subscribeFn redisSubscribeFn, cmd *redis.Cmd) error {
 	if len(cmd.Args()) < 2 {
 		return redis.RedisError("invalid command")
@@ -292,8 +305,11 @@ func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalCli
 	}
 }
 
+// process is the main processing function for Redis. It reads commands passed from client and passes them to
+// a Redis instance. It's also responsible for audit.
 func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient) error {
 	for {
+		// Read commands from client.
 		cmd, err := e.readClientCmd(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -301,10 +317,10 @@ func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient)
 
 		e.Log.Debugf("redis cmd: %s", cmd.String())
 
+		// send valid commands to Redis instance/cluster.
 		err = e.processCmd(ctx, redisClient, cmd)
 
 		var vals interface{}
-
 		if _, ok := err.(redis.Error); ok {
 			vals = err
 		} else if errors.Is(err, context.DeadlineExceeded) {
@@ -323,12 +339,14 @@ func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient)
 			}
 		}
 
+		// Send response back to the client.
 		if err := e.sendToClient(vals); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 }
 
+// writeCmd writes Redis commands passed as vals to Redis wire form.
 func writeCmd(wr *redis.Writer, vals interface{}) error {
 	switch val := vals.(type) {
 	case redis.Error:
@@ -399,6 +417,7 @@ func writeCmd(wr *redis.Writer, vals interface{}) error {
 	return nil
 }
 
+// writeInteger converts integers to Redis wire form.
 func writeInteger(wr *redis.Writer, val int64) error {
 	if err := wr.WriteByte(redis.IntReply); err != nil {
 		return trace.Wrap(err)
