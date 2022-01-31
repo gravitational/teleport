@@ -800,15 +800,15 @@ func TestRedisPubSub(t *testing.T) {
 	require.NoError(t, err)
 
 	var fooSub *goredis.PubSub
+	// Create a synchronisation channel between publisher and subscriber
 	syncChan := make(chan bool)
 
 	go func() {
 		fooSub = redisClient.Subscribe(ctx, "foo")
 		defer fooSub.Close()
-		defer func() {
-			//TODO(jakub): Works but it's hacky.
-			syncChan <- false
-		}()
+		// If one of the checks fails the syncChan will be closed. If the main goroutine is waiting for a response
+		// it will be unblocked, and it will fail the test.
+		defer close(syncChan)
 
 		event, err := fooSub.Receive(ctx)
 		require.NoError(t, err)
@@ -824,10 +824,11 @@ func TestRedisPubSub(t *testing.T) {
 		syncChan <- true
 	}()
 
+	// Wait for a subscription to be active.
 	require.True(t, <-syncChan)
 	err = redisClient.Publish(ctx, "foo", "bar1").Err()
 	require.NoError(t, err)
-
+	// Wait for a message to be received in subscribed goroutine.
 	require.True(t, <-syncChan)
 	// Disconnect.
 	err = redisClient.Close()
