@@ -22,6 +22,7 @@ This guide will explain how to:
   or [Connecting Apps](./connecting-apps.mdx) guides to get it running.
 - IAM permissions in the AWS account you want to connect.
 - AWS EC2 or other instance where you can assign a IAM Security Role for the Teleport Agent.
+- `aws` Command Line Interface (CLI) tool in PATH. How to [Install the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html).
 
 <Admonition type="note">
 If using the Teleport agent deployed in AWS EKS, you cannot use Helm chart
@@ -257,7 +258,7 @@ username which you can search for to get the events history:
 
 ## Step 8. Using AWS CLI
 
-Prequisites:
+Prequisite:
 - `aws` Command Line Interface (CLI) tool in PATH. How to [Install the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html).
 
 First, log into the previously configured AWS console app on your desktop:
