@@ -18,6 +18,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -182,7 +183,13 @@ func (pp *playbackPlayer) streamSessionEvents(ctx context.Context, cancel contex
 					time.Sleep(time.Duration(e.DelayMilliseconds-lastDelay) * time.Millisecond)
 					lastDelay = e.DelayMilliseconds
 				}
-				if _, err := pp.ws.Write(e.Message); err != nil {
+				// Note that e.Message is a []byte, which will be marshaled as a base64 encoded string
+				// https://pkg.go.dev/encoding/json#Marshal.
+				msg, err := json.Marshal(e)
+				if err != nil {
+					pp.log.WithError(err).Errorf("failed to marshal DesktopRecording event into JSON: %v", msg)
+				}
+				if _, err := pp.ws.Write(msg); err != nil {
 					// We expect net.ErrClosed to arise when another goroutine returns before
 					// this one or the browser window is closed, both of which cause the websocket to close.
 					if !errors.Is(err, net.ErrClosed) {
