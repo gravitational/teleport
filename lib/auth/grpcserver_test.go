@@ -2130,6 +2130,33 @@ func TestListResources(t *testing.T) {
 				return err
 			},
 		},
+		"KubeService": {
+			resourceType: types.KindKubeService,
+			createResource: func(name string) error {
+				server, err := types.NewServer(name, types.KindKubeService, types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{
+						{Name: name, StaticLabels: map[string]string{"name": name}},
+					},
+				})
+				if err != nil {
+					return err
+				}
+
+				return clt.UpsertKubeService(ctx, server)
+			},
+		},
+		"Node": {
+			resourceType: types.KindNode,
+			createResource: func(name string) error {
+				server, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{})
+				if err != nil {
+					return err
+				}
+
+				_, err = clt.UpsertNode(ctx, server)
+				return err
+			},
+		},
 	}
 
 	for name, test := range testCases {

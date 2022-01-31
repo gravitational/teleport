@@ -46,7 +46,7 @@ type PresenceService struct {
 
 // backendItemToResourceFunc defines a function that unmarshals a
 // `backend.Item` into the implementation of `types.Resource`.
-type backendItemToResourceFunc func(item backend.Item) (types.Resource, error)
+type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels, error)
 
 // NewPresenceService returns new presence service instance
 func NewPresenceService(b backend.Backend) *PresenceService {
@@ -1485,7 +1485,9 @@ func (s *PresenceService) DeleteAllWindowsDesktopServices(ctx context.Context) e
 }
 
 // ListResources returns a paginated list of resources.
-func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.Resource, string, error) {
+// It implements label filtering for scenarios where the call comes directly
+// here (without passing through the RBAC).
+func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
 	limit := int(req.Limit)
 
 	var keyPrefix []string
@@ -1498,6 +1500,12 @@ func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResou
 	case types.KindAppServer:
 		keyPrefix = []string{appServersPrefix, req.Namespace}
 		unmarshalItemFunc = backendItemToApplicationServer
+	case types.KindNode:
+		keyPrefix = []string{nodesPrefix, req.Namespace}
+		unmarshalItemFunc = backendItemToServer(types.KindNode)
+	case types.KindKubeService:
+		keyPrefix = []string{kubeServicesPrefix}
+		unmarshalItemFunc = backendItemToServer(types.KindKubeService)
 	default:
 		return nil, "", trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1505,23 +1513,29 @@ func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResou
 	rangeStart := backend.Key(append(keyPrefix, req.StartKey)...)
 	rangeEnd := backend.RangeEnd(backend.Key(keyPrefix...))
 
-	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+	var resources []types.ResourceWithLabels
+	err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, limit, func(items []backend.Item) (stop bool, err error) {
+		for _, item := range items {
+			if len(resources) == limit {
+				break
+			}
+
+			resource, err := unmarshalItemFunc(item)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+
+			if !types.MatchLabels(resource, req.Labels) {
+				continue
+			}
+
+			resources = append(resources, resource)
+		}
+
+		return len(resources) == limit, nil
+	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
-	}
-
-	var resources []types.Resource
-	for _, item := range result.Items {
-		if len(resources) == limit {
-			break
-		}
-
-		resource, err := unmarshalItemFunc(item)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-
-		resources = append(resources, resource)
 	}
 
 	var nextKey string
@@ -1534,7 +1548,7 @@ func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResou
 
 // backendItemToDatabaseServer unmarshals `backend.Item` into a
 // `types.DatabaseServer`, returning it as a `types.Resource`.
-func backendItemToDatabaseServer(item backend.Item) (types.Resource, error) {
+func backendItemToDatabaseServer(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalDatabaseServer(
 		item.Value,
 		services.WithResourceID(item.ID),
@@ -1544,12 +1558,25 @@ func backendItemToDatabaseServer(item backend.Item) (types.Resource, error) {
 
 // backendItemToApplicationServer unmarshals `backend.Item` into a
 // `types.AppServer`, returning it as a `types.Resource`.
-func backendItemToApplicationServer(item backend.Item) (types.Resource, error) {
+func backendItemToApplicationServer(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalAppServer(
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
 	)
+}
+
+// backendItemToServer returns `backendItemToResourceFunc` to unmarshal a
+// `backend.Item` into a `types.ServerV2` with a specific `kind`, returning it
+// as a `types.Resource`.
+func backendItemToServer(kind string) backendItemToResourceFunc {
+	return func(item backend.Item) (types.ResourceWithLabels, error) {
+		return services.UnmarshalServer(
+			item.Value, kind,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+		)
+	}
 }
 
 const (
