@@ -98,6 +98,8 @@ spec:
       # Regular expressions are also supported, for example, the equivalent
       # of the list example above can be expressed as:
       'environment': '^test|staging$'
+      # regular expressions work in lists as well:
+      'environment': ['^test|staging$']
 
     kubernetes_labels:
       # A user can only access prod enviroments
@@ -260,6 +262,10 @@ spec:
 
 ### Extended Node labels syntax
 
+Any string starting with `^` and ending with `$` will be interpreted as a regex and not as a literal string.
+For example, specifying a node label `environment: 'test|staging'` will only match the exact environment string "test|staging",
+while `environment: '^test|staging$'` will match either the string "test" or "staging".
+
 Below are a few examples for more complex filtering using various regexes.
 
 ```yaml
@@ -279,6 +285,8 @@ spec:
       # regular expressions are also supported, for example the equivalent
       # of the list example above can be expressed as:
       'environment': '^test|staging$'
+      # regular expressions work in lists as well:
+      'environment': ['^test|staging$']
 ```
 
 ## Teleport resources
