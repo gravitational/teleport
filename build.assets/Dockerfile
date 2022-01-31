@@ -22,24 +22,21 @@ ENV LANGUAGE="en_US.UTF-8" \
 ARG BUILDARCH
 
 # Install packages.
-# We install curl first to allow setting up the Google SDK as part of the same layer.
+# Java JRE is required by gcloud firestore emulator.
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
-    apt-get install -y --no-install-recommends apt-utils ca-certificates curl gnupg && \
-    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
-    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - && \
-    apt-get -y update && \
     apt-get install -q -y --no-install-recommends \
         apt-utils \
         clang-10 \
         clang-format-10 \
+        ca-certificates \
         curl \
+        default-jre \
         gcc \
         `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
         git \
-        google-cloud-sdk \
-        google-cloud-sdk-firestore-emulator \
+        gnupg \
         gzip \
         libc6-dev \
         libelf-dev \
@@ -69,6 +66,12 @@ RUN apt-get update -y --fix-missing && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Install gcloud SDK and Firestore emulator.
+RUN curl -sSL https://sdk.cloud.google.com | bash
+ENV PATH="$PATH:/root/google-cloud-sdk/bin"
+# beta component is required by firestore emulator: https://cloud.google.com/sdk/gcloud/reference/beta/emulators/firestore/start
+RUN gcloud components install cloud-firestore-emulator beta
 
 ARG UID
 ARG GID
