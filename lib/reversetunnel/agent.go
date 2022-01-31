@@ -499,6 +499,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				component:           a.Component,
 				reverseTunnelServer: a.ReverseTunnelServer,
 				localClusterName:    a.LocalClusterName,
+				emitter:             a.Client,
 			}
 			go t.start()
 		// new discovery request channel
@@ -569,10 +570,10 @@ const (
 	// LocalKubernetes is a special non-resolvable address that indicates that clients
 	// requests a connection to the kubernetes endpoint of the local proxy.
 	// This has to be a valid domain name, so it lacks @
-	LocalKubernetes = "remote.kube.proxy.teleport.cluster.local"
+	LocalKubernetes = "remote.kube.proxy." + constants.APIDomain
 	// LocalWindowsDesktop is a special non-resolvable address that indicates
 	// that clients requests a connection to the windows service endpoint of
 	// the local proxy.
 	// This has to be a valid domain name, so it lacks @
-	LocalWindowsDesktop = "remote.windows_desktop.proxy.teleport.cluster.local"
+	LocalWindowsDesktop = "remote.windows_desktop.proxy." + constants.APIDomain
 )

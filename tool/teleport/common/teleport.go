@@ -119,7 +119,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		StringVar(&ccf.ConfigString)
 	start.Flag("labels", "Comma-separated list of labels for this node, for example env=dev,app=web").StringVar(&ccf.Labels)
 	start.Flag("diag-addr",
-		"Start diagnostic prometheus and healthz endpoint.").Hidden().StringVar(&ccf.DiagnosticAddr)
+		"Start diagnostic prometheus and healthz endpoint.").StringVar(&ccf.DiagnosticAddr)
 	start.Flag("permit-user-env",
 		"Enables reading of ~/.tsh/environment when creating a session").BoolVar(&ccf.PermitUserEnvironment)
 	start.Flag("insecure",
@@ -175,6 +175,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	appStartCmd.Flag("name", "Name of the application to start.").StringVar(&ccf.AppName)
 	appStartCmd.Flag("uri", "Internal address of the application to proxy.").StringVar(&ccf.AppURI)
 	appStartCmd.Flag("public-addr", "Public address of the application to proxy.").StringVar(&ccf.AppPublicAddr)
+	appStartCmd.Flag("diag-addr", "Start diagnostic prometheus and healthz endpoint.").StringVar(&ccf.DiagnosticAddr)
+	appStartCmd.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
 	appStartCmd.Alias(appUsageExamples) // We're using "alias" section to display usage examples.
 
 	// "teleport db" command and its subcommands
@@ -200,6 +202,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbStartCmd.Flag("aws-rds-cluster-id", "(Only for Aurora) Aurora cluster identifier.").StringVar(&ccf.DatabaseAWSRDSClusterID)
 	dbStartCmd.Flag("gcp-project-id", "(Only for Cloud SQL) GCP Cloud SQL project identifier.").StringVar(&ccf.DatabaseGCPProjectID)
 	dbStartCmd.Flag("gcp-instance-id", "(Only for Cloud SQL) GCP Cloud SQL instance identifier.").StringVar(&ccf.DatabaseGCPInstanceID)
+	dbStartCmd.Flag("diag-addr", "Start diagnostic prometheus and healthz endpoint.").StringVar(&ccf.DiagnosticAddr)
+	dbStartCmd.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
 	dbStartCmd.Alias(dbUsageExamples) // We're using "alias" section to display usage examples.
 
 	// define a hidden 'scp' command (it implements server-side implementation of handling
@@ -226,6 +230,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"Email to receive updates from Letsencrypt.org.").StringVar(&dumpFlags.ACMEEmail)
 	dump.Flag("test", "Path to a configuration file to test.").ExistingFileVar(&dumpFlags.testConfigFile)
 	dump.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV2).StringVar(&dumpFlags.Version)
+	dump.Flag("public-addr", "The hostport that the proxy advertises for the HTTP endpoint.").StringVar(&dumpFlags.PublicAddr)
+	dump.Flag("cert-file", "Path to a TLS certificate file for the proxy.").ExistingFileVar(&dumpFlags.CertFile)
+	dump.Flag("key-file", "Path to a TLS key file for the proxy.").ExistingFileVar(&dumpFlags.KeyFile)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(options.Args)
@@ -364,6 +371,20 @@ func onConfigDump(flags dumpFlags) error {
 
 	if modules.GetModules().BuildType() != modules.BuildOSS {
 		flags.LicensePath = filepath.Join(defaults.DataDir, "license.pem")
+	}
+
+	if flags.KeyFile != "" && !filepath.IsAbs(flags.KeyFile) {
+		flags.KeyFile, err = filepath.Abs(flags.KeyFile)
+		if err != nil {
+			return trace.BadParameter("could not find absolute path for --key-file %q", flags.KeyFile)
+		}
+	}
+
+	if flags.CertFile != "" && !filepath.IsAbs(flags.CertFile) {
+		flags.CertFile, err = filepath.Abs(flags.CertFile)
+		if err != nil {
+			return trace.BadParameter("could not find absolute path for --cert-file %q", flags.CertFile)
+		}
 	}
 
 	sfc, err := config.MakeSampleFileConfig(flags.SampleFlags)

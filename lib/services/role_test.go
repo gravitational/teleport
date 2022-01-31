@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
@@ -569,6 +569,40 @@ func TestValidateRole(t *testing.T) {
 			Version: types.V3,
 			Spec:    tc.spec,
 		})
+		if tc.err != nil {
+			require.Error(t, err, tc.name)
+			if tc.matchMessage != "" {
+				require.Contains(t, err.Error(), tc.matchMessage)
+			}
+		} else {
+			require.NoError(t, err, tc.name)
+		}
+	}
+}
+
+func TestValidateRoleName(t *testing.T) {
+	var tests = []struct {
+		name         string
+		roleName     string
+		err          error
+		matchMessage string
+	}{
+		{
+			name:         "reserved role name proxy",
+			roleName:     string(types.RoleProxy),
+			err:          trace.BadParameter(""),
+			matchMessage: fmt.Sprintf("reserved role: %s", types.RoleProxy),
+		},
+		{
+			name:     "valid role name test-1",
+			roleName: "test-1",
+		},
+	}
+
+	for _, tc := range tests {
+		err := ValidateRoleName(&types.RoleV4{Metadata: types.Metadata{
+			Name: tc.roleName,
+		}})
 		if tc.err != nil {
 			require.Error(t, err, tc.name)
 			if tc.matchMessage != "" {
@@ -1454,6 +1488,204 @@ func TestCheckRuleAccess(t *testing.T) {
 				require.Contains(t, check.context.buffer.String(), check.matchBuffer, comment)
 			}
 		}
+	}
+}
+
+func TestGuessIfAccessIsPossible(t *testing.T) {
+	// Examples from https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions.
+	ownSessions, err := types.NewRole("own-sessions", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+					Where:     "contains(session.participants, user.metadata.name)",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	ownSSHSessions, err := types.NewRole("own-ssh-sessions", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSSHSession},
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+		},
+		Deny: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSSHSession},
+					Verbs:     []string{types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+					Where:     "!contains(ssh_session.participants, user.metadata.name)",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Simple, all-or-nothing roles.
+	readAllSessions, err := types.NewRole("all-sessions", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	allowSSHSessions, err := types.NewRole("all-ssh-sessions", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSSHSession},
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	denySSHSessions, err := types.NewRole("deny-ssh-sessions", types.RoleSpecV4{
+		Deny: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSSHSession},
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	type checkAccessParams struct {
+		ctx       Context
+		namespace string
+		resource  string
+		verbs     []string
+	}
+
+	tests := []struct {
+		name   string
+		roles  RoleSet
+		params *checkAccessParams
+		// wantRuleAccess fully evaluates where conditions, used to determine access
+		// to specific resources.
+		wantRuleAccess bool
+		// wantGuessAccess doesn't evaluate where conditions, used to determine
+		// access to a category of resources.
+		wantGuessAccess bool
+	}{
+		{
+			name:  "global session list/read allowed",
+			roles: RoleSet{readAllSessions},
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
+			},
+			wantRuleAccess:  true,
+			wantGuessAccess: true,
+		},
+		{
+			name:  "own session list/read allowed",
+			roles: RoleSet{ownSessions}, // allowed despite "where" clause in allow rules
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
+			},
+			wantRuleAccess:  false, // where condition needs specific resource
+			wantGuessAccess: true,
+		},
+		{
+			name:  "session list/read denied",
+			roles: RoleSet{allowSSHSessions, denySSHSessions}, // none mention "session"
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
+			},
+		},
+		{
+			name: "session write denied",
+			roles: RoleSet{
+				readAllSessions,                   // readonly
+				allowSSHSessions, denySSHSessions, // none mention "session"
+			},
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbUpdate, types.VerbDelete},
+			},
+		},
+		{
+			name:  "global SSH session list/read allowed",
+			roles: RoleSet{allowSSHSessions},
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
+			},
+			wantRuleAccess:  true,
+			wantGuessAccess: true,
+		},
+		{
+			name:  "own SSH session list/read allowed",
+			roles: RoleSet{ownSSHSessions}, // allowed despite "where" clause in deny rules
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
+			},
+			wantRuleAccess:  false, // where condition needs specific resource
+			wantGuessAccess: true,
+		},
+		{
+			name: "SSH session list/read denied",
+			roles: RoleSet{
+				allowSSHSessions, ownSSHSessions,
+				denySSHSessions, // unconditional deny, takes precedence
+			},
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+			},
+		},
+		{
+			name: "SSH session list/read denied - different role ordering",
+			roles: RoleSet{
+				allowSSHSessions,
+				denySSHSessions, // unconditional deny, takes precedence
+				ownSSHSessions,
+			},
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			params := test.params
+			const silent = true
+			for _, verb := range params.verbs {
+				err := test.roles.CheckAccessToRule(&params.ctx, params.namespace, params.resource, verb, silent)
+				if gotAccess, wantAccess := err == nil, test.wantRuleAccess; gotAccess != wantAccess {
+					t.Errorf("CheckAccessToRule(verb=%q) returned err = %v=q, wantAccess = %v", verb, err, wantAccess)
+				}
+
+				err = test.roles.GuessIfAccessIsPossible(&params.ctx, params.namespace, params.resource, verb, silent)
+				if gotAccess, wantAccess := err == nil, test.wantGuessAccess; gotAccess != wantAccess {
+					t.Errorf("GuessIfAccessIsPossible(verb=%q) returned err = %q, wantAccess = %v", verb, err, wantAccess)
+				}
+			}
+		})
 	}
 }
 
@@ -3090,7 +3322,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 
 	// Create 4,000 servers with random IDs.
 	for i := 0; i < 4000; i++ {
-		hostname := uuid.NewUUID().String()
+		hostname := uuid.New().String()
 		servers = append(servers, &types.ServerV2{
 			Kind:    types.KindNode,
 			Version: types.V2,
@@ -3181,7 +3413,7 @@ func TestRoleSetLockingMode(t *testing.T) {
 
 	missingMode := constants.LockingMode("")
 	newRoleWithLockingMode := func(t *testing.T, mode constants.LockingMode) types.Role {
-		role, err := types.NewRole(uuid.New(), types.RoleSpecV4{Options: types.RoleOptions{Lock: mode}})
+		role, err := types.NewRole(uuid.New().String(), types.RoleSpecV4{Options: types.RoleOptions{Lock: mode}})
 		require.NoError(t, err)
 		return role
 	}
@@ -3220,14 +3452,14 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	allowWhere := func(where string) types.Role {
-		role, err := types.NewRole(uuid.New(), types.RoleSpecV4{Allow: types.RoleConditions{
+		role, err := types.NewRole(uuid.New().String(), types.RoleSpecV4{Allow: types.RoleConditions{
 			Rules: []types.Rule{{Resources: []string{types.KindSession}, Verbs: []string{types.VerbList}, Where: where}},
 		}})
 		require.NoError(t, err)
 		return role
 	}
 	denyWhere := func(where string) types.Role {
-		role, err := types.NewRole(uuid.New(), types.RoleSpecV4{Deny: types.RoleConditions{
+		role, err := types.NewRole(uuid.New().String(), types.RoleSpecV4{Deny: types.RoleConditions{
 			Rules: []types.Rule{{Resources: []string{types.KindSession}, Verbs: []string{types.VerbList}, Where: where}},
 		}})
 		require.NoError(t, err)
@@ -3325,4 +3557,187 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 	_, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.True(t, trace.IsAccessDenied(err))
+}
+
+func TestCheckKubeGroupsAndUsers(t *testing.T) {
+	roleA := &types.RoleV4{
+		Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				KubeGroups: []string{"system:masters"},
+				KubeUsers:  []string{"dev-user"},
+				KubernetesLabels: map[string]apiutils.Strings{
+					"env": []string{"dev"},
+				},
+			},
+		},
+	}
+	roleB := &types.RoleV4{
+		Metadata: types.Metadata{Name: "roleB", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				KubeGroups: []string{"limited"},
+				KubeUsers:  []string{"limited-user"},
+				KubernetesLabels: map[string]apiutils.Strings{
+					"env": []string{"prod"},
+				},
+			},
+		},
+	}
+	roleC := &types.RoleV4{
+		Metadata: types.Metadata{Name: "roleC", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				KubeGroups: []string{"system:masters", "groupB"},
+				KubeUsers:  []string{"user"},
+				KubernetesLabels: map[string]apiutils.Strings{
+					"env": []string{"dev", "prod"},
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name          string
+		kubeResLabels map[string]string
+		roles         RoleSet
+		wantUsers     []string
+		wantGroups    []string
+	}{
+		{
+			name: "empty kube labels should returns all kube users/groups",
+			roles: RoleSet{
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "role-dev", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubeUsers:  []string{"dev-user"},
+							KubeGroups: []string{"system:masters"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"*": []string{"*"},
+							},
+						},
+					},
+				},
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "role-prod", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubeUsers:  []string{"limited-user"},
+							KubeGroups: []string{"limited"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"*": []string{"*"},
+							},
+						},
+					},
+				},
+			},
+			wantUsers:  []string{"dev-user", "limited-user"},
+			wantGroups: []string{"limited", "system:masters"},
+		},
+		{
+			name:  "dev accesses should allow system:masters roles",
+			roles: RoleSet{roleA, roleB},
+			kubeResLabels: map[string]string{
+				"env": "dev",
+			},
+			wantUsers:  []string{"dev-user"},
+			wantGroups: []string{"system:masters"},
+		},
+		{
+			name:  "prod limited access",
+			roles: RoleSet{roleA, roleB},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"limited-user"},
+			wantGroups: []string{"limited"},
+		},
+		{
+			name:  "combine kube users/groups for different roles",
+			roles: RoleSet{roleA, roleB, roleC},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"limited-user", "user"},
+			wantGroups: []string{"groupB", "limited", "system:masters"},
+		},
+		{
+			name:  "all prod group",
+			roles: RoleSet{roleC},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"user"},
+			wantGroups: []string{"system:masters", "groupB"},
+		},
+		{
+			name: "deny system:masters prod kube group",
+			roles: RoleSet{
+				roleC,
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "roleD", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Deny: types.RoleConditions{
+							KubeGroups: []string{"system:masters"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"env": []string{"prod", "dev"},
+							},
+						},
+					},
+				},
+			},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"user"},
+			wantGroups: []string{"groupB"},
+		},
+		{
+			name: "deny access with system:masters kube group",
+			kubeResLabels: map[string]string{
+				"env":     "prod",
+				"release": "test",
+			},
+			roles: RoleSet{
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubeGroups: []string{"system:masters", "groupA"},
+							KubeUsers:  []string{"dev-user"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"env":     []string{"prod"},
+								"release": []string{"test"},
+							},
+						},
+					},
+				},
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "deny", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Deny: types.RoleConditions{
+							KubeGroups: []string{"system:masters"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"env": []string{"prod"},
+							},
+						},
+					},
+				},
+			},
+			wantUsers:  []string{"dev-user"},
+			wantGroups: []string{"groupA"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels)
+			gotGroups, gotUsers, err := tc.roles.CheckKubeGroupsAndUsers(time.Hour, true, matcher)
+			require.NoError(t, err)
+
+			require.ElementsMatch(t, tc.wantUsers, gotUsers)
+			require.ElementsMatch(t, tc.wantGroups, gotGroups)
+		})
+	}
 }

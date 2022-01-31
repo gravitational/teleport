@@ -350,7 +350,7 @@ type Cache struct {
 	webSessionCache      types.WebSessionInterface
 	webTokenCache        types.WebTokenInterface
 	windowsDesktopsCache services.WindowsDesktops
-	eventsFanout         *services.Fanout
+	eventsFanout         *services.FanoutSet
 
 	// closed indicates that the cache has been closed
 	closed *atomic.Bool
@@ -512,8 +512,8 @@ type Config struct {
 	WindowsDesktops services.WindowsDesktops
 	// Backend is a backend for local cache
 	Backend backend.Backend
-	// RetryPeriod is a period between cache retries on failures
-	RetryPeriod time.Duration
+	// MaxRetryPeriod is the maximum period between cache retries on failures
+	MaxRetryPeriod time.Duration
 	// WatcherInitTimeout is the maximum acceptable delay for an
 	// OpInit after a watcher has been started (default=1m).
 	WatcherInitTimeout time.Duration
@@ -552,8 +552,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
-	if c.RetryPeriod == 0 {
-		c.RetryPeriod = defaults.HighResPollingPeriod
+	if c.MaxRetryPeriod == 0 {
+		c.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	}
 	if c.WatcherInitTimeout == 0 {
 		c.WatcherInitTimeout = time.Minute
@@ -586,6 +586,9 @@ const (
 	// TombstoneWritten is emitted if cache is closed in a healthy
 	// state and successfully writes its tombstone.
 	TombstoneWritten = "tombstone_written"
+	// Reloading is emitted when an error occurred watching events
+	// and the cache is waiting to create a new watcher
+	Reloading = "reloading_cache"
 )
 
 // New creates a new instance of Cache
@@ -624,7 +627,7 @@ func New(config Config) (*Cache, error) {
 		webSessionCache:      local.NewIdentityService(wrapper).WebSessions(),
 		webTokenCache:        local.NewIdentityService(wrapper).WebTokens(),
 		windowsDesktopsCache: local.NewWindowsDesktopService(wrapper),
-		eventsFanout:         services.NewFanout(),
+		eventsFanout:         services.NewFanoutSet(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
@@ -660,8 +663,11 @@ func New(config Config) (*Cache, error) {
 	}
 
 	retry, err := utils.NewLinear(utils.LinearConfig{
-		Step: cs.Config.RetryPeriod / 10,
-		Max:  cs.Config.RetryPeriod,
+		First:  utils.HalfJitter(cs.MaxRetryPeriod / 10),
+		Step:   cs.MaxRetryPeriod / 5,
+		Max:    cs.MaxRetryPeriod,
+		Jitter: utils.NewHalfJitter(),
+		Clock:  cs.Clock,
 	})
 	if err != nil {
 		cs.Close()
@@ -724,10 +730,20 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 		if err != nil {
 			c.Warningf("Re-init the cache on error: %v.", err)
 		}
+
 		// events cache should be closed as well
-		c.Debugf("Reloading %v.", retry)
+		c.Debugf("Reloading cache.")
+
+		c.notify(ctx, Event{Type: Reloading, Event: types.Event{
+			Resource: &types.ResourceHeader{
+				Kind: retry.Duration().String(),
+			},
+		}})
+
+		startedWaiting := c.Clock.Now()
 		select {
-		case <-retry.After():
+		case t := <-retry.After():
+			c.Debugf("Initiating new watch after waiting %v.", t.Sub(startedWaiting))
 			retry.Inc()
 		case <-c.ctx.Done():
 			return
@@ -773,7 +789,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 // 1. Every client is connected to the database fan-out
 // system. This system creates a buffered channel for every
 // client and tracks the channel overflow. Thanks to channels every client gets its
-// own unique iterator over the event stream. If client looses connection
+// own unique iterator over the event stream. If client loses connection
 // or fails to keep up with the stream, the server will terminate
 // the channel and client will have to re-initialize.
 //
@@ -1271,19 +1287,10 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 	defer rg.Release()
 
 	if !rg.IsCacheRead() {
-		ta := func(_ []types.Server) {} // compile-time type assertion
-		ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
-			ta(nodes)
-			return nodes, err
-		})
-		if err != nil || ni == nil {
+		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace, opts...)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedNodes := ni.([]types.Server)
-		ta(cachedNodes)
 		nodes := make([]types.Server, 0, len(cachedNodes))
 		for _, node := range cachedNodes {
 			nodes = append(nodes, node.DeepCopy())
@@ -1294,43 +1301,81 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 	return rg.presence.GetNodes(ctx, namespace, opts...)
 }
 
+// getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
+// must be cloned to avoid concurrent modification.
+func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+	ta := func(_ []types.Server) {} // compile-time type assertion
+	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func() (interface{}, error) {
+		// use cache's close context instead of request context in order to ensure
+		// that we don't cache a context cancellation error.
+		nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
+		ta(nodes)
+		return nodes, err
+	})
+	if err != nil || ni == nil {
+		return nil, trace.Wrap(err)
+	}
+	cachedNodes, ok := ni.([]types.Server)
+	if !ok {
+		return nil, trace.Errorf("TTL-cache returned unexpexted type %T (this is a bug!).", ni)
+	}
+	ta(cachedNodes)
+	return cachedNodes, nil
+}
+
 // ListNodes is a part of auth.Cache implementation
 func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
-	// NOTE: we "fake" the ListNodes API here in order to take advantage of TTL-based caching of
-	// the GetNodes endpoint, since performing TTL-based caching on a paginated endpoint is nightmarish.
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
 
-	limit := int(req.Limit)
+	if rg.IsCacheRead() {
+		// cache is healthy, delegate to the standard ListNodes implementation
+		return rg.presence.ListNodes(ctx, req)
+	}
+
+	// Cache is not healthy. List nodes using TTL cache.
+	return c.listNodesFromTTLCache(ctx, rg, req.Namespace, req.StartKey, req.Labels, int(req.Limit))
+}
+
+// listNodesFromTTLCache Used when the cache is not healthy. It takes advantage
+// of TTL-based caching rather than caching individual page calls (very messy).
+// It relies on caching the result of the `GetNodes` endpoint and then "faking"
+// pagination.
+func (c *Cache) listNodesFromTTLCache(ctx context.Context, rg readGuard, namespace, startKey string, labels map[string]string, limit int) ([]types.Server, string, error) {
 	if limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive limit value")
 	}
 
-	nodes, err := c.GetNodes(ctx, req.Namespace)
+	cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	// trim nodes that precede start key
-	if req.StartKey != "" {
+	if startKey != "" {
 		pageStart := 0
-		for i, node := range nodes {
-			if node.GetName() < req.StartKey {
+		for i, node := range cachedNodes {
+			if node.GetName() < startKey {
 				pageStart = i + 1
 			} else {
 				break
 			}
 		}
-		nodes = nodes[pageStart:]
+		cachedNodes = cachedNodes[pageStart:]
 	}
 
 	// iterate and filter nodes, halting when we reach page limit
 	var filtered []types.Server
-	for _, node := range nodes {
+	for _, node := range cachedNodes {
 		if len(filtered) == limit {
 			break
 		}
 
-		if node.MatchAgainst(req.Labels) {
-			filtered = append(filtered, node)
+		if node.MatchAgainst(labels) {
+			filtered = append(filtered, node.DeepCopy())
 		}
 	}
 
@@ -1427,7 +1472,17 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 		ta(cachedRemote)
 		return cachedRemote.Clone(), nil
 	}
-	return rg.presence.GetRemoteCluster(clusterName)
+	rc, err := rg.presence.GetRemoteCluster(clusterName)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because this method is never used
+		// in construction of derivative caches.
+		if rc, err := c.Config.Presence.GetRemoteCluster(clusterName); err == nil {
+			return rc, nil
+		}
+	}
+	return rc, trace.Wrap(err)
 }
 
 // GetUser is a part of auth.Cache implementation.
@@ -1690,4 +1745,31 @@ func (c *Cache) GetWindowsDesktop(ctx context.Context, name string) (types.Windo
 	}
 	defer rg.Release()
 	return rg.windowsDesktops.GetWindowsDesktop(ctx, name)
+}
+
+// ListResources is a part of auth.Cache implementation
+func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.ResourceWithLabels, nextKey string, err error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	// Cache is not healthy, but right now, only `Node` kind has an
+	// implementation that falls back to TTL cache.
+	if !rg.IsCacheRead() && req.ResourceType == types.KindNode {
+		nodes, nextKey, err := c.listNodesFromTTLCache(ctx, rg, req.Namespace, req.StartKey, req.Labels, int(req.Limit))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		resources := make([]types.ResourceWithLabels, len(nodes))
+		for i, node := range nodes {
+			resources[i] = node
+		}
+
+		return resources, nextKey, nil
+	}
+
+	return rg.presence.ListResources(ctx, req)
 }

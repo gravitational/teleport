@@ -349,6 +349,12 @@ const (
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption = "disablesse"
 
+	// ACL is the canned ACL to send to S3
+	ACL = "acl"
+
+	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
+	SSEKMSKey = "sse_kms_key"
+
 	// SchemeFile is a local disk file storage
 	SchemeFile = "file"
 
@@ -437,6 +443,9 @@ const (
 	// CertExtensionImpersonator is set when one user has requested certificates
 	// for another user
 	CertExtensionImpersonator = "impersonator"
+	// CertExtensionDisallowReissue is set when a certificate should not be allowed
+	// to request future certificates.
+	CertExtensionDisallowReissue = "disallow-reissue"
 )
 
 const (
@@ -516,6 +525,10 @@ const (
 	// allowed database users.
 	TraitDBUsers = "db_users"
 
+	// TraitTeams is the name of the role variable use to store team
+	// membership information
+	TraitTeams = "github_teams"
+
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
 	TraitInternalLoginsVariable = "{{internal.logins}}"
@@ -539,17 +552,6 @@ const (
 	// TraitInternalDBUsersVariable is the variable used to store allowed
 	// database users for local accounts.
 	TraitInternalDBUsersVariable = "{{internal.db_users}}"
-)
-
-const (
-	// GSuiteIssuerURL is issuer URL used for GSuite provider
-	GSuiteIssuerURL = "https://accounts.google.com"
-	// GSuiteGroupsEndpoint is gsuite API endpoint
-	GSuiteGroupsEndpoint = "https://www.googleapis.com/admin/directory/v1/groups"
-	// GSuiteGroupsScope is a scope to get access to admin groups API
-	GSuiteGroupsScope = "https://www.googleapis.com/auth/admin.directory.group.readonly"
-	// GSuiteDomainClaim is the domain name claim for GSuite
-	GSuiteDomainClaim = "hd"
 )
 
 // SCP is Secure Copy.
@@ -739,3 +741,6 @@ const UserSingleUseCertTTL = time.Minute
 // StandardHTTPSPort is the default port used for the https URI scheme,
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
+
+// StandardRDPPort is the default port used for RDP.
+const StandardRDPPort = 3389

@@ -37,11 +37,10 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/siddontang/go-mysql/client"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -354,6 +353,70 @@ func TestDatabaseAccessUnspecifiedHostname(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestDatabaseAccessPostgresSeparateListener tests postgres proxy listener running on separate port.
+func TestDatabaseAccessPostgresSeparateListener(t *testing.T) {
+	pack := setupDatabaseTest(t,
+		withPortSetupDatabaseTest(separatePostgresPortSetup),
+	)
+
+	// Connect to the database service in root cluster.
+	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortPostgres()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.postgresService.Name,
+			Protocol:    pack.root.postgresService.Protocol,
+			Username:    "postgres",
+			Database:    "test",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+	require.Equal(t, uint32(1), pack.root.postgres.QueryCount())
+	require.Equal(t, uint32(0), pack.leaf.postgres.QueryCount())
+
+	// Disconnect.
+	err = client.Close(context.Background())
+	require.NoError(t, err)
+}
+
+// TestDatabaseAccessMongoSeparateListener tests mongo proxy listener running on separate port.
+func TestDatabaseAccessMongoSeparateListener(t *testing.T) {
+	pack := setupDatabaseTest(t,
+		withPortSetupDatabaseTest(separateMongoPortSetup),
+	)
+
+	// Connect to the database service in root cluster.
+	client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortMongo()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.mongoService.Name,
+			Protocol:    pack.root.mongoService.Protocol,
+			Username:    "admin",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+	require.NoError(t, err)
+
+	// Disconnect.
+	err = client.Disconnect(context.Background())
+	require.NoError(t, err)
+}
+
 func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
 	max := time.Second
 	timeout := time.After(max)
@@ -476,7 +539,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	t.Cleanup(func() { tracer.Stop() })
 	lib.SetInsecureDevMode(true)
 	SetTestTimeouts(100 * time.Millisecond)
-	log := testlog.FailureOnly(t)
+	log := utils.NewLoggerForTests()
 
 	// Generate keypair.
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
@@ -499,7 +562,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	// Create root cluster.
 	p.root.cluster = NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
@@ -510,7 +573,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	// Create leaf cluster.
 	p.leaf.cluster = NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    opts.nodeName,
 		Ports:       opts.instancePortsFunc(),
 		Priv:        privateKey,

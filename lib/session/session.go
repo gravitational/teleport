@@ -27,13 +27,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
-	"github.com/pborman/uuid"
 
 	"github.com/gravitational/trace"
 )
@@ -59,8 +58,8 @@ func (s *ID) Check() error {
 
 // ParseID parses ID and checks if it's correct.
 func ParseID(id string) (*ID, error) {
-	val := uuid.Parse(id)
-	if val == nil {
+	_, err := uuid.Parse(id)
+	if err != nil {
 		return nil, trace.BadParameter("%v not a valid UUID", id)
 	}
 	uid := ID(id)
@@ -69,14 +68,14 @@ func ParseID(id string) (*ID, error) {
 
 // NewID returns new session ID. The session ID is based on UUIDv4.
 func NewID() ID {
-	return ID(uuid.New())
+	return ID(uuid.New().String())
 }
 
 // DELETE IN: 4.1.0.
 //
 // NewLegacyID creates a new session ID in the UUIDv1 legacy format.
 func NewLegacyID() ID {
-	return ID(uuid.NewUUID().String())
+	return ID(uuid.New().String())
 }
 
 // Session is an interactive collaboration session that represents one
@@ -106,6 +105,15 @@ type Session struct {
 	ServerAddr string `json:"server_addr"`
 	// ClusterName is the name of cluster that this session belongs to.
 	ClusterName string `json:"cluster_name"`
+}
+
+// Participants returns the usernames of the current session participants.
+func (s *Session) Participants() []string {
+	participants := make([]string, 0, len(s.Parties))
+	for _, p := range s.Parties {
+		participants = append(participants, p.User)
+	}
+	return participants
 }
 
 // RemoveParty helper allows to remove a party by it's ID from the
@@ -228,8 +236,8 @@ const MaxSessionSliceLength = 1000
 // Service is a realtime SSH session service that has information about
 // sessions that are in-flight in the cluster at the moment.
 type Service interface {
-	// GetSessions returns a list of currently active sessions with all parties
-	// involved.
+	// GetSessions returns a list of currently active sessions matching
+	// the given condition.
 	GetSessions(namespace string) ([]Session, error)
 
 	// GetSession returns a session with it's parties by ID.
@@ -274,26 +282,24 @@ func activeKey(namespace string, key string) []byte {
 	return backend.Key("namespaces", namespace, "sessions", "active", key)
 }
 
-// GetSessions returns a list of active sessions. Returns an empty slice
-// if no sessions are active
+// GetSessions returns a list of active sessions.
+// Returns an empty slice if no sessions are active
 func (s *server) GetSessions(namespace string) ([]Session, error) {
 	prefix := activePrefix(namespace)
-
 	result, err := s.bk.GetRange(context.TODO(), prefix, backend.RangeEnd(prefix), MaxSessionSliceLength)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make(Sessions, 0, len(result.Items))
 
-	for i := range result.Items {
-		var session Session
-		if err := json.Unmarshal(result.Items[i].Value, &session); err != nil {
+	sessions := make(Sessions, len(result.Items))
+	for i, item := range result.Items {
+		if err := json.Unmarshal(item.Value, &sessions[i]); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		out = append(out, session)
 	}
-	sort.Stable(out)
-	return out, nil
+
+	sort.Stable(sessions)
+	return sessions, nil
 }
 
 // Sessions type is created over []Session to implement sort.Interface to

@@ -66,6 +66,9 @@ message UserMetadata {
 
     // AWSRoleARN is AWS IAM role user assumes when accessing AWS console.
     string AWSRoleARN = 4 [ (gogoproto.jsontag) = "aws_role_arn,omitempty" ];
+
+    // AccessRequests are the IDs of access requests created by the user
+    repeated string AccessRequests = 5 [ (gogoproto.jsontag) = "access_requests,omitempty" ];
 }
 
 // Server is a server metadata
@@ -169,8 +172,10 @@ message SessionStart {
     // SessionRecording is the type of session recording.
     string SessionRecording = 10 [ (gogoproto.jsontag) = "session_recording,omitempty" ];
 
-    // AccessRequests are the IDs of access requests created by the user
-    repeated string AccessRequests = 11 [ (gogoproto.jsontag) = "access_requests,omitempty" ];
+    // AccessRequests used to be here, it is now part of UserMetadata
+    reserved "AccessRequests";
+    reserved 11;
+    // reserved jsontag "access_requests"
 }
 
 // SessionJoin emitted when another user joins a session
@@ -250,6 +255,18 @@ message SessionReject {
     // Maximum is an event field specifying a maximal value (e.g. the value
     // of `max_connections` for a `session.rejected` event).
     int64 Maximum = 6 [ (gogoproto.jsontag) = "max" ];
+}
+
+// SessionConnect is emitted when a non-Teleport connection is made over net.Dial.
+message SessionConnect {
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    ServerMetadata Server = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    ConnectionMetadata Connection = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
 // Resize means that some user resized PTY on the client
@@ -687,6 +704,20 @@ message AccessRequestCreate {
     string ProposedState = 11 [ (gogoproto.jsontag) = "proposed_state,omitempty" ];
 }
 
+// AccessRequestDelete is emitted when an access request has been deleted.
+message AccessRequestDelete {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // User is a common user event metadata
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // RequestID is access request ID
+    string RequestID = 3 [ (gogoproto.jsontag) = "id" ];
+}
+
 // PortForward is emitted when a user requests port forwarding.
 message PortForward {
     // Metadata is a common event metadata
@@ -1093,12 +1124,14 @@ message KubeRequest {
 // AppMetadata contains common application information.
 message AppMetadata {
     // AppURI is the application endpoint.
-    string AppURI = 1 [ (gogoproto.jsontag) = "app_uri" ];
+    string AppURI = 1 [ (gogoproto.jsontag) = "app_uri,omitempty" ];
     // AppPublicAddr is the configured application public address.
     string AppPublicAddr = 2 [ (gogoproto.jsontag) = "app_public_addr,omitempty" ];
     // AppLabels are the configured application labels.
     map<string, string> AppLabels = 3
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "app_labels,omitempty" ];
+    // AppName is the configured application name.
+    string AppName = 4 [ (gogoproto.jsontag) = "app_name,omitempty" ];
 }
 
 // AppCreate is emitted when a new application resource is created.
@@ -1169,7 +1202,12 @@ message AppSessionStart {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
     // PublicAddr is the public address of the application being requested.
-    string PublicAddr = 7 [ (gogoproto.jsontag) = "public_addr" ];
+    // DELETE IN 10.0: this information is also present on the AppMetadata.
+    string PublicAddr = 7 [ (gogoproto.jsontag) = "public_addr", deprecated = true ];
+
+    // App is a common application resource metadata.
+    AppMetadata App = 8
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
 // AppSessionChunk is emitted at the start of a 5 minute chunk on each
@@ -1199,6 +1237,10 @@ message AppSessionChunk {
     // SessionChunkID is the ID of the session that was created for this 5 minute
     // application log chunk.
     string SessionChunkID = 6 [ (gogoproto.jsontag) = "session_chunk_id" ];
+
+    // App is a common application resource metadata.
+    AppMetadata App = 7
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
 // AppSessionRequest is an HTTP request and response.
@@ -1215,6 +1257,9 @@ message AppSessionRequest {
     string RawQuery = 4 [ (gogoproto.jsontag) = "raw_query" ];
     // Method is the request HTTP method, like GET/POST/DELETE/etc.
     string Method = 5 [ (gogoproto.jsontag) = "method" ];
+    // App is a common application resource metadata.
+    AppMetadata App = 6
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
 // DatabaseMetadata contains common database information.
@@ -1335,6 +1380,111 @@ message DatabaseSessionQuery {
     // Status indicates whether the query was successfully sent to the database.
     Status Status = 7
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// PostgresParse is emitted when a Postgres client creates a prepared statement
+// using extended query protocol.
+message PostgresParse {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // StatementName is the prepared statement name.
+    string StatementName = 5 [ (gogoproto.jsontag) = "statement_name" ];
+    // Query is the prepared statement query.
+    string Query = 6 [ (gogoproto.jsontag) = "query" ];
+}
+
+// PostgresBind is emitted when a Postgres client readies a prepared statement
+// for execution and binds it to parameters.
+message PostgresBind {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // StatementName is the name of prepared statement that's being bound to parameters.
+    string StatementName = 5 [ (gogoproto.jsontag) = "statement_name" ];
+    // PortalName is the destination portal name that binds statement to parameters.
+    string PortalName = 6 [ (gogoproto.jsontag) = "portal_name" ];
+    // Parameters are the query bind parameters.
+    repeated string Parameters = 7 [ (gogoproto.jsontag) = "parameters" ];
+}
+
+// PostgresExecute is emitted when a Postgres client executes a previously
+// bound prepared statement.
+message PostgresExecute {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // PortalName is the name of destination portal that's being executed.
+    string PortalName = 5 [ (gogoproto.jsontag) = "portal_name" ];
+}
+
+// PostgresClose is emitted when a Postgres client closes an existing prepared
+// statement.
+message PostgresClose {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // StatementName is the name of prepared statement that's being closed.
+    string StatementName = 5 [ (gogoproto.jsontag) = "statement_name" ];
+    // PortalName is the name of destination portal that's being closed.
+    string PortalName = 6 [ (gogoproto.jsontag) = "portal_name" ];
+}
+
+// PostgresFunctionCall is emitted when a Postgres client calls internal
+// database function.
+message PostgresFunctionCall {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // FunctionOID is the Postgres object ID of the called function.
+    uint32 FunctionOID = 5 [ (gogoproto.jsontag) = "function_oid" ];
+    // FunctionArgs contains formatted function arguments.
+    repeated string FunctionArgs = 6 [ (gogoproto.jsontag) = "function_args,omitempty" ];
 }
 
 // WindowsDesktopSessionStart is emitted when a user connects to a desktop.
@@ -1592,6 +1742,13 @@ message OneOf {
         events.AppDelete AppDelete = 58;
         events.WindowsDesktopSessionStart WindowsDesktopSessionStart = 59;
         events.WindowsDesktopSessionEnd WindowsDesktopSessionEnd = 60;
+        events.PostgresParse PostgresParse = 61;
+        events.PostgresBind PostgresBind = 62;
+        events.PostgresExecute PostgresExecute = 63;
+        events.PostgresClose PostgresClose = 64;
+        events.PostgresFunctionCall PostgresFunctionCall = 65;
+        events.AccessRequestDelete AccessRequestDelete = 66;
+        events.SessionConnect SessionConnect = 67;
     }
 }
 

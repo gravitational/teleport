@@ -564,7 +564,7 @@ authentication:
 - [ ] Change `second_factor` type to `on` and verify that mfa is required (no option `none` in dropdown)
 
 #### MFA require auth
-Through the CLI, `tsh login` and register a WebAuthn key with `tsh mfa add` (not supported in UI yet).
+Go to `Account Settings` > `Two-Factor Devices` and register a new device
 
 Using the same user as above:
 - [ ] Verify logging in with registered WebAuthn key works
@@ -572,7 +572,16 @@ Using the same user as above:
 - [ ] Verify in the web terminal, you can scp upload/download files
 
 #### MFA Management
-TODO(yassine)
+
+- [ ] Verify adding first device works without requiring re-authentication
+- [ ] Verify re-authenticating with a WebAuthn device works
+- [ ] Verify re-authenticating with a U2F device works
+- [ ] Verify re-authenticating with a OTP device works
+- [ ] Verify adding a WebAuthn device works
+- [ ] Verify adding a U2F device works
+- [ ] Verify adding an OTP device works
+- [ ] Verify removing a device works
+- [ ] Verify `second_factor` set to `off` disables adding devices
 
 ## Cloud
 From your cloud staging account, change the field `teleportVersion` to the test version.
@@ -581,7 +590,10 @@ $ kubectl -n <namespace> edit tenant
 ```
 
 #### Recovery Code Management
-TODO(yassine)
+
+- [ ] Verify generating recovery codes for local accounts with email usernames works
+- [ ] Verify local accounts with non-email usernames are not able to generate recovery codes
+- [ ] Verify SSO accounts are not able to generate recovery codes
 
 #### Invite/Reset
 - [ ] Verify email as usernames, renders recovery codes dialog
@@ -812,7 +824,8 @@ and non interactive tsh bench loads.
   - [ ] Can update registered database using `tctl create -f`.
   - [ ] Can delete registered database using `tctl rm`.
 - [ ] Verify discovery.
-  - [ ] Can detect and register RDS instances and Aurora clusters.
+  - [ ] Can detect and register RDS instances.
+  - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column

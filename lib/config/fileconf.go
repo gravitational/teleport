@@ -18,6 +18,7 @@ package config
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -137,13 +138,28 @@ type SampleFlags struct {
 	ACMEEnabled bool
 	// Version is the Teleport Configuration version.
 	Version string
+	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
+	PublicAddr string
+	// KeyFile is a TLS key file
+	KeyFile string
+	// CertFile is a TLS Certificate file
+	CertFile string
 }
 
 // MakeSampleFileConfig returns a sample config to start
 // a standalone server
 func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
-	if flags.ACMEEnabled && flags.ClusterName == "" {
-		return nil, trace.BadParameter("please provide --cluster-name when using acme, for example --cluster-name=example.com")
+	if (flags.KeyFile == "") != (flags.CertFile == "") { // xor
+		return nil, trace.BadParameter("please provide both --key-file and --cert-file")
+	}
+
+	if flags.ACMEEnabled {
+		if flags.ClusterName == "" {
+			return nil, trace.BadParameter("please provide --cluster-name when using ACME, for example --cluster-name=example.com")
+		}
+		if flags.CertFile != "" {
+			return nil, trace.BadParameter("could not use --key-file/--cert-file when ACME is enabled")
+		}
 	}
 
 	conf := service.MakeDefaultConfig()
@@ -195,6 +211,28 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
 		p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
 		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
+	}
+	if flags.PublicAddr != "" {
+		// default to 443 if port is not specified
+		publicAddr, err := utils.ParseHostPortAddr(flags.PublicAddr, teleport.StandardHTTPSPort)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		p.PublicAddr = apiutils.Strings{publicAddr.String()}
+
+		// use same port for web addr
+		webPort := publicAddr.Port(teleport.StandardHTTPSPort)
+		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", webPort))
+	}
+	if flags.KeyFile != "" && flags.CertFile != "" {
+		if _, err := tls.LoadX509KeyPair(flags.CertFile, flags.KeyFile); err != nil {
+			return nil, trace.Wrap(err, "failed to load x509 key pair from --key-file and --cert-file")
+		}
+
+		p.KeyPairs = append(p.KeyPairs, KeyPair{
+			PrivateKey:  flags.KeyFile,
+			Certificate: flags.CertFile,
+		})
 	}
 
 	fc = &FileConfig{
@@ -927,7 +965,10 @@ type Database struct {
 	// URI is the database address to connect to.
 	URI string `yaml:"uri"`
 	// CACertFile is an optional path to the database CA certificate.
+	// Deprecated in favor of TLS.CACertFile.
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
+	// TLS keeps an optional TLS configuration options.
+	TLS DatabaseTLS `yaml:"tls"`
 	// StaticLabels is a map of database static labels.
 	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 	// DynamicLabels is a list of database dynamic labels.
@@ -936,6 +977,18 @@ type Database struct {
 	AWS DatabaseAWS `yaml:"aws"`
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP `yaml:"gcp"`
+}
+
+// DatabaseTLS keeps TLS settings used when connecting to database.
+type DatabaseTLS struct {
+	// Mode is a TLS verification mode. Available options are 'verify-full', 'verify-ca' or 'insecure',
+	// 'verify-full' is the default option.
+	Mode string `yaml:"mode"`
+	// ServerName allows providing custom server name.
+	// This name will override DNS name when validating certificate presented by the database.
+	ServerName string `yaml:"server_name,omitempty"`
+	// CACertFile is an optional path to the database CA certificate.
+	CACertFile string `yaml:"ca_cert_file,omitempty"`
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
@@ -1077,9 +1130,18 @@ type Proxy struct {
 	// MySQLPublicAddr is the hostport the proxy advertises for MySQL
 	// client connections.
 	MySQLPublicAddr apiutils.Strings `yaml:"mysql_public_addr,omitempty"`
+
+	// PostgresAddr is Postgres proxy listen address.
+	PostgresAddr string `yaml:"postgres_listen_addr,omitempty"`
 	// PostgresPublicAddr is the hostport the proxy advertises for Postgres
 	// client connections.
 	PostgresPublicAddr apiutils.Strings `yaml:"postgres_public_addr,omitempty"`
+
+	// MongoAddr is Mongo proxy listen address.
+	MongoAddr string `yaml:"mongo_listen_addr,omitempty"`
+	// MongoPublicAddr is the hostport the proxy advertises for Mongo
+	// client connections.
+	MongoPublicAddr apiutils.Strings `yaml:"mongo_public_addr,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
@@ -1247,7 +1309,7 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		})
 	}
 
-	v2, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV3{
 		IssuerURL:     o.IssuerURL,
 		ClientID:      o.ClientID,
 		ClientSecret:  o.ClientSecret,
@@ -1260,12 +1322,12 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	v2.SetACR(o.ACR)
-	v2.SetProvider(o.Provider)
-	if err := v2.CheckAndSetDefaults(); err != nil {
+	connector.SetACR(o.ACR)
+	connector.SetProvider(o.Provider)
+	if err := connector.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return v2, nil
+	return connector, nil
 }
 
 // Metrics is a `metrics_service` section of the config file:
@@ -1323,6 +1385,16 @@ type LDAPConfig struct {
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
 	Username string `yaml:"username"`
-	// PasswordFile is a text file containing the password for LDAP authentication.
+	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
+	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
+
+	// PasswordFile was used in Teleport 8 before we supported client certificates
+	// for LDAP authentication. Support for LDAP passwords was removed for Teleport 9
+	// and this field remains only to issue a warning to users who are upgrading to
+	// Teleport 9.
+	//
+	// TODO(zmb3) DELETE IN 10.0
 	PasswordFile string `yaml:"password_file"`
 }

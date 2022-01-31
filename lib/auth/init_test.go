@@ -39,9 +39,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -502,11 +502,11 @@ func TestPresets(t *testing.T) {
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		err := createPresets(ctx, as)
+		err := createPresets(as)
 		require.NoError(t, err)
 
 		// Second call should not fail
-		err = createPresets(ctx, as)
+		err = createPresets(as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -527,7 +527,7 @@ func TestPresets(t *testing.T) {
 		err := as.CreateRole(access)
 		require.NoError(t, err)
 
-		err = createPresets(ctx, as)
+		err = createPresets(as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -758,15 +758,15 @@ version: v2`
 func TestInit_bootstrap(t *testing.T) {
 	t.Parallel()
 
-	hostCA := resourceFromYAML(t, hostCAYAML)
-	userCA := resourceFromYAML(t, userCAYAML)
-	jwtCA := resourceFromYAML(t, jwtCAYAML)
+	hostCA := resourceFromYAML(t, hostCAYAML).(types.CertAuthority)
+	userCA := resourceFromYAML(t, userCAYAML).(types.CertAuthority)
+	jwtCA := resourceFromYAML(t, jwtCAYAML).(types.CertAuthority)
 
-	invalidHostCA := resourceFromYAML(t, hostCAYAML)
+	invalidHostCA := resourceFromYAML(t, hostCAYAML).(types.CertAuthority)
 	invalidHostCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
-	invalidUserCA := resourceFromYAML(t, userCAYAML)
+	invalidUserCA := resourceFromYAML(t, userCAYAML).(types.CertAuthority)
 	invalidUserCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
-	invalidJWTCA := resourceFromYAML(t, jwtCAYAML)
+	invalidJWTCA := resourceFromYAML(t, jwtCAYAML).(types.CertAuthority)
 	invalidJWTCA.(*types.CertAuthorityV2).Spec.ActiveKeys.JWT = nil
 	invalidJWTCA.(*types.CertAuthorityV2).Spec.JWTKeyPairs = nil
 
@@ -779,27 +779,27 @@ func TestInit_bootstrap(t *testing.T) {
 			// Issue https://github.com/gravitational/teleport/issues/7853.
 			name: "OK bootstrap CAs",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, hostCA, userCA, jwtCA)
+				cfg.Resources = append(cfg.Resources, hostCA.Clone(), userCA.Clone(), jwtCA.Clone())
 			},
 		},
 		{
 			name: "NOK bootstrap Host CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, invalidHostCA, userCA, jwtCA)
+				cfg.Resources = append(cfg.Resources, invalidHostCA.Clone(), userCA.Clone(), jwtCA.Clone())
 			},
 			wantErr: true,
 		},
 		{
 			name: "NOK bootstrap User CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, hostCA, invalidUserCA, jwtCA)
+				cfg.Resources = append(cfg.Resources, hostCA.Clone(), invalidUserCA.Clone(), jwtCA.Clone())
 			},
 			wantErr: true,
 		},
 		{
 			name: "NOK bootstrap JWT CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, hostCA, userCA, invalidJWTCA)
+				cfg.Resources = append(cfg.Resources, hostCA.Clone(), userCA.Clone(), invalidJWTCA.Clone())
 			},
 			wantErr: true,
 		},
@@ -911,7 +911,7 @@ func TestIdentityChecker(t *testing.T) {
 
 			identity, err := GenerateIdentity(authServer, IdentityID{
 				Role:     types.RoleNode,
-				HostUUID: uuid.New(),
+				HostUUID: uuid.New().String(),
 				NodeName: "node-1",
 			}, nil, nil)
 			require.NoError(t, err)

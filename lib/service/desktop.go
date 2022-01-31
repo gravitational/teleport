@@ -102,7 +102,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 
 	// Start a local listener and let proxies dial in.
 	case !conn.UseTunnel() && !cfg.WindowsDesktop.ListenAddr.IsEmpty():
-		log.Debug("Turning on Windows desktop service listening address.")
+		log.Info("Using local listener and registering directly with auth server")
 		listener, err = process.importOrCreateListener(listenerWindowsDesktop, cfg.WindowsDesktop.ListenAddr.Addr)
 		if err != nil {
 			return trace.Wrap(err)
@@ -142,13 +142,14 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				agentPool.Stop()
 			}
 		}()
-		log.Info("Started reverse tunnel client.")
+		log.Info("Using a reverse tunnel to register and handle proxy connections")
 	}
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentWindowsDesktop,
 			Log:       log,
+			Clock:     cfg.Clock,
 			Client:    conn.Client,
 		},
 	})
@@ -218,16 +219,11 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			HostUUID:    cfg.HostUUID,
 			PublicAddr:  publicAddr,
 			StaticHosts: cfg.WindowsDesktop.Hosts,
-			OnHeartbeat: func(err error) {
-				if err != nil {
-					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentWindowsDesktop})
-				} else {
-					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentWindowsDesktop})
-				}
-			},
+			OnHeartbeat: process.onHeartbeat(teleport.ComponentWindowsDesktop),
 		},
-		LDAPConfig:      desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
-		DiscoveryBaseDN: cfg.WindowsDesktop.Discovery.BaseDN,
+		LDAPConfig:           desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		DiscoveryBaseDN:      cfg.WindowsDesktop.Discovery.BaseDN,
+		DiscoveryLDAPFilters: cfg.WindowsDesktop.Discovery.Filters,
 	})
 	if err != nil {
 		return trace.Wrap(err)

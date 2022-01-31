@@ -263,8 +263,7 @@ func (s *Server) isAuditedAtProxy() bool {
 // ServerOption is a functional option passed to the server
 type ServerOption func(s *Server) error
 
-// Close closes listening socket and stops accepting connections
-func (s *Server) Close() error {
+func (s *Server) close() {
 	s.cancel()
 	s.reg.Close()
 	if s.heartbeat != nil {
@@ -273,6 +272,14 @@ func (s *Server) Close() error {
 		}
 		s.heartbeat = nil
 	}
+	if s.dynamicLabels != nil {
+		s.dynamicLabels.Close()
+	}
+}
+
+// Close closes listening socket and stops accepting connections
+func (s *Server) Close() error {
+	s.close()
 	return s.srv.Close()
 }
 
@@ -280,14 +287,7 @@ func (s *Server) Close() error {
 func (s *Server) Shutdown(ctx context.Context) error {
 	// wait until connections drain off
 	err := s.srv.Shutdown(ctx)
-	s.cancel()
-	s.reg.Close()
-	if s.heartbeat != nil {
-		if err := s.heartbeat.Close(); err != nil {
-			s.Warningf("Failed to close heartbeat: %v.", err)
-		}
-		s.heartbeat = nil
-	}
+	s.close()
 	return err
 }
 
@@ -681,7 +681,7 @@ func New(addr utils.NetAddr,
 		Component:       component,
 		Announcer:       s.authService,
 		GetServerInfo:   s.getServerInfo,
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
@@ -932,11 +932,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 			Type: events.SessionRejectedEvent,
 			Code: events.SessionRejectedCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			Login:        identityContext.Login,
-			User:         identityContext.TeleportUser,
-			Impersonator: identityContext.Impersonator,
-		},
+		UserMetadata: identityContext.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			Protocol:   events.EventProtocolSSH,
 			LocalAddr:  ccx.ServerConn.LocalAddr().String(),
@@ -1077,11 +1073,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 						Type: events.SessionRejectedEvent,
 						Code: events.SessionRejectedCode,
 					},
-					UserMetadata: apievents.UserMetadata{
-						Login:        identityContext.Login,
-						User:         identityContext.TeleportUser,
-						Impersonator: identityContext.Impersonator,
-					},
+					UserMetadata: identityContext.GetUserMetadata(),
 					ConnectionMetadata: apievents.ConnectionMetadata{
 						Protocol:   events.EventProtocolSSH,
 						LocalAddr:  ccx.ServerConn.LocalAddr().String(),
@@ -1277,11 +1269,7 @@ Loop:
 			Type: events.PortForwardEvent,
 			Code: events.PortForwardCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			Login:        scx.Identity.Login,
-			User:         scx.Identity.TeleportUser,
-			Impersonator: scx.Identity.Impersonator,
-		},
+		UserMetadata: scx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  scx.ServerConn.LocalAddr().String(),
 			RemoteAddr: scx.ServerConn.RemoteAddr().String(),

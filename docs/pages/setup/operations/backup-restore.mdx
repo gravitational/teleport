@@ -98,5 +98,5 @@ by auth server on first start), so it is safe for use in supervised/High Availab
 - The `--bootstrap` flag doesn't re-trigger trusted cluster handshakes, so trusted cluster resources need to be recreated manually.
 - All the same limitations around modifying the config file of an existing cluster also apply to a new cluster being bootstrapped from the state of an old cluster. Of particular note:
   - Changing cluster name will break your CAs (this will be caught and teleport will refuse to start).
-  - Some user authentication mechanisms (e.g. u2f) require that the public endpoint of the web ui remains the same (this can't be caught by teleport, be careful!).
+  - Some user authentication mechanisms (e.g. WebAuthn and U2F) require that the public endpoint of the web ui remains the same (this can't be caught by teleport, be careful!).
 - Any node whose invite token is defined statically (in the config file of the auth server) will be able to join automatically, but nodes that were added dynamically will need to be re-invited

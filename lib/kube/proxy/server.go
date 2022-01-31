@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/http2"
 )
 
 // TLSServerConfig is a configuration for TLS server
@@ -124,6 +125,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		Server: &http.Server{
 			Handler:           limiter,
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout * 2,
+			TLSConfig:         cfg.TLS,
 		},
 	}
 	server.TLS.GetConfigForClient = server.GetConfigForClient
@@ -142,7 +144,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			Component:       cfg.Component,
 			Announcer:       cfg.AuthClient,
 			GetServerInfo:   server.GetServerInfo,
-			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 			ServerTTL:       apidefaults.ServerAnnounceTTL,
 			CheckPeriod:     defaults.HeartbeatCheckPeriod,
@@ -167,17 +169,20 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 		Listener:            listener,
 		Clock:               t.Clock,
 		EnableProxyProtocol: true,
-		DisableSSH:          true,
 		ID:                  t.Component,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	go mux.Serve()
 	defer mux.Close()
 
 	t.mu.Lock()
 	t.listener = mux.TLS()
+	if err = http2.ConfigureServer(t.Server, &http2.Server{}); err != nil {
+		return trace.Wrap(err)
+	}
 	t.mu.Unlock()
 
 	if t.heartbeat != nil {

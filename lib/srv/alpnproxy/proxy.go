@@ -28,6 +28,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -36,11 +37,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-)
-
-const (
-	// KubeSNIPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
-	KubeSNIPrefix = "kube"
 )
 
 // ProxyConfig  is the configuration for an ALPN proxy server.
@@ -193,7 +189,10 @@ type Proxy struct {
 	cfg                ProxyConfig
 	supportedProtocols []common.Protocol
 	log                logrus.FieldLogger
-	cancel             context.CancelFunc
+
+	// mu guards cancel
+	mu     sync.Mutex
+	cancel context.CancelFunc
 }
 
 // CheckAndSetDefaults checks and sets default values of ProxyConfig
@@ -254,7 +253,15 @@ func New(cfg ProxyConfig) (*Proxy, error) {
 func (p *Proxy) Serve(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	p.mu.Lock()
+	if p.cancel != nil {
+		p.mu.Unlock()
+		return trace.BadParameter("Serve may only be called once")
+	}
 	p.cancel = cancel
+	p.mu.Unlock()
+
 	p.cfg.WebTLSConfig.NextProtos = common.ProtocolsToString(p.supportedProtocols)
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
@@ -476,14 +483,22 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 }
 
 func shouldRouteToKubeService(sni string) bool {
-	return strings.HasPrefix(sni, KubeSNIPrefix)
+	// DELETE IN 11.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
+	if strings.HasPrefix(sni, constants.KubeSNIPrefix) {
+		return true
+	}
+
+	return strings.HasPrefix(sni, constants.KubeTeleportProxyALPNPrefix)
 }
 
 // Close the Proxy server.
 func (p *Proxy) Close() error {
+	p.mu.Lock()
 	if p.cancel != nil {
 		p.cancel()
 	}
+	p.mu.Unlock()
+
 	if err := p.cfg.Listener.Close(); err != nil {
 		return trace.Wrap(err)
 	}

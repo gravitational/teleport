@@ -43,9 +43,9 @@ import (
 
 	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -324,7 +324,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 	} else {
 		// no session id - global event gets a random uuid to get a good partition
 		// key distribution
-		sessionID = uuid.New()
+		sessionID = uuid.New().String()
 	}
 
 	event := event{
@@ -352,7 +352,7 @@ func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) e
 	// no session id - global event gets a random uuid to get a good partition
 	// key distribution
 	if sessionID == "" {
-		sessionID = uuid.New()
+		sessionID = uuid.New().String()
 	}
 	err := events.UpdateEventFields(ev, fields, l.Clock, l.UIDGenerator)
 	if err != nil {
@@ -585,7 +585,7 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 		}
 
 		// Check that the filter condition is satisfied.
-		if filter.condition != nil && !filter.condition(fields) {
+		if filter.condition != nil && !filter.condition(utils.Fields(fields)) {
 			continue
 		}
 
@@ -630,7 +630,7 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent}}
 	if cond != nil {
-		condFn, err := events.ToEventFieldsCondition(cond)
+		condFn, err := utils.ToFieldsCondition(cond)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -641,7 +641,7 @@ func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order typ
 
 type searchEventsFilter struct {
 	eventTypes []string
-	condition  events.EventFieldsCondition
+	condition  utils.FieldsCondition
 }
 
 // WaitForDelivery waits for resources to be released and outstanding requests to
@@ -692,7 +692,7 @@ func (l *Log) Close() error {
 }
 
 func (l *Log) getDocIDForEvent(event event) string {
-	return uuid.New()
+	return uuid.New().String()
 }
 
 func (l *Log) purgeExpiredEvents() error {

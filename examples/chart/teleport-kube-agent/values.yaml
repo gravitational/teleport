@@ -61,6 +61,23 @@ podSecurityPolicy:
 # Labels is a map of key values pairs about this cluster
 labels: {}
 
+# Settings for high availability. These are not used in "standalone" mode.
+# When using "custom" mode, you must use highly-available storage (etcd, DynamoDB or Firestore) for multiple replicas to be supported.
+# Manually configuring NFS-based storage or ReadWriteMany volume claims is NOT supported and will result in errors.
+highAvailability:
+  # Set to >1 for a high availability mode where multiple Teleport agent pods will be deployed.
+  replicaCount: 1
+  # Setting 'requireAntiAffinity' to true will use 'requiredDuringSchedulingIgnoredDuringExecution' to require that multiple Teleport pods must not be scheduled on the
+  # same physical host. This will result in Teleport pods failing to be scheduled in very small clusters or during node downtime, so should be used with caution.
+  # Setting 'requireAntiAffinity' to false (the default) uses 'preferredDuringSchedulingIgnoredDuringExecution' to make this a soft requirement.
+  # This setting only has any effect when replicaCount is greater than 1.
+  requireAntiAffinity: false
+  # If enabled will create a Pod Disruption Budget
+  # https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
 ################################################################
 # Values that must be provided if using persistent storage for Teleport state.
 #
@@ -92,7 +109,8 @@ image: quay.io/gravitational/teleport
 imagePullSecrets: []
 # - name: myRegistryKeySecretName
 # Number of replicas for the agent deployment.
-replicaCount: 1
+# DEPRECATED Use highAvailability:replicaCount instead
+# replicaCount: 1
 # (optional) Override the name of the ClusterRole used by the agent's service account.
 clusterRoleName: ""
 # (optional) Override the name of the ClusterRoleBinding used by the agent's service account.
@@ -101,11 +119,24 @@ clusterRoleBindingName: ""
 serviceAccountName: ""
 # Name of the Secret to store the teleport join token.
 secretName: teleport-kube-agent-join-token
-# Log level for the Teleport process.
-# Available log levels are: DEBUG, INFO, WARNING, ERROR.
-# The default is INFO, which is recommended in production.
-# DEBUG is useful during first-time setup or to see more detailed logs for debugging.
-logLevel: INFO
+
+# Teleport logging configuration
+log:
+  # Log level for the Teleport process.
+  # Available log levels are: DEBUG, INFO, WARNING, ERROR.
+  # The default is INFO, which is recommended in production.
+  # DEBUG is useful during first-time setup or to see more detailed logs for debugging.
+  level: INFO
+  # Log output
+  # Use a file path to log to disk: e.g. '/var/lib/teleport/teleport.log'
+  # Other supported values: 'stdout', 'stderr' and 'syslog'
+  output: stderr
+  # Log format configuration
+  # Possible output values are 'json' and 'text' (default).
+  format: text
+  # Possible extra_fields values include: timestamp, component, caller, and level.
+  # All extra fields are included by default.
+  extraFields: ["timestamp", "level", "component", "caller"]
 
 ##################################
 # Extra Kubernetes configuration #

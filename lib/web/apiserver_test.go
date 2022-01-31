@@ -35,6 +35,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -82,9 +83,9 @@ import (
 	"github.com/beevik/etree"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	lemma_secret "github.com/mailgun/lemma/secret"
-	"github.com/pborman/uuid"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -477,6 +478,25 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 	}
 }
 
+func TestValidRedirectURL(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		desc, url string
+		valid     bool
+	}{
+		{"valid absolute https url", "https://example.com?a=1", true},
+		{"valid absolute http url", "http://example.com?a=1", true},
+		{"valid relative url", "/path/to/something", true},
+		{"garbage", "fjoiewjwpods302j09", false},
+		{"empty string", "", false},
+		{"block bad protocol", "javascript:alert('xss')", false},
+	} {
+		t.Run(tt.desc, func(t *testing.T) {
+			require.Equal(t, tt.valid, isValidRedirectURL(tt.url))
+		})
+	}
+}
+
 func (s *WebSuite) TestSAMLSuccess(c *C) {
 	input := fixtures.SAMLOktaConnectorV2
 
@@ -525,7 +545,8 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	c.Assert(err, IsNil)
 
 	// we got a redirect
-	locationURL := re.Headers().Get("Location")
+	urlPattern := regexp.MustCompile(`URL='([^']*)'`)
+	locationURL := urlPattern.FindStringSubmatch(string(re.Bytes()))[1]
 	u, err := url.Parse(locationURL)
 	c.Assert(err, IsNil)
 	c.Assert(u.Scheme+"://"+u.Host+u.Path, Equals, fixtures.SAMLOktaSSO)
@@ -600,16 +621,6 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 	_, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
-}
-
-func (s *WebSuite) TestNamespace(c *C) {
-	pack := s.authPack(c, "foo")
-
-	_, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "..%252fevents%3f", "nodes"), url.Values{})
-	c.Assert(err, NotNil)
-
-	_, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "nodes"), url.Values{})
-	c.Assert(err, IsNil)
 }
 
 func (s *WebSuite) TestCSRF(c *C) {
@@ -1166,10 +1177,6 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
 	c.Assert(err, IsNil)
 
-	// flush out raw event (pty texts)
-	err = s.waitForRawEvent(ws, 5*time.Second)
-	c.Assert(err, IsNil)
-
 	var numPings int
 	start := time.Now()
 	for {
@@ -1183,8 +1190,8 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 		if numPings > 1 {
 			break
 		}
-		if time.Since(start) > 5*time.Second {
-			c.Fatalf("received %d ping frames within 5s of opening a socket, expected at least 2", numPings)
+		if deadline := 15 * time.Second; time.Since(start) > deadline {
+			c.Fatalf("Received %v ping frames within %v of opening a socket, expected at least 2", numPings, deadline)
 		}
 	}
 
@@ -1281,7 +1288,7 @@ func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 
 	// Retrieve the session with the empty ClusterName.
 	pack := s.authPack(c, "baz")
-	res, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "sessions", sess1.ID.String()), url.Values{})
+	res, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions", sess1.ID.String()), url.Values{})
 	c.Assert(err, IsNil)
 
 	// Test that empty ClusterName and ServerHostname got set.
@@ -1299,7 +1306,7 @@ func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 	c.Assert(err, IsNil)
 
 	// Retrieve sessions list.
-	res, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "sessions"), url.Values{})
+	res, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
 	c.Assert(err, IsNil)
 
 	var sessionList *siteSessionsGetResponse
@@ -1664,7 +1671,7 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 	wc := s.client()
 
 	// create two oidc connectors, one named "foo" and another named "bar"
-	oidcConnectorSpec := types.OIDCConnectorSpecV2{
+	oidcConnectorSpec := types.OIDCConnectorSpecV3{
 		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
 		ClientID:     "000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com",
 		ClientSecret: "AAAAAAAAAAAAAAAAAAAAAAAA",
@@ -2091,7 +2098,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 		PublicAddr: "panel.example.com",
 	})
 	require.NoError(t, err)
-	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), server)
 	require.NoError(t, err)
@@ -2490,7 +2497,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		PublicAddr: "panel.example.com",
 	})
 	c.Assert(err, IsNil)
-	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 	c.Assert(err, IsNil)
 	_, err = s.server.Auth().UpsertApplicationServer(context.Background(), server)
 	c.Assert(err, IsNil)
@@ -3348,7 +3355,7 @@ type proxy struct {
 	revTun  reversetunnel.Server
 	node    *regular.Server
 	proxy   *regular.Server
-	handler *RewritingHandler
+	handler *WebAPIHandler
 	web     *httptest.Server
 	webURL  url.URL
 }

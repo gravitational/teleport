@@ -37,7 +37,7 @@ func getOrCreateUserWebauthnID(ctx context.Context, user string, identity userID
 	wla, err := identity.GetWebauthnLocalAuth(ctx, user)
 	switch {
 	case trace.IsNotFound(err): // first-time user, create a new ID
-		webID := uuid.New()
+		webID := []byte(uuid.New().String())
 		err := identity.UpsertWebauthnLocalAuth(ctx, user, &types.WebauthnLocalAuth{
 			UserID: webID[:],
 		})
