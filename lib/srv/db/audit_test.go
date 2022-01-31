@@ -166,6 +166,14 @@ func TestAuditRedis(t *testing.T) {
 		waitForEvent(t, testCtx, libevents.DatabaseSessionStartCode)
 	})
 
+	t.Run("command sends", func(t *testing.T) {
+		// SET should trigger Query event.
+		err := redisClient.Set(ctx, "foo", "bar", 0).Err()
+		require.NoError(t, err)
+		waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+	})
+
+	// TODO(jakub): Add missing events.
 	t.Run("session ends event", func(t *testing.T) {
 		// Closing connection should trigger session end event.
 		err := redisClient.Close()

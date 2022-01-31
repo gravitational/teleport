@@ -315,6 +315,8 @@ func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient)
 			return trace.Wrap(err)
 		}
 
+		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
+
 		e.Log.Debugf("redis cmd: %s", cmd.String())
 
 		// send valid commands to Redis instance/cluster.

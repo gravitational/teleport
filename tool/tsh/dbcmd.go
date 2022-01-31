@@ -318,9 +318,10 @@ func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
 	return exec.Command(mongoBin, args...)
 }
 
+// getRedisCommand returns redis-cli commands used by 'tsh db connect' when connection to a Redis instance.
 func (c *cliCommandBuilder) getRedisCommand() *exec.Cmd {
+	// TODO(jakub): Add "-3" when Teleport adds support for Redis RESP3 protocol.
 	args := []string{
-		// "-3", // TODO(jakub): Check if client supports it.
 		"--tls",
 		"-h", c.options.localProxyHost,
 		"-p", strconv.Itoa(c.options.localProxyPort),
