@@ -347,7 +347,7 @@ func (p *Profile) KnownHostsPath() string {
 }
 
 // AppCertPath returns the path to the profile's certificate for a given
-// application. Note that this function merely construct the path - there
+// application. Note that this function merely constructs the path - there
 // is no guarantee that there is an actual certificate at that location.
 func (p *Profile) AppCertPath(appName string) string {
 	return keypaths.AppCertPath(p.Dir, p.Name(), p.Username, p.SiteName, appName)
