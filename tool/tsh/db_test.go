@@ -503,6 +503,18 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 				"mydb"},
 			wantErr: false,
 		},
+		{
+			name:       "redis-cli",
+			dbProtocol: defaults.ProtocolRedis,
+			cmd: []string{"redis-cli",
+				"--tls",
+				"-h", "localhost",
+				"-p", "12345",
+				"--cacert", "/tmp/keys/example.com/certs.pem",
+				"--key", "/tmp/keys/example.com/bob",
+				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {

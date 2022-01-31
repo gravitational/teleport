@@ -46,7 +46,7 @@ const (
 	mongoshBin = "mongosh"
 	// mongoBin is the Mongo client binary name.
 	mongoBin = "mongo"
-
+	// redisBin is the Redis client binary name.
 	redisBin = "redis-cli"
 )
 
@@ -325,7 +325,7 @@ func (c *cliCommandBuilder) getRedisCommand() *exec.Cmd {
 		"--tls",
 		"-h", c.options.localProxyHost,
 		"-p", strconv.Itoa(c.options.localProxyPort),
-		"--cacert", c.options.caPath,
+		"--cacert", c.profile.CACertPath(),
 		"--key", c.profile.KeyPath(),
 		"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
 	}

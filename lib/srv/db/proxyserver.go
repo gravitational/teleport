@@ -216,6 +216,8 @@ func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) e
 	return s.serverGenericTLS(listener, tlsConfig, "Mongo")
 }
 
+// serverGenericTLS starts accepting a plain TLS database client connection.
+// DBName is used only for logging purposes.
 func (s *ProxyServer) serverGenericTLS(listener net.Listener, tlsConfig *tls.Config, DBName string) error {
 	s.log.Debugf("Started %s proxy.", DBName)
 	defer s.log.Debugf("%s proxy exited.", DBName)

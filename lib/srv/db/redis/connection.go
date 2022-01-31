@@ -21,16 +21,23 @@ package redis
 import (
 	"net"
 	"net/url"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
 
+// DefaultPort is Redis default port.
+const DefaultPort = "6379"
+
+// ConnectionOptions represent Redis connection options.
 type ConnectionOptions struct {
 	cluster bool
 	address string
 	port    string
 }
 
+// ParseRedisURI parses Redis connection string and return parsed connection options like address and connection mode.
+// ex: rediss://redis.example.com:6379?cluster=true
 func ParseRedisURI(uri string) (*ConnectionOptions, error) {
 	if uri == "" {
 		return nil, trace.BadParameter("Redis uri is empty")
@@ -53,15 +60,12 @@ func ParseRedisURI(uri string) (*ConnectionOptions, error) {
 	}
 
 	if port == "" {
-		port = "6379"
+		port = DefaultPort
 	}
-
-	cluster := false
 
 	values := u.Query()
-	if values.Has("cluster") && values.Get("cluster") == "true" { // TODO(jakub): make it more generic
-		cluster = true
-	}
+	// Check if cluster mode should be enabled.
+	cluster := values.Has("cluster") && strings.EqualFold(values.Get("cluster"), "true")
 
 	return &ConnectionOptions{
 		cluster: cluster,

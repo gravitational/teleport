@@ -315,7 +315,7 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 
 	switch sessionCtx.Database.GetProtocol() {
 	case defaults.ProtocolMongoDB, defaults.ProtocolRedis:
-		// Mongo and Redis are using a custom URI schema.
+		// Mongo and Redis are using custom URI schema.
 	default:
 		// Don't set the ServerName when connecting to a MongoDB cluster - in case
 		// of replica set the driver may dial multiple servers and will set

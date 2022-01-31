@@ -968,7 +968,7 @@ type testContext struct {
 	mysql map[string]testMySQL
 	// mongo is a collection of MongoDB databases the test uses.
 	mongo map[string]testMongoDB
-	// mongo is a collection of MongoDB databases the test uses.
+	// redis is a collection of Redis databases the test uses.
 	redis map[string]testRedis
 	// clock to override clock in tests.
 	clock clockwork.FakeClock
@@ -998,11 +998,11 @@ type testMongoDB struct {
 	resource types.Database
 }
 
-// testMongoDB represents a single proxied MongoDB database.
+// testRedis represents a single proxied Redis database.
 type testRedis struct {
-	// db is the test MongoDB database server.
+	// db is the test Redis database server.
 	db *redis.TestServer
-	// resource is the resource representing this MongoDB database.
+	// resource is the resource representing this Redis database.
 	resource types.Database
 }
 
@@ -1099,11 +1099,13 @@ func (c *testContext) mongoClientWithAddr(ctx context.Context, address, teleport
 	}, opts...)
 }
 
+// redisClient connects to test Redis through database access as a specified Teleport user and database account.
 func (c *testContext) redisClient(ctx context.Context, teleportUser, dbService, dbUser string, opts ...*options.ClientOptions) (*redis.Client, error) {
 	return c.redisClientWithAddr(ctx, c.webListener.Addr().String(), teleportUser, dbService, dbUser, opts...)
 }
 
-func (c *testContext) redisClientWithAddr(ctx context.Context, proxyAddress, teleportUser, dbService, dbUser string, opts ...*options.ClientOptions) (*redis.Client, error) {
+// redisClientWithAddr is like redisClient but allows overriding connection address.
+func (c *testContext) redisClientWithAddr(ctx context.Context, proxyAddress, teleportUser, dbService, dbUser string, _ ...*options.ClientOptions) (*redis.Client, error) {
 	return redis.MakeTestClient(ctx, common.TestClientConfig{
 		AuthClient: c.authClient,
 		AuthServer: c.authServer,
