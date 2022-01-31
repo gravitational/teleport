@@ -109,19 +109,19 @@ func NewCustomizedConn(conn net.Conn, serverConf *Server, p CredentialProvider, 
 }
 
 func (c *Conn) handshake() error {
-	if err := c.WriteInitialHandshake(); err != nil {
+	if err := c.writeInitialHandshake(); err != nil {
 		return err
 	}
 
-	if err := c.ReadHandshakeResponse(); err != nil {
+	if err := c.readHandshakeResponse(); err != nil {
 		if err == ErrAccessDenied {
 			err = NewDefaultError(ER_ACCESS_DENIED_ERROR, c.user, c.LocalAddr().String(), "Yes")
 		}
-		c.WriteError(err)
+		c.writeError(err)
 		return err
 	}
 
-	if err := c.WriteOK(nil); err != nil {
+	if err := c.writeOK(nil); err != nil {
 		return err
 	}
 
@@ -141,10 +141,6 @@ func (c *Conn) Closed() bool {
 
 func (c *Conn) GetUser() string {
 	return c.user
-}
-
-func (c *Conn) GetDatabase() string {
-	return c.db
 }
 
 func (c *Conn) ConnectionID() uint32 {
