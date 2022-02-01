@@ -272,7 +272,7 @@ identity information.
 
 ```bash
 mkdir -p /etc/pam-exec.d
-cat > /etc/pam-exec.d/teleport_acct <<EOF
+cat > /etc/pam-exec.d/teleport_acct <<"EOF"
 #!/bin/sh
 COMMENT="User ${TELEPORT_LOGIN} for ${TELEPORT_USERNAME} with roles ${TELEPORT_ROLES} created by Teleport."
 /bin/id -u "${TELEPORT_LOGIN}" > /dev/null 2>&1 || /sbin/useradd -m -s /bin/bash -c "${COMMENT}" "${TELEPORT_LOGIN}" 2>> /tmp/pam.error
