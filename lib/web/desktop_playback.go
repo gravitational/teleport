@@ -170,10 +170,16 @@ func (pp *playbackPlayer) streamSessionEvents(ctx context.Context, cancel contex
 			if !errors.Is(err, context.Canceled) {
 				pp.log.WithError(err).Errorf("streaming session %v", pp.sID)
 			}
+
 			return
 		case evt := <-eventsC:
 			if evt == nil {
 				pp.log.Debug("reached end of playback")
+
+				if _, err := pp.ws.Write([]byte("end")); err != nil {
+					pp.log.WithError(err).Error("failed to write \"end\" message over websocket")
+				}
+
 				// deferred ps.Close() will set ps.playState = playStateFinished for us
 				return
 			}
