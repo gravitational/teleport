@@ -39,6 +39,12 @@ apps: []
 #    protocol: "postgres"
 databases: []
 
+# Enables database automatic discovery for certain regions. Example:
+# awsAutoDiscoveryRegions:
+#   - "us-east-1"
+#   - "us-east-2"
+awsAutoDiscoveryRegions: []
+
 ################################################################
 # Values that you may need to change.
 ################################################################
