@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/trace"
 )
@@ -121,6 +122,9 @@ func (s *CA) CompareAndSwapCertAuthority(new, existing types.CertAuthority) erro
 	_, err = s.CompareAndSwap(context.TODO(), existingItem, newItem)
 	if err != nil {
 		if trace.IsCompareFailed(err) {
+			if len(existing.GetMetadata().Labels) >= 2 {
+				log.Warn("compare-and-swap comparison failed on certificate authority with multiple labels; it may need to be re-saved to sort map keys")
+			}
 			return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
 		}
 		return trace.Wrap(err)
