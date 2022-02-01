@@ -138,8 +138,8 @@ on browsers in most cases (1), but implement a best-effort CLI-native solution
 the more impactful use-cases, instead of having to provide full functionality.
 
 For the moment, the RFD chooses the CLI-native approach (2). A possible design
-for [browser-based CLI authentication](#browser-based-cli-authentication) is
-present in the "alternatives considered" section.
+for browser-based CLI authentication was briefly considered, but discarded due
+to security concerns.
 
 #### CLI-native authentication
 
@@ -325,105 +325,6 @@ UX is discussed throughout the design.
 
 ## Alternatives considered
 
-### Browser-based CLI authentication
-
-The diagram below exemplifies a new login method: the assignee based login.
-In this method a third-party, the assignee, performs the authentication ceremony
-on behalf of different entity (ie, Web UI authenticates on behalf of tsh).
-
-The design is largely based in a new set of RPCs and removes the need for
-communication between the source and assignee, apart from the initial stimulus.
-
-```
-                                           tsh authentication via browser
-
-       ┌─┐
-       ║"│
-       └┬┘
-       ┌┼┐
-        │                 ┌───┐                        ┌────────────────┐                             ┌────────┐
-       ┌┴┐                │tsh│                        │Browser / Web UI│                             │Teleport│
-      user                └─┬─┘                        └───────┬────────┘                             └───┬────┘
-       │ tsh login --pwdless│                                  │                                          │
-       │ ───────────────────>                                  │                                          │
-       │                    │                                  │                                          │
-       │                    │                   CreateAssigneeCredentials(sshPublicKey)                   │
-       │                    │ ────────────────────────────────────────────────────────────────────────────>
-       │                    │                                  │                                          │
-       │                    │                                  assigneeID                                 │
-       │                    │ <────────────────────────────────────────────────────────────────────────────
-       │                    │                                  │                                          │
-       │                    │ open "/web/assignee?assigneeID=n"│                                          │
-       │                    │ ─────────────────────────────────>                                          │
-       │                    │                                  │                                          │
-       │                    │                                  │────┐                                     │
-       │                    │                                  │    │ *authentication ceremony*           │
-       │                    │                                  │<───┘ (omitted)                           │
-       │                    │                                  │                                          │
-       │                    │                                  │                                          │
-       │                    │                                  │ AuthenticateAssignee                     │
-       │                    │                                  │ (assigneeID, userHandle, signedChallenge)│
-       │                    │                                  │ ─────────────────────────────────────────>
-       │                    │                                  │                                          │
-       │                    │                                  │                                          │
-       │                    │                                  │ <─────────────────────────────────────────
-       │                    │                                  │                                          │
-       │                    │                          WaitOperation(assigneeID)                          │
-       │                    │ ────────────────────────────────────────────────────────────────────────────>
-       │                    │                                  │                                          │
-       │                    │                                  │                                          │
-       │                    │ <────────────────────────────────────────────────────────────────────────────
-       │                    │                                  │                                          │
-       │                    │                      GetAssigneeCredentials(assigneeID)                     │
-       │                    │ ────────────────────────────────────────────────────────────────────────────>
-       │                    │                                  │                                          │
-       │                    │                                 credentials                                 │
-       │                    │ <────────────────────────────────────────────────────────────────────────────
-       │                    │                                  │                                          │
-       │         ok         │                                  │                                          │
-       │ <───────────────────                                  │                                          │
-      user                ┌─┴─┐                        ┌───────┴────────┐                             ┌───┴────┐
-       ┌─┐                │tsh│                        │Browser / Web UI│                             │Teleport│
-       ║"│                └───┘                        └────────────────┘                             └────────┘
-       └┬┘
-       ┌┼┐
-        │
-       ┌┴┐
-```
-
-`tsh` starts authentication by registering a new assignee login in Teleport,
-including the public key to be signed. The resulting assignee ID is sent to the
-browser / Web UI, who performs the authentication ceremony on `tsh`'s behalf.
-Once the ceremony is complete `tsh` retrieves the credentials from Teleport.
-
-CreateAssigneeCredentials may be used to capture information that helps the user
-to identify and authorize the login in the Web UI, such as the application
-requesting login ("tsh") and the originating IP.
-
-[WaitOperation](
-https://github.com/googleapis/googleapis/blob/master/google/longrunning/operations.proto#L113)
-refers to the corresponding method in gRPC's [Operations service](
-https://github.com/googleapis/googleapis/blob/master/google/longrunning/operations.proto#L54).
-It could be replaced by its' non-blocking sibling, [GetOperation](
-https://github.com/googleapis/googleapis/blob/master/google/longrunning/operations.proto#L77).
-
-The design above is open-ended enough to be applicable to other "assignee"-type
-authentication ceremonies, such as SSO logins or Teleport Terminal (possibly by
-iframing the Web UI in the interface).
-
-The RPCs suggested this section add untrusted surface to APIs and should be
-considered carefully. They must take the same precautions other untrusted RPCs
-take. In addition to that, potential for abuse is mitigated by various design
-decisions, such as:
-
-* Only public keys are exchanged in the ceremony, similarly to other Teleport
-  credential creation methods
-* The public key to be signed is registered by `tsh` at the start of the
-  ceremony
-* Minimal information is shared between `tsh` and browsers (only the assignee ID
-  is necessary)
-* Using hard-to-guess IDs / UUIDv4 (minimizes guessing/spamming in various RPCs)
-
 ### Pure Go FIDO2 library
 
 An alternative to the pains of libfido2 (and shortcomings of go-libfido2) is to
@@ -511,37 +412,6 @@ authenticator -> tsh: signed challenge
 
 tsh -> server: AuthenticateSSH(userHandle, signedChallenge)
 server -> tsh: SSH credentials
-
-tsh -> user: ok
-
-@enduml
-```
-
-```plantuml
-@startuml
-
-title tsh authentication via browser
-
-actor user
-participant tsh
-participant "Browser / Web UI" as browser
-participant "Teleport" as server
-
-user -> tsh: tsh login --pwdless
-
-
-tsh -> server: CreateAssigneeCredentials(sshPublicKey)
-server -> tsh: assigneeID
-
-tsh -> browser: open "/web/assignee?assigneeID=n"
-browser -> browser: *authentication ceremony*\n(omitted)
-browser -> server: AuthenticateAssignee\n(assigneeID, userHandle, signedChallenge)
-server -> browser:
-
-tsh -> server: WaitOperation(assigneeID)
-server -> tsh:
-tsh -> server: GetAssigneeCredentials(assigneeID)
-server -> tsh: credentials
 
 tsh -> user: ok
 
