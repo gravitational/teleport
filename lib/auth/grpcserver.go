@@ -1695,9 +1695,7 @@ func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) e
 			Code:        events.MFADeviceAddEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: actx.Identity.GetIdentity().Username,
-		},
+		UserMetadata:      actx.Identity.GetIdentity().GetUserMetadata(),
 		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
 	}); err != nil {
 		return trace.Wrap(err)
@@ -2121,7 +2119,7 @@ func (g *GRPCServer) IsMFARequired(ctx context.Context, req *proto.IsMFARequired
 }
 
 // GetOIDCConnector retrieves an OIDC connector by name.
-func (g *GRPCServer) GetOIDCConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.OIDCConnectorV2, error) {
+func (g *GRPCServer) GetOIDCConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.OIDCConnectorV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2130,15 +2128,15 @@ func (g *GRPCServer) GetOIDCConnector(ctx context.Context, req *types.ResourceWi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	oidcConnectorV2, ok := oc.(*types.OIDCConnectorV2)
+	connector, ok := oc.(*types.OIDCConnectorV3)
 	if !ok {
 		return nil, trace.Errorf("encountered unexpected OIDC connector type %T", oc)
 	}
-	return oidcConnectorV2, nil
+	return connector, nil
 }
 
 // GetOIDCConnectors retrieves all OIDC connectors.
-func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV2List, error) {
+func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2147,20 +2145,20 @@ func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.Resources
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	oidcConnectorsV2 := make([]*types.OIDCConnectorV2, len(ocs))
+	connectors := make([]*types.OIDCConnectorV3, len(ocs))
 	for i, oc := range ocs {
 		var ok bool
-		if oidcConnectorsV2[i], ok = oc.(*types.OIDCConnectorV2); !ok {
+		if connectors[i], ok = oc.(*types.OIDCConnectorV3); !ok {
 			return nil, trace.Errorf("encountered unexpected OIDC connector type %T", oc)
 		}
 	}
-	return &types.OIDCConnectorV2List{
-		OIDCConnectors: oidcConnectorsV2,
+	return &types.OIDCConnectorV3List{
+		OIDCConnectors: connectors,
 	}, nil
 }
 
 // UpsertOIDCConnector upserts an OIDC connector.
-func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV2) (*empty.Empty, error) {
+func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3499,6 +3497,20 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}}
+		case types.KindNode:
+			srv, ok := resource.(*types.ServerV2)
+			if !ok {
+				return nil, trace.BadParameter("node has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}}
+		case types.KindKubeService:
+			srv, ok := resource.(*types.ServerV2)
+			if !ok {
+				return nil, trace.BadParameter("kubernetes service has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeService{KubeService: srv}}
 		default:
 			return nil, trace.NotImplemented("resource type %s doesn't support pagination", req.ResourceType)
 		}

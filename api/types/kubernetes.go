@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -162,6 +163,13 @@ func (k *KubernetesClusterV3) String() string {
 // Copy returns a copy of this resource.
 func (k *KubernetesClusterV3) Copy() *KubernetesClusterV3 {
 	return proto.Clone(k).(*KubernetesClusterV3)
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (k *KubernetesClusterV3) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(k.GetAllLabels()), k.GetName())
+	return MatchSearch(fieldVals, values, nil)
 }
 
 // setStaticFields sets static resource header and metadata fields.
