@@ -666,7 +666,7 @@ github.com/siddontang/go/sync2
 ## explicit
 github.com/siddontang/go-log/log
 github.com/siddontang/go-log/loggers
-# github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77
+# github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-teleport.1
 ## explicit; go 1.15
 github.com/siddontang/go-mysql/client
 github.com/siddontang/go-mysql/mysql
