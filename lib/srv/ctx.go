@@ -603,13 +603,6 @@ func (c *ServerContext) getSession() *session {
 	return c.session
 }
 
-// GetX11Config gets the x11 config for this server session.
-func (c *ServerContext) GetX11Config() *X11Config {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.x11Config
-}
-
 // OpenXServerListener opens a new XServer unix listener.
 func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, displayOffset, maxDisplays int) error {
 	l, display, err := x11.OpenNewXServerListener(displayOffset, maxDisplays, x11Req.ScreenNumber)
@@ -702,6 +695,13 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 	return nil
 }
 
+// getX11Config gets the x11 config for this server session.
+func (c *ServerContext) getX11Config() *X11Config {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.x11Config
+}
+
 // setX11Config sets X11 config for the session, or returns an error if already set.
 func (c *ServerContext) setX11Config(cfg *X11Config) error {
 	c.mu.Lock()
@@ -726,8 +726,10 @@ func (c *ServerContext) x11Ready() (bool, error) {
 		return false, trace.Wrap(err)
 	}
 
-	// signal recieved, close writer so future calls read EOF.
-	c.x11rdyw.Close()
+	// signal received, close writer so future calls read EOF.
+	if err := c.x11rdyw.Close(); err != nil {
+		return false, trace.Wrap(err)
+	}
 	return true, nil
 }
 
@@ -980,7 +982,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
-		X11Config:             c.GetX11Config(),
+		X11Config:             c.getX11Config(),
 	}, nil
 }
 

@@ -230,22 +230,6 @@ type Config struct {
 	X11ForwardingTimeout time.Duration
 
 	// X11ForwardingTrusted specifies the X11 forwarding security mode.
-	//
-	// During trusted X11 forwarding, a trusted xauth cookie is used to provided
-	// unmitigated access to the client's local XServer. This may open the door
-	// to some XServer attacks such as keystroke monitoring, screenshots, etc.
-	// if the server becomes compromised or has lenient RBAC.
-	//
-	// ex: "xev -id <window_id>" to capture password entered in a "sudo" command.
-	//
-	// For example, if trusted X11 forwarding is carried out in a remote session with
-	// a shared unix user, then any remote user with access to that unix user could
-	// gain unmitigated access to the first user's XServer.
-	//
-	// With untrusted X11 forwarding, only the remote unix user will only have untrusted
-	// XServer privileges, meaning they can't perform any nefarious X commands which might
-	// compromise the client's XServer. In the above "xev" example, access to the client's
-	// local $WINDOWID would be denied.
 	X11ForwardingTrusted bool
 
 	// AuthMethods are used to login into the cluster. If specified, the client will

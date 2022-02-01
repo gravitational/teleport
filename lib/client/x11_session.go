@@ -45,9 +45,9 @@ func (ns *NodeSession) handleX11Forwarding(ctx context.Context, sess *ssh.Sessio
 		return trace.Wrap(err)
 	}
 
-	// The client's xauth cookie should never be exposed to the server.
-	// Instead, we create a spoof of the cookie to authenticate server
-	// requests. During X11 forwarding, the spoofed cookie will be replaced
+	// The client's xauth cookie should never be exposed to the server, so we
+	// create a spoof of the cookie to send to the server for authentication.
+	// During X11 forwarding, the spoofed cookie will be replaced
 	// with the client's cookie to connect to the client's XServer.
 	ns.spoofedXAuthEntry, err = ns.clientXAuthEntry.SpoofXAuthEntry()
 	if err != nil {
@@ -65,7 +65,7 @@ func (ns *NodeSession) handleX11Forwarding(ctx context.Context, sess *ssh.Sessio
 	return trace.Wrap(err)
 }
 
-// setXAuthData generates new xauth data fro the client's local XServer.
+// setXAuthData generates new xauth data for the client's local XServer.
 // This will be used during X11 forwarding to forward and authorize
 // XServer requests from the remote server to the client's XServer.
 func (ns *NodeSession) setXAuthData(ctx context.Context, display x11.Display) error {
@@ -166,7 +166,7 @@ func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *ssh.Session) 
 		}
 		defer xconn.Close()
 
-		// send the processed X11 auth packet to the client's XServer connection.
+		// Send the processed X11 auth packet to the client's XServer connection.
 		if _, err := xconn.Write(authPacket); err != nil {
 			log.WithError(err).Debug("Failed to write xauth packet")
 			return
