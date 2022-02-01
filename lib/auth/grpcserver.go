@@ -3564,8 +3564,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		grpc.Creds(&httplib.TLSCreds{
 			Config: cfg.TLS,
 		}),
-		grpc.UnaryInterceptor(grpcErrorConvertUnaryInterceptor(cfg.UnaryInterceptor)),
-		grpc.StreamInterceptor(grpcErrorConvertStreamInterceptor(cfg.StreamInterceptor)),
+		grpc.UnaryInterceptor(cfg.UnaryInterceptor),
+		grpc.StreamInterceptor(cfg.StreamInterceptor),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
 				Time:    cfg.KeepAlivePeriod,
@@ -3588,21 +3588,42 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		server: server,
 	}
 	proto.RegisterAuthServiceServer(authServer.server, authServer)
+
+	// create server with no-op role to pass to JoinService server
+	serverWithNopRole, err := serverWithNopRole(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	joinServiceServer := services.NewJoinServiceGRPCServer(serverWithNopRole)
+	proto.RegisterJoinServiceServer(server, joinServiceServer)
+
 	return authServer, nil
 }
 
-func grpcErrorConvertUnaryInterceptor(next grpc.UnaryServerInterceptor) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		resp, err := next(ctx, req, info, handler)
-		return resp, trail.ToGRPC(err)
+func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
+	clusterName, err := cfg.AuthServer.Services.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-}
-
-func grpcErrorConvertStreamInterceptor(next grpc.StreamServerInterceptor) grpc.StreamServerInterceptor {
-	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		err := next(srv, ss, info, handler)
-		return trail.ToGRPC(err)
+	nopRole := BuiltinRole{
+		Role:        types.RoleNop,
+		Username:    string(types.RoleNop),
+		ClusterName: clusterName.GetClusterName(),
 	}
+	recConfig, err := cfg.AuthServer.Services.GetSessionRecordingConfig(context.Background())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	nopCtx, err := contextForBuiltinRole(nopRole, recConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &ServerWithRoles{
+		authServer: cfg.AuthServer,
+		context:    *nopCtx,
+		sessions:   cfg.SessionService,
+		alog:       cfg.AuthServer.IAuditLog,
+	}, nil
 }
 
 type grpcContext struct {

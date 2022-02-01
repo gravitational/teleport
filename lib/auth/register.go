@@ -24,14 +24,20 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/net/http2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 // LocalRegister is used to generate host keys when a node or proxy is running
@@ -111,6 +117,8 @@ type RegisterParams struct {
 	// EC2IdentityDocument is used for Simplified Node Joining to prove the
 	// identity of a joining EC2 instance.
 	EC2IdentityDocument []byte
+	// JoinMethod is the joining method used for this register request.
+	JoinMethod types.JoinMethod
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -186,22 +194,38 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 		return nil, trace.BadParameter("no auth servers set")
 	}
 
-	certs, err := params.GetHostCredentials(context.Background(),
-		params.Servers[0].String(),
-		lib.IsInsecureDevMode(),
-		types.RegisterUsingTokenRequest{
-			Token:                token,
-			HostID:               params.ID.HostUUID,
-			NodeName:             params.ID.NodeName,
-			Role:                 params.ID.Role,
-			AdditionalPrincipals: params.AdditionalPrincipals,
-			DNSNames:             params.DNSNames,
-			PublicTLSKey:         params.PublicTLSKey,
-			PublicSSHKey:         params.PublicSSHKey,
-			EC2IdentityDocument:  params.EC2IdentityDocument,
-		})
-	if err != nil {
-		return nil, trace.Unwrap(err)
+	var certs *proto.Certs
+	if params.JoinMethod == types.JoinMethodIAM {
+		// IAM join method requires gRPC client
+		client, err := proxyJoinServiceClient(params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certs, err = registerUsingIAMMethod(client, token, params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// non-IAM join methods use GetHostCredentials function passed through
+		// params to call proxy HTTP endpoint
+		var err error
+		certs, err = params.GetHostCredentials(context.Background(),
+			params.Servers[0].String(),
+			lib.IsInsecureDevMode(),
+			types.RegisterUsingTokenRequest{
+				Token:                token,
+				HostID:               params.ID.HostUUID,
+				NodeName:             params.ID.NodeName,
+				Role:                 params.ID.Role,
+				AdditionalPrincipals: params.AdditionalPrincipals,
+				DNSNames:             params.DNSNames,
+				PublicTLSKey:         params.PublicTLSKey,
+				PublicSSHKey:         params.PublicSSHKey,
+				EC2IdentityDocument:  params.EC2IdentityDocument,
+			})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
@@ -226,23 +250,61 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 	}
 	defer client.Close()
 
-	// Get the SSH and X509 certificates for a node.
-	certs, err := client.RegisterUsingToken(types.RegisterUsingTokenRequest{
-		Token:                token,
-		HostID:               params.ID.HostUUID,
-		NodeName:             params.ID.NodeName,
-		Role:                 params.ID.Role,
-		AdditionalPrincipals: params.AdditionalPrincipals,
-		DNSNames:             params.DNSNames,
-		PublicTLSKey:         params.PublicTLSKey,
-		PublicSSHKey:         params.PublicSSHKey,
-		EC2IdentityDocument:  params.EC2IdentityDocument,
-	})
+	var certs *proto.Certs
+	if params.JoinMethod == types.JoinMethodIAM {
+		// IAM method uses unique gRPC endpoint
+		certs, err = registerUsingIAMMethod(client, token, params)
+	} else {
+		// non-IAM join methods use HTTP endpoint
+		// Get the SSH and X509 certificates for a node.
+		certs, err = client.RegisterUsingToken(types.RegisterUsingTokenRequest{
+			Token:                token,
+			HostID:               params.ID.HostUUID,
+			NodeName:             params.ID.NodeName,
+			Role:                 params.ID.Role,
+			AdditionalPrincipals: params.AdditionalPrincipals,
+			DNSNames:             params.DNSNames,
+			PublicTLSKey:         params.PublicTLSKey,
+			PublicSSHKey:         params.PublicSSHKey,
+			EC2IdentityDocument:  params.EC2IdentityDocument,
+		})
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
+}
+
+// proxyJoinServiceClient attempts to connect to the join service running on the
+// proxy. The Proxy's TLS cert will be verified using the host's root CA pool
+// (PKI) unless the --insecure flag was passed.
+func proxyJoinServiceClient(params RegisterParams) (services.JoinService, error) {
+	if len(params.Servers) == 0 {
+		return nil, trace.BadParameter("no auth servers set")
+	}
+
+	tlsConfig := utils.TLSConfig(params.CipherSuites)
+	tlsConfig.Time = params.Clock.Now
+	// set NextProtos for TLS routing, the actual protocol will be h2
+	tlsConfig.NextProtos = []string{string(common.ProtocolProxyGRPC), http2.NextProtoTLS}
+
+	if lib.IsInsecureDevMode() {
+		tlsConfig.InsecureSkipVerify = true
+		log.Warnf("Joining cluster without validating the identity of the Proxy Server.")
+	}
+
+	conn, err := grpc.Dial(
+		params.Servers[0].String(),
+		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
+		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.NewJoinServiceClient(proto.NewJoinServiceClient(conn)), nil
 }
 
 // insecureRegisterClient attempts to connects to the Auth Server using the
@@ -374,6 +436,68 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	}
 
 	return authClient, nil
+}
+
+// registerUsingIAMMethod is used to register using the IAM join method. It is
+// able to register through a proxy or through the auth server directly.
+func registerUsingIAMMethod(joinService services.JoinService, token string, params RegisterParams) (*proto.Certs, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	challengeChan := make(chan string)
+	reqChan := make(chan *types.RegisterUsingTokenRequest)
+	errChan := make(chan error)
+
+	// set up a goroutine to respond to the challenge with register request
+	go func() {
+		defer close(errChan)
+
+		// wait for the challenge string
+		var challenge string
+		select {
+		case challenge = <-challengeChan:
+		case <-ctx.Done():
+			errChan <- ctx.Err()
+			return
+		}
+
+		// create the signed sts:GetCallerIdentity request and include the challenge
+		signedRequest, err := createSignedSTSIdentityRequest(challenge)
+		if err != nil {
+			// cancel the context so that RegisterUsingIAMMethod returns
+			cancel()
+			errChan <- err
+			return
+		}
+
+		// send the register request including the challenge response
+		registerRequest := &types.RegisterUsingTokenRequest{
+			Token:                token,
+			HostID:               params.ID.HostUUID,
+			NodeName:             params.ID.NodeName,
+			Role:                 params.ID.Role,
+			AdditionalPrincipals: params.AdditionalPrincipals,
+			DNSNames:             params.DNSNames,
+			PublicTLSKey:         params.PublicTLSKey,
+			PublicSSHKey:         params.PublicSSHKey,
+			STSIdentityRequest:   signedRequest,
+		}
+		select {
+		case reqChan <- registerRequest:
+		case <-ctx.Done():
+			errChan <- ctx.Err()
+		}
+	}()
+
+	// initiate the register request and wait for it to complete
+	certs, registerErr := joinService.RegisterUsingIAMMethod(ctx, challengeChan, reqChan)
+
+	// cancel the context and wait for the goroutine
+	cancel()
+	stsErr := <-errChan
+
+	// create aggregate error (will be nil if both are nil)
+	err := trace.NewAggregate(registerErr, stsErr)
+
+	return certs, trace.Wrap(err)
 }
 
 // ReRegisterParams specifies parameters for re-registering

@@ -45,6 +45,7 @@ import (
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -2520,6 +2521,7 @@ type proxyListeners struct {
 	kube          net.Listener
 	db            dbListeners
 	alpn          net.Listener
+	grpc          net.Listener
 }
 
 // dbListeners groups database access listeners.
@@ -3199,6 +3201,26 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 	}
 
+	var grpcServer *grpc.Server
+	if alpnRouter != nil {
+		grpcServer := grpc.NewServer(
+			grpc.ChainUnaryInterceptor(
+				utils.ErrorConvertUnaryInterceptor,
+				proxyLimiter.UnaryServerInterceptor(),
+			),
+			grpc.ChainStreamInterceptor(
+				utils.ErrorConvertStreamInterceptor,
+				proxyLimiter.StreamServerInterceptor,
+			),
+		)
+		joinServiceServer := services.NewJoinServiceGRPCServer(conn.Client)
+		proto.RegisterJoinServiceServer(grpcServer, joinServiceServer)
+		process.RegisterCriticalFunc("proxy.grpc", func() error {
+			log.Infof("Starting proxy gRPC server on %v.", listeners.grpc.Addr())
+			return trace.Wrap(grpcServer.Serve(listeners.grpc))
+		})
+	}
+
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
 		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, accessPoint)
@@ -3261,6 +3283,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if kubeServer != nil {
 				warnOnErr(kubeServer.Close(), log)
 			}
+			if grpcServer != nil {
+				grpcServer.Stop()
+			}
 			if alpnServer != nil {
 				warnOnErr(alpnServer.Close(), log)
 			}
@@ -3279,6 +3304,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 			if webHandler != nil {
 				warnOnErr(webHandler.Close(), log)
+			}
+			if grpcServer != nil {
+				grpcServer.GracefulStop()
 			}
 			if alpnServer != nil {
 				warnOnErr(alpnServer.Close(), log)
@@ -3419,6 +3447,13 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 		})
 		listeners.web = webWrapper
 	}
+
+	grpcListener := alpnproxy.NewMuxListenerWrapper(nil, listeners.web)
+	router.Add(alpnproxy.HandlerDecs{
+		MatchFunc: alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolProxyGRPC)),
+		Handler:   grpcListener.HandleConnection,
+	})
+	listeners.grpc = grpcListener
 
 	sshProxyListener := alpnproxy.NewMuxListenerWrapper(listeners.ssh, listeners.web)
 	router.Add(alpnproxy.HandlerDecs{
