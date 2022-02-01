@@ -696,6 +696,19 @@ kubernetes_service:
 db_service:
   # Enables the database service. Default is "no".
   enabled: "yes"
+
+  # Matchers for registering AWS-hosted databases.
+  aws:
+    # Database types. Valid options are:
+    # 'rds' - discovers and registers AWS RDS and Aurora databases.
+    # 'redshift' - discovers and registers AWS Redshift databases.
+  - types: ["rds", "redshift"]
+    # AWS regions to register databases from.
+    regions: ["us-west-1", "us-east-2"]
+    # AWS resource tags to match when registering databases.
+    tags:
+      "*": "*"
+
   # This section contains definitions of all databases proxied by this
   # service, it can contain multiple database instances.
   databases:
