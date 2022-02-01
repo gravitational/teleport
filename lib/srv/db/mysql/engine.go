@@ -18,6 +18,7 @@ package mysql
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
@@ -56,6 +58,8 @@ type Engine struct {
 	Context context.Context
 	// Clock is the clock interface.
 	Clock clockwork.Clock
+	// CloudClients provides access to cloud API clients.
+	CloudClients common.CloudClients
 	// Log is used for logging.
 	Log logrus.FieldLogger
 	// proxyConn is a client connection.
@@ -160,6 +164,11 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		return nil, trace.Wrap(err)
 	}
 	user := sessionCtx.DatabaseUser
+	connectOpt := func(conn *client.Conn) {
+		conn.SetTLSConfig(tlsConfig)
+	}
+
+	var dialer client.Dialer
 	var password string
 	switch {
 	case sessionCtx.Database.IsRDS():
@@ -191,6 +200,28 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Get the client once for subsequent calls (it acquires a read lock).
+		gcpClient, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Detect whether the instance is set to require SSL.
+		// Fallback to not requiring SSL for access denied errors.
+		requireSSL, err := cloud.GetGCPRequireSSL(ctx, sessionCtx, gcpClient)
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+		// Create ephemeral certificate and append to TLS config when
+		// the instance requires SSL. Also use a TLS dialer instead of
+		// the default net dialer when GCP requires SSL.
+		if requireSSL {
+			err = cloud.AppendGCPClientCert(ctx, sessionCtx, gcpClient, tlsConfig)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			connectOpt = func(*client.Conn) {}
+			dialer = e.newGCPTLSDialer(tlsConfig)
+		}
 	case sessionCtx.Database.IsAzure():
 		password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
 		if err != nil {
@@ -200,14 +231,20 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		// alice@mysql-server-name.
 		user = fmt.Sprintf("%v@%v", user, sessionCtx.Database.GetAzure().Name)
 	}
+
+	// Use default net dialer unless it is already initialized.
+	if dialer == nil {
+		var nd net.Dialer
+		dialer = nd.DialContext
+	}
+
 	// TODO(r0mant): Set CLIENT_INTERACTIVE flag on the client?
-	conn, err := client.Connect(sessionCtx.Database.GetURI(),
+	conn, err := client.ConnectWithDialer(ctx, "tcp", sessionCtx.Database.GetURI(),
 		user,
 		password,
 		sessionCtx.DatabaseName,
-		func(conn *client.Conn) {
-			conn.SetTLSConfig(tlsConfig)
-		})
+		dialer,
+		connectOpt)
 	if err != nil {
 		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Database.IsRDS() {
 			return nil, trace.AccessDenied(`Could not connect to database:
@@ -330,3 +367,27 @@ func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *common.Session) services
 		},
 	}
 }
+
+// newGCPTLSDialer returns a TLS dialer configured to connect to the Cloud Proxy
+// port rather than the default MySQL port.
+func (e *Engine) newGCPTLSDialer(tlsConfig *tls.Config) client.Dialer {
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		// Workaround issue generating ephemeral certificates for secure connections
+		// by creating a TLS connection to the Cloud Proxy port overridding the
+		// MySQL client's connection. MySQL on the default port does not trust
+		// the ephemeral certificate's CA but Cloud Proxy does.
+		host, port, err := net.SplitHostPort(address)
+		if err == nil && port == gcpSQLListenPort {
+			address = net.JoinHostPort(host, gcpSQLProxyListenPort)
+		}
+		tlsDialer := tls.Dialer{Config: tlsConfig}
+		return tlsDialer.DialContext(ctx, network, address)
+	}
+}
+
+const (
+	// gcpSQLListenPort is the port used by Cloud SQL MySQL instances.
+	gcpSQLListenPort = "3306"
+	// gcpSQLProxyListenPort is the port used by Cloud Proxy for MySQL instances.
+	gcpSQLProxyListenPort = "3307"
+)
