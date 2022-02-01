@@ -3507,6 +3507,7 @@ func (a *Server) createSelfSignedCA(caID types.CertAuthID) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	ca.SetTrustRelationship(types.TrustRelationshipLocal)
 	if err := a.Trust.CreateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}

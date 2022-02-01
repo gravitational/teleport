@@ -504,6 +504,7 @@ func (s *remoteSite) watchCertAuthorities() error {
 					remoteCA.GetClusterName() != s.domainName {
 					continue
 				}
+				remoteCA.SetTrustRelationship(types.TrustRelationshipRemote)
 
 				oldRemoteCA, err := s.localClient.GetCertAuthority(types.CertAuthID{
 					Type:       types.HostCA,

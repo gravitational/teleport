@@ -232,6 +232,7 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		rotated.SetTrustRelationship(types.TrustRelationshipLocal)
 		if err := a.CompareAndSwapCertAuthority(rotated, existing); err != nil {
 			return trace.Wrap(err)
 		}
@@ -279,6 +280,7 @@ func (a *Server) RotateExternalCertAuthority(ca types.CertAuthority) error {
 	if err := updated.SetAdditionalTrustedKeys(ca.GetAdditionalTrustedKeys().Clone()); err != nil {
 		return trace.Wrap(err)
 	}
+	updated.SetTrustRelationship(types.TrustRelationshipTrusted)
 	updated.SetRotation(ca.GetRotation())
 
 	// use compare and swap to protect from concurrent updates
@@ -376,6 +378,7 @@ func (a *Server) autoRotate(ca types.CertAuthority) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	rotated.SetTrustRelationship(types.TrustRelationshipLocal)
 	if err := a.CompareAndSwapCertAuthority(rotated, ca); err != nil {
 		return trace.Wrap(err)
 	}

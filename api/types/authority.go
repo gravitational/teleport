@@ -27,6 +27,20 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// TrustRelationship represents the trust of a CA relative to the local cluster.
+type TrustRelationship string
+
+const (
+	// TrustRelationshipLocal indicates that a CA is local to the cluster.
+	TrustRelationshipLocal TrustRelationship = "local"
+
+	// TrustRelationshipTrusted indicates that a CA is from a trusted cluster.
+	TrustRelationshipTrusted TrustRelationship = "trusted"
+
+	// TrustRelationshipRemote indicates that a CA is from a remote (leaf) cluster.
+	TrustRelationshipRemote TrustRelationship = "remote"
+)
+
 // CertAuthority is a host or user certificate authority that
 // can check and if it has private key stored as well, sign it too
 type CertAuthority interface {
@@ -79,6 +93,11 @@ type CertAuthority interface {
 	AllKeyTypesMatch() bool
 	// Clone returns a copy of the cert authority object.
 	Clone() CertAuthority
+
+	// GetTrustRelationship returns the trust relationship of this CA.
+	GetTrustRelationship() TrustRelationship
+	// SetTrustRelationship sets the trust relationship of this CA.
+	SetTrustRelationship(TrustRelationship)
 }
 
 // NewCertAuthority returns new cert authority
@@ -363,6 +382,21 @@ func (ca *CertAuthorityV2) GetTrustedJWTKeyPairs() []*JWTKeyPair {
 		kps = append(kps, k.Clone())
 	}
 	return kps
+}
+
+// labelTrustRelationship is the internal-use label to store a trust
+// relationship in a metadata label of a CertAuthorityV2.
+const labelTrustRelationship = "teleport.dev/trust_rel"
+
+func (ca *CertAuthorityV2) GetTrustRelationship() TrustRelationship {
+	return TrustRelationship(ca.Metadata.Labels[labelTrustRelationship])
+}
+
+func (ca *CertAuthorityV2) SetTrustRelationship(rel TrustRelationship) {
+	if ca.Metadata.Labels == nil {
+		ca.Metadata.Labels = make(map[string]string)
+	}
+	ca.Metadata.Labels[labelTrustRelationship] = string(rel)
 }
 
 // setStaticFields sets static resource header and metadata fields.
