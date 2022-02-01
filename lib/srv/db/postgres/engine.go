@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
@@ -50,6 +51,8 @@ type Engine struct {
 	Context context.Context
 	// Clock is the clock interface.
 	Clock clockwork.Clock
+	// CloudClients provides access to cloud API clients.
+	CloudClients common.CloudClients
 	// Log is used for logging.
 	Log logrus.FieldLogger
 }
@@ -382,6 +385,12 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TLS config will use client certificate for an onprem database or
+	// will contain RDS root certificate for RDS/Aurora.
+	config.TLSConfig, err = e.Auth.GetTLSConfig(ctx, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	config.User = sessionCtx.DatabaseUser
 	config.Database = sessionCtx.DatabaseName
 	// Pgconn adds fallbacks to retry connection without TLS if the TLS
@@ -408,6 +417,25 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Get the client once for subsequent calls (it acquires a read lock).
+		gcpClient, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Detect whether the instance is set to require SSL.
+		// Fallback to not requiring SSL for access denied errors.
+		requireSSL, err := cloud.GetGCPRequireSSL(ctx, sessionCtx, gcpClient)
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+		// Create ephemeral certificate and append to TLS config when
+		// the instance requires SSL.
+		if requireSSL {
+			err = cloud.AppendGCPClientCert(ctx, sessionCtx, gcpClient, config.TLSConfig)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 	case types.DatabaseTypeAzure:
 		config.Password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
 		if err != nil {
@@ -416,12 +444,6 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 		// Azure requires database login to be <user>@<server-name> e.g.
 		// alice@postgres-server-name.
 		config.User = fmt.Sprintf("%v@%v", config.User, sessionCtx.Database.GetAzure().Name)
-	}
-	// TLS config will use client certificate for an onprem database or
-	// will contain RDS root certificate for RDS/Aurora.
-	config.TLSConfig, err = e.Auth.GetTLSConfig(ctx, sessionCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 	return config, nil
 }
