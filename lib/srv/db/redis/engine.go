@@ -236,33 +236,48 @@ func (e *Engine) subscribeCmd(ctx context.Context, subscribeFn redisSubscribeFn,
 		return redis.RedisError("invalid command")
 	}
 
-	args := []string{}
+	args := make([]string, 0, len(cmd.Args()))
 	for _, a := range cmd.Args()[1:] {
 		args = append(args, a.(string))
 	}
 	pubSub := subscribeFn(ctx, args...)
 
-	msg, err := pubSub.Receive(ctx)
-	if err != nil {
-		return err
-	}
+	return e.processPubSub(ctx, pubSub)
+}
 
-	sub, ok := msg.(*redis.Subscription)
-	if !ok {
-		return redis.RedisError("wrong subscription response")
-	}
+// processPubSub reads messages from Redis and forward them to connected client.
+func (e *Engine) processPubSub(ctx context.Context, pubSub *redis.PubSub) error {
+	for {
+		msg, err := pubSub.Receive(ctx)
+		if err != nil {
+			return err
+		}
 
-	if err := e.sendToClient([]interface{}{sub.Kind, sub.Channel, sub.Count}); err != nil {
-		return err
-	}
+		switch msg := msg.(type) {
+		case *redis.Subscription:
+			if err := e.sendToClient([]interface{}{msg.Kind, msg.Channel, msg.Count}); err != nil {
+				return err
+			}
+		case *redis.Pong:
+			if err := e.sendToClient([]interface{}{msg.Payload}); err != nil {
+				return err
+			}
+		case *redis.Message:
+			var payloadResp interface{}
+			if len(msg.PayloadSlice) > 0 {
+				payloadResp = []interface{}{"message", msg.Channel, msg.PayloadSlice}
+			} else {
+				payloadResp = []interface{}{"message", msg.Channel, msg.Payload}
+			}
 
-	for msg := range pubSub.Channel() { // TODO(jakub): Channel ignores ping messages
-		if err := e.sendToClient([]interface{}{"message", msg.Channel, msg.Payload}); err != nil {
-			return err // No wrap
+			if err := e.sendToClient(payloadResp); err != nil {
+				return err
+			}
+		default:
+			err := fmt.Errorf("redis: unknown message: %T", msg)
+			return err
 		}
 	}
-
-	return nil
 }
 
 // processAuth runs RBAC check on Redis AUTH command if command contains username. Command containing only password
