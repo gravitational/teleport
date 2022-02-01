@@ -472,15 +472,27 @@ func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterR
 		return nil, trace.Wrap(err)
 	}
 
-	// add remote cluster resource to keep track of the remote cluster
-	var remoteClusterName string
-	for _, certAuthority := range validateRequest.CAs {
-		// don't add a ca with the same as as local cluster name
-		if certAuthority.GetName() == domainName {
-			return nil, trace.AccessDenied("remote certificate authority has same name as cluster certificate authority: %v", domainName)
-		}
-		remoteClusterName = certAuthority.GetName()
+	if len(validateRequest.CAs) == 0 {
+		return nil, trace.BadParameter("missing CAs")
 	}
+	remoteClusterName := validateRequest.CAs[0].GetName()
+	if remoteClusterName == "" {
+		return nil, trace.BadParameter("missing CA name")
+	}
+
+	// don't add a ca with the same as as local cluster name
+	if remoteClusterName == domainName {
+		return nil, trace.AccessDenied("remote certificate authority has same name as cluster certificate authority: %q", domainName)
+	}
+
+	for _, certAuthority := range validateRequest.CAs {
+		// enforce that all CAs are consistently named
+		if certAuthority.GetName() != remoteClusterName {
+			return nil, trace.BadParameter("inconsistently named CAs: %q, expected %q", certAuthority.GetName(), remoteClusterName)
+		}
+	}
+
+	// add remote cluster resource to keep track of the remote cluster
 	remoteCluster, err := types.NewRemoteCluster(remoteClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
