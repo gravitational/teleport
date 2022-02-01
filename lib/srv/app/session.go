@@ -155,10 +155,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity, app types.Application
 			SessionID: identity.RouteToApp.SessionID,
 			WithMFA:   identity.MFAVerified,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         identity.Username,
-			Impersonator: identity.Impersonator,
-		},
+		UserMetadata: identity.GetUserMetadata(),
 		AppMetadata: apievents.AppMetadata{
 			AppURI:        app.GetURI(),
 			AppPublicAddr: app.GetPublicAddr(),
