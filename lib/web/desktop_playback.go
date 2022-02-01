@@ -183,8 +183,6 @@ func (pp *playbackPlayer) streamSessionEvents(ctx context.Context, cancel contex
 					time.Sleep(time.Duration(e.DelayMilliseconds-lastDelay) * time.Millisecond)
 					lastDelay = e.DelayMilliseconds
 				}
-				// Note that e.Message is a []byte, which will be marshaled as a base64 encoded string
-				// https://pkg.go.dev/encoding/json#Marshal.
 				msg, err := utils.FastMarshal(e)
 				if err != nil {
 					pp.log.WithError(err).Errorf("failed to marshal DesktopRecording event into JSON: %v", msg)
