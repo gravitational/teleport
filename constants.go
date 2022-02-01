@@ -349,6 +349,9 @@ const (
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption = "disablesse"
 
+	// ACL is the canned ACL to send to S3
+	ACL = "acl"
+
 	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
 	SSEKMSKey = "sse_kms_key"
 
