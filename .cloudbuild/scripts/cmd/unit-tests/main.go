@@ -113,7 +113,7 @@ func innerMain() error {
 }
 
 func runUnitTests(workspace string) error {
-	cmd := exec.Command("make", "test")
+	cmd := exec.Command("make", "test-api")
 	cmd.Dir = workspace
 	cmd.Env = append(os.Environ(), "TELEPORT_ETCD_TEST=yes")
 	cmd.Stdout = os.Stdout

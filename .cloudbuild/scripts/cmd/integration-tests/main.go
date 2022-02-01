@@ -17,9 +17,7 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"flag"
-	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -27,8 +25,6 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
-	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
 	"github.com/gravitational/trace"
 )
 
@@ -87,72 +83,72 @@ func parseCommandLine() (commandlineArgs, error) {
 // innerMain parses the command line, performs the highlevel docs change check
 // and creates the marker file if necessary
 func innerMain() error {
-	args, err := parseCommandLine()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// args, err := parseCommandLine()
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
 
-	moduleCacheDir := filepath.Join(os.TempDir(), gomodcacheDir)
-	gomodcache := fmt.Sprintf("GOMODCACHE=%s", moduleCacheDir)
+	// moduleCacheDir := filepath.Join(os.TempDir(), gomodcacheDir)
+	// gomodcache := fmt.Sprintf("GOMODCACHE=%s", moduleCacheDir)
 
-	log.Println("Analysing code changes")
-	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
-	if err != nil {
-		return trace.Wrap(err, "Failed analyzing code")
-	}
+	// log.Println("Analysing code changes")
+	// ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
+	// if err != nil {
+	// 	return trace.Wrap(err, "Failed analyzing code")
+	// }
 
-	hasOnlyDocChanges := ch.Docs && (!ch.Code)
-	if hasOnlyDocChanges {
-		log.Println("No code changes detected. Skipping tests.")
-		return nil
-	}
+	// hasOnlyDocChanges := ch.Docs && (!ch.Code)
+	// if hasOnlyDocChanges {
+	// 	log.Println("No code changes detected. Skipping tests.")
+	// 	return nil
+	// }
 
-	log.Printf("Running root-only integration tests...")
-	err = runRootIntegrationTests(args.workspace, gomodcache)
-	if err != nil {
-		return trace.Wrap(err, "Root-only integration tests failed")
-	}
-	log.Println("Root-only integration tests passed.")
+	// log.Printf("Running root-only integration tests...")
+	// err = runRootIntegrationTests(args.workspace, gomodcache)
+	// if err != nil {
+	// 	return trace.Wrap(err, "Root-only integration tests failed")
+	// }
+	// log.Println("Root-only integration tests passed.")
 
-	if !args.skipChown {
-		// We run some build steps as root and others as a non user, and we
-		// want the nonroot user to be able to manipulate the artifacts
-		// created by root, so we `chown -R` the whole workspace & module
-		// cache to allow it.
+	// if !args.skipChown {
+	// 	// We run some build steps as root and others as a non user, and we
+	// 	// want the nonroot user to be able to manipulate the artifacts
+	// 	// created by root, so we `chown -R` the whole workspace & module
+	// 	// cache to allow it.
 
-		log.Printf("Reconfiguring workspace for nonroot user")
-		err = chownR(args.workspace, nonrootUID, nonrootGID)
-		if err != nil {
-			return trace.Wrap(err, "failed reconfiguring workspace")
-		}
+	// 	log.Printf("Reconfiguring workspace for nonroot user")
+	// 	err = chownR(args.workspace, nonrootUID, nonrootGID)
+	// 	if err != nil {
+	// 		return trace.Wrap(err, "failed reconfiguring workspace")
+	// 	}
 
-		log.Printf("Reconfiguring module cache for nonroot user")
-		err = chownR(moduleCacheDir, nonrootUID, nonrootGID)
-		if err != nil {
-			return trace.Wrap(err, "failed reconfiguring module cache")
-		}
-	}
+	// 	log.Printf("Reconfiguring module cache for nonroot user")
+	// 	err = chownR(moduleCacheDir, nonrootUID, nonrootGID)
+	// 	if err != nil {
+	// 		return trace.Wrap(err, "failed reconfiguring module cache")
+	// 	}
+	// }
 
-	// Note that we run `etcd` as nonroot here. The files created by etcd live
-	// inside the directory searched by `go list ./...` when generating the list
-	// of packages to test, and so making them owned by root produces a heap of
-	// diagnostic warnings that would pollute the build log and just confuse
-	// people when they are trying to work out why their build failed.
-	log.Printf("Starting etcd...")
-	cancelCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID, gomodcache)
-	if err != nil {
-		return trace.Wrap(err, "failed starting etcd")
-	}
+	// // Note that we run `etcd` as nonroot here. The files created by etcd live
+	// // inside the directory searched by `go list ./...` when generating the list
+	// // of packages to test, and so making them owned by root produces a heap of
+	// // diagnostic warnings that would pollute the build log and just confuse
+	// // people when they are trying to work out why their build failed.
+	// log.Printf("Starting etcd...")
+	// cancelCtx, cancel := context.WithCancel(context.Background())
+	// defer cancel()
+	// err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID, gomodcache)
+	// if err != nil {
+	// 	return trace.Wrap(err, "failed starting etcd")
+	// }
 
-	log.Printf("Running nonroot integration tests...")
-	err = runNonrootIntegrationTests(args.workspace, nonrootUID, nonrootGID, gomodcache)
-	if err != nil {
-		return trace.Wrap(err, "Nonroot integration tests failed")
-	}
+	// log.Printf("Running nonroot integration tests...")
+	// err = runNonrootIntegrationTests(args.workspace, nonrootUID, nonrootGID, gomodcache)
+	// if err != nil {
+	// 	return trace.Wrap(err, "Nonroot integration tests failed")
+	// }
 
-	log.Printf("Non-root integration tests passed.")
+	// log.Printf("Non-root integration tests passed.")
 
 	return nil
 }
