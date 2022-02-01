@@ -178,7 +178,13 @@ func ForOldRemoteProxy(cfg Config) Config {
 func ForNode(cfg Config) Config {
 	cfg.target = "node"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{
+			Kind: types.KindCertAuthority,
+			Filter: map[string]string{
+				"host": "local",
+				"user": "local,trusted",
+			},
+		},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
