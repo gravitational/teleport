@@ -26,9 +26,16 @@ Assign it the "Cloud SQL Admin" role:
   database agent needs to generate one-time user passwords. To further restrict
   the service account, you can create a role that includes only the following
   permissions:
-  ```text
+  ```ini
+  # Used to download a list of database users.
   cloudsql.users.list
+  # Used to update a user with a one-time password.
   cloudsql.users.update
+  # Used to auto-download the instance's root CA certificate.
+  cloudsql.instances.get
+  # Used to generate an ephemeral client certificate when the GCP instance
+  # is configured to "Allow only SSL connections".
+  cloudsql.sslCerts.createEphemeral
   ```
 </Admonition>
 
