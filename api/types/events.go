@@ -175,6 +175,11 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 	return true, nil
 }
 
+// IsTrivial returns true iff the WatchKind only specifies a Kind but no other field.
+func (kind WatchKind) IsTrivial() bool {
+	return kind.SubKind == "" && kind.Name == "" && kind.Version == "" && !kind.LoadSecrets && len(kind.Filter) == 0
+}
+
 // Events returns new events interface
 type Events interface {
 	// NewWatcher returns a new event watcher

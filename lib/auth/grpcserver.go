@@ -306,6 +306,10 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 	for _, kind := range watch.Kinds {
 		servicesWatch.Kinds = append(servicesWatch.Kinds, proto.ToWatchKind(kind))
 	}
+
+	// we might want to enforce a filter for older clients in certain conditions
+	maybeFilterCertAuthorityWatches(stream.Context(), auth.Checker.RoleNames(), &servicesWatch)
+
 	watcher, err := auth.NewWatcher(stream.Context(), servicesWatch)
 	if err != nil {
 		return trace.Wrap(err)
@@ -332,6 +336,38 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 			}
 		}
 	}
+}
+
+// DELETE IN whatever version doesn't support clients older than the cutoff
+func maybeFilterCertAuthorityWatches(ctx context.Context, roleNames []string, watch *types.Watch) {
+	if len(roleNames) != 1 || roleNames[0] != string(types.RoleNode) {
+		return
+	}
+
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if !ok {
+		return
+	}
+
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		return
+	}
+
+	// TODO: version cutoff
+
+	for i, k := range watch.Kinds {
+		if k.Kind != types.KindCertAuthority || !k.IsTrivial() {
+			continue
+		}
+
+		log.Debugf("Injecting filter for CertAuthority watch for Node-only watcher with version %v", clientVersion)
+		watch.Kinds[i].Filter = map[string]string{
+			"host": "local",
+			"user": "local,trusted",
+		}
+	}
+
 }
 
 // resourceLabel returns the label for the provided types.Event
