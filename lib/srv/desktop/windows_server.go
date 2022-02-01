@@ -653,6 +653,13 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			services.NewWindowsLoginMatcher(login))
 	}
 
+	// Use a context that is canceled when we're done handling
+	// this connection. This ensures that the connection monitor
+	// will stop checking for idle activity when the connection
+	// is closed.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	tdpConn := tdp.NewConn(proxyConn)
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
 		Log: log,
