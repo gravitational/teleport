@@ -244,6 +244,18 @@ func TestNewResourceParser(t *testing.T) {
 	t.Run("error in expressions", func(t *testing.T) {
 		t.Parallel()
 		exprs := []string{
+			`!name`,
+			`name ==`,
+			`name &`,
+			`name &&`,
+			`name ||`,
+			`name |`,
+			`&&`,
+			`!`,
+			`||`,
+			`|`,
+			`&`,
+			`.`,
 			`equals(resource.incorrect.selector, "_")`,
 			`equals(invalidIdentifier)`,
 			`equals(labels.env)`,
@@ -258,7 +270,7 @@ func TestNewResourceParser(t *testing.T) {
 		for _, expr := range exprs {
 			t.Run(expr, func(t *testing.T) {
 				match, err := parser.EvalBoolPredicate(expr)
-				require.NoError(t, err)
+				require.Error(t, err)
 				require.False(t, match)
 			})
 		}

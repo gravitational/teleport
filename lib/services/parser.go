@@ -532,51 +532,27 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 // All other fields can be referenced by starting expression with identifier `resource`
 // followed by the names of the json fields ie: `resource.spec.public_addr`.
 func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, error) {
+	eqPred := func(a interface{}, b interface{}) predicate.BoolPredicate {
+		return func() bool {
+			return areOperandsEqual(a, b)
+		}
+	}
+	neqPred := func(a interface{}, b interface{}) predicate.BoolPredicate {
+		return func() bool {
+			return !areOperandsEqual(a, b)
+		}
+	}
+
 	p, err := predicate.NewParser(predicate.Def{
 		Operators: predicate.Operators{
 			AND: predicate.And,
 			OR:  predicate.Or,
 			NOT: predicate.Not,
-			EQ: func(a interface{}, b interface{}) predicate.BoolPredicate {
-				return func() bool {
-					switch aval := a.(type) {
-					case label:
-						bval, ok := b.(string)
-						return ok && aval.value == bval
-					case string:
-						bval, ok := b.(string)
-						return ok && aval == bval
-					default:
-						return false
-					}
-				}
-			},
-			NEQ: func(a interface{}, b interface{}) predicate.BoolPredicate {
-				return func() bool {
-					switch aval := a.(type) {
-					case label:
-						bval, ok := b.(string)
-						return ok && aval.value != bval
-					case string:
-						bval, ok := b.(string)
-						return ok && aval != bval
-					default:
-						return false
-					}
-				}
-			},
+			EQ:  eqPred,
+			NEQ: neqPred,
 		},
 		Functions: map[string]interface{}{
-			"equals": func(a interface{}, b interface{}) predicate.BoolPredicate {
-				aval, ok := a.(label)
-				if !ok {
-					return predicate.Equals(a, b)
-				}
-				bval, ok := b.(string)
-				return func() bool {
-					return ok && aval.value == bval
-				}
-			},
+			"equals": eqPred,
 			// search allows fuzzy matching against select field values.
 			"search": func(searchVals ...string) predicate.BoolPredicate {
 				return func() bool {
@@ -601,6 +577,8 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 				// parser will expect a map for lookup in `GetProperty`.
 				case len(fields) == 1:
 					return labels(combinedLabels), nil
+				case len(fields) > 2:
+					return nil, trace.BadParameter("only two fields are supported with identifier %q, got %d: %v", ResourceLabelsIdentifier, len(fields), fields)
 				default:
 					key := fields[1]
 					val, ok := combinedLabels[key]
@@ -611,7 +589,12 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 				}
 
 			case ResourceNameIdentifier:
-				return resource.GetName(), nil
+				switch {
+				case len(fields) > 1:
+					return nil, trace.BadParameter("only one field are supported with identifier %q, got %d: %v", ResourceNameIdentifier, len(fields), fields)
+				default:
+					return resource.GetName(), nil
+				}
 			case ResourceIdentifier:
 				return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
 			default:
@@ -641,6 +624,36 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 	}
 
 	return boolPredicateParser{Parser: p}, nil
+}
+
+// areOperandsEqual is similar to `predicate.Equals`, but
+// adds a type label switch case, and returns a bool instead of a
+// bool predicate function to be able to use it more flexibly.
+func areOperandsEqual(a interface{}, b interface{}) bool {
+	switch aval := a.(type) {
+	case label:
+		bval, ok := b.(string)
+		return ok && aval.value == bval
+	case string:
+		bval, ok := b.(string)
+		return ok && aval == bval
+	case []string:
+		bval, ok := b.([]string)
+		if !ok {
+			return false
+		}
+		if len(aval) != len(bval) {
+			return false
+		}
+		for i := range aval {
+			if aval[i] != bval[i] {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
 }
 
 type label struct {
