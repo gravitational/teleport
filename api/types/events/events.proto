@@ -239,8 +239,8 @@ message DesktopRecording {
     Metadata Metadata = 1
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
-    // Message is the encoded TDP message. It is not marshaled to JSON format
-    bytes Message = 2 [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "-" ];
+    // Message is the encoded TDP message.
+    bytes Message = 2 [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "message" ];
 
     // DelayMilliseconds is the delay in milliseconds from the start of the session
     int64 DelayMilliseconds = 3 [ (gogoproto.jsontag) = "ms" ];

@@ -28,6 +28,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
@@ -182,7 +183,11 @@ func (pp *playbackPlayer) streamSessionEvents(ctx context.Context, cancel contex
 					time.Sleep(time.Duration(e.DelayMilliseconds-lastDelay) * time.Millisecond)
 					lastDelay = e.DelayMilliseconds
 				}
-				if _, err := pp.ws.Write(e.Message); err != nil {
+				msg, err := utils.FastMarshal(e)
+				if err != nil {
+					pp.log.WithError(err).Errorf("failed to marshal DesktopRecording event into JSON: %v", msg)
+				}
+				if _, err := pp.ws.Write(msg); err != nil {
 					// We expect net.ErrClosed to arise when another goroutine returns before
 					// this one or the browser window is closed, both of which cause the websocket to close.
 					if !errors.Is(err, net.ErrClosed) {
