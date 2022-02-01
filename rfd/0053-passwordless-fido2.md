@@ -407,7 +407,7 @@ The flynn/u2f library is backed by the necessary HID interfaces and has a parked
 [webauthn](https://github.com/flynn/u2f/tree/webauthn) branch that could be used
 as a starting point.
 
-The alternative seems a bit extreme, at least for the moment, so it wasn't
+This alternative seems a bit extreme, at least for the moment, so it wasn't
 explored much further.
 
 <!-- Links -->
