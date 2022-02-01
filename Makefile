@@ -464,9 +464,11 @@ test-go: PACKAGES = $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
-		| ${RENDER_TESTS}
+		| tee test-logs/unit.json \
+		| $(RENDER_TESTS)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
-		| ${RENDER_TESTS}
+		| tee test-logs/chaos.json \
+		| $(RENDER_TESTS)
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
@@ -478,6 +480,8 @@ test-go-root: FLAGS ?= '-race'
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+		| tee test-logs/unit-root.json \
+		| $(RENDER_TESTS)
 
 # Runs API Go tests. These have to be run separately as the package name is different.
 #
@@ -485,8 +489,10 @@ test-go-root: $(VERSRC)
 test-api:
 test-api: FLAGS ?= '-race'
 test-api: PACKAGES = $(shell cd api && go list ./...)
-test-api: $(VERSRC)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+test-api: $(VERSRC) $(RENDER_TESTS)
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+		| tee test-logs/api.json \
+		| $(RENDER_TESTS)
 
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh

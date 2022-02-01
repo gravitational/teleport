@@ -3,6 +3,11 @@ timeout: 20m
 options:
   machineType: 'E2_HIGHCPU_32'
   
+artifacts:
+  objects:
+    location: gs://test-logs
+    paths: ["test-logs/*.json"]
+
 steps:
   # GCB does a shallow checkout for a build, but if we want to check our changes
   # against other branches we'll need to fetch the repo history. This takes less 
