@@ -321,7 +321,80 @@ solution.
 
 ### UX
 
-UX is discussed throughout the design.
+UX is discussed throughout the design, but here is a summary of changes:
+
+**Browser-based clients**
+
+The exact passwordless flow is browser-dependent, see the diagram in the
+[browser-based clients](#browser-based-clients) section for a quick reference.
+
+Web UI changes are outside of the scope of the design, but it is likely that the
+user will need the means to choose between "regular" and "passwordless" flows
+before the ceremony starts. A real-world example of such flow may be found at
+Microsoft's https://login.live.com/.
+
+Registration has to make the same decision: does it take a resident key slot to
+allow passwordless? The decision is delegated to the Web UI, but it is likely
+users will want to decide in a case-by-case basis, specially when using hardware
+keys with storage limitations.
+
+**CLI clients (aka `tsh`)**
+
+Similarly to browser-based authentication, `tsh login` needs to know beforehand
+whether to go for the "regular" or "passwordless" flow. The decision needs to
+come from the user, otherwise we risk a needless hardware key prompt (and the
+clunky UX that comes with it).
+
+Example of a login with multiple hardware keys, PIN, and multiple credentials
+(some steps may be skipped in simpler scenarios, see the
+[CLI-native authentication](#cli-native-authentication) section):
+
+```shell
+$ tsh login --proxy=example.com --pwdless
+> Tap your security key
+*taps*
+> Enter your security key PIN:
+*enters PIN*
+> [1] alpaca
+> [2] llama
+> Choose the user for login: *chooses*
+> Tap your security key again to complete the login
+*taps*
+> > Profile URL:        https://example.com
+>   Logged in as:       llama
+>   Cluster:            example.com
+>   Roles:              access, editor
+>   Logins:             llama
+>   Kubernetes:         enabled
+>   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]
+>   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+`tsh mfa add` must make the same decision when adding new FIDO2 keys (aka
+WebAuthn in interface lingo).
+
+Example `tsh mfa add` with passwordless / resident key creation, including
+initial PIN setup:
+
+```shell
+$ tsh mfa add
+> Choose device type [TOTP, WEBAUTHN]: webauthn
+> Enter device name: pwdless-key
+> Allow passwordless logins [YES, NO]: yes
+> Tap any *registered* security key
+*taps*
+> Tap your *new* security key
+*taps*
+> Set up a new PIN for your security key:
+*enters PIN*
+> Confirm your new security key PIN:
+*enters PIN*
+> MFA device "pwdless-key" added.
+```
+
+(A possible fallback for registration is to reject hardware keys without a
+configured PIN, directing the user to configure their key using vendor-specific
+apps.)
 
 ## Alternatives considered
 

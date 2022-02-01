@@ -21,11 +21,8 @@ passwordless is employed to mean both passwordless and usernameless.
 This RFD deals with general concepts and server-side changes, see the following
 documents for client-side aspects of the design:
 
-* [Passwordless for FIDO2 clients](
-  https://github.com/gravitational/teleport/blob/master/rfd/0053-passwordless-fido2.md)
-* [Passwordless for macOS CLI](
-  https://github.com/gravitational/teleport/blob/master/rfd/0054-passwordless-macos.md)
-  (aka Touch ID)
+* [Passwordless for FIDO2 clients][passwordless fido2]
+* [Passwordless for macOS CLI][passwordless macos] (aka Touch ID)
 
 ## Why
 
@@ -256,7 +253,7 @@ https://www.w3.org/TR/webauthn-2/#enumdef-userverificationrequirement) is set to
 #### Challenge/SessionData storage
 
 WebAuthn challenge storage is currently [scoped per-user](
-https://github.com/gravitational/teleport/blob/f423f7fedc088b97cb666c13dcdcf54bd289b1bf/rfd/0040-webauthn-support.md#webauthn-challenge-storage).
+https://github.com/gravitational/teleport/blob/master/rfd/0040-webauthn-support.md#webauthn-challenge-storage).
 For passwordless we require a global challenge storage, since challenges may be
 issued to an anonymous user. For simplicity, the global challenge storage will
 replace the current per-user storage.
@@ -406,7 +403,7 @@ message AddMFADeviceRequestInit {
 #### Device restrictions
 
 Passwordless device restrictions can be attained through [attestation](
-https://github.com/gravitational/teleport/blob/f423f7fedc088b97cb666c13dcdcf54bd289b1bf/rfd/0040-webauthn-support.md#attestation).
+https://github.com/gravitational/teleport/blob/master/rfd/0040-webauthn-support.md#attestation).
 
 Teleport may choose to ship with canned set of allowed passwordless roots. An
 example of said roots could include:
@@ -475,7 +472,18 @@ PINs are discussed [in their own section](#pins).
 
 ### UX
 
-UX is discussed throughout the design.
+The design is focused mainly on passwordless concepts and server-side changes,
+as such it doesn't describe specific UX changes. The concepts explained in the
+design, however, may constrain future UX possibilities; that makes sections not
+focused on Teleport internals worth a read.
+
+Please refer to the [FIDO2 clients][passwordless fido2] and
+[macOS CLI][passwordless macos] RFDs for specific UX changes.
+
+<!-- Links -->
+
+[passwordless fido2]: https://github.com/gravitational/teleport/blob/master/rfd/0053-passwordless-fido2.md
+[passwordless macos]: https://github.com/gravitational/teleport/blob/master/rfd/0054-passwordless-macos.md
 
 <!-- Plant UML diagrams -->
 <!--
