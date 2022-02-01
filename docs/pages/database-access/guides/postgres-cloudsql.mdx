@@ -88,7 +88,7 @@ Assign it the "Service Account Token Creator" role:
   "Service Account Token Creator", "Cloud SQL Viewer", and "Cloud SQL Admin"
   IAM roles include more permissions than the database agent needs. To further
   restrict the service account, you can create a role that includes only the
-  following permission:
+  following permissions:
   ```ini
   # Used to generate IAM auth tokens when connecting to a database instance.
   iam.serviceAccounts.getAccessToken
