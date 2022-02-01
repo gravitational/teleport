@@ -79,7 +79,8 @@ func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Ses
 	dbRoleMatchers := role.DatabaseRoleMatchers(
 		sessionCtx.Database.GetProtocol(),
 		sessionCtx.DatabaseUser,
-		sessionCtx.DatabaseName,
+		// Leave database empty as Redis integration doesn't support schema access control.
+		"",
 	)
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
@@ -99,7 +100,6 @@ func (e *Engine) SendError(redisErr error) {
 		return
 	}
 
-	//TODO(jakub): We can send errors only after reading command from the connected client.
 	e.Log.Debugf("sending error to Redis client: %v", redisErr)
 
 	if err := e.sendToClient(redisErr); err != nil {
@@ -364,6 +364,10 @@ func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient)
 }
 
 // writeCmd writes Redis commands passed as vals to Redis wire form.
+// Most types is covered by go-redis implemented WriteArg() function. Types override by this function are:
+// * Redis errors and Go error: go-redis returns a "human-readable" string instead of RESP compatible error message
+// * integers: go-redis converts them to string, which is not always what we want to.
+// * slices: arrays are recursively converted to RESP responses.
 func writeCmd(wr *redis.Writer, vals interface{}) error {
 	switch val := vals.(type) {
 	case redis.Error:
@@ -402,12 +406,24 @@ func writeCmd(wr *redis.Writer, vals interface{}) error {
 		if _, err := wr.Write([]byte("\r\n")); err != nil {
 			return trace.Wrap(err)
 		}
-	case int64: // TODO(jakub): Add other type serialization.
-		if err := writeInteger(wr, val); err != nil {
+	case int:
+		if err := writeInteger(wr, int64(val)); err != nil {
 			return trace.Wrap(err)
 		}
-	case int: // TODO(jakub): Add other type serialization.
+	case int8:
 		if err := writeInteger(wr, int64(val)); err != nil {
+			return trace.Wrap(err)
+		}
+	case int16:
+		if err := writeInteger(wr, int64(val)); err != nil {
+			return trace.Wrap(err)
+		}
+	case int32:
+		if err := writeInteger(wr, int64(val)); err != nil {
+			return trace.Wrap(err)
+		}
+	case int64:
+		if err := writeInteger(wr, val); err != nil {
 			return trace.Wrap(err)
 		}
 	case []interface{}:
