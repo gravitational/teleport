@@ -33,8 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
 
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 )
 
@@ -43,8 +41,6 @@ const (
 	stsHost                        = "sts.amazonaws.com"
 	challengeHeaderKey             = "X-Teleport-Challenge"
 	normalizedChallengeHeaderKey   = "x-teleport-challenge"
-	acceptHeaderKey                = "Accept"
-	acceptJSON                     = "application/json"
 )
 
 // validateSTSIdentityRequest checks that a received sts:GetCallerIdentity
@@ -246,32 +242,4 @@ func generateChallenge() (string, error) {
 	challengeBase64 := make([]byte, encoding.EncodedLen(len(challengeRawBytes)))
 	encoding.Encode(challengeBase64, challengeRawBytes)
 	return string(challengeBase64), nil
-}
-
-// createSignedSTSIdentityRequest is called on the client side and returns an
-// sts:GetCallerIdentity request signed with the local AWS credentials
-func createSignedSTSIdentityRequest(challenge string) ([]byte, error) {
-	// use the aws sdk to generate the request
-	sess, err := session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	stsService := sts.New(sess)
-	req, _ := stsService.GetCallerIdentityRequest(&sts.GetCallerIdentityInput{})
-	// set challenge header
-	req.HTTPRequest.Header.Set(challengeHeaderKey, challenge)
-	// request json for simpler parsing
-	req.HTTPRequest.Header.Set(acceptHeaderKey, acceptJSON)
-	// sign the request, including headers
-	if err := req.Sign(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// write the signed HTTP request to a buffer
-	var signedRequest bytes.Buffer
-	if err := req.HTTPRequest.Write(&signedRequest); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return signedRequest.Bytes(), nil
 }
