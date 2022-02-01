@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -1487,10 +1488,19 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	parts := bytes.Split(buffer, []byte("\n"))
 	require.Len(t, parts, 3)
 
-	// The certs.pem file should have 2 certificates.
-	buffer, err = ioutil.ReadFile(keypaths.TLSCAsPath(tc.KeysDir, Host))
-	require.NoError(t, err)
 	roots := x509.NewCertPool()
+	werr := filepath.Walk(keypaths.CAsDir(tc.KeysDir, Host), func(path string, info fs.FileInfo, err error) error {
+		require.NoError(t, err)
+		if info.IsDir() {
+			return nil
+		}
+		buffer, err = ioutil.ReadFile(path)
+		require.NoError(t, err)
+		ok := roots.AppendCertsFromPEM(buffer)
+		require.True(t, ok)
+		return nil
+	})
+	require.NoError(t, werr)
 	ok := roots.AppendCertsFromPEM(buffer)
 	require.True(t, ok)
 	require.Len(t, roots.Subjects(), 2)
