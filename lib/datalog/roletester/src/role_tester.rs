@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![allow(clippy::collapsible_if)]
 use bytes::BytesMut;
 use crepe::crepe;
 use libc::{c_uchar, size_t};
