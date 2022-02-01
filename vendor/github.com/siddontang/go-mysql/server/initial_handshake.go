@@ -1,7 +1,7 @@
 package server
 
 // see: https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase_packets_protocol_handshake_v10.html
-func (c *Conn) WriteInitialHandshake() error {
+func (c *Conn) writeInitialHandshake() error {
 	data := make([]byte, 4)
 
 	//min version 10
