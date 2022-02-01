@@ -437,9 +437,6 @@ docs-test-whitespace:
 		exit 1; \
 	fi
 
-
-
-
 #
 # Builds some tooling for filtering and displaying test progress/output/etc
 #
@@ -479,7 +476,7 @@ test-go-root: ensure-webassets bpf-bytecode roletester rdpclient
 test-go-root: FLAGS ?= '-race'
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
-	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 		| tee test-logs/unit-root.json \
 		| $(RENDER_TESTS)
 
@@ -490,7 +487,7 @@ test-api:
 test-api: FLAGS ?= '-race'
 test-api: PACKAGES = $(shell cd api && go list ./...)
 test-api: $(VERSRC) $(RENDER_TESTS)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee test-logs/api.json \
 		| $(RENDER_TESTS)
 
