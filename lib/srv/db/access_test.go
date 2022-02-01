@@ -850,6 +850,12 @@ func TestRedisPipeline(t *testing.T) {
 	require.NoError(t, err)
 
 	pipeliner := redisClient.Pipeline()
+	defer func() {
+		err = pipeliner.Close()
+		require.NoError(t, err)
+	}()
+
+	// Set multiple keys using pipelining.
 	for i := 0; i < 10; i++ {
 		err := pipeliner.Set(ctx, fmt.Sprintf("foo%d", i), i, 0).Err()
 		require.NoError(t, err)
@@ -862,6 +868,18 @@ func TestRedisPipeline(t *testing.T) {
 		require.NoError(t, cmd.Err())
 	}
 
+	for i := 0; i < 10; i++ {
+		err := pipeliner.Get(ctx, fmt.Sprintf("foo%d", i)).Err()
+		require.NoError(t, err)
+	}
+
+	cmds, err = pipeliner.Exec(ctx)
+	require.NoError(t, err)
+
+	for i, cmd := range cmds {
+		require.NoError(t, cmd.Err())
+		require.Equal(t, fmt.Sprintf("foo%d", i), cmd.Args()[1])
+	}
 }
 
 func TestRedisTransaction(t *testing.T) {

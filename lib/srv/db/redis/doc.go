@@ -14,4 +14,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package mongodb implements database access proxy that handles authentication,
+// authorization and protocol parsing of connections from Redis clients to
+// Redis standalone or Redis clusters.
+//
+// After accepting a connection from a Redis client and authorizing it, the
+// proxy dials to the target Redis instance. Unfortunately, Redis 6 (the latest at the moment
+// of writing) only supports password authentication. As Teleport doesn't support password
+// authentication we only authenticate Redis user and leave password authentication to
+// the client.
+//
+// In case of authorization failure the command is not passed to the server,
+// instead an "access denied" error is sent back to the Redis client in the
+// standard RESP message error format.
+//
+// Redis Cluster
+// Teleport supports Redis standalone and cluster instances. In the cluster mode MOV and ASK
+// commands are handled internally by go-redis driver, and they are never passed back to
+// a connected client.
+//
+// Config file
+// In order to pass additional arguments to configure Redis connection Teleport requires
+// using connection URI instead of host + port combination.
+// Example:
+//
+//  - name: "redis-cluster"
+//    protocol: "redis"
+//    uri: "rediss://redis.example.com:6379?cluster=true"
+
 package redis

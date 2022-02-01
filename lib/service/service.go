@@ -3166,16 +3166,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Handler:   dbProxyServer.PostgresProxy().HandleConnection,
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
-				// Add MongoDB teleport ALPN protocol without setting custom Handler.
-				// ALPN Proxy will handle MongoDB connection internally (terminate wrapped TLS traffic) and route
+				// Add MongoDB/Redis teleport ALPN protocol without setting custom Handler.
+				// ALPN Proxy will handle MongoDB/Redis connection internally (terminate wrapped TLS traffic) and route
 				// extracted connection to ALPN Proxy DB TLS Handler.
-				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMongoDB),
-			})
-			alpnRouter.Add(alpnproxy.HandlerDecs{
-				// Add MongoDB teleport ALPN protocol without setting custom Handler.
-				// ALPN Proxy will handle MongoDB connection internally (terminate wrapped TLS traffic) and route
-				// extracted connection to ALPN Proxy DB TLS Handler.
-				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolRedisDB),
+				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMongoDB, alpncommon.ProtocolRedisDB),
 			})
 		}
 

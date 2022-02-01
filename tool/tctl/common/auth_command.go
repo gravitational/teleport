@@ -554,7 +554,7 @@ cockroach start \
   --certs-dir={{.output}} \
   # other flags...
 `))
-	// TODO(jakule): do we need to support TLS v1.2???
+
 	redisAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
 
 To enable mutual TLS on your Redis server, add the following to your redis.conf:
