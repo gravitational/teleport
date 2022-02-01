@@ -149,7 +149,8 @@ func newSession(client *NodeClient,
 		defer ns.closeWait.Done()
 
 		<-ns.closer.C
-		if isFIPS() {
+
+		if isFIPS() || isAuthServerBoring(client) {
 			if err := ns.terminal.Clear(); err != nil {
 				log.Warnf("Failed to clear screen: %v.", err)
 			}
@@ -158,6 +159,15 @@ func newSession(client *NodeClient,
 	}()
 
 	return ns, nil
+}
+
+func isAuthServerBoring(client *NodeClient) bool {
+	boring, err := client.Proxy.isAuthBoring(context.Background())
+	if err != nil {
+		log.Errorf("Failed to ping auth server: %v.", err)
+		return false
+	}
+	return boring
 }
 
 func (ns *NodeSession) NodeClient() *NodeClient {
