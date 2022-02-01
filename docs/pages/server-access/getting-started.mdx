@@ -157,7 +157,7 @@ This guide introduces some of these common scenarios and how to interact with Te
 
 2. Now, in another terminal connect to the second instance.
 
-   - Copy the `token.file` to an appropriate, secure, directory on the second instance.
+   - Copy `token.file` to an appropriate, secure directory on the second instance.
 
    ```code
    # Join cluster
@@ -168,7 +168,7 @@ This guide introduces some of these common scenarios and how to interact with Te
    ```
 
    - Replace the `auth-server` value with the public proxy address of the machine you wish to connect to. By default, the subdomain `tele.example.com` will be available on port `443`.
-   - Supply the path to the `token.file`.
+   - Assign `--token` to the path of the token file you created earlier.
 
 3. Create a user to access the `tele.example.com` Web UI through the following command:
 
