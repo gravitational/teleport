@@ -136,7 +136,6 @@ ifneq ($(CHECK_CARGO),)
 with_roletester := yes
 ROLETESTER_MESSAGE := "with access tester"
 ROLETESTER_TAG := roletester
-ROLETESTER_BUILDDIR := lib/datalog/roletester/Cargo.toml
 
 ifneq ("$(ARCH)","arm")
 # Do not build RDP client on ARM. The client includes OpenSSL which requires libatomic on ARM 32bit.
@@ -249,7 +248,7 @@ endif
 ifeq ("$(with_roletester)", "yes")
 .PHONY: roletester
 roletester:
-	cargo build --manifest-path=$(ROLETESTER_BUILDDIR) --release $(CARGO_TARGET)
+	cargo build -p role_tester --release $(CARGO_TARGET)
 else
 .PHONY: roletester
 roletester:
@@ -258,7 +257,7 @@ endif
 ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
-	cargo build --manifest-path=lib/srv/desktop/rdp/rdpclient/Cargo.toml --release $(CARGO_TARGET)
+	cargo build -p rdp-client --release $(CARGO_TARGET)
 	cargo install cbindgen
 	cbindgen --quiet --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
 else
@@ -297,8 +296,7 @@ clean:
 	rm -rf $(BUILDDIR)
 	rm -rf $(ER_BPF_BUILDDIR)
 	rm -rf $(RS_BPF_BUILDDIR)
-	rm -rf lib/srv/desktop/rdp/rdpclient/target
-	rm -rf lib/datalog/roletester/target
+	-cargo clean
 	-go clean -cache
 	rm -rf teleport
 	rm -rf *.gz
@@ -741,7 +739,7 @@ GOGOPROTO_IMPORTMAP ?= $\
 	Mgithub.com/gravitational/teleport/api/types/events/events.proto=$(API_IMPORT_PATH)/types/events,$\
 	Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,$\
 	Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn
-	
+
 # buildbox-grpc generates GRPC stubs
 .PHONY: buildbox-grpc
 buildbox-grpc:
@@ -956,3 +954,9 @@ update-webassets:
 .PHONY: dronegen
 dronegen:
 	go run ./dronegen
+
+# backport will automatically create backports for a given PR as long as you have the "gh" tool
+# installed locally. To backport, type "make backport PR=1234 TO=branch/1,branch/2".
+.PHONY: backport
+backport:
+	(cd ./assets/backport && go run main.go -pr=$(PR) -to=$(TO)) 
