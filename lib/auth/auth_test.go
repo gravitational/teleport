@@ -686,10 +686,86 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(r, DeepEquals, roles)
 
-	// List tokens (should see 2: one static, one regular)
+	// create ec2 method join token
+	ec2Token, err := types.NewProvisionTokenFromSpec("ec2", time.Unix(0, 0).UTC(), types.ProvisionTokenSpecV2{
+		Roles:      []types.SystemRole{types.RoleNode},
+		JoinMethod: types.JoinMethodEC2,
+		Allow: []*types.TokenRule{
+			&types.TokenRule{
+				AWSAccount: "1111111111111",
+			},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	err = s.a.UpsertToken(ctx, ec2Token)
+	c.Assert(err, IsNil)
+
+	// request without EC2IdentityDocument should fail
+	_, err = s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
+		Token:        "ec2",
+		HostID:       "static.host",
+		NodeName:     "node-name",
+		Role:         types.RoleNode,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: pub,
+	})
+	c.Assert(err, NotNil)
+
+	// request with garbage EC2IdentityDocument should fail
+	_, err = s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
+		Token:               "ec2",
+		HostID:              "static.host",
+		NodeName:            "node-name",
+		Role:                types.RoleNode,
+		PublicTLSKey:        tlsPublicKey,
+		PublicSSHKey:        pub,
+		EC2IdentityDocument: []byte("garbage document"),
+	})
+	c.Assert(err, NotNil)
+
+	// create iam method join token
+	iamToken, err := types.NewProvisionTokenFromSpec("iam", time.Unix(0, 0).UTC(), types.ProvisionTokenSpecV2{
+		Roles:      []types.SystemRole{types.RoleNode},
+		JoinMethod: types.JoinMethodIAM,
+		Allow: []*types.TokenRule{
+			&types.TokenRule{
+				AWSAccount: "1111111111111",
+			},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	err = s.a.UpsertToken(ctx, iamToken)
+	c.Assert(err, IsNil)
+
+	// request without STSIdentityRequest should fail
+	_, err = s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
+		Token:        ec2Token.GetName(),
+		HostID:       "static.host",
+		NodeName:     "node-name",
+		Role:         types.RoleNode,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: pub,
+	})
+	c.Assert(err, NotNil)
+
+	// request with garbage STSIdentityRequest should fail
+	_, err = s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
+		Token:              iamToken.GetName(),
+		HostID:             "static.host",
+		NodeName:           "node-name",
+		Role:               types.RoleNode,
+		PublicTLSKey:       tlsPublicKey,
+		PublicSSHKey:       pub,
+		STSIdentityRequest: []byte("garbage request"),
+	})
+	c.Assert(err, NotNil)
+
+	// List tokens (should see 4: one static, one regular, one ec2, one iam)
 	tokens, err = s.a.GetTokens(ctx)
 	c.Assert(err, IsNil)
-	c.Assert(len(tokens), Equals, 2)
+	c.Assert(len(tokens), Equals, 4)
 }
 
 func (s *AuthSuite) TestBadTokens(c *C) {

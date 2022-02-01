@@ -466,6 +466,19 @@ func (a *ServerWithRoles) RegisterNewAuthServer(ctx context.Context, token strin
 	return a.authServer.RegisterNewAuthServer(ctx, token)
 }
 
+// RegisterUsingIAMMethod registers the caller using the IAM join method and
+// returns signed certs to join the cluster.
+//
+// The server will generate a base64-encoded crypto-random challenge and
+// send it on the challenge channel. The caller is expected to respond on
+// the request channel with a RegisterUsingTokenRequest including a signed
+// sts:GetCallerIdentity request with the challenge string.
+func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeChan chan<- string, reqChan <-chan *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+	// register method has its own authz mechanism, no need to check
+	certs, err := a.authServer.RegisterUsingIAMMethod(ctx, challengeChan, reqChan)
+	return certs, trace.Wrap(err)
+}
+
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
 func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
