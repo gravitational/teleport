@@ -85,7 +85,7 @@ require (
 	go.mongodb.org/mongo-driver v1.5.3
 	go.mozilla.org/pkcs7 v0.0.0-20210826202110-33d05740a352
 	go.uber.org/atomic v1.7.0
-	golang.org/x/crypto v0.0.0-20211202192323-5770296d904e
+	golang.org/x/crypto v0.0.0-20220126234351-aa10faf2a1f8
 	golang.org/x/mod v0.4.2
 	golang.org/x/net v0.0.0-20220114011407-0dd24b26b47d
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
@@ -216,6 +216,6 @@ replace (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible => github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/gravitational/teleport/api => ./api
-	github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77
+	github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-teleport.1
 	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 )

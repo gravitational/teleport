@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -347,6 +346,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		ClusterAddr:         kubeStatus.clusterAddr,
 		TeleportClusterName: kubeStatus.teleportClusterName,
 		Credentials:         kubeStatus.credentials,
+		ProxyAddr:           cf.Proxy,
 		TLSServerName:       kubeStatus.tlsServerName,
 	}
 
