@@ -20,13 +20,13 @@ limitations under the License.
 package changes
 
 import (
-	"log"
 	"strings"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // Changes describes the kind of changes found in the analysed workspace.
@@ -78,7 +78,7 @@ func isDocChange(path string) bool {
 	path = strings.ToLower(path)
 	return strings.HasPrefix(path, "docs/") ||
 		strings.HasSuffix(path, ".mdx") ||
-		strings.HasSuffix(path, ".md") || 
+		strings.HasSuffix(path, ".md") ||
 		strings.HasPrefix(path, "rfd/")
 }
 

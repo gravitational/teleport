@@ -19,14 +19,17 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
+	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"strings"
 
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
-	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // main is just a stub that prints out an error message and sets a nonzero exit
@@ -37,18 +40,35 @@ func main() {
 	}
 }
 
+type artifactFlags []string
+
+func (flags *artifactFlags) String() string {
+	return strings.Join(*flags, ", ")
+}
+
+func (flags *artifactFlags) Set(value string) error {
+	*flags = append(*flags, value)
+	return nil
+}
+
 type commandlineArgs struct {
 	workspace    string
 	targetBranch string
 	commitSHA    string
+	buildID      string
+	artifacts    artifactFlags
+	bucket       string
 }
 
 func parseCommandLine() (commandlineArgs, error) {
 	args := commandlineArgs{}
 
-	flag.StringVar(&args.workspace, "w", "", "Fully-qualified path to the build workspace")
-	flag.StringVar(&args.targetBranch, "t", "", "The PR's target branch")
-	flag.StringVar(&args.commitSHA, "c", "", "The PR's latest commit SHA")
+	flag.StringVar(&args.workspace, "workspace", "", "Fully-qualified path to the build workspace")
+	flag.StringVar(&args.targetBranch, "target", "", "The PR's target branch")
+	flag.StringVar(&args.commitSHA, "commit", "", "The PR's latest commit SHA")
+	flag.StringVar(&args.buildID, "build", "", "The build ID")
+	flag.StringVar(&args.bucket, "bucket", "", "The artifact storage bucket.")
+	flag.Var(&args.artifacts, "a", "Path to artifacts. May be globbed, and have multiple entries.")
 
 	flag.Parse()
 
@@ -68,6 +88,21 @@ func parseCommandLine() (commandlineArgs, error) {
 
 	if args.commitSHA == "" {
 		return args, trace.Errorf("commit must be set")
+	}
+
+	if len(args.artifacts) > 0 {
+		if args.buildID == "" {
+			return args, trace.Errorf("build ID required to upload artifacts")
+		}
+
+		if args.bucket == "" {
+			return args, trace.Errorf("storage bucket required to upload artifacts")
+		}
+
+		// make sure the artifact patterns are rooted in the workspace
+		for i, pattern := range args.artifacts {
+			args.artifacts[i] = path.Join(args.workspace, pattern)
+		}
 	}
 
 	return args, nil
@@ -96,10 +131,17 @@ func innerMain() error {
 	log.Printf("Starting etcd...")
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	err = etcd.Start(cancelCtx, args.workspace, 0, 0)
-	if err != nil {
+	if err := etcd.Start(cancelCtx, args.workspace, 0, 0); err != nil {
 		return trace.Wrap(err, "failed starting etcd")
 	}
+
+	// From this point on, whatever happens we want to upload any artifacts
+	// produced by the build
+	defer func() {
+		ctx := context.TODO()
+		prefix := fmt.Sprintf("%s/artifacts", args.buildID)
+		artifacts.FindAndUpload(ctx, args.bucket, prefix, args.artifacts)
+	}()
 
 	log.Printf("Running unit tests...")
 	err = runUnitTests(args.workspace)
@@ -113,7 +155,7 @@ func innerMain() error {
 }
 
 func runUnitTests(workspace string) error {
-	cmd := exec.Command("make", "test-api")
+	cmd := exec.Command("make", "test")
 	cmd.Dir = workspace
 	cmd.Env = append(os.Environ(), "TELEPORT_ETCD_TEST=yes")
 	cmd.Stdout = os.Stdout
