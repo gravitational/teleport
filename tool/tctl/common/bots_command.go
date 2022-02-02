@@ -144,7 +144,7 @@ This token will expire in {{.minutes}} minutes.
 Run this on the new bot node to join the cluster:
 
 > tbot start \
-   --data-dir=./tbotdata \
+   --destination-dir=./tbot-user \
    --token={{.token}} \{{range .ca_pins}}
    --ca-pin={{.}} \{{end}}
    --auth-server={{.auth_server}}
