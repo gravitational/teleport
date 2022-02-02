@@ -184,8 +184,10 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 	require.NoError(t, err)
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	waitForClusters(t, p.root.Tunnel, 1, 10*time.Second)
-	waitForClusters(t, p.leaf.Tunnel, 1, 10*time.Second)
+	require.Eventually(t, waitForClusters(p.root.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, waitForClusters(p.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
 
 	// Wait for both nodes to show up before attempting to dial to them.
 	err = waitForNodeCount(context.Background(), p.root, p.leaf.Secrets.SiteName, 2)

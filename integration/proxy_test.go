@@ -226,8 +226,10 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	)
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	waitForClusters(t, suite.root.Tunnel, 1, 10*time.Second)
-	waitForClusters(t, suite.leaf.Tunnel, 1, 10*time.Second)
+	require.Eventually(t, waitForClusters(suite.root.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, waitForClusters(suite.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
 
 	require.Greater(t, ps.Count(), 0, "proxy did not intercept any connection")
 }
