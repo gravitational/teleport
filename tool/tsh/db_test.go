@@ -378,7 +378,7 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			name:       "postgres",
 			dbProtocol: defaults.ProtocolPostgres,
 			cmd: []string{"psql",
-				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/certs.pem&" +
+				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
 					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
 					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full"},
 			wantErr: false,
@@ -392,7 +392,7 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"cockroach", "sql", "--url",
-				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/certs.pem&" +
+				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
 					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
 					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full"},
 			wantErr: false,
@@ -402,7 +402,7 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			dbProtocol: defaults.ProtocolCockroachDB,
 			execer:     &fakeExec{},
 			cmd: []string{"psql",
-				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/certs.pem&" +
+				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
 					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
 					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full"},
 			wantErr: false,
@@ -422,7 +422,7 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 				"--host", "localhost",
 				"--protocol", "TCP",
 				"--ssl-key", "/tmp/keys/example.com/bob",
-				"--ssl-ca", "/tmp/keys/example.com/certs.pem",
+				"--ssl-ca", "/tmp/keys/example.com/cas/root.pem",
 				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--ssl-verify-server-cert"},
 			wantErr: false,
@@ -442,7 +442,7 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 				"--host", "localhost",
 				"--protocol", "TCP",
 				"--ssl-key", "/tmp/keys/example.com/bob",
-				"--ssl-ca", "/tmp/keys/example.com/certs.pem",
+				"--ssl-ca", "/tmp/keys/example.com/cas/root.pem",
 				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--ssl-verify-server-cert"},
 			wantErr: false,
@@ -517,7 +517,7 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 				ServiceName: "mysql",
 			}
 
-			c := newCmdBuilder(tc, profile, database, WithLocalProxy("localhost", 12345, ""))
+			c := newCmdBuilder(tc, profile, database, "root", WithLocalProxy("localhost", 12345, ""))
 			c.exe = tt.execer
 			got, err := c.getConnectCommand()
 			if tt.wantErr {
