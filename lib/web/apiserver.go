@@ -894,10 +894,21 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 	}
 
+	tunnelPublicAddr := ""
+	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+	if err != nil {
+		h.log.WithError(err).Error("Cannot retrieve PorxySettings.")
+	} else {
+		tunnelPublicAddr = proxyConfig.SSH.TunnelPublicAddr
+	}
+
+	h.log.Debugf("\n\ntunnelPublicAddr is %s\n", tunnelPublicAddr)
+
 	webCfg := ui.WebConfig{
-		Auth:            authSettings,
-		CanJoinSessions: canJoinSessions,
-		IsCloud:         h.ClusterFeatures.GetCloud(),
+		Auth:                authSettings,
+		CanJoinSessions:     canJoinSessions,
+		IsCloud:             h.ClusterFeatures.GetCloud(),
+		TunnelPublicAddress: tunnelPublicAddr,
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
