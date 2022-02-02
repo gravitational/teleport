@@ -143,7 +143,6 @@ func NewAgentPool(ctx context.Context, cfg AgentPoolConfig) (*AgentPool, error) 
 	}
 
 	pool := &AgentPool{
-		agents:       nil,
 		proxyTracker: tr,
 		cfg:          cfg,
 		ctx:          ctx,

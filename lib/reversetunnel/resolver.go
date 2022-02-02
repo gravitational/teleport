@@ -16,15 +16,39 @@ package reversetunnel
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // Resolver looks up reverse tunnel addresses
 type Resolver func() (*utils.NetAddr, error)
+
+// CachingResolver wraps the provided Resolver with one that will cache the previous result
+// for 3 seconds to reduce the number of resolutions in an effort to mitigate potentially
+// overwhelming the Resolver source.
+func CachingResolver(resolver Resolver, clock clockwork.Clock) (Resolver, error) {
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:   3 * time.Second,
+		Clock: clock,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return func() (*utils.NetAddr, error) {
+		a, err := cache.Get(context.TODO(), "resolver", func() (interface{}, error) {
+			return resolver()
+		})
+		if err != nil {
+			return nil, err
+		}
+		return a.(*utils.NetAddr), nil
+	}, nil
+}
 
 // WebClientResolver returns a Resolver which uses the web proxy to
 // discover where the SSH reverse tunnel server is running.

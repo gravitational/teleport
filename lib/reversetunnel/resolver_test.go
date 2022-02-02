@@ -17,10 +17,13 @@ package reversetunnel
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
 
@@ -113,4 +116,38 @@ func TestResolveViaWebClient(t *testing.T) {
 			require.Empty(t, cmp.Diff(tt.expected, addr))
 		})
 	}
+}
+
+func TestCachingResolver(t *testing.T) {
+	randomResolver := func() (*utils.NetAddr, error) {
+		return &utils.NetAddr{
+			Addr:        uuid.New().String(),
+			AddrNetwork: uuid.New().String(),
+			Path:        uuid.New().String(),
+		}, nil
+	}
+
+	clock := clockwork.NewFakeClock()
+	resolver, err := CachingResolver(randomResolver, clock)
+	require.NoError(t, err)
+
+	addr, err := resolver()
+	require.NoError(t, err)
+
+	addr2, err := resolver()
+	require.NoError(t, err)
+
+	require.Equal(t, addr, addr2)
+
+	clock.Advance(time.Hour)
+
+	addr3, err := resolver()
+	require.NoError(t, err)
+
+	require.NotEqual(t, addr2, addr3)
+
+	addr4, err := resolver()
+	require.NoError(t, err)
+
+	require.Equal(t, addr3, addr4)
 }

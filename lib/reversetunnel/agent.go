@@ -535,7 +535,7 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	a.log.Debugf("handleDiscovery requests channel.")
 	defer func() {
 		if err := ch.Close(); err != nil {
-			a.log.Warnf("Failed to closed connection: %v", err)
+			a.log.Warnf("Failed to close discovery channel:: %v", err)
 		}
 	}()
 
