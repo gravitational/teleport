@@ -14,8 +14,10 @@
 package x11
 
 import (
+	"errors"
 	"io"
 	"net"
+	"syscall"
 
 	"github.com/gravitational/trace"
 )
@@ -69,10 +71,12 @@ func OpenNewXServerListener(displayOffset int, maxDisplay int, screen uint32) (X
 		return nil, Display{}, trace.BadParameter("maxDisplay (%d) cannot be larger than the max int32 (2147483647)", maxDisplay)
 	}
 
-	for displayNumber := displayOffset; displayNumber < maxDisplay; displayNumber++ {
+	for displayNumber := displayOffset; displayNumber <= maxDisplay; displayNumber++ {
 		display := Display{DisplayNumber: displayNumber}
 		if l, err := display.Listen(); err == nil {
 			return l, display, nil
+		} else if !errors.Is(err, syscall.EADDRINUSE) {
+			return nil, Display{}, trace.Wrap(err)
 		}
 	}
 	return nil, Display{}, trace.LimitExceeded("No more X11 sockets are available")
