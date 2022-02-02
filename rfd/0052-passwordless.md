@@ -429,21 +429,11 @@ challenges, as it forces us to either:
 * Apply both attestation lists, with the potential to create lists that are
   impossible to satisfy.
 
-Due to the above, the design makes the following suggestions, in order of
-preference:
-
-1. Do not implicitly restrict passwordless devices; or
-2. Drop implicit passwordless restrictions if any attestation settings are
-   provided by admins.
-
-(1) is tied to the observation that there is little benefit in restricting
-PIN-based devices from passwordless - attack vectors are essentially the same,
-since devices fall back to PINs. This keeps the implementation uniform and
-without hidden behaviors.
-
-(2) allows Teleport to ship with a canned set of roots, but ditches those in
-favor of admin choices whenever they are present. It aims to keep system
-behavior simple and honors admin decisions.
+The design makes the decision to ship with a canned set of roots for
+passwordless, but those roots are dropped as soon as the admin defines _any_
+attestation lists, in order to avoid configurations that are impossible to
+satisfy. The presence of an admin-defined attestation list is also interpreted
+as a decision, by the admin, to take control over such configurations.
 
 ### Security
 
@@ -479,6 +469,16 @@ focused on Teleport internals worth a read.
 
 Please refer to the [FIDO2 clients][passwordless fido2] and
 [macOS CLI][passwordless macos] RFDs for specific UX changes.
+
+## Alternatives considered
+
+### Do not restrict passwordless devices
+
+A counter argument for the [device restrictions](#device-restrictions) section
+is that there is little benefit in restricting PIN-based devices from the
+system: attack vectors are essentially the same, compared to biometric devices,
+since all devices have PIN fallbacks. Avoiding implicit restrictions keeps the
+implementation uniform and without hidden behaviors.
 
 <!-- Links -->
 
