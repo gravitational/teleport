@@ -226,12 +226,7 @@ func (m *AgentPool) withLock(f func()) {
 type matchAgentFn func(a *Agent) bool
 
 func (m *AgentPool) closeAgents() {
-	agents := filterAndClose(m.agents, func(*Agent) bool { return true })
-	if len(agents) <= 0 {
-		m.agents = nil
-	} else {
-		m.agents = agents
-	}
+	m.agents = filterAndClose(m.agents, func(*Agent) bool { return true })
 }
 
 func filterAndClose(agents []*Agent, matchAgent matchAgentFn) []*Agent {
@@ -247,6 +242,11 @@ func filterAndClose(agents []*Agent, matchAgent matchAgentFn) []*Agent {
 			filtered = append(filtered, agent)
 		}
 	}
+
+	if len(filtered) <= 0 {
+		return nil
+	}
+
 	return filtered
 }
 
@@ -334,15 +334,9 @@ func (m *AgentPool) Count() int {
 // This function should be called under a lock.
 func (m *AgentPool) removeDisconnected() {
 	// Filter and close all disconnected agents.
-	agents := filterAndClose(m.agents, func(agent *Agent) bool {
+	m.agents = filterAndClose(m.agents, func(agent *Agent) bool {
 		return agent.getState() == agentStateDisconnected
 	})
-
-	if len(agents) <= 0 {
-		m.agents = nil
-	} else {
-		m.agents = agents
-	}
 }
 
 // Make sure ServerHandlerToListener implements both interfaces.

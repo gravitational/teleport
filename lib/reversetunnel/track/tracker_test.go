@@ -96,7 +96,7 @@ func (s *simpleTestProxies) ProxyLoop(tracker *Tracker, lease Lease, proxy testP
 			select {
 			case <-ticker.C:
 				if p, ok := s.GetRandProxy(); ok {
-					tracker.TrackExpected(lease, p.principals[0])
+					tracker.TrackExpected(p.principals[0])
 				}
 			case <-timeout:
 				break Loop
@@ -259,7 +259,7 @@ func TestUUIDHandling(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(tracker.StopAll)
 	tracker.Start()
-	lease := <-tracker.Acquire()
+	<-tracker.Acquire()
 	// claim a proxy using principal of the form <uuid>.<cluster>
 	go tracker.WithProxy(func() {
 		t.Logf("Successfully claimed proxy")
@@ -282,7 +282,7 @@ Wait:
 	}
 
 	// Send a gossip message containing host UUID only
-	tracker.TrackExpected(lease, "my-proxy")
+	tracker.TrackExpected("my-proxy")
 	t.Logf("Sent uuid-only gossip message; watching status...")
 
 	// Let pool go through a few ticks, monitoring status to ensure that

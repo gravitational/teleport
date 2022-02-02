@@ -105,7 +105,7 @@ func (t *Tracker) Acquire() <-chan Lease {
 
 // TrackExpected starts/refreshes tracking for expected proxies.  Called by
 // agents when gossip messages are received.
-func (t *Tracker) TrackExpected(lease Lease, proxies ...string) {
+func (t *Tracker) TrackExpected(proxies ...string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 

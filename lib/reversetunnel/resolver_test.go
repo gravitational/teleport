@@ -104,7 +104,7 @@ func TestResolveViaWebClient(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(defaults.TunnelPublicAddrEnvar, tt.address)
-			addr, err := ResolveViaWebClient(context.Background(), tt.addrs, true)()
+			addr, err := WebClientResolver(context.Background(), tt.addrs, true)()
 			tt.errorAssertionFn(t, err)
 			if err != nil {
 				return

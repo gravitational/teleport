@@ -558,7 +558,7 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 			if a.Tracker != nil {
 				// Notify tracker of all known proxies.
 				for _, p := range r.Proxies {
-					a.Tracker.TrackExpected(a.Lease, p.GetName())
+					a.Tracker.TrackExpected(p.GetName())
 				}
 			}
 		}

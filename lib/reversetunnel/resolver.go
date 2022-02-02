@@ -26,9 +26,9 @@ import (
 // Resolver looks up reverse tunnel addresses
 type Resolver func() (*utils.NetAddr, error)
 
-// ResolveViaWebClient returns a Resolver which uses the web proxy to
+// WebClientResolver returns a Resolver which uses the web proxy to
 // discover where the SSH reverse tunnel server is running.
-func ResolveViaWebClient(ctx context.Context, addrs []utils.NetAddr, insecureTLS bool) Resolver {
+func WebClientResolver(ctx context.Context, addrs []utils.NetAddr, insecureTLS bool) Resolver {
 	return func() (*utils.NetAddr, error) {
 		var errs []error
 		for _, addr := range addrs {

@@ -23,14 +23,14 @@ import (
 	"go.uber.org/atomic"
 )
 
-// Pool manages a collection of work groups by key and is the primary means
-// by which groups are managed.  Each work group has an adjustable target value
+// Pool manages a collection of work group by key and is the primary means
+// by which group are managed.  Each work group has an adjustable target value
 // which is the number of target leases which should be active for the given
 // group.
 type Pool struct {
 	mu       sync.Mutex
 	leaseIDs *atomic.Uint64
-	groups   *group
+	group    *group
 	// grantC is an unbuffered channel that funnels available leases from the
 	// workgroups to the outside world
 	grantC chan Lease
@@ -52,7 +52,7 @@ func NewPool(ctx context.Context) *Pool {
 // new leases.  Each lease acquired in this way *must* have its
 // Release method called when the lease is no longer needed.
 // Note this channel will deliver leases from all active work
-// groups. It's up to the receiver to differentiate what group
+// group. It's up to the receiver to differentiate what group
 // the lease refers to and act accordingly.
 func (p *Pool) Acquire() <-chan Lease {
 	return p.grantC
@@ -68,11 +68,11 @@ func (p *Pool) Get() Counts {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if p.groups == nil {
+	if p.group == nil {
 		return Counts{}
 	}
 
-	return p.groups.loadCounts()
+	return p.group.loadCounts()
 }
 
 // Set sets the target for the specified key.
@@ -84,12 +84,12 @@ func (p *Pool) Set(target uint64) {
 		return
 	}
 
-	if p.groups == nil {
+	if p.group == nil {
 		p.start(target)
 		return
 	}
 
-	p.groups.setTarget(target)
+	p.group.setTarget(target)
 }
 
 // Start starts a new work group with the specified initial target.
@@ -108,7 +108,7 @@ func (p *Pool) start(target uint64) {
 		ctx:      ctx,
 		cancel:   cancel,
 	}
-	p.groups = g
+	p.group = g
 
 	// Start a routine to monitor the group's lease acquisition
 	// and handle notifications when a lease is returned to the
@@ -117,16 +117,16 @@ func (p *Pool) start(target uint64) {
 }
 
 func (p *Pool) del() (ok bool) {
-	if p.groups == nil {
+	if p.group == nil {
 		return false
 	}
 
-	p.groups.cancel()
-	p.groups = nil
+	p.group.cancel()
+	p.group = nil
 	return true
 }
 
-// Stop permanently halts all associated groups.
+// Stop permanently halts all associated group.
 func (p *Pool) Stop() {
 	p.cancel()
 }

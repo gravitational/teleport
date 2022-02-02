@@ -882,7 +882,7 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 
 func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAddr, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
 	dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
-		Resolver:     reversetunnel.ResolveViaWebClient(process.ExitContext(), authServers, lib.IsInsecureDevMode()),
+		Resolver:     reversetunnel.WebClientResolver(process.ExitContext(), authServers, lib.IsInsecureDevMode()),
 		ClientConfig: sshConfig,
 		Log:          process.log,
 	})
