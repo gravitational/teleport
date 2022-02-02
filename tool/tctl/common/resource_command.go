@@ -740,8 +740,27 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 		}
 		fmt.Printf("windows desktop service %q has been deleted\n", rc.ref.Name)
 	case types.KindWindowsDesktop:
-		if err = client.DeleteWindowsDesktop(ctx, rc.ref.Name); err != nil {
+		desktops, err := client.GetWindowsDesktopsByName(ctx, rc.ref.Name)
+		if err != nil {
 			return trace.Wrap(err)
+		}
+		deleted := false
+		var errs []error
+		for _, desktop := range desktops {
+			if desktop.GetAddr() == rc.ref.Name {
+				if err = client.DeleteWindowsDesktop(ctx, desktop.GetHostID(), rc.ref.Name); err != nil {
+					errs = append(errs, err)
+					continue
+				}
+				deleted = true
+			}
+		}
+		if !deleted {
+			errs = append(errs,
+				trace.Errorf("failed to delete desktop %q", rc.ref.Name))
+		}
+		if err := trace.NewAggregate(errs...); err != nil {
+			return err
 		}
 		fmt.Printf("windows desktop %q has been deleted\n", rc.ref.Name)
 	default:

@@ -266,10 +266,15 @@ type ReadProxyAccessPoint interface {
 	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
 
 	// GetWindowsDesktop returns a named windows desktop host.
-	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
+	GetWindowsDesktop(ctx context.Context, hostID, name string) (types.WindowsDesktop, error)
+
+	// GetWindowsDesktopsByName returns a list of desktops with a given name..
+	GetWindowsDesktopsByName(ctx context.Context, name string) ([]types.WindowsDesktop, error)
 
 	// GetWindowsDesktopServices returns windows desktop hosts.
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
+	// GetWindowsDesktopService returns a windows desktop host by name.
+	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 }
 
 // ProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -624,10 +629,13 @@ type ReadWindowsDesktopAccessPoint interface {
 	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
 
 	// GetWindowsDesktop returns a named windows desktop host.
-	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
+	GetWindowsDesktop(ctx context.Context, hostID, name string) (types.WindowsDesktop, error)
 
 	// GetWindowsDesktopServices returns windows desktop hosts.
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
+
+	// GetWindowsDesktopService returns a windows desktop host by name.
+	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 }
 
 // WindowsDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -781,10 +789,13 @@ type Cache interface {
 	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
 
 	// GetWindowsDesktop returns a named windows desktop host.
-	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
+	GetWindowsDesktop(ctx context.Context, hostID, name string) (types.WindowsDesktop, error)
 
 	// GetWindowsDesktopServices returns windows desktop hosts.
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
+
+	// GetWindowsDesktopService returns a windows desktop host by name.
+	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
 	GetStaticTokens() (types.StaticTokens, error)

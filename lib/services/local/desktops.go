@@ -55,12 +55,27 @@ func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context) ([]types
 	return desktops, nil
 }
 
+// GetWindowsDesktops returns all windows desktop resources matching name.
+func (s *WindowsDesktopService) GetWindowsDesktopsByName(ctx context.Context, name string) ([]types.WindowsDesktop, error) {
+	desktops, err := s.GetWindowsDesktops(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var matchingDesktops []types.WindowsDesktop
+	for _, desktop := range desktops {
+		if desktop.GetName() == name {
+			matchingDesktops = append(matchingDesktops, desktop)
+		}
+	}
+	return matchingDesktops, nil
+}
+
 // GetWindowsDesktop returns the specified windows desktop resource.
-func (s *WindowsDesktopService) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
-	item, err := s.Get(ctx, backend.Key(windowsDesktopsPrefix, name))
+func (s *WindowsDesktopService) GetWindowsDesktop(ctx context.Context, hostID, name string) (types.WindowsDesktop, error) {
+	item, err := s.Get(ctx, backend.Key(windowsDesktopsPrefix, hostID, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("windows desktop %q doesn't exist", name)
+			return nil, trace.NotFound("windows desktop \"%s/%s\" doesn't exist", hostID, name)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -82,7 +97,7 @@ func (s *WindowsDesktopService) CreateWindowsDesktop(ctx context.Context, deskto
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetName()),
+		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
 		Value:   value,
 		Expires: desktop.Expiry(),
 		ID:      desktop.GetResourceID(),
@@ -104,7 +119,7 @@ func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, deskto
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetName()),
+		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
 		Value:   value,
 		Expires: desktop.Expiry(),
 		ID:      desktop.GetResourceID(),
@@ -126,7 +141,7 @@ func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, deskto
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetName()),
+		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
 		Value:   value,
 		Expires: desktop.Expiry(),
 		ID:      desktop.GetResourceID(),
@@ -139,11 +154,11 @@ func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, deskto
 }
 
 // DeleteWindowsDesktop removes the specified windows desktop resource.
-func (s *WindowsDesktopService) DeleteWindowsDesktop(ctx context.Context, name string) error {
-	err := s.Delete(ctx, backend.Key(windowsDesktopsPrefix, name))
+func (s *WindowsDesktopService) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
+	err := s.Delete(ctx, backend.Key(windowsDesktopsPrefix, hostID, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.NotFound("windows desktop %q doesn't exist", name)
+			return trace.NotFound("windows desktop \"%s/%s\" doesn't exist", hostID, name)
 		}
 		return trace.Wrap(err)
 	}

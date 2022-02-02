@@ -3249,6 +3249,25 @@ func (g *GRPCServer) GetWindowsDesktopServices(ctx context.Context, req *empty.E
 	}, nil
 }
 
+// GetWindowsDesktopService returns a registered Windows desktop service by name.
+func (g *GRPCServer) GetWindowsDesktopService(ctx context.Context, req *proto.GetWindowsDesktopServiceRequest) (*proto.GetWindowsDesktopServiceResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	windowsDesktopService, err := auth.GetWindowsDesktopService(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	service, ok := windowsDesktopService.(*types.WindowsDesktopServiceV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", service)
+	}
+	return &proto.GetWindowsDesktopServiceResponse{
+		Service: service,
+	}, nil
+}
+
 // UpsertWindowsDesktopService registers a new Windows desktop service.
 func (g *GRPCServer) UpsertWindowsDesktopService(ctx context.Context, service *types.WindowsDesktopServiceV3) (*types.KeepAlive, error) {
 	auth, err := g.authenticate(ctx)
@@ -3325,13 +3344,36 @@ func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, _ *empty.Empty) (*p
 	}, nil
 }
 
+// GetWindowsDesktopsByName returns all registered Windows desktop hosts matching name.
+func (g *GRPCServer) GetWindowsDesktopsByName(ctx context.Context, req *proto.GetWindowsDesktopsByNameRequest) (*proto.GetWindowsDesktopsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	windowsDesktops, err := auth.GetWindowsDesktopsByName(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var desktops []*types.WindowsDesktopV3
+	for _, s := range windowsDesktops {
+		desktop, ok := s.(*types.WindowsDesktopV3)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", s)
+		}
+		desktops = append(desktops, desktop)
+	}
+	return &proto.GetWindowsDesktopsResponse{
+		Desktops: desktops,
+	}, nil
+}
+
 // GetWindowsDesktop returns a named registered Windows desktop host.
 func (g *GRPCServer) GetWindowsDesktop(ctx context.Context, req *proto.GetWindowsDesktopRequest) (*types.WindowsDesktopV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	windowsDesktop, err := auth.GetWindowsDesktop(ctx, req.GetName())
+	windowsDesktop, err := auth.GetWindowsDesktop(ctx, req.GetHostID(), req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3387,7 +3429,7 @@ func (g *GRPCServer) DeleteWindowsDesktop(ctx context.Context, req *proto.Delete
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.DeleteWindowsDesktop(ctx, req.GetName())
+	err = auth.DeleteWindowsDesktop(ctx, req.GetHostID(), req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -17,6 +17,7 @@ limitations under the License.
 package web
 
 import (
+	"context"
 	"crypto/tls"
 	"io"
 	"math/rand"
@@ -87,34 +88,56 @@ func createDesktopConnection(
 
 	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
 
-	winServices, err := ctx.unsafeCachedAuthClient.GetWindowsDesktopServices(r.Context())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// TODO(awly): trusted cluster support - if this request is for a different
 	// cluster, dial their proxy and forward the websocket request as is.
 
-	if len(winServices) == 0 {
-		return trace.NotFound("No windows_desktop_services are registered in this cluster")
-	}
 	// Pick a random Windows desktop service as our gateway.
 	// When agent mode is implemented in the service, we'll have to filter out
 	// the services in agent mode.
 	//
 	// In the future, we may want to do something smarter like latency-based
 	// routing.
-	service := winServices[rand.Intn(len(winServices))]
-	log = log.WithField("windows-service-uuid", service.GetName())
-	log = log.WithField("windows-service-addr", service.GetAddr())
-	serviceCon, err := site.DialTCP(reversetunnel.DialParams{
-		From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: r.RemoteAddr},
-		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
-		ConnType: types.WindowsDesktopTunnel,
-		ServerID: service.GetName() + "." + ctx.parent.clusterName,
-	})
+	winDesktops, err := ctx.unsafeCachedAuthClient.GetWindowsDesktopsByName(r.Context(), desktopName)
 	if err != nil {
-		return trace.WrapWithMessage(err, "failed to connect to windows_desktop_service at %q: %v", service.GetAddr(), err)
+		return trace.Wrap(err)
+	}
+	if len(winDesktops) == 0 {
+		return trace.NotFound("no windows_desktops were found")
+	}
+	var validServiceIDs []string
+	for _, desktop := range winDesktops {
+		validServiceIDs = append(validServiceIDs, desktop.GetHostID())
+	}
+	rand.Shuffle(len(validServiceIDs), func(i, j int) {
+		validServiceIDs[i], validServiceIDs[j] = validServiceIDs[j], validServiceIDs[i]
+	})
+
+	var serviceCon net.Conn
+	for _, id := range validServiceIDs {
+		service, err := ctx.clt.GetWindowsDesktopService(context.Background(), id)
+		if err != nil {
+			log.Errorf("Error finding service with id %s", id)
+			continue
+		}
+		log = log.WithField("windows-service-uuid", service.GetName())
+		log = log.WithField("windows-service-addr", service.GetAddr())
+		serviceCon, err = site.DialTCP(reversetunnel.DialParams{
+			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: r.RemoteAddr},
+			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
+			ConnType: types.WindowsDesktopTunnel,
+			ServerID: service.GetName() + "." + ctx.parent.clusterName,
+		})
+		if err != nil {
+			if trace.IsConnectionProblem(err) {
+				log.Errorf("Error connecting to service %q, trying another.", service.GetAddr())
+				continue
+			}
+			return trace.WrapWithMessage(err, "error connecting to windows_desktop_service at %q: %v", service.GetAddr(), err)
+		}
+		break
+	}
+	if err != nil {
+		return trace.Errorf("Failed to connect to any windows_desktop_service: %v", err)
 	}
 	defer serviceCon.Close()
 	tlsConfig := ctx.clt.Config()

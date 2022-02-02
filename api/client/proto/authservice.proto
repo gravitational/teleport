@@ -1137,8 +1137,20 @@ message ReplaceRemoteLocksRequest {
 
 // GetWindowsDesktopServicesResponse contains all registered Windows desktop services.
 message GetWindowsDesktopServicesResponse {
-    // Servers is a list of Windows desktop services.
+    // Services is a list of Windows desktop services.
     repeated types.WindowsDesktopServiceV3 services = 1 [ (gogoproto.jsontag) = "services" ];
+}
+
+// GetWindowsDesktopServiceRequest is a request for a specific Windows Desktop Service.
+message GetWindowsDesktopServiceRequest {
+    // Name is the name of the Windows Desktop Service to be requested.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
+// GetWindowsDesktopServiceResponse contains the requested WindowsDesktopService
+message GetWindowsDesktopServiceResponse {
+    // Service is the requested Windows Desktop Service.
+    types.WindowsDesktopServiceV3 service = 1 [ (gogoproto.jsontag) = "service" ];
 }
 
 // DeleteWindowsDesktopServiceRequest is a request to delete a Windows desktop service.
@@ -1153,16 +1165,27 @@ message GetWindowsDesktopsResponse {
     repeated types.WindowsDesktopV3 Desktops = 1 [ (gogoproto.jsontag) = "desktops" ];
 }
 
+// GetWindowsDesktopsByNameRequest is a request for a collection of
+// Windows desktops by host name.
+message GetWindowsDesktopsByNameRequest {
+    // Name is the name of the Windows desktop host.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
 // GetWindowsDesktopRequest is a request for a single Windows desktop host.
 message GetWindowsDesktopRequest {
     // Name is the name of the Windows desktop host.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // HostID is the ID of the Windows Desktop Service reporting the desktop.
+    string HostID = 2 [ (gogoproto.jsontag) = "HostID" ];
 }
 
 // DeleteWindowsDesktopRequest is a request to delete a Windows desktop host.
 message DeleteWindowsDesktopRequest {
     // Name is the name of the Windows desktop host.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // HostID is the ID of the Windows Desktop Service reporting the desktop.
+    string HostID = 2 [ (gogoproto.jsontag) = "HostID" ];
 }
 
 // WindowsDesktopCertRequest is a request to generate a client certificate used
@@ -1921,6 +1944,8 @@ service AuthService {
     // GetWindowsDesktopServices returns all registered Windows desktop services.
     rpc GetWindowsDesktopServices(google.protobuf.Empty)
         returns (GetWindowsDesktopServicesResponse);
+    rpc GetWindowsDesktopService(GetWindowsDesktopServiceRequest)
+        returns (GetWindowsDesktopServiceResponse);
     // UpsertWindowsDesktopService registers a new Windows desktop service.
     rpc UpsertWindowsDesktopService(types.WindowsDesktopServiceV3) returns (types.KeepAlive);
     // DeleteWindowsDesktopService removes the specified Windows desktop service.
@@ -1931,6 +1956,9 @@ service AuthService {
 
     // GetWindowsDesktops returns all registered Windows desktop hosts.
     rpc GetWindowsDesktops(google.protobuf.Empty) returns (GetWindowsDesktopsResponse);
+    // GetWindowsDesktopsByName returns all registered Windows desktop hosts matching name.
+    rpc GetWindowsDesktopsByName(GetWindowsDesktopsByNameRequest)
+        returns (GetWindowsDesktopsResponse);
     // GetWindowsDesktop returns a registered Windows desktop host.
     rpc GetWindowsDesktop(GetWindowsDesktopRequest) returns (types.WindowsDesktopV3);
     // CreateWindowsDesktop registers a new Windows desktop host.

@@ -163,6 +163,8 @@ type WindowsServiceConfig struct {
 	// Windows Desktops. If multiple filters are specified, they are ANDed
 	// together into a single search.
 	DiscoveryLDAPFilters []string
+	// HostID is the ID of the Windows Desktop Service.
+	HostID string
 }
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
@@ -722,7 +724,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	desktopName := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
 	log = log.WithField("desktop-name", desktopName)
 
-	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopName)
+	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, s.cfg.HostID, desktopName)
 	if err != nil {
 		log.WithError(err).Warning("Failed to fetch desktop by name")
 		sendTDPError("Teleport failed to find the requested desktop in its database.")
@@ -959,6 +961,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 			types.WindowsDesktopSpecV3{
 				Addr:   addr,
 				Domain: s.cfg.Domain,
+				HostID: s.cfg.HostID,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)

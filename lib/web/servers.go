@@ -90,10 +90,13 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 
 	desktopName := p.ByName("desktopName")
 
-	windowsDesktop, err := clt.GetWindowsDesktop(r.Context(), desktopName)
+	windowsDesktops, err := clt.GetWindowsDesktopsByName(r.Context(), desktopName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if len(windowsDesktops) == 0 {
+		return nil, trace.NotFound("Expected at least one desktop, got %d", len(windowsDesktops))
+	}
 
-	return ui.MakeDesktop(windowsDesktop), nil
+	return ui.MakeDesktop(windowsDesktops[0]), nil
 }
