@@ -225,7 +225,7 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 	for _, caType := range caTypes {
 		existing, found := allCerts[caType]
 		if !found {
-			return trace.BadParameter("failed to get CA") // TODO
+			return trace.BadParameter("CAs list doesn't contain %q certificate", caType)
 		}
 
 		rotated, err := a.processRotationRequest(rotationReq{
@@ -281,8 +281,10 @@ func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCer
 	for _, caType := range caTypes {
 		cert, found := allCerts[caType]
 		if !found {
-			return nil, trace.BadParameter("missing certificate!!!!!!!") //TODO
+			return nil, trace.BadParameter("didn't find %q in all certs map", caType)
 		}
+
+	nextCert:
 		for allCAType, allCert := range allCerts {
 			if caType == allCAType {
 				continue
@@ -293,9 +295,9 @@ func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCer
 
 			for _, ak := range activeKeys.TLS {
 				for _, aak := range allActiveKeys.TLS {
-					if bytes.Compare(ak.Cert, aak.Cert) == 0 {
+					if bytes.Compare(ak.Key, aak.Key) == 0 {
 						toRotate = append(toRotate, allCAType)
-						goto end
+						continue nextCert
 					}
 				}
 			}
@@ -304,12 +306,10 @@ func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCer
 				for _, aak := range allActiveKeys.SSH {
 					if bytes.Compare(ak.PrivateKey, aak.PrivateKey) == 0 {
 						toRotate = append(toRotate, allCAType)
-						goto end
+						continue nextCert
 					}
 				}
 			}
-
-		end:
 		}
 	}
 
