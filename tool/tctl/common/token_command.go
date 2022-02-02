@@ -218,15 +218,19 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 			token,
 			int(c.ttl.Minutes()))
 	default:
-		proxies, err := client.GetProxies()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		authServer := authServers[0].GetAddr()
 
-		if len(proxies) != 0 {
-			authServer = proxies[0].GetPublicAddr()
+		pingResponse, err := client.Ping(context.TODO())
+		if err != nil && pingResponse.GetServerFeatures().Cloud {
+			fmt.Printf("ping response: %+v\n", pingResponse)
+			proxies, err := client.GetProxies()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if len(proxies) != 0 {
+				authServer = proxies[0].GetPublicAddr()
+			}
 		}
 
 		return nodeMessageTemplate.Execute(os.Stdout, map[string]interface{}{
