@@ -403,7 +403,7 @@ func (a *Server) runPeriodicOperations() {
 		case <-a.closeCtx.Done():
 			return
 		case <-ticker.Chan():
-			err := a.autoRotateCertAuthorities()
+			err := a.autoRotateLocalCertAuthorities()
 			if err != nil {
 				if trace.IsCompareFailed(err) {
 					log.Debugf("Cert authority has been updated concurrently: %v.", err)

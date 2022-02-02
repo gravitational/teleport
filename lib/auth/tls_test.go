@@ -362,7 +362,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 
 	// advance rotation by clock
 	s.clock.Advance(gracePeriod/3 + time.Minute)
-	err = s.server.Auth().autoRotateCertAuthorities()
+	err = s.server.Auth().autoRotateLocalCertAuthorities()
 	c.Assert(err, check.IsNil)
 
 	ca, err := s.server.Auth().GetCertAuthority(types.CertAuthID{
@@ -382,7 +382,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 
 	// advance rotation by clock
 	s.clock.Advance((gracePeriod*2)/3 + time.Minute)
-	err = s.server.Auth().autoRotateCertAuthorities()
+	err = s.server.Auth().autoRotateLocalCertAuthorities()
 	c.Assert(err, check.IsNil)
 
 	ca, err = s.server.Auth().GetCertAuthority(types.CertAuthID{
@@ -405,7 +405,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 
 	// complete rotation - advance rotation by clock
 	s.clock.Advance(gracePeriod/3 + time.Minute)
-	err = s.server.Auth().autoRotateCertAuthorities()
+	err = s.server.Auth().autoRotateLocalCertAuthorities()
 	c.Assert(err, check.IsNil)
 	ca, err = s.server.Auth().GetCertAuthority(types.CertAuthID{
 		DomainName: s.server.ClusterName(),
@@ -456,7 +456,7 @@ func (s *TLSSuite) TestAutoFallback(c *check.C) {
 
 	// advance rotation by clock
 	s.clock.Advance(gracePeriod/3 + time.Minute)
-	err = s.server.Auth().autoRotateCertAuthorities()
+	err = s.server.Auth().autoRotateLocalCertAuthorities()
 	c.Assert(err, check.IsNil)
 
 	ca, err := s.server.Auth().GetCertAuthority(types.CertAuthID{

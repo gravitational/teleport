@@ -292,10 +292,10 @@ func (a *Server) RotateExternalCertAuthority(ca types.CertAuthority) error {
 	return nil
 }
 
-// autoRotateCertAuthorities automatically rotates cert authorities,
+// autoRotateLocalCertAuthorities automatically rotates cert authorities,
 // does nothing if no rotation parameters were set up
 // or it is too early to rotate per schedule
-func (a *Server) autoRotateCertAuthorities() error {
+func (a *Server) autoRotateLocalCertAuthorities() error {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -308,7 +308,7 @@ func (a *Server) autoRotateCertAuthorities() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := a.autoRotate(ca); err != nil {
+		if err := a.autoRotateLocalCertAuthority(ca); err != nil {
 			return trace.Wrap(err)
 		}
 		// make sure there are local AdditionalKeys during init phase of rotation
@@ -321,7 +321,7 @@ func (a *Server) autoRotateCertAuthorities() error {
 	return nil
 }
 
-func (a *Server) autoRotate(ca types.CertAuthority) error {
+func (a *Server) autoRotateLocalCertAuthority(ca types.CertAuthority) error {
 	rotation := ca.GetRotation()
 	// rotation mode is not automatic, nothing to do
 	if rotation.Mode != types.RotationModeAuto {
