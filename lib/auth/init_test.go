@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -993,4 +994,76 @@ func TestMigrateDatabaseCA(t *testing.T) {
 	require.Len(t, dbCAs, 1)
 	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Cert, dbCAs[0].GetActiveKeys().TLS[0].Cert)
 	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Key, dbCAs[0].GetActiveKeys().TLS[0].Key)
+}
+
+func TestRotateDuplicatedCerts(t *testing.T) {
+	conf := setupConfig(t)
+
+	// suite.NewTestCA() uses the same SSH key for all created keys, which in this scenario triggers extra CA rotation.
+	keygen := native.New(context.TODO(), native.PrecomputeKeys(0))
+	privHost, _, err := keygen.GenerateKeyPair("")
+	require.NoError(t, err)
+	privUser, _, err := keygen.GenerateKeyPair("")
+	require.NoError(t, err)
+	privDatabase, _, err := keygen.GenerateKeyPair("")
+	require.NoError(t, err)
+
+	hostCA := suite.NewTestCA(types.HostCA, "me.localhost", privHost)
+	userCA := suite.NewTestCA(types.UserCA, "me.localhost", privUser)
+	databaseCA := suite.NewTestCA(types.DatabaseCA, "me.localhost", privDatabase)
+	// Create duplicated CAs
+	databaseCA.Spec.ActiveKeys = hostCA.Spec.ActiveKeys.Clone()
+
+	conf.Authorities = []types.CertAuthority{hostCA, userCA, databaseCA}
+
+	auth, err := Init(conf)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err = auth.Close()
+		require.NoError(t, err)
+	})
+
+	rotationPhases := []string{types.RotationPhaseInit, types.RotationPhaseUpdateClients,
+		types.RotationPhaseUpdateServers, types.RotationPhaseStandby}
+
+	// Rotate CAs.
+	for _, phase := range rotationPhases {
+		err = auth.RotateCertAuthority(RotateRequest{
+			Mode:        types.RotationModeManual,
+			TargetPhase: phase,
+			Type:        types.HostCA,
+		})
+		require.NoError(t, err)
+	}
+
+	newUserCA, err := auth.GetCertAuthority(types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: "me.localhost",
+	}, true)
+	require.NoError(t, err)
+	// UserCA should be untouched, as it was unique.
+	require.Equal(t, userCA.Spec.ActiveKeys.TLS, newUserCA.GetActiveKeys().TLS)
+	require.Equal(t, userCA.Spec.ActiveKeys.SSH, newUserCA.GetActiveKeys().SSH)
+
+	newHostCA, err := auth.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: "me.localhost",
+	}, true)
+	require.NoError(t, err)
+	// HostCA should be rotated, as we requested for it.
+	require.NotEqual(t, hostCA.Spec.ActiveKeys.TLS, newHostCA.GetActiveKeys().TLS)
+	require.NotEqual(t, hostCA.Spec.ActiveKeys.SSH, newHostCA.GetActiveKeys().SSH)
+
+	newDatabaseCA, err := auth.GetCertAuthority(types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: "me.localhost",
+	}, true)
+	require.NoError(t, err)
+	// DatabaseCA should be rotated, as the key was the same as HostCA.
+	require.NotEqual(t, databaseCA.Spec.ActiveKeys.TLS, newDatabaseCA.GetActiveKeys().TLS)
+	require.NotEqual(t, databaseCA.Spec.ActiveKeys.SSH, newDatabaseCA.GetActiveKeys().SSH)
+
+	// Sanity check, HostCA and DatabaseCA should be different now.
+	require.NotEqual(t, newHostCA.GetActiveKeys().TLS, newDatabaseCA.GetActiveKeys().TLS)
+	require.NotEqual(t, newHostCA.GetActiveKeys().SSH, newDatabaseCA.GetActiveKeys().SSH)
 }
