@@ -1797,18 +1797,19 @@ message SessionUpload {
 // Identity matches github.com/gravitational/teleport/lib/tlsca.Identity except
 // for RouteToApp and RouteToDatabase which are nullable and Traits which is
 // represented as a google.protobuf.Struct (still containing a map from string
-// to strings).
+// to strings). Field names match other names already used in other events
+// rather than the field names in tlsca.Identity.
 message Identity {
-    // Username is a username or name of the node connection
-    string Username = 1 [ (gogoproto.jsontag) = "user,omitempty" ];
+    // User is a username or name of the node connection
+    string User = 1 [ (gogoproto.jsontag) = "user,omitempty" ];
     // Impersonator is a username of a user impersonating this user
     string Impersonator = 2 [ (gogoproto.jsontag) = "impersonator,omitempty" ];
-    // Groups is a list of groups (Teleport roles) encoded in the identity
-    repeated string Groups = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
+    // Roles is a list of groups (Teleport roles) encoded in the identity
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
     // Usage is a list of usage restrictions encoded in the identity
     repeated string Usage = 4 [ (gogoproto.jsontag) = "usage,omitempty" ];
-    // Principals is a list of Unix logins allowed.
-    repeated string Principals = 5 [ (gogoproto.jsontag) = "logins,omitempty" ];
+    // Logins is a list of Unix logins allowed.
+    repeated string Logins = 5 [ (gogoproto.jsontag) = "logins,omitempty" ];
     // KubernetesGroups is a list of Kubernetes groups allowed
     repeated string KubernetesGroups = 6 [ (gogoproto.jsontag) = "kubernetes_groups,omitempty" ];
     // KubernetesUsers is a list of Kubernetes users allowed
@@ -1842,15 +1843,15 @@ message Identity {
     repeated string DatabaseNames = 15 [ (gogoproto.jsontag) = "database_names,omitempty" ];
     // DatabaseUsers is a list of allowed database users.
     repeated string DatabaseUsers = 16 [ (gogoproto.jsontag) = "database_users,omitempty" ];
-    // MFAVerified is the UUID of an MFA device when this Identity was
+    // MFADeviceUUID is the UUID of an MFA device when this Identity was
     // confirmed immediately after an MFA check.
-    string MFAVerified = 17 [ (gogoproto.jsontag) = "mfa_device,omitempty" ];
+    string MFADeviceUUID = 17 [ (gogoproto.jsontag) = "mfa_device_uuid,omitempty" ];
     // ClientIP is an observed IP of the client that this Identity represents.
     string ClientIP = 18 [ (gogoproto.jsontag) = "client_ip,omitempty" ];
     // AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
     repeated string AWSRoleARNs = 19 [ (gogoproto.jsontag) = "aws_role_arns,omitempty" ];
-    // ActiveRequests is a list of UUIDs of active requests for this Identity.
-    repeated string ActiveRequests = 20 [ (gogoproto.jsontag) = "access_requests,omitempty" ];
+    // AccessRequests is a list of UUIDs of active requests for this Identity.
+    repeated string AccessRequests = 20 [ (gogoproto.jsontag) = "access_requests,omitempty" ];
     // DisallowReissue is a flag that, if set, instructs the auth server to
     // deny any attempts to reissue new certificates while authenticated with
     // this certificate.

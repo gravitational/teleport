@@ -224,11 +224,11 @@ func (id *Identity) GetEventIdentity() events.Identity {
 	}
 
 	return events.Identity{
-		Username:          id.Username,
+		User:              id.Username,
 		Impersonator:      id.Impersonator,
-		Groups:            id.Groups,
+		Roles:             id.Groups,
 		Usage:             id.Usage,
-		Principals:        id.Principals,
+		Logins:            id.Principals,
 		KubernetesGroups:  id.KubernetesGroups,
 		KubernetesUsers:   id.KubernetesUsers,
 		Expires:           id.Expires,
@@ -240,10 +240,10 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		RouteToDatabase:   routeToDatabase,
 		DatabaseNames:     id.DatabaseNames,
 		DatabaseUsers:     id.DatabaseUsers,
-		MFAVerified:       id.MFAVerified,
+		MFADeviceUUID:     id.MFAVerified,
 		ClientIP:          id.ClientIP,
 		AWSRoleARNs:       id.AWSRoleARNs,
-		ActiveRequests:    id.ActiveRequests,
+		AccessRequests:    id.ActiveRequests,
 		DisallowReissue:   id.DisallowReissue,
 	}
 }
