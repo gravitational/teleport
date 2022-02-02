@@ -737,7 +737,7 @@ func completeRotation(clock clockwork.Clock, ca services.CertAuthority) error {
 	rotation.Started = time.Time{}
 	rotation.State = services.RotationStateStandby
 	rotation.Phase = services.RotationPhaseStandby
-	rotation.LastRotated = clock.Now()
+	rotation.LastRotated = clock.Now().UTC()
 	rotation.Mode = ""
 	rotation.Schedule = services.RotationSchedule{}
 
