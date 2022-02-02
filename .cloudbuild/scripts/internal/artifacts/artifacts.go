@@ -12,6 +12,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// FindAndUpload finds all of the files referenced by the supplied patterns
+// and uploads them to the supplied GCS bucket. The supplied patterns are
+// expected to be fully-qualified paths, and will be searched without changing
+// the current directory.
+//
+// Artifacts from various paths will be aggregated into one place in the
+// bucket with the supplied prefix, using the file's base name to disambiguate,
+// so be wary of including multiple artifacts with teh same name.
 func FindAndUpload(ctx context.Context, bucketName, objectPrefix string, artifactPatterns []string) error {
 	log.Printf("Scanning for artifacts...")
 	artifacts := []string{}
@@ -31,6 +39,13 @@ func FindAndUpload(ctx context.Context, bucketName, objectPrefix string, artifac
 	return Upload(ctx, bucketName, objectPrefix, artifacts...)
 }
 
+// Upload uploads a set of files to the indicated artefact bucket with the
+// supplied prefix.
+//
+// Note that artifacts from various paths will be aggregated into one place in
+// the bucket under the supplied prefix, using the file's base name to
+// disambiguate. Be wary of including multiple artifacts with the same name, as
+// later object may clobber earlier ones.
 func Upload(ctx context.Context, bucket string, prefix string, files ...string) error {
 	client, err := storage.NewClient(ctx)
 	if err != nil {
@@ -41,7 +56,7 @@ func Upload(ctx context.Context, bucket string, prefix string, files ...string) 
 	bucketHandle := client.Bucket(bucket)
 
 	for _, filename := range files {
-		objectName := path.Join("/", prefix, path.Base(filename))
+		objectName := path.Join(prefix, path.Base(filename))
 		log.Infof("Uploading artifact %q as %q", filename, objectName)
 
 		if err = uploadFile(ctx, bucketHandle, objectName, filename); err != nil {
@@ -53,6 +68,7 @@ func Upload(ctx context.Context, bucket string, prefix string, files ...string) 
 	return nil
 }
 
+// uploadFile uploads an individual file to the supplied storage bucket.
 func uploadFile(ctx context.Context, bucket *storage.BucketHandle, objectName, filename string) error {
 	obj := bucket.Object(objectName)
 

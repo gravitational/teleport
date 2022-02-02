@@ -24,10 +24,10 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"strings"
 
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/customflag"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -41,23 +41,12 @@ func main() {
 	}
 }
 
-type artifactFlags []string
-
-func (flags *artifactFlags) String() string {
-	return strings.Join(*flags, ", ")
-}
-
-func (flags *artifactFlags) Set(value string) error {
-	*flags = append(*flags, value)
-	return nil
-}
-
 type commandlineArgs struct {
 	workspace    string
 	targetBranch string
 	commitSHA    string
 	buildID      string
-	artifacts    artifactFlags
+	artifacts    customflag.StringArray
 	bucket       string
 }
 

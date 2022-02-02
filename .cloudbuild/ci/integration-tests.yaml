@@ -17,5 +17,12 @@ steps:
     entrypoint: bash
     args: 
       - -c
-      - go run ./cmd/integration-tests -w=/workspace -t=$_BASE_BRANCH -c=HEAD
+      - |
+        go run ./cmd/integration-tests \
+          -workspace /workspace        \
+          -target $_BASE_BRANCH        \
+          -commit HEAD                 \
+          -bucket test-logs            \
+          -build $BUILD_ID             \
+          -a "test-logs/*.json"          
     timeout: 20m
