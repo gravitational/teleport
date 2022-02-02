@@ -44,7 +44,7 @@ var (
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      teleport.MetricCacheEventsReceived,
-			Help:      "Number of events received by a Teleport service cache",
+			Help:      "Number of events received by a Teleport service cache. Teleport's Auth Service, Proxy Service, and other services cache incoming events related to their service.",
 		},
 		[]string{teleport.TagCacheComponent},
 	)
@@ -956,7 +956,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 						if sk := event.Resource.GetSubKind(); sk != "" {
 							kind = fmt.Sprintf("%s/%s", kind, sk)
 						}
-						c.Debugf("Encountered %d stale event(s), may indicate degraded backend or event system performance. last_kind=%q", staleEventCount, kind)
+						c.Warningf("Encountered %d stale event(s), may indicate degraded backend or event system performance. last_kind=%q", staleEventCount, kind)
 						lastStalenessWarning = now
 						staleEventCount = 0
 					}
