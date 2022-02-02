@@ -18,13 +18,17 @@ package service
 
 import (
 	"crypto/tls"
+	"math"
 	"path/filepath"
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/teleport"
 
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
@@ -62,11 +66,16 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			// client works, by using call that should succeed at all times
 			if connector.Client != nil {
 				pingResponse, err := connector.Client.Ping(process.ExitContext())
+				if err := process.compareVersions(&pingResponse); err != nil {
+					process.log.Debugf("Error comparing formats: %v", err)
+				}
+
 				if err == nil {
 					process.setClusterFeatures(pingResponse.GetServerFeatures())
 					process.log.Infof("%v: features loaded from auth server: %+v", role, pingResponse.GetServerFeatures())
 					return connector, nil
 				}
+
 				process.log.Debugf("Connected client %v failed to execute test call: %v. Node or proxy credentials are out of sync.", role, err)
 				if err := connector.Client.Close(); err != nil {
 					process.log.Debugf("Failed to close the client: %v.", err)
@@ -77,7 +86,7 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 
 		// Used for testing that auth service will attempt to reconnect in the provided duration.
 		select {
-		case process.connectFailureC <- retry.Duration():
+		case process.Config.ConnectFailureC <- retry.Duration():
 		default:
 		}
 
@@ -92,6 +101,21 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			return nil, ErrTeleportExited
 		}
 	}
+}
+
+func (process *TeleportProcess) compareVersions(resp *proto.PingResponse) error {
+	serverVersion, err := semver.NewVersion(resp.ServerVersion)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	teleportVersion, err := semver.NewVersion(teleport.Version)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if math.Abs(float64(serverVersion.Major-teleportVersion.Major)) > 1 {
+		process.log.Warnf("Only versions %d and %d are supported, auth server is %s.", teleportVersion.Major, teleportVersion.Major-1, serverVersion.Major)
+	}
+	return nil
 }
 
 // connectToAuthService attempts to login into the auth servers specified in the
@@ -361,7 +385,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 
 		var ec2IdentityDocument []byte
 		if process.Config.JoinMethod == JoinMethodEC2 {
-			ec2IdentityDocument, err = getEC2IdentityDocument()
+			ec2IdentityDocument, err = utils.GetEC2IdentityDocument()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

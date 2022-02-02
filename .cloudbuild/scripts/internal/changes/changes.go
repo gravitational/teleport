@@ -14,15 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package main implements a script to test if a PR being tested contains only
-// documentation changes. If so, it will create a signal file in a specified
-// location, the existence of which subsequent build steps can use to determine
-// if they should run or not.
+// Package changes implements a script to analyse the changes between
+// a commit and a given branch. It is designed for use when comparing
+// the tip of a PR against the merge target
 package changes
 
 import (
 	"log"
-	"os"
 	"strings"
 
 	"github.com/go-git/go-git/v5"
@@ -80,7 +78,8 @@ func isDocChange(path string) bool {
 	path = strings.ToLower(path)
 	return strings.HasPrefix(path, "docs/") ||
 		strings.HasSuffix(path, ".mdx") ||
-		strings.HasSuffix(path, ".md")
+		strings.HasSuffix(path, ".md") || 
+		strings.HasPrefix(path, "rfd/")
 }
 
 // getChanges resolves the head of target branch and compares the trees at the
@@ -92,13 +91,13 @@ func getChanges(repo *git.Repository, targetBranch, commit string) (object.Chang
 		return nil, trace.Wrap(err, "failed getting target branch worktree")
 	}
 
-	log.Printf("Getting worktree for commit %s", commit)
+	log.Printf("Getting filetree for commit %s", commit)
 	commitTree, err := getCommitTree(repo, commit)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed getting target branch worktree")
 	}
 
-	log.Printf("Comparing commit %s with target %s", commit, targetBranch)
+	log.Printf("Comparing commit %q with target branch %q", commit, targetBranch)
 	changes, err := targetTree.Diff(commitTree)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed diffing target branch and latest commit")
@@ -144,15 +143,6 @@ func getTreeForSHA(repo *git.Repository, sha plumbing.Hash) (*object.Tree, error
 	}
 
 	return tree, nil
-}
-
-func touch(filename string) error {
-	f, err := os.Create(filename)
-	if err != nil {
-		return trace.Wrap(err, "failed touching file %s", filename)
-	}
-	f.Close()
-	return nil
 }
 
 func getChangePath(c *object.Change) string {

@@ -213,7 +213,7 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 				"db_protocol": c.dbProtocol,
 				"db_uri":      c.dbURI,
 			})
-	case roles.Include(types.RoleTrustedCluster), roles.Include(types.LegacyClusterTokenType):
+	case roles.Include(types.RoleTrustedCluster):
 		fmt.Printf(trustedClusterMessage,
 			token,
 			int(c.ttl.Minutes()))

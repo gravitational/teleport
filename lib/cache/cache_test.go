@@ -40,8 +40,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -628,7 +628,7 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 
 	for i := 0; i < nodeCount; i++ {
 		func() {
-			server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 			_, err := p.presenceS.UpsertNode(ctx, server)
 			require.NoError(b, err)
 			timeout := time.NewTimer(time.Millisecond * 200)
@@ -671,7 +671,7 @@ func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
 
 	for i := 0; i < nodeCount; i++ {
 		func() {
-			server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 			_, err := p.presenceS.UpsertNode(ctx, server)
 			require.NoError(b, err)
 			timeout := time.NewTimer(time.Millisecond * 200)
@@ -745,7 +745,7 @@ func TestListNodesTTLVariant(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < nodeCount; i++ {
-		server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
 	}
@@ -780,6 +780,21 @@ func TestListNodesTTLVariant(t *testing.T) {
 	}
 
 	require.Len(t, nodes, nodeCount)
+
+	var resources []types.ResourceWithLabels
+	var listResourcesStartKey string
+	require.Eventually(t, func() bool {
+		page, nextKey, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+			Namespace:    apidefaults.Namespace,
+			ResourceType: types.KindNode,
+			StartKey:     listResourcesStartKey,
+			Limit:        int32(pageSize),
+		})
+		require.NoError(t, err)
+		resources = append(resources, page...)
+		listResourcesStartKey = nextKey
+		return len(resources) == nodeCount
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 func initStrategy(t *testing.T) {
@@ -1837,7 +1852,7 @@ func TestApplicationServers(t *testing.T) {
 	// Upsert app server into backend.
 	app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "localhost"})
 	require.NoError(t, err)
-	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 	require.NoError(t, err)
 
 	_, err = p.presenceS.UpsertApplicationServer(ctx, server)
@@ -2007,7 +2022,7 @@ func TestDatabaseServers(t *testing.T) {
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
 		Hostname: "localhost",
-		HostID:   uuid.New(),
+		HostID:   uuid.New().String(),
 	})
 	require.NoError(t, err)
 
@@ -2193,8 +2208,11 @@ func TestCache_Backoff(t *testing.T) {
 			require.GreaterOrEqual(t, duration, stepMin)
 			require.LessOrEqual(t, duration, stepMax)
 
+			// wait for cache to get to retry.After
+			clock.BlockUntil(1)
+
 			// add some extra to the duration to ensure the retry occurs
-			clock.Advance(duration * 3)
+			clock.Advance(p.cache.MaxRetryPeriod)
 		case <-time.After(time.Minute):
 			t.Fatalf("timeout waiting for event")
 		}
