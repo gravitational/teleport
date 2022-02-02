@@ -25,6 +25,12 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/client-go/pkg/apis/clientauthentication"
+	clientauthv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
@@ -34,14 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/client-go/pkg/apis/clientauthentication"
-	clientauthv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 )
 
 type kubeCommands struct {
@@ -330,13 +328,15 @@ func getKubeTLSServerName(tc *client.TeleportClient) string {
 		// If proxy is configured without public_addr set the ServerName to the 'kube.teleport.cluster.local' value.
 		// The k8s server name needs to be a valid hostname but when public_addr is missing from proxy settings
 		// the web_listen_addr is used thus webHost will contain local proxy IP address like: 0.0.0.0 or 127.0.0.1
-		return addSubdomainPrefix(constants.APIDomain, alpnproxy.KubeSNIPrefix)
+		// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
+		return addSubdomainPrefix(constants.APIDomain, constants.KubeSNIPrefix)
 	}
-	return addSubdomainPrefix(k8host, alpnproxy.KubeSNIPrefix)
+	// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
+	return addSubdomainPrefix(k8host, constants.KubeSNIPrefix)
 }
 
 func addSubdomainPrefix(domain, prefix string) string {
-	return fmt.Sprintf("%s.%s", prefix, domain)
+	return fmt.Sprintf("%s%s", prefix, domain)
 }
 
 // buildKubeConfigUpdate returns a kubeconfig.Values suitable for updating the user's kubeconfig
@@ -346,6 +346,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		ClusterAddr:         kubeStatus.clusterAddr,
 		TeleportClusterName: kubeStatus.teleportClusterName,
 		Credentials:         kubeStatus.credentials,
+		ProxyAddr:           cf.Proxy,
 		TLSServerName:       kubeStatus.tlsServerName,
 	}
 

@@ -378,7 +378,7 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			name:       "postgres",
 			dbProtocol: defaults.ProtocolPostgres,
 			cmd: []string{"psql",
-				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/certs.pem&" +
+				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
 					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
 					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full"},
 			wantErr: false,
@@ -392,7 +392,7 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"cockroach", "sql", "--url",
-				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/certs.pem&" +
+				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
 					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
 					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full"},
 			wantErr: false,
@@ -402,7 +402,7 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			dbProtocol: defaults.ProtocolCockroachDB,
 			execer:     &fakeExec{},
 			cmd: []string{"psql",
-				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/certs.pem&" +
+				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
 					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
 					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full"},
 			wantErr: false,
@@ -422,7 +422,7 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 				"--host", "localhost",
 				"--protocol", "TCP",
 				"--ssl-key", "/tmp/keys/example.com/bob",
-				"--ssl-ca", "/tmp/keys/example.com/certs.pem",
+				"--ssl-ca", "/tmp/keys/example.com/cas/root.pem",
 				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--ssl-verify-server-cert"},
 			wantErr: false,
@@ -442,7 +442,7 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 				"--host", "localhost",
 				"--protocol", "TCP",
 				"--ssl-key", "/tmp/keys/example.com/bob",
-				"--ssl-ca", "/tmp/keys/example.com/certs.pem",
+				"--ssl-ca", "/tmp/keys/example.com/cas/root.pem",
 				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--ssl-verify-server-cert"},
 			wantErr: false,
@@ -474,13 +474,32 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:       "mongodb",
+			name:       "mongodb (legacy)",
 			dbProtocol: defaults.ProtocolMongoDB,
+			execer: &fakeExec{
+				execOutput: map[string][]byte{},
+			},
 			cmd: []string{"mongo",
 				"--host", "localhost",
 				"--port", "12345",
 				"--ssl",
 				"--sslPEMKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
+				"mydb"},
+			wantErr: false,
+		},
+		{
+			name:       "mongosh",
+			dbProtocol: defaults.ProtocolMongoDB,
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"mongosh": []byte("1.1.6"),
+				},
+			},
+			cmd: []string{"mongosh",
+				"--host", "localhost",
+				"--port", "12345",
+				"--tls",
+				"--tlsCertificateKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"mydb"},
 			wantErr: false,
 		},
@@ -498,7 +517,7 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 				ServiceName: "mysql",
 			}
 
-			c := newCmdBuilder(tc, profile, database, WithLocalProxy("localhost", 12345, ""))
+			c := newCmdBuilder(tc, profile, database, "root", WithLocalProxy("localhost", 12345, ""))
 			c.exe = tt.execer
 			got, err := c.getConnectCommand()
 			if tt.wantErr {

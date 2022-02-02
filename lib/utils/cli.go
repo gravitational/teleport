@@ -56,21 +56,15 @@ func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 	switch purpose {
 	case LoggingForCLI:
 		// If debug logging was asked for on the CLI, then write logs to stderr.
-		// Otherwise discard all logs.
+		// Otherwise, discard all logs.
 		if level == log.DebugLevel {
-			log.SetFormatter(&trace.TextFormatter{
-				DisableTimestamp: true,
-				EnableColors:     trace.IsTerminal(os.Stderr),
-			})
+			log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 			log.SetOutput(os.Stderr)
 		} else {
 			log.SetOutput(ioutil.Discard)
 		}
 	case LoggingForDaemon:
-		log.SetFormatter(&trace.TextFormatter{
-			DisableTimestamp: true,
-			EnableColors:     trace.IsTerminal(os.Stderr),
-		})
+		log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 		log.SetOutput(os.Stderr)
 	}
 }
@@ -82,7 +76,7 @@ func InitLoggerForTests() {
 
 	logger := log.StandardLogger()
 	logger.ReplaceHooks(make(log.LevelHooks))
-	logger.SetFormatter(&trace.TextFormatter{})
+	log.SetFormatter(NewTestTextFormatter())
 	logger.SetLevel(log.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	if testing.Verbose() {
@@ -96,7 +90,7 @@ func InitLoggerForTests() {
 func NewLoggerForTests() *log.Logger {
 	logger := log.New()
 	logger.ReplaceHooks(make(log.LevelHooks))
-	logger.SetFormatter(&trace.TextFormatter{})
+	logger.SetFormatter(NewTestTextFormatter())
 	logger.SetLevel(log.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	return logger
@@ -111,10 +105,7 @@ func WrapLogger(logger *log.Entry) Logger {
 // NewLogger creates a new empty logger
 func NewLogger() *log.Logger {
 	logger := log.New()
-	logger.SetFormatter(&trace.TextFormatter{
-		DisableTimestamp: true,
-		EnableColors:     trace.IsTerminal(os.Stderr),
-	})
+	logger.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 	return logger
 }
 
