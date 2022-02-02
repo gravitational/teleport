@@ -1678,12 +1678,6 @@ message WindowsDesktopSessionEnd {
     map<string, string> DesktopLabels = 8 [ (gogoproto.jsontag) = "desktop_labels" ];
 }
 
-// CertificateType represents the type of a certificate (user, host, CA, client...).
-enum CertificateType {
-    UNKNOWN = 0;
-    USER = 1;
-}
-
 // CertificateCreate is emitted when a certificate is issued.
 message CertificateCreate {
     // Metadata is a common event metadata.
@@ -1691,7 +1685,7 @@ message CertificateCreate {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
     // CertificateType is the type of certificate that was just issued.
-    CertificateType CertificateType = 2 [ (gogoproto.jsontag) = "cert_type,omitempty" ];
+    string CertificateType = 2 [ (gogoproto.jsontag) = "cert_type,omitempty" ];
 
     // Identity is the identity associated with the certificate, as interpreted by Teleport.
     Identity Identity = 3 [ (gogoproto.jsontag) = "identity" ];

@@ -1146,7 +1146,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			Type: events.CertificateCreateEvent,
 			Code: events.CertificateCreateCode,
 		},
-		CertificateType: apievents.CertificateType_USER,
+		CertificateType: events.CertificateTypeUser,
 		Identity:        &eventIdentity,
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit certificate create event.")
