@@ -1317,7 +1317,7 @@ func (c *testContext) makeTLSConfig(t *testing.T) *tls.Config {
 	conf := utils.TLSConfig(nil)
 	conf.Certificates = append(conf.Certificates, cert)
 	conf.ClientAuth = tls.VerifyClientCertIfGiven
-	conf.ClientCAs, err = auth.ClientCertPool(c.authServer, c.clusterName)
+	conf.ClientCAs, err = auth.DefaultClientCertPool(c.authServer, c.clusterName)
 	require.NoError(t, err)
 	return conf
 }
@@ -1864,7 +1864,7 @@ func withCloudSQLMySQLTLS(name, authUser, authToken string) withDatabaseOption {
 				InstanceID: "instance-1",
 			},
 			// Set CA cert to pass cert validation.
-			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
 		})
 		require.NoError(t, err)
 		testCtx.mysql[name] = testMySQL{
