@@ -62,6 +62,7 @@ pub extern "C" fn init() {
 pub struct Client {
     rdp_client: Arc<Mutex<RdpClient<TcpStream>>>,
     tcp_fd: usize,
+    go_ref: usize,
 }
 
 impl Client {
@@ -107,6 +108,7 @@ impl From<Result<Client, ConnectError>> for ClientOrError {
 /// to their corresponding parameters.
 #[no_mangle]
 pub unsafe extern "C" fn connect_rdp(
+    go_ref: usize,
     go_addr: *mut c_char,
     go_username: *mut c_char,
     cert_der_len: u32,
@@ -123,6 +125,7 @@ pub unsafe extern "C" fn connect_rdp(
     let key_der = from_go_array(key_der_len, key_der);
 
     connect_rdp_inner(
+        go_ref,
         &addr,
         username,
         cert_der,
@@ -155,6 +158,7 @@ impl From<RdpError> for ConnectError {
 const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
 
 fn connect_rdp_inner(
+    go_ref: usize,
     addr: &str,
     username: String,
     cert_der: Vec<u8>,
@@ -218,7 +222,9 @@ fn connect_rdp_inner(
     let rdpdr = rdpdr::Client::new(cert_der, key_der);
 
     // Client for the "cliprdr" channel - clipboard sharing.
-    let cliprdr = cliprdr::Client::new();
+    let cliprdr: cliprdr::Client = cliprdr::Client::new(Box::new(move |v| unsafe {
+        handle_remote_copy(go_ref, v.as_ptr() as _, v.len() as u32);
+    }));
 
     let rdp_client = RdpClient {
         mcs,
@@ -229,6 +235,7 @@ fn connect_rdp_inner(
     Ok(Client {
         rdp_client: Arc::new(Mutex::new(rdp_client)),
         tcp_fd,
+        go_ref,
     })
 }
 
@@ -351,15 +358,44 @@ fn wait_for_fd(fd: usize) -> bool {
     }
 }
 
+/// `update_clipboard` is called from Go, and caches data that was copied
+/// client-side while notifying the RDP server that new clipboard data is available.
+///
+/// # Safety
+///
+/// `client_ptr` must be a valid pointer to a Client.
+#[no_mangle]
+pub unsafe extern "C" fn update_clipboard(
+    client_ptr: *mut Client,
+    data: *mut u8,
+    len: u32,
+) -> CGOError {
+    let client = match Client::from_ptr(client_ptr) {
+        Some(client) => client,
+        None => {
+            return to_cgo_error("invalid Rust client pointer".to_string());
+        }
+    };
+    let data = from_go_array(len, data);
+    let mut lock = client.rdp_client.lock().unwrap();
+    match lock.cliprdr.update_clipboard(data) {
+        Ok(message) => match lock.mcs.write(&"cliprdr".to_string(), message) {
+            Ok(()) => CGO_OK,
+            Err(e) => to_cgo_error(format!("failed writing cliprdr format list: {:?}", e)),
+        },
+        Err(e) => to_cgo_error(format!("failed updating clipboard: {:?}", e)),
+    }
+}
+
 /// `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
 /// handle_bitmap.
 ///
 /// # Safety
 ///
-/// client_ptr must be a valid pointer to a Client.
-/// handle_bitmap *must not* free the memory of CGOBitmap.
+/// `client_ptr` must be a valid pointer to a Client.
+/// `handle_bitmap` *must not* free the memory of CGOBitmap.
 #[no_mangle]
-pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client, client_ref: usize) -> CGOError {
+pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOError {
     let client = Client::from_ptr(client_ptr);
     let client = match client {
         Some(client) => client,
@@ -367,15 +403,16 @@ pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client, client_ref: us
             return to_cgo_error("invalid Rust client pointer".to_string());
         }
     };
-    if let Some(err) = read_rdp_output_inner(client, client_ref) {
+    if let Some(err) = read_rdp_output_inner(client) {
         to_cgo_error(err)
     } else {
         CGO_OK
     }
 }
 
-fn read_rdp_output_inner(client: &Client, client_ref: usize) -> Option<String> {
+fn read_rdp_output_inner(client: &Client) -> Option<String> {
     let tcp_fd = client.tcp_fd;
+    let client_ref = client.go_ref;
     // Read incoming events.
     //
     // Wait for some data to be available on the TCP socket FD before consuming it. This prevents
@@ -626,6 +663,8 @@ unsafe fn from_cgo_error(e: CGOError) -> String {
 extern "C" {
     fn free_go_string(s: *mut c_char);
     fn handle_bitmap(client_ref: usize, b: CGOBitmap) -> CGOError;
+
+    fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOError;
 }
 
 /// Payload is a generic type used to represent raw incoming RDP messages for parsing.
