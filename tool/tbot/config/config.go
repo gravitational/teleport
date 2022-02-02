@@ -81,9 +81,9 @@ type OnboardingConfig struct {
 
 // BotConfig is the bot's root config object.
 type BotConfig struct {
-	Onboarding   *OnboardingConfig   `yaml:"onboarding,omitempty"`
-	Storage      StorageConfig       `yaml:"storage,omitempty"`
-	Destinations []DestinationConfig `yaml:"destinations,omitempty"`
+	Onboarding   *OnboardingConfig    `yaml:"onboarding,omitempty"`
+	Storage      StorageConfig        `yaml:"storage,omitempty"`
+	Destinations []*DestinationConfig `yaml:"destinations,omitempty"`
 
 	Debug          bool          `yaml:"debug"`
 	AuthServer     string        `yaml:"auth_server"`
@@ -144,6 +144,8 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		if err != nil {
 			return nil, trace.WrapWithMessage(err, "loading bot config from path %s", cf.ConfigPath)
 		}
+	} else {
+		config = &BotConfig{}
 	}
 
 	if cf.Debug {
@@ -186,12 +188,30 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		}
 	}
 
+	if cf.DestinationDir != "" {
+		// CLI only supports a single filesystem destination with SSH client config
+		// and all roles.
+		if len(config.Destinations) > 0 {
+			log.Warnf("CLI parameters are overriding destinations from %s", cf.ConfigPath)
+		}
+
+		// CheckAndSetDefaults() will configure default kinds and templates
+		config.Destinations = []*DestinationConfig{{
+			DestinationMixin: DestinationMixin{
+				Directory: &DestinationDirectory{
+					Path: cf.DestinationDir,
+				},
+			},
+		}}
+	}
+
 	// If any onboarding flags are set, override the whole section.
 	// (CAPath, CAPins, etc follow different codepaths so we don't want a
 	// situation where different fields become set weirdly due to struct
 	// merging)
 	if cf.Token != "" || len(cf.CAPins) > 0 {
-		if config.Onboarding.Token != "" || config.Onboarding.CAPath != "" || len(config.Onboarding.CAPins) > 0 {
+		onboarding := config.Onboarding
+		if onboarding != nil && (onboarding.Token != "" || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) {
 			// To be safe, warn about possible confusion.
 			log.Warn("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
 		}

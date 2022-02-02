@@ -72,7 +72,7 @@ func Run(args []string) error {
 	startCmd.Flag("data-dir", "Directory to store internal bot data.").StringVar(&cf.DataDir)
 	startCmd.Flag("destination-dir", "Directory to write generated certificates").StringVar(&cf.DestinationDir)
 	startCmd.Flag("certificate-ttl", "TTL of generated certificates").Default("60m").DurationVar(&cf.CertificateTTL)
-	startCmd.Flag("renew-interval", "Interval at which certificates are renewed; must be less than the certificate TTL.").Default("20m").DurationVar(&cf.RenewInterval)
+	startCmd.Flag("renew-interval", "Interval at which certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewInterval)
 
 	configCmd := app.Command("config", "Parse and dump a config file")
 
@@ -504,7 +504,7 @@ func renewLoop(cfg *config.BotConfig, client *auth.Client, ident *identity.Ident
 					return trace.Wrap(err)
 				}
 
-				if err := template.Render(client, impersonatedIdent, &dest); err != nil {
+				if err := template.Render(client, impersonatedIdent, dest); err != nil {
 					log.WithError(err).Warnf("Failed to render config template %+v", templateConfig)
 				}
 			}
