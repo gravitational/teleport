@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"bytes"
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"time"
@@ -211,13 +212,20 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 	}
 
 	caTypes := req.Types()
+	allCerts, err := a.getAllCertificates(clusterName.GetClusterName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	caTypes, err = a.findDuplicatedCertificates(caTypes, allCerts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	for _, caType := range caTypes {
-		existing, err := a.Trust.GetCertAuthority(types.CertAuthID{
-			Type:       caType,
-			DomainName: clusterName.GetClusterName(),
-		}, true)
-		if err != nil {
-			return trace.Wrap(err)
+		existing, found := allCerts[caType]
+		if !found {
+			return trace.BadParameter("failed to get CA") // TODO
 		}
 
 		rotated, err := a.processRotationRequest(rotationReq{
@@ -245,6 +253,67 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 		}
 	}
 	return nil
+}
+
+type CertAuthorityMap = map[types.CertAuthType]types.CertAuthority
+
+func (a *Server) getAllCertificates(clusterName string) (CertAuthorityMap, error) {
+	certs := make(CertAuthorityMap)
+
+	for _, caType := range types.CertAuthTypes {
+		ca, err := a.Trust.GetCertAuthority(types.CertAuthID{
+			Type:       caType,
+			DomainName: clusterName,
+		}, true)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		certs[caType] = ca
+	}
+
+	return certs, nil
+}
+
+func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAuthorityMap) ([]types.CertAuthType, error) {
+	toRotate := caTypes[:]
+
+	for _, caType := range caTypes {
+		cert, found := allCerts[caType]
+		if !found {
+			return nil, trace.BadParameter("missing certificate!!!!!!!") //TODO
+		}
+		for allCAType, allCert := range allCerts {
+			if caType == allCAType {
+				continue
+			}
+
+			activeKeys := cert.GetActiveKeys()
+			allActiveKeys := allCert.GetActiveKeys()
+
+			for _, ak := range activeKeys.TLS {
+				for _, aak := range allActiveKeys.TLS {
+					if bytes.Compare(ak.Cert, aak.Cert) == 0 {
+						toRotate = append(toRotate, allCAType)
+						goto end
+					}
+				}
+			}
+
+			for _, ak := range activeKeys.SSH {
+				for _, aak := range allActiveKeys.SSH {
+					if bytes.Compare(ak.PrivateKey, aak.PrivateKey) == 0 {
+						toRotate = append(toRotate, allCAType)
+						goto end
+					}
+				}
+			}
+
+		end:
+		}
+	}
+
+	return toRotate, nil
 }
 
 // RotateExternalCertAuthority rotates external certificate authority,

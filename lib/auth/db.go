@@ -153,17 +153,22 @@ func (s *Server) SignDatabaseCSR(_ context.Context, req *proto.DatabaseCSRReques
 	// Get the correct cert TTL based on roles.
 	ttl := roles.AdjustSessionTTL(apidefaults.CertDuration)
 
+	caType := types.UserCA
+	if req.SignWithDatabaseCA {
+		// Field SignWithDatabaseCA was added in Teleport v9. For older version is set to false.
+		caType = types.DatabaseCA
+	}
+
 	// Generate the TLS certificate.
-	userCA, err := s.Trust.GetCertAuthority(types.CertAuthID{
-		//TODO(jakule): Check version.
-		Type:       types.DatabaseCA,
+	ca, err := s.Trust.GetCertAuthority(types.CertAuthID{
+		Type:       caType,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(userCA)
+	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
