@@ -218,11 +218,6 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		}
 	}
 
-	traits, err := events.EncodeMapStrings(id.Traits)
-	if err != nil {
-		log.WithError(err).Debug("Failed to encode traits.")
-	}
-
 	return events.Identity{
 		User:              id.Username,
 		Impersonator:      id.Impersonator,
@@ -234,7 +229,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		Expires:           id.Expires,
 		RouteToCluster:    id.RouteToCluster,
 		KubernetesCluster: id.KubernetesCluster,
-		Traits:            traits,
+		Traits:            id.Traits,
 		RouteToApp:        routeToApp,
 		TeleportCluster:   id.TeleportCluster,
 		RouteToDatabase:   routeToDatabase,

@@ -19,6 +19,8 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
 
+import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
+
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
@@ -1827,8 +1829,11 @@ message Identity {
     // identities. This can be empty on older Teleport clients.
     string KubernetesCluster = 10 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
     // Traits hold claim data used to populate a role at runtime.
-    google.protobuf.Struct Traits = 11
-        [ (gogoproto.jsontag) = "traits,omitempty", (gogoproto.casttype) = "Struct" ];
+    wrappers.LabelValues Traits = 11 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "traits,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
     // RouteToApp holds routing information for applications. Routing metadata
     // allows Teleport web proxy to route HTTP requests to the appropriate
     // cluster and Teleport application proxy within the cluster.
