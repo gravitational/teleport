@@ -23,8 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
@@ -34,13 +32,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/interval"
-
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 // remoteSite is a remote site that established the inbound connecton to
@@ -416,129 +411,177 @@ func (s *remoteSite) compareAndSwapCertAuthority(ca types.CertAuthority) error {
 	return trace.CompareFailed("remote certificate authority rotation has been updated")
 }
 
-// updateCertAuthorities updates local and remote cert authorities
-func (s *remoteSite) updateCertAuthorities() error {
-	// update main cluster cert authorities on the remote side
-	// remote side makes sure that only relevant fields
-	// are updated
-	hostCA, err := s.localClient.GetCertAuthority(types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: s.srv.ClusterName,
-	}, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = s.remoteClient.RotateExternalCertAuthority(hostCA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func (s *remoteSite) updateCertAuthorities(retry utils.Retry) {
+	s.Debugf("Watching for cert authority changes.")
 
-	userCA, err := s.localClient.GetCertAuthority(types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: s.srv.ClusterName,
-	}, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = s.remoteClient.RotateExternalCertAuthority(userCA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// update remote cluster's host cert authoritiy on a local cluster
-	// local proxy is authorized to perform this operation only for
-	// host authorities of remote clusters.
-	remoteCA, err := s.remoteClient.GetCertAuthority(types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: s.domainName,
-	}, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if remoteCA.GetClusterName() != s.domainName {
-		return trace.BadParameter(
-			"remote cluster sent different cluster name %v instead of expected one %v",
-			remoteCA.GetClusterName(), s.domainName)
-	}
-
-	oldRemoteCA, err := s.localClient.GetCertAuthority(types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: remoteCA.GetClusterName(),
-	}, false)
-
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	// if CA is changed or does not exist, update backend
-	if err != nil || !services.CertAuthoritiesEquivalent(oldRemoteCA, remoteCA) {
-		if err := s.localClient.UpsertCertAuthority(remoteCA); err != nil {
-			return trace.Wrap(err)
+	for {
+		startedWaiting := s.clock.Now()
+		select {
+		case t := <-retry.After():
+			s.Debugf("Initiating new cert authority watch after waiting %v.", t.Sub(startedWaiting))
+			retry.Inc()
+		case <-s.ctx.Done():
+			return
 		}
-	}
 
-	// always update our local reference to the cert authority
-	return s.compareAndSwapCertAuthority(remoteCA)
+		err := s.watchCertAuthorities()
+		if err != nil {
+			switch {
+			case trace.IsNotFound(err):
+				s.Debugf("Remote cluster %v does not support cert authorities rotation yet.", s.domainName)
+			case trace.IsCompareFailed(err):
+				s.Infof("Remote cluster has updated certificate authorities, going to force reconnect.")
+				s.srv.removeSite(s.domainName)
+				s.Close()
+				return
+			case trace.IsConnectionProblem(err):
+				s.Debugf("Remote cluster %v is offline.", s.domainName)
+			default:
+				s.Warningf("Could not perform cert authorities update: %v.", trace.DebugReport(err))
+			}
+		}
+
+	}
 }
 
-func (s *remoteSite) periodicUpdateCertAuthorities() {
-	s.Debugf("Updating remote CAs with period %v.", s.srv.PollingPeriod)
-	periodic := interval.New(interval.Config{
-		Duration:      s.srv.PollingPeriod,
-		FirstDuration: utils.HalfJitter(s.srv.PollingPeriod),
-		Jitter:        utils.NewSeventhJitter(),
+func (s *remoteSite) watchCertAuthorities() error {
+	localWatcher, err := services.NewCertAuthorityWatcher(s.ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Log:       s,
+			Clock:     s.clock,
+			Client:    s.localAccessPoint,
+		},
+		WatchUserCA: true,
+		WatchHostCA: true,
 	})
-	defer periodic.Stop()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer localWatcher.Close()
+
+	remoteWatcher, err := services.NewCertAuthorityWatcher(s.ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Log:       s,
+			Clock:     s.clock,
+			Client:    s.remoteAccessPoint,
+		},
+		WatchHostCA: true,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer remoteWatcher.Close()
+
 	for {
 		select {
 		case <-s.ctx.Done():
-			s.Debugf("Context is closing.")
-			return
-		case <-periodic.Next():
-			err := s.updateCertAuthorities()
-			if err != nil {
-				switch {
-				case trace.IsNotFound(err):
-					s.Debugf("Remote cluster %v does not support cert authorities rotation yet.", s.domainName)
-				case trace.IsCompareFailed(err):
-					s.Infof("Remote cluster has updated certificate authorities, going to force reconnect.")
-					s.srv.removeSite(s.domainName)
-					s.Close()
-					return
-				case trace.IsConnectionProblem(err):
-					s.Debugf("Remote cluster %v is offline.", s.domainName)
-				default:
-					s.Warningf("Could not perform cert authorities updated: %v.", trace.DebugReport(err))
+			s.WithError(s.ctx.Err()).Debug("Context is closing.")
+			return trace.Wrap(s.ctx.Err())
+		case <-localWatcher.Done():
+			s.Warn("Local CertAuthority watcher subscription has closed")
+			return fmt.Errorf("local ca watcher for cluster %s has closed", s.srv.ClusterName)
+		case <-remoteWatcher.Done():
+			s.Warn("Remote CertAuthority watcher subscription has closed")
+			return fmt.Errorf("remote ca watcher for cluster %s has closed", s.domainName)
+		case cas := <-localWatcher.CertAuthorityC:
+			for _, localCA := range cas {
+				if localCA.GetClusterName() != s.srv.ClusterName ||
+					(localCA.GetType() != types.HostCA &&
+						localCA.GetType() != types.UserCA) {
+					continue
+				}
+
+				if err := s.remoteClient.RotateExternalCertAuthority(localCA); err != nil {
+					s.WithError(err).Warn("Failed to rotate external ca")
+					return trace.Wrap(err)
+				}
+			}
+		case cas := <-remoteWatcher.CertAuthorityC:
+			for _, remoteCA := range cas {
+				if remoteCA.GetType() != types.HostCA ||
+					remoteCA.GetClusterName() != s.domainName {
+					continue
+				}
+
+				oldRemoteCA, err := s.localClient.GetCertAuthority(types.CertAuthID{
+					Type:       types.HostCA,
+					DomainName: remoteCA.GetClusterName(),
+				}, false)
+
+				if err != nil && !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+
+				// if CA is changed or does not exist, update backend
+				if err != nil || !services.CertAuthoritiesEquivalent(oldRemoteCA, remoteCA) {
+					if err := s.localClient.UpsertCertAuthority(remoteCA); err != nil {
+						return trace.Wrap(err)
+					}
+				}
+
+				// always update our local reference to the cert authority
+				if err := s.compareAndSwapCertAuthority(remoteCA); err != nil {
+					return trace.Wrap(err)
 				}
 			}
 		}
 	}
 }
 
-func (s *remoteSite) periodicUpdateLocks() {
-	s.Debugf("Updating remote locks with period %v.", s.srv.PollingPeriod)
-	periodic := interval.New(interval.Config{
-		Duration:      s.srv.PollingPeriod,
-		FirstDuration: utils.HalfJitter(s.srv.PollingPeriod),
-		Jitter:        utils.NewSeventhJitter(),
-	})
-	defer periodic.Stop()
+func (s *remoteSite) updateLocks(retry utils.Retry) {
+	s.Debugf("Watching for remote lock changes.")
+
+	for {
+		startedWaiting := s.clock.Now()
+		select {
+		case t := <-retry.After():
+			s.Debugf("Initiating new lock watch after waiting %v.", t.Sub(startedWaiting))
+			retry.Inc()
+		case <-s.ctx.Done():
+			return
+		}
+
+		if err := s.watchLocks(); err != nil {
+			switch {
+			case trace.IsNotImplemented(err):
+				s.Debugf("Remote cluster %v does not support locks yet.", s.domainName)
+			case trace.IsConnectionProblem(err):
+				s.Debugf("Remote cluster %v is offline.", s.domainName)
+			default:
+				s.WithError(err).Warning("Could not update remote locks.")
+			}
+		}
+	}
+}
+
+func (s *remoteSite) watchLocks() error {
+	watcher, err := s.srv.LockWatcher.Subscribe(s.ctx)
+	if err != nil {
+		s.WithError(err).Error("Failed to subscribe to LockWatcher")
+		return err
+	}
+	defer func() {
+		if err := watcher.Close(); err != nil {
+			s.WithError(err).Warn("Failed to close lock watcher subscription.")
+		}
+	}()
+
 	for {
 		select {
+		case <-watcher.Done():
+			s.WithError(watcher.Error()).Warn("Lock watcher subscription has closed")
+			return trace.Wrap(watcher.Error())
 		case <-s.ctx.Done():
-			s.Debugf("Context is closing.")
-			return
-		case <-periodic.Next():
-			locks := s.srv.LockWatcher.GetCurrent()
-			if err := s.remoteClient.ReplaceRemoteLocks(s.ctx, s.srv.ClusterName, locks); err != nil {
-				switch {
-				case trace.IsNotImplemented(err):
-					s.Debugf("Remote cluster %v does not support locks yet.", s.domainName)
-				case trace.IsConnectionProblem(err):
-					s.Debugf("Remote cluster %v is offline.", s.domainName)
-				default:
-					s.WithError(err).Warning("Could not update remote locks.")
+			s.WithError(s.ctx.Err()).Debug("Context is closing.")
+			return trace.Wrap(s.ctx.Err())
+		case evt := <-watcher.Events():
+			switch evt.Type {
+			case types.OpPut, types.OpDelete:
+				locks := s.srv.LockWatcher.GetCurrent()
+				if err := s.remoteClient.ReplaceRemoteLocks(s.ctx, s.srv.ClusterName, locks); err != nil {
+					return trace.Wrap(err)
 				}
 			}
 		}
@@ -632,7 +675,7 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		MACAlgorithms:   s.srv.Config.MACAlgorithms,
 		DataDir:         s.srv.Config.DataDir,
 		Address:         params.Address,
-		UseTunnel:       UseTunnel(targetConn),
+		UseTunnel:       UseTunnel(s.Logger, targetConn),
 		FIPS:            s.srv.FIPS,
 		HostUUID:        s.srv.ID,
 		Emitter:         s.srv.Config.Emitter,
@@ -657,7 +700,7 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 // UseTunnel makes a channel request asking for the type of connection. If
 // the other side does not respond (older cluster) or takes to long to
 // respond, be on the safe side and assume it's not a tunnel connection.
-func UseTunnel(c *sshutils.ChConn) bool {
+func UseTunnel(logger *log.Logger, c *sshutils.ChConn) bool {
 	responseCh := make(chan bool, 1)
 
 	go func() {
@@ -673,8 +716,7 @@ func UseTunnel(c *sshutils.ChConn) bool {
 	case response := <-responseCh:
 		return response
 	case <-time.After(1 * time.Second):
-		// TODO: remove logrus import
-		logrus.Debugf("Timed out waiting for response: returning false.")
+		logger.Debugf("Timed out waiting for response: returning false.")
 		return false
 	}
 }

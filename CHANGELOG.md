@@ -1,5 +1,12 @@
 # Changelog
 
+## 7.3.12
+
+This release of Teleport contains a feature and a fix.
+
+* Added metrics for missing SSH tunnels. [#8603](https://github.com/gravitational/teleport/pull/8603)
+* Fixed an issue where logins denied by RBAC rules were no longer generating audit entries. [#7796](https://github.com/gravitational/teleport/pull/7796)
+
 ## 7.3.11
 
 This release of Teleport contains a feature and fix.
