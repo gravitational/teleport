@@ -176,7 +176,13 @@ func (pp *playbackPlayer) streamSessionEvents(ctx context.Context, cancel contex
 			if evt == nil {
 				pp.log.Debug("reached end of playback")
 
-				if _, err := pp.ws.Write([]byte("end")); err != nil {
+				msg, err := utils.FastMarshal(struct {
+					Message string `json:"message"`
+				}{Message: "end"})
+				if err != nil {
+					pp.log.WithError(err).Errorf("failed to marshal end message into JSON: %v", msg)
+				}
+				if _, err := pp.ws.Write(msg); err != nil {
 					pp.log.WithError(err).Error("failed to write \"end\" message over websocket")
 				}
 
@@ -191,7 +197,7 @@ func (pp *playbackPlayer) streamSessionEvents(ctx context.Context, cancel contex
 				}
 				msg, err := utils.FastMarshal(e)
 				if err != nil {
-					pp.log.WithError(err).Errorf("failed to marshal DesktopRecording event into JSON: %v", msg)
+					pp.log.WithError(err).Errorf("failed to marshal DesktopRecording event into JSON: %v", e)
 				}
 				if _, err := pp.ws.Write(msg); err != nil {
 					// We expect net.ErrClosed to arise when another goroutine returns before
