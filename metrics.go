@@ -189,6 +189,9 @@ const (
 	// MetricStaleCacheEventsReceived tracks the number of stale events received by a cache
 	MetricStaleCacheEventsReceived = "cache_stale_events"
 
+	// MetricRegisteredServers tracks the number of Teleport servers that have successfully registered with the Teleport cluster and have not reached the end of their ttl
+	MetricRegisteredServers = "registered_servers"
+
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
 

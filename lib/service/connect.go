@@ -385,7 +385,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 
 		var ec2IdentityDocument []byte
 		if process.Config.JoinMethod == JoinMethodEC2 {
-			ec2IdentityDocument, err = getEC2IdentityDocument()
+			ec2IdentityDocument, err = utils.GetEC2IdentityDocument()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
