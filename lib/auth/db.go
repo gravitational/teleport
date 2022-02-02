@@ -155,7 +155,8 @@ func (s *Server) SignDatabaseCSR(_ context.Context, req *proto.DatabaseCSRReques
 
 	// Generate the TLS certificate.
 	userCA, err := s.Trust.GetCertAuthority(types.CertAuthID{
-		Type:       types.UserCA,
+		//TODO(jakule): Check version.
+		Type:       types.DatabaseCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
