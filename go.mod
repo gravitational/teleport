@@ -49,7 +49,7 @@ require (
 	github.com/gravitational/reporting v0.0.0-20210923183620-237377721140
 	github.com/gravitational/roundtrip v1.0.1
 	github.com/gravitational/teleport/api v0.0.0
-	github.com/gravitational/trace v1.1.16-0.20211111002323-2897205b8d7f
+	github.com/gravitational/trace v1.1.16-0.20220114165159-14a9a7dd6aaf
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/jackc/pgconn v1.8.0
@@ -218,4 +218,5 @@ replace (
 	github.com/gravitational/teleport/api => ./api
 	github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77
 	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
+	github.com/vulcand/predicate => github.com/gravitational/predicate v1.2.0
 )
