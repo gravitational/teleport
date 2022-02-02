@@ -579,8 +579,10 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	require.True(t, upsertSuccess)
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	waitForClusters(t, main.Tunnel, 1, 10*time.Second)
-	waitForClusters(t, aux.Tunnel, 1, 10*time.Second)
+	require.Eventually(t, waitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, waitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
 
 	// impersonating client requests will be denied
 	impersonatingProxyClient, impersonatingProxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
@@ -832,8 +834,10 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	require.True(t, upsertSuccess)
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	waitForClusters(t, main.Tunnel, 1, 10*time.Second)
-	waitForClusters(t, aux.Tunnel, 1, 10*time.Second)
+	require.Eventually(t, waitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, waitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
 
 	// impersonating client requests will be denied
 	impersonatingProxyClient, impersonatingProxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
