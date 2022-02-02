@@ -443,16 +443,18 @@ The system is arguably made better by replacing server-side password checking
 with public-key crypto.
 
 No new server-side endpoints are added; modified endpoint remains largely the
-same (Web API authentication already starts from untrusted users). An
-interesting change is the ability for untrusted users to generate WebAuthn
-challenges, an operation previously gated by user/password. In order to mitigate
-a potential source of DoS and storage space attacks, the design recommends
-adding rate-limiting for those endpoints (a possibly overdue change).
+same (Web API authentication already starts from untrusted users). A noticeable
+change is the ability for untrusted users to generate WebAuthn challenges, an
+operation previously gated by user/password. The design recommends the following
+mitigations:
 
-A circular in-memory buffer (or similar solution) to storage challenges may also
-be advisable, in order to mitigate storage bloat of potentially-malicious
-challenge creation sprees. <!-- As noted by Alexey, this may require digging
-into the Teleport caching system to make it work in HA mode). -->
+1. A simple, in-memory, IP based rate limiter for sensitive endpoints
+   (mitigation for rudimentary DDoS attacks)
+2. A circular in-memory buffer to storage challenges
+   (mitigation for storage bloat attacks)
+
+<!-- As noted by Alexey, this may require digging into the Teleport caching
+system to make it work in HA mode). -->
 
 (Note that "entropy attacks" are
 [not really](https://www.2uo.de/myths-about-urandom/#what-about-entropy-running-low)
