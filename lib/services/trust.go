@@ -18,6 +18,15 @@ package services
 
 import "github.com/gravitational/teleport/api/types"
 
+// AuthorityGetter defines interface for fetching cert authority resources.
+type AuthorityGetter interface {
+	// GetCertAuthority returns cert authority by id
+	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...MarshalOption) (types.CertAuthority, error)
+
+	// GetCertAuthorities returns a list of cert authorities
+	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...MarshalOption) ([]types.CertAuthority, error)
+}
+
 // Trust is responsible for managing certificate authorities
 // Each authority is managing some domain, e.g. example.com
 //
@@ -28,6 +37,9 @@ import "github.com/gravitational/teleport/api/types"
 // Remote authorities have only public keys available, so they can
 // be only used to validate
 type Trust interface {
+	// AuthorityGetter retrieves certificate authorities
+	AuthorityGetter
+
 	// CreateCertAuthority inserts a new certificate authority
 	CreateCertAuthority(ca types.CertAuthority) error
 
@@ -44,14 +56,6 @@ type Trust interface {
 
 	// DeleteAllCertAuthorities deletes cert authorities of a certain type
 	DeleteAllCertAuthorities(caType types.CertAuthType) error
-
-	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
-	// controls if signing keys are loaded
-	GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts ...MarshalOption) (types.CertAuthority, error)
-
-	// GetCertAuthorities returns a list of authorities of a given type
-	// loadSigningKeys controls whether signing keys should be loaded or not
-	GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bool, opts ...MarshalOption) ([]types.CertAuthority, error)
 
 	// ActivateCertAuthority moves a CertAuthority from the deactivated list to
 	// the normal list.
