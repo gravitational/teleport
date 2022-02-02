@@ -188,7 +188,7 @@ const (
 
 	// MetricReverseSSHTunnels defines the number of connected SSH reverse tunnels to the proxy
 	MetricReverseSSHTunnels = "reverse_tunnels_connected"
-  
+
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
 
