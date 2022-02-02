@@ -199,8 +199,6 @@ func onStart(botConfig *config.BotConfig) error {
 		// Attach the ssh public key.
 		//ident.SSHPublicKeyBytes = sshPublicKey
 
-		// TODO: consider `memory` dest type for testing / ephemeral use / etc
-
 		log.Debug("attempting first connection using initial auth client")
 		authClient, err = authenticatedUserClientFromIdentity(ident, botConfig.AuthServer)
 		if err != nil {
@@ -390,7 +388,7 @@ func describeIdentity(ident *identity.Identity) error {
 
 	duration := time.Second * time.Duration(ident.Cert.ValidBefore-ident.Cert.ValidAfter)
 	log.Infof(
-		"Successfully fetched new %s certificates, now valid: after=%v, before=%v, duration=%s, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v",
+		"Successfully fetched new %s certificates, now valid: after=%v, before=%v, duration=%s, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v, generation=%v",
 		certType,
 		time.Unix(int64(ident.Cert.ValidAfter), 0),
 		time.Unix(int64(ident.Cert.ValidBefore), 0),
@@ -399,6 +397,7 @@ func describeIdentity(ident *identity.Identity) error {
 		tlsIdent.DisallowReissue,
 		tlsIdent.Groups,
 		principals,
+		tlsIdent.Generation,
 	)
 
 	return nil

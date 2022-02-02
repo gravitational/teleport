@@ -205,6 +205,51 @@ func (s *IdentityService) UpsertUser(user types.User) error {
 	return nil
 }
 
+// CompareAndSwapUser updates a user, but fails if the value (as exists in the
+// backend) differs from the provided `existing` value. If the existing value
+// matches, returns no error, otherwise returns `trace.ComapreFailed`.
+func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
+	if err := services.ValidateUser(new); err != nil {
+		return trace.Wrap(err)
+	}
+	newValue, err := services.MarshalUser(new.WithoutSecrets().(types.User))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newItem := backend.Item{
+		Key:     backend.Key(webPrefix, usersPrefix, new.GetName(), paramsPrefix),
+		Value:   newValue,
+		Expires: new.Expiry(),
+		ID:      new.GetResourceID(),
+	}
+
+	existingValue, err := services.MarshalUser(existing.WithoutSecrets().(types.User))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	existingItem := backend.Item{
+		Key:     backend.Key(webPrefix, usersPrefix, existing.GetName(), paramsPrefix),
+		Value:   existingValue,
+		Expires: existing.Expiry(),
+		ID:      existing.GetResourceID(),
+	}
+
+	_, err = s.CompareAndSwap(ctx, existingItem, newItem)
+	if err != nil {
+		if trace.IsCompareFailed(err) {
+			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
+		}
+		return trace.Wrap(err)
+	}
+
+	if auth := new.GetLocalAuth(); auth != nil {
+		if err = s.upsertLocalAuthSecrets(new.GetName(), *auth); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
 // GetUser returns a user by name
 func (s *IdentityService) GetUser(user string, withSecrets bool) (types.User, error) {
 	if withSecrets {

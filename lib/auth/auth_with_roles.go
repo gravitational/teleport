@@ -18,7 +18,9 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -1547,7 +1549,8 @@ func (a *ServerWithRoles) GenerateInitialRenewableUserCerts(ctx context.Context,
 	// Generate the initial set of user certificates. This differs from the
 	// normal flow in that we bypass certain impersonation checks
 	// (allowNop = true) and pass along certRequestRenewable().
-	certs, err := a.generateUserCerts(ctx, pr, true, certRequestRenewable())
+	// Note: generations start at 1.
+	certs, err := a.generateUserCerts(ctx, pr, true, certRequestRenewable(), certRequestGeneration(1))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1627,6 +1630,85 @@ func isNopUser(user types.User) bool {
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
 	return a.generateUserCerts(ctx, req, false)
+}
+
+// validateGenerationLabel validates and updates a generation label.
+func (a *ServerWithRoles) validateGenerationLabel(ctx context.Context, user types.User, certReq *certRequest) error {
+	// Fetch the user, bypassing the cache. We might otherwise fetch a stale
+	// value in case of a rapid certificate renewal.
+	user, err := a.authServer.Identity.GetUser(user.GetName(), false)
+	if err != nil {
+
+	}
+
+	var currentUserGeneration uint64
+	label, labelOk := user.GetMetadata().Labels[types.BotGenerationLabel]
+	if labelOk {
+		currentUserGeneration, err = strconv.ParseUint(label, 10, 64)
+		if err != nil {
+			return trace.BadParameter("user has invalid value for label %q", types.BotGenerationLabel)
+		}
+	}
+
+	// If there is no existing generation on any of the user, identity, or
+	// cert request, we have nothing to do here.
+	currentIdentityGeneration := a.context.Identity.GetIdentity().Generation
+	if currentUserGeneration == 0 && currentIdentityGeneration == 0 && certReq.generation == 0 {
+		return nil
+	}
+
+	// If the certReq already has generation set, it was explicitly requested
+	// (presumably this is the initial set of renewable certs). We'll want to
+	// commit that value to the User object.
+	if certReq.generation > 0 {
+		// ...however, if the user already has a stored generation, bail.
+		// (bots should be deleted and recreated if their certs expire)
+		if currentUserGeneration > 0 {
+			return trace.BadParameter(
+				"user %q has already been issued a renewable certificate and cannot be issued another",
+				user.GetName(),
+			)
+		}
+
+		newUser := user.Copy()
+		metadata := newUser.GetMetadata()
+		metadata.Labels[types.BotGenerationLabel] = fmt.Sprint(certReq.generation)
+		newUser.SetMetadata(metadata)
+
+		// Note: we bypass the RBAC check on purpose as bot users should not
+		// have user update permissions.
+		if err := a.authServer.CompareAndSwapUser(ctx, newUser, user); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+
+	// By now, we know a generation counter is in play _somewhere_. The current
+	// generations must match to continue:
+	if currentIdentityGeneration != currentUserGeneration {
+		return trace.AccessDenied(
+			"renewable cert generation mismatch: stored=%v, presented=%v",
+			currentUserGeneration, currentIdentityGeneration,
+		)
+	}
+
+	// Update the user with the new generation count.
+	newGeneration := currentIdentityGeneration + 1
+
+	newUser := user.Copy()
+	metadata := newUser.GetMetadata()
+	metadata.Labels[types.BotGenerationLabel] = fmt.Sprint(newGeneration)
+	newUser.SetMetadata(metadata)
+
+	if err := a.authServer.CompareAndSwapUser(ctx, newUser, user); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// And lastly, set the generation on the cert request.
+	certReq.generation = newGeneration
+
+	return nil
 }
 
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, allowNopUser bool, opts ...certRequestOption) (*proto.Certs, error) {
@@ -1919,6 +2001,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		certReq.renewable = true
 	}
 
+	// If the cert is renewable, process any certificate generation counter.
+	if certReq.renewable {
+		if err := a.validateGenerationLabel(ctx, user, &certReq); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	certs, err := a.authServer.generateUserCert(certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2028,6 +2117,17 @@ func (a *ServerWithRoles) UpsertUser(u types.User) error {
 		})
 	}
 	return a.authServer.UpsertUser(u)
+}
+
+// CompareAndSwapUser updates an existing user in a backend, but fails if the
+// backend's value does not match the expected value.
+// Captures the auth user who modified the user record.
+func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
+	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.CompareAndSwapUser(ctx, new, existing)
 }
 
 // UpsertOIDCConnector creates or updates an OIDC connector.

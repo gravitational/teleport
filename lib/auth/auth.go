@@ -646,6 +646,9 @@ type certRequest struct {
 	// renewable indicates that the certificate can be renewed,
 	// having its TTL increased
 	renewable bool
+	// generation indicates the number of times this certificate has been
+	// renewed.
+	generation uint64
 }
 
 // check verifies the cert request is valid.
@@ -678,8 +681,14 @@ func certRequestClientIP(ip string) certRequestOption {
 	return func(r *certRequest) { r.clientIP = ip }
 }
 
+// certRequestRenewable marks a certificate as renewable.
 func certRequestRenewable() certRequestOption {
 	return func(r *certRequest) { r.renewable = true }
+}
+
+// certRequestGeneration adds a generation counter to the certificate.
+func certRequestGeneration(generation uint64) certRequestOption {
+	return func(r *certRequest) { r.generation = generation }
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -926,6 +935,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		MFAVerified:           req.mfaVerified,
 		ClientIP:              req.clientIP,
 		DisallowReissue:       req.disallowReissue,
+		Renewable:             req.renewable,
+		Generation:            req.generation,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1005,6 +1016,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		ActiveRequests:  req.activeRequests.AccessRequests,
 		DisallowReissue: req.disallowReissue,
 		Renewable:       req.renewable,
+		Generation:      req.generation,
 	}
 	subject, err := identity.Subject()
 	if err != nil {

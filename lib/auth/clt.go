@@ -945,6 +945,11 @@ func (c *Client) UpsertUser(user types.User) error {
 	return trace.Wrap(err)
 }
 
+// CompareAndSwapUser not implemented: can only be called locally
+func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.User) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // ChangePassword updates users password based on the old password.
 func (c *Client) ChangePassword(req services.ChangePasswordReq) error {
 	_, err := c.PutJSON(c.Endpoint("users", req.User, "web", "password"), req)
@@ -1788,6 +1793,10 @@ type IdentityService interface {
 
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user types.User) error
+
+	// CompareAndSwapUser updates an existing user in a backend, but fails if
+	// the user in the backend does not match the expected value.
+	CompareAndSwapUser(ctx context.Context, new, expected types.User) error
 
 	// DeleteUser deletes an existng user in a backend by username.
 	DeleteUser(ctx context.Context, user string) error

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -65,6 +66,8 @@ type User interface {
 	GetTraits() map[string][]string
 	// GetTraits sets the trait map for this user used to populate role variables.
 	SetTraits(map[string][]string)
+	// Copy returns a copy of this user resource.
+	Copy() *UserV2
 }
 
 // NewUser creates new empty user
@@ -275,6 +278,11 @@ func (u *UserV2) ResetLocks() {
 	u.Spec.Status.LockedMessage = ""
 	u.Spec.Status.LockExpires = time.Time{}
 	u.Spec.Status.RecoveryAttemptLockExpires = time.Time{}
+}
+
+// Copy returns a copy of this user resource.
+func (u *UserV2) Copy() *UserV2 {
+	return proto.Clone(u).(*UserV2)
 }
 
 // IsEmpty returns true if there's no info about who created this user
