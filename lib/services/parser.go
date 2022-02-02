@@ -532,14 +532,15 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 // All other fields can be referenced by starting expression with identifier `resource`
 // followed by the names of the json fields ie: `resource.spec.public_addr`.
 func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, error) {
-	eqPred := func(a interface{}, b interface{}) predicate.BoolPredicate {
-		return func() bool {
-			return areOperandsEqual(a, b)
-		}
-	}
-	neqPred := func(a interface{}, b interface{}) predicate.BoolPredicate {
-		return func() bool {
-			return !areOperandsEqual(a, b)
+	predEquals := func(a interface{}, b interface{}) predicate.BoolPredicate {
+		switch aval := a.(type) {
+		case label:
+			bval, ok := b.(string)
+			return func() bool {
+				return ok && aval.value == bval
+			}
+		default:
+			return predicate.Equals(a, b)
 		}
 	}
 
@@ -548,11 +549,13 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 			AND: predicate.And,
 			OR:  predicate.Or,
 			NOT: predicate.Not,
-			EQ:  eqPred,
-			NEQ: neqPred,
+			EQ:  predEquals,
+			NEQ: func(a interface{}, b interface{}) predicate.BoolPredicate {
+				return predicate.Not(predEquals(a, b))
+			},
 		},
 		Functions: map[string]interface{}{
-			"equals": eqPred,
+			"equals": predEquals,
 			// search allows fuzzy matching against select field values.
 			"search": func(searchVals ...string) predicate.BoolPredicate {
 				return func() bool {
@@ -622,18 +625,6 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 	}
 
 	return boolPredicateParser{Parser: p}, nil
-}
-
-// areOperandsEqual extends `predicate.Equals` by adding
-// a label case.
-func areOperandsEqual(a interface{}, b interface{}) bool {
-	switch aval := a.(type) {
-	case label:
-		bval, ok := b.(string)
-		return ok && aval.value == bval
-	default:
-		return predicate.Equals(a, b)()
-	}
 }
 
 type label struct {
