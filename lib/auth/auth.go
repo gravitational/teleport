@@ -485,7 +485,7 @@ func (a *Server) updateVersionMetrics() {
 
 	proxyServers, err := client.GetProxies()
 	if err != nil {
-		log.Debugf("Failed to get Proxies for teleport_registered_agent metric: %v", err)
+		log.Debugf("Failed to get Proxies for teleport_registered_servers metric: %v", err)
 	}
 	for _, proxyServer := range proxyServers {
 		serverCheck(proxyServer)
@@ -493,7 +493,7 @@ func (a *Server) updateVersionMetrics() {
 
 	authServers, err := client.GetAuthServers()
 	if err != nil {
-		log.Debugf("Failed to get Auth servers for teleport_registered_agent metric: %v", err)
+		log.Debugf("Failed to get Auth servers for teleport_registered_servers metric: %v", err)
 	}
 	for _, authServer := range authServers {
 		serverCheck(authServer)
@@ -501,7 +501,7 @@ func (a *Server) updateVersionMetrics() {
 
 	servers, err := client.GetNodes(a.closeCtx, apidefaults.Namespace)
 	if err != nil {
-		log.Debugf("Failed to get Nodes for teleport_registered_agent metric: %v", err)
+		log.Debugf("Failed to get Nodes for teleport_registered_servers metric: %v", err)
 	}
 	for _, server := range servers {
 		serverCheck(server)
@@ -509,7 +509,7 @@ func (a *Server) updateVersionMetrics() {
 
 	dbs, err := client.GetDatabaseServers(a.closeCtx, apidefaults.Namespace)
 	if err != nil {
-		log.Debugf("Failed to get Database servers for teleport_registered_agent metric: %v", err)
+		log.Debugf("Failed to get Database servers for teleport_registered_servers metric: %v", err)
 	}
 	for _, db := range dbs {
 		serverCheck(db)
@@ -517,7 +517,7 @@ func (a *Server) updateVersionMetrics() {
 
 	apps, err := client.GetApplicationServers(a.closeCtx, apidefaults.Namespace)
 	if err != nil {
-		log.Debugf("Failed to get Application servers for teleport_registered_agent metric: %v", err)
+		log.Debugf("Failed to get Application servers for teleport_registered_servers metric: %v", err)
 	}
 	for _, app := range apps {
 		serverCheck(app)
@@ -525,7 +525,7 @@ func (a *Server) updateVersionMetrics() {
 
 	kubeServices, err := client.GetKubeServices(a.closeCtx)
 	if err != nil {
-		log.Debugf("Failed to get Kube services for teleport_registered_agent metric: %v", err)
+		log.Debugf("Failed to get Kube services for teleport_registered_servers metric: %v", err)
 	}
 	for _, kubeService := range kubeServices {
 		serverCheck(kubeService)
@@ -533,7 +533,7 @@ func (a *Server) updateVersionMetrics() {
 
 	windowsServices, err := client.GetWindowsDesktopServices(a.closeCtx)
 	if err != nil {
-		log.Debugf("Failed to get Window Desktop Services for teleport_registered_agent metric: %v", err)
+		log.Debugf("Failed to get Window Desktop Services for teleport_registered_servers metric: %v", err)
 	}
 	for _, windowsService := range windowsServices {
 		serverCheck(windowsService)
