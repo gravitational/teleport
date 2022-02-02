@@ -255,67 +255,6 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 	return nil
 }
 
-type CertAuthorityMap = map[types.CertAuthType]types.CertAuthority
-
-func (a *Server) getAllCertificates(clusterName string) (CertAuthorityMap, error) {
-	certs := make(CertAuthorityMap)
-
-	for _, caType := range types.CertAuthTypes {
-		ca, err := a.Trust.GetCertAuthority(types.CertAuthID{
-			Type:       caType,
-			DomainName: clusterName,
-		}, true)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		certs[caType] = ca
-	}
-
-	return certs, nil
-}
-
-func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAuthorityMap) ([]types.CertAuthType, error) {
-	toRotate := caTypes[:]
-
-	for _, caType := range caTypes {
-		cert, found := allCerts[caType]
-		if !found {
-			return nil, trace.BadParameter("didn't find %q in all certs map", caType)
-		}
-
-	nextCert:
-		for allCAType, allCert := range allCerts {
-			if caType == allCAType {
-				continue
-			}
-
-			activeKeys := cert.GetActiveKeys()
-			allActiveKeys := allCert.GetActiveKeys()
-
-			for _, ak := range activeKeys.TLS {
-				for _, aak := range allActiveKeys.TLS {
-					if bytes.Compare(ak.Key, aak.Key) == 0 {
-						toRotate = append(toRotate, allCAType)
-						continue nextCert
-					}
-				}
-			}
-
-			for _, ak := range activeKeys.SSH {
-				for _, aak := range allActiveKeys.SSH {
-					if bytes.Compare(ak.PrivateKey, aak.PrivateKey) == 0 {
-						toRotate = append(toRotate, allCAType)
-						continue nextCert
-					}
-				}
-			}
-		}
-	}
-
-	return toRotate, nil
-}
-
 // RotateExternalCertAuthority rotates external certificate authority,
 // this method is called by remote trusted cluster and is used to update
 // only public keys and certificates of the certificate authority.
@@ -451,6 +390,75 @@ func (a *Server) autoRotate(ca types.CertAuthority) error {
 	}
 	logger.Infof("Cert authority rotation request is completed")
 	return nil
+}
+
+type CertAuthorityMap = map[types.CertAuthType]types.CertAuthority
+
+// getAllCertificates returns all certificates authorities including private keys.
+func (a *Server) getAllCertificates(clusterName string) (CertAuthorityMap, error) {
+	certs := make(CertAuthorityMap)
+
+	for _, caType := range types.CertAuthTypes {
+		ca, err := a.Trust.GetCertAuthority(types.CertAuthID{
+			Type:       caType,
+			DomainName: clusterName,
+		}, true)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		certs[caType] = ca
+	}
+
+	return certs, nil
+}
+
+// findDuplicatedCertificates checks if any CA provided as caTypes has a duplicate in allCerts. List of all duplicates
+// is returned as a result. If no duplicates are found, then caTypes is returned in unmodified form.
+func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAuthorityMap) ([]types.CertAuthType, error) {
+	toRotate := caTypes[:]
+
+	// Check all combinations for duplicates. This can be optimized, but currently we have only 4 certificates
+	// and current implementation is easier to read and understand.
+	for _, caType := range caTypes {
+		cert, found := allCerts[caType]
+		if !found {
+			return nil, trace.BadParameter("didn't find %q in all certs map", caType)
+		}
+
+	nextCert:
+		for allCAType, allCert := range allCerts {
+			if caType == allCAType {
+				// Skip if the type is the same.
+				continue
+			}
+
+			activeKeys := cert.GetActiveKeys()
+			allActiveKeys := allCert.GetActiveKeys()
+
+			// Compare TLS keys
+			for _, ak := range activeKeys.TLS {
+				for _, aak := range allActiveKeys.TLS {
+					if bytes.Compare(ak.Key, aak.Key) == 0 {
+						toRotate = append(toRotate, allCAType)
+						continue nextCert
+					}
+				}
+			}
+
+			// Compare SSH keys
+			for _, ak := range activeKeys.SSH {
+				for _, aak := range allActiveKeys.SSH {
+					if bytes.Compare(ak.PrivateKey, aak.PrivateKey) == 0 {
+						toRotate = append(toRotate, allCAType)
+						continue nextCert
+					}
+				}
+			}
+		}
+	}
+
+	return toRotate, nil
 }
 
 // processRotationRequest processes rotation request based on the target and
