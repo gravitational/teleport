@@ -540,7 +540,10 @@ integration-root: $(RENDER_TESTS)
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-version-check lint-bot lint-ci-scripts lint-go lint-license lint-rdp
+lint: lint-sh lint-helm lint-api lint-go lint-license lint-rdp lint-tools
+
+.PHONY: lint-tools
+lint-tools: lint-version-check lint-bot lint-ci-scripts lint-backport
 
 .PHONY: lint-rdp
 lint-rdp:
@@ -557,6 +560,11 @@ lint-go:
 lint-version-check: GO_LINT_FLAGS ?=
 lint-version-check:
 	cd build.assets/version-check && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
+
+.PHONY: lint-backport
+lint-backport: GO_LINT_FLAGS ?=
+lint-backport:
+	cd assets/backport && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
 
 .PHONY: lint-bot
 lint-bot: GO_LINT_FLAGS ?=
