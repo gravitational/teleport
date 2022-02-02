@@ -244,6 +244,8 @@ func TestNewResourceParser(t *testing.T) {
 	t.Run("error in expressions", func(t *testing.T) {
 		t.Parallel()
 		exprs := []string{
+			`name.toomanyfield`,
+			`labels.env.toomanyfield`,
 			`!name`,
 			`name ==`,
 			`name &`,

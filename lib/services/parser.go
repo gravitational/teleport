@@ -589,12 +589,10 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 				}
 
 			case ResourceNameIdentifier:
-				switch {
-				case len(fields) > 1:
+				if len(fields) > 1 {
 					return nil, trace.BadParameter("only one field are supported with identifier %q, got %d: %v", ResourceNameIdentifier, len(fields), fields)
-				default:
-					return resource.GetName(), nil
 				}
+				return resource.GetName(), nil
 			case ResourceIdentifier:
 				return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
 			default:
@@ -626,33 +624,15 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 	return boolPredicateParser{Parser: p}, nil
 }
 
-// areOperandsEqual is similar to `predicate.Equals`, but
-// adds a type label switch case, and returns a bool instead of a
-// bool predicate function to be able to use it more flexibly.
+// areOperandsEqual extends `predicate.Equals` by adding
+// a label case.
 func areOperandsEqual(a interface{}, b interface{}) bool {
 	switch aval := a.(type) {
 	case label:
 		bval, ok := b.(string)
 		return ok && aval.value == bval
-	case string:
-		bval, ok := b.(string)
-		return ok && aval == bval
-	case []string:
-		bval, ok := b.([]string)
-		if !ok {
-			return false
-		}
-		if len(aval) != len(bval) {
-			return false
-		}
-		for i := range aval {
-			if aval[i] != bval[i] {
-				return false
-			}
-		}
-		return true
 	default:
-		return false
+		return predicate.Equals(a, b)()
 	}
 }
 
