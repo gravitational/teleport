@@ -34,8 +34,6 @@ const (
 	fileNameKnownHosts = "known_hosts"
 	// fileExtTLSCert is the suffix/extension of a file where a TLS cert is stored.
 	fileExtTLSCert = "-x509.pem"
-	// fileNameTLSCerts is a file where TLS Cert Authorities are stored.
-	fileNameTLSCerts = "certs.pem"
 	// fileExtCert is the suffix/extension of a file where an SSH Cert is stored.
 	fileExtSSHCert = "-cert.pub"
 	// fileExtPub is the extension of a file where a public key is stored.
@@ -48,6 +46,10 @@ const (
 	kubeDirSuffix = "-kube"
 	// kubeConfigSuffix is the suffix of a kubeconfig file stored under the keys directory.
 	kubeConfigSuffix = "-kubeconfig"
+	// casDir is the directory name for where clusters certs are stored.
+	casDir = "cas"
+	// fileExtPem is the extension of a file where a public certificate is stored.
+	fileExtPem = ".pem"
 )
 
 // Here's the file layout of all these keypaths.
@@ -74,16 +76,20 @@ const (
 //    │   │   │   └── dbB-x509.pem     --> TLS cert for database service "dbB"
 //    │   │   └── leaf                 --> App access certs for cluster "leaf"
 //    │   │       └── dbC-x509.pem     --> TLS cert for database service "dbC"
-//    │   └── foo-kube                 --> Kubernetes certs for user "foo"
-//    │       ├── root                 --> Kubernetes certs for Teleport cluster "root"
-//    │       │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
-//    │       │   ├── kubeA-x509.pem   --> TLS cert for Kubernetes cluster "kubeA"
-//    │       │   ├── kubeB-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeB"
-//    │       │   └── kubeB-x509.pem   --> TLS cert for Kubernetes cluster "kubeB"
-//    │       └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
-//    │           ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
-//    │           └── kubeC-x509.pem   --> TLS cert for Kubernetes cluster "kubeC"
-//    └── two.example.com			   --> Additional proxy host entries follow the same format
+//    │   ├── foo-kube                 --> Kubernetes certs for user "foo"
+//    │   |    ├── root                 --> Kubernetes certs for Teleport cluster "root"
+//    │   |    │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
+//    │   |    │   ├── kubeA-x509.pem   --> TLS cert for Kubernetes cluster "kubeA"
+//    │   |    │   ├── kubeB-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeB"
+//    │   |    │   └── kubeB-x509.pem   --> TLS cert for Kubernetes cluster "kubeB"
+//    │   |    └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
+//    │   |        ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
+//    │   |        └── kubeC-x509.pem   --> TLS cert for Kubernetes cluster "kubeC"
+//    |   └── cas                       --> Trusted clusters certificates
+//    |        ├── root.pem             --> TLS CA for teleport cluster "root"
+//    |        ├── leaf1.pem            --> TLS CA for teleport cluster "leaf1"
+//    |        └── leaf2.pem            --> TLS CA for teleport cluster "leaf2"
+//    └── two.example.com			    --> Additional proxy host entries follow the same format
 //		  ...
 
 // KeyDir returns the path to the keys directory.
@@ -107,7 +113,7 @@ func ProxyKeyDir(baseDir, proxy string) string {
 	return filepath.Join(KeyDir(baseDir), proxy)
 }
 
-// KeyPath returns the path to the users's private key
+// UserKeyPath returns the path to the users's private key
 // for the given proxy.
 //
 // <baseDir>/keys/<proxy>/<username>.
@@ -131,12 +137,18 @@ func SSHCAsPath(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+fileExtPub)
 }
 
-// CACertPath returns the path to the users's TLS CA's certificates
-// for the given proxy.
+// CAsDir returns path to trusted clusters certificates directory.
 //
-// <baseDir>/keys/<proxy>/certs.pem
-func TLSCAsPath(baseDir, proxy string) string {
-	return filepath.Join(ProxyKeyDir(baseDir, proxy), fileNameTLSCerts)
+// <baseDir>/keys/<proxy>/cas
+func CAsDir(baseDir, proxy string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), casDir)
+}
+
+// TLSCAsPathCluster returns the path to the specified cluster's CA directory.
+//
+// <baseDir>/keys/<proxy>/cas/<cluster>.pem
+func TLSCAsPathCluster(baseDir, proxy, cluster string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), casDir, cluster+fileExtPem)
 }
 
 // SSHDir returns the path to the user's SSH directory for the given proxy.
