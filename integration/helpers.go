@@ -1672,22 +1672,62 @@ func fatalIf(err error) {
 func enableKubernetesService(t *testing.T, config *service.Config) {
 	kubeConfigPath := filepath.Join(t.TempDir(), "kube_config")
 
-	err := kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
+	key, err := genUserKey()
+	require.NoError(t, err)
+
+	err = kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
 		TeleportClusterName: "teleport-cluster",
 		ClusterAddr:         net.JoinHostPort(Host, ports.Pop()),
-		Credentials: &client.Key{
-			Cert:    []byte("cert"),
-			TLSCert: []byte("tls-cert"),
-			Priv:    []byte("priv"),
-			Pub:     []byte("pub"),
-			TrustedCA: []auth.TrustedCerts{{
-				TLSCertificates: [][]byte{[]byte("ca-cert")},
-			}},
-		},
+		Credentials:         key,
 	})
 	require.NoError(t, err)
 
 	config.Kube.Enabled = true
 	config.Kube.KubeconfigPath = kubeConfigPath
 	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, ports.Pop()))
+}
+
+func genUserKey() (*client.Key, error) {
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName:   "localhost",
+		Organization: []string{"localhost"},
+	}, nil, defaults.CATTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := tlsca.FromKeys(caCert, caKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keygen := testauthority.New()
+	priv, pub, err := keygen.GenerateKeyPair("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cryptoPub, err := sshutils.CryptoPublicKey(pub)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clock := clockwork.NewRealClock()
+	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+		Clock:     clock,
+		PublicKey: cryptoPub,
+		Subject: pkix.Name{
+			CommonName: "teleport-user",
+		},
+		NotAfter: clock.Now().UTC().Add(time.Minute),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &client.Key{
+		Priv:    priv,
+		Pub:     pub,
+		TLSCert: tlsCert,
+		TrustedCA: []auth.TrustedCerts{{
+			TLSCertificates: [][]byte{caCert},
+		}},
+	}, nil
 }

@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -54,9 +53,9 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/websocket"
 )
@@ -366,7 +365,7 @@ func TestAppAccessNoHeaderOverrides(t *testing.T) {
 		Value: appCookie,
 	})
 	for _, headerName := range forwardedHeaderNames {
-		req.Header.Set(headerName, uuid.New())
+		req.Header.Set(headerName, uuid.New().String())
 	}
 
 	// Issue the request.
@@ -633,6 +632,92 @@ func TestAppAuditEvents(t *testing.T) {
 	})
 }
 
+func TestAppServersHA(t *testing.T) {
+	testCases := map[string]struct {
+		publicAddr  func(pack *pack) string
+		makeRequest func(pack *pack, inCookie string) (status int, err error)
+	}{
+		"HTTPApp": {
+			publicAddr: func(pack *pack) string { return pack.rootAppPublicAddr },
+			makeRequest: func(pack *pack, inCookie string) (int, error) {
+				status, _, err := pack.makeRequest(inCookie, http.MethodGet, "/")
+				return status, err
+			},
+		},
+		"WebSocketApp": {
+			publicAddr: func(pack *pack) string { return pack.rootWSPublicAddr },
+			makeRequest: func(pack *pack, inCookie string) (int, error) {
+				_, err := pack.makeWebsocketRequest(inCookie, "/")
+				return 0, err
+			},
+		},
+	}
+
+	// asserts that the response has error.
+	responseWithError := func(t *testing.T, status int, err error) {
+		if status > 0 {
+			require.NoError(t, err)
+			require.Equal(t, http.StatusInternalServerError, status)
+			return
+		}
+
+		require.Error(t, err)
+	}
+	// asserts that the response has no errors.
+	responseWithoutError := func(t *testing.T, status int, err error) {
+		if status > 0 {
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			return
+		}
+
+		require.NoError(t, err)
+	}
+
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			pack := setupWithOptions(t, appTestOptions{rootAppServersCount: 3})
+			inCookie := pack.createAppSession(t, test.publicAddr(pack), pack.rootAppClusterName)
+
+			status, err := test.makeRequest(pack, inCookie)
+			responseWithoutError(t, status, err)
+
+			// Stop all root app servers.
+			for i, appServer := range pack.rootAppServers {
+				appServer.Close()
+
+				// issue a request right after a server is gone.
+				status, err = test.makeRequest(pack, inCookie)
+				if i == len(pack.rootAppServers)-1 {
+					// fails only when the last one is closed.
+					responseWithError(t, status, err)
+				} else {
+					// otherwise the request should be handled by another
+					// server.
+					responseWithoutError(t, status, err)
+				}
+			}
+
+			servers := pack.startRootAppServers(t, 3, []service.App{})
+			status, err = test.makeRequest(pack, inCookie)
+			responseWithoutError(t, status, err)
+
+			// Start an additional app server and stop all current running
+			// ones.
+			pack.startRootAppServers(t, 1, []service.App{})
+			for _, appServer := range servers {
+				appServer.Close()
+
+				// Everytime a app server stops we issue a request to
+				// guarantee that the requests are going to be resolved by
+				// the remaining app servers.
+				status, err = test.makeRequest(pack, inCookie)
+				responseWithoutError(t, status, err)
+			}
+		})
+	}
+}
+
 // pack contains identity as well as initialized Teleport clusters and instances.
 type pack struct {
 	username string
@@ -645,9 +730,9 @@ type pack struct {
 	webCookie string
 	webToken  string
 
-	rootCluster   *TeleInstance
-	rootAppServer *service.TeleportProcess
-	rootCertPool  *x509.CertPool
+	rootCluster    *TeleInstance
+	rootAppServers []*service.TeleportProcess
+	rootCertPool   *x509.CertPool
 
 	rootAppName        string
 	rootAppPublicAddr  string
@@ -701,12 +786,13 @@ type pack struct {
 }
 
 type appTestOptions struct {
-	extraRootApps    []service.App
-	extraLeafApps    []service.App
-	userLogins       []string
-	userTraits       map[string][]string
-	rootClusterPorts *InstancePorts
-	leafClusterPorts *InstancePorts
+	extraRootApps       []service.App
+	extraLeafApps       []service.App
+	userLogins          []string
+	userTraits          map[string][]string
+	rootClusterPorts    *InstancePorts
+	leafClusterPorts    *InstancePorts
+	rootAppServersCount int
 
 	rootConfig func(config *service.Config)
 	leafConfig func(config *service.Config)
@@ -734,28 +820,28 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		rootAppName:        "app-01",
 		rootAppPublicAddr:  "app-01.example.com",
 		rootAppClusterName: "example.com",
-		rootMessage:        uuid.New(),
+		rootMessage:        uuid.New().String(),
 
 		rootWSAppName:    "ws-01",
 		rootWSPublicAddr: "ws-01.example.com",
-		rootWSMessage:    uuid.New(),
+		rootWSMessage:    uuid.New().String(),
 
 		rootWSSAppName:    "wss-01",
 		rootWSSPublicAddr: "wss-01.example.com",
-		rootWSSMessage:    uuid.New(),
+		rootWSSMessage:    uuid.New().String(),
 
 		leafAppName:        "app-02",
 		leafAppPublicAddr:  "app-02.example.com",
 		leafAppClusterName: "leaf.example.com",
-		leafMessage:        uuid.New(),
+		leafMessage:        uuid.New().String(),
 
 		leafWSAppName:    "ws-02",
 		leafWSPublicAddr: "ws-02.example.com",
-		leafWSMessage:    uuid.New(),
+		leafWSMessage:    uuid.New().String(),
 
 		leafWSSAppName:    "wss-02",
 		leafWSSPublicAddr: "wss-02.example.com",
-		leafWSSMessage:    uuid.New(),
+		leafWSSMessage:    uuid.New().String(),
 
 		jwtAppName:        "app-03",
 		jwtAppPublicAddr:  "app-03.example.com",
@@ -849,7 +935,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	// Create a new Teleport instance with passed in configuration.
 	p.rootCluster = NewInstance(InstanceConfig{
 		ClusterName: "example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
@@ -860,7 +946,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	// Create a new Teleport instance with passed in configuration.
 	p.leafCluster = NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
@@ -871,8 +957,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	rcConf := service.MakeDefaultConfig()
 	rcConf.Console = nil
 	rcConf.Log = log
-	rcConf.DataDir, err = ioutil.TempDir("", "cluster-"+p.rootCluster.Secrets.SiteName)
-	require.NoError(t, err)
+	rcConf.DataDir = t.TempDir()
 	t.Cleanup(func() { os.RemoveAll(rcConf.DataDir) })
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.Preference.SetSecondFactor("off")
@@ -888,8 +973,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	lcConf := service.MakeDefaultConfig()
 	lcConf.Console = nil
 	lcConf.Log = log
-	lcConf.DataDir, err = ioutil.TempDir("", "cluster-"+p.leafCluster.Secrets.SiteName)
-	require.NoError(t, err)
+	lcConf.DataDir = t.TempDir()
 	t.Cleanup(func() { os.RemoveAll(lcConf.DataDir) })
 	lcConf.Auth.Enabled = true
 	lcConf.Auth.Preference.SetSecondFactor("off")
@@ -918,64 +1002,17 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		p.rootCluster.StopAll()
 	})
 
-	raConf := service.MakeDefaultConfig()
-	raConf.Console = nil
-	raConf.Log = log
-	raConf.DataDir, err = ioutil.TempDir("", "app-server-"+p.rootCluster.Secrets.SiteName)
-	require.NoError(t, err)
-	t.Cleanup(func() { os.RemoveAll(raConf.DataDir) })
-	raConf.Token = "static-token-value"
-	raConf.AuthServers = []utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()),
-		},
+	// At least one rootAppServer should start during the setup
+	rootAppServersCount := 1
+	if opts.rootAppServersCount > 0 {
+		rootAppServersCount = opts.rootAppServersCount
 	}
-	raConf.Auth.Enabled = false
-	raConf.Proxy.Enabled = false
-	raConf.SSH.Enabled = false
-	raConf.Apps.Enabled = true
-	raConf.Apps.Apps = append([]service.App{
-		{
-			Name:       p.rootAppName,
-			URI:        rootServer.URL,
-			PublicAddr: p.rootAppPublicAddr,
-		},
-		{
-			Name:       p.rootWSAppName,
-			URI:        rootWSServer.URL,
-			PublicAddr: p.rootWSPublicAddr,
-		},
-		{
-			Name:       p.rootWSSAppName,
-			URI:        rootWSSServer.URL,
-			PublicAddr: p.rootWSSPublicAddr,
-		},
-		{
-			Name:       p.jwtAppName,
-			URI:        jwtServer.URL,
-			PublicAddr: p.jwtAppPublicAddr,
-		},
-		{
-			Name:       p.headerAppName,
-			URI:        headerServer.URL,
-			PublicAddr: p.headerAppPublicAddr,
-		},
-		{
-			Name:       p.flushAppName,
-			URI:        flushServer.URL,
-			PublicAddr: p.flushAppPublicAddr,
-		},
-	}, opts.extraRootApps...)
-	p.rootAppServer, err = p.rootCluster.StartApp(raConf)
-	require.NoError(t, err)
-	t.Cleanup(func() { p.rootAppServer.Close() })
+	p.rootAppServers = p.startRootAppServers(t, rootAppServersCount, opts.extraRootApps)
 
 	laConf := service.MakeDefaultConfig()
 	laConf.Console = nil
 	laConf.Log = log
-	laConf.DataDir, err = ioutil.TempDir("", "app-server-"+p.leafCluster.Secrets.SiteName)
-	require.NoError(t, err)
+	laConf.DataDir = t.TempDir()
 	t.Cleanup(func() { os.RemoveAll(laConf.DataDir) })
 	laConf.Token = "static-token-value"
 	laConf.AuthServers = []utils.NetAddr{
@@ -1026,8 +1063,8 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 
 // initUser will create a user within the root cluster.
 func (p *pack) initUser(t *testing.T, opts appTestOptions) {
-	p.username = uuid.New()
-	p.password = uuid.New()
+	p.username = uuid.New().String()
+	p.password = uuid.New().String()
 
 	user, err := types.NewUser(p.username)
 	require.NoError(t, err)
@@ -1255,7 +1292,7 @@ func (p *pack) makeTLSConfigNoSession(t *testing.T, publicAddr, clusterName stri
 			PublicAddr:  publicAddr,
 			ClusterName: clusterName,
 			// Use arbitrary session ID
-			SessionID: uuid.New(),
+			SessionID: uuid.New().String(),
 		})
 	require.NoError(t, err)
 
@@ -1323,7 +1360,7 @@ func (p *pack) makeWebsocketRequest(sessionCookie, endpoint string) (string, err
 		return "", trace.Wrap(err)
 	}
 	defer conn.Close()
-	data, err := ioutil.ReadAll(conn)
+	data, err := io.ReadAll(conn)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -1364,7 +1401,7 @@ func (p *pack) sendRequest(req *http.Request, tlsConfig *tls.Config) (int, strin
 	defer resp.Body.Close()
 
 	// Read in response body.
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return 0, "", trace.Wrap(err)
 	}
@@ -1394,6 +1431,71 @@ func (p *pack) waitForLogout(appCookie string) (int, error) {
 			return 0, trace.BadParameter("timed out waiting for logout")
 		}
 	}
+}
+
+func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
+	log := utils.NewLoggerForTests()
+
+	servers := make([]*service.TeleportProcess, count)
+
+	for i := 0; i < count; i++ {
+		raConf := service.MakeDefaultConfig()
+		raConf.Console = nil
+		raConf.Log = log
+		raConf.DataDir = t.TempDir()
+		t.Cleanup(func() { os.RemoveAll(raConf.DataDir) })
+		raConf.Token = "static-token-value"
+		raConf.AuthServers = []utils.NetAddr{
+			{
+				AddrNetwork: "tcp",
+				Addr:        net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()),
+			},
+		}
+		raConf.Auth.Enabled = false
+		raConf.Proxy.Enabled = false
+		raConf.SSH.Enabled = false
+		raConf.Apps.Enabled = true
+		raConf.Apps.Apps = append([]service.App{
+			{
+				Name:       p.rootAppName,
+				URI:        p.rootAppURI,
+				PublicAddr: p.rootAppPublicAddr,
+			},
+			{
+				Name:       p.rootWSAppName,
+				URI:        p.rootWSAppURI,
+				PublicAddr: p.rootWSPublicAddr,
+			},
+			{
+				Name:       p.rootWSSAppName,
+				URI:        p.rootWSSAppURI,
+				PublicAddr: p.rootWSSPublicAddr,
+			},
+			{
+				Name:       p.jwtAppName,
+				URI:        p.jwtAppURI,
+				PublicAddr: p.jwtAppPublicAddr,
+			},
+			{
+				Name:       p.headerAppName,
+				URI:        p.headerAppURI,
+				PublicAddr: p.headerAppPublicAddr,
+			},
+			{
+				Name:       p.flushAppName,
+				URI:        p.flushAppURI,
+				PublicAddr: p.flushAppPublicAddr,
+			},
+		}, extraApps...)
+
+		appServer, err := p.rootCluster.StartApp(raConf)
+		require.NoError(t, err)
+		t.Cleanup(func() { appServer.Close() })
+
+		servers[i] = appServer
+	}
+
+	return servers
 }
 
 var forwardedHeaderNames = []string{

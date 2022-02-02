@@ -23,7 +23,9 @@ import (
 	"net"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
@@ -32,9 +34,20 @@ import (
 	"github.com/jackc/pgproto3/v2"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
+
+func init() {
+	common.RegisterEngine(newEngine,
+		defaults.ProtocolPostgres,
+		defaults.ProtocolCockroachDB)
+}
+
+func newEngine(ec common.EngineConfig) common.Engine {
+	return &Engine{
+		EngineConfig: ec,
+	}
+}
 
 // Engine implements the Postgres database service that accepts client
 // connections coming over reverse tunnel from the proxy and proxies
@@ -42,16 +55,32 @@ import (
 //
 // Implements common.Engine.
 type Engine struct {
-	// Auth handles database access authentication.
-	Auth common.Auth
-	// Audit emits database access audit events.
-	Audit common.Audit
-	// Context is the database server close context.
-	Context context.Context
-	// Clock is the clock interface.
-	Clock clockwork.Clock
-	// Log is used for logging.
-	Log logrus.FieldLogger
+	// EngineConfig is the common database engine configuration.
+	common.EngineConfig
+	// client is a client connection.
+	client *pgproto3.Backend
+}
+
+// InitializeConnection initializes the client connection.
+func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
+	e.client = pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
+
+	// The proxy is supposed to pass a startup message it received from
+	// the psql client over to us, so wait for it and extract database
+	// and username from it.
+	err := e.handleStartup(e.client, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// SendError sends an error to connected client in a Postgres understandable format.
+func (e *Engine) SendError(err error) {
+	if err := e.client.Send(toErrorResponse(err)); err != nil && !utils.IsOKNetworkError(err) {
+		e.Log.WithError(err).Error("Failed to send error to client.")
+	}
 }
 
 // toErrorResponse converts the provided error to a Postgres wire protocol
@@ -78,25 +107,10 @@ func toErrorResponse(err error) *pgproto3.ErrorResponse {
 // It handles all necessary startup actions, authorization and acts as a
 // middleman between the proxy and the database intercepting and interpreting
 // all messages i.e. doing protocol parsing.
-func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session, clientConn net.Conn) (err error) {
-	client := pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
-	defer func() {
-		if err != nil {
-			if err := client.Send(toErrorResponse(err)); err != nil && !utils.IsOKNetworkError(err) {
-				e.Log.WithError(err).Error("Failed to send error to client.")
-			}
-		}
-	}()
-	// The proxy is supposed to pass a startup message it received from
-	// the psql client over to us, so wait for it and extract database
-	// and username from it.
-	err = e.handleStartup(client, sessionCtx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	// Now we know which database/username the user is connecting to, so
 	// perform an authorization check.
-	err = e.checkAccess(ctx, sessionCtx)
+	err := e.checkAccess(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -106,8 +120,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 	// Upon successful connect, indicate to the Postgres client that startup
-	// has been completed and it can start sending queries.
-	err = e.makeClientReady(client, hijackedConn)
+	// has been completed, and it can start sending queries.
+	err = e.makeClientReady(e.client, hijackedConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -131,8 +145,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	// the client (psql or other Postgres client) and the server (database).
 	clientErrCh := make(chan error, 1)
 	serverErrCh := make(chan error, 1)
-	go e.receiveFromClient(client, server, clientErrCh, sessionCtx)
-	go e.receiveFromServer(server, client, serverConn, serverErrCh, sessionCtx)
+	go e.receiveFromClient(e.client, server, clientErrCh, sessionCtx)
+	go e.receiveFromServer(server, e.client, serverConn, serverErrCh, sessionCtx)
 	select {
 	case err := <-clientErrCh:
 		e.Log.WithError(err).Debug("Client done.")
@@ -401,6 +415,12 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TLS config will use client certificate for an onprem database or
+	// will contain RDS root certificate for RDS/Aurora.
+	config.TLSConfig, err = e.Auth.GetTLSConfig(ctx, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	config.User = sessionCtx.DatabaseUser
 	config.Database = sessionCtx.DatabaseName
 	// Pgconn adds fallbacks to retry connection without TLS if the TLS
@@ -427,6 +447,25 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Get the client once for subsequent calls (it acquires a read lock).
+		gcpClient, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Detect whether the instance is set to require SSL.
+		// Fallback to not requiring SSL for access denied errors.
+		requireSSL, err := cloud.GetGCPRequireSSL(ctx, sessionCtx, gcpClient)
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+		// Create ephemeral certificate and append to TLS config when
+		// the instance requires SSL.
+		if requireSSL {
+			err = cloud.AppendGCPClientCert(ctx, sessionCtx, gcpClient, config.TLSConfig)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 	case types.DatabaseTypeAzure:
 		config.Password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
 		if err != nil {
@@ -435,12 +474,6 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 		// Azure requires database login to be <user>@<server-name> e.g.
 		// alice@postgres-server-name.
 		config.User = fmt.Sprintf("%v@%v", config.User, sessionCtx.Database.GetAzure().Name)
-	}
-	// TLS config will use client certificate for an onprem database or
-	// will contain RDS root certificate for RDS/Aurora.
-	config.TLSConfig, err = e.Auth.GetTLSConfig(ctx, sessionCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 	return config, nil
 }
