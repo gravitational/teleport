@@ -393,13 +393,17 @@ func TestSSHSection(t *testing.T) {
 		}, {
 			desc: "X11 enabled",
 			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11.enabled"] = "yes"
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled": "yes",
+				}
 			},
 			expectError: require.NoError,
 		}, {
 			desc: "X11 disabled",
 			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11.enabled"] = "no"
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled": "no",
+				}
 			},
 			expectError: require.NoError,
 		}, {
@@ -409,15 +413,19 @@ func TestSSHSection(t *testing.T) {
 		}, {
 			desc: "X11 display offset 100",
 			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11.display_offset"] = 100
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"display_offset": 100,
+				}
 			},
 			expectError: require.NoError,
 		}, {
 			desc: "X11 display offset invalid value",
 			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11.display_offset"] = "banana"
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"display_offset": -100,
+				}
 			},
-			expectError: require.NoError,
+			expectError: require.Error,
 		},
 	}
 

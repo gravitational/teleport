@@ -29,7 +29,7 @@ type XServerConn interface {
 }
 
 // XServerListener is a proxy XServer listener used to forward XServer requests.
-// to an actualy XServer. The underlying listener may be a unix or tcp listener.
+// to an actual XServer. The underlying listener may be a unix or tcp listener.
 type XServerListener interface {
 	// Accept waits for and returns the next connection to the listener.
 	Accept() (XServerConn, error)

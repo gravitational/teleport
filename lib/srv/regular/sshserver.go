@@ -1807,11 +1807,3 @@ func rejectChannel(ch ssh.NewChannel, reason ssh.RejectionReason, msg string) {
 		log.Warnf("Failed to reject new ssh.Channel: %v", err)
 	}
 }
-
-func replyOk(req *ssh.Request) {
-	if req.WantReply {
-		if err := req.Reply(true, nil); err != nil {
-			log.Warnf("Failed to reply to %q request: %v", req.Type, err)
-		}
-	}
-}

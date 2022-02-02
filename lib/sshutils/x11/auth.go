@@ -226,7 +226,7 @@ func ReadAndRewriteXAuthPacket(xreq io.Reader, spoofedXAuthEntry, realXAuthEntry
 }
 
 const (
-	// xauthPacketInitBufSize is the size of the intial
+	// xauthPacketInitBufSize is the size of the initial
 	// fixed portion of an xauth packet
 	xauthPacketInitBufSize = 12
 	// little endian byte order
