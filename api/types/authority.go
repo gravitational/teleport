@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -754,6 +755,69 @@ func (k *TLSKeyPair) CheckAndSetDefaults() error {
 func (k *JWTKeyPair) CheckAndSetDefaults() error {
 	if len(k.PublicKey) == 0 {
 		return trace.BadParameter("JWT key pair missing public key")
+	}
+	return nil
+}
+
+// CertAuthorityFilter defines a filter for a CA cache watcher that only lets
+// certain combinations of CA type and trust relationship through. An empty or
+// nil filter lets through every CA, whereas a nonempty filter will let through
+// only the CAs with a trust relationship listed in the filter under the CA's
+// type. CAs with an unspecified (empty) trust relationships will always go
+// through.
+type CertAuthorityFilter map[CertAuthType][]TrustRelationship
+
+// Match checks if a given CA matches this filter.
+func (f CertAuthorityFilter) Match(ca CertAuthority) bool {
+	if len(f) == 0 {
+		return true
+	}
+
+	trustRel := ca.GetTrustRelationship()
+	if trustRel == "" {
+		return true
+	}
+
+	for _, t := range f[ca.GetType()] {
+		if trustRel == t {
+			return true
+		}
+	}
+
+	return false
+}
+
+// IntoMap makes this filter into a map for use as the Filter in a WatchKind.
+func (f CertAuthorityFilter) IntoMap() map[string]string {
+	if len(f) == 0 {
+		return nil
+	}
+
+	m := make(map[string]string)
+	for caType, trustRels := range f {
+		tr := make([]string, 0, len(trustRels))
+		for _, trustRel := range trustRels {
+			tr = append(tr, string(trustRel))
+		}
+		m[string(caType)] = strings.Join(tr, ",")
+	}
+	return m
+}
+
+// FromMap converts the provided map into this filter.
+func (f CertAuthorityFilter) FromMap(m map[string]string) error {
+	if f == nil {
+		return trace.BadParameter("CertAuthorityFilter.FromMap called on a nil filter")
+	}
+
+	// there's not a lot of value in rejecting unknown values from the filter
+	for key, val := range m {
+		tr := strings.Split(val, ",")
+		trustRels := make([]TrustRelationship, 0, len(tr))
+		for _, t := range tr {
+			trustRels = append(trustRels, TrustRelationship(t))
+		}
+		f[CertAuthType(key)] = trustRels
 	}
 	return nil
 }

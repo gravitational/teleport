@@ -362,10 +362,10 @@ func maybeFilterCertAuthorityWatches(ctx context.Context, roleNames []string, wa
 		}
 
 		log.Debugf("Injecting filter for CertAuthority watch for Node-only watcher with version %v", clientVersion)
-		watch.Kinds[i].Filter = map[string]string{
-			"host": "local",
-			"user": "local,trusted",
-		}
+		watch.Kinds[i].Filter = types.CertAuthorityFilter{
+			types.HostCA: {types.TrustRelationshipLocal},
+			types.UserCA: {types.TrustRelationshipLocal, types.TrustRelationshipTrusted},
+		}.IntoMap()
 	}
 
 }

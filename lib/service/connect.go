@@ -544,9 +544,9 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 
 	watcher, err := process.newWatcher(conn, types.Watch{Kinds: []types.WatchKind{{
 		Kind: types.KindCertAuthority,
-		Filter: map[string]string{
-			"host": "local",
-		},
+		Filter: types.CertAuthorityFilter{
+			types.HostCA: {types.TrustRelationshipLocal},
+		}.IntoMap(),
 	}}})
 	if err != nil {
 		return trace.Wrap(err)

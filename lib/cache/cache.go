@@ -180,10 +180,10 @@ func ForNode(cfg Config) Config {
 	cfg.Watches = []types.WatchKind{
 		{
 			Kind: types.KindCertAuthority,
-			Filter: map[string]string{
-				"host": "local",
-				"user": "local,trusted",
-			},
+			Filter: types.CertAuthorityFilter{
+				types.HostCA: {types.TrustRelationshipLocal},
+				types.UserCA: {types.TrustRelationshipLocal, types.TrustRelationshipTrusted},
+			}.IntoMap(),
 		},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
