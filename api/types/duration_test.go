@@ -19,6 +19,8 @@ package types
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 type testCase struct {
@@ -51,12 +53,8 @@ func TestDurationUnmarshal(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			var duration Duration
 			err := duration.UnmarshalJSON([]byte(testCase.stringValue))
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if duration != testCase.expectedValue {
-				t.Fatalf("unexpected value: %v", duration)
-			}
+			require.NoError(t, err)
+			require.Equal(t, testCase.expectedValue, duration)
 		})
 	}
 }
