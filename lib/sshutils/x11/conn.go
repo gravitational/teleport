@@ -16,6 +16,7 @@ package x11
 import (
 	"errors"
 	"io"
+	"math"
 	"net"
 	"syscall"
 
@@ -68,7 +69,7 @@ func OpenNewXServerListener(displayOffset int, maxDisplay int, screen uint32) (X
 	if displayOffset > maxDisplay {
 		return nil, Display{}, trace.BadParameter("displayOffset (%d) cannot be larger than maxDisplay (%d)", displayOffset, maxDisplay)
 	} else if maxDisplay > MaxDisplayNumber {
-		return nil, Display{}, trace.BadParameter("maxDisplay (%d) cannot be larger than the max int32 (2147483647)", maxDisplay)
+		return nil, Display{}, trace.BadParameter("maxDisplay (%d) cannot be larger than the max int32 (%d)", maxDisplay, math.MaxInt32)
 	}
 
 	for displayNumber := displayOffset; displayNumber <= maxDisplay; displayNumber++ {

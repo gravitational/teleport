@@ -134,7 +134,7 @@ func (x *XAuthCommand) RemoveEntries(display Display) error {
 }
 
 // AddEntry runs "xauth add" to add the given xauth entry.
-func (x *XAuthCommand) AddEntry(entry *XAuthEntry) error {
+func (x *XAuthCommand) AddEntry(entry XAuthEntry) error {
 	x.Cmd.Args = append(x.Cmd.Args, "add", entry.Display.String(), entry.Proto, entry.Cookie)
 	return trace.Wrap(x.run())
 }

@@ -67,40 +67,44 @@ func (d *Display) String() string {
 
 // Dial opens an XServer connection to the display
 func (d *Display) Dial() (XServerConn, error) {
-	tcpSock, tcpErr := d.tcpSocket()
-	if tcpErr == nil {
-		return net.DialTCP("tcp", nil, tcpSock)
-	}
+	var conn XServerConn
 
 	unixSock, unixErr := d.unixSocket()
 	if unixErr == nil {
-		return net.DialUnix("unix", nil, unixSock)
+		if conn, unixErr = net.DialUnix("unix", nil, unixSock); unixErr == nil {
+			return conn, nil
+		}
 	}
 
-	return nil, trace.NewAggregate(tcpErr, unixErr)
+	tcpSock, tcpErr := d.tcpSocket()
+	if tcpErr == nil {
+		if conn, tcpErr = net.DialTCP("tcp", nil, tcpSock); tcpErr == nil {
+			return conn, nil
+		}
+	}
+
+	return nil, trace.NewAggregate(unixErr, tcpErr)
 }
 
 // Listen opens an XServer listener
 func (d *Display) Listen() (XServerListener, error) {
 	unixSock, unixErr := d.unixSocket()
 	if unixErr == nil {
-		l, err := net.ListenUnix("unix", unixSock)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		var l *net.UnixListener
+		if l, unixErr = net.ListenUnix("unix", unixSock); unixErr == nil {
+			return &xserverUnixListener{l}, nil
 		}
-		return &xserverUnixListener{l}, nil
 	}
 
 	tcpSock, tcpErr := d.tcpSocket()
 	if tcpErr == nil {
-		l, err := net.ListenTCP("tcp", tcpSock)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		var l *net.TCPListener
+		if l, tcpErr = net.ListenTCP("tcp", tcpSock); tcpErr == nil {
+			return &xserverTCPListener{l}, nil
 		}
-		return &xserverTCPListener{l}, nil
 	}
 
-	return nil, trace.NewAggregate(tcpErr, unixErr)
+	return nil, trace.NewAggregate(unixErr, tcpErr)
 }
 
 // xserverUnixSocket returns the display's associated unix socket.

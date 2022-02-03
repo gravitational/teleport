@@ -612,7 +612,7 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 
 	err = c.setX11Config(&X11Config{
 		XServerUnixSocket: l.Addr().String(),
-		XAuthEntry: &x11.XAuthEntry{
+		XAuthEntry: x11.XAuthEntry{
 			Display: display,
 			Proto:   x11Req.AuthProtocol,
 			Cookie:  x11Req.AuthCookie,
@@ -696,10 +696,13 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 }
 
 // getX11Config gets the x11 config for this server session.
-func (c *ServerContext) getX11Config() *X11Config {
+func (c *ServerContext) getX11Config() X11Config {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.x11Config
+	if c.x11Config != nil {
+		return *c.x11Config
+	}
+	return X11Config{}
 }
 
 // setX11Config sets X11 config for the session, or returns an error if already set.
