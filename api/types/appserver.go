@@ -28,7 +28,7 @@ import (
 
 // AppServer represents a single proxied web app.
 type AppServer interface {
-	// Resource provides common resource methods.
+	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
 	// GetNamespace returns server namespace.
 	GetNamespace() string
@@ -287,6 +287,12 @@ func (s *AppServerV3) GetAllLabels() map[string]string {
 // Copy returns a copy of this app server object.
 func (s *AppServerV3) Copy() AppServer {
 	return proto.Clone(s).(*AppServerV3)
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (s *AppServerV3) MatchSearch(values []string) bool {
+	return MatchSearch(nil, values, nil)
 }
 
 // AppServers represents a list of app servers.

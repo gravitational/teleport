@@ -155,9 +155,9 @@ This guide introduces some of these common scenarios and how to interact with Te
      This helps to minimize the direct sharing of tokens even when they are *dynamically* generated.
    </Admonition>
 
-2. Now, create a third terminal and connect to `tele.example.com`.
+2. Now, in another terminal connect to the second instance.
 
-   - Save `token.file` to an appropriate, secure, directory you have the rights and access to read on the second instance.
+   - Copy `token.file` to an appropriate, secure directory on the second instance.
 
    ```code
    # Join cluster
@@ -168,7 +168,7 @@ This guide introduces some of these common scenarios and how to interact with Te
    ```
 
    - Replace the `auth-server` value with the public proxy address of the machine you wish to connect to. By default, the subdomain `tele.example.com` will be available on port `443`.
-   - Supply the secured path to the new Node's `token.file`.
+   - Assign `--token` to the path of the token file you created earlier.
 
 3. Create a user to access the `tele.example.com` Web UI through the following command:
 
@@ -232,10 +232,10 @@ We can use `tsh` to SSH into the cluster:
    The *Bastion Host* Node is located on the bottom line below:
 
    ```txt
-   Node Name        Address        Labels                                 
-   ---------------- -------------- -------------------------------------- 
-   ip-172-31-35-170 ⟵ Tunnel                                              
-   ip-172-31-41-144 127.0.0.1:3022 env=example, hostname=ip-172-31-41-144 
+   Node Name        Address        Labels
+   ---------------- -------------- --------------------------------------
+   ip-172-31-35-170 ⟵ Tunnel
+   ip-172-31-41-144 127.0.0.1:3022 env=example, hostname=ip-172-31-41-144
    ```
 
 4. `tele-admin` can SSH into the *Bastion Host* Node by running the following command locally:
@@ -282,13 +282,13 @@ We can use `tsh` to SSH into the cluster:
    $ sudo tctl nodes ls
    ```
 
-   It displays the unified resource catalog with all queried resources in one view: 
-   
+   It displays the unified resource catalog with all queried resources in one view:
+
    ```txt
-   Nodename         UUID                                 Address        Labels                                
-   ---------------- ------------------------------------ -------------- ------------------------------------- 
-   ip-172-31-35-170 4980899c-d260-414f-9aea-874feef71747                                                      
-   ip-172-31-41-144 f3d2a65f-3fa7-451d-b516-68d189ff9ae5 127.0.0.1:3022 env=example,hostname=ip-172-31-41-144                            
+   Nodename         UUID                                 Address        Labels
+   ---------------- ------------------------------------ -------------- -------------------------------------
+   ip-172-31-35-170 4980899c-d260-414f-9aea-874feef71747
+   ip-172-31-41-144 f3d2a65f-3fa7-451d-b516-68d189ff9ae5 127.0.0.1:3022 env=example,hostname=ip-172-31-41-144
    ```
 
 3. Note the "Labels" column on the farthest side. `tele-admin` can query all resources with a shared [label](../setup/admin/labels.mdx) using the command:
@@ -307,7 +307,7 @@ We can use `tsh` to SSH into the cluster:
    ```code
    # Run the ls command on all Nodes with a label
    $ tsh ssh root@env=example ls
-   ``` 
+   ```
 
    will execute the `ls` command on each Node displaying the contents of each to the screen.
 
