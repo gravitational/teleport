@@ -24,11 +24,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -121,15 +123,29 @@ type stsIdentityResponse struct {
 }
 
 type awsIdentity struct {
-	Account string
-	Arn     string
+	Account string `json:"Account"`
+	Arn     string `json:"Arn"`
 }
 
 type stsClient interface {
 	Do(*http.Request) (*http.Response, error)
 }
 
-func executeSTSIdentityRequest(ctx context.Context, client stsClient, req *http.Request) (identity awsIdentity, err error) {
+type stsClientKey struct{}
+
+// stsClientFromContext allows the default http client to be overridden for tests
+func stsClientFromContext(ctx context.Context) stsClient {
+	client, ok := ctx.Value(stsClientKey{}).(stsClient)
+	if ok {
+		return client
+	}
+	return http.DefaultClient
+}
+
+func executeSTSIdentityRequest(ctx context.Context, req *http.Request) (identity awsIdentity, err error) {
+	client := stsClientFromContext(ctx)
+
+	// set the http request context so it can be cancelled
 	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
 	if err != nil {
@@ -193,9 +209,9 @@ func checkIAMAllowRules(identity awsIdentity, provisionToken types.ProvisionToke
 	return trace.AccessDenied("instance did not match any allow rules")
 }
 
-func (a *Server) checkIAMRequest(ctx context.Context, client stsClient, challenge string, req *types.RegisterUsingTokenRequest) error {
+func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *types.RegisterUsingTokenRequest) error {
 	tokenName := req.Token
-	provisionToken, err := a.GetCache().GetToken(ctx, tokenName)
+	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -217,7 +233,7 @@ func (a *Server) checkIAMRequest(ctx context.Context, client stsClient, challeng
 
 	// send the signed request to the public AWS API and get the node identity
 	// from the response
-	identity, err := executeSTSIdentityRequest(ctx, client, identityRequest)
+	identity, err := executeSTSIdentityRequest(ctx, identityRequest)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -242,4 +258,70 @@ func generateChallenge() (string, error) {
 	challengeBase64 := make([]byte, encoding.EncodedLen(len(challengeRawBytes)))
 	encoding.Encode(challengeBase64, challengeRawBytes)
 	return string(challengeBase64), nil
+}
+
+// RegisterUsingIAMMethod registers the caller using the IAM join method and
+// returns signed certs to join the cluster.
+//
+// The server will generate a base64-encoded crypto-random challenge and
+// send it on the challenge channel. The caller is expected to respond on
+// the request channel with a RegisterUsingTokenRequest including a signed
+// sts:GetCallerIdentity request with the challenge string.
+func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeChan chan<- string, reqChan <-chan *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
+	if !ok {
+		return nil, trace.BadParameter("logic error: client address was not set")
+	}
+
+	challenge, err := generateChallenge()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	select {
+	case challengeChan <- challenge:
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	}
+
+	var req *types.RegisterUsingTokenRequest
+	select {
+	case req = <-reqChan:
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	}
+
+	// fill in the client remote addr to the register request
+	req.RemoteAddr = clientAddr.String()
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// check that the GetCallerIdentity request is valid and matches the token
+	if err := a.checkIAMRequest(ctx, challenge, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// perform common token checks
+	if err := a.checkTokenJoinRequestCommon(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// generate and return host certificate and keys
+	certs, err := a.GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
+			HostID:               req.HostID,
+			NodeName:             req.NodeName,
+			Role:                 req.Role,
+			AdditionalPrincipals: req.AdditionalPrincipals,
+			PublicTLSKey:         req.PublicTLSKey,
+			PublicSSHKey:         req.PublicSSHKey,
+			RemoteAddr:           req.RemoteAddr,
+			DNSNames:             req.DNSNames,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
+	return certs, nil
 }

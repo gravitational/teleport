@@ -306,12 +306,18 @@ func (a *Server) checkInstanceUnique(ctx context.Context, req *types.RegisterUsi
 // normal token checking logic resumes.
 func (a *Server) checkEC2JoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
 	tokenName := req.Token
-	provisionToken, err := a.GetCache().GetToken(ctx, tokenName)
+	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	log.Debugf("Received Simplified Node Joining request for host %q", req.HostID)
+
+	if len(req.EC2IdentityDocument) == 0 {
+		return trace.AccessDenied("this token is only valid for the EC2 join " +
+			"method but the node has not included an EC2 Instance Identity " +
+			"Document, make sure your node is configured to use the EC2 join method")
+	}
 
 	iid, err := parseAndVerifyIID(req.EC2IdentityDocument)
 	if err != nil {
