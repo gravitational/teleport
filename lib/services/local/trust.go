@@ -16,6 +16,7 @@ package local
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -92,6 +93,8 @@ func (s *CA) UpsertCertAuthority(ca types.CertAuthority) error {
 	return nil
 }
 
+const compareAndSwapFixExample = "tctl get %s/%s/%s --with-secrets > ca.yaml && tctl create -f ca.yaml && rm ca.yaml"
+
 // CompareAndSwapCertAuthority updates the cert authority value
 // if the existing value matches existing parameter, returns nil if succeeds,
 // trace.CompareFailed otherwise.
@@ -123,7 +126,8 @@ func (s *CA) CompareAndSwapCertAuthority(new, existing types.CertAuthority) erro
 	if err != nil {
 		if trace.IsCompareFailed(err) {
 			if len(existing.GetMetadata().Labels) >= 2 {
-				log.Warn("compare-and-swap comparison failed on certificate authority with multiple labels; it may need to be re-saved to sort map keys")
+				exampleCmd := fmt.Sprintf(compareAndSwapFixExample, existing.GetKind(), existing.GetSubKind(), existing.GetName())
+				log.Warn("comparison failed on certificate authority with multiple labels; if this occurs consistently, try re-saving the resource: %s", exampleCmd)
 			}
 			return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
 		}
