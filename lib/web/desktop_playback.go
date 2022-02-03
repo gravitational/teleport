@@ -181,9 +181,10 @@ func (pp *playbackPlayer) streamSessionEvents(ctx context.Context, cancel contex
 				}{Message: "end"})
 				if err != nil {
 					pp.log.WithError(err).Errorf("failed to marshal end message into JSON: %v", msg)
-				}
-				if _, err := pp.ws.Write(msg); err != nil {
-					pp.log.WithError(err).Error("failed to write \"end\" message over websocket")
+				} else {
+					if _, err := pp.ws.Write(msg); err != nil {
+						pp.log.WithError(err).Error("failed to write \"end\" message over websocket")
+					}
 				}
 
 				// deferred ps.Close() will set ps.playState = playStateFinished for us
