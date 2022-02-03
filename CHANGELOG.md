@@ -1,5 +1,41 @@
 # Changelog
 
+## 8.1.2
+
+This release of Teleport contains multiple features, improvements, bug fixes, and a security fix.
+
+### Kubernetes Access security fix
+
+* Fixed issue where labels of the target Kubernetes Service were ignored when calculating `kubernetes_users` and `kubernetes_groups`. [#9955](https://github.com/gravitational/teleport/pull/9955)
+
+We recommend all Kubernetes Access users to upgrade their Proxies and Kubernetes Services.
+
+### Other improvements and fixes
+
+* Added support for locking Access Requests. [#9478](https://github.com/gravitational/teleport/pull/9478)
+* Added support for jitter and backoff to prevent thundering herd situations. [#9133](https://github.com/gravitational/teleport/pull/9133)
+* Added support for nested groups with Google SSO. [#9697](https://github.com/gravitational/teleport/pull/9697)
+* Added support for pulling multiple domain groups from Google Workspace. [#9697](https://github.com/gravitational/teleport/pull/9697)
+* Added event `session.connect` which is emitted when connecting to a non-Teleport server. [#9370](https://github.com/gravitational/teleport/pull/9370)
+* Added Access Request information to audit events. [#9758](https://github.com/gravitational/teleport/pull/9758)
+* Added client certificate authentication support for GCP Cloud SQL [#9991](https://github.com/gravitational/teleport/pull/9991)
+* Added support for canned AWS S3 ACLs. [#9042](https://github.com/gravitational/teleport/pull/9042)
+* Improved ACME support to automatically renew certificates affected by the Let's Encrypt TLS-ALPN-01 issues. [#9984](https://github.com/gravitational/teleport/pull/9984)
+* Improved Desktop Access performance. [#9817](https://github.com/gravitational/teleport/pull/9817)
+* Improved network utilization by replacing cluster periodics with watchers. [#9609](https://github.com/gravitational/teleport/pull/9609)
+* Fixed reverse tunneling for Windows Desktop Connections. [#9740](https://github.com/gravitational/teleport/pull/9740)
+* Fixed issue where database auto-discovery could fail with databases created by CloudFormation. [#9742](https://github.com/gravitational/teleport/pull/9742)
+* Fixed issue with Application Access in High Availability (HA) configurations. [#9288](https://github.com/gravitational/teleport/pull/9288)
+* Fixed issue where Database Access could fail to connect to RDS instance in `ca-central-1`. [#9890](https://github.com/gravitational/teleport/pull/9890)
+* Fixed issue with auto-discovery and RDS or Aurora permissions. [#9426](https://github.com/gravitational/teleport/pull/9426)
+* Fixed issue with Desktop Access token type name inconsistencies. [#9756](https://github.com/gravitational/teleport/pull/9756)
+* Fixed issue where prefixing an application name with "kube" would make the proxy route it as a Kubernetes cluster. [#9777](https://github.com/gravitational/teleport/pull/9777)
+* Fixed issue where `tsh db ls` could show incorrect information. [#9386](https://github.com/gravitational/teleport/pull/9386)
+* Fixed issue where Database Access would not register Aurora reader instances. [#9668](https://github.com/gravitational/teleport/pull/9668)
+* Fixed issue with AWS credential brokering with federated accounts. [#9792](https://github.com/gravitational/teleport/pull/9792)
+* Fixed regression in Kubernetes Access performance introduced in Teleport 8.1.1. [#10011](https://github.com/gravitational/teleport/pull/10011)
+* Fixed an issue where OIDC UserInfo were not respected. [#9951](https://github.com/gravitational/teleport/pull/9951)
+
 ## 8.1.1
 
 This release of Teleport contains a feature, improvement, and fixes.
