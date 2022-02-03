@@ -177,7 +177,7 @@ func setAgentForwardingModeOption(o *Options, val string) error {
 	case "local":
 		o.ForwardAgent = client.ForwardAgentLocal
 	default:
-		return trace.BadParameter("invalid agent forwarding mode: %s", val)
+		return trace.BadParameter("invalid agent forwarding mode: %q, supported are: yes, no, local", val)
 	}
 	return nil
 }

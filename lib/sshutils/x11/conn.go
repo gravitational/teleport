@@ -74,7 +74,7 @@ func OpenNewXServerListener(displayOffset int, maxDisplay int, screen uint32) (X
 	}
 
 	// Create /tmp/.X11-unix if it doesn't exist (such as in CI)
-	if err := os.Mkdir(x11SockDir(), 0777); err != nil && !errors.Is(err, os.ErrExist) {
+	if err := os.Mkdir(x11SockDir(), 1777); err != nil && !errors.Is(err, os.ErrExist) {
 		return nil, Display{}, trace.Wrap(err)
 	}
 

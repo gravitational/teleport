@@ -758,9 +758,11 @@ func TestX11Forward(t *testing.T) {
 	require.NoError(t, err)
 
 	// create a temp file to collect the shell output into:
-	tmpFile, err := ioutil.TempFile(os.TempDir(), "teleport-x11-forward-test")
+	tmpFile, err := os.CreateTemp(os.TempDir(), "teleport-x11-forward-test")
 	require.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
+	t.Cleanup(func() {
+		os.Remove(tmpFile.Name())
+	})
 
 	// type 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
 	_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v >> %s\n\r", x11.DisplayEnv, tmpFile.Name())))
@@ -769,7 +771,7 @@ func TestX11Forward(t *testing.T) {
 	// wait for the output
 	var display string
 	require.Eventually(t, func() bool {
-		output, err := ioutil.ReadFile(tmpFile.Name())
+		output, err := os.ReadFile(tmpFile.Name())
 		if err == nil && len(output) != 0 {
 			display = strings.TrimSpace(string(output))
 			return true
