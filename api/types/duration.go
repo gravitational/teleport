@@ -57,7 +57,7 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 		*d = Duration(0)
 		return nil
 	}
-	out, err := time.ParseDuration(stringVar)
+	out, err := parseDuration(stringVar)
 	if err != nil {
 		return trace.BadParameter(err.Error())
 	}
