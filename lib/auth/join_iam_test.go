@@ -31,26 +31,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func responseFromAWSIdentity(id awsIdentity) *http.Response {
-	responseBody := fmt.Sprintf(`{
+func responseFromAWSIdentity(id awsIdentity) string {
+	return fmt.Sprintf(`{
 		"GetCallerIdentityResponse": {
 			"GetCallerIdentityResult": {
 				"Account": "%s",
 				"Arn": "%s"
 			}}}`, id.Account, id.Arn)
-
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(strings.NewReader(responseBody)),
-	}
 }
 
 type mockClient struct {
-	resp *http.Response
+	respStatusCode int
+	respBody       string
 }
 
 func (c *mockClient) Do(req *http.Request) (*http.Response, error) {
-	return c.resp, nil
+	return &http.Response{
+		StatusCode: c.respStatusCode,
+		Body:       io.NopCloser(strings.NewReader(c.respBody)),
+	}, nil
 }
 
 const identityRequestTemplate = `POST / HTTP/1.1
@@ -137,7 +136,8 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
-				resp: responseFromAWSIdentity(awsIdentity{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -160,7 +160,8 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
-				resp: responseFromAWSIdentity(awsIdentity{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::role/admins-test",
 				}),
@@ -183,7 +184,8 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
-				resp: responseFromAWSIdentity(awsIdentity{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::role/admins-123",
 				}),
@@ -206,7 +208,8 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
-				resp: responseFromAWSIdentity(awsIdentity{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -229,7 +232,8 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
-				resp: responseFromAWSIdentity(awsIdentity{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -253,7 +257,8 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
-				resp: responseFromAWSIdentity(awsIdentity{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::role/admins-1234",
 				}),
@@ -276,7 +281,8 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
-				resp: responseFromAWSIdentity(awsIdentity{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -300,7 +306,8 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
-				resp: responseFromAWSIdentity(awsIdentity{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "5678",
 					Arn:     "arn:aws::1111",
 				}),
@@ -323,10 +330,8 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
-				resp: &http.Response{
-					StatusCode: http.StatusForbidden,
-					Body:       io.NopCloser(strings.NewReader("access denied")),
-				},
+				respStatusCode: http.StatusForbidden,
+				respBody:       "access denied",
 			},
 			requestTemplate: identityRequestTemplate,
 			assertError:     isAccessDenied,
@@ -346,7 +351,8 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
-				resp: responseFromAWSIdentity(awsIdentity{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -369,7 +375,8 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
-				resp: responseFromAWSIdentity(awsIdentity{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
