@@ -183,13 +183,14 @@ func executeSTSIdentityRequest(ctx context.Context, req *http.Request) (*awsIden
 	return id, nil
 }
 
-// arnMatches returns true if arn matches the pattern. pattern should be an AWS
-// ARN which may include "*" to match any combination of zero or more characters
-// and "?" to match any single character, see https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html
+// arnMatches returns true if arn matches the pattern.
+// Pattern should be an AWS ARN which may include "*" to match any combination
+// of zero or more characters and "?" to match any single character.
+// See https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html
 func arnMatches(pattern, arn string) (bool, error) {
-	// asterisk should match zero or
-	pattern = strings.ReplaceAll(pattern, "*", ".*")
-	pattern = strings.ReplaceAll(pattern, "?", ".")
+	pattern = regexp.QuoteMeta(pattern)
+	pattern = strings.ReplaceAll(pattern, `\*`, ".*")
+	pattern = strings.ReplaceAll(pattern, `\?`, ".")
 	pattern = "^" + pattern + "$"
 	matched, err := regexp.MatchString(pattern, arn)
 	return matched, trace.Wrap(err)
