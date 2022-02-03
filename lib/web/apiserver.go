@@ -894,12 +894,15 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 	}
 
+	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
-	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
-	if err != nil {
-		h.log.WithError(err).Error("cannot retrieve ProxySettings.")
-	} else {
-		tunnelPublicAddr = proxyConfig.SSH.TunnelPublicAddr
+	if h.ClusterFeatures.GetCloud() {
+		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+		if err != nil {
+			h.log.WithError(err).Error("Cannot retrieve ProxySettings.")
+		} else {
+			tunnelPublicAddr = proxyConfig.SSH.TunnelPublicAddr
+		}
 	}
 
 	webCfg := ui.WebConfig{

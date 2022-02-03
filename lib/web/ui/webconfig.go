@@ -46,7 +46,7 @@ type WebConfig struct {
 	// IsCloud is a flag that determines if cloud features are enabled.
 	IsCloud bool `json:"isCloud,omitempty"`
 	// TunnelPublicAddress is the public ssh tunnel address
-	TunnelPublicAddress string `json:"tunnelPublicAddress"`
+	TunnelPublicAddress string `json:"tunnelPublicAddress,omitempty"`
 }
 
 // WebConfigAuthProvider describes auth. provider
