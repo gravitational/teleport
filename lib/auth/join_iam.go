@@ -281,7 +281,7 @@ func generateChallenge() (string, error) {
 	return base64.RawStdEncoding.EncodeToString(challengeRawBytes), nil
 }
 
-/// ChallengeResponseFunc is a function type meant to be passed to
+// ChallengeResponseFunc is a function type meant to be passed to
 // RegisterUsingIAMMethod. It must return a *types.RegisterUsingTokenRequest for
 // a given challenge, or an error.
 type ChallengeResponseFunc func(challenge string) (*types.RegisterUsingTokenRequest, error)
