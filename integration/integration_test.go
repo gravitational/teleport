@@ -5230,11 +5230,12 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 
 	// Wait 10 seconds for both events to arrive, otherwise timeout.
 	timeout := time.After(10 * time.Second)
+outer:
 	for i := 0; i < 2; i++ {
 		select {
 		case <-doneCh:
 			if i == 1 {
-				break
+				break outer
 			}
 		case <-timeout:
 			dumpGoroutineProfile()
