@@ -5,21 +5,21 @@ description: How to configure Teleport Database Access with GCP Cloud SQL MySQL.
 
 # GCP Cloud SQL MySQL
 
-## Create Teleport Database Service Account
+## Create a service account for the Teleport Database Service
 
 Teleport uses one-time passwords to authenticate with Cloud SQL MySQL. To be
 able to authenticate with a database instance, Teleport must run as a service
 account that has a few of the "Cloud SQL Admin" role permissions. You can create
 a new service account, or modify an existing one to add required permissions.
 
-### Create Service Account
+### Create a service account
 
 If creating a new one, go to the [Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts)
 page and create another service account:
 
 ![Create Service Account](../../../img/database-access/guides/cloudsql/service-account-db-service@2x.png)
 
-### Grant Permissions
+### Grant permissions
 
 Assign the Service Account the "Cloud SQL Admin" role:
 
@@ -43,7 +43,7 @@ Assign the Service Account the "Cloud SQL Admin" role:
   ```
 </Admonition>
 
-### Create Key
+### Create a key for the service account
 
 Once created, go to that service account's Keys tab and create a new key:
 

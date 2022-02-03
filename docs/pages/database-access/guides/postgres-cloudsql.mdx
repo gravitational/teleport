@@ -26,11 +26,11 @@ If it isn't enabled, you can add this flag using the "Edit configuration" dialog
 at the bottom of the Configuration panel. Note, changing this setting may
 require a database instance reboot.
 
-## Create Service Account for the database
+## Create a service account for the database
 
 Teleport uses service accounts to connect to Cloud SQL databases.
 
-### Create Service Account
+### Create a service account
 
 Go to the IAM & Admin [Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts)
 page and create a new service account:
@@ -39,7 +39,7 @@ page and create a new service account:
 
 Press "Create".
 
-### Grant Permissions
+### Grant permissions
 
 On the second step grant this service account the "Cloud SQL Instance User" role
 which will allow it to connect to Cloud SQL instances using IAM token for
@@ -49,7 +49,7 @@ authentication:
 
 Press "Done".
 
-### Select Cloud IAM Authentication
+### Configure authentication for your service account
 
 Now go back to the Users page of your Cloud SQL instance and add a new user
 account. In the sidebar, choose "Cloud IAM" authentication type and add the
@@ -64,20 +64,20 @@ Press "Add" and your Users table should look similar to this:
 See [Creating and managing IAM users](https://cloud.google.com/sql/docs/postgres/create-manage-iam-users)
 in Google Cloud documentation for more info.
 
-## Create Teleport Database Service Account
+## Create a service account for Teleport Database Service
 
 The final part of GCP configuration is to create a service account for the
 Teleport Database Service.
 
 
-### Create Service Account
+### Create a service account
 
 If creating a new one, go to the [Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts)
 page and create another service account:
 
 ![Create Service Account](../../../img/database-access/guides/cloudsql/service-account-db-service@2x.png)
 
-### Grant Permissions
+### Grant permissions
 
 Assign the Service Account the following IAM roles:
 
@@ -114,7 +114,7 @@ Assign it the "Service Account Token Creator" role:
 
 </Admonition>
 
-### Create Key
+### Create a key for the service account
 
 Once created, go to that service account's Keys tab and create a new key:
 
