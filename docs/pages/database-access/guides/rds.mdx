@@ -375,7 +375,7 @@ proxy_service:
 db_service:
   enabled: "yes"
   aws:
-  - types: ["rds", "rds-proxy"] # Database types
+  - types: ["rds", "rds-proxy"]
     regions: ["us-west-1"] # AWS regions to fetch databases from
     tags: # AWS database resource tags to match
       "*": "*"

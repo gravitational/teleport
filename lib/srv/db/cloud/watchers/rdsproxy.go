@@ -51,7 +51,7 @@ func newRDSDBProxyFetcher(config rdsFetcherConfig) (Fetcher, error) {
 	}, nil
 }
 
-// Get returns RDS proxies and prosy endpoints matching the watcher's
+// Get returns RDS proxies and proxy endpoints matching the watcher's
 // selectors.
 func (f *rdsDBProxyFetcher) Get(ctx context.Context) (types.Databases, error) {
 	databases, err := f.getRDSProxyDatabases(ctx)
@@ -76,11 +76,19 @@ func (f *rdsDBProxyFetcher) Get(ctx context.Context) (types.Databases, error) {
 // getRDSProxyDatabases returns a list of database resources representing RDS
 // proxies and proxy endpoints.
 func (f *rdsDBProxyFetcher) getRDSProxyDatabases(ctx context.Context) (types.Databases, error) {
+	// Get a list of all RDS proxies. Each RDS proxy has one "default"
+	// endpoint.
 	rdsProxies, err := getRDSProxies(ctx, f.cfg.RDS, maxPages)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// Get a list of all RDS proxy endpoints. These are extra endpoints users
+	// can add to the RDS proxies, in addtion to the "default" endpoints each
+	// RDS proxy provide. Therefore, each discovered proxy endpoint should
+	// belong to one of the RDS proxies discovered earlier.
+	// In cases we fail to discover proxy endpoints (missing permissions for
+	// example), we should still continue to add the discovered RDS proxies.
 	rdsProxyEndpoints, err := getRDSProxyEndpoints(ctx, f.cfg.RDS, maxPages)
 	if err != nil {
 		f.log.Debugf("Failed to get RDS proxy endpoints: %v.", err)
@@ -122,6 +130,11 @@ func (f *rdsDBProxyFetcher) getRDSProxyDatabases(ctx context.Context) (types.Dat
 			delete(rdsProxyEndpoints, key)
 		}
 	}
+
+	// Log a message for leftover proxy endpoints.
+	for _, dbProxyEndpoint := range rdsProxyEndpoints {
+		f.log.Debugf("Could not find parent RDS proxy for RDS proxy endpoint %v", aws.StringValue(dbProxyEndpoint.DBProxyEndpointName))
+	}
 	return databases, nil
 }
 
@@ -130,7 +143,9 @@ func (f *rdsDBProxyFetcher) getRDSProxyDatabases(ctx context.Context) (types.Dat
 func getRDSProxies(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int) (rdsProxies []*rds.DBProxy, err error) {
 	var pageNum int
 	err = rdsClient.DescribeDBProxiesPagesWithContext(ctx,
-		&rds.DescribeDBProxiesInput{},
+		&rds.DescribeDBProxiesInput{
+			// "Filters" field is currently not supported for this API.
+		},
 		func(ddo *rds.DescribeDBProxiesOutput, lastPage bool) bool {
 			pageNum++
 			rdsProxies = append(rdsProxies, ddo.DBProxies...)
@@ -146,7 +161,14 @@ func getRDSProxyEndpoints(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPag
 	rdsProxyEndpoints = make(map[string]*rds.DBProxyEndpoint)
 	var pageNum int
 	err = rdsClient.DescribeDBProxyEndpointsPagesWithContext(ctx,
-		&rds.DescribeDBProxyEndpointsInput{},
+		&rds.DescribeDBProxyEndpointsInput{
+			// "Filters" field is currently not supported for this API.
+			// Do not specify DBProxyName or DBProxyEndpoint to get a list of
+			// all RDS proxies in this region. When DBProxyName is not
+			// specified, the "default" endpoints of the RDS proxy are not
+			// returned. The "default" endpoints can be found in rds.DBProxy
+			// from DescribeDBProxies so they are not needed here.
+		},
 		func(ddo *rds.DescribeDBProxyEndpointsOutput, lastPage bool) bool {
 			pageNum++
 

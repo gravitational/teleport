@@ -120,7 +120,7 @@ func (m *Metadata) fetchRDSMetadata(ctx context.Context, database types.Database
 	if metadata != nil && metadata.RDS.ClusterID != "" {
 		return fetchRDSClusterMetadata(ctx, rds, metadata.RDS.ClusterID)
 	}
-	return metadata, err
+	return metadata, trace.Wrap(err)
 }
 
 // fetchRedshiftMetadata fetches metadata for the provided Redshift database.

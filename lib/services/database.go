@@ -360,7 +360,7 @@ func MetadataFromRDSProxyEndpoint(rdsProxy *rds.DBProxy, rdsProxyEndpoint *rds.D
 	}
 
 	metadata.RDS.ProxyEndpointName = aws.StringValue(rdsProxyEndpoint.DBProxyEndpointName)
-	return metadata, err
+	return metadata, nil
 }
 
 // engineToProtocol converts RDS instance engine to the database protocol.
@@ -430,7 +430,7 @@ func labelsFromRDSProxy(rdsProxy *rds.DBProxy, meta *types.AWS) map[string]strin
 	// rds.DBProxy has no TagList.
 	labels := make(map[string]string)
 	labels[types.OriginLabel] = types.OriginCloud
-	labels[labelVpcID] = aws.StringValue(rdsProxy.VpcId)
+	labels[labelVPCID] = aws.StringValue(rdsProxy.VpcId)
 	labels[labelAccountID] = meta.AccountID
 	labels[labelRegion] = meta.Region
 	labels[labelEngine] = strings.ToLower(aws.StringValue(rdsProxy.EngineFamily))
@@ -556,8 +556,8 @@ const (
 	labelEndpointType = "endpoint-type"
 	// labelTargetRole is the label key containing the RDS target role.
 	labelTargetRole = "target-role"
-	// labelVpcID is the label key containing the VPC ID.
-	labelVpcID = "vpc-id"
+	// labelVPCID is the label key containing the VPC ID.
+	labelVPCID = "vpc-id"
 )
 
 const (

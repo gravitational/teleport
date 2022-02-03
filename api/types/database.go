@@ -26,6 +26,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Database represents a database proxied by a database server.
@@ -385,7 +387,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	case strings.Contains(d.Spec.URI, rdsEndpointSuffix):
 		rdsDetails, err := parseRDSEndpoint(d.Spec.URI)
 		if err != nil {
-			return trace.Wrap(err)
+			log.WithError(err).Warnf("Failed to parse RDS endpoint %v.", d.Spec.URI)
+			break
 		}
 		if d.Spec.AWS.RDS.InstanceID == "" && rdsDetails.instanceID != "" {
 			d.Spec.AWS.RDS.InstanceID = rdsDetails.instanceID
@@ -405,7 +408,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	case strings.Contains(d.Spec.URI, redshiftEndpointSuffix):
 		clusterID, region, err := parseRedshiftEndpoint(d.Spec.URI)
 		if err != nil {
-			return trace.Wrap(err)
+			log.WithError(err).Warnf("Failed to parse Redshift endpoint %v.", d.Spec.URI)
+			break
 		}
 		if d.Spec.AWS.Redshift.ClusterID == "" {
 			d.Spec.AWS.Redshift.ClusterID = clusterID
@@ -416,7 +420,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	case strings.Contains(d.Spec.URI, azureEndpointSuffix):
 		name, err := parseAzureEndpoint(d.Spec.URI)
 		if err != nil {
-			return trace.Wrap(err)
+			log.WithError(err).Warnf("Failed to parse Azure endpoint %v.", d.Spec.URI)
+			break
 		}
 		if d.Spec.Azure.Name == "" {
 			d.Spec.Azure.Name = name
@@ -438,7 +443,7 @@ type rdsEndpointDetails struct {
 func parseRDSEndpoint(endpoint string) (*rdsEndpointDetails, error) {
 	host, _, err := net.SplitHostPort(endpoint)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	// RDS/Aurora instance endpoints look like this:
@@ -459,33 +464,40 @@ func parseRDSEndpoint(endpoint string) (*rdsEndpointDetails, error) {
 	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-setup.html#rds-proxy-connecting
 	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-endpoints.html
 	if !strings.HasSuffix(host, rdsEndpointSuffix) {
-		return nil, trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
+		return nil, trace.BadParameter("endpoint %v does not contain RDS endpoint suffix %v", endpoint, rdsEndpointSuffix)
 	}
 
 	parts := strings.Split(host, ".")
-	details := &rdsEndpointDetails{}
 
 	// The RDS proxy endpoints have one extra level of subdomains.
 	if len(parts) == 7 && strings.HasPrefix(parts[2], rdsProxySubdomainPrefix) {
-		details.proxyEndpointName = parts[0]
-		details.region = parts[3]
-		return details, nil
+		return &rdsEndpointDetails{
+			proxyEndpointName: parts[0],
+			region:            parts[3],
+		}, nil
 	}
 
 	if len(parts) != 6 {
-		return nil, trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
+		return nil, trace.BadParameter("endpoint %v doest not have expected number of subdomains", endpoint)
 	}
 
 	if strings.HasPrefix(parts[1], rdsProxySubdomainPrefix) {
-		details.proxyName = parts[0]
-	} else if strings.HasPrefix(parts[1], rdsClusterSubdomainPrefix) {
-		details.clusterID = parts[0]
-	} else {
-		details.instanceID = parts[0]
+		return &rdsEndpointDetails{
+			proxyName: parts[0],
+			region:    parts[2],
+		}, nil
 	}
 
-	details.region = parts[2]
-	return details, nil
+	if strings.HasPrefix(parts[1], rdsClusterSubdomainPrefix) {
+		return &rdsEndpointDetails{
+			clusterID: parts[0],
+			region:    parts[2],
+		}, nil
+	}
+	return &rdsEndpointDetails{
+		instanceID: parts[0],
+		region:     parts[2],
+	}, nil
 }
 
 // parseRedshiftEndpoint extracts cluster ID and region from the provided Redshift endpoint.
@@ -498,7 +510,7 @@ func parseRedshiftEndpoint(endpoint string) (clusterID, region string, err error
 	// redshift-cluster-1.abcdefghijklmnop.us-east-1.rds.amazonaws.com
 	parts := strings.Split(host, ".")
 	if !strings.HasSuffix(host, redshiftEndpointSuffix) || len(parts) != 6 {
-		return "", "", trace.BadParameter("failed to parse %v as Redshift endpoint", endpoint)
+		return "", "", trace.BadParameter("endpoint %v does not have expected number of subdomains", endpoint)
 	}
 	return parts[0], parts[2], nil
 }
@@ -513,7 +525,7 @@ func parseAzureEndpoint(endpoint string) (name string, err error) {
 	// name.mysql.database.azure.com
 	parts := strings.Split(host, ".")
 	if !strings.HasSuffix(host, azureEndpointSuffix) || len(parts) != 5 {
-		return "", trace.BadParameter("failed to parse %v as Azure endpoint", endpoint)
+		return "", trace.BadParameter("endpoint %v does not have expected number of subdomains", endpoint)
 	}
 	return parts[0], nil
 }
