@@ -107,17 +107,25 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 	isAccessDenied := func(t require.TestingT, err error, _ ...interface{}) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
 	}
+	isBadParameter := func(t require.TestingT, err error, _ ...interface{}) {
+		require.True(t, trace.IsBadParameter(err), "expected Bad Parameter error, actual error: %v", err)
+	}
 
 	testCases := []struct {
 		desc                      string
+		tokenName                 string
+		requestTokenName          string
 		tokenSpec                 types.ProvisionTokenSpecV2
 		stsClient                 stsClient
 		challengeResponseOverride string
 		requestTemplate           string
+		challengeResponseErr      error
 		assertError               require.ErrorAssertionFunc
 	}{
 		{
-			desc: "basic passing case",
+			desc:             "basic passing case",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
@@ -138,7 +146,9 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			assertError:     require.NoError,
 		},
 		{
-			desc: "wildcard arn 1",
+			desc:             "wildcard arn 1",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
@@ -159,7 +169,9 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			assertError:     require.NoError,
 		},
 		{
-			desc: "wildcard arn 2",
+			desc:             "wildcard arn 2",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
@@ -180,7 +192,56 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			assertError:     require.NoError,
 		},
 		{
-			desc: "wrong arn",
+			desc:             "wrong token",
+			tokenName:        "test-token",
+			requestTokenName: "wrong-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: "1234",
+						AWSARN:     "arn:aws::1111",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				resp: responseFromAWSIdentity(awsIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1111",
+				}),
+			},
+			requestTemplate: identityRequestTemplate,
+			assertError:     isAccessDenied,
+		},
+		{
+			desc:             "challenge response error",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: "1234",
+						AWSARN:     "arn:aws::1111",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				resp: responseFromAWSIdentity(awsIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1111",
+				}),
+			},
+			requestTemplate:      identityRequestTemplate,
+			challengeResponseErr: trace.BadParameter("test error"),
+			assertError:          isBadParameter,
+		},
+		{
+			desc:             "wrong arn",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
@@ -201,7 +262,9 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			assertError:     isAccessDenied,
 		},
 		{
-			desc: "wrong challenge",
+			desc:             "wrong challenge",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
@@ -223,7 +286,9 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			assertError:               isAccessDenied,
 		},
 		{
-			desc: "wrong account",
+			desc:             "wrong account",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
@@ -244,7 +309,9 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			assertError:     isAccessDenied,
 		},
 		{
-			desc: "sts api error",
+			desc:             "sts api error",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
@@ -265,7 +332,9 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			assertError:     isAccessDenied,
 		},
 		{
-			desc: "wrong sts host",
+			desc:             "wrong sts host",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
@@ -286,7 +355,9 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			assertError:     isAccessDenied,
 		},
 		{
-			desc: "unsigned challenge header",
+			desc:             "unsigned challenge header",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
@@ -311,7 +382,8 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			// add token to auth server
-			token, err := types.NewProvisionTokenFromSpec("test-token",
+			token, err := types.NewProvisionTokenFromSpec(
+				tc.tokenName,
 				time.Now().Add(time.Minute),
 				tc.tokenSpec)
 			require.NoError(t, err)
@@ -322,37 +394,22 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			requestContext = context.WithValue(requestContext, ContextClientAddr, &net.IPAddr{})
 			requestContext = context.WithValue(requestContext, stsClientKey{}, tc.stsClient)
 
-			challengeChan := make(chan string)
-			requestChan := make(chan *types.RegisterUsingTokenRequest)
-			doneChan := make(chan struct{})
-
-			go func() {
-				defer func() { doneChan <- struct{}{} }()
-
-				// wait for challenge from auth
-				challenge := <-challengeChan
+			_, err = a.RegisterUsingIAMMethod(requestContext, func(challenge string) (*types.RegisterUsingTokenRequest, error) {
 				if tc.challengeResponseOverride != "" {
 					challenge = tc.challengeResponseOverride
 				}
-
-				// write request including challenge back to auth
 				identityRequest := []byte(fmt.Sprintf(tc.requestTemplate, challenge))
 				req := &types.RegisterUsingTokenRequest{
-					Token:              "test-token",
+					Token:              tc.requestTokenName,
 					HostID:             "test-node",
 					Role:               types.RoleNode,
 					PublicSSHKey:       sshPublicKey,
 					PublicTLSKey:       tlsPublicKey,
 					STSIdentityRequest: identityRequest,
 				}
-				requestChan <- req
-			}()
-
-			_, err = a.RegisterUsingIAMMethod(requestContext, challengeChan, requestChan)
+				return req, tc.challengeResponseErr
+			})
 			tc.assertError(t, err)
-
-			// wait for goroutine
-			<-doneChan
 		})
 	}
 }

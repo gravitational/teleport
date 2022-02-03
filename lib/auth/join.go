@@ -38,9 +38,9 @@ func (a *Server) tokenJoinMethod(ctx context.Context, tokenName string) types.Jo
 
 // checkTokenJoinRequestCommon checks all token join rules that are common to
 // all join methods, including token existence, token TTL, and allowed roles.
-func (a *Server) checkTokenJoinRequestCommon(req *types.RegisterUsingTokenRequest) error {
+func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
 	// make sure the token is valid
-	roles, _, err := a.ValidateToken(req.Token)
+	roles, _, err := a.ValidateToken(ctx, req.Token)
 	if err != nil {
 		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %v", req.NodeName, req.HostID, req.Role, err)
 		return trace.AccessDenied(fmt.Sprintf("%q [%v] can not join the cluster with role %s, the token is not valid", req.NodeName, req.HostID, req.Role))
@@ -93,7 +93,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	}
 
 	// perform common token checks
-	if err := a.checkTokenJoinRequestCommon(req); err != nil {
+	if err := a.checkTokenJoinRequestCommon(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

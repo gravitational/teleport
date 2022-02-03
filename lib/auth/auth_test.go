@@ -567,7 +567,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(len(tokens), Equals, 1)
 	c.Assert(tokens[0].GetName(), Equals, tok)
 
-	roles, _, err := s.a.ValidateToken(tok)
+	roles, _, err := s.a.ValidateToken(ctx, tok)
 	c.Assert(err, IsNil)
 	c.Assert(roles.Include(types.RoleNode), Equals, true)
 	c.Assert(roles.Include(types.RoleProxy), Equals, false)
@@ -578,7 +578,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tok, Equals, customToken)
 
-	roles, _, err = s.a.ValidateToken(tok)
+	roles, _, err = s.a.ValidateToken(ctx, tok)
 	c.Assert(err, IsNil)
 	c.Assert(roles.Include(types.RoleNode), Equals, true)
 	c.Assert(roles.Include(types.RoleProxy), Equals, false)
@@ -600,7 +600,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	err = s.a.SetStaticTokens(st)
 	c.Assert(err, IsNil)
 
-	r, _, err := s.a.ValidateToken("static-token-value")
+	r, _, err := s.a.ValidateToken(ctx, "static-token-value")
 	c.Assert(err, IsNil)
 	c.Assert(r, DeepEquals, roles)
 
@@ -613,11 +613,11 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 func (s *AuthSuite) TestBadTokens(c *C) {
 	ctx := context.Background()
 	// empty
-	_, _, err := s.a.ValidateToken("")
+	_, _, err := s.a.ValidateToken(ctx, "")
 	c.Assert(err, NotNil)
 
 	// garbage
-	_, _, err = s.a.ValidateToken("bla bla")
+	_, _, err = s.a.ValidateToken(ctx, "bla bla")
 	c.Assert(err, NotNil)
 
 	// tampered
@@ -625,7 +625,7 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 	c.Assert(err, IsNil)
 
 	tampered := string(tok[0]+1) + tok[1:]
-	_, _, err = s.a.ValidateToken(tampered)
+	_, _, err = s.a.ValidateToken(ctx, tampered)
 	c.Assert(err, NotNil)
 }
 

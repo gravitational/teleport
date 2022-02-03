@@ -281,14 +281,18 @@ func generateChallenge() (string, error) {
 	return base64.RawStdEncoding.EncodeToString(challengeRawBytes), nil
 }
 
+/// ChallengeResponseFunc is a function type meant to be passed to
+// RegisterUsingIAMMethod. It must return a *types.RegisterUsingTokenRequest for
+// a given challenge, or an error.
+type ChallengeResponseFunc func(challenge string) (*types.RegisterUsingTokenRequest, error)
+
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
 //
-// The server will generate a base64-encoded crypto-random challenge and
-// send it on the challenge channel. The caller is expected to respond on
-// the request channel with a RegisterUsingTokenRequest including a signed
-// sts:GetCallerIdentity request with the challenge string.
-func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeChan chan<- string, reqChan <-chan *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+// The caller must provide a ChallengeResponseFunc which returns a
+// *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
+// including the challenge as a signed header.
+func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse ChallengeResponseFunc) (*proto.Certs, error) {
 	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
 	if !ok {
 		return nil, trace.BadParameter("logic error: client address was not set")
@@ -299,17 +303,9 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeChan chan<
 		return nil, trace.Wrap(err)
 	}
 
-	select {
-	case challengeChan <- challenge:
-	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
-	}
-
-	var req *types.RegisterUsingTokenRequest
-	select {
-	case req = <-reqChan:
-	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
+	req, err := challengeResponse(challenge)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// fill in the client remote addr to the register request
@@ -318,13 +314,13 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeChan chan<
 		return nil, trace.Wrap(err)
 	}
 
-	// check that the GetCallerIdentity request is valid and matches the token
-	if err := a.checkIAMRequest(ctx, challenge, req); err != nil {
+	// perform common token checks
+	if err := a.checkTokenJoinRequestCommon(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// perform common token checks
-	if err := a.checkTokenJoinRequestCommon(req); err != nil {
+	// check that the GetCallerIdentity request is valid and matches the token
+	if err := a.checkIAMRequest(ctx, challenge, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
