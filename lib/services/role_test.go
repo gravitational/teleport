@@ -3160,6 +3160,7 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 		roles         RoleSet
 		wantUsers     []string
 		wantGroups    []string
+		errorFunc     func(t *testing.T, err error)
 	}{
 		{
 			name: "empty kube labels should returns all kube users/groups",
@@ -3285,13 +3286,139 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 			wantUsers:  []string{"dev-user"},
 			wantGroups: []string{"groupA"},
 		},
+		{
+			name:          "v4 role empty deny.kubernetes_labels",
+			kubeResLabels: nil,
+			roles: RoleSet{
+				&types.RoleV4{
+					Version:  types.V4,
+					Metadata: types.Metadata{Name: "roleV4A", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+						Deny: types.RoleConditions{
+							KubeGroups: []string{"system:masters"},
+							KubeUsers:  []string{"dev-user"},
+						},
+					},
+				},
+			},
+			errorFunc: func(t *testing.T, err error) {
+				require.IsType(t, trace.AccessDenied(""), err)
+			},
+		},
+		{
+			name:          "v4 role with wildcard deny.kubernetes_labels",
+			kubeResLabels: nil,
+			roles: RoleSet{
+				&types.RoleV4{
+					Version:  types.V4,
+					Metadata: types.Metadata{Name: "roleV4A", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+						Deny: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+					},
+				},
+			},
+			errorFunc: func(t *testing.T, err error) {
+				require.IsType(t, trace.AccessDenied(""), err)
+			},
+		},
+		{
+			name:          "v3 role with empty deny.kubernetes_labels",
+			kubeResLabels: nil,
+			roles: RoleSet{
+				&types.RoleV4{
+					Version:  types.V3,
+					Metadata: types.Metadata{Name: "roleV3A", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+						Deny: types.RoleConditions{
+							KubeGroups: []string{"system:masters"},
+							KubeUsers:  []string{"dev-user"},
+						},
+					},
+				},
+			},
+			errorFunc: func(t *testing.T, err error) {
+				require.IsType(t, trace.AccessDenied(""), err)
+			},
+		},
+		{
+			name:          "v3 with wildcard deny.kubernetes_labels",
+			kubeResLabels: nil,
+			roles: RoleSet{
+				&types.RoleV4{
+					Version:  types.V3,
+					Metadata: types.Metadata{Name: "roleV3A", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+						Deny: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+					},
+				},
+			},
+			errorFunc: func(t *testing.T, err error) {
+				require.IsType(t, trace.AccessDenied(""), err)
+			},
+		},
+		{
+			name:          "v3 role with custom deny.kubernetes_labels",
+			kubeResLabels: nil,
+			roles: RoleSet{
+				&types.RoleV4{
+					Version:  types.V3,
+					Metadata: types.Metadata{Name: "roleV3A", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+						Deny: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{"env": []string{"env"}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+					},
+				},
+			},
+			wantUsers:  []string{"dev-user"},
+			wantGroups: []string{"system:masters"},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels)
 			gotGroups, gotUsers, err := tc.roles.CheckKubeGroupsAndUsers(time.Hour, true, matcher)
-			require.NoError(t, err)
+			if tc.errorFunc == nil {
+				require.NoError(t, err)
+			} else {
+				tc.errorFunc(t, err)
+			}
 
 			require.ElementsMatch(t, tc.wantUsers, gotUsers)
 			require.ElementsMatch(t, tc.wantGroups, gotGroups)
