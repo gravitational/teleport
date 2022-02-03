@@ -17,9 +17,7 @@ limitations under the License.
 package regular
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -57,6 +55,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -939,217 +938,6 @@ func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint,
 	return clt, nil
 }
 
-func TestProxyReverseTunnel(t *testing.T) {
-	t.Parallel()
-
-	log.Infof("[TEST START] TestProxyReverseTunnel")
-	f := newFixture(t)
-	ctx := context.Background()
-
-	proxyClient, proxyID := newProxyClient(t, f.testSrv)
-
-	priv, pub, err := f.testSrv.Auth().GenerateKeyPair("")
-	require.NoError(t, err)
-
-	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
-	require.NoError(t, err)
-
-	// Create certificate for proxy.
-	proxyCerts, err := f.testSrv.Auth().GenerateHostCerts(ctx,
-		&proto.HostCertsRequest{
-			HostID:       hostID,
-			NodeName:     f.testSrv.ClusterName(),
-			Role:         types.RoleProxy,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
-		})
-	require.NoError(t, err)
-
-	proxySigner, err := sshutils.NewSigner(priv, proxyCerts.SSH)
-	require.NoError(t, err)
-
-	logger := logrus.WithField("test", "TestProxyReverseTunnel")
-	listener, reverseTunnelAddress := mustListen(t)
-	defer listener.Close()
-	lockWatcher := newLockWatcher(ctx, t, proxyClient)
-
-	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:                     proxyClient.TLSConfig(),
-		ID:                            hostID,
-		ClusterName:                   f.testSrv.ClusterName(),
-		Listener:                      listener,
-		HostSigners:                   []ssh.Signer{proxySigner},
-		LocalAuthClient:               proxyClient,
-		LocalAccessPoint:              proxyClient,
-		NewCachingAccessPoint:         noCache,
-		NewCachingAccessPointOldProxy: noCache,
-		DirectClusters:                []reversetunnel.DirectCluster{{Name: f.testSrv.ClusterName(), Client: proxyClient}},
-		DataDir:                       t.TempDir(),
-		Component:                     teleport.ComponentProxy,
-		Emitter:                       proxyClient,
-		Log:                           logger,
-		LockWatcher:                   lockWatcher,
-	})
-	require.NoError(t, err)
-	require.NoError(t, reverseTunnelServer.Start())
-	defer reverseTunnelServer.Close()
-
-	nodeClient, _ := newNodeClient(t, f.testSrv)
-	proxy, err := New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		f.testSrv.ClusterName(),
-		[]ssh.Signer{f.signer},
-		proxyClient,
-		t.TempDir(),
-		"",
-		utils.NetAddr{},
-		SetUUID(proxyID),
-		SetProxyMode(reverseTunnelServer, proxyClient),
-		SetSessionServer(proxyClient),
-		SetEmitter(nodeClient),
-		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&pam.Config{Enabled: false}),
-		SetBPF(&bpf.NOP{}),
-		SetRestrictedSessionManager(&restricted.NOP{}),
-		SetClock(f.clock),
-		SetLockWatcher(lockWatcher),
-	)
-	require.NoError(t, err)
-	require.NoError(t, proxy.Start())
-	t.Cleanup(func() { require.NoError(t, proxy.Close()) })
-
-	// set up SSH client using the user private key for signing
-	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
-	require.NoError(t, err)
-
-	rcWatcher, err := reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
-		AuthClient:          proxyClient,
-		HostSigner:          proxySigner,
-		HostUUID:            fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
-		AccessPoint:         proxyClient,
-		ReverseTunnelServer: reverseTunnelServer,
-		LocalCluster:        f.testSrv.ClusterName(),
-		Log:                 logger,
-	})
-	require.NoError(t, err)
-
-	go rcWatcher.Run(ctx)
-	defer rcWatcher.Close()
-
-	// Create a reverse tunnel and remote cluster simulating what the trusted
-	// cluster exchange does.
-	rt, err := types.NewReverseTunnel(f.testSrv.ClusterName(), []string{reverseTunnelAddress.String()})
-	require.NoError(t, err)
-	err = f.testSrv.Auth().UpsertReverseTunnel(rt)
-	require.NoError(t, err)
-	remoteCluster, err := types.NewRemoteCluster("localhost")
-	require.NoError(t, err)
-	err = f.testSrv.Auth().CreateRemoteCluster(remoteCluster)
-	require.NoError(t, err)
-
-	err = rcWatcher.Sync(ctx)
-	require.NoError(t, err)
-
-	// Wait for both sites to show up.
-	err = waitForSites(reverseTunnelServer, 2)
-	require.NoError(t, err)
-
-	sshConfig := &ssh.ClientConfig{
-		User:            f.user,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
-		HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
-	}
-
-	_, err = newUpack(f.testSrv, "user1", []string{f.user}, wildcardAllow)
-	require.NoError(t, err)
-
-	testClient(t, f, proxy.Addr(), f.ssh.srvAddress, f.ssh.srv.Addr(), sshConfig)
-	testClient(t, f, proxy.Addr(), f.ssh.srvHostPort, f.ssh.srv.Addr(), sshConfig)
-
-	// adding new node
-	srv2, err := New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		"bob",
-		[]ssh.Signer{f.signer},
-		nodeClient,
-		t.TempDir(),
-		"",
-		utils.NetAddr{},
-		SetShell("/bin/sh"),
-		SetLabels(
-			map[string]string{"label1": "value1"},
-			services.CommandLabels{
-				"cmdLabel1": &types.CommandLabelV2{
-					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"},
-				},
-				"cmdLabel2": &types.CommandLabelV2{
-					Period:  types.NewDuration(time.Second * 2),
-					Command: []string{"expr", "2", "+", "3"},
-				},
-			},
-		),
-		SetSessionServer(nodeClient),
-		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&pam.Config{Enabled: false}),
-		SetBPF(&bpf.NOP{}),
-		SetRestrictedSessionManager(&restricted.NOP{}),
-		SetEmitter(nodeClient),
-		SetClock(f.clock),
-		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
-	)
-	require.NoError(t, err)
-	require.NoError(t, srv2.Start())
-	require.NoError(t, srv2.heartbeat.ForceSend(time.Second))
-	defer srv2.Close()
-
-	// test proxysites
-	client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
-	require.NoError(t, err)
-
-	se3, err := client.NewSession()
-	require.NoError(t, err)
-	defer se3.Close()
-
-	stdout := &bytes.Buffer{}
-	reader, err := se3.StdoutPipe()
-	require.NoError(t, err)
-	done := make(chan struct{})
-	go func() {
-		_, err := io.Copy(stdout, reader)
-		require.NoError(t, err)
-		close(done)
-	}()
-
-	// to make sure  labels have the right output
-	f.ssh.srv.syncUpdateLabels()
-	srv2.syncUpdateLabels()
-	require.NoError(t, f.ssh.srv.heartbeat.ForceSend(time.Second))
-	require.NoError(t, srv2.heartbeat.ForceSend(time.Second))
-
-	// request "list of sites":
-	require.NoError(t, se3.RequestSubsystem("proxysites"))
-	<-done
-	var sites []types.Site
-	require.NoError(t, json.Unmarshal(stdout.Bytes(), &sites))
-	require.NotNil(t, sites)
-	require.Len(t, sites, 2)
-
-	require.Equal(t, "localhost", sites[0].Name)
-	require.Equal(t, "online", sites[0].Status)
-	require.Equal(t, "localhost", sites[1].Name)
-	require.Equal(t, "online", sites[1].Status)
-
-	require.Less(t, time.Since(sites[0].LastConnected).Seconds(), 5.0)
-	require.Less(t, time.Since(sites[1].LastConnected).Seconds(), 5.0)
-
-	err = f.testSrv.Auth().DeleteReverseTunnel(f.testSrv.ClusterName())
-	require.NoError(t, err)
-
-	err = rcWatcher.Sync(ctx)
-	require.NoError(t, err)
-}
-
 func TestProxyRoundRobin(t *testing.T) {
 	t.Parallel()
 
@@ -1967,28 +1755,6 @@ func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string,
 		signer:     usigner,
 		certSigner: ucertSigner,
 	}, nil
-}
-
-func waitForSites(s reversetunnel.Tunnel, count int) error {
-	timeout := time.NewTimer(10 * time.Second)
-	defer timeout.Stop()
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			clusters, err := s.GetSites()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if len(clusters) == count {
-				return nil
-			}
-		case <-timeout.C:
-			return trace.BadParameter("timed out waiting for clusters")
-		}
-	}
 }
 
 func newLockWatcher(ctx context.Context, t *testing.T, client types.Events) *services.LockWatcher {

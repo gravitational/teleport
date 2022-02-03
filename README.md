@@ -137,8 +137,7 @@ $ sudo mkdir -p -m0700 /var/lib/teleport
 $ sudo chown $USER /var/lib/teleport
 ```
 
-If the build succeeds, the installer places the binaries in the following directory:
-`$GOPATH/src/github.com/gravitational/teleport/build`
+If the build succeeds, the installer will place the binaries in the `build` directory.
 
 **Important:**
 * The Go compiler is somewhat sensitive to the amount of memory: you will need **at least** 1GB of virtual memory to compile Teleport. A 512MB instance without swap will **not** work.

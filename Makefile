@@ -954,3 +954,9 @@ update-webassets:
 .PHONY: dronegen
 dronegen:
 	go run ./dronegen
+
+# backport will automatically create backports for a given PR as long as you have the "gh" tool
+# installed locally. To backport, type "make backport PR=1234 TO=branch/1,branch/2".
+.PHONY: backport
+backport:
+	(cd ./assets/backport && go run main.go -pr=$(PR) -to=$(TO)) 

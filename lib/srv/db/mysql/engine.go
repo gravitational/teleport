@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
@@ -38,9 +37,18 @@ import (
 	"github.com/siddontang/go-mysql/server"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
+
+func init() {
+	common.RegisterEngine(newEngine, defaults.ProtocolMySQL)
+}
+
+func newEngine(ec common.EngineConfig) common.Engine {
+	return &Engine{
+		EngineConfig: ec,
+	}
+}
 
 // Engine implements the MySQL database service that accepts client
 // connections coming over reverse tunnel from the proxy and proxies
@@ -48,20 +56,8 @@ import (
 //
 // Implements common.Engine.
 type Engine struct {
-	// Auth handles database access authentication.
-	Auth common.Auth
-	// Audit emits database access audit events.
-	Audit common.Audit
-	// AuthClient is the cluster auth server client.
-	AuthClient *auth.Client
-	// Context is the database server close context.
-	Context context.Context
-	// Clock is the clock interface.
-	Clock clockwork.Clock
-	// CloudClients provides access to cloud API clients.
-	CloudClients common.CloudClients
-	// Log is used for logging.
-	Log logrus.FieldLogger
+	// EngineConfig is the common database engine configuration.
+	common.EngineConfig
 	// proxyConn is a client connection.
 	proxyConn server.Conn
 }
