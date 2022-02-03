@@ -415,8 +415,14 @@ func (a *Server) getAllCertificates(clusterName string) (CertAuthorityMap, error
 
 // findDuplicatedCertificates checks if any CA provided as caTypes has a duplicate in allCerts. List of all duplicates
 // is returned as a result. If no duplicates are found, then caTypes is returned in unmodified form.
+// This
 func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAuthorityMap) ([]types.CertAuthType, error) {
-	toRotate := caTypes[:]
+	// create a set for convenient lookup
+	rotateMap := make(map[types.CertAuthType]struct{})
+
+	for _, caType := range caTypes {
+		rotateMap[caType] = struct{}{}
+	}
 
 	// Check all combinations for duplicates. This can be optimized, but currently we have only 4 certificates
 	// and current implementation is easier to read and understand.
@@ -424,6 +430,12 @@ func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCer
 		cert, found := allCerts[caType]
 		if !found {
 			return nil, trace.BadParameter("didn't find %q in all certs map", caType)
+		}
+
+		// if CA has been already added to our set, skip it
+		_, found = rotateMap[caType]
+		if found {
+			continue
 		}
 
 	nextCert:
@@ -440,7 +452,7 @@ func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCer
 			for _, ak := range activeKeys.TLS {
 				for _, aak := range allActiveKeys.TLS {
 					if bytes.Compare(ak.Key, aak.Key) == 0 {
-						toRotate = append(toRotate, allCAType)
+						rotateMap[allCAType] = struct{}{}
 						continue nextCert
 					}
 				}
@@ -450,12 +462,19 @@ func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCer
 			for _, ak := range activeKeys.SSH {
 				for _, aak := range allActiveKeys.SSH {
 					if bytes.Compare(ak.PrivateKey, aak.PrivateKey) == 0 {
-						toRotate = append(toRotate, allCAType)
+						rotateMap[allCAType] = struct{}{}
 						continue nextCert
 					}
 				}
 			}
 		}
+	}
+
+	// copy all set elements to an array
+	toRotate := make([]types.CertAuthType, 0, len(rotateMap))
+
+	for key := range rotateMap {
+		toRotate = append(toRotate, key)
 	}
 
 	return toRotate, nil
