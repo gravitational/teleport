@@ -733,8 +733,8 @@ message ProvisionTokenSpecV2 {
     // to join the cluster with this token.
     int64 AWSIIDTTL = 3
         [ (gogoproto.jsontag) = "aws_iid_ttl,omitempty", (gogoproto.casttype) = "Duration" ];
-    // JoinMethod is the joining method nodes must use in order to use this
-    // token.
+    // JoinMethod is the joining method required in order to use this token.
+    // Supported joining methods include "token", "ec2", and "iam".
     string JoinMethod = 4
         [ (gogoproto.jsontag) = "join_method", (gogoproto.casttype) = "JoinMethod" ];
 }
@@ -2711,9 +2711,8 @@ message RegisterUsingTokenRequest {
     // of a joining EC2 instance.
     bytes EC2IdentityDocument = 10 [ (gogoproto.jsontag) = "ec2_id" ];
     // STSIdentityRequest is used for the IAM join method to prove the AWS
-    // identity of a joining node. (Only used over gRPC, no jsontag is
-    // required.)
-    bytes STSIdentityRequest = 11;
+    // identity of a joining node.
+    bytes STSIdentityRequest = 11 [ (gogoproto.jsontag) = "-" ];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain

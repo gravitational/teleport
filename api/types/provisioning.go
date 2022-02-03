@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -128,36 +128,41 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 	switch p.Spec.JoinMethod {
 	case JoinMethodToken:
 		if hasAllowRules {
-			return trace.BadParameter(`allow rules are not compatible with "token" join method`)
+			return trace.BadParameter("allow rules are not compatible with the %q join method", JoinMethodToken)
 		}
 	case JoinMethodEC2:
 		if !hasAllowRules {
-			return trace.BadParameter(`"ec2" join method requires defined token allow rules`)
+			return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodEC2)
 		}
 		for _, allowRule := range p.Spec.Allow {
 			if allowRule.AWSARN != "" {
-				return trace.BadParameter(`"aws_arn" is incompatible with the "ec2" join method`)
+				return trace.BadParameter(`the %q join method does not support the "aws_arn" parameter`, JoinMethodEC2)
 			}
+			if allowRule.AWSAccount == "" && allowRule.AWSRole == "" {
+				return trace.BadParameter(`allow rule for %q join method must set "aws_account" or "aws_role"`, JoinMethodEC2)
+			}
+		}
+		if p.Spec.AWSIIDTTL == 0 {
+			// default to 5 minute ttl if unspecified
+			p.Spec.AWSIIDTTL = Duration(5 * time.Minute)
 		}
 	case JoinMethodIAM:
 		if !hasAllowRules {
-			return trace.BadParameter(`"iam" join method requires defined token allow rules`)
+			return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodIAM)
 		}
 		for _, allowRule := range p.Spec.Allow {
 			if allowRule.AWSRole != "" {
-				return trace.BadParameter(`"aws_role" is incompatible with the "iam" join method`)
+				return trace.BadParameter(`the %q join method does not support the "aws_role" parameter`, JoinMethodIAM)
 			}
 			if len(allowRule.AWSRegions) != 0 {
-				return trace.BadParameter(`"aws_regions" is incompatible with the "iam" join method`)
+				return trace.BadParameter(`the %q join method does not support the "aws_regions" parameter`, JoinMethodIAM)
+			}
+			if allowRule.AWSAccount == "" && allowRule.AWSARN == "" {
+				return trace.BadParameter(`allow rule for %q join method must set "aws_account" or "aws_arn"`, JoinMethodEC2)
 			}
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
-	}
-
-	if p.Spec.AWSIIDTTL == 0 {
-		// default to 5 minute ttl if unspecified
-		p.Spec.AWSIIDTTL = Duration(5 * time.Minute)
 	}
 
 	return nil

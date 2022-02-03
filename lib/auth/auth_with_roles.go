@@ -456,9 +456,9 @@ func (a *ServerWithRoles) GenerateToken(ctx context.Context, req GenerateTokenRe
 	return a.authServer.GenerateToken(ctx, req)
 }
 
-func (a *ServerWithRoles) RegisterUsingToken(req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	// tokens have authz mechanism  on their own, no need to check
-	return a.authServer.RegisterUsingToken(req)
+	return a.authServer.RegisterUsingToken(ctx, req)
 }
 
 func (a *ServerWithRoles) RegisterNewAuthServer(ctx context.Context, token string) error {
@@ -469,13 +469,12 @@ func (a *ServerWithRoles) RegisterNewAuthServer(ctx context.Context, token strin
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
 //
-// The server will generate a base64-encoded crypto-random challenge and
-// send it on the challenge channel. The caller is expected to respond on
-// the request channel with a RegisterUsingTokenRequest including a signed
-// sts:GetCallerIdentity request with the challenge string.
-func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeChan chan<- string, reqChan <-chan *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	// register method has its own authz mechanism, no need to check
-	certs, err := a.authServer.RegisterUsingIAMMethod(ctx, challengeChan, reqChan)
+// See (*Server).RegisterUsingIAMMethod for further documentation.
+//
+// This wrapper does not do any extra authz checks, as the register method has
+// its own authz mechanism.
+func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeResponse ChallengeResponseFunc) (*proto.Certs, error) {
+	certs, err := a.authServer.RegisterUsingIAMMethod(ctx, challengeResponse)
 	return certs, trace.Wrap(err)
 }
 

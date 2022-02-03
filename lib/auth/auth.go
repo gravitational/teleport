@@ -37,7 +37,6 @@ import (
 	"math/big"
 	insecurerand "math/rand"
 	"net"
-	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -52,7 +51,6 @@ import (
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -2131,9 +2129,8 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 // ValidateToken takes a provisioning token value and finds if it's valid. Returns
 // a list of roles this token allows its owner to assume and token labels, or an error if the token
 // cannot be found.
-func (a *Server) ValidateToken(token string) (types.SystemRoles, map[string]string, error) {
-	ctx := context.TODO()
-	tkns, err := a.GetCache().GetStaticTokens()
+func (a *Server) ValidateToken(ctx context.Context, token string) (types.SystemRoles, map[string]string, error) {
+	tkns, err := a.GetStaticTokens()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2148,7 +2145,7 @@ func (a *Server) ValidateToken(token string) (types.SystemRoles, map[string]stri
 
 	// If it's not a static token, check if it's a ephemeral token in the backend.
 	// If a ephemeral token is found, make sure it's still valid.
-	tok, err := a.GetCache().GetToken(ctx, token)
+	tok, err := a.GetToken(ctx, token)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2174,176 +2171,6 @@ func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
 		return false
 	}
 	return true
-}
-
-func (a *Server) tokenJoinMethod(ctx context.Context, tokenName string) types.JoinMethod {
-	provisionToken, err := a.GetCache().GetToken(ctx, tokenName)
-	if err != nil {
-		// could not find dynamic token, assume static token. If it does not
-		// exist this will be caught later.
-		return types.JoinMethodToken
-	}
-	return provisionToken.GetJoinMethod()
-}
-
-// checkTokenJoinRequestCommon checks all token join rules that are common to
-// all join methods, including token existence, token TTL, and allowed roles.
-func (a *Server) checkTokenJoinRequestCommon(req *types.RegisterUsingTokenRequest) error {
-	// make sure the token is valid
-	roles, _, err := a.ValidateToken(req.Token)
-	if err != nil {
-		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %v", req.NodeName, req.HostID, req.Role, err)
-		return trace.AccessDenied(fmt.Sprintf("%q [%v] can not join the cluster with role %s, the token is not valid", req.NodeName, req.HostID, req.Role))
-	}
-
-	// make sure the caller is requesting a role allowed by the token
-	if !roles.Include(req.Role) {
-		msg := fmt.Sprintf("node %q [%v] can not join the cluster, the token does not allow %q role", req.NodeName, req.HostID, req.Role)
-		log.Warn(msg)
-		return trace.BadParameter(msg)
-	}
-
-	return nil
-}
-
-// RegisterUsingToken returns credentials for a new node to join the Teleport
-// cluster using a previously issued token.
-//
-// A node must also request a specific role (and the role must match one of the roles
-// the token was generated for.)
-//
-// If a token was generated with a TTL, it gets enforced (can't register new
-// nodes after TTL expires.)
-//
-// If the token includes a specific join method, the rules for that join method
-// will be checked.
-func (a *Server) RegisterUsingToken(req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ctx := context.TODO()
-	switch a.tokenJoinMethod(ctx, req.Token) {
-	case types.JoinMethodEC2:
-		if err := a.checkEC2JoinRequest(ctx, &req); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case types.JoinMethodIAM:
-		// IAM join method must use the gRPC RegisterUsingIAMMethod
-		return nil, trace.AccessDenied("this token is only valid for the IAM join method")
-	case types.JoinMethodToken:
-		// carry on to common token checking logic
-	default:
-		// this is a logic error, all valid join methods should be captured
-		// above (empty join method will be set to JoinMethodToken by
-		// CheckAndSetDefaults)
-		return nil, trace.BadParameter("unrecognized token join method")
-	}
-
-	// perform common token checks
-	if err := a.checkTokenJoinRequestCommon(&req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// generate and return host certificate and keys
-	certs, err := a.GenerateHostCerts(ctx,
-		&proto.HostCertsRequest{
-			HostID:               req.HostID,
-			NodeName:             req.NodeName,
-			Role:                 req.Role,
-			AdditionalPrincipals: req.AdditionalPrincipals,
-			PublicTLSKey:         req.PublicTLSKey,
-			PublicSSHKey:         req.PublicSSHKey,
-			RemoteAddr:           req.RemoteAddr,
-			DNSNames:             req.DNSNames,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
-	return certs, nil
-}
-
-// RegisterUsingIAMMethod registers the caller using the IAM join method and
-// returns signed certs to join the cluster.
-//
-// The server will generate a base64-encoded crypto-random challenge and
-// send it on the challenge channel. The caller is expected to respond on
-// the request channel with a RegisterUsingTokenRequest including a signed
-// sts:GetCallerIdentity request with the challenge string.
-func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeChan chan<- string, reqChan <-chan *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	p, ok := peer.FromContext(ctx)
-	if !ok {
-		return nil, trace.AccessDenied("failed to read peer information from gRPC context")
-	}
-	remoteAddr := p.Addr.String()
-
-	challenge, err := generateChallenge()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	select {
-	case challengeChan <- challenge:
-	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
-	}
-
-	var req *types.RegisterUsingTokenRequest
-	select {
-	case req = <-reqChan:
-	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
-	}
-
-	// fill in the client remote addr to the register request
-	req.RemoteAddr = remoteAddr
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// check that the GetCallerIdentity request is valid and matches the token
-	if err := a.checkIAMRequest(ctx, http.DefaultClient, challenge, req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// perform common token checks
-	if err := a.checkTokenJoinRequestCommon(req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// generate and return host certificate and keys
-	certs, err := a.GenerateHostCerts(ctx,
-		&proto.HostCertsRequest{
-			HostID:               req.HostID,
-			NodeName:             req.NodeName,
-			Role:                 req.Role,
-			AdditionalPrincipals: req.AdditionalPrincipals,
-			PublicTLSKey:         req.PublicTLSKey,
-			PublicSSHKey:         req.PublicSSHKey,
-			RemoteAddr:           req.RemoteAddr,
-			DNSNames:             req.DNSNames,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
-	return certs, nil
-}
-
-func (a *Server) RegisterNewAuthServer(ctx context.Context, token string) error {
-	tok, err := a.Provisioner.GetToken(ctx, token)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !tok.GetRoles().Include(types.RoleAuth) {
-		return trace.AccessDenied("role does not match")
-	}
-	if err := a.DeleteToken(ctx, token); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
