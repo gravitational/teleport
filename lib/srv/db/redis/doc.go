@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package mongodb implements database access proxy that handles authentication,
+// Package redis implements database access proxy that handles authentication,
 // authorization and protocol parsing of connections from Redis clients to
 // Redis standalone or Redis clusters.
 //

@@ -208,19 +208,19 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 
 // ServeRedis starts accepting Redis client connections.
 func (s *ProxyServer) ServeRedis(listener net.Listener, tlsConfig *tls.Config) error {
-	return s.serverGenericTLS(listener, tlsConfig, "Redis")
+	return s.serveGenericTLS(listener, tlsConfig, "Redis")
 }
 
 // ServeMongo starts accepting Mongo client connections.
 func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) error {
-	return s.serverGenericTLS(listener, tlsConfig, "Mongo")
+	return s.serveGenericTLS(listener, tlsConfig, "Mongo")
 }
 
-// serverGenericTLS starts accepting a plain TLS database client connection.
+// serveGenericTLS starts accepting a plain TLS database client connection.
 // DBName is used only for logging purposes.
-func (s *ProxyServer) serverGenericTLS(listener net.Listener, tlsConfig *tls.Config, DBName string) error {
-	s.log.Debugf("Started %s proxy.", DBName)
-	defer s.log.Debugf("%s proxy exited.", DBName)
+func (s *ProxyServer) serveGenericTLS(listener net.Listener, tlsConfig *tls.Config, dbName string) error {
+	s.log.Debugf("Started %s proxy.", dbName)
+	defer s.log.Debugf("%s proxy exited.", dbName)
 	for {
 		clientConn, err := listener.Accept()
 		if err != nil {
@@ -234,12 +234,12 @@ func (s *ProxyServer) serverGenericTLS(listener net.Listener, tlsConfig *tls.Con
 			defer clientConn.Close()
 			tlsConn := tls.Server(clientConn, tlsConfig)
 			if err := tlsConn.Handshake(); err != nil {
-				s.log.WithError(err).Errorf("%s TLS handshake failed.", DBName)
+				s.log.WithError(err).Errorf("%s TLS handshake failed.", dbName)
 				return
 			}
 			err := s.handleConnection(tlsConn)
 			if err != nil {
-				s.log.WithError(err).Errorf("Failed to handle %s client connection.", DBName)
+				s.log.WithError(err).Errorf("Failed to handle %s client connection.", dbName)
 			}
 		}()
 	}

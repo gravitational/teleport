@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -100,10 +101,8 @@ func (e *Engine) SendError(redisErr error) {
 		return
 	}
 
-	e.Log.Debugf("sending error to Redis client: %v", redisErr)
-
 	if err := e.sendToClient(redisErr); err != nil {
-		e.Log.Errorf("Failed to send message to the client: %v", err)
+		e.Log.Errorf("failed to send message to the client: %v", err)
 		return
 	}
 }
@@ -114,11 +113,11 @@ func (e *Engine) sendToClient(vals interface{}) error {
 	wr := redis.NewWriter(buf)
 
 	if err := writeCmd(wr, vals); err != nil {
-		return trace.BadParameter("Failed to convert error to a message: %v", err)
+		return trace.BadParameter("failed to convert error to a message: %v", err)
 	}
 
 	if _, err := e.proxyConn.Write(buf.Bytes()); err != nil {
-		return trace.ConnectionProblem(err, "Failed to send message to the client")
+		return trace.ConnectionProblem(err, "failed to send message to the client")
 	}
 
 	return nil
@@ -162,8 +161,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 	defer redisConn.Close()
 
-	e.Log.Debug("created a new Redis client, sending ping to test the connection")
-
 	// TODO(jakub): Currently Teleport supports only RESP2 as RESP3 is not supported by go-redis.
 	// When migration to RESP3 protocol this PING should be removed in favor of "HELLO 3" cmd.
 	// https://github.com/antirez/RESP3/blob/master/spec.md#the-hello-command-and-connection-handshake
@@ -171,8 +168,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	if pingResp.Err() != nil {
 		return trace.Wrap(pingResp.Err())
 	}
-
-	e.Log.Debug("Redis server responded to ping message")
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
@@ -205,8 +200,7 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 //  * RESP3 commands are rejected as Teleport currently doesn't support this version of protocol.
 //  * Subscribe related commands created a new DB connection as they change Redis request-response model to Pub/Sub.
 func (e *Engine) processCmd(ctx context.Context, redisClient redis.UniversalClient, cmd *redis.Cmd) error {
-	// go-redis always returns lower-case commands.
-	switch cmd.Name() {
+	switch strings.ToLower(cmd.Name()) {
 	case "hello":
 		return redis.RedisError("RESP3 is not supported")
 	case "auth":
@@ -315,7 +309,7 @@ func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalCli
 
 		return redisClient.Process(ctx, cmd)
 	default:
-		// Redis returns "syntax error" if AUTH has that 2 arguments.
+		// Redis returns "syntax error" if AUTH has more than 2 arguments.
 		return errors.New("syntax error")
 	}
 }
@@ -331,8 +325,6 @@ func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient)
 		}
 
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
-
-		e.Log.Debugf("redis cmd: %s", cmd.String())
 
 		// send valid commands to Redis instance/cluster.
 		err = e.processCmd(ctx, redisClient, cmd)

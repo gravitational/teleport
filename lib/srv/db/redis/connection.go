@@ -26,17 +26,23 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// DefaultPort is Redis default port.
+// DefaultPort is the Redis default port.
 const DefaultPort = "6379"
 
-// ConnectionOptions represent Redis connection options.
+const (
+	URIScheme    = "redis"
+	URISchemeSSL = "rediss"
+)
+
+// ConnectionOptions defines Redis connection options.
 type ConnectionOptions struct {
 	cluster bool
 	address string
 	port    string
 }
 
-// ParseRedisURI parses Redis connection string and return parsed connection options like address and connection mode.
+// ParseRedisURI parses a Redis connection string and returns the parsed
+// connection options like address and connection mode.
 // ex: rediss://redis.example.com:6379?cluster=true
 func ParseRedisURI(uri string) (*ConnectionOptions, error) {
 	if uri == "" {
@@ -49,9 +55,10 @@ func ParseRedisURI(uri string) (*ConnectionOptions, error) {
 	}
 
 	switch u.Scheme {
-	case "redis", "rediss":
+	case URIScheme, URISchemeSSL:
 	default:
-		return nil, trace.BadParameter("Redis schema protocol is incorrect, expected redis or rediss, provided %q", u.Scheme)
+		return nil, trace.BadParameter("Invalid Redis URI scheme: %q. Expected %q or %q.",
+			u.Scheme, URIScheme, URISchemeSSL)
 	}
 
 	host, port, err := net.SplitHostPort(u.Host)

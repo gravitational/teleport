@@ -1015,7 +1015,7 @@ func (c *Config) MongoProxyHostPort() (string, int) {
 	return c.WebProxyHostPort()
 }
 
-// RedisProxyHostPort returns the host and port of Mongo proxy.
+// RedisProxyHostPort returns the host and port of Redis proxy.
 func (c *Config) RedisProxyHostPort() (string, int) {
 	if c.RedisProxyAddr != "" {
 		addr, err := utils.ParseAddr(c.RedisProxyAddr)
