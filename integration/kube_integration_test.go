@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/events"
@@ -350,13 +351,15 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 	kubeUsers := []string{"alice@example.com"}
 	role, err := types.NewRole("kubemaster", types.RoleSpecV4{
 		Allow: types.RoleConditions{
-			Logins:     []string{username},
-			KubeGroups: kubeGroups,
-			KubeUsers:  kubeUsers,
+			Logins:           []string{username},
+			KubeGroups:       kubeGroups,
+			KubeUsers:        kubeUsers,
+			KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 		},
 		Deny: types.RoleConditions{
-			KubeGroups: kubeGroups,
-			KubeUsers:  kubeUsers,
+			KubeGroups:       kubeGroups,
+			KubeUsers:        kubeUsers,
+			KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
