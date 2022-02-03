@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -138,6 +138,13 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			if allowRule.AWSARN != "" {
 				return trace.BadParameter(`the %q join method does not support the "aws_arn" parameter`, JoinMethodEC2)
 			}
+			if allowRule.AWSAccount == "" && allowRule.AWSRole == "" {
+				return trace.BadParameter(`allow rule for %q join method must set "aws_account" or "aws_role"`, JoinMethodEC2)
+			}
+		}
+		if p.Spec.AWSIIDTTL == 0 {
+			// default to 5 minute ttl if unspecified
+			p.Spec.AWSIIDTTL = Duration(5 * time.Minute)
 		}
 	case JoinMethodIAM:
 		if !hasAllowRules {
@@ -150,14 +157,12 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			if len(allowRule.AWSRegions) != 0 {
 				return trace.BadParameter(`the %q join method does not support the "aws_regions" parameter`, JoinMethodIAM)
 			}
+			if allowRule.AWSAccount == "" && allowRule.AWSARN == "" {
+				return trace.BadParameter(`allow rule for %q join method must set "aws_account" or "aws_arn"`, JoinMethodEC2)
+			}
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
-	}
-
-	if p.Spec.AWSIIDTTL == 0 {
-		// default to 5 minute ttl if unspecified
-		p.Spec.AWSIIDTTL = Duration(5 * time.Minute)
 	}
 
 	return nil
