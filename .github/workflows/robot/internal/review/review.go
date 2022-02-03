@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/.github/workflows/robot/internal/github"
+	"github.com/gravitational/teleport/.github/workflows/robot/internal/leave"
 
 	"github.com/gravitational/trace"
 )
@@ -41,6 +42,17 @@ type Config struct {
 	// operations.
 	Rand *rand.Rand
 
+	// Leave is used to get leave request information.
+	Leave leave.Leave
+
+	// Reviewers is a JSON formatted string of reviewers.
+	Reviewers string
+
+	// r is reviewer configuration.
+	r reviewers
+}
+
+type reviewers struct {
 	// CodeReviewers and CodeReviewersOmit is a map of code reviews and code
 	// reviewers to omit.
 	CodeReviewers     map[string]Reviewer `json:"codeReviewers"`
@@ -57,28 +69,35 @@ type Config struct {
 
 // CheckAndSetDefaults checks and sets defaults.
 func (c *Config) CheckAndSetDefaults() error {
+	var reviewers reviewers
+	if err := json.Unmarshal([]byte(c.Reviewers), &reviewers); err != nil {
+		return trace.Wrap(err)
+	}
+	if reviewers.CodeReviewers == nil {
+		return trace.BadParameter("missing key CodeReviewers from Reviewers")
+	}
+	if reviewers.CodeReviewersOmit == nil {
+		return trace.BadParameter("missing key CodeReviewersOmit from Reviewers")
+	}
+
+	if reviewers.DocsReviewers == nil {
+		return trace.BadParameter("missing key DocsReviewers from Reviewers")
+	}
+	if reviewers.DocsReviewersOmit == nil {
+		return trace.BadParameter("missing key DocsReviewersOmit from Reviewers")
+	}
+
+	if reviewers.Admins == nil {
+		return trace.BadParameter("missing key Admins from Reviewers")
+	}
+	c.r = reviewers
+
+	if c.Leave == nil {
+		return trace.BadParameter("missing parameter Leave")
+	}
 	if c.Rand == nil {
 		c.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
 	}
-
-	if c.CodeReviewers == nil {
-		return trace.BadParameter("missing parameter CodeReviewers")
-	}
-	if c.CodeReviewersOmit == nil {
-		return trace.BadParameter("missing parameter CodeReviewersOmit")
-	}
-
-	if c.DocsReviewers == nil {
-		return trace.BadParameter("missing parameter DocsReviewers")
-	}
-	if c.DocsReviewersOmit == nil {
-		return trace.BadParameter("missing parameter DocsReviewersOmit")
-	}
-
-	if c.Admins == nil {
-		return trace.BadParameter("missing parameter Admins")
-	}
-
 	return nil
 }
 
@@ -87,27 +106,11 @@ type Assignments struct {
 	c *Config
 }
 
-// FromString parses JSON formatted configuration and returns assignments.
-func FromString(reviewers string) (*Assignments, error) {
-	var c Config
-	if err := json.Unmarshal([]byte(reviewers), &c); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	r, err := New(&c)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return r, nil
-}
-
 // New returns new code review assignments.
 func New(c *Config) (*Assignments, error) {
 	if err := c.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &Assignments{
 		c: c,
 	}, nil
@@ -115,8 +118,8 @@ func New(c *Config) (*Assignments, error) {
 
 // IsInternal returns if the author of a PR is internal.
 func (r *Assignments) IsInternal(author string) bool {
-	_, code := r.c.CodeReviewers[author]
-	_, docs := r.c.DocsReviewers[author]
+	_, code := r.c.r.CodeReviewers[author]
+	_, docs := r.c.r.DocsReviewers[author]
 	return code || docs
 }
 
@@ -145,7 +148,7 @@ func (r *Assignments) Get(author string, docs bool, code bool) []string {
 }
 
 func (r *Assignments) getDocsReviewers(author string) []string {
-	setA, setB := getReviewerSets(author, "Core", r.c.DocsReviewers, r.c.DocsReviewersOmit)
+	setA, setB := getReviewerSets(author, "Core", r.c.r.DocsReviewers, r.c.r.DocsReviewersOmit, r.c.Leave)
 	reviewers := append(setA, setB...)
 
 	// If no docs reviewers were assigned, assign admin reviews.
@@ -166,7 +169,7 @@ func (r *Assignments) getCodeReviewers(author string) []string {
 
 func (r *Assignments) getAdminReviewers(author string) []string {
 	var reviewers []string
-	for _, v := range r.c.Admins {
+	for _, v := range r.c.r.Admins {
 		if v == author {
 			continue
 		}
@@ -178,7 +181,7 @@ func (r *Assignments) getAdminReviewers(author string) []string {
 func (r *Assignments) getCodeReviewerSets(author string) ([]string, []string) {
 	// Internal non-Core contributors get assigned from the admin reviewer set.
 	// Admins will review, triage, and re-assign.
-	v, ok := r.c.CodeReviewers[author]
+	v, ok := r.c.r.CodeReviewers[author]
 	if !ok || v.Team == "Internal" {
 		reviewers := r.getAdminReviewers(author)
 		n := len(reviewers) / 2
@@ -191,7 +194,7 @@ func (r *Assignments) getCodeReviewerSets(author string) ([]string, []string) {
 		team = "Core"
 	}
 
-	return getReviewerSets(author, team, r.c.CodeReviewers, r.c.CodeReviewersOmit)
+	return getReviewerSets(author, team, r.c.r.CodeReviewers, r.c.r.CodeReviewersOmit, r.c.Leave)
 }
 
 // CheckExternal requires two admins have approved.
@@ -260,7 +263,7 @@ func (r *Assignments) checkDocsReviews(author string, reviews map[string]*github
 func (r *Assignments) checkCodeReviews(author string, reviews map[string]*github.Review) error {
 	// External code reviews should never hit this path, if they do, fail and
 	// return an error.
-	v, ok := r.c.CodeReviewers[author]
+	v, ok := r.c.r.CodeReviewers[author]
 	if !ok {
 		return trace.BadParameter("rejecting checking external review")
 	}
@@ -272,7 +275,7 @@ func (r *Assignments) checkCodeReviews(author string, reviews map[string]*github
 		team = "Core"
 	}
 
-	setA, setB := getReviewerSets(author, team, r.c.CodeReviewers, r.c.CodeReviewersOmit)
+	setA, setB := getReviewerSets(author, team, r.c.r.CodeReviewers, r.c.r.CodeReviewersOmit, r.c.Leave)
 
 	// PRs can be approved if you either have multiple code owners that approve
 	// or code owner and code reviewer.
@@ -286,7 +289,7 @@ func (r *Assignments) checkCodeReviews(author string, reviews map[string]*github
 	return trace.BadParameter("at least one approval required from each set %v %v", setA, setB)
 }
 
-func getReviewerSets(author string, team string, reviewers map[string]Reviewer, reviewersOmit map[string]bool) ([]string, []string) {
+func getReviewerSets(author string, team string, reviewers map[string]Reviewer, reviewersOmit map[string]bool, leave leave.Leave) ([]string, []string) {
 	var setA []string
 	var setB []string
 
@@ -303,7 +306,9 @@ func getReviewerSets(author string, team string, reviewers map[string]Reviewer, 
 		if k == author {
 			continue
 		}
-
+		if leave.ShouldOmit(k) {
+			continue
+		}
 		if v.Owner {
 			setA = append(setA, k)
 		} else {
