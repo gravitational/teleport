@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -240,7 +239,6 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 			a.SetClock(tc.clock)
 			certs, err := a.RegisterUsingToken(ctx, tc.req)
 			if tc.errorAssertion != nil {
-				fmt.Printf("%v\n", err)
 				require.True(t, tc.errorAssertion(err))
 				return
 			}

@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -180,7 +180,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			assertError:     require.NoError,
 		},
 		{
-			desc: "wrong arn 1",
+			desc: "wrong arn",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{

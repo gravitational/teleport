@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -116,15 +116,20 @@ func parseSTSRequest(req []byte) (*http.Request, error) {
 	return httpReq, nil
 }
 
-type stsIdentityResponse struct {
-	GetCallerIdentityResponse struct {
-		GetCallerIdentityResult awsIdentity
-	}
-}
-
+// awsIdentity holds aws Account and Arn, used for JSON parsing
 type awsIdentity struct {
 	Account string `json:"Account"`
 	Arn     string `json:"Arn"`
+}
+
+// getCallerIdentityReponse is used for JSON parsing
+type getCallerIdentityResponse struct {
+	GetCallerIdentityResult awsIdentity `json:"GetCallerIdentityResult"`
+}
+
+// stsIdentityResponse is used for JSON parsing
+type stsIdentityResponse struct {
+	GetCallerIdentityResponse getCallerIdentityResponse `json:"GetCallerIdentityResponse"`
 }
 
 type stsClient interface {
@@ -142,32 +147,40 @@ func stsClientFromContext(ctx context.Context) stsClient {
 	return http.DefaultClient
 }
 
-func executeSTSIdentityRequest(ctx context.Context, req *http.Request) (identity awsIdentity, err error) {
+func executeSTSIdentityRequest(ctx context.Context, req *http.Request) (*awsIdentity, error) {
 	client := stsClientFromContext(ctx)
 
 	// set the http request context so it can be cancelled
 	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
 	if err != nil {
-		return identity, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return identity, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return identity, trace.AccessDenied("aws sts api returned status: %q body: %q",
+		return nil, trace.AccessDenied("aws sts api returned status: %q body: %q",
 			resp.Status, body)
 	}
 
 	var identityResponse stsIdentityResponse
 	if err := json.Unmarshal(body, &identityResponse); err != nil {
-		return identity, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return identityResponse.GetCallerIdentityResponse.GetCallerIdentityResult, nil
+
+	id := &identityResponse.GetCallerIdentityResponse.GetCallerIdentityResult
+	if id.Account == "" {
+		return nil, trace.BadParameter("received empty AWS account ID from sts API")
+	}
+	if id.Arn == "" {
+		return nil, trace.BadParameter("received empty AWS identity ARN from sts API")
+	}
+	return id, nil
 }
 
 // arnMatches returns true if arn matches the pattern. pattern should be an AWS
@@ -182,8 +195,7 @@ func arnMatches(pattern, arn string) (bool, error) {
 	return matched, trace.Wrap(err)
 }
 
-func checkIAMAllowRules(identity awsIdentity, provisionToken types.ProvisionToken) error {
-	allowRules := provisionToken.GetAllowRules()
+func checkIAMAllowRules(identity *awsIdentity, allowRules []*types.TokenRule) error {
 	for _, rule := range allowRules {
 		// if this rule specifies an AWS account, the identity must match
 		if len(rule.AWSAccount) > 0 {
@@ -239,7 +251,7 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *typ
 	}
 
 	// check that the node identity matches an allow rule for this token
-	if err := checkIAMAllowRules(identity, provisionToken); err != nil {
+	if err := checkIAMAllowRules(identity, provisionToken.GetAllowRules()); err != nil {
 		return trace.Wrap(err)
 	}
 
