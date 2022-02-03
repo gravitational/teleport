@@ -31,22 +31,22 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
+
+func init() {
+	common.RegisterEngine(newEngine, defaults.ProtocolRedis)
+}
+
+func newEngine(ec common.EngineConfig) common.Engine {
+	return &Engine{
+		EngineConfig: ec,
+	}
+}
 
 // Engine implements common.Engine.
 type Engine struct {
-	// Auth handles database access authentication.
-	Auth common.Auth
-	// Audit emits database access audit events.
-	Audit common.Audit
-	// Context is the database server close context.
-	Context context.Context
-	// Clock is the clock interface.
-	Clock clockwork.Clock
-	// Log is used for logging.
-	Log logrus.FieldLogger
+	// EngineConfig is the common database engine configuration.
+	common.EngineConfig
 	// proxyConn is a client connection.
 	proxyConn net.Conn
 	// clientReader is a go-redis wrapper for Redis client connection.

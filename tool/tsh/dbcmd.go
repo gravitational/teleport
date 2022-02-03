@@ -24,13 +24,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
 	"github.com/gravitational/teleport/lib/client/db/postgres"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -74,18 +75,19 @@ func (s systemExecer) LookPath(file string) (string, error) {
 }
 
 type cliCommandBuilder struct {
-	tc      *client.TeleportClient
-	profile *client.ProfileStatus
-	db      *tlsca.RouteToDatabase
-	host    string
-	port    int
-	options connectionCommandOpts
+	tc          *client.TeleportClient
+	rootCluster string
+	profile     *client.ProfileStatus
+	db          *tlsca.RouteToDatabase
+	host        string
+	port        int
+	options     connectionCommandOpts
 
 	exe execer
 }
 
 func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
-	db *tlsca.RouteToDatabase, opts ...ConnectCommandFunc,
+	db *tlsca.RouteToDatabase, rootClusterName string, opts ...ConnectCommandFunc,
 ) *cliCommandBuilder {
 	var options connectionCommandOpts
 	for _, opt := range opts {
@@ -100,12 +102,13 @@ func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	}
 
 	return &cliCommandBuilder{
-		tc:      tc,
-		profile: profile,
-		db:      db,
-		host:    host,
-		port:    port,
-		options: options,
+		tc:          tc,
+		profile:     profile,
+		db:          db,
+		host:        host,
+		port:        port,
+		options:     options,
+		rootCluster: rootClusterName,
 
 		exe: &systemExecer{},
 	}
@@ -134,7 +137,7 @@ func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
 
 func (c *cliCommandBuilder) getPostgresCommand() *exec.Cmd {
 	return exec.Command(postgresBin,
-		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.host, c.port)))
+		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port)))
 }
 
 func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
@@ -143,10 +146,10 @@ func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
 		log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
 			cockroachBin, postgresBin, err)
 		return exec.Command(postgresBin,
-			postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.host, c.port)))
+			postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port)))
 	}
 	return exec.Command(cockroachBin, "sql", "--url",
-		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.host, c.port)))
+		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port)))
 }
 
 // getMySQLCommonCmdOpts returns common command line arguments for mysql and mariadb.
@@ -180,7 +183,7 @@ func (c *cliCommandBuilder) getMariaDBArgs() []string {
 	sslCertPath := c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName)
 
 	args = append(args, []string{"--ssl-key", c.profile.KeyPath()}...)
-	args = append(args, []string{"--ssl-ca", c.profile.CACertPath()}...)
+	args = append(args, []string{"--ssl-ca", c.profile.CACertPathForCluster(c.rootCluster)}...)
 	args = append(args, []string{"--ssl-cert", sslCertPath}...)
 
 	// Flag below verifies "Common Name" check on the certificate provided by the server.
@@ -325,7 +328,7 @@ func (c *cliCommandBuilder) getRedisCommand() *exec.Cmd {
 		"--tls",
 		"-h", c.options.localProxyHost,
 		"-p", strconv.Itoa(c.options.localProxyPort),
-		"--cacert", c.profile.CACertPath(),
+		"--cacert", c.profile.CACertPathForCluster(c.rootCluster),
 		"--key", c.profile.KeyPath(),
 		"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
 	}
