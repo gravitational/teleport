@@ -21,6 +21,7 @@ import { AuthProvider, Auth2faType, PreferredMfaType } from 'shared/services';
 const cfg = {
   isEnterprise: false,
   isCloud: false,
+  tunnelPublicAddress: '',
 
   baseUrl: window.location.origin,
 
