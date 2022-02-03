@@ -733,8 +733,8 @@ message ProvisionTokenSpecV2 {
     // to join the cluster with this token.
     int64 AWSIIDTTL = 3
         [ (gogoproto.jsontag) = "aws_iid_ttl,omitempty", (gogoproto.casttype) = "Duration" ];
-    // JoinMethod is the joining method nodes must use in order to use this
-    // token.
+    // JoinMethod is the joining method required in order to use this token.
+    // Supported joining methods include "token", "ec2", and "iam".
     string JoinMethod = 4
         [ (gogoproto.jsontag) = "join_method", (gogoproto.casttype) = "JoinMethod" ];
 }
