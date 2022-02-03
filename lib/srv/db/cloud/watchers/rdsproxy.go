@@ -84,7 +84,7 @@ func (f *rdsDBProxyFetcher) getRDSProxyDatabases(ctx context.Context) (types.Dat
 	}
 
 	// Get a list of all RDS proxy endpoints. These are extra endpoints users
-	// can add to the RDS proxies, in addtion to the "default" endpoints each
+	// can add to the RDS proxies, in addition to the "default" endpoints each
 	// RDS proxy provide. Therefore, each discovered proxy endpoint should
 	// belong to one of the RDS proxies discovered earlier.
 	// In cases we fail to discover proxy endpoints (missing permissions for

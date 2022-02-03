@@ -409,7 +409,7 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 				labelAccountID:    "123456",
 				labelRegion:       "ca-central-1",
 				labelEngine:       RDSEngineMySQL,
-				labelVpcID:        "test-vpc-id",
+				labelVPCID:        "test-vpc-id",
 				labelTargetRole:   "read_write",
 			},
 		}, types.DatabaseSpecV3{
@@ -441,7 +441,7 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 				labelAccountID:    "123456",
 				labelRegion:       "ca-central-1",
 				labelEngine:       RDSEngineMySQL,
-				labelVpcID:        "test-vpc-id",
+				labelVPCID:        "test-vpc-id",
 				labelTargetRole:   "read_only",
 			},
 		}, types.DatabaseSpecV3{
