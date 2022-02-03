@@ -231,6 +231,10 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	rootCluster, err := tc.RootClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	// Postgres proxy listens on web proxy port while MySQL proxy listens on
 	// a separate port due to the specifics of the protocol.
 	var host string
@@ -247,7 +251,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	}
 	switch cf.Format {
 	case dbFormatCommand:
-		cmd, err := newCmdBuilder(tc, profile, database).getConnectCommand()
+		cmd, err := newCmdBuilder(tc, profile, database, rootCluster).getConnectCommand()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -263,7 +267,7 @@ Cert:      %v
 Key:       %v
 `,
 			database.ServiceName, host, port, database.Username,
-			database.Database, profile.CACertPath(),
+			database.Database, profile.CACertPathForCluster(rootCluster),
 			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName), profile.KeyPath())
 	}
 	return nil
@@ -313,6 +317,15 @@ func onDatabaseConnect(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 	}
+	key, err := tc.LocalAgent().GetCoreKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	rootClusterName, err := key.RootClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var opts []ConnectCommandFunc
 	if tc.TLSRoutingEnabled {
 		lp, err := startLocalALPNSNIProxy(cf, tc, database.Protocol)
@@ -327,9 +340,9 @@ func onDatabaseConnect(cf *CLIConf) error {
 		// When connecting over TLS, psql only validates hostname against presented certificate's
 		// DNS names. As such, connecting to 127.0.0.1 will fail validation, so connect to localhost.
 		host := "localhost"
-		opts = append(opts, WithLocalProxy(host, addr.Port(0), profile.CACertPath()))
+		opts = append(opts, WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)))
 	}
-	cmd, err := newCmdBuilder(tc, profile, database, opts...).getConnectCommand()
+	cmd, err := newCmdBuilder(tc, profile, database, rootClusterName, opts...).getConnectCommand()
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -610,6 +610,7 @@ impl ServerDeviceAnnounceResponse {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct DeviceIoRequest {
     device_id: u32,
     file_id: u32,
@@ -670,6 +671,7 @@ enum MinorFunction {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct DeviceControlRequest {
     header: DeviceIoRequest,
     output_buffer_length: u32,

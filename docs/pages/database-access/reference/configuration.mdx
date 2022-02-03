@@ -23,7 +23,8 @@ db_service:
     # Database types. Valid options are:
     # 'rds' - discovers and registers AWS RDS and Aurora databases.
     # 'rds-proxy' - discovers and registers AWS RDS proxy databases.
-  - types: ["rds"]
+    # 'redshift' - discovers and registers AWS Redshift databases.
+  - types: ["rds", "redshift", "rds-proxy"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]
     # AWS resource tags to match when registering databases.

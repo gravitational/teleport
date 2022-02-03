@@ -1,5 +1,6 @@
 #!/bin/bash
 set -x
+set -o pipefail
 
 TCTL="/usr/local/bin/tctl --auth-server=proxy.luna.teleport:3025"
 cd /mnt/shared/certs || exit 1

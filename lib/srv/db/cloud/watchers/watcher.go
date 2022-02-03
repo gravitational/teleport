@@ -161,6 +161,14 @@ func makeFetchers(clients common.CloudClients, matchers []services.AWSMatcher) (
 				}
 				result = append(result, fetcher)
 			}
+
+			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherRedshift) {
+				fetcher, err := makeRedshiftFetcher(clients, region, matcher.Tags)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				result = append(result, fetcher)
+			}
 		}
 	}
 	return result, nil
@@ -203,5 +211,18 @@ func makeRDSProxyFetcher(clients common.CloudClients, region string, tags types.
 		Region: region,
 		Labels: tags,
 		RDS:    rds,
+	})
+}
+
+// makeRedshiftFetcher returns Redshift fetcher for the provided region and tags.
+func makeRedshiftFetcher(clients common.CloudClients, region string, tags types.Labels) (Fetcher, error) {
+	redshift, err := clients.GetAWSRedshiftClient(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newRedshiftFetcher(redshiftFetcherConfig{
+		Region:   region,
+		Labels:   tags,
+		Redshift: redshift,
 	})
 }
