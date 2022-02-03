@@ -55,10 +55,10 @@ func FindAndUpload(ctx context.Context, bucketName, objectPrefix string, artifac
 		return nil
 	}
 
-	return Upload(ctx, bucketName, objectPrefix, artifacts...)
+	return upload(ctx, bucketName, objectPrefix, artifacts...)
 }
 
-// Upload uploads a set of files to the indicated artefact bucket with the
+// upload uploads a set of files to the indicated artefact bucket with the
 // supplied prefix.
 //
 // Note that artifacts from various paths will be aggregated into one place in
@@ -66,7 +66,7 @@ func FindAndUpload(ctx context.Context, bucketName, objectPrefix string, artifac
 // disambiguate. Be wary of including multiple artifacts with the same name, as
 // later object may clobber earlier ones.
 //
-func Upload(ctx context.Context, bucket string, prefix string, files ...string) error {
+func upload(ctx context.Context, bucket string, prefix string, files ...string) error {
 	var uploadErrors *multierror.Error
 
 	client, err := storage.NewClient(ctx)
