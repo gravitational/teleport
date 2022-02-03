@@ -1,6 +1,6 @@
 # Changelog
 
-## 8.1.2
+## 8.1.3
 
 This release of Teleport contains multiple features, improvements, bug fixes, and a security fix.
 
