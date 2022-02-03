@@ -266,10 +266,7 @@ func generateChallenge() (string, error) {
 	}
 
 	// encode the challenge to base64 so it can be sent in an HTTP header
-	encoding := base64.RawStdEncoding
-	challengeBase64 := make([]byte, encoding.EncodedLen(len(challengeRawBytes)))
-	encoding.Encode(challengeBase64, challengeRawBytes)
-	return string(challengeBase64), nil
+	return base64.RawStdEncoding.EncodeToString(challengeRawBytes), nil
 }
 
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
