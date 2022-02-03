@@ -37,7 +37,7 @@ export function DesktopSession(props: State) {
     fetchAttempt,
     tdpConnection,
     wsConnection,
-    onImageFragment,
+    onPngFrame,
     onTdpError,
     onWsClose,
     onWsOpen,
@@ -49,6 +49,7 @@ export function DesktopSession(props: State) {
     onMouseDown,
     onMouseUp,
     onMouseWheelScroll,
+    onContextMenu,
   } = props;
 
   return (
@@ -124,7 +125,7 @@ export function DesktopSession(props: State) {
           flex: 1, // ensures the canvas fills available screen space
         }}
         tdpCli={tdpClient}
-        tdpCliOnImageFragment={onImageFragment}
+        tdpCliOnPngFrame={onPngFrame}
         tdpCliOnTdpError={onTdpError}
         tdpCliOnWsClose={onWsClose}
         tdpCliOnWsOpen={onWsOpen}
@@ -134,6 +135,7 @@ export function DesktopSession(props: State) {
         onMouseDown={onMouseDown}
         onMouseUp={onMouseUp}
         onMouseWheelScroll={onMouseWheelScroll}
+        onContextMenu={onContextMenu}
       />
     </Flex>
   );

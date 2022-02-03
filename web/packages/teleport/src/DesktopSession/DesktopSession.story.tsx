@@ -17,10 +17,8 @@ limitations under the License.
 import React from 'react';
 import { DesktopSession } from './DesktopSession';
 import { State } from './useDesktopSession';
-import TdpClient, {
-  TdpClientEvent,
-  ImageFragment,
-} from 'teleport/lib/tdp/client';
+import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
+import { PngFrame } from 'teleport/lib/tdp/codec';
 import { arrayBuf2260x1130 } from '../lib/tdp/fixtures';
 
 export default {
@@ -28,7 +26,7 @@ export default {
 };
 
 const fakeClient = () => {
-  const client = new TdpClient('wss://socketAddr.gov', 'username');
+  const client = new TdpClient('wss://socketAddr.gov');
   client.init = () => {}; // Don't actually try to connect to a websocket.
   return client;
 };
@@ -52,7 +50,7 @@ const props: State = {
   wsConnection: 'closed',
   disconnected: false,
   setDisconnected: () => null,
-  onImageFragment: () => {},
+  onPngFrame: () => {},
   onTdpError: () => {},
   onKeyDown: () => {},
   onKeyUp: () => {},
@@ -60,6 +58,7 @@ const props: State = {
   onMouseDown: () => {},
   onMouseUp: () => {},
   onMouseWheelScroll: () => {},
+  onContextMenu: () => false,
 };
 
 export const Processing = () => (
@@ -75,7 +74,7 @@ export const Processing = () => (
 export const ConnectedSettingsFalse = () => {
   const client = fakeClient();
   client.init = () => {
-    client.emit(TdpClientEvent.IMAGE_FRAGMENT);
+    client.emit(TdpClientEvent.TDP_PNG_FRAME);
   };
 
   return (
@@ -88,7 +87,7 @@ export const ConnectedSettingsFalse = () => {
       disconnected={false}
       clipboard={false}
       recording={false}
-      onImageFragment={(ctx: CanvasRenderingContext2D) => {
+      onPngFrame={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);
       }}
     />
@@ -98,7 +97,7 @@ export const ConnectedSettingsFalse = () => {
 export const ConnectedSettingsTrue = () => {
   const client = fakeClient();
   client.init = () => {
-    client.emit(TdpClientEvent.IMAGE_FRAGMENT);
+    client.emit(TdpClientEvent.TDP_PNG_FRAME);
   };
 
   return (
@@ -111,7 +110,7 @@ export const ConnectedSettingsTrue = () => {
       disconnected={false}
       clipboard={true}
       recording={true}
-      onImageFragment={(ctx: CanvasRenderingContext2D) => {
+      onPngFrame={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);
       }}
     />
@@ -190,7 +189,7 @@ export const Performance = () => {
       tdpConnection={{ status: 'success' }}
       wsConnection={'open'}
       disconnected={false}
-      onImageFragment={(ctx: CanvasRenderingContext2D, data: ImageFragment) => {
+      onPngFrame={(ctx: CanvasRenderingContext2D, pngFrame: PngFrame) => {
         if (!resized) {
           resize(ctx.canvas);
         }
@@ -198,7 +197,7 @@ export const Performance = () => {
           startTime = performance.now();
         }
 
-        ctx.drawImage(data.image, data.left, data.top);
+        ctx.drawImage(pngFrame.data, pngFrame.left, pngFrame.top);
 
         if (i === arrayBuf2260x1130.length - 1) {
           endTime = performance.now();

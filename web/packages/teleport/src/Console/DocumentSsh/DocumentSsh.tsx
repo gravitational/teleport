@@ -97,7 +97,7 @@ const SidNotFoundError = ({ sid = '', clusterId = '' }) => (
       block
       secondary
       as="a"
-      href={cfg.getPlayerRoute({ sid, clusterId })}
+      href={cfg.getPlayerRoute({ sid, clusterId }, { recordingType: 'ssh' })}
       target="_blank"
     >
       <Icons.CirclePlay fontSize="5" mr="2" /> Replay Session

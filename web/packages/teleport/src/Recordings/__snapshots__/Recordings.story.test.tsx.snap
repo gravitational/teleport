@@ -878,7 +878,7 @@ exports[`rendering of Session Recordings 1`] = `
           >
             <a
               class="c16"
-              href="/web/cluster/localhost/session/377875-6491-11e9-80a1-427cfde50f5a"
+              href="/web/cluster/localhost/session/377875-6491-11e9-80a1-427cfde50f5a?recordingType=ssh"
               kind="primary"
               target="_blank"
               width="80px"
@@ -918,7 +918,7 @@ exports[`rendering of Session Recordings 1`] = `
           >
             <a
               class="c16"
-              href="/web/cluster/localhost/session/426485-6491-11e9-80a1-427cfde50f5a"
+              href="/web/cluster/localhost/session/426485-6491-11e9-80a1-427cfde50f5a?recordingType=ssh"
               kind="primary"
               target="_blank"
               width="80px"

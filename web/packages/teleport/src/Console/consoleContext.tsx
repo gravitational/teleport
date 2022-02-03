@@ -177,7 +177,7 @@ export default class ConsoleContext {
   createTty(session: Session): Tty {
     const { login, sid, serverId, clusterId } = session;
     const ttyUrl = cfg.api.ttyWsAddr
-      .replace(':fqdm', getHostName())
+      .replace(':fqdn', getHostName())
       .replace(':token', getAccessToken())
       .replace(':clusterId', clusterId);
 

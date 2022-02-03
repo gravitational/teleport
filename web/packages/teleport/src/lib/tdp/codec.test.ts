@@ -11,14 +11,19 @@ window.TextEncoder = window.TextEncoder || TextEncoder;
 window.TextDecoder = window.TextDecoder || TextDecoder;
 const codec = new Codec();
 
-test('encodes the screen spec', () => {
-  const w = 1800;
-  const h = 1200;
-  const message = codec.encodeScreenSpec(w, h);
+test('encodes and decodes the screen spec', () => {
+  const spec = {
+    width: 1800,
+    height: 1200,
+  };
+  const message = codec.encodeClientScreenSpec(spec);
   const view = new DataView(message);
   expect(view.getUint8(0)).toEqual(MessageType.CLIENT_SCREEN_SPEC);
-  expect(view.getUint32(1)).toEqual(w);
-  expect(view.getUint32(5)).toEqual(h);
+  expect(view.getUint32(1)).toEqual(spec.width);
+  expect(view.getUint32(5)).toEqual(spec.height);
+
+  const decodedSpec = codec.decodeClientScreenSpec(message);
+  expect(decodedSpec).toEqual(spec);
 });
 
 test('encodes mouse moves', () => {
@@ -48,8 +53,22 @@ test('encodes typical characters for username and password', () => {
   // Create a test value with letters, symbols, and numbers and its known UTF8 encodings
   const username = 'Helloworld!*@123';
   const usernameUTF8 = [
-    0x0048, 0x0065, 0x006c, 0x006c, 0x006f, 0x0077, 0x006f, 0x0072, 0x006c,
-    0x0064, 0x0021, 0x002a, 0x0040, 0x0031, 0x0032, 0x0033,
+    0x0048,
+    0x0065,
+    0x006c,
+    0x006c,
+    0x006f,
+    0x0077,
+    0x006f,
+    0x0072,
+    0x006c,
+    0x0064,
+    0x0021,
+    0x002a,
+    0x0040,
+    0x0031,
+    0x0032,
+    0x0033,
   ];
 
   // Encode test vals
@@ -69,7 +88,18 @@ test('encodes typical characters for username and password', () => {
 test('encodes utf8 characters correctly up to 3 bytes for username and password', () => {
   const first3RangesString = '\u0000\u007F\u0080\u07FF\u0800\uFFFF';
   const first3RangesUTF8 = [
-    0x00, 0x7f, 0xc2, 0x80, 0xdf, 0xbf, 0xe0, 0xa0, 0x80, 0xef, 0xbf, 0xbf,
+    0x00,
+    0x7f,
+    0xc2,
+    0x80,
+    0xdf,
+    0xbf,
+    0xe0,
+    0xa0,
+    0x80,
+    0xef,
+    0xbf,
+    0xbf,
   ];
   const message = codec.encodeUsername(first3RangesString);
   const view = new DataView(message);
@@ -92,55 +122,27 @@ test('encodes mouse wheel scroll event', () => {
   expect(view.getUint16(2)).toEqual(delta);
 });
 
-function makeBufView(type: MessageType, size = 100) {
+function makeBuf(type: MessageType, size = 100) {
   const buffer = new ArrayBuffer(size);
   const view = new DataView(buffer);
   view.setUint8(0, type);
-  return { buffer, view };
+  return { buffer };
 }
 
 test('decodes message types', () => {
-  const { buffer: pngFrameBuf, view: pngFrameView } = makeBufView(
-    MessageType.PNG_FRAME
-  );
-  const { buffer: clipboardBuf, view: clipboardView } = makeBufView(
+  const { buffer: pngFrameBuf } = makeBuf(MessageType.PNG_FRAME);
+  const { buffer: clipboardBuf } = makeBuf(MessageType.CLIPBOARD_DATA);
+  const { buffer: errorBuf } = makeBuf(MessageType.ERROR);
+  const { buffer: invalidBuf } = makeBuf(MessageType.ERROR + 1);
+
+  expect(codec._decodeMessageType(pngFrameBuf)).toEqual(MessageType.PNG_FRAME);
+  expect(codec._decodeMessageType(clipboardBuf)).toEqual(
     MessageType.CLIPBOARD_DATA
   );
-  const { buffer: errorBuf, view: errorView } = makeBufView(MessageType.ERROR);
-  const { buffer: cliScreenBuf, view: cliScreenView } = makeBufView(
-    MessageType.CLIENT_SCREEN_SPEC
-  );
-
-  pngFrameView.setUint8(0, MessageType.PNG_FRAME);
-  expect(codec.decodeMessageType(pngFrameBuf)).toEqual(MessageType.PNG_FRAME);
-
-  clipboardView.setUint8(0, MessageType.CLIPBOARD_DATA);
-  expect(codec.decodeMessageType(clipboardBuf)).toEqual(
-    MessageType.CLIPBOARD_DATA
-  );
-
-  errorView.setUint8(0, MessageType.ERROR);
-  expect(codec.decodeMessageType(errorBuf)).toEqual(MessageType.ERROR);
-
-  // We only expect to need to decode png frames and clipboard data.
-  cliScreenView.setUint8(0, MessageType.CLIENT_SCREEN_SPEC);
+  expect(codec._decodeMessageType(errorBuf)).toEqual(MessageType.ERROR);
   expect(() => {
-    codec.decodeMessageType(cliScreenBuf);
-  }).toThrow(`invalid message type: ${MessageType.CLIENT_SCREEN_SPEC}`);
-});
-
-test('decodes regions', () => {
-  const { buffer, view } = makeBufView(MessageType.PNG_FRAME);
-  view.setUint32(1, 0);
-  view.setUint32(5, 0);
-  view.setUint32(9, 64);
-  view.setUint32(13, 64);
-
-  const region = codec.decodeRegion(buffer);
-  expect(region.top).toBe(0);
-  expect(region.left).toBe(0);
-  expect(region.bottom).toBe(64);
-  expect(region.right).toBe(64);
+    codec._decodeMessageType(invalidBuf);
+  }).toThrow(`invalid message type: ${MessageType.ERROR + 1}`);
 });
 
 test('decodes errors', () => {

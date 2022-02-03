@@ -15,11 +15,11 @@ limitations under the License.
 */
 
 import { useState, useEffect, useRef, Dispatch, SetStateAction } from 'react';
-import TdpClient, { ImageFragment } from 'teleport/lib/tdp/client';
+import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
+import { PngFrame } from 'teleport/lib/tdp/codec';
 import { TopBarHeight } from './TopBar';
 import cfg from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
-import { ButtonState, ScrollAxis } from 'teleport/lib/tdp/codec';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 export default function useTdpClientCanvas(props: Props) {
@@ -37,7 +37,7 @@ export default function useTdpClientCanvas(props: Props) {
     const { width, height } = getDisplaySize();
 
     const addr = cfg.api.desktopWsAddr
-      .replace(':fqdm', getHostName())
+      .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
       .replace(':desktopName', desktopName)
       .replace(':token', getAccessToken())
@@ -45,7 +45,7 @@ export default function useTdpClientCanvas(props: Props) {
       .replace(':width', width.toString())
       .replace(':height', height.toString());
 
-    setTdpClient(new TdpClient(addr, username));
+    setTdpClient(new TdpClient(addr));
   }, [clusterId, username, desktopName]);
 
   const syncCanvasSizeToDisplaySize = (canvas: HTMLCanvasElement) => {
@@ -56,17 +56,14 @@ export default function useTdpClientCanvas(props: Props) {
   };
 
   // Default TdpClientEvent.IMAGE_FRAGMENT handler (buffered)
-  const onImageFragment = (
-    ctx: CanvasRenderingContext2D,
-    data: ImageFragment
-  ) => {
+  const onPngFrame = (ctx: CanvasRenderingContext2D, pngFrame: PngFrame) => {
     // The first image fragment we see signals a successful rdp connection on the backend.
     if (firstImageFragmentRef.current) {
       syncCanvasSizeToDisplaySize(ctx.canvas);
       setTdpConnection({ status: 'success' });
       firstImageFragmentRef.current = false;
     }
-    ctx.drawImage(data.image, data.left, data.top);
+    ctx.drawImage(pngFrame.data, pngFrame.left, pngFrame.top);
   };
 
   // Default TdpClientEvent.TDP_ERROR handler
@@ -83,10 +80,12 @@ export default function useTdpClientCanvas(props: Props) {
   };
 
   const onKeyDown = (cli: TdpClient, e: KeyboardEvent) => {
+    e.preventDefault();
     cli.sendKeyboardInput(e.code, ButtonState.DOWN);
   };
 
   const onKeyUp = (cli: TdpClient, e: KeyboardEvent) => {
+    e.preventDefault();
     cli.sendKeyboardInput(e.code, ButtonState.UP);
   };
 
@@ -114,6 +113,7 @@ export default function useTdpClientCanvas(props: Props) {
   };
 
   const onMouseWheelScroll = (cli: TdpClient, e: WheelEvent) => {
+    e.preventDefault();
     // We only support pixel scroll events, not line or page events.
     // https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent/deltaMode
     if (e.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
@@ -126,9 +126,13 @@ export default function useTdpClientCanvas(props: Props) {
     }
   };
 
+  // Block browser context menu so as not to obscure the context menu
+  // on the remote machine.
+  const onContextMenu = () => false;
+
   return {
     tdpClient,
-    onImageFragment,
+    onPngFrame,
     onTdpError,
     onWsClose,
     onWsOpen,
@@ -138,6 +142,7 @@ export default function useTdpClientCanvas(props: Props) {
     onMouseDown,
     onMouseUp,
     onMouseWheelScroll,
+    onContextMenu,
   };
 }
 
