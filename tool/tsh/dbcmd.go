@@ -24,13 +24,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
 	"github.com/gravitational/teleport/lib/client/db/postgres"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -42,6 +43,8 @@ const (
 	mysqlBin = "mysql"
 	// mariadbBin is the MariaDB client binary name.
 	mariadbBin = "mariadb"
+	// mongoshBin is the Mongo Shell client binary name.
+	mongoshBin = "mongosh"
 	// mongoBin is the Mongo client binary name.
 	mongoBin = "mongo"
 )
@@ -70,18 +73,19 @@ func (s systemExecer) LookPath(file string) (string, error) {
 }
 
 type cliCommandBuilder struct {
-	tc      *client.TeleportClient
-	profile *client.ProfileStatus
-	db      *tlsca.RouteToDatabase
-	host    string
-	port    int
-	options connectionCommandOpts
+	tc          *client.TeleportClient
+	rootCluster string
+	profile     *client.ProfileStatus
+	db          *tlsca.RouteToDatabase
+	host        string
+	port        int
+	options     connectionCommandOpts
 
 	exe execer
 }
 
 func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
-	db *tlsca.RouteToDatabase, opts ...ConnectCommandFunc,
+	db *tlsca.RouteToDatabase, rootClusterName string, opts ...ConnectCommandFunc,
 ) *cliCommandBuilder {
 	var options connectionCommandOpts
 	for _, opt := range opts {
@@ -96,12 +100,13 @@ func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	}
 
 	return &cliCommandBuilder{
-		tc:      tc,
-		profile: profile,
-		db:      db,
-		host:    host,
-		port:    port,
-		options: options,
+		tc:          tc,
+		profile:     profile,
+		db:          db,
+		host:        host,
+		port:        port,
+		options:     options,
+		rootCluster: rootClusterName,
 
 		exe: &systemExecer{},
 	}
@@ -127,7 +132,7 @@ func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
 
 func (c *cliCommandBuilder) getPostgresCommand() *exec.Cmd {
 	return exec.Command(postgresBin,
-		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.host, c.port)))
+		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port)))
 }
 
 func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
@@ -136,10 +141,10 @@ func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
 		log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
 			cockroachBin, postgresBin, err)
 		return exec.Command(postgresBin,
-			postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.host, c.port)))
+			postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port)))
 	}
 	return exec.Command(cockroachBin, "sql", "--url",
-		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.host, c.port)))
+		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port)))
 }
 
 // getMySQLCommonCmdOpts returns common command line arguments for mysql and mariadb.
@@ -173,7 +178,7 @@ func (c *cliCommandBuilder) getMariaDBArgs() []string {
 	sslCertPath := c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName)
 
 	args = append(args, []string{"--ssl-key", c.profile.KeyPath()}...)
-	args = append(args, []string{"--ssl-ca", c.profile.CACertPath()}...)
+	args = append(args, []string{"--ssl-ca", c.profile.CACertPathForCluster(c.rootCluster)}...)
 	args = append(args, []string{"--ssl-cert", sslCertPath}...)
 
 	// Flag below verifies "Common Name" check on the certificate provided by the server.
@@ -240,6 +245,12 @@ func (c *cliCommandBuilder) isMySQLBinAvailable() bool {
 	return err == nil
 }
 
+// isMongoshBinAvailable returns true if "mongosh" binary is found in the system PATH.
+func (c *cliCommandBuilder) isMongoshBinAvailable() bool {
+	_, err := c.exe.LookPath(mongoshBin)
+	return err == nil
+}
+
 // isMySQLBinMariaDBFlavor checks if mysql binary comes from Oracle or MariaDB.
 // true is returned when binary comes from MariaDB, false when from Oracle.
 func (c *cliCommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
@@ -260,20 +271,47 @@ func (c *cliCommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 }
 
 func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
+	// look for `mongosh`
+	hasMongosh := c.isMongoshBinAvailable()
+
+	// Starting with Mongo 4.2 there is an updated set of flags.
+	// We are using them with `mongosh` as otherwise warnings will get displayed.
+	type tlsFlags struct {
+		tls            string
+		tlsCertKeyFile string
+		tlsCAFile      string
+	}
+
+	var flags tlsFlags
+
+	if hasMongosh {
+		flags = tlsFlags{tls: "--tls", tlsCertKeyFile: "--tlsCertificateKeyFile", tlsCAFile: "--tlsCAFile"}
+	} else {
+		flags = tlsFlags{tls: "--ssl", tlsCertKeyFile: "--sslPEMKeyFile", tlsCAFile: "--sslCAFile"}
+	}
+
 	args := []string{
 		"--host", c.host,
 		"--port", strconv.Itoa(c.port),
-		"--ssl",
-		"--sslPEMKeyFile", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+		flags.tls,
+		flags.tlsCertKeyFile, c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
 	}
 
 	if c.options.caPath != "" {
 		// caPath is set only if mongo connects to the Teleport Proxy via ALPN SNI Local Proxy
 		// and connection is terminated by proxy identity certificate.
-		args = append(args, []string{"--sslCAFile", c.options.caPath}...)
+		args = append(args, []string{flags.tlsCAFile, c.options.caPath}...)
 	}
+
 	if c.db.Database != "" {
 		args = append(args, c.db.Database)
 	}
+
+	// use `mongosh` if available
+	if hasMongosh {
+		return exec.Command(mongoshBin, args...)
+	}
+
+	// fall back to `mongo` if `mongosh` isn't found
 	return exec.Command(mongoBin, args...)
 }

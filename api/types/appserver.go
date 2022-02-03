@@ -28,8 +28,8 @@ import (
 
 // AppServer represents a single proxied web app.
 type AppServer interface {
-	// Resource provides common resource methods.
-	Resource
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
 	// GetNamespace returns server namespace.
 	GetNamespace() string
 	// GetTeleportVersion returns the teleport version the server is running on.
@@ -253,9 +253,46 @@ func (s *AppServerV3) CheckAndSetDefaults() error {
 	return nil
 }
 
+// Origin returns the origin value of the resource.
+func (s *AppServerV3) Origin() string {
+	return s.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (s *AppServerV3) SetOrigin(origin string) {
+	s.Metadata.SetOrigin(origin)
+}
+
+// GetAllLabels returns all resource's labels. Considering:
+// * Static labels from `Metadata.Labels` and `Spec.App`.
+// * Dynamic labels from `Spec.App.Spec`.
+func (s *AppServerV3) GetAllLabels() map[string]string {
+	staticLabels := make(map[string]string)
+	for name, value := range s.Metadata.Labels {
+		staticLabels[name] = value
+	}
+
+	var dynamicLabels map[string]CommandLabelV2
+	if s.Spec.App != nil {
+		for name, value := range s.Spec.App.Metadata.Labels {
+			staticLabels[name] = value
+		}
+
+		dynamicLabels = s.Spec.App.Spec.DynamicLabels
+	}
+
+	return CombineLabels(staticLabels, dynamicLabels)
+}
+
 // Copy returns a copy of this app server object.
 func (s *AppServerV3) Copy() AppServer {
 	return proto.Clone(s).(*AppServerV3)
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (s *AppServerV3) MatchSearch(values []string) bool {
+	return MatchSearch(nil, values, nil)
 }
 
 // AppServers represents a list of app servers.
