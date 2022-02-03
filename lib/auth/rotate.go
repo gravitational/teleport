@@ -420,10 +420,6 @@ func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCer
 	// create a set for convenient lookup
 	rotateMap := make(map[types.CertAuthType]struct{})
 
-	for _, caType := range caTypes {
-		rotateMap[caType] = struct{}{}
-	}
-
 	// Check all combinations for duplicates. This can be optimized, but currently we have only 4 certificates
 	// and current implementation is easier to read and understand.
 	for _, caType := range caTypes {
@@ -468,6 +464,11 @@ func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCer
 				}
 			}
 		}
+	}
+
+	// add original content
+	for _, caType := range caTypes {
+		rotateMap[caType] = struct{}{}
 	}
 
 	// copy all set elements to an array
