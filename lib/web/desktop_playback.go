@@ -176,15 +176,8 @@ func (pp *playbackPlayer) streamSessionEvents(ctx context.Context, cancel contex
 			if evt == nil {
 				pp.log.Debug("reached end of playback")
 
-				msg, err := utils.FastMarshal(struct {
-					Message string `json:"message"`
-				}{Message: "end"})
-				if err != nil {
-					pp.log.WithError(err).Errorf("failed to marshal end message into JSON: %v", msg)
-				} else {
-					if _, err := pp.ws.Write(msg); err != nil {
-						pp.log.WithError(err).Error("failed to write \"end\" message over websocket")
-					}
+				if _, err := pp.ws.Write([]byte(`{"message":"end"}`)); err != nil {
+					pp.log.WithError(err).Error("failed to write \"end\" message over websocket")
 				}
 
 				// deferred ps.Close() will set ps.playState = playStateFinished for us
