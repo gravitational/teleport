@@ -40,6 +40,6 @@ limitations under the License.
 //
 //  - name: "redis-cluster"
 //    protocol: "redis"
-//    uri: "rediss://redis.example.com:6379?cluster=true"
+//    uri: "rediss://redis.example.com:6379?mode=cluster"
 
 package redis

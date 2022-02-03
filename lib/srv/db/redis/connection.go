@@ -34,16 +34,29 @@ const (
 	URISchemeSSL = "rediss"
 )
 
+// ConnectionMode defines the mode in which Redis is configured. Currently, supported are single and cluster.
+type ConnectionMode string
+
+const (
+	// Single mode should be used when connecting to a single Redis instance.
+	Single ConnectionMode = "single"
+	// Cluster mode should be used then connecting to a Redis Cluster.
+	Cluster ConnectionMode = "cluster"
+)
+
 // ConnectionOptions defines Redis connection options.
 type ConnectionOptions struct {
-	cluster bool
+	// mode defines Redis connection mode like cluster or single instance.
+	mode ConnectionMode
+	// address of Redis instance.
 	address string
-	port    string
+	// port on which Redis expects new connections.
+	port string
 }
 
 // ParseRedisURI parses a Redis connection string and returns the parsed
 // connection options like address and connection mode.
-// ex: rediss://redis.example.com:6379?cluster=true
+// ex: rediss://redis.example.com:6379?mode=cluster
 func ParseRedisURI(uri string) (*ConnectionOptions, error) {
 	if uri == "" {
 		return nil, trace.BadParameter("Redis uri is empty")
@@ -57,7 +70,7 @@ func ParseRedisURI(uri string) (*ConnectionOptions, error) {
 	switch u.Scheme {
 	case URIScheme, URISchemeSSL:
 	default:
-		return nil, trace.BadParameter("Invalid Redis URI scheme: %q. Expected %q or %q.",
+		return nil, trace.BadParameter("invalid Redis URI scheme: %q. Expected %q or %q.",
 			u.Scheme, URIScheme, URISchemeSSL)
 	}
 
@@ -71,11 +84,25 @@ func ParseRedisURI(uri string) (*ConnectionOptions, error) {
 	}
 
 	values := u.Query()
-	// Check if cluster mode should be enabled.
-	cluster := values.Has("cluster") && strings.EqualFold(values.Get("cluster"), "true")
+	// Get additional connections options
+
+	// Default to the single mode.
+	mode := Single
+	if values.Has("mode") {
+		connMode := strings.ToLower(values.Get("mode"))
+		switch ConnectionMode(connMode) {
+		case Single:
+			mode = Single
+		case Cluster:
+			mode = Cluster
+		default:
+			return nil, trace.BadParameter("incorrect connection mode %q, supported are: %s and %s",
+				connMode, Single, Cluster)
+		}
+	}
 
 	return &ConnectionOptions{
-		cluster: cluster,
+		mode:    mode,
 		address: host,
 		port:    port,
 	}, nil

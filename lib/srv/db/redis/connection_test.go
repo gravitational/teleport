@@ -35,7 +35,7 @@ func Test_parseRedisURI(t *testing.T) {
 			name: "simple test",
 			uri:  "redis://localhost:6379",
 			want: &ConnectionOptions{
-				cluster: false,
+				mode:    Single,
 				address: "localhost",
 				port:    "6379",
 			},
@@ -45,7 +45,7 @@ func Test_parseRedisURI(t *testing.T) {
 			name: "rediss schema is also accepted",
 			uri:  "rediss://localhost:6379",
 			want: &ConnectionOptions{
-				cluster: false,
+				mode:    Single,
 				address: "localhost",
 				port:    "6379",
 			},
@@ -55,27 +55,43 @@ func Test_parseRedisURI(t *testing.T) {
 			name: "IP address passes",
 			uri:  "rediss://1.2.3.4:6379",
 			want: &ConnectionOptions{
-				cluster: false,
+				mode:    Single,
 				address: "1.2.3.4",
 				port:    "6379",
 			},
 			errStr: "",
 		},
 		{
-			name: "cluster enabled",
-			uri:  "redis://localhost:6379?cluster=true",
+			name: "single instance explicit",
+			uri:  "redis://localhost:6379?mode=single",
 			want: &ConnectionOptions{
-				cluster: true,
+				mode:    Single,
 				address: "localhost",
 				port:    "6379",
 			},
 			errStr: "",
 		},
 		{
+			name: "cluster enabled",
+			uri:  "redis://localhost:6379?mode=cluster",
+			want: &ConnectionOptions{
+				mode:    Cluster,
+				address: "localhost",
+				port:    "6379",
+			},
+			errStr: "",
+		},
+		{
+			name:   "invalid connection mode",
+			uri:    "redis://localhost:6379?mode=foo",
+			want:   nil,
+			errStr: "incorrect connection mode",
+		},
+		{
 			name: "default port",
 			uri:  "redis://localhost",
 			want: &ConnectionOptions{
-				cluster: true,
+				mode:    Single,
 				address: "localhost",
 				port:    "6379",
 			},
@@ -85,7 +101,7 @@ func Test_parseRedisURI(t *testing.T) {
 			name:   "missing schema",
 			uri:    "localhost:6379",
 			want:   nil,
-			errStr: "schema protocol is incorrect",
+			errStr: "invalid Redis URI scheme",
 		},
 		{
 			name:   "empty URI",

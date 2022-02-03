@@ -36,6 +36,7 @@ func init() {
 	common.RegisterEngine(newEngine, defaults.ProtocolRedis)
 }
 
+// newEngine create new Redis engine.
 func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
@@ -145,17 +146,22 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	// TODO(jakub): Use system CA bundle if connecting to AWS.
 	// TODO(jakub): Investigate Redis Sentinel.
-	if connectionOptions.cluster {
-		redisConn = redis.NewClusterClient(&redis.ClusterOptions{
-			Addrs:     []string{connectionAddr},
-			TLSConfig: tlsConfig,
-		})
-	} else {
+	switch connectionOptions.mode {
+	case Single:
 		redisConn = redis.NewClient(&redis.Options{
 			Addr:      connectionAddr,
 			TLSConfig: tlsConfig,
 		})
+	case Cluster:
+		redisConn = redis.NewClusterClient(&redis.ClusterOptions{
+			Addrs:     []string{connectionAddr},
+			TLSConfig: tlsConfig,
+		})
+	default:
+		// We've checked that while validating the config, but checking again can help with regression.
+		return trace.BadParameter("incorrect connection mode %s", connectionOptions.mode)
 	}
+
 	defer redisConn.Close()
 
 	// TODO(jakub): Currently Teleport supports only RESP2 as RESP3 is not supported by go-redis.
