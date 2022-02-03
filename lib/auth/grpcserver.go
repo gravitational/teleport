@@ -338,7 +338,15 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 	}
 }
 
-// DELETE IN whatever version doesn't support clients older than the cutoff
+// maybeFilterCertAuthorityWatches will add filters to the CertAuthority
+// WatchKinds in the watch if the client is authenticated as just a `Node` with
+// no other roles and if the client is older than the cutoff version, and if the
+// WatchKind for KindCertAuthority is trivial, i.e. it's a WatchKind{Kind:
+// KindCertAuthority} with no other fields set. In any other case we will assume
+// that the client knows what it's doing and the cache watcher will still send
+// everything.
+//
+// DELETE IN 10.0, no supported clients should require this at that point
 func maybeFilterCertAuthorityWatches(ctx context.Context, roleNames []string, watch *types.Watch) {
 	if len(roleNames) != 1 || roleNames[0] != string(types.RoleNode) {
 		return
@@ -346,15 +354,22 @@ func maybeFilterCertAuthorityWatches(ctx context.Context, roleNames []string, wa
 
 	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
 	if !ok {
+		log.Debug("no client version found in grpc context")
 		return
 	}
 
 	clientVersion, err := semver.NewVersion(clientVersionString)
 	if err != nil {
+		log.WithError(err).Debugf("couldn't parse client version %q", clientVersionString)
 		return
 	}
 
-	// TODO: version cutoff
+	// we treat the entire previous major version as "old" for this version
+	// check, even if there might have been backports; compliant clients will
+	// supply their own filter anyway
+	if !clientVersion.LessThan(certAuthorityFilterVersionCutoff) {
+		return
+	}
 
 	for i, k := range watch.Kinds {
 		if k.Kind != types.KindCertAuthority || !k.IsTrivial() {
@@ -367,8 +382,11 @@ func maybeFilterCertAuthorityWatches(ctx context.Context, roleNames []string, wa
 			types.UserCA: {types.TrustRelationshipLocal, types.TrustRelationshipTrusted},
 		}.IntoMap()
 	}
-
 }
+
+// certAuthorityFilterVersionCutoff is the version starting from which we stop
+// injecting filters for CertAuthority watches in maybeFilterCertAuthorityWatches.
+var certAuthorityFilterVersionCutoff = *semver.New("8.1.3")
 
 // resourceLabel returns the label for the provided types.Event
 func resourceLabel(event types.Event) string {
