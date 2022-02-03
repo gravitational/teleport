@@ -17,13 +17,14 @@ limitations under the License.
 package types
 
 import (
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
 // WindowsDesktopService represents a Windows desktop service instance.
 type WindowsDesktopService interface {
-	// Resource provides common resource methods.
-	Resource
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
 	// GetAddr returns the network address of this service.
 	GetAddr() string
 	// GetVersion returns the teleport binary version of this service.
@@ -79,14 +80,33 @@ func (s *WindowsDesktopServiceV3) GetTeleportVersion() string {
 	return s.Spec.TeleportVersion
 }
 
+// Origin returns the origin value of the resource.
+func (s *WindowsDesktopServiceV3) Origin() string {
+	return s.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (s *WindowsDesktopServiceV3) SetOrigin(origin string) {
+	s.Metadata.SetOrigin(origin)
+}
+
+// GetAllLabels returns the resources labels.
+func (s *WindowsDesktopServiceV3) GetAllLabels() map[string]string {
+	return s.Metadata.Labels
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (s *WindowsDesktopServiceV3) MatchSearch(values []string) bool {
+	return MatchSearch(nil, values, nil)
+}
+
 // WindowsDesktop represents a Windows desktop host.
 type WindowsDesktop interface {
-	// Resource provides common resource methods.
-	Resource
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
 	// GetAddr returns the network address of this host.
 	GetAddr() string
-	// GetAllLabels returns combined static and dynamic labels.
-	GetAllLabels() map[string]string
 	// LabelsString returns all labels as a string.
 	LabelsString() string
 	// GetDomain returns the ActiveDirectory domain of this host.
@@ -159,4 +179,11 @@ func (d *WindowsDesktopV3) Origin() string {
 // SetOrigin sets the origin value of the resource.
 func (d *WindowsDesktopV3) SetOrigin(o string) {
 	d.Metadata.Labels[OriginLabel] = o
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (d *WindowsDesktopV3) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(d.GetAllLabels()), d.GetName(), d.GetAddr())
+	return MatchSearch(fieldVals, values, nil)
 }

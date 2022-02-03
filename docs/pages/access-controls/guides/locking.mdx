@@ -32,6 +32,7 @@ A lock can target the following objects or attributes:
 - a Teleport node by the node's UUID (effectively unregistering it from the
   cluster)
 - a Windows desktop by the desktop's name
+- an [access request](../../enterprise/workflow/index.mdx) by UUID
 
 ## Prerequisites
 
@@ -77,6 +78,13 @@ with one of the following options:
   All connections to the specified Windows Desktop will be locked.
   ```code
   $ tctl lock --windows-desktop=WIN-FMPFM5UF1SS-teleport-example-com --ttl=10h
+  # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
+  <TabItem label="Access request">
+  All connections using elevated privileges from the matching access request will be locked.
+  ```code
+  $ tctl lock --access-request=261e80c5-357b-4c43-9b67-40a6bc4c6e4d --ttl=24h
   # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
   ```
   </TabItem>

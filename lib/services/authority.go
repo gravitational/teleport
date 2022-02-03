@@ -24,6 +24,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -34,9 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"golang.org/x/crypto/ssh"
 )
 
 // CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
@@ -260,7 +261,7 @@ type UserCertParams struct {
 	DisallowReissue bool
 }
 
-// Check checks the user certificate parameters
+// CheckAndSetDefaults checks the user certificate parameters
 func (c *UserCertParams) CheckAndSetDefaults() error {
 	if c.CASigner == nil || c.CASigningAlg == "" {
 		return trace.BadParameter("CASigner and CASigningAlg are required")
@@ -389,7 +390,7 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 	}
 }
 
-// CertAuthorityNeedsMigrations returns true if the given CertAuthority needs to be migrated
+// CertAuthorityNeedsMigration returns true if the given CertAuthority needs to be migrated
 func CertAuthorityNeedsMigration(cai types.CertAuthority) (bool, error) {
 	ca, ok := cai.(*types.CertAuthorityV2)
 	if !ok {

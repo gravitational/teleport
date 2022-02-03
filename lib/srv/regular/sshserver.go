@@ -932,11 +932,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 			Type: events.SessionRejectedEvent,
 			Code: events.SessionRejectedCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			Login:        identityContext.Login,
-			User:         identityContext.TeleportUser,
-			Impersonator: identityContext.Impersonator,
-		},
+		UserMetadata: identityContext.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			Protocol:   events.EventProtocolSSH,
 			LocalAddr:  ccx.ServerConn.LocalAddr().String(),
@@ -1077,11 +1073,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 						Type: events.SessionRejectedEvent,
 						Code: events.SessionRejectedCode,
 					},
-					UserMetadata: apievents.UserMetadata{
-						Login:        identityContext.Login,
-						User:         identityContext.TeleportUser,
-						Impersonator: identityContext.Impersonator,
-					},
+					UserMetadata: identityContext.GetUserMetadata(),
 					ConnectionMetadata: apievents.ConnectionMetadata{
 						Protocol:   events.EventProtocolSSH,
 						LocalAddr:  ccx.ServerConn.LocalAddr().String(),
@@ -1277,11 +1269,7 @@ Loop:
 			Type: events.PortForwardEvent,
 			Code: events.PortForwardCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			Login:        scx.Identity.Login,
-			User:         scx.Identity.TeleportUser,
-			Impersonator: scx.Identity.Impersonator,
-		},
+		UserMetadata: scx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  scx.ServerConn.LocalAddr().String(),
 			RemoteAddr: scx.ServerConn.RemoteAddr().String(),

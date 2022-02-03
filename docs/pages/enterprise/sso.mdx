@@ -148,9 +148,8 @@ values to match your identity provider:
   to the full [ADFS guide](./sso/adfs.mdx#create-teleport-roles) for details.
 - `netiq` (OIDC): Used to enable NetIQ-specific ACR value processing; refer to
   the [OIDC guide](./sso/oidc.mdx#optional-acr-values) for details.
-- `ping` (SAML): Required for compatibility with Ping Identity (including
-  PingOne and PingFederate) when "Enforced Signed Authn Requests" is enabled in
-  the application settings.
+- `ping` (SAML and OIDC): Required for compatibility with Ping Identity (including
+  PingOne and PingFederate).
 
 At this time, the `spec.provider` field should not be set for any other identity providers.
 
