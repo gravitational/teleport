@@ -26,9 +26,11 @@ If it isn't enabled, you can add this flag using the "Edit configuration" dialog
 at the bottom of the Configuration panel. Note, changing this setting may
 require a database instance reboot.
 
-## Create service account for database
+## Create Service Account for the database
 
 Teleport uses service accounts to connect to Cloud SQL databases.
+
+### Create Service Account
 
 Go to the IAM & Admin [Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts)
 page and create a new service account:
@@ -37,6 +39,8 @@ page and create a new service account:
 
 Press "Create".
 
+### Grant Permissions
+
 On the second step grant this service account the "Cloud SQL Instance User" role
 which will allow it to connect to Cloud SQL instances using IAM token for
 authentication:
@@ -44,6 +48,8 @@ authentication:
 ![Grant Cloud SQL Instance User to Service Account](../../../img/database-access/guides/cloudsql/service-account-db-grant@2x.png)
 
 Press "Done".
+
+### Select Cloud IAM Authentication
 
 Now go back to the Users page of your Cloud SQL instance and add a new user
 account. In the sidebar, choose "Cloud IAM" authentication type and add the
@@ -58,10 +64,22 @@ Press "Add" and your Users table should look similar to this:
 See [Creating and managing IAM users](https://cloud.google.com/sql/docs/postgres/create-manage-iam-users)
 in Google Cloud documentation for more info.
 
-## Create service account for Teleport Database service
+## Create Teleport Database Service Account
 
 The final part of GCP configuration is to create a service account for the
-Teleport Database Service with the following IAM roles:
+Teleport Database Service.
+
+
+### Create Service Account
+
+If creating a new one, go to the [Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts)
+page and create another service account:
+
+![Create Service Account](../../../img/database-access/guides/cloudsql/service-account-db-service@2x.png)
+
+### Grant Permissions
+
+Assign the Service Account the following IAM roles:
 
 - "Service Account Token Creator" will allow the Database Service to generate
   IAM authentication tokens when connecting to the database as the service account user
@@ -74,11 +92,6 @@ Teleport Database Service with the following IAM roles:
     your Cloud SQL instance's root CA certificate and generate an
     ephemeral client certificate when the GCP instance is configured to
     "Allow only SSL connections."
-
-If creating a new one, go to the [Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts)
-page and create another service account:
-
-![Create Service Account](../../../img/database-access/guides/cloudsql/service-account-db-service@2x.png)
 
 Assign it the "Service Account Token Creator" role:
 
@@ -100,6 +113,8 @@ Assign it the "Service Account Token Creator" role:
   ```
 
 </Admonition>
+
+### Create Key
 
 Once created, go to that service account's Keys tab and create a new key:
 
