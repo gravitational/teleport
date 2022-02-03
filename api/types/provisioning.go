@@ -128,27 +128,27 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 	switch p.Spec.JoinMethod {
 	case JoinMethodToken:
 		if hasAllowRules {
-			return trace.BadParameter(`allow rules are not compatible with "token" join method`)
+			return trace.BadParameter("allow rules are not compatible with the %q join method", JoinMethodToken)
 		}
 	case JoinMethodEC2:
 		if !hasAllowRules {
-			return trace.BadParameter(`"ec2" join method requires defined token allow rules`)
+			return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodEC2)
 		}
 		for _, allowRule := range p.Spec.Allow {
 			if allowRule.AWSARN != "" {
-				return trace.BadParameter(`"aws_arn" is incompatible with the "ec2" join method`)
+				return trace.BadParameter(`the %q join method does not support the "aws_arn" parameter`, JoinMethodEC2)
 			}
 		}
 	case JoinMethodIAM:
 		if !hasAllowRules {
-			return trace.BadParameter(`"iam" join method requires defined token allow rules`)
+			return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodIAM)
 		}
 		for _, allowRule := range p.Spec.Allow {
 			if allowRule.AWSRole != "" {
-				return trace.BadParameter(`"aws_role" is incompatible with the "iam" join method`)
+				return trace.BadParameter(`the %q join method does not support the "aws_role" parameter`, JoinMethodIAM)
 			}
 			if len(allowRule.AWSRegions) != 0 {
-				return trace.BadParameter(`"aws_regions" is incompatible with the "iam" join method`)
+				return trace.BadParameter(`the %q join method does not support the "aws_regions" parameter`, JoinMethodIAM)
 			}
 		}
 	default:
