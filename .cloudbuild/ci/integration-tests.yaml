@@ -19,9 +19,7 @@ steps:
       - -c
       - |
         go run ./cmd/integration-tests \
-          -workspace /workspace        \
           -target $_BASE_BRANCH        \
-          -commit HEAD                 \
           -bucket test-logs            \
           -build $BUILD_ID             \
           -a "test-logs/*.json"          

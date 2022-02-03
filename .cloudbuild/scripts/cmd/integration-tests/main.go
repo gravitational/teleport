@@ -62,9 +62,9 @@ type commandlineArgs struct {
 func parseCommandLine() (commandlineArgs, error) {
 	args := commandlineArgs{}
 
-	flag.StringVar(&args.workspace, "workspace", "", "Fully-qualified path to the build workspace")
+	flag.StringVar(&args.workspace, "workspace", "/workspace", "Fully-qualified path to the build workspace")
 	flag.StringVar(&args.targetBranch, "target", "", "The PR's target branch")
-	flag.StringVar(&args.commitSHA, "commit", "", "The PR's latest commit SHA")
+	flag.StringVar(&args.commitSHA, "commit", "HEAD", "The PR's latest commit SHA")
 	flag.BoolVar(&args.skipChown, "skip-chown", false, "Skip reconfiguring the workspace for a nonroot user.")
 	flag.StringVar(&args.buildID, "build", "", "The build ID")
 	flag.StringVar(&args.bucket, "bucket", "", "The artifact storage bucket.")
@@ -131,12 +131,14 @@ func innerMain() error {
 		return nil
 	}
 
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// From this point on, whatever happens we want to upload any artifacts
 	// produced by the build
 	defer func() {
-		ctx := context.TODO()
 		prefix := fmt.Sprintf("%s/artifacts", args.buildID)
-		artifacts.FindAndUpload(ctx, args.bucket, prefix, args.artifacts)
+		artifacts.FindAndUpload(cancelCtx, args.bucket, prefix, args.artifacts)
 	}()
 
 	log.Printf("Running root-only integration tests...")
@@ -171,8 +173,6 @@ func innerMain() error {
 	// diagnostic warnings that would pollute the build log and just confuse
 	// people when they are trying to work out why their build failed.
 	log.Printf("Starting etcd...")
-	cancelCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID, gomodcache)
 	if err != nil {
 		return trace.Wrap(err, "failed starting etcd")

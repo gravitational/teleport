@@ -36,7 +36,7 @@ import (
 // main is just a stub that prints out an error message and sets a nonzero exit
 // code on failure. All of the work happens in `innerMain()`.
 func main() {
-	if err := innerMain(); err != nil {
+	if err := run(); err != nil {
 		log.Fatalf("FAILED: %s", err.Error())
 	}
 }
@@ -53,9 +53,9 @@ type commandlineArgs struct {
 func parseCommandLine() (commandlineArgs, error) {
 	args := commandlineArgs{}
 
-	flag.StringVar(&args.workspace, "workspace", "", "Fully-qualified path to the build workspace")
+	flag.StringVar(&args.workspace, "workspace", "/workspace", "Fully-qualified path to the build workspace")
 	flag.StringVar(&args.targetBranch, "target", "", "The PR's target branch")
-	flag.StringVar(&args.commitSHA, "commit", "", "The PR's latest commit SHA")
+	flag.StringVar(&args.commitSHA, "commit", "HEAD", "The PR's latest commit SHA")
 	flag.StringVar(&args.buildID, "build", "", "The build ID")
 	flag.StringVar(&args.bucket, "bucket", "", "The artifact storage bucket.")
 	flag.Var(&args.artifacts, "a", "Path to artifacts. May be globbed, and have multiple entries.")
@@ -98,9 +98,9 @@ func parseCommandLine() (commandlineArgs, error) {
 	return args, nil
 }
 
-// innerMain parses the command line, performs the highlevel docs change check
+// run parses the command line, performs the highlevel docs change check
 // and creates the marker file if necessary
-func innerMain() error {
+func run() error {
 	args, err := parseCommandLine()
 	if err != nil {
 		return trace.Wrap(err)
@@ -128,9 +128,8 @@ func innerMain() error {
 	// From this point on, whatever happens we want to upload any artifacts
 	// produced by the build
 	defer func() {
-		ctx := context.TODO()
 		prefix := fmt.Sprintf("%s/artifacts", args.buildID)
-		artifacts.FindAndUpload(ctx, args.bucket, prefix, args.artifacts)
+		artifacts.FindAndUpload(cancelCtx, args.bucket, prefix, args.artifacts)
 	}()
 
 	log.Printf("Running unit tests...")
