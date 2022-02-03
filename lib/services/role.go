@@ -105,8 +105,10 @@ func NewImplicitRole() types.Role {
 				MaxSessionTTL: types.MaxDuration(),
 				// Explicitly disable options that default to true, otherwise the option
 				// will always be enabled, as this implicit role is part of every role set.
-				PortForwarding:       types.NewBoolOption(false),
-				RecordDesktopSession: types.NewBoolOption(false),
+				PortForwarding: types.NewBoolOption(false),
+				RecordSession: &types.RecordSession{
+					Desktop: types.NewBoolOption(false),
+				},
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -1859,7 +1861,11 @@ func (set RoleSet) CanPortForward() bool {
 // desktop session recoring.
 func (set RoleSet) RecordDesktopSession() bool {
 	for _, role := range set {
-		if types.BoolDefaultTrue(role.GetOptions().RecordDesktopSession) {
+		var bo *types.BoolOption
+		if role.GetOptions().RecordSession != nil {
+			bo = role.GetOptions().RecordSession.Desktop
+		}
+		if types.BoolDefaultTrue(bo) {
 			return true
 		}
 	}

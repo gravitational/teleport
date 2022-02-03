@@ -187,11 +187,11 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV4{
 					Options: types.RoleOptions{
-						CertificateFormat:    constants.CertificateFormatStandard,
-						MaxSessionTTL:        types.NewDuration(apidefaults.MaxCertDuration),
-						PortForwarding:       types.NewBoolOption(true),
-						RecordDesktopSession: types.NewBoolOption(true),
-						BPF:                  apidefaults.EnhancedEvents(),
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						BPF:               apidefaults.EnhancedEvents(),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{},
@@ -219,11 +219,11 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV4{
 					Options: types.RoleOptions{
-						CertificateFormat:    constants.CertificateFormatStandard,
-						MaxSessionTTL:        types.NewDuration(apidefaults.MaxCertDuration),
-						PortForwarding:       types.NewBoolOption(true),
-						RecordDesktopSession: types.NewBoolOption(true),
-						BPF:                  apidefaults.EnhancedEvents(),
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						BPF:               apidefaults.EnhancedEvents(),
 					},
 					Allow: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
@@ -287,7 +287,7 @@ func TestRoleParse(t *testing.T) {
 						CertificateFormat:     constants.CertificateFormatStandard,
 						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
 						PortForwarding:        types.NewBoolOption(true),
-						RecordDesktopSession:  types.NewBoolOption(true),
+						RecordSession:         &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						ClientIdleTimeout:     types.NewDuration(17 * time.Minute),
 						DisconnectExpiredCert: types.NewBool(true),
 						BPF:                   apidefaults.EnhancedEvents(),
@@ -370,7 +370,7 @@ func TestRoleParse(t *testing.T) {
 						ForwardAgent:          types.NewBool(true),
 						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
 						PortForwarding:        types.NewBoolOption(true),
-						RecordDesktopSession:  types.NewBoolOption(true),
+						RecordSession:         &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						ClientIdleTimeout:     types.NewDuration(0),
 						DisconnectExpiredCert: types.NewBool(false),
 						BPF:                   apidefaults.EnhancedEvents(),
@@ -440,7 +440,7 @@ func TestRoleParse(t *testing.T) {
 						ForwardAgent:          types.NewBool(true),
 						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
 						PortForwarding:        types.NewBoolOption(true),
-						RecordDesktopSession:  types.NewBoolOption(true),
+						RecordSession:         &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						ClientIdleTimeout:     types.NewDuration(0),
 						DisconnectExpiredCert: types.NewBool(false),
 						BPF:                   apidefaults.EnhancedEvents(),
@@ -2360,9 +2360,9 @@ func TestBoolOptions(t *testing.T) {
 		// Setting options explicitly off should remain off.
 		{
 			inOptions: types.RoleOptions{
-				ForwardAgent:         types.NewBool(false),
-				PortForwarding:       types.NewBoolOption(false),
-				RecordDesktopSession: types.NewBoolOption(false),
+				ForwardAgent:   types.NewBool(false),
+				PortForwarding: types.NewBoolOption(false),
+				RecordSession:  &types.RecordSession{Desktop: types.NewBoolOption(false)},
 			},
 			outCanPortForward:        false,
 			outCanForwardAgents:      false,
@@ -2380,9 +2380,9 @@ func TestBoolOptions(t *testing.T) {
 		// Explicitly enabling should enable them.
 		{
 			inOptions: types.RoleOptions{
-				ForwardAgent:         types.NewBool(true),
-				PortForwarding:       types.NewBoolOption(true),
-				RecordDesktopSession: types.NewBoolOption(true),
+				ForwardAgent:   types.NewBool(true),
+				PortForwarding: types.NewBoolOption(true),
+				RecordSession:  &types.RecordSession{Desktop: types.NewBoolOption(true)},
 			},
 			outCanPortForward:        true,
 			outCanForwardAgents:      true,
@@ -3190,7 +3190,7 @@ func TestDesktopRecordingEnabled(t *testing.T) {
 				newRole(func(r *types.RoleV4) {
 					r.SetName("no-record")
 					r.SetOptions(types.RoleOptions{
-						RecordDesktopSession: types.NewBoolOption(false),
+						RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(false)},
 					})
 				}),
 			},
@@ -3201,12 +3201,12 @@ func TestDesktopRecordingEnabled(t *testing.T) {
 			roles: []types.RoleV4{
 				newRole(func(r *types.RoleV4) {
 					r.SetOptions(types.RoleOptions{
-						RecordDesktopSession: types.NewBoolOption(false),
+						RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(false)},
 					})
 				}),
 				newRole(func(r *types.RoleV4) {
 					r.SetOptions(types.RoleOptions{
-						RecordDesktopSession: types.NewBoolOption(false),
+						RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(false)},
 					})
 				}),
 				// recording defaults to true, so a default role should force recording

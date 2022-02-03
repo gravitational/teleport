@@ -39,12 +39,14 @@ func NewPresetEditorRole() types.Role {
 		},
 		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
-				CertificateFormat:    constants.CertificateFormatStandard,
-				MaxSessionTTL:        types.NewDuration(apidefaults.MaxCertDuration),
-				PortForwarding:       types.NewBoolOption(true),
-				RecordDesktopSession: types.NewBoolOption(false),
-				ForwardAgent:         types.NewBool(true),
-				BPF:                  apidefaults.EnhancedEvents(),
+				CertificateFormat: constants.CertificateFormatStandard,
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+				PortForwarding:    types.NewBoolOption(true),
+				ForwardAgent:      types.NewBool(true),
+				BPF:               apidefaults.EnhancedEvents(),
+				RecordSession: &types.RecordSession{
+					Desktop: types.NewBoolOption(false),
+				},
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
@@ -83,12 +85,12 @@ func NewPresetAccessRole() types.Role {
 		},
 		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
-				CertificateFormat:    constants.CertificateFormatStandard,
-				MaxSessionTTL:        types.NewDuration(apidefaults.MaxCertDuration),
-				PortForwarding:       types.NewBoolOption(true),
-				RecordDesktopSession: types.NewBoolOption(true),
-				ForwardAgent:         types.NewBool(true),
-				BPF:                  apidefaults.EnhancedEvents(),
+				CertificateFormat: constants.CertificateFormatStandard,
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+				PortForwarding:    types.NewBoolOption(true),
+				ForwardAgent:      types.NewBool(true),
+				BPF:               apidefaults.EnhancedEvents(),
+				RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
 			},
 			Allow: types.RoleConditions{
 				Namespaces:           []string{apidefaults.Namespace},
@@ -126,9 +128,11 @@ func NewPresetAuditorRole() types.Role {
 		},
 		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
-				CertificateFormat:    constants.CertificateFormatStandard,
-				MaxSessionTTL:        types.NewDuration(apidefaults.MaxCertDuration),
-				RecordDesktopSession: types.NewBoolOption(false),
+				CertificateFormat: constants.CertificateFormatStandard,
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+				RecordSession: &types.RecordSession{
+					Desktop: types.NewBoolOption(false),
+				},
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},

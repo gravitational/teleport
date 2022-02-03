@@ -1530,9 +1530,15 @@ message RoleOptions {
 
     // RecordDesktopSession indicates whether desktop access sessions should be recorded.
     // It defaults to true unless explicitly set to false.
-    BoolValue RecordDesktopSession = 15 [
+    RecordSession RecordSession = 15 [ (gogoproto.jsontag) = "record_session" ];
+}
+
+message RecordSession {
+    // Desktop indicates whether desktop sessions should be recorded.
+    // It defaults to true unless explicitly set to false.
+    BoolValue Desktop = 1 [
         (gogoproto.nullable) = true,
-        (gogoproto.jsontag) = "record_desktop_session",
+        (gogoproto.jsontag) = "desktop",
         (gogoproto.customtype) = "BoolOption"
     ];
 }
