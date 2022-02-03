@@ -34,7 +34,7 @@ type JoinService interface {
 	// send it on the challenge channel. The caller is expected to respond on
 	// the request channel with a RegisterUsingTokenRequest including a signed
 	// sts:GetCallerIdentity request with the challenge string.
-	RegisterUsingIAMMethod(ctx context.Context, challenge chan<- string, request <-chan *types.RegisterUsingTokenRequest) (*proto.Certs, error)
+	RegisterUsingIAMMethod(ctx context.Context, challengeResponse types.RegisterChallengeResponseFunc) (*proto.Certs, error)
 }
 
 // JoinServiceGRPCServer implements proto.JoinServiceServer and is designed
@@ -59,58 +59,24 @@ func NewJoinServiceGRPCServer(joinServiceClient JoinService) *JoinServiceGRPCSer
 // sts:GetCallerIdentity request with the challenge string. Finally, the signed
 // cluster certs are sent on the server stream.
 func (s *JoinServiceGRPCServer) RegisterUsingIAMMethod(srv proto.JoinService_RegisterUsingIAMMethodServer) error {
-	ctx, cancel := context.WithCancel(srv.Context())
-	defer cancel()
+	ctx := srv.Context()
 
-	challengeChan := make(chan string)
-	reqChan := make(chan *types.RegisterUsingTokenRequest)
-	errChan := make(chan error)
-
-	// set up a goroutine to forward between the gRPC streams and the
-	// JoinService channels
-	go func() {
-		defer close(errChan)
-
-		// first forward challenge from auth to client
-		select {
-		case challenge := <-challengeChan:
-			err := srv.Send(&proto.RegisterUsingIAMMethodResponse{
-				Challenge: challenge,
-			})
-			if err != nil {
-				cancel()
-				errChan <- trace.Wrap(err)
-				return
-			}
-		case <-ctx.Done():
-			errChan <- trace.Wrap(ctx.Err())
-			return
-		}
-
-		// then forward request from client to auth
-		req, err := srv.Recv()
+	// call RegisterUsingIAMMethod with a callback to get the challenge response
+	// from the gRPC client
+	certs, err := s.joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*types.RegisterUsingTokenRequest, error) {
+		// first forward challenge from to the client
+		err := srv.Send(&proto.RegisterUsingIAMMethodResponse{
+			Challenge: challenge,
+		})
 		if err != nil {
-			cancel()
-			errChan <- trace.Wrap(err)
-			return
+			return nil, trace.Wrap(err)
 		}
-		select {
-		case reqChan <- req:
-		case <-ctx.Done():
-			errChan <- trace.Wrap(ctx.Err())
-			return
-		}
-	}()
 
-	// call the auth register method. This blocks, but if the forwarding
-	// goroutine has an error, the context will be cancelled.
-	certs, registerErr := s.joinServiceClient.RegisterUsingIAMMethod(ctx, challengeChan, reqChan)
-
-	// block until the forwarding goroutine returns
-	forwardingErr := <-errChan
-
-	// return any errors
-	if err := trace.NewAggregate(registerErr, forwardingErr); err != nil {
+		// then get the response from the client and return it
+		req, err := srv.Recv()
+		return req, trace.Wrap(err)
+	})
+	if err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -443,35 +443,19 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 // registerUsingIAMMethod is used to register using the IAM join method. It is
 // able to register through a proxy or through the auth server directly.
 func registerUsingIAMMethod(joinService services.JoinService, token string, params RegisterParams) (*proto.Certs, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-	challengeChan := make(chan string)
-	reqChan := make(chan *types.RegisterUsingTokenRequest)
-	errChan := make(chan error)
+	ctx := context.Background()
 
-	// set up a goroutine to respond to the challenge with register request
-	go func() {
-		defer close(errChan)
-
-		// wait for the challenge string
-		var challenge string
-		select {
-		case challenge = <-challengeChan:
-		case <-ctx.Done():
-			errChan <- ctx.Err()
-			return
-		}
-
+	// call RegisterUsingIAMMethod with a callback to respond to the challenge
+	// with the join request
+	certs, err := joinService.RegisterUsingIAMMethod(ctx, func(challenge string) (*types.RegisterUsingTokenRequest, error) {
 		// create the signed sts:GetCallerIdentity request and include the challenge
 		signedRequest, err := createSignedSTSIdentityRequest(challenge)
 		if err != nil {
-			// cancel the context so that RegisterUsingIAMMethod returns
-			cancel()
-			errChan <- err
-			return
+			return nil, trace.Wrap(err)
 		}
 
 		// send the register request including the challenge response
-		registerRequest := &types.RegisterUsingTokenRequest{
+		return &types.RegisterUsingTokenRequest{
 			Token:                token,
 			HostID:               params.ID.HostUUID,
 			NodeName:             params.ID.NodeName,
@@ -481,23 +465,8 @@ func registerUsingIAMMethod(joinService services.JoinService, token string, para
 			PublicTLSKey:         params.PublicTLSKey,
 			PublicSSHKey:         params.PublicSSHKey,
 			STSIdentityRequest:   signedRequest,
-		}
-		select {
-		case reqChan <- registerRequest:
-		case <-ctx.Done():
-			errChan <- ctx.Err()
-		}
-	}()
-
-	// initiate the register request and wait for it to complete
-	certs, registerErr := joinService.RegisterUsingIAMMethod(ctx, challengeChan, reqChan)
-
-	// cancel the context and wait for the goroutine
-	cancel()
-	stsErr := <-errChan
-
-	// create aggregate error (will be nil if both are nil)
-	err := trace.NewAggregate(registerErr, stsErr)
+		}, nil
+	})
 
 	return certs, trace.Wrap(err)
 }

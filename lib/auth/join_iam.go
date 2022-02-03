@@ -35,6 +35,8 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
 
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 )
 
@@ -54,6 +56,9 @@ const (
 	// AWS SignedHeaders will always be lowercase
 	// https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html#sigv4-auth-header-overview
 	challengeHeaderKey = "x-teleport-challenge"
+
+	acceptHeaderKey = "Accept"
+	acceptJSON      = "application/json"
 )
 
 // validateSTSIdentityRequest checks that a received sts:GetCallerIdentity
@@ -281,18 +286,13 @@ func generateChallenge() (string, error) {
 	return base64.RawStdEncoding.EncodeToString(challengeRawBytes), nil
 }
 
-/// ChallengeResponseFunc is a function type meant to be passed to
-// RegisterUsingIAMMethod. It must return a *types.RegisterUsingTokenRequest for
-// a given challenge, or an error.
-type ChallengeResponseFunc func(challenge string) (*types.RegisterUsingTokenRequest, error)
-
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
 //
 // The caller must provide a ChallengeResponseFunc which returns a
 // *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
 // including the challenge as a signed header.
-func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse ChallengeResponseFunc) (*proto.Certs, error) {
+func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse types.RegisterChallengeResponseFunc) (*proto.Certs, error) {
 	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
 	if !ok {
 		return nil, trace.BadParameter("logic error: client address was not set")
@@ -341,4 +341,32 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse C
 	}
 	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
 	return certs, nil
+}
+
+// createSignedSTSIdentityRequest is called on the client side and returns an
+// sts:GetCallerIdentity request signed with the local AWS credentials
+func createSignedSTSIdentityRequest(challenge string) ([]byte, error) {
+	// use the aws sdk to generate the request
+	sess, err := session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	stsService := sts.New(sess)
+	req, _ := stsService.GetCallerIdentityRequest(&sts.GetCallerIdentityInput{})
+	// set challenge header
+	req.HTTPRequest.Header.Set(challengeHeaderKey, challenge)
+	// request json for simpler parsing
+	req.HTTPRequest.Header.Set(acceptHeaderKey, acceptJSON)
+	// sign the request, including headers
+	if err := req.Sign(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// write the signed HTTP request to a buffer
+	var signedRequest bytes.Buffer
+	if err := req.HTTPRequest.Write(&signedRequest); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return signedRequest.Bytes(), nil
 }

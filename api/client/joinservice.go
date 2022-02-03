@@ -45,31 +45,26 @@ func NewJoinServiceClient(grpcClient proto.JoinServiceClient) *JoinServiceClient
 // send it on the challenge channel. The caller is expected to respond on
 // the request channel with a RegisterUsingTokenRequest including a signed
 // sts:GetCallerIdentity request with the challenge string.
-func (c *JoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeChan chan<- string, reqChan <-chan *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+func (c *JoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeResponse types.RegisterChallengeResponseFunc) (*proto.Certs, error) {
 	// initiate the streaming rpc
 	iamJoinClient, err := c.grpcClient.RegisterUsingIAMMethod(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// wait for the challenge string from auth and forward to the caller
-	challengeResp, err := iamJoinClient.Recv()
+	// wait for the challenge string from auth
+	challenge, err := iamJoinClient.Recv()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	select {
-	case challengeChan <- challengeResp.Challenge:
-	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
+
+	// get challenge response from the caller
+	req, err := challengeResponse(challenge.Challenge)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// forward the challenge response from the caller to auth
-	var req *types.RegisterUsingTokenRequest
-	select {
-	case req = <-reqChan:
-	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
-	}
 	if err := iamJoinClient.Send(req); err != nil {
 		return nil, trace.Wrap(err)
 	}

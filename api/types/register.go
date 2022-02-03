@@ -31,3 +31,8 @@ func (r *RegisterUsingTokenRequest) CheckAndSetDefaults() error {
 	}
 	return nil
 }
+
+// RegisterChallengeResponseFunc is a function type meant to be passed to
+// RegisterUsingIAMMethod. It must return a *types.RegisterUsingTokenRequest for
+// a given challenge, or an error.
+type RegisterChallengeResponseFunc func(challenge string) (*RegisterUsingTokenRequest, error)
