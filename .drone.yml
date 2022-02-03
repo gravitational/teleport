@@ -5010,7 +5010,7 @@ steps:
   - name: Check if tag is prerelease
     image: golang:1.17-alpine
     commands:
-      - cd build.assets/version-check
+      - cd /go/src/github.com/gravitational/teleport/build.assets/version-check
       - go run . -tag ${DRONE_TAG} -check prerelease || (echo '---> Not publishing ${DRONE_REPO} packages to RPM and DEB repos' && exit 78)
 
   - name: "RPM: Download RPM repository"
@@ -5100,7 +5100,7 @@ steps:
   - name: Check if tag is latest
     image: golang:1.17-alpine
     commands:
-      - cd build.assets/version-check
+      - cd /go/src/github.com/gravitational/teleport/build.assets/version-check
       - go run . -tag ${DRONE_TAG} -check latest || (echo '---> Not publishing ${DRONE_REPO} packages to DEB repo' && exit 78)
 
   - name: Download DEB repo contents
@@ -5213,6 +5213,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 4c16db480cb739be3baf97dff0bf444ae18e6d29080a27e5ef777b99a7b80542
+hmac: 35b04926a6bf74eb9cffaeb16471d924f28b8768770a5c3715527a304278c6f2
 
 ...
