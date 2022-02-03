@@ -39,29 +39,40 @@ import (
 )
 
 const (
+	// Hardcoding the sts API version here may be more strict than necessary,
+	// but this is set by the Teleport node and can only be changed when we
+	// update our AWS SDK dependency. Since Auth should always be upgraded
+	// before nodes, we will have a chance to update the check on Auth if we
+	// ever have a need to allow a newer API version.
 	expectedSTSIdentityRequestBody = "Action=GetCallerIdentity&Version=2011-06-15"
-	stsHost                        = "sts.amazonaws.com"
-	challengeHeaderKey             = "X-Teleport-Challenge"
-	normalizedChallengeHeaderKey   = "x-teleport-challenge"
+
+	// Only allowing the global sts endpoint here, Teleport nodes will only send
+	// requests for this endpoint. If we want to start using regional endpoints
+	// we can update this check before updating the nodes.
+	stsHost = "sts.amazonaws.com"
+
+	// AWS SignedHeaders will always be lowercase
+	// https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html#sigv4-auth-header-overview
+	challengeHeaderKey = "x-teleport-challenge"
 )
 
 // validateSTSIdentityRequest checks that a received sts:GetCallerIdentity
-// request is valid and includes the challenge as a signed header. An example of
-// a valid request looks like:
-/*
-POST / HTTP/1.1
-Host: sts.amazonaws.com
-Accept: application/json
-Authorization: AWS4-HMAC-SHA256 Credential=AAAAAAAAAAAAAAAAAAAA/20211108/us-east-1/sts/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date;x-amz-security-token;x-teleport-challenge, Signature=9999999999999999999999999999999999999999999999999999999999999999
-Content-Length: 43
-Content-Type: application/x-www-form-urlencoded; charset=utf-8
-User-Agent: aws-sdk-go/1.37.17 (go1.17.1; darwin; amd64)
-X-Amz-Date: 20211108T190420Z
-X-Amz-Security-Token: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=
-X-Teleport-Challenge: 0ezlc3usTAkXeZTcfOazUq0BGrRaKmb4EwODk8U7J5A
-
-Action=GetCallerIdentity&Version=2011-06-15
-*/
+// request is valid and includes the challenge as a signed header. An example
+// valid request looks like:
+// ```
+// POST / HTTP/1.1
+// Host: sts.amazonaws.com
+// Accept: application/json
+// Authorization: AWS4-HMAC-SHA256 Credential=AAAAAAAAAAAAAAAAAAAA/20211108/us-east-1/sts/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date;x-amz-security-token;x-teleport-challenge, Signature=999...
+// Content-Length: 43
+// Content-Type: application/x-www-form-urlencoded; charset=utf-8
+// User-Agent: aws-sdk-go/1.37.17 (go1.17.1; darwin; amd64)
+// X-Amz-Date: 20211108T190420Z
+// X-Amz-Security-Token: aaa...
+// X-Teleport-Challenge: 0ezlc3usTAkXeZTcfOazUq0BGrRaKmb4EwODk8U7J5A
+//
+// Action=GetCallerIdentity&Version=2011-06-15
+// ```
 func validateSTSIdentityRequest(req *http.Request, challenge string) error {
 	if req.Host != stsHost {
 		return trace.AccessDenied("sts identity request is for unknown host %q", req.Host)
@@ -81,9 +92,9 @@ func validateSTSIdentityRequest(req *http.Request, challenge string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !utils.SliceContainsStr(sigV4.SignedHeaders, normalizedChallengeHeaderKey) {
+	if !utils.SliceContainsStr(sigV4.SignedHeaders, challengeHeaderKey) {
 		return trace.AccessDenied("sts identity request auth header %q does not include "+
-			normalizedChallengeHeaderKey+" as a signed header", authHeader)
+			challengeHeaderKey+" as a signed header", authHeader)
 	}
 
 	body, err := aws.GetAndReplaceReqBody(req)
