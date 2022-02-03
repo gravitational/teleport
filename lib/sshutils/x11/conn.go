@@ -18,6 +18,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"os"
 	"syscall"
 
 	"github.com/gravitational/trace"
@@ -70,6 +71,11 @@ func OpenNewXServerListener(displayOffset int, maxDisplay int, screen uint32) (X
 		return nil, Display{}, trace.BadParameter("displayOffset (%d) cannot be larger than maxDisplay (%d)", displayOffset, maxDisplay)
 	} else if maxDisplay > MaxDisplayNumber {
 		return nil, Display{}, trace.BadParameter("maxDisplay (%d) cannot be larger than the max int32 (%d)", maxDisplay, math.MaxInt32)
+	}
+
+	// Create /tmp/.X11-unix if it doesn't exist (such as in CI)
+	if err := os.Mkdir(x11SockDir(), 0777); err != nil && !errors.Is(err, os.ErrExist) {
+		return nil, Display{}, trace.Wrap(err)
 	}
 
 	for displayNumber := displayOffset; displayNumber <= maxDisplay; displayNumber++ {

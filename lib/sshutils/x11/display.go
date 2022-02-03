@@ -45,8 +45,8 @@ const (
 	// e.g. DISPLAY=localhost:10 -> net.Dial("tcp", "localhost:6010")
 	// Used by some XServer clients, such as openSSH and MobaXTerm.
 	x11BasePort = 6000
-	// x11SocketDir is the name of the directory where X11 unix sockets are kept.
-	x11SocketDir = ".X11-unix"
+	// x11SocketDirName is the name of the directory where X11 unix sockets are kept.
+	x11SocketDirName = ".X11-unix"
 )
 
 // Display is an XServer display.
@@ -112,7 +112,7 @@ func (d *Display) unixSocket() (*net.UnixAddr, error) {
 	// For x11 unix domain sockets, the hostname must be "unix" or empty. In these cases
 	// we return the actual unix socket for the display "/tmp/.X11-unix/X<display_number>"
 	if d.HostName == "unix" || d.HostName == "" {
-		sockName := filepath.Join(os.TempDir(), x11SocketDir, fmt.Sprintf("X%d", d.DisplayNumber))
+		sockName := filepath.Join(x11SockDir(), fmt.Sprintf("X%d", d.DisplayNumber))
 		return net.ResolveUnixAddr("unix", sockName)
 	}
 	return nil, trace.BadParameter("display is not a unix socket")
@@ -197,4 +197,8 @@ func ParseDisplay(displayString string) (Display, error) {
 
 	display.ScreenNumber = int(screenNumber)
 	return display, nil
+}
+
+func x11SockDir() string {
+	return filepath.Join(os.TempDir(), x11SocketDirName)
 }
