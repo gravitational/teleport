@@ -31,7 +31,7 @@ const (
 	// ProtocolMongoDB is TLS ALPN protocol value used to indicate Mongo protocol.
 	ProtocolMongoDB Protocol = "teleport-mongodb"
 
-	// ProtocolRedisDB is TLS ALPN protocol value used to indicate Mongo protocol.
+	// ProtocolRedisDB is TLS ALPN protocol value used to indicate Redis protocol.
 	ProtocolRedisDB Protocol = "teleport-redis"
 
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.

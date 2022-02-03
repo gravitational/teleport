@@ -67,29 +67,28 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 
 // authorizeConnection does authorization check for MongoDB connection about
 // to be established.
-func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Session) error {
+func (e *Engine) authorizeConnection(ctx context.Context) error {
 	ap, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	mfaParams := services.AccessMFAParams{
-		Verified:       sessionCtx.Identity.MFAVerified != "",
+		Verified:       e.sessionCtx.Identity.MFAVerified != "",
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
 
 	dbRoleMatchers := role.DatabaseRoleMatchers(
-		sessionCtx.Database.GetProtocol(),
-		sessionCtx.DatabaseUser,
-		// Leave database empty as Redis integration doesn't support schema access control.
-		"",
+		e.sessionCtx.Database.GetProtocol(),
+		e.sessionCtx.DatabaseUser,
+		e.sessionCtx.DatabaseName,
 	)
-	err = sessionCtx.Checker.CheckAccess(
-		sessionCtx.Database,
+	err = e.sessionCtx.Checker.CheckAccess(
+		e.sessionCtx.Database,
 		mfaParams,
 		dbRoleMatchers...,
 	)
 	if err != nil {
-		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
+		e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
 		return trace.Wrap(err)
 	}
 	return nil
@@ -126,7 +125,7 @@ func (e *Engine) sendToClient(vals interface{}) error {
 // HandleConnection is responsible for connecting to a Redis instance/cluster and
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	// Check that the user has access to the database.
-	err := e.authorizeConnection(ctx, sessionCtx)
+	err := e.authorizeConnection(ctx)
 	if err != nil {
 		return trace.Wrap(err, "error authorized database access")
 	}
