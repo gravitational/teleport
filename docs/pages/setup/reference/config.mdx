@@ -329,8 +329,6 @@ auth_service:
 
     # The optional DNS name for the auth server if located behind a load 
     # balancer.
-    # See the "Public Addr" section for more details
-    # (https://goteleport.com/docs/admin-guide/#public-addr).
     public_addr: auth.example.com:3025
 
     # Pre-defined tokens for adding new nodes to a cluster. Each token specifies
@@ -445,8 +443,6 @@ ssh_service:
     # The optional public address the SSH service. This is useful if 
     # administrators want to allow users to connect to nodes directly, 
     # bypassing a Teleport proxy.
-    # See the "Public Addr" section for more details
-    # (https://goteleport.com/docs/admin-guide/#public-addr).
     public_addr: node.example.com:3022
 
     # See explanation of labels in "Labeling Nodes and Applications" section
@@ -543,12 +539,12 @@ proxy_service:
     # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
     # Defaults to the proxy's hostname if not specified. If running multiple
     # proxies behind a load balancer, this name must point to the load balancer
-    # See the "Public Addr" section for more details
-
-    # (https://goteleport.com/docs/admin-guide/#public-addr).
+    # If application access is enabled, public_addr is used to write correct
+    # redirects
+    # (https://goteleport.com/docs/application-access/guides/connecting-apps/#start-authproxy-service).
     # If database access is enabled, Database clients will connect to the Proxy
-    # over this hostname.
-    # (https://goteleport.com/docs/database-access/architecture/#database-client-to-proxy)
+    # over this hostname
+    # (https://goteleport.com/docs/database-access/architecture/#database-client-to-proxy).
     public_addr: proxy.example.com:3080
 
     # The DNS name of the proxy SSH endpoint as accessible by cluster clients.
