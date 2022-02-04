@@ -16,13 +16,75 @@ package x11
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
+
+func TestXAuthCommands(t *testing.T) {
+	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
+		t.Skip("Skipping test as xauth is not enabled")
+	}
+
+	ctx := context.Background()
+
+	tmpDir := t.TempDir()
+	xauthFile := filepath.Join(tmpDir, ".Xauthority")
+	display, err := ParseDisplay("unix:10")
+	require.NoError(t, err)
+
+	// New xauth file should have no entries
+	xauth := NewXAuthCommand(ctx, xauthFile)
+	xauthEntry, err := xauth.ReadEntry(display)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
+	require.Nil(t, xauthEntry)
+
+	// Add trusted xauth entry
+	trustedXauthEntry, err := NewFakeXAuthEntry(display)
+	require.NoError(t, err)
+	xauth = NewXAuthCommand(ctx, xauthFile)
+	err = xauth.AddEntry(*trustedXauthEntry)
+	require.NoError(t, err)
+
+	// Read back the xauth entry
+	xauth = NewXAuthCommand(ctx, xauthFile)
+	xauthEntry, err = xauth.ReadEntry(display)
+	require.NoError(t, err)
+	require.Equal(t, trustedXauthEntry, xauthEntry)
+
+	// Remove xauth entries
+	xauth = NewXAuthCommand(ctx, xauthFile)
+	err = xauth.RemoveEntries(xauthEntry.Display)
+	require.NoError(t, err)
+
+	xauth = NewXAuthCommand(ctx, xauthFile)
+	xauthEntry, err = xauth.ReadEntry(display)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
+	require.Nil(t, xauthEntry)
+
+	// Generate untrusted xauth entry - This command requires an actual display for an
+	// an actual XServer, so we use localDisplay if set.
+	localDisplay, err := GetXDisplay()
+	if trace.IsBadParameter(err) {
+		t.Skip("skipping xauth generate test, DISPLAY isn't set")
+	}
+	xauth = NewXAuthCommand(ctx, xauthFile)
+	err = xauth.GenerateUntrustedCookie(localDisplay, 0)
+	require.NoError(t, err)
+
+	xauth = NewXAuthCommand(ctx, xauthFile)
+	xauthEntry, err = xauth.ReadEntry(localDisplay)
+	require.NoError(t, err)
+	require.NotNil(t, xauthEntry)
+}
 
 func TestReadAndRewriteXAuthPacket(t *testing.T) {
 	t.Parallel()
