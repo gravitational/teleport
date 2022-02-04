@@ -178,7 +178,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(clock),
 		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
-		SetX11ForwardingConfig(&x11.ServerConfig{Enabled: true, DisplayOffset: x11.DefaultDisplayOffset, MaxDisplay: x11.DefaultMaxDisplay}),
+		SetX11ForwardingConfig(&x11.ServerConfig{}),
 	}
 
 	serverOptions = append(serverOptions, sshOpts...)
@@ -688,21 +688,37 @@ func TestAgentForward(t *testing.T) {
 
 // TestX11Forward tests x11 forwarding via unix sockets
 func TestX11Forward(t *testing.T) {
+	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
+		t.Skip("Skipping test as xauth is not enabled")
+	}
+
 	t.Parallel()
 	f := newFixture(t)
+	f.ssh.srv.x11 = &x11.ServerConfig{
+		Enabled:       true,
+		DisplayOffset: x11.DefaultDisplayOffset,
+		MaxDisplay:    x11.DefaultMaxDisplay,
+	}
 
 	ctx := context.Background()
 	roleName := services.RoleNameForUser(f.user)
 	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
 	require.NoError(t, err)
 	roleOptions := role.GetOptions()
+	roleOptions.PermitX11Forwarding = types.NewBool(true)
 	role.SetOptions(roleOptions)
 	err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	se, err := f.ssh.clt.NewSession()
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, se.Close()) })
+	defer se.Close()
+
+	// Client requests x11 forwarding for the server session.
+	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
+	require.NoError(t, err)
+	err = x11.RequestForwarding(se, clientXAuthEntry)
+	require.NoError(t, err)
 
 	// Create a fake client XServer listener which echos
 	// back whatever it receives.
@@ -717,12 +733,6 @@ func TestX11Forward(t *testing.T) {
 			conn.Close()
 		}
 	}()
-
-	// Client requests x11 forwarding for the server session.
-	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
-	require.NoError(t, err)
-	err = x11.RequestForwarding(se, clientXAuthEntry)
-	require.NoError(t, err)
 
 	// Handle any x11 channel requests received from the server
 	// and start x11 forwarding to the client display.
