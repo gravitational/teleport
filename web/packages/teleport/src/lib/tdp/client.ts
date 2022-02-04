@@ -17,14 +17,17 @@ import Codec, {
   MouseButton,
   ButtonState,
   ScrollAxis,
+  ClientScreenSpec,
+  PngFrame,
 } from './codec';
 import Logger from 'shared/libs/logger';
 
 export enum TdpClientEvent {
-  IMAGE_FRAGMENT = 'imgfrag',
-  TDP_ERROR = 'tdperr',
-  WS_OPEN = 'wsopen',
-  WS_CLOSE = 'wsclose',
+  TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
+  TDP_PNG_FRAME = 'tdp png frame',
+  TDP_ERROR = 'tdp error',
+  WS_OPEN = 'ws open',
+  WS_CLOSE = 'ws close',
 }
 
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
@@ -38,11 +41,10 @@ export default class Client extends EventEmitter {
   username: string;
   logger = Logger.create('TDPClient');
 
-  constructor(socketAddr: string, username: string) {
+  constructor(socketAddr: string) {
     super();
     this.socketAddr = socketAddr;
     this.codec = new Codec();
-    this.username = username;
   }
 
   // Connect to the websocket and register websocket event handlers.
@@ -77,30 +79,62 @@ export default class Client extends EventEmitter {
   }
 
   processMessage(buffer: ArrayBuffer) {
-    const messageType = this.codec.decodeMessageType(buffer);
+    const messageType = this.codec._decodeMessageType(buffer);
     try {
-      if (messageType === MessageType.PNG_FRAME) {
-        this.processFrame(buffer);
-      } else if (messageType === MessageType.ERROR) {
-        this.handleError(new Error(this.codec.decodeErrorMessage(buffer)));
-      } else {
-        this.handleError(
-          new Error(`recieved unsupported message type ${messageType}`)
-        );
+      switch (messageType) {
+        case MessageType.PNG_FRAME:
+          this.handlePngFrame(buffer);
+          break;
+        case MessageType.CLIENT_SCREEN_SPEC:
+          this.handleClientScreenSpec(buffer);
+          break;
+        case MessageType.MOUSE_BUTTON:
+          this.handleMouseButton(buffer);
+          break;
+        case MessageType.MOUSE_MOVE:
+          this.handleMouseMove(buffer);
+          break;
+        case MessageType.ERROR:
+          this.handleError(new Error(this.codec.decodeErrorMessage(buffer)));
+          break;
+        default:
+          this.logger.warn(`received unsupported message type ${messageType}`);
       }
     } catch (err) {
       this.handleError(err);
     }
   }
 
+  handleClientScreenSpec(buffer: ArrayBuffer) {
+    this.logger.warn(
+      `received unsupported message type ${this.codec._decodeMessageType(
+        buffer
+      )}`
+    );
+  }
+
+  handleMouseButton(buffer: ArrayBuffer) {
+    this.logger.warn(
+      `received unsupported message type ${this.codec._decodeMessageType(
+        buffer
+      )}`
+    );
+  }
+
+  handleMouseMove(buffer: ArrayBuffer) {
+    this.logger.warn(
+      `received unsupported message type ${this.codec._decodeMessageType(
+        buffer
+      )}`
+    );
+  }
+
   // Assuming we have a message of type PNG_FRAME, extract its
   // bounds and png bitmap and emit a render event.
-  processFrame(buffer: ArrayBuffer) {
-    const { left, top } = this.codec.decodeRegion(buffer);
-    const image = new Image();
-    image.onload = () =>
-      this.emit(TdpClientEvent.IMAGE_FRAGMENT, { image, left, top });
-    image.src = this.codec.decodePng(buffer);
+  handlePngFrame(buffer: ArrayBuffer) {
+    this.codec.decodePngFrame(buffer, (pngFrame: PngFrame) =>
+      this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
+    );
   }
 
   sendUsername(username: string) {
@@ -125,8 +159,8 @@ export default class Client extends EventEmitter {
     if (msg) this.socket.send(msg);
   }
 
-  resize(w: number, h: number) {
-    this.socket?.send(this.codec.encodeScreenSpec(w, h));
+  resize(spec: ClientScreenSpec) {
+    this.socket?.send(this.codec.encodeClientScreenSpec(spec));
   }
 
   // Emits an TdpClientEvent.ERROR event. Sets this.errored to true to alert the socket.onclose handler that
@@ -145,9 +179,3 @@ export default class Client extends EventEmitter {
     this.socket?.close();
   }
 }
-
-export type ImageFragment = {
-  image: HTMLImageElement;
-  left: number;
-  top: number;
-};

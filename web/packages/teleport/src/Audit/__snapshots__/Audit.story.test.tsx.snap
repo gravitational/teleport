@@ -1318,7 +1318,7 @@ exports[`list of all events 1`] = `
             class="c11"
           >
             <a
-              href="/web/cluster/im-a-cluster/session/941a4c65-c6cd-11ea-9bef-482ae3513733"
+              href="/web/cluster/im-a-cluster/session/941a4c65-c6cd-11ea-9bef-482ae3513733?recordingType=ssh"
               style="text-decoration: none;"
               target="_blank"
               title="Open Session Player"

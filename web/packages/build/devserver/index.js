@@ -134,5 +134,8 @@ devServer.start().then(() => {
       target: 'wss://' + PROXY_TARGET,
       secure: false,
     });
+    proxyServer.on('error', (err) => {
+      console.error('ws error:', err)
+    } )
   });
 });

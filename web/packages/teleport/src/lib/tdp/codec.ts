@@ -25,13 +25,21 @@ export enum ScrollAxis {
   HORIZONTAL = 1,
 }
 
-// Region represents a rectangular region of a screen in pixel coordinates via
-// the top-left and bottom-right coordinates of the region.
-export type Region = {
-  top: number;
+// | message type (1) | width uint32 | height uint32 |
+// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#1---client-screen-spec
+export type ClientScreenSpec = {
+  width: number;
+  height: number;
+};
+
+// | message type (2) | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
+// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#2---png-frame
+export type PngFrame = {
   left: number;
-  bottom: number;
+  top: number;
   right: number;
+  bottom: number;
+  data: HTMLImageElement;
 };
 
 // TdaCodec provides an api for encoding and decoding teleport desktop access protocol messages [1]
@@ -201,15 +209,28 @@ export default class Codec {
     MediaSelect: 0xe06d,
   };
 
-  // encodeScreenSpec encodes the client's screen spec.
+  // encodeClientScreenSpec encodes the client's screen spec.
   // | message type (1) | width uint32 | height uint32 |
-  encodeScreenSpec(w: number, h: number): Message {
+  // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#1---client-screen-spec
+  encodeClientScreenSpec(spec: ClientScreenSpec): Message {
+    const { width, height } = spec;
     const buffer = new ArrayBuffer(9);
     const view = new DataView(buffer);
     view.setUint8(0, MessageType.CLIENT_SCREEN_SPEC);
-    view.setUint32(1, w);
-    view.setUint32(5, h);
+    view.setUint32(1, width);
+    view.setUint32(5, height);
     return buffer;
+  }
+
+  // decodeClientScreenSpec decodes a raw tdp CLIENT_SCREEN_SPEC message
+  // | message type (1) | width uint32 | height uint32 |
+  // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#1---client-screen-spec
+  decodeClientScreenSpec(buffer: ArrayBuffer): ClientScreenSpec {
+    let dv = new DataView(buffer);
+    return {
+      width: dv.getUint32(1),
+      height: dv.getUint32(5),
+    };
   }
 
   // encodeMouseMove encodes a mouse move event.
@@ -301,21 +322,16 @@ export default class Codec {
     throw new Error('Not implemented');
   }
 
-  // decodeMessageType decodes the MessageType from a raw tdp message
+  // _decodeMessageType decodes the MessageType from a raw tdp message
   // passed in as an ArrayBuffer (this typically would come from a websocket).
   // Throws an error on an invalid or unexpected MessageType value.
-  decodeMessageType(buffer: ArrayBuffer): MessageType {
+  _decodeMessageType(buffer: ArrayBuffer): MessageType {
     const messageType = new DataView(buffer).getUint8(0);
-    if (
-      messageType === MessageType.PNG_FRAME ||
-      messageType === MessageType.CLIPBOARD_DATA ||
-      messageType === MessageType.ERROR
-    ) {
-      return messageType;
-    } else {
-      // We don't expect to need to decode any other value on the client side
+    // TODO(isaiah): this is fragile, instead switch all possibilities here.
+    if (messageType > MessageType.ERROR) {
       throw new Error(`invalid message type: ${messageType}`);
     }
+    return messageType;
   }
 
   // decodeError decodes a raw tdp ERROR message and returns it as a string
@@ -328,26 +344,37 @@ export default class Codec {
     return message;
   }
 
-  // decodeRegion decodes the region from a PNG_FRAME tdp message.
-  decodeRegion(buffer: ArrayBuffer): Region {
+  // decodePngFrame decodes a raw tdp PNG frame message and returns it as a PngFrame
+  // | message type (2) | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
+  // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#2---png-frame
+  decodePngFrame(buffer: ArrayBuffer, onload: (PngFrame) => any): PngFrame {
     let dv = new DataView(buffer);
-    return {
+    const image = new Image();
+    const pngFrame = {
       left: dv.getUint32(1),
       top: dv.getUint32(5),
       right: dv.getUint32(9),
       bottom: dv.getUint32(13),
+      data: image,
     };
+    pngFrame.data.onload = onload(pngFrame);
+    pngFrame.data.src = this._asBase64Url(buffer);
+
+    return pngFrame;
   }
 
   // Taken as the winning algorithm of https://jsbench.me/vjk9nczxst/1
   // jsbench link was discovered in https://gist.github.com/jonleighton/958841
-  toBase64(buffer: ArrayBuffer) {
-    const binary = String.fromCharCode.apply(null, new Uint8Array(buffer, 17));
+  _toBase64(array: Uint8Array) {
+    const binary = String.fromCharCode.apply(null, array);
     return btoa(binary);
   }
 
-  // decodePng creates a data:image uri from the png data part of a PNG_FRAME tdp message.
-  decodePng(buffer: ArrayBuffer): string {
-    return `data:image/png;base64,${this.toBase64(buffer)}`;
+  // _asBase64Url creates a data:image uri from the png data part of a PNG_FRAME tdp message.
+  _asBase64Url(buffer: ArrayBuffer): string {
+    // return `data:image/png;base64,${this._toBase64(buffer)}`;
+    return `data:image/png;base64,${this._toBase64(
+      new Uint8Array(buffer, 17)
+    )}`;
   }
 }

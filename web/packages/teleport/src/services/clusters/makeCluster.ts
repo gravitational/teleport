@@ -38,7 +38,7 @@ export default function makeCluster(json): Cluster {
   ]);
 
   const lastConnectedDate = new Date(lastConnected);
-  const connectedText = displayDateTime(lastConnected);
+  const connectedText = displayDateTime(lastConnectedDate);
 
   return {
     clusterId,
