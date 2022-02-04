@@ -499,7 +499,6 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				component:           a.Component,
 				reverseTunnelServer: a.ReverseTunnelServer,
 				localClusterName:    a.LocalClusterName,
-				emitter:             a.Client,
 			}
 			go t.start()
 		// new discovery request channel
