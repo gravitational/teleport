@@ -16,7 +16,6 @@ export function Recovery({
   attempt,
   token,
   setToken,
-  createdDate,
   showReAuthenticate,
   hideReAuthenticate,
   isReAuthenticateVisible,
@@ -25,9 +24,8 @@ export function Recovery({
   fetchCreatedDate,
   userHasCodes,
   isRecoveryEnabled,
+  createdDateText,
 }: State) {
-  const dateText = userHasCodes ? `${createdDate.toLocaleDateString()}` : '';
-
   const title = userHasCodes
     ? 'Generate New Recovery Codes'
     : 'Generate Recovery Codes';
@@ -65,7 +63,7 @@ export function Recovery({
                   <Text typography="body1" fontSize={3} mb={6}>
                     Recovery codes were last generated on:{' '}
                     <Text as="span" bold>
-                      {dateText}
+                      {createdDateText}
                     </Text>
                   </Text>
                 )}

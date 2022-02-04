@@ -33,7 +33,7 @@ export const Failed = () => (
 const props: State = {
   attempt: { status: 'success' },
   token: '',
-  createdDate: new Date('2020-10-09T17:40:04.134157474Z'),
+  createdDateText: '10/9/2020',
   userHasCodes: true,
   setToken: () => null,
   isReAuthenticateVisible: false,

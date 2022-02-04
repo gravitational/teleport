@@ -4,11 +4,13 @@ import TeleportContextE from 'e-teleport/teleportContextE';
 
 export default function useRecovery(ctx: TeleportContextE) {
   const [token, setToken] = useState('');
-  const [createdDate, setCreatedDate] = useState<Date>();
+  const [createdDate, setCreatedDate] = useState<Date | undefined>();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const { attempt, run } = useAttempt('');
 
   const userHasCodes = !!createdDate;
+  const createdDateText = userHasCodes ? createdDate.toLocaleDateString() : '';
+
   const isRecoveryEnabled =
     isValidEmail(ctx.storeUser.getUsername()) && !ctx.storeUser.isSso();
 
@@ -42,7 +44,7 @@ export default function useRecovery(ctx: TeleportContextE) {
     attempt,
     token,
     setToken,
-    createdDate,
+    createdDateText,
     showReAuthenticate,
     hideReAuthenticate,
     isReAuthenticateVisible,
