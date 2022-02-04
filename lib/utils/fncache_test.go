@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cache
+package utils
 
 import (
 	"context"
@@ -27,7 +27,34 @@ import (
 	"go.uber.org/atomic"
 )
 
-// TestFnCacheSanity runs basic fnCache test cases.
+func TestFnCache_New(t *testing.T) {
+	cases := []struct {
+		desc      string
+		config    FnCacheConfig
+		assertion require.ErrorAssertionFunc
+	}{
+		{
+			desc:      "invalid ttl",
+			config:    FnCacheConfig{TTL: 0},
+			assertion: require.Error,
+		},
+
+		{
+			desc:      "valid ttl",
+			config:    FnCacheConfig{TTL: time.Second},
+			assertion: require.NoError,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.desc, func(t *testing.T) {
+			_, err := NewFnCache(tt.config)
+			tt.assertion(t, err)
+		})
+	}
+}
+
+// TestFnCacheSanity runs basic FnCache test cases.
 func TestFnCacheSanity(t *testing.T) {
 	tts := []struct {
 		ttl   time.Duration
@@ -55,7 +82,8 @@ func testFnCacheSimple(t *testing.T, ttl time.Duration, delay time.Duration, msg
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cache := newFnCache(ttl)
+	cache, err := NewFnCache(FnCacheConfig{TTL: ttl})
+	require.NoError(t, err)
 
 	// readCounter is incremented upon each cache miss.
 	readCounter := atomic.NewInt64(0)
@@ -123,7 +151,8 @@ func testFnCacheSimple(t *testing.T, ttl time.Duration, delay time.Duration, msg
 func TestFnCacheCancellation(t *testing.T) {
 	const timeout = time.Millisecond * 10
 
-	cache := newFnCache(time.Minute)
+	cache, err := NewFnCache(FnCacheConfig{TTL: time.Minute})
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
