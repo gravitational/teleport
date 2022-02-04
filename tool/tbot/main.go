@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package main
 
 import (
@@ -207,6 +208,11 @@ func onStart(botConfig *config.BotConfig) error {
 			return trace.Wrap(err)
 		}
 
+		// Attempt a request to make sure our client works.
+		if _, err := authClient.Ping(context.Background()); err != nil {
+			return trace.WrapWithMessage(err, "unable to communicate with auth server")
+		}
+
 		log.Infof("storing new identity to destination: %+v", dest)
 		if err := identity.SaveIdentity(ident, dest); err != nil {
 			return trace.WrapWithMessage(err, "unable to save generated identity back to destination")
@@ -242,6 +248,7 @@ func watchCARotations(watcher types.Watcher) {
 		select {
 		case event := <-watcher.Events():
 			log.Debugf("CA event: %+v", event)
+			// TODO: handle CA rotations
 		case <-watcher.Done():
 			if err := watcher.Error(); err != nil {
 				log.WithError(err).Warnf("error watching for CA rotations")
@@ -449,6 +456,12 @@ func renewLoop(cfg *config.BotConfig, client *auth.Client, ident *identity.Ident
 		newClient, err := authenticatedUserClientFromIdentity(newIdentity, cfg.AuthServer)
 		if err != nil {
 			return trace.Wrap(err)
+		}
+
+		// Attempt a request to make sure our client works.
+		// TODO: consider a retry/backoff loop.
+		if _, err := newClient.Ping(context.Background()); err != nil {
+			return trace.WrapWithMessage(err, "unable to communicate with auth server")
 		}
 
 		log.Debug("Auth client now using renewed credentials.")

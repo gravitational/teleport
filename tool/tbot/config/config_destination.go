@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package config
 
 import (
@@ -22,12 +23,12 @@ import (
 type ConfigKind string
 
 const (
-	CONFIG_KIND_SSH ConfigKind = "ssh"
-	CONFIG_KIND_TLS ConfigKind = "tls"
+	KindSSH ConfigKind = "ssh"
+	KindTLS ConfigKind = "tls"
 )
 
-// AllKinds lists all valid config kinds, intended for validation purposes.
-var AllKinds = [...]ConfigKind{CONFIG_KIND_SSH, CONFIG_KIND_TLS}
+// allKinds lists all valid config kinds, intended for validation purposes.
+var allKinds = [...]ConfigKind{KindSSH, KindTLS}
 
 // DestinationConfig configures a user certificate destination.
 type DestinationConfig struct {
@@ -54,7 +55,7 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 	// time
 
 	if len(dc.Kinds) == 0 && len(dc.Configs) == 0 {
-		dc.Kinds = []ConfigKind{CONFIG_KIND_SSH}
+		dc.Kinds = []ConfigKind{KindSSH}
 		dc.Configs = []ConfigTemplateConfig{{
 			SSHClient: &ConfigTemplateSSHClient{},
 		}}

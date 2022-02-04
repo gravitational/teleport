@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package config
 
 import (
@@ -20,7 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gravitational/teleport/tool/tbot/utils"
+	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 )
@@ -56,7 +57,7 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (d *DestinationDirectory) Write(name string, data []byte, modeHint utils.ModeHint) error {
+func (d *DestinationDirectory) Write(name string, data []byte, modeHint destination.ModeHint) error {
 	// TODO: honor modeHint?
 	if err := os.WriteFile(filepath.Join(d.Path, name), data, 0600); err != nil {
 		return trace.Wrap(err)

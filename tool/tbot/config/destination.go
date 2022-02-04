@@ -13,10 +13,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package config
 
 import (
-	"github.com/gravitational/teleport/tool/tbot/utils"
+	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/trace"
 )
 
@@ -64,7 +65,7 @@ func (dm *DestinationMixin) CheckAndSetDefaults(applyDefaults DestinationDefault
 // GetDestination returns the first non-nil Destination set. Note that
 // CheckAndSetDefaults() does attempt to ensure that only a single
 // destination is set, though this may change at runtime.
-func (dm *DestinationMixin) GetDestination() (utils.Destination, error) {
+func (dm *DestinationMixin) GetDestination() (destination.Destination, error) {
 	if dm.Directory != nil {
 		return dm.Directory, nil
 	}

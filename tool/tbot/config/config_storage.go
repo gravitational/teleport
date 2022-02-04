@@ -13,11 +13,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package config
 
-import "github.com/gravitational/trace"
+import (
+	"path/filepath"
 
-const STORAGE_DEFAULT_PATH = "/var/lib/teleport/bot"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/trace"
+)
+
+var defaultStoragePath = filepath.Join(defaults.DataDir, "bot")
 
 // StorageConfig contains config parameters for the bot's internal certificate
 // storage.
@@ -29,7 +35,7 @@ type StorageConfig struct {
 // section.
 func storageDefaults(dm *DestinationMixin) error {
 	dm.Directory = &DestinationDirectory{
-		Path: STORAGE_DEFAULT_PATH,
+		Path: defaultStoragePath,
 	}
 
 	return nil

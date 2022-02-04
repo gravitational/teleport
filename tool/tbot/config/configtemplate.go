@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package config
 
 import (
@@ -20,8 +21,8 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/teleport/tool/tbot/identity"
-	"github.com/gravitational/teleport/tool/tbot/utils"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 )
@@ -44,7 +45,7 @@ type FileDescription struct {
 
 	// ModeHint describes the intended permissions for this data, for
 	// Destination backends where permissions are relevant.
-	ModeHint utils.ModeHint
+	ModeHint destination.ModeHint
 }
 
 // ConfigTemplate defines functions for dynamically writing additional files to

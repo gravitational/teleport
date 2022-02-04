@@ -358,7 +358,7 @@ message CreateResetPasswordTokenRequest {
     int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
 }
 
-// CreateBotJoinTokenRequest is a request to create a reset password token.
+// CreateBotJoinTokenRequest is a request to create a bot join token
 message CreateBotJoinTokenRequest {
     // Name is the bot's user name.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
@@ -381,26 +381,27 @@ message CreateBotRequest {
     // Name is the name of the bot, i.e. the unprefixed User name.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
 
-    // TTL is the desired TTL for the token if one is created.
+    // TTL is the desired TTL for the token if one is created. If unset, a
+    // server default is used.
     int64 TTL = 2 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
 
-    // Token is an optional token name if an EC2/IAM join token should be used.
-    // If unset, a new random token is created and its name returned.
-    string Token = 3 [ (gogoproto.jsontag) = "token" ];
+    // TokenID is an optional token name of an EC2/IAM join token should be
+    // used. If unset, a new random token is created and its name returned.
+    string TokenID = 3 [ (gogoproto.jsontag) = "token_id" ];
 
     // Roles is a list of roles the created bot should be allowed to assume
     // via role impersonation.
     repeated string Roles = 4 [ (gogoproto.jsontag) = "roles" ];
 }
 
-// CreateBotResponse returns required details for
+// CreateBotResponse returns details for bootstrapping a new bot.
 message CreateBotResponse {
     // UserName is the name of the associated bot user.
     string UserName = 1 [ (gogoproto.jsontag) = "user_name" ];
     // RoleName is the name of the associated bot role.
     string RoleName = 2 [ (gogoproto.jsontag) = "role_name" ];
-    // Token is the name of the join token for the bot.
-    string Token = 3 [ (gogoproto.jsontag) = "token" ];
+    // TokenID is the name of the join token for the bot.
+    string TokenID = 3 [ (gogoproto.jsontag) = "token_id" ];
 }
 
 // DeleteBotRequest is a request to delete a bot user

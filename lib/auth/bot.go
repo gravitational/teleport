@@ -61,7 +61,7 @@ func createBotRole(ctx context.Context, s *Server, botName string, resourceName 
 	})
 }
 
-// createBotUser creates a new backing User for bot use. A resource with a
+// createBotUser creates a new backing User for bot use. A role with a
 // matching name must already exist (see createBotRole).
 func createBotUser(ctx context.Context, s *Server, botName string, resourceName string) error {
 	user, err := types.NewUser(resourceName)
@@ -86,7 +86,7 @@ func createBotUser(ctx context.Context, s *Server, botName string, resourceName 
 }
 
 func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
-	if req.Token != "" {
+	if req.TokenID != "" {
 		// TODO: IAM joining for bots
 		return nil, trace.NotImplemented("IAM join for bots is not yet supported")
 	}
@@ -138,10 +138,46 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 	}
 
 	return &proto.CreateBotResponse{
-		Token:    token.GetName(),
+		TokenID:  token.GetName(),
 		UserName: resourceName,
 		RoleName: resourceName,
 	}, nil
+}
+
+func (s *Server) deleteBotUser(ctx context.Context, botName, resourceName string) error {
+	user, err := s.GetUser(resourceName, false)
+	if err != nil {
+		err = trace.WrapWithMessage(err, "could not fetch expected bot user %s", resourceName)
+	} else {
+		label, ok := user.GetMetadata().Labels[types.BotLabel]
+		if !ok {
+			err = trace.Errorf("will not delete user %s that is missing label %s", resourceName, types.BotLabel)
+		} else if label != botName {
+			err = trace.Errorf("will not delete user %s with mismatched label %s = %s", resourceName, types.BotLabel, label)
+		} else {
+			err = s.DeleteUser(ctx, resourceName)
+		}
+	}
+
+	return err
+}
+
+func (s *Server) deleteBotRole(ctx context.Context, botName, resourceName string) error {
+	role, err := s.GetRole(ctx, resourceName)
+	if err != nil {
+		err = trace.WrapWithMessage(err, "could not fetch expected bot role %s", resourceName)
+	} else {
+		label, ok := role.GetMetadata().Labels[types.BotLabel]
+		if !ok {
+			err = trace.Errorf("will not delete role %s that is missing label %s", resourceName, types.BotLabel)
+		} else if label != botName {
+			err = trace.Errorf("will not delete role %s with mismatched label %s = %s", resourceName, types.BotLabel, label)
+		} else {
+			err = s.DeleteRole(ctx, resourceName)
+		}
+	}
+
+	return err
 }
 
 func (s *Server) deleteBot(ctx context.Context, botName string) error {
@@ -150,34 +186,8 @@ func (s *Server) deleteBot(ctx context.Context, botName string) error {
 	// remove the bot's user
 	resourceName := botResourceName(botName)
 
-	user, userErr := s.GetUser(resourceName, false)
-	if userErr != nil {
-		userErr = trace.WrapWithMessage(userErr, "could not fetch expected bot user %s", resourceName)
-	} else {
-		label, ok := user.GetMetadata().Labels[types.BotLabel]
-		if !ok {
-			userErr = trace.Errorf("will not delete user %s that is missing label %s", resourceName, types.BotLabel)
-		} else if label != botName {
-			userErr = trace.Errorf("will not delete user %s with mismatched label %s = %s", resourceName, types.BotLabel, label)
-		} else {
-			userErr = s.DeleteUser(ctx, resourceName)
-		}
-	}
-
-	role, roleErr := s.GetRole(ctx, resourceName)
-	if roleErr != nil {
-		roleErr = trace.WrapWithMessage(roleErr, "could not fetch expected bot role %s", resourceName)
-	} else {
-		label, ok := role.GetMetadata().Labels[types.BotLabel]
-		if !ok {
-			roleErr = trace.Errorf("will not delete role %s that is missing label %s", resourceName, types.BotLabel)
-		} else if label != botName {
-			roleErr = trace.Errorf("will not delete role %s with mismatched label %s = %s", resourceName, types.BotLabel, label)
-		} else {
-			roleErr = s.DeleteRole(ctx, resourceName)
-		}
-	}
-
+	userErr := s.deleteBotUser(ctx, botName, resourceName)
+	roleErr := s.deleteBotRole(ctx, botName, resourceName)
 	return trace.NewAggregate(userErr, roleErr)
 }
 
@@ -223,7 +233,7 @@ func (s *Server) CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequ
 	}
 
 	// TODO: deleteUserTokens?
-	_, err = s.Identity.CreateUserToken(ctx, token)
+	token, err = s.Identity.CreateUserToken(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -248,5 +258,5 @@ func (s *Server) CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequ
 	// 	log.WithError(err).Warn("Failed to emit create reset password token event.")
 	// }
 
-	return s.GetUserToken(ctx, token.GetName())
+	return token, nil
 }
