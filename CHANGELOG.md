@@ -1,5 +1,22 @@
 # Changelog
 
+## 7.3.13
+
+This release of Teleport contains improvements, fixes and a security fix.
+
+### Kubernetes Access security fix
+
+* Fixed issue where labels of the target Kubernetes Service were ignored when calculating `kubernetes_users` and `kubernetes_groups`. [#9956](https://github.com/gravitational/teleport/pull/9956)
+
+We recommend all Kubernetes Access users to upgrade their Proxies and Kubernetes Services.
+
+### Other improvements and fixes
+
+* Added support for canned AWS S3 ACLs. [#10006](https://github.com/gravitational/teleport/pull/10006)
+* Improved ACME support to automatically renew certificates affected by the Let's Encrypt TLS-ALPN-01 issues. [#10016](https://github.com/gravitational/teleport/pull/10016)
+* Improved network utilization by replacing cluster periodics with watchers. [#9999](https://github.com/gravitational/teleport/pull/9999)
+* Gracefully handle 401 responses from OIDC UserInfo endpoints. [#9951](https://github.com/gravitational/teleport/pull/9951)
+
 ## 7.3.12
 
 This release of Teleport contains a feature and a fix.
