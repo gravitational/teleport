@@ -256,6 +256,7 @@ clean:
 test: buildbox
 	docker run \
 		--env TELEPORT_ETCD_TEST="yes" \
+		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
@@ -268,6 +269,7 @@ test: buildbox
 test-root: buildbox
 	docker run \
 		--env TELEPORT_ETCD_TEST="yes" \
+		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
