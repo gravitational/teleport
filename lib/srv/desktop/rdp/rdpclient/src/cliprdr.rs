@@ -23,7 +23,6 @@ use rdp::model::error::*;
 use rdp::try_let;
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::sync::Mutex;
 
 pub const CHANNEL_NAME: &str = "cliprdr";
 
@@ -31,7 +30,7 @@ pub const CHANNEL_NAME: &str = "cliprdr";
 /// (CLIPRDR) extension, as defined in:
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/fb9b7e0b-6db4-41c2-b83c-f889c1ee7688
 pub struct Client {
-    clipboard: Mutex<HashMap<u32, Vec<u8>>>,
+    clipboard: HashMap<u32, Vec<u8>>,
     on_remote_copy: Box<dyn Fn(Vec<u8>)>,
 }
 
@@ -44,7 +43,7 @@ impl Default for Client {
 impl Client {
     pub fn new(on_remote_copy: Box<dyn Fn(Vec<u8>)>) -> Self {
         Client {
-            clipboard: Mutex::new(HashMap::new()),
+            clipboard: HashMap::new(),
             on_remote_copy,
         }
     }
@@ -105,8 +104,6 @@ impl Client {
     /// that should be sent to the RDP server.
     pub fn update_clipboard(&mut self, data: Vec<u8>) -> RdpResult<Vec<u8>> {
         self.clipboard
-            .lock()
-            .unwrap()
             .insert(ClipboardFormat::CF_OEMTEXT as u32, data);
 
         encode_message(
@@ -231,7 +228,7 @@ impl Client {
     /// This message is received when a user executes a paste in the remote desktop.
     fn handle_format_data_request(&self, payload: &mut Payload) -> RdpResult<Option<Vec<Vec<u8>>>> {
         let req = FormatDataRequestPDU::decode(payload)?;
-        let data = match self.clipboard.lock().unwrap().get(&req.format_id) {
+        let data = match self.clipboard.get(&req.format_id) {
             Some(d) => d.clone(),
             // TODO(zmb3): send empty FORMAT_DATA_RESPONSE with RESPONSE_FAIL flag set in header
             None => {
@@ -357,7 +354,7 @@ impl ClipboardCapabilitiesPDU {
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         // there's either 0 or 1 capability sets included here
-        w.write_u16::<LittleEndian>(self.general.as_ref().map_or(0, |_| 1))?;
+        w.write_u16::<LittleEndian>(self.general.is_some() as u16)?;
         w.write_u16::<LittleEndian>(0)?; // pad
 
         if let Some(set) = &self.general {
@@ -388,9 +385,10 @@ impl GeneralClipboardCapabilitySet {
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let set_type = payload.read_u16::<LittleEndian>()?;
         if set_type != ClipboardCapabilitySetType::General as u16 {
-            return Err(invalid_data_error(
-                format!("expected general capability set (1), got {}", set_type).as_str(),
-            ));
+            return Err(invalid_data_error(&format!(
+                "expected general capability set (1), got {}",
+                set_type
+            )));
         }
 
         let length = payload.read_u16::<LittleEndian>()?;
@@ -935,10 +933,8 @@ mod tests {
             .flat_map(|v| v.to_le_bytes())
             .collect();
 
-        let c: Client = Default::default();
+        let mut c: Client = Default::default();
         c.clipboard
-            .lock()
-            .unwrap()
             .insert(ClipboardFormat::CF_OEMTEXT as u32, test_data.clone());
 
         let req = FormatDataRequestPDU::for_id(ClipboardFormat::CF_OEMTEXT as u32);
@@ -1006,8 +1002,6 @@ mod tests {
         assert_eq!(
             String::from("abc").into_bytes(),
             *c.clipboard
-                .lock()
-                .unwrap()
                 .get(&(ClipboardFormat::CF_OEMTEXT as u32))
                 .unwrap()
         );

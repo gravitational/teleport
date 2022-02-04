@@ -69,8 +69,11 @@ impl Client {
     fn into_raw(self: Box<Self>) -> *mut Self {
         Box::into_raw(self)
     }
-    unsafe fn from_ptr<'a>(ptr: *const Self) -> Option<&'a Client> {
-        ptr.as_ref()
+    unsafe fn from_ptr<'a>(ptr: *const Self) -> Result<&'a Client, CGOError> {
+        match ptr.as_ref() {
+            Some(c) => Ok(c),
+            None => Err(to_cgo_error("invalid Rust client pointer".to_string())),
+        }
     }
     unsafe fn from_raw(ptr: *mut Self) -> Box<Self> {
         Box::from_raw(ptr)
@@ -371,15 +374,15 @@ pub unsafe extern "C" fn update_clipboard(
     len: u32,
 ) -> CGOError {
     let client = match Client::from_ptr(client_ptr) {
-        Some(client) => client,
-        None => {
-            return to_cgo_error("invalid Rust client pointer".to_string());
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
         }
     };
     let data = from_go_array(len, data);
     let mut lock = client.rdp_client.lock().unwrap();
     match lock.cliprdr.update_clipboard(data) {
-        Ok(message) => match lock.mcs.write(&"cliprdr".to_string(), message) {
+        Ok(message) => match lock.mcs.write(&cliprdr::CHANNEL_NAME.to_string(), message) {
             Ok(()) => CGO_OK,
             Err(e) => to_cgo_error(format!("failed writing cliprdr format list: {:?}", e)),
         },
@@ -396,11 +399,10 @@ pub unsafe extern "C" fn update_clipboard(
 /// `handle_bitmap` *must not* free the memory of CGOBitmap.
 #[no_mangle]
 pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOError {
-    let client = Client::from_ptr(client_ptr);
-    let client = match client {
-        Some(client) => client,
-        None => {
-            return to_cgo_error("invalid Rust client pointer".to_string());
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
         }
     };
     if let Some(err) = read_rdp_output_inner(client) {
@@ -518,11 +520,10 @@ pub unsafe extern "C" fn write_rdp_pointer(
     client_ptr: *mut Client,
     pointer: CGOMousePointerEvent,
 ) -> CGOError {
-    let client = Client::from_ptr(client_ptr);
-    let client = match client {
-        Some(client) => client,
-        None => {
-            return to_cgo_error("invalid Rust client pointer".to_string());
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
         }
     };
     let res = client
@@ -567,11 +568,10 @@ pub unsafe extern "C" fn write_rdp_keyboard(
     client_ptr: *mut Client,
     key: CGOKeyboardEvent,
 ) -> CGOError {
-    let client = Client::from_ptr(client_ptr);
-    let client = match client {
-        Some(client) => client,
-        None => {
-            return to_cgo_error("invalid Rust client pointer".to_string());
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
         }
     };
     let res = client
@@ -591,11 +591,10 @@ pub unsafe extern "C" fn write_rdp_keyboard(
 /// client_ptr must be a valid pointer to a Client.
 #[no_mangle]
 pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOError {
-    let client = Client::from_ptr(client_ptr);
-    let client = match client {
-        Some(client) => client,
-        None => {
-            return to_cgo_error("invalid Rust client pointer".to_string());
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
         }
     };
     if let Err(e) = client.rdp_client.lock().unwrap().shutdown() {
