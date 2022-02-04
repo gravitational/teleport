@@ -55,6 +55,9 @@ func (ns *NodeSession) handleX11Forwarding(ctx context.Context, sess *ssh.Sessio
 	}
 
 	if err := x11.RequestForwarding(sess, ns.spoofedXAuthEntry); err != nil {
+		// Notify the user that x11 forwarding request failed regardless of debug level
+		log.Print("X11 forwarding request failed")
+		log.WithError(err).Debug("X11 forwarding request error")
 		// If the X11 forwarding request fails, we must reject all X11 channel requests.
 		return ns.rejectX11Channels(ctx)
 	}

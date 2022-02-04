@@ -1032,7 +1032,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 	if err != nil {
 		return trace.Wrap(err)
 	} else if !ok {
-		return trace.Errorf("Failed to get reply from forwarded ssh request")
+		return trace.AccessDenied("X11 forwarding request denied by server")
 	}
 
 	err = x11.ServeChannelRequests(ctx, s.remoteClient, s.handleX11ChannelRequest)
