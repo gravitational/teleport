@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/ttlmap"
 
 	"github.com/gravitational/oxy/forward"
+	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -62,30 +63,43 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	server, err := Match(ctx, accessPoint, MatchPublicAddr(identity.RouteToApp.PublicAddr))
+
+	// Match healthy and PublicAddr servers. Having a list of only healthy
+	// servers helps the transport fail before the request is forwarded to a
+	// server (in cases where there are no healthy servers). This process might
+	// take an additional time to execute, but since it is cached, only a few
+	// requests need to perform it.
+	servers, err := Match(ctx, accessPoint, MatchAll(MatchHealthy(h.c.ProxyClient, identity), MatchPublicAddr(identity.RouteToApp.PublicAddr)))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	if len(servers) == 0 {
+		return nil, trace.NotFound("failed to match applications")
+	}
+
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(&transportConfig{
+		log:          h.log,
 		proxyClient:  h.c.ProxyClient,
 		accessPoint:  h.c.AccessPoint,
 		cipherSuites: h.c.CipherSuites,
 		identity:     identity,
-		server:       server,
+		servers:      servers,
 		ws:           ws,
 		clusterName:  h.clusterName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	fwd, err := forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.Logger(h.log),
 		forward.PassHostHeader(true),
-		forward.WebsocketDial(transport.dialer),
+		forward.WebsocketDial(transport.DialWebsocket),
+		forward.ErrorHandler(oxyutils.ErrorHandlerFunc(h.handleForwardError)),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -150,6 +164,14 @@ func (s *sessionCache) set(key string, value *session, ttl time.Duration) error 
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// remove immediately removes a single session from the cache.
+func (s *sessionCache) remove(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, _ = s.cache.Remove(key)
 }
 
 // expireSessions ticks every second trying to close expired sessions.

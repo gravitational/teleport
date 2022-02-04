@@ -66,6 +66,11 @@ type License interface {
 	// SetSupportsDatabaseAccess sets database access support flag
 	SetSupportsDatabaseAccess(Bool)
 
+	// GetSupportsDesktopAccess returns desktop access support flag
+	GetSupportsDesktopAccess() Bool
+	// SetSupportsDesktopAccess sets desktop access support flag
+	SetSupportsDesktopAccess(Bool)
+
 	// SetLabels sets metadata labels
 	SetLabels(labels map[string]string)
 
@@ -269,6 +274,16 @@ func (c *LicenseV3) SetSupportsDatabaseAccess(value Bool) {
 	c.Spec.SupportsDatabaseAccess = value
 }
 
+// GetSupportsDesktopAccess returns database access support flag
+func (c *LicenseV3) GetSupportsDesktopAccess() Bool {
+	return c.Spec.SupportsDesktopAccess
+}
+
+// SetSupportsDesktopAccess sets database access support flag
+func (c *LicenseV3) SetSupportsDesktopAccess(value Bool) {
+	c.Spec.SupportsDesktopAccess = value
+}
+
 // String represents a human readable version of license enabled features
 func (c *LicenseV3) String() string {
 	var features []string
@@ -286,6 +301,9 @@ func (c *LicenseV3) String() string {
 	}
 	if c.GetSupportsDatabaseAccess() {
 		features = append(features, "supports database access")
+	}
+	if c.GetSupportsDesktopAccess() {
+		features = append(features, "supports desktop access")
 	}
 	if c.GetCloud() {
 		features = append(features, "is hosted by Gravitational")
@@ -317,6 +335,8 @@ type LicenseSpecV3 struct {
 	SupportsApplicationAccess *Bool `json:"app,omitempty"`
 	// SupportsDatabaseAccess turns database access on or off
 	SupportsDatabaseAccess Bool `json:"db,omitempty"`
+	// SupportsDesktopAccess turns desktop access on or off
+	SupportsDesktopAccess Bool `json:"desktop,omitempty"`
 	// ReportsUsage turns usage reporting on or off
 	ReportsUsage Bool `json:"usage,omitempty"`
 	// Cloud is turned on when teleport is hosted by Gravitational

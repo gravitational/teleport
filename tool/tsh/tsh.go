@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -1013,7 +1014,12 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tc.TLS, err = key.TeleportClientTLSConfig(nil)
+
+	rootCluster, err := key.RootClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tc.TLS, err = key.TeleportClientTLSConfig(nil, []string{rootCluster})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1368,7 +1374,7 @@ func printNodesAsText(nodes []types.Server, verbose bool) {
 			rows = append(rows,
 				[]string{n.GetHostname(), getAddr(n), sortedLabels(n.GetAllLabels())})
 		}
-		t = makeTableWithTruncatedFinalColumn([]string{"Node Name", "Address", "Labels"}, rows)
+		t = makeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
 	}
 	fmt.Println(t.AsBuffer().String())
 }
@@ -1431,25 +1437,31 @@ func showApps(apps []types.Application, active []tlsca.RouteToApp, verbose bool)
 			labels := sortedLabels(app.GetAllLabels())
 			rows = append(rows, []string{name, desc, addr, labels})
 		}
-		t := makeTableWithTruncatedFinalColumn(
-			[]string{"Application", "Description", "Public Address", "Labels"}, rows)
+		t := makeTableWithTruncatedColumn(
+			[]string{"Application", "Description", "Public Address", "Labels"}, rows, "Labels")
 		fmt.Println(t.AsBuffer().String())
 	}
 }
 
-func makeTableWithTruncatedFinalColumn(columnOrder []string, rows [][]string) asciitable.Table {
+func makeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncatedColumn string) asciitable.Table {
 	width, _, err := term.GetSize(int(os.Stdin.Fd()))
 	if err != nil {
 		width = 80
 	}
-	lastColMinSize := 16
-	maxColWidth := (width - lastColMinSize) / (len(columnOrder) - 1)
+	truncatedColMinSize := 16
+	maxColWidth := (width - truncatedColMinSize) / (len(columnOrder) - 1)
 	t := asciitable.MakeTable([]string{})
 	totalLen := 0
-	for collIndex, colName := range columnOrder[:len(columnOrder)-1] { // final column is handled separately
+	columns := []asciitable.Column{}
+
+	for collIndex, colName := range columnOrder {
 		column := asciitable.Column{
 			Title:         colName,
 			MaxCellLength: len(colName),
+		}
+		if colName == truncatedColumn { // truncated column is handled separately in next loop
+			columns = append(columns, column)
+			continue
 		}
 		for _, row := range rows {
 			cellLen := row[collIndex]
@@ -1463,12 +1475,16 @@ func makeTableWithTruncatedFinalColumn(columnOrder []string, rows [][]string) as
 		} else {
 			totalLen += column.MaxCellLength + 1 // +1 for column separator
 		}
+		columns = append(columns, column)
+	}
+
+	for _, column := range columns {
+		if column.Title == truncatedColumn {
+			column.MaxCellLength = width - totalLen - len("... ")
+		}
 		t.AddColumn(column)
 	}
-	t.AddColumn(asciitable.Column{
-		Title:         columnOrder[len(columnOrder)-1],
-		MaxCellLength: width - totalLen - len("... "),
-	})
+
 	for _, row := range rows {
 		t.AddRow(row)
 	}
@@ -1500,7 +1516,7 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
-		t := asciitable.MakeTable([]string{"Name", "Description", "Labels", "Connect"})
+		var rows [][]string
 		for _, database := range databases {
 			name := database.GetName()
 			var connect string
@@ -1510,13 +1526,14 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 					connect = formatConnectCommand(clusterFlag, a)
 				}
 			}
-			t.AddRow([]string{
+			rows = append(rows, []string{
 				name,
 				database.GetDescription(),
 				formatDatabaseLabels(database),
 				connect,
 			})
 		}
+		t := makeTableWithTruncatedColumn([]string{"Name", "Description", "Labels", "Connect"}, rows, "Labels")
 		fmt.Println(t.AsBuffer().String())
 	}
 }
@@ -1525,7 +1542,7 @@ func formatDatabaseLabels(database types.Database) string {
 	labels := database.GetAllLabels()
 	// Hide the origin label unless printing verbose table.
 	delete(labels, types.OriginLabel)
-	return types.LabelsAsString(labels, nil)
+	return sortedLabels(labels)
 }
 
 // formatConnectCommand formats an appropriate database connection command
@@ -1823,10 +1840,20 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		hostAuthFunc, err := key.HostKeyCallback(cf.InsecureSkipVerify)
+
+		rootCluster, err := key.RootClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		clusters := []string{rootCluster}
+		if cf.SiteName != "" {
+			clusters = append(clusters, cf.SiteName)
+		}
+		hostAuthFunc, err = key.HostKeyCallbackForClusters(cf.InsecureSkipVerify, apiutils.Deduplicate(clusters))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if hostAuthFunc != nil {
 			c.HostKeyCallback = hostAuthFunc
 		} else {
@@ -1860,7 +1887,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		}
 
 		if len(key.TLSCert) > 0 {
-			c.TLS, err = key.TeleportClientTLSConfig(nil)
+			c.TLS, err = key.TeleportClientTLSConfig(nil, clusters)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

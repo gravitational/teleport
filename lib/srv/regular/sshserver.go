@@ -830,11 +830,6 @@ func (s *Server) getServerInfo() (types.Resource, error) {
 	return server, nil
 }
 
-// syncUpdateLabels synchronously updates dynamic labels. Only used in tests.
-func (s *Server) syncUpdateLabels() {
-	s.dynamicLabels.Sync()
-}
-
 // serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.
 func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	// gather information about user and process. this will be used to set the
@@ -932,11 +927,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 			Type: events.SessionRejectedEvent,
 			Code: events.SessionRejectedCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			Login:        identityContext.Login,
-			User:         identityContext.TeleportUser,
-			Impersonator: identityContext.Impersonator,
-		},
+		UserMetadata: identityContext.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			Protocol:   events.EventProtocolSSH,
 			LocalAddr:  ccx.ServerConn.LocalAddr().String(),
@@ -1077,11 +1068,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 						Type: events.SessionRejectedEvent,
 						Code: events.SessionRejectedCode,
 					},
-					UserMetadata: apievents.UserMetadata{
-						Login:        identityContext.Login,
-						User:         identityContext.TeleportUser,
-						Impersonator: identityContext.Impersonator,
-					},
+					UserMetadata: identityContext.GetUserMetadata(),
 					ConnectionMetadata: apievents.ConnectionMetadata{
 						Protocol:   events.EventProtocolSSH,
 						LocalAddr:  ccx.ServerConn.LocalAddr().String(),
@@ -1277,11 +1264,7 @@ Loop:
 			Type: events.PortForwardEvent,
 			Code: events.PortForwardCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			Login:        scx.Identity.Login,
-			User:         scx.Identity.TeleportUser,
-			Impersonator: scx.Identity.Impersonator,
-		},
+		UserMetadata: scx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  scx.ServerConn.LocalAddr().String(),
 			RemoteAddr: scx.ServerConn.RemoteAddr().String(),

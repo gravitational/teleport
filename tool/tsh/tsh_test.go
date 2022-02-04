@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -416,7 +417,7 @@ func TestMakeClient(t *testing.T) {
 	// different from the default.
 	conf = CLIConf{
 		Proxy:              proxyWebAddr.String(),
-		IdentityFileIn:     "../../fixtures/certs/identities/key-cert-ca.pem",
+		IdentityFileIn:     "../../fixtures/certs/identities/tls.pem",
 		Context:            context.Background(),
 		InsecureSkipVerify: true,
 	}
@@ -650,7 +651,7 @@ func TestIdentityRead(t *testing.T) {
 	require.NotNil(t, k.TLSCert)
 
 	// generate a TLS client config
-	conf, err := k.TeleportClientTLSConfig(nil)
+	conf, err := k.TeleportClientTLSConfig(nil, []string{"one"})
 	require.NoError(t, err)
 	require.NotNil(t, conf)
 
@@ -1090,6 +1091,58 @@ func TestKubeConfigUpdate(t *testing.T) {
 	}
 }
 
+func TestMakeTableWithTruncatedColumn(t *testing.T) {
+	// os.Stdin.Fd() fails during go test, so width is defaulted to 80
+	columns := []string{"column1", "column2", "column3"}
+	rows := [][]string{[]string{strings.Repeat("cell1", 6), strings.Repeat("cell2", 6), strings.Repeat("cell3", 6)}}
+
+	testCases := []struct {
+		truncatedColumn string
+		expectedWidth   int
+		expectedOutput  []string
+	}{
+		{
+			truncatedColumn: "column2",
+			expectedWidth:   80,
+			expectedOutput: []string{
+				"column1                        column2           column3                        ",
+				"------------------------------ ----------------- ------------------------------ ",
+				"cell1cell1cell1cell1cell1cell1 cell2cell2cell... cell3cell3cell3cell3cell3cell3 ",
+				"",
+			},
+		},
+		{
+			truncatedColumn: "column3",
+			expectedWidth:   80,
+			expectedOutput: []string{
+				"column1                        column2                        column3           ",
+				"------------------------------ ------------------------------ ----------------- ",
+				"cell1cell1cell1cell1cell1cell1 cell2cell2cell2cell2cell2cell2 cell3cell3cell... ",
+				"",
+			},
+		},
+		{
+			truncatedColumn: "no column match",
+			expectedWidth:   93,
+			expectedOutput: []string{
+				"column1                        column2                        column3                        ",
+				"------------------------------ ------------------------------ ------------------------------ ",
+				"cell1cell1cell1cell1cell1cell1 cell2cell2cell2cell2cell2cell2 cell3cell3cell3cell3cell3cell3 ",
+				"",
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.truncatedColumn, func(t *testing.T) {
+			table := makeTableWithTruncatedColumn(columns, rows, testCase.truncatedColumn)
+			rows := strings.Split(table.AsBuffer().String(), "\n")
+			require.Len(t, rows, 4)
+			require.Len(t, rows[2], testCase.expectedWidth)
+			require.Equal(t, testCase.expectedOutput, rows)
+		})
+	}
+}
+
 type testServersOpts struct {
 	bootstrap      []types.Resource
 	authConfigFunc func(cfg *service.AuthConfig)
@@ -1216,7 +1269,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 func mockConnector(t *testing.T) types.OIDCConnector {
 	// Connector need not be functional since we are going to mock the actual
 	// login operation.
-	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV3{
 		IssuerURL:   "https://auth.example.com",
 		RedirectURL: "https://cluster.example.com",
 		ClientID:    "fake-client",
