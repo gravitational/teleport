@@ -526,6 +526,11 @@ export const formatters: Formatters = {
     format: ({ user }) =>
       `User [${user}] was denied x11 forwarding for a session`,
   },
+  [eventCodes.SESSION_CONNECT]: {
+    type: 'session.connect',
+    desc: 'Session Connected',
+    format: ({ server_addr }) => `Session connected to [${server_addr}]`,
+  },
 };
 
 const unknownFormatter = {

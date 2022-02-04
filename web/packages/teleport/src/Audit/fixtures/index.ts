@@ -684,7 +684,7 @@ export const events = [
     statement_name: 'test-ps',
     time: '2021-12-16T00:40:37.069Z',
     uid: '06781ebf-6c5b-463b-ad32-e7395afd4a59',
-    user: 'alice'
+    user: 'alice',
   },
   {
     cluster_name: 'root',
@@ -696,15 +696,13 @@ export const events = [
     db_user: 'postgres',
     ei: 20,
     event: 'db.session.postgres.bind',
-    parameters: [
-      'qweqweqwe'
-    ],
+    parameters: ['qweqweqwe'],
     portal_name: '',
     sid: '5e0c50cc-4ee7-4110-8d6e-735bf1f06f1f',
     statement_name: 'test-ps',
     time: '2021-12-16T00:40:37.071Z',
     uid: 'd5bed7e5-6a15-441b-b8ee-a2abd73f3136',
-    user: 'alice'
+    user: 'alice',
   },
   {
     cluster_name: 'root',
@@ -720,7 +718,7 @@ export const events = [
     sid: '5e0c50cc-4ee7-4110-8d6e-735bf1f06f1f',
     time: '2021-12-16T00:40:37.071Z',
     uid: 'a0f045a2-45a4-4a4d-b14a-5f986c1818ff',
-    user: 'alice'
+    user: 'alice',
   },
   {
     cluster_name: 'root',
@@ -737,7 +735,7 @@ export const events = [
     statement_name: 'test-ps',
     time: '2021-12-16T00:40:37.073Z',
     uid: '295c88fc-4725-4de0-9049-64040fc69ec7',
-    user: 'alice'
+    user: 'alice',
   },
   {
     cluster_name: 'root',
@@ -751,12 +749,10 @@ export const events = [
     event: 'db.session.postgres.function',
     sid: '5e0c50cc-4ee7-4110-8d6e-735bf1f06f1f',
     function_oid: '123',
-    function_args: [
-      'qweqweqwe'
-    ],
+    function_args: ['qweqweqwe'],
     time: '2021-12-16T00:40:37.073Z',
     uid: '295c88fc-4725-4de0-9049-64040fc69ec7',
-    user: 'alice'
+    user: 'alice',
   },
   {
     cluster_name: 'im-a-cluster-name',
@@ -863,6 +859,18 @@ export const events = [
     time: '2022-01-20T19:49:02.307Z',
     uid: '0629c7-3d98-4451-ac90-dc5330',
     user: 'lisa',
+  },
+  {
+    'addr.local': '192.168.0.106:43858',
+    'addr.remote': '192.168.0.106:3022',
+    cluster_name: 'im-a-cluster-name',
+    code: 'T2010I',
+    ei: 0,
+    event: 'session.connect',
+    server_addr: '192.168.0.106:43858',
+    server_id: 'bd5eff-f59b-4fb3-b8ed-757c52ff',
+    time: '2022-02-04T18:15:28.572Z',
+    uid: 'f2a0f9-d78c-4c38-b3fa-ca63453b',
   },
 ].map(makeEvent);
 

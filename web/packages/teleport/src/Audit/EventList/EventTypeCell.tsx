@@ -55,6 +55,7 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.SESSION_DISK]: Icons.Cli,
   [eventCodes.SESSION_COMMAND]: Icons.Cli,
   [eventCodes.SESSION_PROCESS_EXIT]: Icons.Cli,
+  [eventCodes.SESSION_CONNECT]: Icons.Cli,
   [eventCodes.USER_CREATED]: Icons.Info,
   [eventCodes.USER_UPDATED]: Icons.Info,
   [eventCodes.USER_DELETED]: Icons.Info,
@@ -123,7 +124,7 @@ export default function renderTypeCell(event: Event, clusterId: string) {
     event.raw.session_recording !== 'off'
   ) {
     return (
-      <Cell>
+      <Cell style={{ verticalAlign: 'inherit' }}>
         <StyledEventType>
           <a
             title="Open Session Player"
@@ -148,7 +149,7 @@ export default function renderTypeCell(event: Event, clusterId: string) {
   }
 
   return (
-    <Cell>
+    <Cell style={{ verticalAlign: 'inherit' }}>
       <StyledEventType>
         <Icon {...iconProps} as={IconType} />
         {event.codeDesc}
