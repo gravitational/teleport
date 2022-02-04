@@ -1,6 +1,14 @@
 # Changelog
 
-## 8.1.2
+## 8.1.4
+
+This release of Teleport contains a few improvements and fixes.
+
+* Rolled back `session.connect` event. [#10156](https://github.com/gravitational/teleport/pull/10156)
+* Add new `teleport_build_info` Prometheus metric. [#10135](https://github.com/gravitational/teleport/pull/10135)
+* Improvements to dynamically resolving tunnel address in reverse tunnel agents. [#10139](https://github.com/gravitational/teleport/pull/10139)
+
+## 8.1.3
 
 This release of Teleport contains multiple features, improvements, bug fixes, and a security fix.
 
