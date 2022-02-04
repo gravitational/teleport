@@ -70,8 +70,10 @@ func TestXAuthCommands(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 	require.Nil(t, xauthEntry)
 
-	// Generate untrusted xauth entry - This command requires an actual display for an
-	// an actual XServer, so we use localDisplay if set.
+	// TODO(Joerger): Currently this test will only run/pass locally if you have $DISPLAY
+	// set. We need to add Xorg to the buildbox and start an XServer in order to run
+	// this test in CI. Additionally, Xorg and x11-apps can be used to add more tests
+	// and rework current tests which depend on fake display listeners instead.
 	localDisplay, err := GetXDisplay()
 	if trace.IsBadParameter(err) {
 		t.Skip("skipping xauth generate test, DISPLAY isn't set")
