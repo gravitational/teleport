@@ -274,7 +274,7 @@ $ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
 ### GCP credentials
 
 Teleport Database Service must have credentials of `teleport-db-service` GCP
-service account we created [above](#create-service-account-for-teleport-database-service)
+service account we created [above](#create-a-service-account-for-teleport-database-service)
 in order to be able to generate IAM auth tokens.
 
 The easiest way to ensure that is to set `GOOGLE_APPLICATION_CREDENTIALS`
@@ -326,7 +326,7 @@ $ tsh db login --db-user=teleport@<project-id>.iam --db-name=postgres cloudsql
   title="What database user name to use?"
 >
   When connecting to the database, use the name of the database service account
-  that you added as IAM database user [above](#create-service-account-for-database),
+  that you added as IAM database user [above](#create-a-service-account-for-the-database),
   minus the `.gserviceaccount.com` suffix. The database user name is shown on
   the Users page of your Cloud SQL instance.
 </Admonition>
