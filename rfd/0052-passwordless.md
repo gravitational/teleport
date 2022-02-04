@@ -185,7 +185,8 @@ first login is done we can use local storage to record whether they are
 passwordless-capable).
 
 In regards to authenticator interactions (2), it is important to note that the
-user may have multiple credentials attached to an RPID/Teleport.
+user may have multiple credentials attached to an
+[RPID](https://www.w3.org/TR/webauthn-2/#rp-id) (Relying Party ID) / Teleport.
 
 Finally, in the last step of the authentication (3) we require the WebAuthn
 [user handle](
