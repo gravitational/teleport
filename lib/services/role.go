@@ -103,10 +103,12 @@ func NewImplicitRole() types.Role {
 		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.MaxDuration(),
-				// PortForwarding has to be set to false in the default-implicit-role
-				// otherwise all roles will be allowed to forward ports (since we default
-				// to true in the check).
+				// Explicitly disable options that default to true, otherwise the option
+				// will always be enabled, as this implicit role is part of every role set.
 				PortForwarding: types.NewBoolOption(false),
+				RecordSession: &types.RecordSession{
+					Desktop: types.NewBoolOption(false),
+				},
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -1668,8 +1670,25 @@ func NewKubernetesClusterLabelMatcher(clustersLabels map[string]string) RoleMatc
 
 // Match matches a Kubernetes cluster labels against a role.
 func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
-	ok, _, err := MatchLabels(role.GetKubernetesLabels(typ), l.clusterLabels)
+	ok, _, err := MatchLabels(l.getKubeLabels(role, typ), l.clusterLabels)
 	return ok, trace.Wrap(err)
+}
+
+// getKubeLabels returns kubernetes_labels based on resource version and role type.
+func (l kubernetesClusterLabelMatcher) getKubeLabels(role types.Role, typ types.RoleConditionType) types.Labels {
+	labels := role.GetKubernetesLabels(typ)
+
+	// After the introduction of https://github.com/gravitational/teleport/pull/9759 the
+	// kubernetes_labels started to be respected. Former role behavior evaluated deny rules
+	// even if the kubernetes_labels was empty. To preserve this behavior after respecting kubernetes label the label
+	// logic needs to be aligned.
+	// Default wildcard rules should be added to  deny.kubernetes_labels if
+	// deny.kubernetes_labels is empty to ensure that deny rule will be evaluated
+	// even if kubernetes_labels are empty.
+	if len(labels) == 0 && typ == types.Deny {
+		return map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}}
+	}
+	return labels
 }
 
 // AccessCheckable is the subset of types.Resource required for the RBAC checks.
@@ -1832,6 +1851,21 @@ func (set RoleSet) CanForwardAgents() bool {
 func (set RoleSet) CanPortForward() bool {
 	for _, role := range set {
 		if types.BoolDefaultTrue(role.GetOptions().PortForwarding) {
+			return true
+		}
+	}
+	return false
+}
+
+// RecordDesktopSession returns true if a role in the role set has enabled
+// desktop session recoring.
+func (set RoleSet) RecordDesktopSession() bool {
+	for _, role := range set {
+		var bo *types.BoolOption
+		if role.GetOptions().RecordSession != nil {
+			bo = role.GetOptions().RecordSession.Desktop
+		}
+		if types.BoolDefaultTrue(bo) {
 			return true
 		}
 	}
