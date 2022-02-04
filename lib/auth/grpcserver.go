@@ -2030,6 +2030,7 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 		}
 	case proto.UserCertsRequest_All:
 		return trace.BadParameter("must specify a concrete Usage in UserCertsRequest, one of SSH, Kubernetes or Database")
+	case proto.UserCertsRequest_WindowsDesktop:
 	default:
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
@@ -2098,7 +2099,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 	switch req.Usage {
 	case proto.UserCertsRequest_SSH:
 		resp.Cert = &proto.SingleUseUserCert_SSH{SSH: certs.SSH}
-	case proto.UserCertsRequest_Kubernetes, proto.UserCertsRequest_Database:
+	case proto.UserCertsRequest_Kubernetes, proto.UserCertsRequest_Database, proto.UserCertsRequest_WindowsDesktop:
 		resp.Cert = &proto.SingleUseUserCert_TLS{TLS: certs.TLS}
 	default:
 		return nil, trace.BadParameter("unknown certificate usage %q", req.Usage)

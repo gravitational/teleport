@@ -323,7 +323,7 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 			Cert:    t.ctx.session.GetPub(),
 			TLSCert: t.ctx.session.GetTLSCert(),
 		},
-	}, t.promptMFAChallenge(ws))
+	}, promptMFAChallenge(ws))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -336,7 +336,7 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 	return nil
 }
 
-func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMFAChallengeHandler {
+func promptMFAChallenge(ws *websocket.Conn) client.PromptMFAChallengeHandler {
 	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 		var chal *auth.MFAAuthenticateChallenge
 		var envelopeType string

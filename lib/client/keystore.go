@@ -272,9 +272,10 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: tlsCA,
 		}},
-		KubeTLSCerts: make(map[string][]byte),
-		DBTLSCerts:   make(map[string][]byte),
-		AppTLSCerts:  make(map[string][]byte),
+		KubeTLSCerts:        make(map[string][]byte),
+		DBTLSCerts:          make(map[string][]byte),
+		AppTLSCerts:         make(map[string][]byte),
+		WindowsDesktopCerts: make(map[string][]byte),
 	}
 
 	tlsCertExpiration, err := key.TeleportTLSCertValidBefore()

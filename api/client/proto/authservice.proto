@@ -247,6 +247,9 @@ message UserCertsRequest {
         // App means a request for a TLS certificate for access to a specific
         // web app, as specified by RouteToApp.
         App = 4;
+        // WindowsDesktop means a request for a TLS certificate for access to a specific
+        // windows desktop.
+        WindowsDesktop = 5;
     }
     // CertUsage limits the resulting user certificate to a single protocol.
     CertUsage Usage = 10 [ (gogoproto.jsontag) = "usage,omitempty" ];
@@ -272,6 +275,13 @@ message RouteToDatabase {
     string Username = 3 [ (gogoproto.jsontag) = "username,omitempty" ];
     // Database is an optional database name to embed.
     string Database = 4 [ (gogoproto.jsontag) = "database,omitempty" ];
+}
+
+// RouteToDatabase combines parameters for database service routing information.
+message RouteToWindowsDesktop {
+    // DesktopServer is the Teleport database proxy service name the cert is for.
+    string DesktopServer = 1 [ (gogoproto.jsontag) = "desktop_server" ];
+    string Login = 2 [ (gogoproto.jsontag) = "login" ];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -1003,6 +1013,9 @@ message IsMFARequiredRequest {
         RouteToDatabase Database = 2;
         // Node specifies the target SSH node.
         NodeLogin Node = 3;
+
+        // RouteToWindowsDesktop
+        RouteToWindowsDesktop WindowDesktop = 4;
     }
 }
 

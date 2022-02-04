@@ -26,6 +26,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"image"
 	"io"
 	"io/ioutil"
 	"net"
@@ -72,8 +73,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/desktop"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
 
@@ -1155,6 +1159,172 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 			require.Nil(t, ws.Close())
 		})
 	}
+}
+
+type windowsDesktopServiceMock struct {
+	listener net.Listener
+}
+
+func (w *windowsDesktopServiceMock) close() {
+	w.listener.Close()
+}
+
+func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windowsDesktopServiceMock {
+	l, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	authID := auth.IdentityID{
+		Role:     types.RoleWindowsDesktop,
+		HostUUID: "windows_server",
+		NodeName: "windows_server",
+	}
+	n, err := authClient.GetClusterName()
+	require.NoError(t, err)
+	dns := []string{"localhost", "127.0.0.1", desktop.WildcardServiceDNS}
+	identity, err := auth.LocalRegister(authID, authClient, nil, dns, "")
+	require.NoError(t, err)
+
+	tlsConfig, err := identity.TLSConfig(nil)
+	require.NoError(t, err)
+	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	require.NoError(t, err)
+
+	ca, err := authClient.GetCertAuthority(types.CertAuthID{Type: types.UserCA, DomainName: n.GetClusterName()}, false)
+	require.NoError(t, err)
+
+	for _, kp := range services.GetTLSCerts(ca) {
+		if ok := tlsConfig.ClientCAs.AppendCertsFromPEM(kp); !ok {
+			t.Fatalf("failed to add ca")
+		}
+	}
+
+	wd := &windowsDesktopServiceMock{
+		listener: l,
+	}
+	go func() {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		tlsConn := tls.Server(conn, tlsConfig)
+		if err := tlsConn.Handshake(); err != nil {
+			t.Errorf("Unexpected error %v", err)
+			return
+		}
+		wd.handleConn(t, tlsConn)
+	}()
+
+	return wd
+}
+
+func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
+	tdpConn := tdp.NewConn(conn)
+
+	// Ensure that incoming connection is MFAVerified.
+	require.NotEmpty(t, conn.ConnectionState().PeerCertificates)
+	cert := conn.ConnectionState().PeerCertificates[0]
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.NotEmpty(t, identity.MFAVerified)
+
+	msg, err := tdpConn.InputMessage()
+	require.NoError(t, err)
+	require.IsType(t, tdp.ClientUsername{}, msg)
+
+	msg, err = tdpConn.InputMessage()
+	require.NoError(t, err)
+	require.IsType(t, tdp.ClientScreenSpec{}, msg)
+
+	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	err = tdpConn.OutputMessage(tdp.NewPNG(img, tdp.PNGEncoder()))
+	require.NoError(t, err)
+}
+
+func TestDesktopAccessMFARequiresMfa(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "llama")
+
+	wdMock := mustStartWindowsDesktopMock(t, env.server.Auth())
+	defer wdMock.close()
+	wds, err := types.NewWindowsDesktopServiceV3("desktop-service", types.WindowsDesktopServiceSpecV3{
+		Addr:            wdMock.listener.Addr().String(),
+		TeleportVersion: teleport.Version,
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertWindowsDesktopService(context.Background(), wds)
+	require.NoError(t, err)
+
+	clt, err := env.server.NewClient(auth.TestUser("llama"))
+	require.NoError(t, err)
+
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorU2F,
+		U2F: &types.U2F{
+			AppID:  "https://localhost",
+			Facets: []string{"https://localhost"},
+		},
+		RequireSessionMFA: true,
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	dev, err := auth.RegisterTestDevice(ctx, clt, "u2f", apiProto.DeviceType_DEVICE_TYPE_U2F, nil /* authenticator */)
+	require.NoError(t, err)
+
+	ws := proxy.makeDesktopSession(t, pack, session.NewID())
+
+	handleMFAU2FCChallenge(t, ws, dev)
+
+	tdpClient := tdp.NewConn(ws)
+
+	msg, err := tdpClient.InputMessage()
+	require.NoError(t, err)
+	require.IsType(t, tdp.PNGFrame{}, msg)
+}
+
+func handleMFAU2FCChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
+	var raw []byte
+	require.Nil(t, websocket.Message.Receive(ws, &raw))
+	var e Envelope
+	require.Nil(t, proto.Unmarshal(raw, &e))
+
+	chals := &auth.MFAAuthenticateChallenge{}
+	require.Nil(t, json.Unmarshal([]byte(e.Payload), &chals))
+
+	res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
+		U2F: []*apiProto.U2FChallenge{{
+			KeyHandle: chals.U2FChallenges[0].KeyHandle,
+			Challenge: chals.U2FChallenges[0].Challenge,
+			AppID:     chals.U2FChallenges[0].AppID,
+			Version:   chals.U2FChallenges[0].Version,
+		}},
+	})
+	require.NoError(t, err)
+
+	u2fResBytes, err := json.Marshal(&u2f.AuthenticateChallengeResponse{
+		KeyHandle:     res.GetU2F().KeyHandle,
+		SignatureData: res.GetU2F().Signature,
+		ClientData:    res.GetU2F().ClientData,
+	})
+	require.NoError(t, err)
+
+	encodedPayload, err := unicode.UTF8.NewEncoder().String(string(u2fResBytes))
+	require.NoError(t, err)
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketRaw,
+		Payload: encodedPayload,
+	}
+	envelopeBytes, err := proto.Marshal(envelope)
+	require.NoError(t, err)
+
+	// Send bytes over the websocket to the web client.
+	err = websocket.Message.Send(ws, envelopeBytes)
+	require.NoError(t, err)
 }
 
 func (s *WebSuite) TestWebsocketPingLoop(c *C) {
@@ -3105,7 +3275,7 @@ func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
 
 func newWebPack(t *testing.T, numProxies int) *webPack {
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
+	clock := clockwork.NewFakeClockAt(time.Now())
 
 	server, err := auth.NewTestServer(auth.TestServerConfig{
 		Auth: auth.TestAuthServerConfig{
@@ -3510,6 +3680,37 @@ func (r *proxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID)
 
 	q := u.Query()
 	q.Set("params", string(data))
+	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
+	u.RawQuery = q.Encode()
+
+	wscfg, err := websocket.NewConfig(u.String(), "http://localhost")
+	wscfg.TlsConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	require.NoError(t, err)
+
+	for _, cookie := range pack.cookies {
+		wscfg.Header.Add("Cookie", cookie.String())
+	}
+
+	ws, err := websocket.DialConfig(wscfg)
+	require.NoError(t, err)
+	t.Cleanup(func() { ws.Close() })
+
+	return ws
+}
+
+func (r *proxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID session.ID) *websocket.Conn {
+	u := url.URL{
+		Host:   r.webURL.Host,
+		Scheme: client.WSS,
+		Path:   fmt.Sprintf("/webapi/sites/%s/desktops/%s/connect", currentSiteShortcut, "desktop1"),
+	}
+
+	q := u.Query()
+	q.Set("username", "marek")
+	q.Set("width", "100")
+	q.Set("height", "100")
 	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
 	u.RawQuery = q.Encode()
 

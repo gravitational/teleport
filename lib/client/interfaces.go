@@ -86,7 +86,9 @@ type Key struct {
 	// AppTLSCerts are TLS certificates for application access.
 	// Map key is the application name.
 	AppTLSCerts map[string][]byte `json:"AppCerts,omitempty"`
-
+	// WindowsDesktopCerts are TLS certificates for RDS Windows Desktop access.
+	// Map key is the RDS server name.
+	WindowsDesktopCerts map[string][]byte `json:"WindowsDesktopCerts,omitempty"`
 	// TrustedCA is a list of trusted certificate authorities
 	TrustedCA []auth.TrustedCerts
 }

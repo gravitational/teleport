@@ -3031,6 +3031,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if pref.GetRequireSessionMFA() {
 		// Cluster always requires MFA, regardless of roles.
 		return &proto.IsMFARequiredResponse{Required: true}, nil
@@ -3150,6 +3151,15 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			services.AccessMFAParams{},
 			dbRoleMatchers...,
 		)
+	case *proto.IsMFARequiredRequest_WindowDesktop:
+		desktop, err := a.GetWindowsDesktop(ctx, t.WindowDesktop.GetDesktopServer())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		noMFAAccessErr = checker.CheckAccess(desktop,
+			services.AccessMFAParams{},
+			services.NewWindowsLoginMatcher(t.WindowDesktop.GetLogin()))
 
 	default:
 		return nil, trace.BadParameter("unknown Target %T", req.Target)

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"io"
@@ -133,12 +134,13 @@ func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]types.RemoteCl
 // ReissueParams encodes optional parameters for
 // user certificate reissue.
 type ReissueParams struct {
-	RouteToCluster    string
-	NodeName          string
-	KubernetesCluster string
-	AccessRequests    []string
-	RouteToDatabase   proto.RouteToDatabase
-	RouteToApp        proto.RouteToApp
+	RouteToCluster        string
+	NodeName              string
+	KubernetesCluster     string
+	AccessRequests        []string
+	RouteToDatabase       proto.RouteToDatabase
+	RouteToApp            proto.RouteToApp
+	RouteToWindowsDesktop proto.RouteToWindowsDesktop
 
 	// ExistingCreds is a gross hack for lib/web/terminal.go to pass in
 	// existing user credentials. The TeleportClient in lib/web/terminal.go
@@ -169,6 +171,8 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 		// App means a request for a TLS certificate for access to a specific
 		// web app, as specified by RouteToApp.
 		return proto.UserCertsRequest_App
+	case p.RouteToWindowsDesktop.DesktopServer != "":
+		return proto.UserCertsRequest_WindowsDesktop
 	default:
 		// All means a request for both SSH and TLS certificates for the
 		// overall user session. These certificates are not specific to any SSH
@@ -186,6 +190,8 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequire
 		req.Target = &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: p.KubernetesCluster}
 	case p.RouteToDatabase.ServiceName != "":
 		req.Target = &proto.IsMFARequiredRequest_Database{Database: &p.RouteToDatabase}
+	case p.RouteToWindowsDesktop.DesktopServer != "":
+		req.Target = &proto.IsMFARequiredRequest_WindowDesktop{WindowDesktop: &p.RouteToWindowsDesktop}
 	}
 	return req
 }
@@ -292,6 +298,8 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 			params.RouteToDatabase.Protocol, certs.TLS, key.Priv)
 	case proto.UserCertsRequest_Kubernetes:
 		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
+	case proto.UserCertsRequest_WindowsDesktop:
+		key.WindowsDesktopCerts[params.RouteToWindowsDesktop.DesktopServer] = certs.TLS
 	}
 	return key, nil
 }
@@ -335,6 +343,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
+
 	requiredCheck, err := clt.IsMFARequired(ctx, params.isMFARequiredRequest(proxy.hostLogin))
 	if err != nil {
 		if trace.IsNotImplemented(err) {
@@ -437,6 +446,8 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		case proto.UserCertsRequest_Database:
 			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = makeDatabaseClientPEM(
 				params.RouteToDatabase.Protocol, crt.TLS, key.Priv)
+		case proto.UserCertsRequest_WindowsDesktop:
+			key.WindowsDesktopCerts[params.RouteToWindowsDesktop.DesktopServer] = crt.TLS
 		default:
 			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", initReq.Usage)
 		}
@@ -485,6 +496,23 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 func (proxy *ProxyClient) RootClusterName() (string, error) {
 	tlsKey, err := proxy.localAgent().GetCoreKey()
 	if err != nil {
+		if trace.IsNotFound(err) {
+			// Fallback to TLS client certificates.
+			tls := proxy.teleportClient.TLS
+			if len(tls.Certificates) == 0 || len(tls.Certificates[0].Certificate) == 0 {
+				return "", trace.BadParameter("missing TLS.Certificates")
+			}
+			cert, err := x509.ParseCertificate(tls.Certificates[0].Certificate[0])
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			clusterName := cert.Issuer.CommonName
+			if clusterName == "" {
+				return "", trace.NotFound("failed to extract root cluster name from Teleport TLS cert")
+			}
+			return clusterName, nil
+		}
 		return "", trace.Wrap(err)
 	}
 	return tlsKey.RootClusterName()
