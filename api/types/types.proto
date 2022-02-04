@@ -1531,6 +1531,15 @@ message RoleOptions {
     // RecordDesktopSession indicates whether desktop access sessions should be recorded.
     // It defaults to true unless explicitly set to false.
     RecordSession RecordSession = 15 [ (gogoproto.jsontag) = "record_session" ];
+
+    // DesktopClipboard indicates whether clipboard sharing is allowed between the user's
+    // workstation and the remote desktop. It defaults to true unless explicitly set to
+    // false.
+    BoolValue DesktopClipboard = 16 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "desktop_clipboard",
+        (gogoproto.customtype) = "BoolOption"
+    ];
 }
 
 message RecordSession {
