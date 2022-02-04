@@ -29,9 +29,19 @@ generated in the Enclave and never leave it, making it our approach of choice.
 APIs evaluated for the design.)
 
 In order to make use of the Keychain Sharing services, required for Secure
-Enclave protection, it is necessary to enroll in the Apple Developer Program.
-Furthermore, the features may only be used by a binary signed by said account
-and containing entitlements similar to the ones below:
+Enclave protection, the `tsh` macOS binary needs to be:
+
+1. Code signed,
+2. Contain the necessary entitlements to use the Keychain; and
+3. Embed a matching [provisioning profile](
+   https://developer.apple.com/forums/thread/685723).
+
+The requirements above mean that `tsh` needs to be [packaged in a macOS .app](
+https://developer.apple.com/documentation/xcode/signing-a-daemon-with-a-restricted-entitlement)
+for distribution, mainly so the provisioning profile is embedded within the
+binary. An account enrolled in the Apple Developer Program is also necessary.
+
+See below for an example of the necessary entitlements:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -52,21 +62,6 @@ and containing entitlements similar to the ones below:
 ```
 
 (CGO is used to bridge native ObjC code into the Go binaries.)
-
-The signed Teleport binaries for macOS are updated with 1) an account enrolled
-in the Apple Developer Program and 2) an entitlements file similar to the one
-above. (See [Packaging a Daemon with a Provisioning Profile](
-https://developer.apple.com/forums/thread/129596) or [Signing a Daemon with a
-Restricted Entitlement](
-https://developer.apple.com/documentation/xcode/signing-a-daemon-with-a-restricted-entitlement)
-for references in how to create a command-line binary with entitlements).
-
-<!--
-TODO(codingllama): Do we need to package tsh in a macOS .app?
- If necessary it's a matter of putting together the .app skeleton and taking
- advantage of existing macOS installers to link the binaries in the .app to a
- more convenient $PATH directory.
--->
 
 When running in a binary that isn't correctly signed or configured, `tsh` should
 disable Touch ID support.
