@@ -129,7 +129,7 @@ func getCallerIdentity(t *testing.T) *sts.GetCallerIdentityOutput {
 // TestEC2NodeJoin is an integration test which asserts that the EC2 method for
 // Simplified Node Joining works when run on a real EC2 instance with access to
 // the IMDS and the ec2:DesribeInstances API. This is a very basic test, unit
-// testing with mocked AWS endopoints is in lib/auth/ec2_join_test.go
+// testing with mocked AWS endpoints is in lib/auth/join_ec2_test.go
 func TestEC2NodeJoin(t *testing.T) {
 	if os.Getenv("TELEPORT_TEST_EC2") == "" {
 		t.Skipf("Skipping TestEC2NodeJoin because TELEPORT_TEST_EC2 is not set")
@@ -192,7 +192,7 @@ func TestEC2NodeJoin(t *testing.T) {
 // TestIAMNodeJoin is an integration test which asserts that the IAM method for
 // Simplified Node Joining works when run on a real EC2 instance with an
 // attached IAM role.  This is a very basic test, unit testing with mocked AWS
-// endopoints is in lib/auth/iam_join_test.go
+// endpoints is in lib/auth/join_iam_test.go
 func TestIAMNodeJoin(t *testing.T) {
 	if os.Getenv("TELEPORT_TEST_EC2") == "" {
 		t.Skipf("Skipping TestIAMNodeJoin because TELEPORT_TEST_EC2 is not set")
@@ -232,7 +232,8 @@ func TestIAMNodeJoin(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, proxies)
 
-	// create and start the proxy
+	// create and start the proxy, will use the IAM method to join by connecting
+	// directly to the auth server
 	proxyConfig := newProxyConfig(t, authConfig.Auth.SSHAddr, tokenName, types.JoinMethodIAM)
 	proxySvc, err := service.NewTeleport(proxyConfig)
 	require.NoError(t, err)
@@ -254,7 +255,8 @@ func TestIAMNodeJoin(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nodes)
 
-	// create and start a node
+	// create and start a node, with use the IAM method to join in IoT mode by
+	// connecting to the proxy
 	nodeConfig := newNodeConfig(t, proxyConfig.Proxy.WebAddr, tokenName, types.JoinMethodIAM)
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)

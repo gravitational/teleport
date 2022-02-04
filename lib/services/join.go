@@ -27,13 +27,13 @@ import (
 // JoinService abstracts the proto.JoinService interface so that it can by
 // implemented by both the auth client and the auth server.
 type JoinService interface {
+
 	// RegisterUsingIAMMethod registers the caller using the IAM join method and
 	// returns signed certs to join the cluster.
 	//
-	// The server will generate a base64-encoded crypto-random challenge and
-	// send it on the challenge channel. The caller is expected to respond on
-	// the request channel with a RegisterUsingTokenRequest including a signed
-	// sts:GetCallerIdentity request with the challenge string.
+	// The caller must provide a ChallengeResponseFunc which returns a
+	// *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity
+	// request including the challenge as a signed header.
 	RegisterUsingIAMMethod(ctx context.Context, challengeResponse types.RegisterChallengeResponseFunc) (*proto.Certs, error)
 }
 
