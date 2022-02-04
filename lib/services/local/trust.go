@@ -127,7 +127,7 @@ func (s *CA) CompareAndSwapCertAuthority(new, existing types.CertAuthority) erro
 		if trace.IsCompareFailed(err) {
 			if len(existing.GetMetadata().Labels) >= 2 {
 				exampleCmd := fmt.Sprintf(compareAndSwapFixExample, existing.GetKind(), existing.GetSubKind(), existing.GetName())
-				log.Warn("comparison failed on certificate authority with multiple labels; if this occurs consistently, try re-saving the resource: %s", exampleCmd)
+				log.Warnf("comparison failed on certificate authority with multiple labels; if this occurs consistently, try re-saving the resource: %s", exampleCmd)
 			}
 			return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
 		}
