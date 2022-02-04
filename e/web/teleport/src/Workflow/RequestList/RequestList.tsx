@@ -11,7 +11,7 @@ import {
   Alert,
   Indicator,
 } from 'design';
-import Table, { Cell } from 'design/DataTableNext';
+import Table, { Cell } from 'design/DataTable';
 import useTeleportE from 'e-teleport/useTeleportE';
 import useRequestList, { State, Row } from './useRequestList';
 import cfg from 'e-teleport/config';

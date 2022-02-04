@@ -1,7 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { Box, Text } from 'design';
-import Table from 'design/DataTableNext';
+import Table from 'design/DataTable';
 import { MonthlyItem } from '../useUsage';
 
 export default function UsageSummary({ items, mt = 0 }: Props) {
