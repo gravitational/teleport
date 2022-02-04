@@ -1,5 +1,11 @@
 # Changelog
 
+## 8.1.4
+
+This release of Teleport contains a fix.
+
+* Rolled back `session.connect` event. [#10156](https://github.com/gravitational/teleport/pull/10156)
+
 ## 8.1.3
 
 This release of Teleport contains multiple features, improvements, bug fixes, and a security fix.
