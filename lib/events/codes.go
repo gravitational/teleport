@@ -476,5 +476,5 @@ const (
 	LockDeletedCode = "TLK01I"
 
 	// CertificateCreateCode is the certificate issuance event code.
-	CertificateCreateCode = "T1010I"
+	CertificateCreateCode = "TC000I"
 )
