@@ -219,5 +219,5 @@ type Props = {
   authVersion: string;
   publicURL: string;
   isEnterprise: boolean;
-  tunnelPublicAddress: string;
+  tunnelPublicAddress?: string;
 };
