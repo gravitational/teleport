@@ -28,10 +28,13 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// botResourceName returns the default name for resources associated with the
+// given named bot.
 func botResourceName(botName string) string {
 	return "bot-" + strings.ReplaceAll(botName, " ", "-")
 }
 
+// createBotRole creates a role from a bot template with the given parameters.
 func createBotRole(ctx context.Context, s *Server, botName string, resourceName string, roleRequests []string) error {
 	return s.UpsertRole(ctx, &types.RoleV4{
 		Kind:    types.KindRole,
@@ -85,6 +88,7 @@ func createBotUser(ctx context.Context, s *Server, botName string, resourceName 
 	return nil
 }
 
+// createBot creates a new certificate renewal bot from a bot request.
 func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
 	if req.TokenID != "" {
 		// TODO: IAM joining for bots
@@ -144,6 +148,8 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 	}, nil
 }
 
+// deleteBotUser removes an existing bot user, ensuring that it has bot labels
+// matching the bot before deleting anything.
 func (s *Server) deleteBotUser(ctx context.Context, botName, resourceName string) error {
 	user, err := s.GetUser(resourceName, false)
 	if err != nil {
@@ -162,6 +168,8 @@ func (s *Server) deleteBotUser(ctx context.Context, botName, resourceName string
 	return err
 }
 
+// deleteBotRole removes an existing bot role, ensuring that it has bot labels
+// matching the bot before deleting anything.
 func (s *Server) deleteBotRole(ctx context.Context, botName, resourceName string) error {
 	role, err := s.GetRole(ctx, resourceName)
 	if err != nil {
