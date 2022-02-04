@@ -16,7 +16,7 @@ limitations under the License.
 
 import React, { useState } from 'react';
 import { ButtonBorder } from 'design';
-import Table, { Cell } from 'design/DataTableNext';
+import Table, { Cell } from 'design/DataTable';
 import { displayDateTime } from 'shared/services/loc';
 import { Event } from 'teleport/services/audit';
 import { State } from '../useAuditEvents';

@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { ButtonBorder } from 'design';
-import Table, { Cell, TextCell } from 'design/DataTableNext';
+import Table, { Cell, TextCell } from 'design/DataTable';
 import { displayDateTime } from 'shared/services/loc';
 import cfg from 'teleport/config';
 import { Recording, RecordingType } from 'teleport/services/recordings';

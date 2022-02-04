@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { ButtonBorder, Text } from 'design';
-import Table, { Cell } from 'design/DataTableNext';
+import Table, { Cell } from 'design/DataTable';
 import { displayDate } from 'shared/services/loc';
 import { MfaDevice } from 'teleport/services/mfa/types';
 

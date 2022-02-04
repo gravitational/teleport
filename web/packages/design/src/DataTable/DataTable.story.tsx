@@ -3,7 +3,7 @@ import Table from './Table';
 import { LabelCell, DateCell } from './Cells';
 
 export default {
-  title: 'Design/DataTableNext',
+  title: 'Design/DataTable',
 };
 
 export const DataTable = () => {

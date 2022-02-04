@@ -16,7 +16,7 @@ limitations under the License.
 
 import React, { useState } from 'react';
 import { ButtonBorder } from 'design';
-import Table, { Cell, LabelCell } from 'design/DataTableNext';
+import Table, { Cell, LabelCell } from 'design/DataTable';
 import { AuthType } from 'teleport/services/user';
 import { Database, DbProtocol } from 'teleport/services/databases';
 import ConnectDialog from 'teleport/Databases/ConnectDialog';
