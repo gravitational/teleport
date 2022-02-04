@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -122,42 +122,42 @@ func TestRoleParse(t *testing.T) {
 		{
 			name: "validation error, missing resources",
 			in: `{
-							   		      "kind": "role",
-							   		      "version": "v3",
-							   		      "metadata": {"name": "name1"},
-							   		      "spec": {
-							                    "allow": {
-							                      "node_labels": {"a": "b"},
-							                      "namespaces": ["default"],
-							                      "rules": [
-							                        {
-							                          "verbs": ["read", "list"]
-							                        }
-							                      ]
-							                    }
-							   		      }
-							   		    }`,
+					"kind": "role",
+					"version": "v3",
+					"metadata": {"name": "name1"},
+					"spec": {
+						"allow": {
+							"node_labels": {"a": "b"},
+							"namespaces": ["default"],
+							"rules": [
+								{
+									"verbs": ["read", "list"]
+								}
+							]
+						}
+					}
+				}`,
 			error:        trace.BadParameter(""),
 			matchMessage: "missing resources",
 		},
 		{
 			name: "validation error, missing verbs",
 			in: `{
-							   		      "kind": "role",
-							   		      "version": "v3",
-							   		      "metadata": {"name": "name1"},
-							   		      "spec": {
-							                    "allow": {
-							                      "node_labels": {"a": "b"},
-							                      "namespaces": ["default"],
-							                      "rules": [
-							                        {
-							                          "resources": ["role"]
-							                        }
-							                      ]
-							                    }
-							   		      }
-							   		    }`,
+					"kind": "role",
+					"version": "v3",
+					"metadata": {"name": "name1"},
+					"spec": {
+						"allow": {
+							"node_labels": {"a": "b"},
+							"namespaces": ["default"],
+							"rules": [
+								{
+									"resources": ["role"]
+								}
+							]
+						}
+					}
+				}`,
 			error:        trace.BadParameter(""),
 			matchMessage: "missing verbs",
 		},
@@ -190,6 +190,7 @@ func TestRoleParse(t *testing.T) {
 						CertificateFormat: constants.CertificateFormatStandard,
 						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 						PortForwarding:    types.NewBoolOption(true),
+						RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						BPF:               apidefaults.EnhancedEvents(),
 					},
 					Allow: types.RoleConditions{
@@ -221,6 +222,7 @@ func TestRoleParse(t *testing.T) {
 						CertificateFormat: constants.CertificateFormatStandard,
 						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 						PortForwarding:    types.NewBoolOption(true),
+						RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						BPF:               apidefaults.EnhancedEvents(),
 					},
 					Allow: types.RoleConditions{
@@ -236,42 +238,42 @@ func TestRoleParse(t *testing.T) {
 		{
 			name: "full valid role",
 			in: `{
-					   		      "kind": "role",
-					   		      "version": "v3",
-					   		      "metadata": {"name": "name1", "labels": {"a-b": "c"}},
-					   		      "spec": {
-					                    "options": {
-					                      "cert_format": "standard",
-					                      "max_session_ttl": "20h",
-					                      "port_forwarding": true,
-					                      "client_idle_timeout": "17m",
-					                      "disconnect_expired_cert": "yes",
-			                              "enhanced_recording": ["command", "network"]
-					                    },
-					                    "allow": {
-					                      "node_labels": {"a": "b", "c-d": "e"},
-					                      "app_labels": {"a": "b", "c-d": "e"},
-					                      "kubernetes_labels": {"a": "b", "c-d": "e"},
-										  "db_labels": {"a": "b", "c-d": "e"},
-										  "db_names": ["postgres"],
-										  "db_users": ["postgres"],
-					                      "namespaces": ["default"],
-					                      "rules": [
-					                        {
-					                          "resources": ["role"],
-					                          "verbs": ["read", "list"],
-					                          "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
-					                          "actions": [
-					                             "log(\"info\", \"log entry\")"
-					                          ]
-					                        }
-					                      ]
-					                    },
-					                    "deny": {
-					                      "logins": ["c"]
-					                    }
-					   		      }
-					   		    }`,
+					"kind": "role",
+					"version": "v3",
+					"metadata": {"name": "name1", "labels": {"a-b": "c"}},
+					"spec": {
+						"options": {
+							"cert_format": "standard",
+							"max_session_ttl": "20h",
+							"port_forwarding": true,
+							"client_idle_timeout": "17m",
+							"disconnect_expired_cert": "yes",
+							"enhanced_recording": ["command", "network"]
+						},
+						"allow": {
+							"node_labels": {"a": "b", "c-d": "e"},
+							"app_labels": {"a": "b", "c-d": "e"},
+							"kubernetes_labels": {"a": "b", "c-d": "e"},
+							"db_labels": {"a": "b", "c-d": "e"},
+							"db_names": ["postgres"],
+							"db_users": ["postgres"],
+							"namespaces": ["default"],
+							"rules": [
+								{
+									"resources": ["role"],
+									"verbs": ["read", "list"],
+									"where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+									"actions": [
+										"log(\"info\", \"log entry\")"
+									]
+								}
+							]
+						},
+						"deny": {
+							"logins": ["c"]
+						}
+					}
+				}`,
 			role: types.RoleV4{
 				Kind:    types.KindRole,
 				Version: types.V3,
@@ -285,6 +287,7 @@ func TestRoleParse(t *testing.T) {
 						CertificateFormat:     constants.CertificateFormatStandard,
 						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
 						PortForwarding:        types.NewBoolOption(true),
+						RecordSession:         &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						ClientIdleTimeout:     types.NewDuration(17 * time.Minute),
 						DisconnectExpiredCert: types.NewBool(true),
 						BPF:                   apidefaults.EnhancedEvents(),
@@ -319,41 +322,41 @@ func TestRoleParse(t *testing.T) {
 		{
 			name: "alternative options form",
 			in: `{
-		   		      "kind": "role",
-		   		      "version": "v3",
-		   		      "metadata": {"name": "name1"},
-		   		      "spec": {
-		                    "options": {
-		                      "cert_format": "standard",
-		                      "max_session_ttl": "20h",
-		                      "port_forwarding": "yes",
-		                      "forward_agent": "yes",
-		                      "client_idle_timeout": "never",
-		                      "disconnect_expired_cert": "no",
-		                      "enhanced_recording": ["command", "network"]
-		                    },
-		                    "allow": {
-		                      "node_labels": {"a": "b"},
-		                      "app_labels": {"a": "b"},
-		                      "kubernetes_labels": {"c": "d"},
-		                      "db_labels": {"e": "f"},
-		                      "namespaces": ["default"],
-		                      "rules": [
-		                        {
-		                          "resources": ["role"],
-		                          "verbs": ["read", "list"],
-		                          "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
-		                          "actions": [
-		                             "log(\"info\", \"log entry\")"
-		                          ]
-		                        }
-		                      ]
-		                    },
-		                    "deny": {
-		                      "logins": ["c"]
-		                    }
-		   		      }
-		   		    }`,
+		   			  "kind": "role",
+		   			  "version": "v3",
+		   			  "metadata": {"name": "name1"},
+		   			  "spec": {
+							"options": {
+							  "cert_format": "standard",
+							  "max_session_ttl": "20h",
+							  "port_forwarding": "yes",
+							  "forward_agent": "yes",
+							  "client_idle_timeout": "never",
+							  "disconnect_expired_cert": "no",
+							  "enhanced_recording": ["command", "network"]
+							},
+							"allow": {
+							  "node_labels": {"a": "b"},
+							  "app_labels": {"a": "b"},
+							  "kubernetes_labels": {"c": "d"},
+							  "db_labels": {"e": "f"},
+							  "namespaces": ["default"],
+							  "rules": [
+								{
+								  "resources": ["role"],
+								  "verbs": ["read", "list"],
+								  "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+								  "actions": [
+									 "log(\"info\", \"log entry\")"
+								  ]
+								}
+							  ]
+							},
+							"deny": {
+							  "logins": ["c"]
+							}
+		   			  }
+		   			}`,
 			role: types.RoleV4{
 				Kind:    types.KindRole,
 				Version: types.V3,
@@ -367,6 +370,7 @@ func TestRoleParse(t *testing.T) {
 						ForwardAgent:          types.NewBool(true),
 						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
 						PortForwarding:        types.NewBoolOption(true),
+						RecordSession:         &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						ClientIdleTimeout:     types.NewDuration(0),
 						DisconnectExpiredCert: types.NewBool(false),
 						BPF:                   apidefaults.EnhancedEvents(),
@@ -399,30 +403,30 @@ func TestRoleParse(t *testing.T) {
 		{
 			name: "non-scalar and scalar values of labels",
 			in: `{
-		   		      "kind": "role",
-		   		      "version": "v3",
-		   		      "metadata": {"name": "name1"},
-		   		      "spec": {
-		                    "options": {
-		                      "cert_format": "standard",
-		                      "max_session_ttl": "20h",
-		                      "port_forwarding": "yes",
-		                      "forward_agent": "yes",
-		                      "client_idle_timeout": "never",
-		                      "disconnect_expired_cert": "no",
-		                      "enhanced_recording": ["command", "network"]
-		                    },
-		                    "allow": {
-		                      "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
-		                      "app_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
-		                      "kubernetes_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
-		                      "db_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
-		                    },
-		                    "deny": {
-		                      "logins": ["c"]
-		                    }
-		   		      }
-		   		    }`,
+		   			  "kind": "role",
+		   			  "version": "v3",
+		   			  "metadata": {"name": "name1"},
+		   			  "spec": {
+							"options": {
+							  "cert_format": "standard",
+							  "max_session_ttl": "20h",
+							  "port_forwarding": "yes",
+							  "forward_agent": "yes",
+							  "client_idle_timeout": "never",
+							  "disconnect_expired_cert": "no",
+							  "enhanced_recording": ["command", "network"]
+							},
+							"allow": {
+							  "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+							  "app_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+							  "kubernetes_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+							  "db_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
+							},
+							"deny": {
+							  "logins": ["c"]
+							}
+		   			  }
+		   			}`,
 			role: types.RoleV4{
 				Kind:    types.KindRole,
 				Version: types.V3,
@@ -436,6 +440,7 @@ func TestRoleParse(t *testing.T) {
 						ForwardAgent:          types.NewBool(true),
 						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
 						PortForwarding:        types.NewBoolOption(true),
+						RecordSession:         &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						ClientIdleTimeout:     types.NewDuration(0),
 						DisconnectExpiredCert: types.NewBool(false),
 						BPF:                   apidefaults.EnhancedEvents(),
@@ -2347,34 +2352,41 @@ func TestExtractFrom(t *testing.T) {
 // port forwarding) can be disabled in a role.
 func TestBoolOptions(t *testing.T) {
 	var tests = []struct {
-		inOptions           types.RoleOptions
-		outCanPortForward   bool
-		outCanForwardAgents bool
+		inOptions                types.RoleOptions
+		outCanPortForward        bool
+		outCanForwardAgents      bool
+		outRecordDesktopSessions bool
 	}{
 		// Setting options explicitly off should remain off.
 		{
 			inOptions: types.RoleOptions{
 				ForwardAgent:   types.NewBool(false),
 				PortForwarding: types.NewBoolOption(false),
+				RecordSession:  &types.RecordSession{Desktop: types.NewBoolOption(false)},
 			},
-			outCanPortForward:   false,
-			outCanForwardAgents: false,
+			outCanPortForward:        false,
+			outCanForwardAgents:      false,
+			outRecordDesktopSessions: false,
 		},
-		// Not setting options should set port forwarding to true (default enabled)
-		// and agent forwarding false (default disabled).
+		// Not setting options should set port forwarding to true (default enabled),
+		// agent forwarding false (default disabled), and
+		// desktop session recording to true (default enabled)
 		{
-			inOptions:           types.RoleOptions{},
-			outCanPortForward:   true,
-			outCanForwardAgents: false,
+			inOptions:                types.RoleOptions{},
+			outCanPortForward:        true,
+			outCanForwardAgents:      false,
+			outRecordDesktopSessions: true,
 		},
 		// Explicitly enabling should enable them.
 		{
 			inOptions: types.RoleOptions{
 				ForwardAgent:   types.NewBool(true),
 				PortForwarding: types.NewBoolOption(true),
+				RecordSession:  &types.RecordSession{Desktop: types.NewBoolOption(true)},
 			},
-			outCanPortForward:   true,
-			outCanForwardAgents: true,
+			outCanPortForward:        true,
+			outCanForwardAgents:      true,
+			outRecordDesktopSessions: true,
 		},
 	}
 	for _, tt := range tests {
@@ -2391,6 +2403,7 @@ func TestBoolOptions(t *testing.T) {
 		})
 		require.Equal(t, tt.outCanPortForward, set.CanPortForward())
 		require.Equal(t, tt.outCanForwardAgents, set.CanForwardAgents())
+		require.Equal(t, tt.outRecordDesktopSessions, set.RecordDesktopSession())
 	}
 }
 
@@ -3161,6 +3174,54 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
 			}
+		})
+	}
+}
+
+func TestDesktopRecordingEnabled(t *testing.T) {
+	for _, test := range []struct {
+		desc         string
+		roles        []types.RoleV4
+		shouldRecord bool
+	}{
+		{
+			desc: "single role recording disabled",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {
+					r.SetName("no-record")
+					r.SetOptions(types.RoleOptions{
+						RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(false)},
+					})
+				}),
+			},
+			shouldRecord: false,
+		},
+		{
+			desc: "multiple roles, one requires recording",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {
+					r.SetOptions(types.RoleOptions{
+						RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(false)},
+					})
+				}),
+				newRole(func(r *types.RoleV4) {
+					r.SetOptions(types.RoleOptions{
+						RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(false)},
+					})
+				}),
+				// recording defaults to true, so a default role should force recording
+				newRole(func(r *types.RoleV4) {}),
+			},
+			shouldRecord: true,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			var roles []types.Role
+			for _, r := range test.roles {
+				roles = append(roles, &r)
+			}
+			rs := NewRoleSet(roles...)
+			require.Equal(t, test.shouldRecord, rs.RecordDesktopSession())
 		})
 	}
 }

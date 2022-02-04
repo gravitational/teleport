@@ -117,6 +117,8 @@ spec:
     forward_agent: false
     max_session_ttl: 30h0m0s
     port_forwarding: true
+    record_session:
+      desktop: true
 version: v3
 `
 	role, err := types.NewRole("roleName", types.RoleSpecV4{
