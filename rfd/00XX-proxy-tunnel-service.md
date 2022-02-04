@@ -36,26 +36,30 @@ service ProxyService { rpc DialNode(stream Frame) returns (stream Frame); }
 
 // Frame wraps different message types to be sent over a stream.
 message Frame {
-   oneof Message {
-       DialRequest DialRequest = 1;
-       Data Data = 2;
-   }
+    oneof Message {
+        DialRequest DialRequest = 1;
+        Data Data = 2;
+    }
 }
 
 // DialRequest contains details for connecting to a node.
 message DialRequest {
-   // NodeID is the {UUID}.{ClusterName} of the node to connect to.
-   string NodeID = 1;
-   // TunnelType is the type of service being accessed. This differentiates agents that
-   // create multiple reverse tunnels for different services.
-   string TunnelType = 2 [ (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.TunnelType" ];
+    // NodeID is the {UUID}.{ClusterName} of the node to connect to.
+    string NodeID = 1;
+    // TunnelType is the type of service being accessed. This differentiates agents that
+    // create multiple reverse tunnels for different services.
+    string TunnelType = 2 [ (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.TunnelType" ];
+    // Source is the original source address of the client.
+    Addr Source = 3;
+    // Destination is the destination address to connect to over the reverse tunnel.
+    Addr Destination = 4;
 }
 
 message Addr {
-   // Network is the name of the network transport.
-   string Network = 1;
-   // String is the string form of the address.
-   string String = 2;
+    // Network is the name of the network transport.
+    string Network = 1;
+    // String is the string form of the address.
+    string String = 2;
 }
 
 // Data contains the raw bytes of a connection.
@@ -99,11 +103,28 @@ The api will use mTLS to ensure that only other proxies are able to connect. Thi
 
 ### Enabling Proxy Peering
 This feature will need to be explicity configured to use it. The configuration will be set in the auth_service section of the teleport config and will update the `ClusterNetworkingConfig` stored in the backend.
+
+The teleport config:
 ```yaml
 auth_service:
   ...
-  proxy_peering: true
+  proxy_peering: enabled
   ...
+```
+
+The `ClusterNetworkingConfig`:
+```
+message ClusterNetworkingConfigSpecV2 {
+    ...
+    ProxyPeeringMode ProxyPeeringMode = 9 [ (gogoproto.jsontag) = "proxy_peering_mode,omitempty" ];
+    ...
+}
+
+enum ProxyPeeringMode {
+    Disabled = 0;
+    Enabled = 1;
+}
+
 ```
 
 ### Peer Address Configuration
@@ -111,7 +132,7 @@ The peer address is the address the `ProxyService` GRPC API will be exposed on. 
 ```yaml
 proxy_service:
   ...
-  peer_addr: 0.0.0.0:3021
+  peer_listen_addr: 0.0.0.0:3021
   ...
 ```
 This address will be added to the [ServerSpecV2](https://github.com/gravitational/teleport/blob/95c53ad90e68887778db8141238fee494028bbdf/api/types/types.proto#L364) and stored in the backend.
@@ -136,6 +157,10 @@ The `Nonce` will start at 0 and be incremented with each update sent to the auth
 ### API Clients
 Each proxy will need to manage multiple grpc clients, one for each peer proxy. Client connections will be created as peer proxies are discovered. Similar to the agent pools current behavior, clients can be expired if the connection fails and the peer hasn't heartbeated to the backend for a certain amount of time.
 
+Transient connection failures can be detected using [GRPC keepalives](https://pkg.go.dev/google.golang.org/grpc/keepalive) along with the client [`WaitForStateChange`](https://pkg.go.dev/google.golang.org/grpc#ClientConn.WaitForStateChange) API. The time it takes to detect a dead connection is determined by the keepalive `Timeout` parameter. The grpc client will automatically try to reconnect with an exponential backoff policy.
+
+For future backwards compatibility the proxy teleport version will be included in the grpc client/server headers. This will allow either a client or server to downgrade messages accordingly.
+
 Metrics will be added so we can monitor whether a single grpc connection becomes a bottleneck for many concurrent streams. The following metrics will be tracked:
 
 1. Total throughput in bytes, this is the aggregate number of bytes sent over all grpc channels on a single connection.
@@ -153,8 +178,8 @@ Having a single connection means that if that connection fails the agent will be
 2. Proxy sends reconnect request to the agent over connection-1.
 3. Agent establishes a new connection connection-2.
 4. Agent signals the auth server of a proxy change if applicable.
-4. Agent signals over connection-1 for the connection to be drained.
-5. Proxy stops sending transport requests to connection-1 and closes it when all existing requests are drained.
+5. Proxies receive the updated proxyID and begin connecting to the agent through new proxy.
+6. Proxy stops sending transport requests to connection-1 and closes it once drained.
 
 This can be used during graceful shutdowns to migrate agents off of a proxy so they remain reachable at all times. In the future this could be used periodically to migrate connections off of intermediate infrastrucuture like load balancers that are trying to drain connections.
 
