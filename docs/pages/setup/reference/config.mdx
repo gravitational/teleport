@@ -329,8 +329,6 @@ auth_service:
 
     # The optional DNS name for the auth server if located behind a load 
     # balancer.
-    # See the "Public Addr" section for more details
-    # (https://goteleport.com/docs/admin-guide/#public-addr).
     public_addr: auth.example.com:3025
 
     # Pre-defined tokens for adding new nodes to a cluster. Each token specifies
@@ -445,8 +443,6 @@ ssh_service:
     # The optional public address the SSH service. This is useful if 
     # administrators want to allow users to connect to nodes directly, 
     # bypassing a Teleport proxy.
-    # See the "Public Addr" section for more details
-    # (https://goteleport.com/docs/admin-guide/#public-addr).
     public_addr: node.example.com:3022
 
     # See explanation of labels in "Labeling Nodes and Applications" section
@@ -543,12 +539,12 @@ proxy_service:
     # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
     # Defaults to the proxy's hostname if not specified. If running multiple
     # proxies behind a load balancer, this name must point to the load balancer
-    # See the "Public Addr" section for more details
-
-    # (https://goteleport.com/docs/admin-guide/#public-addr).
+    # If application access is enabled, public_addr is used to write correct
+    # redirects
+    # (https://goteleport.com/docs/application-access/guides/connecting-apps/#start-authproxy-service).
     # If database access is enabled, Database clients will connect to the Proxy
-    # over this hostname.
-    # (https://goteleport.com/docs/database-access/architecture/#database-client-to-proxy)
+    # over this hostname
+    # (https://goteleport.com/docs/database-access/architecture/#database-client-to-proxy).
     public_addr: proxy.example.com:3080
 
     # The DNS name of the proxy SSH endpoint as accessible by cluster clients.
@@ -696,6 +692,19 @@ kubernetes_service:
 db_service:
   # Enables the database service. Default is "no".
   enabled: "yes"
+
+  # Matchers for registering AWS-hosted databases.
+  aws:
+    # Database types. Valid options are:
+    # 'rds' - discovers and registers AWS RDS and Aurora databases.
+    # 'redshift' - discovers and registers AWS Redshift databases.
+  - types: ["rds", "redshift"]
+    # AWS regions to register databases from.
+    regions: ["us-west-1", "us-east-2"]
+    # AWS resource tags to match when registering databases.
+    tags:
+      "*": "*"
+
   # This section contains definitions of all databases proxied by this
   # service, it can contain multiple database instances.
   databases:
