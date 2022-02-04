@@ -190,7 +190,7 @@ func (c *BotsCommand) AddBot(client auth.ClientI) error {
 
 	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
 		"token":       response.TokenID,
-		"minutes":     int(c.tokenTTL.Minutes()),
+		"minutes":     int(time.Duration(response.TokenTTL).Minutes()),
 		"ca_pins":     caPins,
 		"auth_server": addr,
 	})

@@ -402,6 +402,9 @@ message CreateBotResponse {
     string RoleName = 2 [ (gogoproto.jsontag) = "role_name" ];
     // TokenID is the name of the join token for the bot.
     string TokenID = 3 [ (gogoproto.jsontag) = "token_id" ];
+    // TokenTTL is the TTL for the token. If it differs from the requested TTL,
+    // it may have been limited by server policy.
+    int64 TokenTTL = 4 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
 }
 
 // DeleteBotRequest is a request to delete a bot user

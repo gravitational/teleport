@@ -145,6 +145,7 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		TokenID:  token.GetName(),
 		UserName: resourceName,
 		RoleName: resourceName,
+		TokenTTL: proto.Duration(ttl),
 	}, nil
 }
 
