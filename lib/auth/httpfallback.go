@@ -655,35 +655,6 @@ func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 	}, nil
 }
 
-// GenerateHostCerts generates new host certificates (signed by the host CA).
-// DELETE IN 9.0.0 (zmb3)
-func (c *Client) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
-	switch certs, err := c.APIClient.GenerateHostCerts(ctx, req); {
-	case err == nil: // GRPC version is available and succeeded
-		return certs, nil
-	case !trace.IsNotImplemented(err): // GRPC version available but failed
-		return nil, trace.Wrap(err)
-	}
-
-	// fallback to legacy JSON API
-	out, err := c.PostJSON(c.Endpoint("server", "credentials"), legacyHostCertsRequest{
-		HostID:               req.HostID,
-		NodeName:             req.NodeName,
-		Roles:                types.SystemRoles{req.Role}, // old API requires a list of roles
-		AdditionalPrincipals: req.AdditionalPrincipals,
-		DNSNames:             req.DNSNames,
-		PublicTLSKey:         req.PublicTLSKey,
-		PublicSSHKey:         req.PublicSSHKey,
-		RemoteAddr:           req.RemoteAddr,
-		Rotation:             req.Rotation,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return UnmarshalLegacyCerts(out.Bytes())
-}
-
 // DELETE IN 9.0.0, to remove fallback and grpc call is already defined in api/client/client.go
 //
 // CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
