@@ -97,9 +97,10 @@ func (pp *playbackPlayer) waitWhilePaused() {
 func (pp *playbackPlayer) togglePlaying() {
 	pp.cond.L.Lock()
 	defer pp.cond.L.Unlock()
-	if pp.playState == playStatePlaying {
+	switch pp.playState {
+	case playStatePlaying:
 		pp.playState = playStatePaused
-	} else if pp.playState == playStatePaused {
+	case playStatePaused:
 		pp.playState = playStatePlaying
 	}
 	pp.cond.Broadcast()
@@ -140,15 +141,16 @@ func (pp *playbackPlayer) receiveActions(cancel context.CancelFunc) {
 			// We expect net.ErrClosed if the websocket is closed by another
 			// goroutine and io.EOF if the websocket is closed by the browser
 			// while websocket.JSON.Receive() is hanging.
-			if !(errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF)) {
+			if !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) {
 				pp.log.WithError(err).Error("error reading from websocket")
 			}
 			return
 		}
 		pp.log.Debugf("recieved playback action: %+v", action)
-		if action.Action == actionPlayPause {
+		switch action.Action {
+		case actionPlayPause:
 			pp.togglePlaying()
-		} else {
+		default:
 			pp.log.Errorf("received unknown action: %v", action.Action)
 			return
 		}
@@ -197,7 +199,7 @@ func (pp *playbackPlayer) streamSessionEvents(ctx context.Context, cancel contex
 					// We expect net.ErrClosed to arise when another goroutine returns before
 					// this one or the browser window is closed, both of which cause the websocket to close.
 					if !errors.Is(err, net.ErrClosed) {
-						pp.log.WithError(err).Error("failed to write TDP message over websocket")
+						pp.log.WithError(err).Error("failed to write DesktopRecording event over websocket")
 					}
 					return
 				}
@@ -222,7 +224,6 @@ func (pp *playbackPlayer) Play(ctx context.Context) {
 	// Wait until the ctx is cancelled, either by
 	// one of the goroutines above or by the http handler.
 	<-ppCtx.Done()
-	return
 }
 
 func (h *Handler) desktopPlaybackHandle(
