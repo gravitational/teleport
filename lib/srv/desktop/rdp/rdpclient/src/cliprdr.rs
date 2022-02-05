@@ -78,7 +78,7 @@ impl Client {
                     self.handle_format_data_response(&mut payload, header.data_len)?
                 } else {
                     warn!("RDP server failed to process format data request");
-                    None
+                    vec![]
                 }
             }
             _ => {
@@ -86,16 +86,15 @@ impl Client {
                     "CLIPRDR message {:?} not implemented, ignoring",
                     header.msg_type
                 );
-                None
+                vec![]
             }
         };
 
-        if let Some(resp) = resp {
-            let chan = &CHANNEL_NAME.to_string();
-            for msg in resp {
-                mcs.write(chan, msg)?;
-            }
+        let chan = &CHANNEL_NAME.to_string();
+        for msg in resp {
+            mcs.write(chan, msg)?;
         }
+
         Ok(())
     }
 
@@ -117,10 +116,10 @@ impl Client {
 
     /// Handles the server capabilities message, which is the first message sent from the server
     /// to the client during the initialization sequence. Described in section 1.3.2.1.
-    fn handle_server_caps(&self, payload: &mut Payload) -> RdpResult<Option<Vec<Vec<u8>>>> {
+    fn handle_server_caps(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let caps = ClipboardCapabilitiesPDU::decode(payload)?;
         if let Some(general) = caps.general {
-            // our capabilities are minimmal, so we log the server
+            // our capabilities are minimal, so we log the server
             // capabilities for debug purposes, but don't otherwise care
             // (the server will be forced into working with us)
             info!("RDP server clipboard capabilities: {:?}", general);
@@ -128,13 +127,13 @@ impl Client {
 
         // we don't send our capabilities here, they get sent as a response
         // to the monitor ready PDU below
-        Ok(None)
+        Ok(vec![])
     }
 
     /// Handles the monitor ready PDU, which is sent from the server to the client during
     /// the initialization phase. Upon receiving this message, the client should respond
     /// with its capabilities, an optional temporary directory PDU, and a format list PDU.
-    fn handle_monitor_ready(&self, _payload: &mut Payload) -> RdpResult<Option<Vec<Vec<u8>>>> {
+    fn handle_monitor_ready(&self, _payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         // There's nothing additional to decode here, the monitor ready PDU is just a header.
         // In response, we need to:
         // 1. Send our clipboard capabilities
@@ -161,16 +160,12 @@ impl Client {
             )?,
         ];
 
-        Ok(Some(result))
+        Ok(result)
     }
 
     /// Handles the format list PDU, which is a notification from the server
     /// that some data was copied and can be requested at a later date.
-    fn handle_format_list(
-        &self,
-        payload: &mut Payload,
-        length: u32,
-    ) -> RdpResult<Option<Vec<Vec<u8>>>> {
+    fn handle_format_list(&self, payload: &mut Payload, length: u32) -> RdpResult<Vec<Vec<u8>>> {
         let list = FormatListPDU::<LongFormatName>::decode(payload, length)?;
         debug!(
             "{:?} data was copied on the RDP server",
@@ -208,25 +203,22 @@ impl Client {
             }
         }
 
-        Ok(Some(result))
+        Ok(result)
     }
 
     /// Handle the format list response, which is the server acknowledging that
     /// it recieved a notification that the client has updated clipboard data
     /// that may be requested in the future.
-    fn handle_format_list_response(
-        &self,
-        flags: ClipboardHeaderFlags,
-    ) -> RdpResult<Option<Vec<Vec<u8>>>> {
+    fn handle_format_list_response(&self, flags: ClipboardHeaderFlags) -> RdpResult<Vec<Vec<u8>>> {
         if !flags.contains(ClipboardHeaderFlags::CB_RESPONSE_OK) {
             warn!("RDP server did not process our copy operation");
         }
-        Ok(None)
+        Ok(vec![])
     }
 
     /// Handles a request from the RDP server for clipboard data.
     /// This message is received when a user executes a paste in the remote desktop.
-    fn handle_format_data_request(&self, payload: &mut Payload) -> RdpResult<Option<Vec<Vec<u8>>>> {
+    fn handle_format_data_request(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = FormatDataRequestPDU::decode(payload)?;
         let data = match self.clipboard.get(&req.format_id) {
             Some(d) => d.clone(),
@@ -242,10 +234,10 @@ impl Client {
             }
         };
 
-        Ok(Some(vec![encode_message(
+        Ok(vec![encode_message(
             ClipboardPDUType::CB_FORMAT_DATA_RESPONSE,
             FormatDataResponsePDU { data }.encode()?,
-        )?]))
+        )?])
     }
 
     /// Receives clipboard data from the remote desktop. This is the server responding
@@ -254,7 +246,7 @@ impl Client {
         &self,
         payload: &mut Payload,
         length: u32,
-    ) -> RdpResult<Option<Vec<Vec<u8>>>> {
+    ) -> RdpResult<Vec<Vec<u8>>> {
         let resp = FormatDataResponsePDU::decode(payload, length)?;
         debug!(
             "recieved {} bytes of copied data from Windows Desktop: {:?}",
@@ -264,7 +256,7 @@ impl Client {
 
         (self.on_remote_copy)(resp.data);
 
-        Ok(None)
+        Ok(vec![])
     }
 }
 
@@ -893,7 +885,6 @@ mod tests {
         let c: Client = Default::default();
         let responses = c
             .handle_monitor_ready(&mut Cursor::new(Vec::new()))
-            .unwrap()
             .unwrap();
         assert_eq!(2, responses.len());
 
@@ -940,7 +931,6 @@ mod tests {
         let req = FormatDataRequestPDU::for_id(ClipboardFormat::CF_OEMTEXT as u32);
         let responses = c
             .handle_format_data_request(&mut Cursor::new(req.encode().unwrap()))
-            .unwrap()
             .unwrap();
 
         // expect one FormatDataResponsePDU
