@@ -150,9 +150,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections/:cluster", srv.withAuth(srv.deleteTunnelConnections))
 	srv.DELETE("/:version/tunnelconnections", srv.withAuth(srv.deleteAllTunnelConnections))
 
-	// Server Credentials
-	srv.POST("/:version/server/credentials", srv.withAuth(srv.generateHostCerts))
-
+	// Remote clusters
 	srv.POST("/:version/remoteclusters", srv.withAuth(srv.createRemoteCluster))
 	srv.GET("/:version/remoteclusters/:cluster", srv.withAuth(srv.getRemoteCluster))
 	srv.GET("/:version/remoteclusters", srv.withAuth(srv.getRemoteClusters))
@@ -1031,6 +1029,9 @@ func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *h
 		return nil, trace.Wrap(err)
 	}
 
+	// Teleport 8 clients are still expecting the legacy JSON format.
+	// Teleport 9 clients handle both legacy and new.
+	// TODO(zmb3) return certs directly in Teleport 10
 	return LegacyCertsFromProto(certs), nil
 }
 
@@ -1048,53 +1049,6 @@ func (s *APIServer) registerNewAuthServer(auth ClientI, w http.ResponseWriter, r
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
-}
-
-// DELETE IN 9.0 (zmb3)
-type legacyHostCertsRequest struct {
-	HostID               string            `json:"host_id"`
-	NodeName             string            `json:"node_name"`
-	Roles                types.SystemRoles `json:"roles"`
-	AdditionalPrincipals []string          `json:"additional_principals,omitempty"`
-	DNSNames             []string          `json:"dns_names,omitempty"`
-	PublicTLSKey         []byte            `json:"public_tls_key"`
-	PublicSSHKey         []byte            `json:"public_ssh_key"`
-	RemoteAddr           string            `json:"remote_addr"`
-	Rotation             *types.Rotation   `json:"rotation,omitempty"`
-}
-
-// DELETE IN 9.0 (zmb3) now available in GRPC server)
-func (s *APIServer) generateHostCerts(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	// We can't use proto.HostCertsRequest here, because this old API expects
-	// a list of roles with exactly one element, rather than a single role.
-	var req legacyHostCertsRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(req.Roles) != 1 {
-		return nil, trace.BadParameter("expected exactly one system role")
-	}
-
-	// Pass along the remote address the request came from to the registration function.
-	req.RemoteAddr = r.RemoteAddr
-
-	certs, err := auth.GenerateHostCerts(r.Context(), &proto.HostCertsRequest{
-		HostID:               req.HostID,
-		NodeName:             req.NodeName,
-		Role:                 req.Roles[0],
-		AdditionalPrincipals: req.AdditionalPrincipals,
-		DNSNames:             req.DNSNames,
-		PublicTLSKey:         req.PublicTLSKey,
-		PublicSSHKey:         req.PublicSSHKey,
-		RemoteAddr:           req.RemoteAddr,
-		Rotation:             req.Rotation,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return LegacyCertsFromProto(certs), nil
 }
 
 func (s *APIServer) rotateCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
