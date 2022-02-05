@@ -948,7 +948,7 @@ func (s *WindowsService) nameForStaticHost(addr string) (string, error) {
 	return prefix + "-static-" + strings.ReplaceAll(host, ".", "-"), nil
 }
 
-// timer returns a closer that on each call returns the
+// timer returns a closure that on each call returns the
 // number of milliseconds that have elapsed since the first call.
 // it returns 0 on the very first call.
 func timer() func() int64 {

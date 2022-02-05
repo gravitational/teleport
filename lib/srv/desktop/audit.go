@@ -89,6 +89,9 @@ func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, s
 		EndTime:               s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		DesktopName:           desktop.GetName(),
 		Recorded:              recorded,
+
+		// There can only be 1 participant, desktop sessions are not join-able.
+		Participants: []string{userMetadata.User},
 	}
 	s.emit(ctx, event)
 }

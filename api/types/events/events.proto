@@ -1708,6 +1708,8 @@ message WindowsDesktopSessionEnd {
     string DesktopName = 11 [ (gogoproto.jsontag) = "desktop_name" ];
     // Recorded is true if the session was recorded, false otherwise.
     bool Recorded = 12 [ (gogoproto.jsontag) = "recorded" ];
+    // Participants is a list of participants in the session.
+    repeated string Participants = 13 [ (gogoproto.jsontag) = "participants" ];
 }
 
 // CertificateCreate is emitted when a certificate is issued.
