@@ -807,11 +807,18 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		return nil, "", trace.Wrap(err)
 	}
 
-	// Perform the label filtering here (instead of at the backend
+	// Perform the label/search/expr filtering here (instead of at the backend
 	// `ListResources`) to ensure that it will be applied only to resources
 	// the user has access to.
-	requestLabels := req.Labels
+	filter := services.MatchResourceFilter{
+		ResourceKind:        req.ResourceType,
+		Labels:              req.Labels,
+		SearchKeywords:      req.SearchKeywords,
+		PredicateExpression: req.PredicateExpression,
+	}
 	req.Labels = nil
+	req.SearchKeywords = nil
+	req.PredicateExpression = ""
 
 	var resources []types.ResourceWithLabels
 	nextKey, err := a.authServer.IterateResourcePages(ctx, req, func(nextPage []types.ResourceWithLabels) (bool, error) {
@@ -828,8 +835,10 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 				return false, trace.Wrap(err)
 			}
 
-			// Label filtering the resource.
-			if !types.MatchLabels(resource, requestLabels) {
+			switch match, err := services.MatchResourceByFilters(resource, filter); {
+			case err != nil:
+				return false, trace.Wrap(err)
+			case !match:
 				continue
 			}
 
