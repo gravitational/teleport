@@ -60,6 +60,15 @@ const (
 	// when resolving Windows Desktop hostnames
 	dnsDialTimeout = 5 * time.Second
 
+	// ldapDialTimeout is the timeout for dialing the LDAP server
+	// when making an initial connection
+	ldapDialTimeout = 5 * time.Second
+
+	// ldapRequestTimeout is the timeout for making LDAP requests.
+	// It is larger than the dial timeout because LDAP queries in large
+	// Active Directory environments may take longer to complete.
+	ldapRequestTimeout = 20 * time.Second
+
 	// windowsDesktopCertTTL is the TTL for Teleport-issued Windows Certificates.
 	// Certificates are requested on each connection attempt, so the TTL is
 	// deliberately set to a small value to give enough time to establish a
@@ -418,12 +427,15 @@ func (s *WindowsService) initializeLDAP() error {
 		return trace.Wrap(err)
 	}
 
-	conn, err := ldap.DialURL("ldaps://"+s.cfg.Addr, ldap.DialWithTLSConfig(tc))
+	conn, err := ldap.DialURL("ldaps://"+s.cfg.Addr,
+		ldap.DialWithTLSDialer(tc, &net.Dialer{Timeout: ldapDialTimeout}))
+
 	if err != nil {
 		atomic.StoreInt32(&s.ldapInitialized, 0)
 		return trace.Wrap(err, "dial")
 	}
 
+	conn.SetTimeout(ldapRequestTimeout)
 	s.lc.setClient(conn)
 
 	// Note: admin still needs to import our CA into the Group Policy following
