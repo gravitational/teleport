@@ -2380,24 +2380,28 @@ func TestBoolOptions(t *testing.T) {
 			outDesktopClipboard:      false,
 		},
 		// Not setting options should set port forwarding to true (default enabled),
-		// agent forwarding false (default disabled), and
-		// desktop session recording to true (default enabled)
+		// agent forwarding false (default disabled),
+		// desktop session recording to true (default enabled),
+		// and desktop clipboard sharing to true (default enabled).
 		{
 			inOptions:                types.RoleOptions{},
 			outCanPortForward:        true,
 			outCanForwardAgents:      false,
 			outRecordDesktopSessions: true,
+			outDesktopClipboard:      true,
 		},
 		// Explicitly enabling should enable them.
 		{
 			inOptions: types.RoleOptions{
-				ForwardAgent:   types.NewBool(true),
-				PortForwarding: types.NewBoolOption(true),
-				RecordSession:  &types.RecordSession{Desktop: types.NewBoolOption(true)},
+				ForwardAgent:     types.NewBool(true),
+				PortForwarding:   types.NewBoolOption(true),
+				RecordSession:    &types.RecordSession{Desktop: types.NewBoolOption(true)},
+				DesktopClipboard: types.NewBoolOption(true),
 			},
 			outCanPortForward:        true,
 			outCanForwardAgents:      true,
 			outRecordDesktopSessions: true,
+			outDesktopClipboard:      true,
 		},
 	}
 	for _, tt := range tests {
@@ -2415,6 +2419,7 @@ func TestBoolOptions(t *testing.T) {
 		require.Equal(t, tt.outCanPortForward, set.CanPortForward())
 		require.Equal(t, tt.outCanForwardAgents, set.CanForwardAgents())
 		require.Equal(t, tt.outRecordDesktopSessions, set.RecordDesktopSession())
+		require.Equal(t, tt.outDesktopClipboard, set.DesktopClipboard())
 	}
 }
 
