@@ -61,7 +61,7 @@ data:
     {{- end }}
     {{- if .Values.authenticationSecondFactor.webauthn }}
         webauthn:
-          rp_id: {{ required "authenticationSecondFactor.webauthn.rpId is required in chart values to enable webauthn" .Values.authenticationSecondFactor.webauthn.rpId }}
+          rp_id: {{ required "clusterName is required in chart values" .Values.clusterName }}
       {{- if .Values.authenticationSecondFactor.webauthn.attestationAllowedCas }}
           attestation_allowed_cas:
           {{- toYaml .Values.authenticationSecondFactor.webauthn.attestationAllowedCas | nindent 12 }}
