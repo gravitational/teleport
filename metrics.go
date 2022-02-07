@@ -183,6 +183,9 @@ const (
 	// MetricBuildInfo tracks build information
 	MetricBuildInfo = "build_info"
 
+	// MetricRegisteredServers tracks the number of Teleport servers that have successfully registered with the Teleport cluster and have not reached the end of their ttl
+	MetricRegisteredServers = "registered_servers"
+
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
 
