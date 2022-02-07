@@ -15,7 +15,8 @@
 syntax = "proto3";
 package proto;
 
-import "types.proto";
+import "certs.proto";
+
 import "github.com/gravitational/teleport/api/types/types.proto";
 
 // RegisterUsingIAMMethodResponse is a stream response and will contain either a

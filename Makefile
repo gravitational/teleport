@@ -761,7 +761,7 @@ buildbox-grpc:
 
 	cd api/client/proto && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		types.proto authservice.proto joinservice.proto
+		certs.proto authservice.proto joinservice.proto
 
 	cd api/types/events && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
