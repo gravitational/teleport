@@ -343,7 +343,6 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 	if !ok {
 		return nil, trace.AccessDenied("missing authentication")
 	}
-	ctx = context.WithValue(ctx, ContextClientAddr, peerInfo.Addr)
 	tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
 	if !ok {
 		return nil, trace.AccessDenied("missing authentication")
@@ -352,6 +351,7 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	ctx = context.WithValue(ctx, ContextClientAddr, peerInfo.Addr)
 	return context.WithValue(ctx, ContextUser, user), nil
 }
 
