@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 
@@ -137,10 +138,7 @@ func (a *Server) UpsertOIDCConnector(ctx context.Context, connector types.OIDCCo
 			Type: events.OIDCConnectorCreatedEvent,
 			Code: events.OIDCConnectorCreatedCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
@@ -161,10 +159,7 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 			Type: events.OIDCConnectorDeletedEvent,
 			Code: events.OIDCConnectorDeletedCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connectorName,
 		},
@@ -598,8 +593,18 @@ func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken s
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return nil, trace.AccessDenied("bad status code: %v", resp.StatusCode)
+	code := resp.StatusCode
+	if code < 200 || code > 299 {
+		// These are expected userinfo failures.
+		if code == http.StatusBadRequest || code == http.StatusUnauthorized ||
+			code == http.StatusForbidden || code == http.StatusMethodNotAllowed {
+			return nil, trace.AccessDenied("bad status code: %v", code)
+		}
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return nil, trace.ReadError(code, body)
 	}
 
 	var claims jose.Claims
@@ -653,6 +658,11 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 	if err != nil {
 		if trace.IsNotFound(err) {
 			log.Debugf("OIDC provider doesn't offer valid UserInfo endpoint. Returning token claims: %v.", idTokenClaims)
+			return idTokenClaims, nil
+		}
+		// This captures 400, 401, 403, and 405.
+		if trace.IsAccessDenied(err) {
+			log.Debugf("UserInfo endpoint returned an error: %v. Returning token claims: %v.", err, idTokenClaims)
 			return idTokenClaims, nil
 		}
 		log.Debugf("Unable to fetch UserInfo claims: %v.", err)

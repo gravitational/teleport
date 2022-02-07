@@ -26,12 +26,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // Application represents a web app.
 type Application interface {
-	// ResourceWithOrigin provides common resource methods.
-	ResourceWithOrigin
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
 	// GetNamespace returns the app namespace.
 	GetNamespace() string
 	// GetStaticLabels returns the app static labels.
@@ -42,8 +43,6 @@ type Application interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the app dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
-	// GetAllLabels returns combined static and dynamic labels.
-	GetAllLabels() map[string]string
 	// LabelsString returns all labels as a string.
 	LabelsString() string
 	// String returns string representation of the app.
@@ -249,6 +248,13 @@ func (a *AppV3) String() string {
 // Copy returns a copy of this database resource.
 func (a *AppV3) Copy() *AppV3 {
 	return proto.Clone(a).(*AppV3)
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (a *AppV3) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName(), a.GetDescription(), a.GetPublicAddr())
+	return MatchSearch(fieldVals, values, nil)
 }
 
 // setStaticFields sets static resource header and metadata fields.

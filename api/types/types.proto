@@ -1527,6 +1527,29 @@ message RoleOptions {
         (gogoproto.jsontag) = "lock,omitempty",
         (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
     ];
+
+    // RecordDesktopSession indicates whether desktop access sessions should be recorded.
+    // It defaults to true unless explicitly set to false.
+    RecordSession RecordSession = 15 [ (gogoproto.jsontag) = "record_session" ];
+
+    // DesktopClipboard indicates whether clipboard sharing is allowed between the user's
+    // workstation and the remote desktop. It defaults to true unless explicitly set to
+    // false.
+    BoolValue DesktopClipboard = 16 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "desktop_clipboard",
+        (gogoproto.customtype) = "BoolOption"
+    ];
+}
+
+message RecordSession {
+    // Desktop indicates whether desktop sessions should be recorded.
+    // It defaults to true unless explicitly set to false.
+    BoolValue Desktop = 1 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "desktop",
+        (gogoproto.customtype) = "BoolOption"
+    ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
@@ -2589,6 +2612,9 @@ message LockTarget {
 
     // WindowsDesktop specifies the name of a Windows desktop.
     string WindowsDesktop = 6 [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
+
+    // AccessRequest specifies the UUID of an access request.
+    string AccessRequest = 7 [ (gogoproto.jsontag) = "access_request,omitempty" ];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specfied

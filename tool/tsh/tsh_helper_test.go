@@ -31,6 +31,7 @@ import (
 
 type suite struct {
 	root      *service.TeleportProcess
+	leaf      *service.TeleportProcess
 	connector types.OIDCConnector
 	user      types.User
 }
@@ -105,8 +106,73 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	t.Cleanup(func() { require.NoError(t, s.root.Close()) })
 }
 
+func (s *suite) setupLeafCluster(t *testing.T) {
+	fileConfig := &config.FileConfig{
+		Version: "v2",
+		Global: config.Global{
+			DataDir:  t.TempDir(),
+			NodeName: "localnode",
+		},
+		SSH: config.SSH{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: localListenerAddr(),
+			},
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: localListenerAddr(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: localListenerAddr(),
+			},
+			ClusterName:       "leaf1",
+			ProxyListenerMode: types.ProxyListenerMode_Multiplex,
+		},
+	}
+
+	cfg := service.MakeDefaultConfig()
+	err := config.ApplyFileConfig(fileConfig, cfg)
+	require.NoError(t, err)
+
+	user, err := user.Current()
+	require.NoError(t, err)
+
+	cfg.Proxy.DisableWebInterface = true
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Logins: []string{user.Username},
+		},
+	})
+	require.NoError(t, err)
+
+	tc, err := types.NewTrustedCluster("root-cluster", types.TrustedClusterSpecV2{
+		Enabled:              true,
+		Token:                staticToken,
+		ProxyAddress:         s.root.Config.Proxy.WebAddr.String(),
+		ReverseTunnelAddress: s.root.Config.Proxy.WebAddr.String(),
+		RoleMap: []types.RoleMapping{
+			{
+				Remote: "access",
+				Local:  []string{"access", "ssh-login"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	cfg.Auth.Resources = []types.Resource{sshLoginRole}
+	s.leaf = runTeleport(t, cfg)
+
+	_, err = s.leaf.GetAuthServer().UpsertTrustedCluster(s.leaf.ExitContext(), tc)
+	require.NoError(t, err)
+}
+
 type testSuiteOptions struct {
 	rootConfigFunc func(cfg *service.Config)
+	leafCluster    bool
 }
 
 type testSuiteOptionFunc func(o *testSuiteOptions)
@@ -114,6 +180,12 @@ type testSuiteOptionFunc func(o *testSuiteOptions)
 func withRootConfigFunc(fn func(cfg *service.Config)) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.rootConfigFunc = fn
+	}
+}
+
+func withLeafCluster() testSuiteOptionFunc {
+	return func(o *testSuiteOptions) {
+		o.leafCluster = true
 	}
 }
 
@@ -125,6 +197,15 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 	s := &suite{}
 
 	s.setupRootCluster(t, options)
+	if options.leafCluster {
+		s.setupLeafCluster(t)
+		require.Eventually(t, func() bool {
+			rt, err := s.root.GetAuthServer().GetTunnelConnections(s.leaf.Config.Auth.ClusterName.GetClusterName())
+			require.NoError(t, err)
+			return len(rt) == 1
+		}, time.Second*10, time.Second)
+	}
+
 	return s
 }
 
