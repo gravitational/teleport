@@ -103,10 +103,12 @@ func NewImplicitRole() types.Role {
 		Spec: types.RoleSpecV4{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.MaxDuration(),
-				// PortForwarding has to be set to false in the default-implicit-role
-				// otherwise all roles will be allowed to forward ports (since we default
-				// to true in the check).
+				// Explicitly disable options that default to true, otherwise the option
+				// will always be enabled, as this implicit role is part of every role set.
 				PortForwarding: types.NewBoolOption(false),
+				RecordSession: &types.RecordSession{
+					Desktop: types.NewBoolOption(false),
+				},
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -663,6 +665,11 @@ type AccessChecker interface {
 
 	// CanPortForward returns true if this RoleSet can forward ports.
 	CanPortForward() bool
+
+	// DesktopClipboard returns true if the role set has enabled shared
+	// clipboard for desktop sessions. Clipboard sharing is disabled if
+	// one or more of the roles in the set has disabled it.
+	DesktopClipboard() bool
 
 	// MaybeCanReviewRequests attempts to guess if this RoleSet belongs
 	// to a user who should be submitting access reviews. Because not all rolesets
@@ -1853,6 +1860,34 @@ func (set RoleSet) CanPortForward() bool {
 		}
 	}
 	return false
+}
+
+// RecordDesktopSession returns true if the role set has enabled desktop
+// session recording. Recording is considered enabled if at least one
+// role in the set has enabled it.
+func (set RoleSet) RecordDesktopSession() bool {
+	for _, role := range set {
+		var bo *types.BoolOption
+		if role.GetOptions().RecordSession != nil {
+			bo = role.GetOptions().RecordSession.Desktop
+		}
+		if types.BoolDefaultTrue(bo) {
+			return true
+		}
+	}
+	return false
+}
+
+// DesktopClipboard returns true if the role set has enabled shared
+// clipboard for desktop sessions. Clipboard sharing is disabled if
+// one or more of the roles in the set has disabled it.
+func (set RoleSet) DesktopClipboard() bool {
+	for _, role := range set {
+		if !types.BoolDefaultTrue(role.GetOptions().DesktopClipboard) {
+			return false
+		}
+	}
+	return true
 }
 
 // MaybeCanReviewRequests attempts to guess if this RoleSet belongs

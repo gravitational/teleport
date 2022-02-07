@@ -1,6 +1,6 @@
 ---
 authors: Zac Bergquist (zac@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0049 - Desktop Access: Clipboard Support

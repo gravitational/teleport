@@ -1957,6 +1957,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentNode)),
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 			regular.SetLockWatcher(lockWatcher),
+			regular.SetX11ForwardingConfig(cfg.SSH.X11),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2901,7 +2902,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register web proxy server
 	var webServer *http.Server
-	var webHandler *web.WebAPIHandler
+	var webHandler *web.APIHandler
 	if !process.Config.Proxy.DisableWebService {
 		var fs http.FileSystem
 		if !process.Config.Proxy.DisableWebInterface {
