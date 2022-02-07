@@ -1113,9 +1113,7 @@ To learn more about Trusted Clusters please visit our [Trusted Cluster Guide](tr
 ## Github OAuth 2.0
 
 Teleport supports authentication and authorization via external identity
-providers such as Github. You can watch the video for how to configure
-[Github as an SSO provider](https://goteleport.com/resources/guides/github-sso-provider-kubernetes-ssh/),
-or you can follow the documentation below.
+providers such as Github.
 
 First, the Teleport auth service must be configured to use Github for
 authentication:
@@ -1877,8 +1875,7 @@ As an extra precaution you might want to backup your application prior to upgrad
   title="Upgrading to Teleport 4.0+"
 >
   Teleport 4.0+ switched to GRPC and HTTP/2 as an API protocol. The HTTP/2 spec bans
-  two previously recommended ciphers. `tls-rsa-with-aes-128-gcm-sha256` & `tls-rsa-with-aes-256-gcm-sha384`, make sure these are removed from `teleport.yaml`
-  [Visit our community for more details](https://community.gravitational.com/t/drop-ciphersuites-blacklisted-by-http-2-spec/446)
+  two previously recommended ciphers. `tls-rsa-with-aes-128-gcm-sha256` & `tls-rsa-with-aes-256-gcm-sha384`, make sure these are removed from `teleport.yaml`.
 
   If upgrading you might want to consider rotating CA to SHA-256 or SHA-512 for RSA
   SSH certificate signatures. The previous default was SHA-1, which is now considered
@@ -2111,7 +2108,7 @@ Now you can see the monitoring information by visiting several endpoints:
 
 ## Getting Help
 
-If you need help, please ask on our [community forum](https://community.gravitational.com/). You can also open an [issue on Github](https://github.com/gravitational/teleport/issues).
+If you need help, please ask on our [discussion forum](https://github.com/gravitational/teleport/discussions). You can also open an [issue on Github](https://github.com/gravitational/teleport/issues).
 
 For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/web/login).
 
