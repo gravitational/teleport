@@ -57,9 +57,6 @@ const (
 	// AWS SignedHeaders will always be lowercase
 	// https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html#sigv4-auth-header-overview
 	challengeHeaderKey = "x-teleport-challenge"
-
-	acceptHeaderKey = "Accept"
-	acceptJSON      = "application/json"
 )
 
 // validateSTSIdentityRequest checks that a received sts:GetCallerIdentity
@@ -361,7 +358,7 @@ func createSignedSTSIdentityRequest(challenge string) ([]byte, error) {
 	// set challenge header
 	req.HTTPRequest.Header.Set(challengeHeaderKey, challenge)
 	// request json for simpler parsing
-	req.HTTPRequest.Header.Set(acceptHeaderKey, acceptJSON)
+	req.HTTPRequest.Header.Set("Accept", "application/json")
 	// sign the request, including headers
 	if err := req.Sign(); err != nil {
 		return nil, trace.Wrap(err)
