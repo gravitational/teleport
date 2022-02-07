@@ -303,7 +303,7 @@ func proxyJoinServiceClient(params RegisterParams) (services.JoinService, error)
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	return client.NewJoinServiceClient(proto.NewJoinServiceClient(conn)), nil
