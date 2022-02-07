@@ -2005,6 +2005,7 @@ func standardPortsOrMuxSetup(mux bool) *InstancePorts {
 }
 
 func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClusterTest) {
+	withInsecureDevMode(t, true)
 	ctx := context.Background()
 	username := suite.me.Username
 
@@ -2019,7 +2020,9 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 		log:         suite.log,
 		Ports:       standardPortsOrMuxSetup(test.multiplex),
 	})
+	t.Cleanup(func() { require.NoError(t, main.StopAll()) })
 	aux := suite.newNamedTeleportInstance(t, clusterAux)
+	t.Cleanup(func() { require.NoError(t, aux.StopAll()) })
 
 	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
 	mainDevs := "main-devs"
@@ -2067,8 +2070,6 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 		tconf.SSH.Enabled = enableSSH
 		return t, nil, tconf
 	}
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
 
 	require.NoError(t, main.CreateEx(makeConfig(false)))
 	require.NoError(t, aux.CreateEx(makeConfig(true)))
@@ -2122,12 +2123,16 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
 	require.NoError(t, aux.StartNodeAndProxy("aux-node", sshPort, proxyWebPort, proxySSHPort))
 
-	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-	abortTime := time.Now().Add(time.Second * 10)
-	for len(checkGetClusters(t, main.Tunnel)) < 2 && len(checkGetClusters(t, aux.Tunnel)) < 2 {
-		time.Sleep(time.Millisecond * 2000)
-		require.False(t, time.Now().After(abortTime), "two clusters do not see each other: tunnels are not working")
-	}
+	// wait for main to see aux through a reverse tunnel
+	require.Eventually(t, func() bool {
+		site, err := main.Tunnel.GetSite(clusterAux)
+		if err != nil {
+			require.True(t, trace.IsNotFound(err))
+			return false
+		}
+		require.Equal(t, teleport.RemoteClusterStatusOnline, site.GetStatus())
+		return true
+	}, time.Second*10, time.Second*2, "main cluster doesn't have a reverse tunnel for aux")
 
 	// check that the CAs have been correctly synchronized between the two clusters
 	for _, c := range []struct {
@@ -2164,8 +2169,6 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 		require.Equal(t, c.trustRel, ca.GetTrustRelationship())
 	}
 
-	cmd := []string{"echo", "hello world"}
-
 	// Try and connect to a node in the Aux cluster from the Main cluster using
 	// direct dialing.
 	creds, err := GenerateUserCreds(UserCredsRequest{
@@ -2191,6 +2194,8 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 		err = tc.AddTrustedCA(auxCAS[i])
 		require.NoError(t, err)
 	}
+
+	cmd := []string{"echo", "hello world"}
 
 	output := &bytes.Buffer{}
 	tc.Stdout = output
@@ -2229,14 +2234,10 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// after removing the remote cluster, the connection will start failing
 	err = main.Process.GetAuthServer().DeleteRemoteCluster(clusterAux)
 	require.NoError(t, err)
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(ctx, cmd, false)
-		if err != nil {
-			break
-		}
-	}
-	require.Error(t, err, "expected tunnel to close and SSH client to start failing")
+
+	require.Eventually(t, func() bool {
+		return tc.SSH(ctx, cmd, false) != nil
+	}, time.Millisecond*600, time.Millisecond*50, "expected tunnel to close and SSH client to start failing")
 
 	// remove trusted cluster from aux cluster side, and recrete right after
 	// this should re-establish connection
@@ -2251,29 +2252,24 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.Len(t, remoteClusters, 1)
 	require.Equal(t, clusterAux, remoteClusters[0].GetName())
 
-	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-	abortTime = time.Now().Add(time.Second * 10)
-	for len(checkGetClusters(t, main.Tunnel)) < 2 {
-		time.Sleep(time.Millisecond * 2000)
-		require.False(t, time.Now().After(abortTime), "two clusters do not see each other: tunnels are not working")
-	}
+	// wait for main to see aux through a reverse tunnel
+	require.Eventually(t, func() bool {
+		site, err := main.Tunnel.GetSite(clusterAux)
+		if err != nil {
+			require.True(t, trace.IsNotFound(err))
+			return false
+		}
+		require.Equal(t, teleport.RemoteClusterStatusOnline, site.GetStatus())
+		return true
+	}, time.Second*10, time.Second*2, "main cluster doesn't have a reverse tunnel for aux")
 
 	// connection and client should recover and work again
 	output = &bytes.Buffer{}
 	tc.Stdout = output
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(ctx, cmd, false)
-		if err == nil {
-			break
-		}
-	}
-	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return tc.SSH(ctx, cmd, false) == nil
+	}, time.Millisecond*600, time.Millisecond*50, "expected tunnel to open up again and SSH client to start working")
 	require.Equal(t, "hello world\n", output.String())
-
-	// stop clusters and remaining nodes
-	require.NoError(t, main.StopAll())
-	require.NoError(t, aux.StopAll())
 }
 
 func checkGetClusters(t *testing.T, tun reversetunnel.Server) []reversetunnel.RemoteSite {

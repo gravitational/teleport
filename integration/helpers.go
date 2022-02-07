@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -1734,4 +1735,16 @@ func genUserKey() (*client.Key, error) {
 			TLSCertificates: [][]byte{caCert},
 		}},
 	}, nil
+}
+
+// withInsecureDevMode will run the current test with a specific
+// InsecureDevMode, resetting it after the test. Can only be used with
+// non-parallel tests.
+func withInsecureDevMode(t *testing.T, m bool) {
+	// this will panic if the test is parallel or if it's made parallel later
+	t.Setenv("withInsecureDevMode", "")
+
+	prev := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(m)
+	t.Cleanup(func() { lib.SetInsecureDevMode(prev) })
 }
