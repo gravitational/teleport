@@ -49,7 +49,7 @@ require (
 	github.com/gravitational/reporting v0.0.0-20210923183620-237377721140
 	github.com/gravitational/roundtrip v1.0.1
 	github.com/gravitational/teleport/api v0.0.0
-	github.com/gravitational/trace v1.1.16-0.20211111002323-2897205b8d7f
+	github.com/gravitational/trace v1.1.16-0.20220114165159-14a9a7dd6aaf
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/jackc/pgconn v1.8.0
@@ -79,7 +79,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1-0.20210219125412-f104497f2b21
 	github.com/stretchr/testify v1.7.0
 	github.com/tstranex/u2f v0.0.0-20160508205855-eb799ce68da4
-	github.com/vulcand/predicate v1.1.0
+	github.com/vulcand/predicate v1.2.0
 	go.etcd.io/etcd/api/v3 v3.5.1
 	go.etcd.io/etcd/client/v3 v3.5.1
 	go.mongodb.org/mongo-driver v1.5.3
