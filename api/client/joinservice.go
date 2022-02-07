@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 )
 
@@ -38,13 +37,18 @@ func NewJoinServiceClient(grpcClient proto.JoinServiceClient) *JoinServiceClient
 	}
 }
 
+// RegisterChallengeResponseFunc is a function type meant to be passed to
+// RegisterUsingIAMMethod. It must return a *types.RegisterUsingTokenRequest for
+// a given challenge, or an error.
+type RegisterChallengeResponseFunc func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error)
+
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
 //
 // The caller must provide a ChallengeResponseFunc which returns a
 // *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
 // including the challenge as a signed header.
-func (c *JoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeResponse types.RegisterChallengeResponseFunc) (*proto.Certs, error) {
+func (c *JoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeResponse RegisterChallengeResponseFunc) (*proto.Certs, error) {
 	// initiate the streaming rpc
 	iamJoinClient, err := c.grpcClient.RegisterUsingIAMMethod(ctx)
 	if err != nil {

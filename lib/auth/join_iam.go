@@ -30,6 +30,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
@@ -238,8 +239,8 @@ func checkIAMAllowRules(identity *awsIdentity, allowRules []*types.TokenRule) er
 	return trace.AccessDenied("instance did not match any allow rules")
 }
 
-func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *types.RegisterUsingTokenRequest) error {
-	tokenName := req.Token
+func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *proto.RegisterUsingIAMMethodRequest) error {
+	tokenName := req.RegisterUsingTokenRequest.Token
 	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -292,7 +293,7 @@ func generateChallenge() (string, error) {
 // The caller must provide a ChallengeResponseFunc which returns a
 // *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
 // including the challenge as a signed header.
-func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse types.RegisterChallengeResponseFunc) (*proto.Certs, error) {
+func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error) {
 	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
 	if !ok {
 		return nil, trace.BadParameter("logic error: client address was not set")
@@ -309,13 +310,13 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse t
 	}
 
 	// fill in the client remote addr to the register request
-	req.RemoteAddr = clientAddr.String()
+	req.RegisterUsingTokenRequest.RemoteAddr = clientAddr.String()
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// perform common token checks
-	if err := a.checkTokenJoinRequestCommon(ctx, req); err != nil {
+	if err := a.checkTokenJoinRequestCommon(ctx, req.RegisterUsingTokenRequest); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -327,19 +328,21 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse t
 	// generate and return host certificate and keys
 	certs, err := a.GenerateHostCerts(ctx,
 		&proto.HostCertsRequest{
-			HostID:               req.HostID,
-			NodeName:             req.NodeName,
-			Role:                 req.Role,
-			AdditionalPrincipals: req.AdditionalPrincipals,
-			PublicTLSKey:         req.PublicTLSKey,
-			PublicSSHKey:         req.PublicSSHKey,
-			RemoteAddr:           req.RemoteAddr,
-			DNSNames:             req.DNSNames,
+			HostID:               req.RegisterUsingTokenRequest.HostID,
+			NodeName:             req.RegisterUsingTokenRequest.NodeName,
+			Role:                 req.RegisterUsingTokenRequest.Role,
+			AdditionalPrincipals: req.RegisterUsingTokenRequest.AdditionalPrincipals,
+			PublicTLSKey:         req.RegisterUsingTokenRequest.PublicTLSKey,
+			PublicSSHKey:         req.RegisterUsingTokenRequest.PublicSSHKey,
+			RemoteAddr:           req.RegisterUsingTokenRequest.RemoteAddr,
+			DNSNames:             req.RegisterUsingTokenRequest.DNSNames,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
+	log.Infof("Node %q [%v] has joined the cluster.",
+		req.RegisterUsingTokenRequest.NodeName,
+		req.RegisterUsingTokenRequest.HostID)
 	return certs, nil
 }
 

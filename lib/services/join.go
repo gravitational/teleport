@@ -19,8 +19,8 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 )
 
@@ -34,7 +34,7 @@ type JoinService interface {
 	// The caller must provide a ChallengeResponseFunc which returns a
 	// *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity
 	// request including the challenge as a signed header.
-	RegisterUsingIAMMethod(ctx context.Context, challengeResponse types.RegisterChallengeResponseFunc) (*proto.Certs, error)
+	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error)
 }
 
 // JoinServiceGRPCServer implements proto.JoinServiceServer and is designed
@@ -63,7 +63,7 @@ func (s *JoinServiceGRPCServer) RegisterUsingIAMMethod(srv proto.JoinService_Reg
 
 	// call RegisterUsingIAMMethod with a callback to get the challenge response
 	// from the gRPC client
-	certs, err := s.joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*types.RegisterUsingTokenRequest, error) {
+	certs, err := s.joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 		// first forward challenge from to the client
 		err := srv.Send(&proto.RegisterUsingIAMMethodResponse{
 			Challenge: challenge,

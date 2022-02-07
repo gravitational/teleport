@@ -447,7 +447,7 @@ func registerUsingIAMMethod(joinService services.JoinService, token string, para
 
 	// call RegisterUsingIAMMethod with a callback to respond to the challenge
 	// with the join request
-	certs, err := joinService.RegisterUsingIAMMethod(ctx, func(challenge string) (*types.RegisterUsingTokenRequest, error) {
+	certs, err := joinService.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 		// create the signed sts:GetCallerIdentity request and include the challenge
 		signedRequest, err := createSignedSTSIdentityRequest(challenge)
 		if err != nil {
@@ -455,16 +455,18 @@ func registerUsingIAMMethod(joinService services.JoinService, token string, para
 		}
 
 		// send the register request including the challenge response
-		return &types.RegisterUsingTokenRequest{
-			Token:                token,
-			HostID:               params.ID.HostUUID,
-			NodeName:             params.ID.NodeName,
-			Role:                 params.ID.Role,
-			AdditionalPrincipals: params.AdditionalPrincipals,
-			DNSNames:             params.DNSNames,
-			PublicTLSKey:         params.PublicTLSKey,
-			PublicSSHKey:         params.PublicSSHKey,
-			STSIdentityRequest:   signedRequest,
+		return &proto.RegisterUsingIAMMethodRequest{
+			RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
+				Token:                token,
+				HostID:               params.ID.HostUUID,
+				NodeName:             params.ID.NodeName,
+				Role:                 params.ID.Role,
+				AdditionalPrincipals: params.AdditionalPrincipals,
+				DNSNames:             params.DNSNames,
+				PublicTLSKey:         params.PublicTLSKey,
+				PublicSSHKey:         params.PublicSSHKey,
+			},
+			STSIdentityRequest: signedRequest,
 		}, nil
 	})
 

@@ -19,19 +19,29 @@ import "certs.proto";
 
 import "github.com/gravitational/teleport/api/types/types.proto";
 
+message RegisterUsingIAMMethodRequest {
+    // RegisterUsingTokenRequest holds registration parameters common to all
+    // join methods.
+    types.RegisterUsingTokenRequest registerUsingTokenRequest = 1;
+    // STSIdentityRequest is a signed HTTP request to the AWS
+    // sts:GetCallerIdentity API endpoint used to prove the AWS identity of a
+    // joining node. It must include the challenge string as a signed header.
+    bytes STSIdentityRequest = 2;
+}
+
 // RegisterUsingIAMMethodResponse is a stream response and will contain either a
 // Challenge or signed Certs to join the cluster.
 message RegisterUsingIAMMethodResponse {
     // Challenge is a crypto-random string that should be included in the signed
     // sts:GetCallerIdentity request.
-    string Challenge = 1;
+    string challenge = 1;
     // Certs is the returned signed certs.
-    Certs Certs = 2;
+    Certs certs = 2;
 }
 
 service JoinService {
     // RegisterUsingIAMMethod is used to register a new node to the cluster using
     // the IAM join method.
-    rpc RegisterUsingIAMMethod(stream types.RegisterUsingTokenRequest)
+    rpc RegisterUsingIAMMethod(stream RegisterUsingIAMMethodRequest)
         returns (stream RegisterUsingIAMMethodResponse);
 }
