@@ -70,26 +70,26 @@ to `v3`.
 
 </Details>
 
-- [Create a new project.](https://console.cloud.google.com/projectselector2/apis/dashboard)
+- [Create a new project](https://console.cloud.google.com/projectselector2/apis/dashboard).
   ![creation of a Google Cloud Platform project](../../../img/googleoidc/new-project.png)
 - [Configure the OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent):
-  - Select "Internal" as your User Type:
+  - Select "Internal" as your User Type.
     ![configuration of the OAuth consent screen](../../../img/googleoidc/consent-screen-1.png)
   - Configure the appearence of your connector by picking a visible name, user support email, etc.
-  - Select the `.../auth/userinfo.email` and `openid` scopes
+  - Select the `.../auth/userinfo.email` and `openid` scopes.
     ![select email and openid scopes](../../../img/googleoidc/consent-screen-2.png)
 - Enable the [Cloud Identity API](https://console.cloud.google.com/apis/library/cloudidentity.googleapis.com) or the [Admin SDK API](https://console.cloud.google.com/apis/library/admin.googleapis.com) for transitive and direct group membership, respectively. Enabling both is fine.
 - [Create an OAuth client ID](https://console.cloud.google.com/apis/credentials/oauthclient):
-  - Select "Web application" as the Application type, pick a name, then add `https://<address of proxy server>:3080/v1/webapi/oidc/callback` as an authorized redirect URI
+  - Select "Web application" as the Application type, pick a name, then add `https://<address of proxy server>:3080/v1/webapi/oidc/callback` as an authorized redirect URI.
     ![OAuth client ID creation](../../../img/googleoidc/clientid-creation.png)
-  - Copy the Client ID and Client Secret from the next screen or by clicking "Download OAuth client"
+  - Copy the Client ID and Client Secret from the next screen or by clicking "Download OAuth client".
     ![OAuth client data](../../../img/googleoidc/clientid-data.png)
 - [Create a service account](https://console.cloud.google.com/iam-admin/serviceaccounts/create):
-  - Pick a name, leave project access and user access blank
+  - Pick a name for your service account. Leave project access grants and user access grants empty.
     ![service account creation](../../../img/googleoidc/serviceacct-creation.png)
-  - Click the newly-created account to view its details, and copy the Unique ID for later
+  - Click the newly-created account to view its details, and copy the Unique ID for later.
     ![service account unique ID](../../../img/googleoidc/serviceacct-uniqueid.png)
-  - Create a new key for the service account, select JSON as the key type, and save the resulting JSON file
+  - Create a new key for the service account, select JSON as the key type, and save the resulting JSON file.
     ![service account key creation](../../../img/googleoidc/serviceacct-key.png)
     This JSON file will need to be uploaded to the Teleport Auth Server, and will be later referenced by
     the OIDC Connector, under `google_service_account_uri` or inline with `google_service_account`.
@@ -99,13 +99,14 @@ to `v3`.
   up in a High Availability config.
 </Admonition>
 
-- Configure [domain-wide delegation](https://admin.google.com/ac/owl/domainwidedelegation) for your newly-created service account
-  ![domain-wide delegation](../../../img/googleoidc/domainwidedelegation.png)
-  and add either the
+- Configure [domain-wide
+  delegation](https://admin.google.com/ac/owl/domainwidedelegation) for your
+  newly-created service account and add either the
   `https://www.googleapis.com/auth/cloud-identity.groups.readonly` scope or the
   `https://www.googleapis.com/auth/admin.directory.group.readonly` scope. The
   scope granted to the service account will determine if Teleport will fetch
   both direct and indirect groups or just direct groups, respectively.
+  ![domain-wide delegation](../../../img/googleoidc/domainwidedelegation.png)
 
 <Admonition
   type="tip"
