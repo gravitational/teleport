@@ -40,6 +40,7 @@ The following are required options for `require_session_join`:
 |`filter`|[Filter](./moderated-sessions.mdx#filters)|An expression that, if it evaluates to true for a given user, enables the user to be present in a Moderated Session|
 |`kinds`|`[]`[Session kind](./moderated-sessions.mdx/#session-kinds)|The kind of session that the policy applies to|
 |`modes`|`[]`[Participant mode](./moderated-sessions.mdx#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
+|`count`|[Participant mode](./moderated-sessions.mdx#require-policy-count)|The amount of users that need to match the filter expression to satisfy the policy|
 
 #### Example
 
@@ -128,6 +129,12 @@ When joining a session with `tsh join` or `tsh kube join`, a user can specify a 
 A participant may leave a session with the shortcut `c` while in observer or moderator mode.
 When in moderator mode, a participant may also forcefully terminate the session at any point in time
 with the shortcut `t`.
+
+### Require policy count
+
+Require policies can have a variable amount of users that need to match the filter expression
+in order to satisfy the policy. The `count` field of a require policy is a positive integer
+value that specifies the minimum amount of users this policy requires.
 
 ## Backwards compatibility with Server Access
 
