@@ -384,6 +384,11 @@ func TestMakeClient(t *testing.T) {
 	conf.NodePort = 46528
 	conf.LocalForwardPorts = []string{"80:remote:180"}
 	conf.DynamicForwardedPorts = []string{":8080"}
+	conf.ExtraProxyHeaders = []ExtraProxyHeaders{
+		{Proxy: "proxy:3080", Headers: map[string]string{"A": "B"}},
+		{Proxy: "*roxy:3080", Headers: map[string]string{"C": "D"}},
+		{Proxy: "*hello:3080", Headers: map[string]string{"E": "F"}}, // shouldn't get included
+	}
 	tc, err = makeClient(&conf, true)
 	require.NoError(t, err)
 	require.Equal(t, time.Minute*time.Duration(conf.MinsToLive), tc.Config.KeyTTL)
@@ -402,6 +407,10 @@ func TestMakeClient(t *testing.T) {
 			SrcPort: 8080,
 		},
 	}, tc.Config.DynamicForwardedPorts)
+
+	require.Equal(t,
+		map[string]string{"A": "B", "C": "D"},
+		tc.ExtraProxyHeaders)
 
 	_, proxy := makeTestServers(t)
 
