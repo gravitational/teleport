@@ -387,6 +387,108 @@ func TestWatchers(t *testing.T) {
 	}
 }
 
+func TestNodeCAFiltering(t *testing.T) {
+	ctx := context.Background()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	nodeCacheBackend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeCacheBackend.Close()) })
+
+	// this mimics a cache for a node pulling events from the auth server via WatchEvents
+	nodeCache, err := New(ForNode(Config{
+		Events:          p.cache,
+		Trust:           p.cache.trustCache,
+		ClusterConfig:   p.cache.clusterConfigCache,
+		Provisioner:     p.cache.provisionerCache,
+		Users:           p.cache.usersCache,
+		Access:          p.cache.accessCache,
+		DynamicAccess:   p.cache.dynamicAccessCache,
+		Presence:        p.cache.presenceCache,
+		Restrictions:    p.cache.restrictionsCache,
+		Apps:            p.cache.appsCache,
+		Databases:       p.cache.databasesCache,
+		AppSession:      p.cache.appSessionCache,
+		WebSession:      p.cache.webSessionCache,
+		WebToken:        p.cache.webTokenCache,
+		WindowsDesktops: p.cache.windowsDesktopsCache,
+		Backend:         nodeCacheBackend,
+	}))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
+
+	cacheWatcher, err := nodeCache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{{Kind: types.KindCertAuthority}}})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, cacheWatcher.Close()) })
+
+	fetchEvent := func() types.Event {
+		var ev types.Event
+		select {
+		case ev = <-cacheWatcher.Events():
+		case <-time.After(time.Second * 5):
+			t.Fatal("watcher timeout")
+		}
+		return ev
+	}
+	require.Equal(t, types.OpInit, fetchEvent().Type)
+
+	// upsert and delete a local host CA, we expect to see a Put and a Delete event
+	localCA := suite.NewTestCA(types.HostCA, "local-cluster")
+	localCA.SetTrustRelationship(types.TrustRelationshipLocal)
+	require.NoError(t, p.trustS.UpsertCertAuthority(localCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(localCA.GetID()))
+
+	ev := fetchEvent()
+	require.Equal(t, types.OpPut, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "local-cluster", ev.Resource.GetName())
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "local-cluster", ev.Resource.GetName())
+
+	// upsert and delete a remote CA, we expect to only see the Delete event
+	remoteCA := suite.NewTestCA(types.HostCA, "remote-cluster")
+	remoteCA.SetTrustRelationship(types.TrustRelationshipRemote)
+	require.NoError(t, p.trustS.UpsertCertAuthority(remoteCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(remoteCA.GetID()))
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "remote-cluster", ev.Resource.GetName())
+
+	// upsert and delete a trusted host CA, we expect to only see the Delete event
+	trustedHostCA := suite.NewTestCA(types.HostCA, "trusted-cluster")
+	trustedHostCA.SetTrustRelationship(types.TrustRelationshipTrusted)
+	require.NoError(t, p.trustS.UpsertCertAuthority(trustedHostCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(trustedHostCA.GetID()))
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "trusted-cluster", ev.Resource.GetName())
+
+	// whereas we expect to see the Put and Delete for a trusted *user* CA
+	trustedUserCA := suite.NewTestCA(types.UserCA, "trusted-cluster-2")
+	trustedUserCA.SetTrustRelationship(types.TrustRelationshipTrusted)
+	require.NoError(t, p.trustS.UpsertCertAuthority(trustedUserCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(trustedUserCA.GetID()))
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpPut, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "trusted-cluster-2", ev.Resource.GetName())
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "trusted-cluster-2", ev.Resource.GetName())
+}
+
 func waitForRestart(t *testing.T, eventsC <-chan Event) {
 	waitForEvent(t, eventsC, WatcherStarted, Reloading, WatcherFailed)
 }
