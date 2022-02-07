@@ -21,19 +21,23 @@ Any workable solution must satisfy the following goals
  1. The build system must be able to create repeatable builds, from source, of
     any revision of the Teleport source at any time. 
 
- 2. The same process (and its resulting images) should be used by all parts 
-    of the development cycle (development, test, CI, Release)
+ 2. The same process (and its resulting images) should be used by all automated 
+    builds (e.g. CI, test & Release)
 
  3. Changes to the buildbox image must be reviewable and auditable.
 
- 4. Using the buildbox images (at least in public-facing CI) must not require 
+ 4. Changes to the buildbox should be opt-in, in the sense that changes to a 
+    buildbox should not be *forced* on a consumer - the consumer should deliberately 
+    reference the updated buildbox image.
+
+ 5. Using the buildbox images (at least in public-facing CI) must *not* require 
     the use of privileged containers (e.g. require Docker-In-Docker), as this 
     is a security threat.
 
- 5. Creating an updated buildbox image once changes have been approved should 
+ 6. Creating an updated buildbox image once changes have been approved should 
     be automatic (or at least a single push-button operation)
 
- 6. Where multiple build environments are required, they should all be 
+ 7. Where multiple build environments are required, they should all be 
     produced by the same process.
 
 ### The current process
@@ -56,7 +60,7 @@ This process meets several of the goals set above:
    Goal #3 is met
  * Images are automatically produced for both CI and Release, so Goal #4 is met
  * Images for all of the different build targets are created in the same way, so
-   Goal #6 is met
+   Goal #7 is met
 
 On the other hand:
 
@@ -65,10 +69,22 @@ On the other hand:
    to downloaded artifacts being subverted.
  * We tag _every_ revision of the buildbox with the current go version, meaning
    that we cannot uniquely identify any revision of the buildbox image.
+ * Using the version of Go as the image tag means we have no mechanism to 
+   independently upgrade other software in the image, or identify which images 
+   contain what versions of, for example, Rust.
+ * Updating the buildbox image automatically forces and CI jobs using the 
+   buildbox to accept the new changes. This has recently caused issues where 
+   updating the buildbox `go1.17.2` image to build Teleport 9 broke CI for 
+   Teleport 8, as there is no way to differentiate the images they require.
 
-Repeatability
+### Suggested changes
 
-While the current process meets 
-
-For release
-Immutable tags
+* Independently versioned buildboxes, so we can deal with things like Go and 
+  Rust being updated independently
+* Buildbox source extracted from Teleport repo into it's own space
+* Images get build on a tag as per releases, after code review & CI as per
+  general software.
+* Images being pushed to a repository with immutable tags, so we have a guarantee
+  that the image is what we think it is
+* Everything (including releases) uses the same set of images
+* Enforce strong validation of components on the buildbox as far as possible
