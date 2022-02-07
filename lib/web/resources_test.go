@@ -111,6 +111,7 @@ spec:
   deny: {}
   options:
     cert_format: standard
+    desktop_clipboard: true
     enhanced_recording:
     - command
     - network
@@ -130,12 +131,12 @@ version: v3
 
 	item, err := ui.NewResourceItem(role)
 	require.Nil(t, err)
-	require.Equal(t, item, &ui.ResourceItem{
+	require.Equal(t, &ui.ResourceItem{
 		ID:      "role:roleName",
 		Kind:    types.KindRole,
 		Name:    "roleName",
 		Content: contents,
-	})
+	}, item)
 }
 
 func TestNewResourceItemTrustedCluster(t *testing.T) {
