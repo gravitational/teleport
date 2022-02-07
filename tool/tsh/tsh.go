@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -210,6 +211,15 @@ type CLIConf struct {
 	// NoRemoteExec will not execute a remote command after connecting to a host,
 	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
 	NoRemoteExec bool
+
+	// X11ForwardingUntrusted will set up untrusted X11 forwarding for the session ('ssh -X')
+	X11ForwardingUntrusted bool
+
+	// X11Forwarding will set up trusted X11 forwarding for the session ('ssh -Y')
+	X11ForwardingTrusted bool
+
+	// X11ForwardingTimeout can optionally set to set a timeout for untrusted X11 forwarding.
+	X11ForwardingTimeout time.Duration
 
 	// Debug sends debug logs to stdout.
 	Debug bool
@@ -384,6 +394,9 @@ func Run(args []string, opts ...cliOption) error {
 	ssh.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
+	ssh.Flag("x11-untrusted", "Requests untrusted (secure) X11 forwarding for this session").Short('X').BoolVar(&cf.X11ForwardingUntrusted)
+	ssh.Flag("x11-trusted", "Requests trusted (insecure) X11 forwarding for this session. This can make your local displays vulnerable to attacks, use with caution").Short('Y').BoolVar(&cf.X11ForwardingTrusted)
+	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
 
 	// AWS.
 	aws := app.Command("aws", "Access AWS API.")
@@ -1978,6 +1991,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		c.ForwardAgent = client.ForwardAgentYes
 	}
 
+	if err := setX11Config(c, cf, options, os.Getenv); err != nil {
+		log.WithError(err).Info("X11 forwarding is not properly configured, continuing without it.")
+	}
+
 	// If the caller does not want to check host keys, pass in a insecure host
 	// key checker.
 	if !options.StrictHostKeyChecking {
@@ -2037,6 +2054,30 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	}
 
 	return tc, nil
+}
+
+// setX11Config sets X11 config using CLI and SSH option flags.
+func setX11Config(c *client.Config, cf *CLIConf, o Options, fn envGetter) error {
+	// X11 forwarding can be enabled with -X, -Y, or -oForwardX11=yes
+	c.EnableX11Forwarding = cf.X11ForwardingUntrusted || cf.X11ForwardingTrusted || o.ForwardX11
+
+	if c.EnableX11Forwarding && fn(x11.DisplayEnv) == "" {
+		c.EnableX11Forwarding = false
+		return trace.BadParameter("$DISPLAY must be set for X11 forwarding")
+	}
+
+	c.X11ForwardingTrusted = cf.X11ForwardingTrusted
+	if o.ForwardX11Trusted != nil && *o.ForwardX11Trusted {
+		c.X11ForwardingTrusted = true
+	}
+
+	// Set X11 forwarding timeout, prioritizing the SSH option if set.
+	c.X11ForwardingTimeout = o.ForwardX11Timeout
+	if c.X11ForwardingTimeout == 0 {
+		c.X11ForwardingTimeout = cf.X11ForwardingTimeout
+	}
+
+	return nil
 }
 
 // defaultWebProxyPorts is the order of default proxy ports to try, in order that
