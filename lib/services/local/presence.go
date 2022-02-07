@@ -1525,7 +1525,15 @@ func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResou
 				return false, trace.Wrap(err)
 			}
 
-			if !types.MatchLabels(resource, req.Labels) {
+			switch match, err := services.MatchResourceByFilters(resource, services.MatchResourceFilter{
+				ResourceKind:        req.ResourceType,
+				Labels:              req.Labels,
+				SearchKeywords:      req.SearchKeywords,
+				PredicateExpression: req.PredicateExpression,
+			}); {
+			case err != nil:
+				return false, trace.Wrap(err)
+			case !match:
 				continue
 			}
 

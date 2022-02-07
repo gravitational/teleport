@@ -687,6 +687,40 @@ func TestListResources(t *testing.T) {
 			}, time.Second, 100*time.Millisecond)
 			require.Empty(t, nextKey)
 
+			// list resources only with matching search keywords
+			var resultResourcesWithSearchKeywords []types.ResourceWithLabels
+			require.Eventually(t, func() bool {
+				resources, nextKey, err = presence.ListResources(ctx, proto.ListResourcesRequest{
+					Limit:          int32(resourcesPerPage),
+					Namespace:      apidefaults.Namespace,
+					ResourceType:   test.resourceType,
+					StartKey:       nextKey,
+					SearchKeywords: []string{"env", "test"},
+				})
+				require.NoError(t, err)
+
+				resultResourcesWithSearchKeywords = append(resultResourcesWithSearchKeywords, resources...)
+				return len(resultResourcesWithSearchKeywords) == totalWithLabels
+			}, time.Second, 100*time.Millisecond)
+			require.Empty(t, nextKey)
+
+			// list resources only with matching expression
+			var resultResourcesWithMatchExprs []types.ResourceWithLabels
+			require.Eventually(t, func() bool {
+				resources, nextKey, err = presence.ListResources(ctx, proto.ListResourcesRequest{
+					Limit:               int32(resourcesPerPage),
+					Namespace:           apidefaults.Namespace,
+					ResourceType:        test.resourceType,
+					StartKey:            nextKey,
+					PredicateExpression: `labels.env == "test"`,
+				})
+				require.NoError(t, err)
+
+				resultResourcesWithMatchExprs = append(resultResourcesWithMatchExprs, resources...)
+				return len(resultResourcesWithMatchExprs) == totalWithLabels
+			}, time.Second, 100*time.Millisecond)
+			require.Empty(t, nextKey)
+
 			// delete everything
 			err = test.deleteAllResourcesFunc(ctx)
 			require.NoError(t, err)
@@ -702,5 +736,4 @@ func TestListResources(t *testing.T) {
 			require.Empty(t, resources)
 		})
 	}
-
 }
