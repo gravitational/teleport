@@ -2129,6 +2129,41 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 		require.False(t, time.Now().After(abortTime), "two clusters do not see each other: tunnels are not working")
 	}
 
+	// check that the CAs have been correctly synchronized between the two clusters
+	for _, c := range []struct {
+		instance *TeleInstance
+		caType   types.CertAuthType
+		name     string
+		trustRel types.TrustRelationship // empty if we expect the CA to not exist
+	}{
+		{main, types.HostCA, clusterMain, types.TrustRelationshipLocal},
+		{main, types.UserCA, clusterMain, types.TrustRelationshipLocal},
+		{main, types.JWTSigner, clusterMain, types.TrustRelationshipLocal},
+		{main, types.HostCA, clusterAux, types.TrustRelationshipRemote},
+		{main, types.UserCA, clusterAux, ""},
+		{main, types.JWTSigner, clusterAux, ""},
+		{aux, types.HostCA, clusterMain, types.TrustRelationshipTrusted},
+		{aux, types.UserCA, clusterMain, types.TrustRelationshipTrusted},
+		{aux, types.JWTSigner, clusterMain, ""},
+		{aux, types.HostCA, clusterAux, types.TrustRelationshipLocal},
+		{aux, types.UserCA, clusterAux, types.TrustRelationshipLocal},
+		{aux, types.JWTSigner, clusterAux, types.TrustRelationshipLocal},
+	} {
+		ca, err := c.instance.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
+			Type:       c.caType,
+			DomainName: c.name,
+		}, false)
+		if c.trustRel == "" {
+			require.Error(t, err)
+			require.True(t, trace.IsNotFound(err))
+			continue
+		}
+		require.NoError(t, err)
+		require.Equal(t, c.name, ca.GetClusterName())
+		require.Equal(t, c.caType, ca.GetType())
+		require.Equal(t, c.trustRel, ca.GetTrustRelationship())
+	}
+
 	cmd := []string{"echo", "hello world"}
 
 	// Try and connect to a node in the Aux cluster from the Main cluster using
