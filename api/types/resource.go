@@ -291,12 +291,11 @@ func IsValidLabelKey(s string) bool {
 // Returns true if all search vals were matched (or if nil search vals).
 // Returns false if no or partial match (or nil field values).
 func MatchSearch(fieldVals []string, searchVals []string, customMatch func(val string) bool) bool {
-	if len(fieldVals) == 0 && len(searchVals) > 0 {
-		return false
-	}
-
 	if len(searchVals) == 0 {
 		return true
+	}
+	if len(fieldVals) == 0 && customMatch == nil {
+		return false
 	}
 
 	// Case fold all values to avoid repeated case folding while matching.

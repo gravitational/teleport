@@ -695,7 +695,7 @@ func TestGetAndList_Nodes(t *testing.T) {
 		Limit:        5,
 	})
 	require.NoError(t, err)
-	require.EqualValues(t, 5, len(nodes))
+	require.Len(t, nodes, 5)
 	expectedNodes := testResources[:5]
 	require.Empty(t, cmp.Diff(expectedNodes, nodes))
 
@@ -710,7 +710,7 @@ func TestGetAndList_Nodes(t *testing.T) {
 		Limit:        5,
 	})
 	require.NoError(t, err)
-	require.EqualValues(t, 5, len(nodes))
+	require.Len(t, nodes, 5)
 	expectedNodes = append(testResources[:3], testResources[4:6]...)
 	require.Empty(t, cmp.Diff(expectedNodes, nodes))
 

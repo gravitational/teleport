@@ -810,9 +810,12 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	// Perform the label/search/expr filtering here (instead of at the backend
 	// `ListResources`) to ensure that it will be applied only to resources
 	// the user has access to.
-	requestLabels := req.Labels
-	requestSearchKeywords := req.SearchKeywords
-	requestPredicateExpr := req.PredicateExpression
+	filter := services.MatchResourceFilter{
+		ResourceKind:        req.ResourceType,
+		Labels:              req.Labels,
+		SearchKeywords:      req.SearchKeywords,
+		PredicateExpression: req.PredicateExpression,
+	}
 	req.Labels = nil
 	req.SearchKeywords = nil
 	req.PredicateExpression = ""
@@ -832,12 +835,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 				return false, trace.Wrap(err)
 			}
 
-			switch match, err := services.MatchResourceByFilters(resource, services.MatchResourceFilter{
-				ResourceKind:        req.ResourceType,
-				Labels:              requestLabels,
-				SearchKeywords:      requestSearchKeywords,
-				PredicateExpression: requestPredicateExpr,
-			}); {
+			switch match, err := services.MatchResourceByFilters(resource, filter); {
 			case err != nil:
 				return false, trace.Wrap(err)
 			case !match:

@@ -59,8 +59,11 @@ func MatchResourceLabels(matchers []ResourceMatcher, resource types.ResourceWith
 }
 
 // MatchResourceByFilters returns true if all filter values given matched against the resource.
+// For resource KubeService, b/c of its 1-N relationhip with service-clusters,
+// it filters out the non-matched clusters on the kube service and the kube service
+// is modified in place with only the matched clusters.
 func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
-	if filter.Labels == nil && len(filter.PredicateExpression) == 0 && len(filter.SearchKeywords) == 0 {
+	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" {
 		return true, nil
 	}
 
@@ -97,7 +100,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 }
 
 func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
-	if len(filter.PredicateExpression) > 0 {
+	if filter.PredicateExpression != "" {
 		parser, err := NewResourceParser(resource)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -126,7 +129,7 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 //  1) handles kube service having a 1-N relationship (service-clusters)
 //     so each kube cluster goes through the filters
 //  2) filters out the non-matched clusters on the kube service and the kube service is
-//     updated in place with only the matched clusters
+//     modified in place with only the matched clusters
 //  3) only returns true if the service contained any matched cluster
 func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
 	server, ok := resource.(types.Server)
@@ -136,24 +139,20 @@ func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchR
 
 	kubeClusters := server.GetKubernetesClusters()
 
-	// Get the list of kube clusters.
-	resources := make([]types.ResourceWithLabels, len(kubeClusters))
-	for i, kube := range kubeClusters {
-		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
+	// Apply filter to each kube cluster.
+	filtered := make([]*types.KubernetesCluster, 0, len(kubeClusters))
+	for _, kube := range kubeClusters {
+		kubeResource, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		resources[i] = k8sV3
-	}
 
-	// Apply filter to each kube cluster.
-	filtered := make([]*types.KubernetesCluster, 0, len(kubeClusters))
-	for i, resource := range resources {
-		switch match, err := matchResourceByFilters(resource, filter); {
-		case err != nil:
+		match, err := matchResourceByFilters(kubeResource, filter)
+		if err != nil {
 			return false, trace.Wrap(err)
-		case match:
-			filtered = append(filtered, kubeClusters[i])
+		}
+		if match {
+			filtered = append(filtered, kube)
 		}
 	}
 
