@@ -47,8 +47,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -88,7 +88,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 
 	rc := NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		log:         utils.NewLoggerForTests(),
 		Ports:       options.rootClusterPorts,
@@ -97,7 +97,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	// Create leaf cluster.
 	lc := NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
-		HostID:      uuid.New(),
+		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        rc.Secrets.PrivKey,
 		Pub:         rc.Secrets.PubKey,
@@ -163,11 +163,6 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 }
 
 func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
-	const (
-		deadline         = time.Second * 10
-		nextIterWaitTime = time.Second * 2
-	)
-
 	nodeConfig := func() *service.Config {
 		tconf := service.MakeDefaultConfig()
 		tconf.Console = nil
@@ -188,13 +183,11 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 	_, err := p.leaf.StartNode(nodeConfig())
 	require.NoError(t, err)
 
-	err = utils.RetryStaticFor(deadline, nextIterWaitTime, func() error {
-		if len(checkGetClusters(t, p.root.Tunnel)) < 2 && len(checkGetClusters(t, p.leaf.Tunnel)) < 2 {
-			return trace.NotFound("two clusters do not see each other: tunnels are not working")
-		}
-		return nil
-	})
-	require.NoError(t, err)
+	// Wait for both cluster to see each other via reverse tunnels.
+	require.Eventually(t, waitForClusters(p.root.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, waitForClusters(p.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
 
 	// Wait for both nodes to show up before attempting to dial to them.
 	err = waitForNodeCount(context.Background(), p.root, p.leaf.Secrets.SiteName, 2)

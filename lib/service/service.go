@@ -91,9 +91,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
@@ -230,23 +230,25 @@ type Connector struct {
 	Client *auth.Client
 }
 
-// TunnelProxy if non-empty, indicates that the client is connected to the Auth Server
+// TunnelProxyResolver if non-nil, indicates that the client is connected to the Auth Server
 // through the reverse SSH tunnel proxy
-func (c *Connector) TunnelProxy() string {
+func (c *Connector) TunnelProxyResolver() reversetunnel.Resolver {
 	if c.Client == nil || c.Client.Dialer() == nil {
-		return ""
+		return nil
 	}
-	tun, ok := c.Client.Dialer().(*reversetunnel.TunnelAuthDialer)
-	if !ok {
-		return ""
+
+	switch dialer := c.Client.Dialer().(type) {
+	case *reversetunnel.TunnelAuthDialer:
+		return dialer.Resolver
+	default:
+		return nil
 	}
-	return tun.ProxyAddr
 }
 
 // UseTunnel indicates if the client is connected directly to the Auth Server
 // (false) or through the proxy (true).
 func (c *Connector) UseTunnel() bool {
-	return c.TunnelProxy() != ""
+	return c.TunnelProxyResolver() != nil
 }
 
 // Close closes resources associated with connector
@@ -647,7 +649,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		} else {
 			switch cfg.JoinMethod {
 			case JoinMethodToken:
-				cfg.HostUUID = uuid.New()
+				cfg.HostUUID = uuid.New().String()
 			case JoinMethodEC2:
 				cfg.HostUUID, err = utils.GetEC2NodeID()
 				if err != nil {
@@ -663,7 +665,8 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	}
 
-	if uuid.Parse(cfg.HostUUID) == nil {
+	_, err = uuid.Parse(cfg.HostUUID)
+	if err != nil {
 		cfg.Log.Warnf("Host UUID %q is not a true UUID (not eligible for UUID-based proxying)", cfg.HostUUID)
 	}
 
@@ -1954,6 +1957,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentNode)),
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 			regular.SetLockWatcher(lockWatcher),
+			regular.SetX11ForwardingConfig(cfg.SSH.X11),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1998,7 +2002,7 @@ func (process *TeleportProcess) initSSH() error {
 				reversetunnel.AgentPoolConfig{
 					Component:   teleport.ComponentNode,
 					HostUUID:    conn.ServerIdentity.ID.HostUUID,
-					ProxyAddr:   conn.TunnelProxy(),
+					Resolver:    conn.TunnelProxyResolver(),
 					Client:      conn.Client,
 					AccessPoint: conn.Client,
 					HostSigner:  conn.ServerIdentity.KeySigner,
@@ -2898,7 +2902,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register web proxy server
 	var webServer *http.Server
-	var webHandler *web.WebAPIHandler
+	var webHandler *web.APIHandler
 	if !process.Config.Proxy.DisableWebService {
 		var fs http.FileSystem
 		if !process.Config.Proxy.DisableWebInterface {
@@ -3522,13 +3526,9 @@ func (process *TeleportProcess) initApps() {
 		// If it was not, it is running in single process mode which is used for
 		// development and demos. In that case, wait until all dependencies (like
 		// auth and reverse tunnel server) are ready before starting.
-		var tunnelAddr string
-		if conn.TunnelProxy() != "" {
-			tunnelAddr = conn.TunnelProxy()
-		} else {
-			if tunnelAddr, ok = process.singleProcessMode(resp.GetProxyListenerMode()); !ok {
-				return trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
-			}
+		tunnelAddrResolver := conn.TunnelProxyResolver()
+		if tunnelAddrResolver == nil {
+			tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
 
 			// Block and wait for all dependencies to start before starting.
 			log.Debugf("Waiting for application service dependencies to start.")
@@ -3650,11 +3650,12 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		// Create and start an agent pool.
-		agentPool, err = reversetunnel.NewAgentPool(process.ExitContext(),
+		agentPool, err = reversetunnel.NewAgentPool(
+			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
 				Component:   teleport.ComponentApp,
 				HostUUID:    conn.ServerIdentity.ID.HostUUID,
-				ProxyAddr:   tunnelAddr,
+				Resolver:    tunnelAddrResolver,
 				Client:      conn.Client,
 				Server:      appServer,
 				AccessPoint: accessPoint,
@@ -3909,31 +3910,49 @@ func (process *TeleportProcess) initDebugApp() {
 	})
 }
 
+// singleProcessModeResolver returns the reversetunnel.Resolver that should be used when running all components needed
+// within the same process. It's used for development and demo purposes.
+func (process *TeleportProcess) singleProcessModeResolver(mode types.ProxyListenerMode) reversetunnel.Resolver {
+	return func() (*utils.NetAddr, error) {
+		addr, ok := process.singleProcessMode(mode)
+		if !ok {
+			return nil, trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
+		}
+		return addr, nil
+	}
+}
+
 // singleProcessMode returns true when running all components needed within
 // the same process. It's used for development and demo purposes.
-func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) (string, bool) {
+func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) (*utils.NetAddr, bool) {
 	if !process.Config.Proxy.Enabled || !process.Config.Auth.Enabled {
-		return "", false
+		return nil, false
 	}
 	if process.Config.Proxy.DisableReverseTunnel {
-		return "", false
+		return nil, false
 	}
 
 	if !process.Config.Proxy.DisableTLS && !process.Config.Proxy.DisableALPNSNIListener && mode == types.ProxyListenerMode_Multiplex {
 		if len(process.Config.Proxy.PublicAddrs) != 0 {
-			return process.Config.Proxy.PublicAddrs[0].String(), true
+			return &process.Config.Proxy.PublicAddrs[0], true
 		}
 		// If WebAddress is unspecified "0.0.0.0" replace 0.0.0.0 with localhost since 0.0.0.0 is never a valid
 		// principal (auth server explicitly removes it when issuing host certs) and when WebPort is used
 		// in the single process mode to establish SSH reverse tunnel connection the host is validated against
 		// the valid principal list.
-		return utils.ReplaceUnspecifiedHost(&process.Config.Proxy.WebAddr, defaults.HTTPListenPort), true
+		addr := process.Config.Proxy.WebAddr
+		addr.Addr = utils.ReplaceUnspecifiedHost(&addr, defaults.HTTPListenPort)
+		return &addr, true
 	}
 
 	if len(process.Config.Proxy.TunnelPublicAddrs) == 0 {
-		return net.JoinHostPort(string(teleport.PrincipalLocalhost), strconv.Itoa(defaults.SSHProxyTunnelListenPort)), true
+		addr, err := utils.ParseHostPortAddr(string(teleport.PrincipalLocalhost), defaults.SSHProxyTunnelListenPort)
+		if err != nil {
+			return nil, false
+		}
+		return addr, true
 	}
-	return process.Config.Proxy.TunnelPublicAddrs[0].String(), true
+	return &process.Config.Proxy.TunnelPublicAddrs[0], true
 }
 
 // dumperHandler is an Application Access debugging application that will

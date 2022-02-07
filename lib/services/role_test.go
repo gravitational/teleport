@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
@@ -122,42 +122,42 @@ func TestRoleParse(t *testing.T) {
 		{
 			name: "validation error, missing resources",
 			in: `{
-							   		      "kind": "role",
-							   		      "version": "v3",
-							   		      "metadata": {"name": "name1"},
-							   		      "spec": {
-							                    "allow": {
-							                      "node_labels": {"a": "b"},
-							                      "namespaces": ["default"],
-							                      "rules": [
-							                        {
-							                          "verbs": ["read", "list"]
-							                        }
-							                      ]
-							                    }
-							   		      }
-							   		    }`,
+					"kind": "role",
+					"version": "v3",
+					"metadata": {"name": "name1"},
+					"spec": {
+						"allow": {
+							"node_labels": {"a": "b"},
+							"namespaces": ["default"],
+							"rules": [
+								{
+									"verbs": ["read", "list"]
+								}
+							]
+						}
+					}
+				}`,
 			error:        trace.BadParameter(""),
 			matchMessage: "missing resources",
 		},
 		{
 			name: "validation error, missing verbs",
 			in: `{
-							   		      "kind": "role",
-							   		      "version": "v3",
-							   		      "metadata": {"name": "name1"},
-							   		      "spec": {
-							                    "allow": {
-							                      "node_labels": {"a": "b"},
-							                      "namespaces": ["default"],
-							                      "rules": [
-							                        {
-							                          "resources": ["role"]
-							                        }
-							                      ]
-							                    }
-							   		      }
-							   		    }`,
+					"kind": "role",
+					"version": "v3",
+					"metadata": {"name": "name1"},
+					"spec": {
+						"allow": {
+							"node_labels": {"a": "b"},
+							"namespaces": ["default"],
+							"rules": [
+								{
+									"resources": ["role"]
+								}
+							]
+						}
+					}
+				}`,
 			error:        trace.BadParameter(""),
 			matchMessage: "missing verbs",
 		},
@@ -190,7 +190,9 @@ func TestRoleParse(t *testing.T) {
 						CertificateFormat: constants.CertificateFormatStandard,
 						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 						PortForwarding:    types.NewBoolOption(true),
+						RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						BPF:               apidefaults.EnhancedEvents(),
+						DesktopClipboard:  types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{},
@@ -221,7 +223,9 @@ func TestRoleParse(t *testing.T) {
 						CertificateFormat: constants.CertificateFormatStandard,
 						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 						PortForwarding:    types.NewBoolOption(true),
+						RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						BPF:               apidefaults.EnhancedEvents(),
+						DesktopClipboard:  types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
@@ -236,42 +240,43 @@ func TestRoleParse(t *testing.T) {
 		{
 			name: "full valid role",
 			in: `{
-					   		      "kind": "role",
-					   		      "version": "v3",
-					   		      "metadata": {"name": "name1", "labels": {"a-b": "c"}},
-					   		      "spec": {
-					                    "options": {
-					                      "cert_format": "standard",
-					                      "max_session_ttl": "20h",
-					                      "port_forwarding": true,
-					                      "client_idle_timeout": "17m",
-					                      "disconnect_expired_cert": "yes",
-			                              "enhanced_recording": ["command", "network"]
-					                    },
-					                    "allow": {
-					                      "node_labels": {"a": "b", "c-d": "e"},
-					                      "app_labels": {"a": "b", "c-d": "e"},
-					                      "kubernetes_labels": {"a": "b", "c-d": "e"},
-										  "db_labels": {"a": "b", "c-d": "e"},
-										  "db_names": ["postgres"],
-										  "db_users": ["postgres"],
-					                      "namespaces": ["default"],
-					                      "rules": [
-					                        {
-					                          "resources": ["role"],
-					                          "verbs": ["read", "list"],
-					                          "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
-					                          "actions": [
-					                             "log(\"info\", \"log entry\")"
-					                          ]
-					                        }
-					                      ]
-					                    },
-					                    "deny": {
-					                      "logins": ["c"]
-					                    }
-					   		      }
-					   		    }`,
+					"kind": "role",
+					"version": "v3",
+					"metadata": {"name": "name1", "labels": {"a-b": "c"}},
+					"spec": {
+						"options": {
+							"cert_format": "standard",
+							"max_session_ttl": "20h",
+							"port_forwarding": true,
+							"client_idle_timeout": "17m",
+							"disconnect_expired_cert": "yes",
+							"enhanced_recording": ["command", "network"],
+							"desktop_clipboard": true
+						},
+						"allow": {
+							"node_labels": {"a": "b", "c-d": "e"},
+							"app_labels": {"a": "b", "c-d": "e"},
+							"kubernetes_labels": {"a": "b", "c-d": "e"},
+							"db_labels": {"a": "b", "c-d": "e"},
+							"db_names": ["postgres"],
+							"db_users": ["postgres"],
+							"namespaces": ["default"],
+							"rules": [
+								{
+									"resources": ["role"],
+									"verbs": ["read", "list"],
+									"where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+									"actions": [
+										"log(\"info\", \"log entry\")"
+									]
+								}
+							]
+						},
+						"deny": {
+							"logins": ["c"]
+						}
+					}
+				}`,
 			role: types.RoleV4{
 				Kind:    types.KindRole,
 				Version: types.V3,
@@ -285,9 +290,11 @@ func TestRoleParse(t *testing.T) {
 						CertificateFormat:     constants.CertificateFormatStandard,
 						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
 						PortForwarding:        types.NewBoolOption(true),
+						RecordSession:         &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						ClientIdleTimeout:     types.NewDuration(17 * time.Minute),
 						DisconnectExpiredCert: types.NewBool(true),
 						BPF:                   apidefaults.EnhancedEvents(),
+						DesktopClipboard:      types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -319,41 +326,42 @@ func TestRoleParse(t *testing.T) {
 		{
 			name: "alternative options form",
 			in: `{
-		   		      "kind": "role",
-		   		      "version": "v3",
-		   		      "metadata": {"name": "name1"},
-		   		      "spec": {
-		                    "options": {
-		                      "cert_format": "standard",
-		                      "max_session_ttl": "20h",
-		                      "port_forwarding": "yes",
-		                      "forward_agent": "yes",
-		                      "client_idle_timeout": "never",
-		                      "disconnect_expired_cert": "no",
-		                      "enhanced_recording": ["command", "network"]
-		                    },
-		                    "allow": {
-		                      "node_labels": {"a": "b"},
-		                      "app_labels": {"a": "b"},
-		                      "kubernetes_labels": {"c": "d"},
-		                      "db_labels": {"e": "f"},
-		                      "namespaces": ["default"],
-		                      "rules": [
-		                        {
-		                          "resources": ["role"],
-		                          "verbs": ["read", "list"],
-		                          "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
-		                          "actions": [
-		                             "log(\"info\", \"log entry\")"
-		                          ]
-		                        }
-		                      ]
-		                    },
-		                    "deny": {
-		                      "logins": ["c"]
-		                    }
-		   		      }
-		   		    }`,
+		   			  "kind": "role",
+		   			  "version": "v3",
+		   			  "metadata": {"name": "name1"},
+		   			  "spec": {
+							"options": {
+							  "cert_format": "standard",
+							  "max_session_ttl": "20h",
+							  "port_forwarding": "yes",
+							  "forward_agent": "yes",
+							  "client_idle_timeout": "never",
+							  "disconnect_expired_cert": "no",
+							  "enhanced_recording": ["command", "network"],
+							  "desktop_clipboard": true
+							},
+							"allow": {
+							  "node_labels": {"a": "b"},
+							  "app_labels": {"a": "b"},
+							  "kubernetes_labels": {"c": "d"},
+							  "db_labels": {"e": "f"},
+							  "namespaces": ["default"],
+							  "rules": [
+								{
+								  "resources": ["role"],
+								  "verbs": ["read", "list"],
+								  "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+								  "actions": [
+									 "log(\"info\", \"log entry\")"
+								  ]
+								}
+							  ]
+							},
+							"deny": {
+							  "logins": ["c"]
+							}
+		   			  }
+		   			}`,
 			role: types.RoleV4{
 				Kind:    types.KindRole,
 				Version: types.V3,
@@ -367,9 +375,11 @@ func TestRoleParse(t *testing.T) {
 						ForwardAgent:          types.NewBool(true),
 						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
 						PortForwarding:        types.NewBoolOption(true),
+						RecordSession:         &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						ClientIdleTimeout:     types.NewDuration(0),
 						DisconnectExpiredCert: types.NewBool(false),
 						BPF:                   apidefaults.EnhancedEvents(),
+						DesktopClipboard:      types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}},
@@ -399,30 +409,31 @@ func TestRoleParse(t *testing.T) {
 		{
 			name: "non-scalar and scalar values of labels",
 			in: `{
-		   		      "kind": "role",
-		   		      "version": "v3",
-		   		      "metadata": {"name": "name1"},
-		   		      "spec": {
-		                    "options": {
-		                      "cert_format": "standard",
-		                      "max_session_ttl": "20h",
-		                      "port_forwarding": "yes",
-		                      "forward_agent": "yes",
-		                      "client_idle_timeout": "never",
-		                      "disconnect_expired_cert": "no",
-		                      "enhanced_recording": ["command", "network"]
-		                    },
-		                    "allow": {
-		                      "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
-		                      "app_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
-		                      "kubernetes_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
-		                      "db_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
-		                    },
-		                    "deny": {
-		                      "logins": ["c"]
-		                    }
-		   		      }
-		   		    }`,
+		   			  "kind": "role",
+		   			  "version": "v3",
+		   			  "metadata": {"name": "name1"},
+		   			  "spec": {
+							"options": {
+							  "cert_format": "standard",
+							  "max_session_ttl": "20h",
+							  "port_forwarding": "yes",
+							  "forward_agent": "yes",
+							  "client_idle_timeout": "never",
+							  "disconnect_expired_cert": "no",
+							  "enhanced_recording": ["command", "network"],
+							  "desktop_clipboard": true
+							},
+							"allow": {
+							  "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+							  "app_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+							  "kubernetes_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+							  "db_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
+							},
+							"deny": {
+							  "logins": ["c"]
+							}
+		   			  }
+		   			}`,
 			role: types.RoleV4{
 				Kind:    types.KindRole,
 				Version: types.V3,
@@ -436,9 +447,11 @@ func TestRoleParse(t *testing.T) {
 						ForwardAgent:          types.NewBool(true),
 						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
 						PortForwarding:        types.NewBoolOption(true),
+						RecordSession:         &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						ClientIdleTimeout:     types.NewDuration(0),
 						DisconnectExpiredCert: types.NewBool(false),
 						BPF:                   apidefaults.EnhancedEvents(),
+						DesktopClipboard:      types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{
@@ -2347,34 +2360,48 @@ func TestExtractFrom(t *testing.T) {
 // port forwarding) can be disabled in a role.
 func TestBoolOptions(t *testing.T) {
 	var tests = []struct {
-		inOptions           types.RoleOptions
-		outCanPortForward   bool
-		outCanForwardAgents bool
+		inOptions                types.RoleOptions
+		outCanPortForward        bool
+		outCanForwardAgents      bool
+		outRecordDesktopSessions bool
+		outDesktopClipboard      bool
 	}{
 		// Setting options explicitly off should remain off.
 		{
 			inOptions: types.RoleOptions{
-				ForwardAgent:   types.NewBool(false),
-				PortForwarding: types.NewBoolOption(false),
+				ForwardAgent:     types.NewBool(false),
+				PortForwarding:   types.NewBoolOption(false),
+				RecordSession:    &types.RecordSession{Desktop: types.NewBoolOption(false)},
+				DesktopClipboard: types.NewBoolOption(false),
 			},
-			outCanPortForward:   false,
-			outCanForwardAgents: false,
+			outCanPortForward:        false,
+			outCanForwardAgents:      false,
+			outRecordDesktopSessions: false,
+			outDesktopClipboard:      false,
 		},
-		// Not setting options should set port forwarding to true (default enabled)
-		// and agent forwarding false (default disabled).
+		// Not setting options should set port forwarding to true (default enabled),
+		// agent forwarding false (default disabled),
+		// desktop session recording to true (default enabled),
+		// and desktop clipboard sharing to true (default enabled).
 		{
-			inOptions:           types.RoleOptions{},
-			outCanPortForward:   true,
-			outCanForwardAgents: false,
+			inOptions:                types.RoleOptions{},
+			outCanPortForward:        true,
+			outCanForwardAgents:      false,
+			outRecordDesktopSessions: true,
+			outDesktopClipboard:      true,
 		},
 		// Explicitly enabling should enable them.
 		{
 			inOptions: types.RoleOptions{
-				ForwardAgent:   types.NewBool(true),
-				PortForwarding: types.NewBoolOption(true),
+				ForwardAgent:     types.NewBool(true),
+				PortForwarding:   types.NewBoolOption(true),
+				RecordSession:    &types.RecordSession{Desktop: types.NewBoolOption(true)},
+				DesktopClipboard: types.NewBoolOption(true),
 			},
-			outCanPortForward:   true,
-			outCanForwardAgents: true,
+			outCanPortForward:        true,
+			outCanForwardAgents:      true,
+			outRecordDesktopSessions: true,
+			outDesktopClipboard:      true,
 		},
 	}
 	for _, tt := range tests {
@@ -2391,6 +2418,8 @@ func TestBoolOptions(t *testing.T) {
 		})
 		require.Equal(t, tt.outCanPortForward, set.CanPortForward())
 		require.Equal(t, tt.outCanForwardAgents, set.CanForwardAgents())
+		require.Equal(t, tt.outRecordDesktopSessions, set.RecordDesktopSession())
+		require.Equal(t, tt.outDesktopClipboard, set.DesktopClipboard())
 	}
 }
 
@@ -3165,6 +3194,100 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 	}
 }
 
+func TestDesktopRecordingEnabled(t *testing.T) {
+	for _, test := range []struct {
+		desc         string
+		roles        []types.RoleV4
+		shouldRecord bool
+	}{
+		{
+			desc: "single role recording disabled",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {
+					r.SetName("no-record")
+					r.SetOptions(types.RoleOptions{
+						RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(false)},
+					})
+				}),
+			},
+			shouldRecord: false,
+		},
+		{
+			desc: "multiple roles, one requires recording",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {
+					r.SetOptions(types.RoleOptions{
+						RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(false)},
+					})
+				}),
+				newRole(func(r *types.RoleV4) {
+					r.SetOptions(types.RoleOptions{
+						RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(false)},
+					})
+				}),
+				// recording defaults to true, so a default role should force recording
+				newRole(func(r *types.RoleV4) {}),
+			},
+			shouldRecord: true,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			var roles []types.Role
+			for _, r := range test.roles {
+				roles = append(roles, &r)
+			}
+			rs := NewRoleSet(roles...)
+			require.Equal(t, test.shouldRecord, rs.RecordDesktopSession())
+		})
+	}
+}
+
+func TestDesktopClipboard(t *testing.T) {
+	for _, test := range []struct {
+		desc         string
+		roles        []types.RoleV4
+		hasClipboard bool
+	}{
+		{
+			desc:         "single role, unspecified, defaults true",
+			roles:        []types.RoleV4{newRole(func(r *types.RoleV4) {})},
+			hasClipboard: true,
+		},
+		{
+			desc: "single role, explicitly disabled",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {
+					r.SetOptions(types.RoleOptions{
+						DesktopClipboard: types.NewBoolOption(false),
+					})
+				}),
+			},
+			hasClipboard: false,
+		},
+		{
+			desc: "multiple conflicting roles, disable wins",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {}),
+				newRole(func(r *types.RoleV4) {
+					r.SetOptions(types.RoleOptions{
+						DesktopClipboard: types.NewBoolOption(false),
+					})
+				}),
+			},
+			hasClipboard: false,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			var roles []types.Role
+			for _, r := range test.roles {
+				roles = append(roles, &r)
+			}
+			rs := NewRoleSet(roles...)
+			require.Equal(t, test.hasClipboard, rs.DesktopClipboard())
+		})
+	}
+}
+
 func TestCheckAccessToWindowsDesktop(t *testing.T) {
 	desktopNoLabels := &types.WindowsDesktopV3{
 		ResourceHeader: types.ResourceHeader{
@@ -3322,7 +3445,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 
 	// Create 4,000 servers with random IDs.
 	for i := 0; i < 4000; i++ {
-		hostname := uuid.NewUUID().String()
+		hostname := uuid.New().String()
 		servers = append(servers, &types.ServerV2{
 			Kind:    types.KindNode,
 			Version: types.V2,
@@ -3413,7 +3536,7 @@ func TestRoleSetLockingMode(t *testing.T) {
 
 	missingMode := constants.LockingMode("")
 	newRoleWithLockingMode := func(t *testing.T, mode constants.LockingMode) types.Role {
-		role, err := types.NewRole(uuid.New(), types.RoleSpecV4{Options: types.RoleOptions{Lock: mode}})
+		role, err := types.NewRole(uuid.New().String(), types.RoleSpecV4{Options: types.RoleOptions{Lock: mode}})
 		require.NoError(t, err)
 		return role
 	}
@@ -3452,14 +3575,14 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	allowWhere := func(where string) types.Role {
-		role, err := types.NewRole(uuid.New(), types.RoleSpecV4{Allow: types.RoleConditions{
+		role, err := types.NewRole(uuid.New().String(), types.RoleSpecV4{Allow: types.RoleConditions{
 			Rules: []types.Rule{{Resources: []string{types.KindSession}, Verbs: []string{types.VerbList}, Where: where}},
 		}})
 		require.NoError(t, err)
 		return role
 	}
 	denyWhere := func(where string) types.Role {
-		role, err := types.NewRole(uuid.New(), types.RoleSpecV4{Deny: types.RoleConditions{
+		role, err := types.NewRole(uuid.New().String(), types.RoleSpecV4{Deny: types.RoleConditions{
 			Rules: []types.Rule{{Resources: []string{types.KindSession}, Verbs: []string{types.VerbList}, Where: where}},
 		}})
 		require.NoError(t, err)
@@ -3557,4 +3680,314 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 	_, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.True(t, trace.IsAccessDenied(err))
+}
+
+func TestCheckKubeGroupsAndUsers(t *testing.T) {
+	roleA := &types.RoleV4{
+		Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				KubeGroups: []string{"system:masters"},
+				KubeUsers:  []string{"dev-user"},
+				KubernetesLabels: map[string]apiutils.Strings{
+					"env": []string{"dev"},
+				},
+			},
+		},
+	}
+	roleB := &types.RoleV4{
+		Metadata: types.Metadata{Name: "roleB", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				KubeGroups: []string{"limited"},
+				KubeUsers:  []string{"limited-user"},
+				KubernetesLabels: map[string]apiutils.Strings{
+					"env": []string{"prod"},
+				},
+			},
+		},
+	}
+	roleC := &types.RoleV4{
+		Metadata: types.Metadata{Name: "roleC", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				KubeGroups: []string{"system:masters", "groupB"},
+				KubeUsers:  []string{"user"},
+				KubernetesLabels: map[string]apiutils.Strings{
+					"env": []string{"dev", "prod"},
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name          string
+		kubeResLabels map[string]string
+		roles         RoleSet
+		wantUsers     []string
+		wantGroups    []string
+		errorFunc     func(t *testing.T, err error)
+	}{
+		{
+			name: "empty kube labels should returns all kube users/groups",
+			roles: RoleSet{
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "role-dev", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubeUsers:  []string{"dev-user"},
+							KubeGroups: []string{"system:masters"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"*": []string{"*"},
+							},
+						},
+					},
+				},
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "role-prod", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubeUsers:  []string{"limited-user"},
+							KubeGroups: []string{"limited"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"*": []string{"*"},
+							},
+						},
+					},
+				},
+			},
+			wantUsers:  []string{"dev-user", "limited-user"},
+			wantGroups: []string{"limited", "system:masters"},
+		},
+		{
+			name:  "dev accesses should allow system:masters roles",
+			roles: RoleSet{roleA, roleB},
+			kubeResLabels: map[string]string{
+				"env": "dev",
+			},
+			wantUsers:  []string{"dev-user"},
+			wantGroups: []string{"system:masters"},
+		},
+		{
+			name:  "prod limited access",
+			roles: RoleSet{roleA, roleB},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"limited-user"},
+			wantGroups: []string{"limited"},
+		},
+		{
+			name:  "combine kube users/groups for different roles",
+			roles: RoleSet{roleA, roleB, roleC},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"limited-user", "user"},
+			wantGroups: []string{"groupB", "limited", "system:masters"},
+		},
+		{
+			name:  "all prod group",
+			roles: RoleSet{roleC},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"user"},
+			wantGroups: []string{"system:masters", "groupB"},
+		},
+		{
+			name: "deny system:masters prod kube group",
+			roles: RoleSet{
+				roleC,
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "roleD", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Deny: types.RoleConditions{
+							KubeGroups: []string{"system:masters"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"env": []string{"prod", "dev"},
+							},
+						},
+					},
+				},
+			},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"user"},
+			wantGroups: []string{"groupB"},
+		},
+		{
+			name: "deny access with system:masters kube group",
+			kubeResLabels: map[string]string{
+				"env":     "prod",
+				"release": "test",
+			},
+			roles: RoleSet{
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubeGroups: []string{"system:masters", "groupA"},
+							KubeUsers:  []string{"dev-user"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"env":     []string{"prod"},
+								"release": []string{"test"},
+							},
+						},
+					},
+				},
+				&types.RoleV4{
+					Metadata: types.Metadata{Name: "deny", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Deny: types.RoleConditions{
+							KubeGroups: []string{"system:masters"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"env": []string{"prod"},
+							},
+						},
+					},
+				},
+			},
+			wantUsers:  []string{"dev-user"},
+			wantGroups: []string{"groupA"},
+		},
+		{
+			name:          "v4 role empty deny.kubernetes_labels",
+			kubeResLabels: nil,
+			roles: RoleSet{
+				&types.RoleV4{
+					Version:  types.V4,
+					Metadata: types.Metadata{Name: "roleV4A", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+						Deny: types.RoleConditions{
+							KubeGroups: []string{"system:masters"},
+							KubeUsers:  []string{"dev-user"},
+						},
+					},
+				},
+			},
+			errorFunc: func(t *testing.T, err error) {
+				require.IsType(t, trace.AccessDenied(""), err)
+			},
+		},
+		{
+			name:          "v4 role with wildcard deny.kubernetes_labels",
+			kubeResLabels: nil,
+			roles: RoleSet{
+				&types.RoleV4{
+					Version:  types.V4,
+					Metadata: types.Metadata{Name: "roleV4A", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+						Deny: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+					},
+				},
+			},
+			errorFunc: func(t *testing.T, err error) {
+				require.IsType(t, trace.AccessDenied(""), err)
+			},
+		},
+		{
+			name:          "v3 role with empty deny.kubernetes_labels",
+			kubeResLabels: nil,
+			roles: RoleSet{
+				&types.RoleV4{
+					Version:  types.V3,
+					Metadata: types.Metadata{Name: "roleV3A", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+						Deny: types.RoleConditions{
+							KubeGroups: []string{"system:masters"},
+							KubeUsers:  []string{"dev-user"},
+						},
+					},
+				},
+			},
+			errorFunc: func(t *testing.T, err error) {
+				require.IsType(t, trace.AccessDenied(""), err)
+			},
+		},
+		{
+			name:          "v3 with wildcard deny.kubernetes_labels",
+			kubeResLabels: nil,
+			roles: RoleSet{
+				&types.RoleV4{
+					Version:  types.V3,
+					Metadata: types.Metadata{Name: "roleV3A", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+						Deny: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+					},
+				},
+			},
+			errorFunc: func(t *testing.T, err error) {
+				require.IsType(t, trace.AccessDenied(""), err)
+			},
+		},
+		{
+			name:          "v3 role with custom deny.kubernetes_labels",
+			kubeResLabels: nil,
+			roles: RoleSet{
+				&types.RoleV4{
+					Version:  types.V3,
+					Metadata: types.Metadata{Name: "roleV3A", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV4{
+						Allow: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+						Deny: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{"env": []string{"env"}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+					},
+				},
+			},
+			wantUsers:  []string{"dev-user"},
+			wantGroups: []string{"system:masters"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels)
+			gotGroups, gotUsers, err := tc.roles.CheckKubeGroupsAndUsers(time.Hour, true, matcher)
+			if tc.errorFunc == nil {
+				require.NoError(t, err)
+			} else {
+				tc.errorFunc(t, err)
+			}
+
+			require.ElementsMatch(t, tc.wantUsers, gotUsers)
+			require.ElementsMatch(t, tc.wantGroups, gotGroups)
+		})
+	}
 }

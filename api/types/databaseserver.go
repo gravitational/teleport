@@ -28,8 +28,8 @@ import (
 
 // DatabaseServer represents a database access server.
 type DatabaseServer interface {
-	// Resource provides common resource methods.
-	Resource
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
 	// GetNamespace returns server namespace.
 	GetNamespace() string
 	// GetTeleportVersion returns the teleport version the server is running on.
@@ -243,9 +243,43 @@ func (s *DatabaseServerV3) CheckAndSetDefaults() error {
 	return nil
 }
 
+// Origin returns the origin value of the resource.
+func (s *DatabaseServerV3) Origin() string {
+	return s.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (s *DatabaseServerV3) SetOrigin(origin string) {
+	s.Metadata.SetOrigin(origin)
+}
+
+// GetAllLabels returns all resource's labels. Considering:
+// * Static labels from `Metadata.Labels` and `Spec.Database`.
+// * Dynamic labels from `Spec.DynamicLabels`.
+func (s *DatabaseServerV3) GetAllLabels() map[string]string {
+	staticLabels := make(map[string]string)
+	for name, value := range s.Metadata.Labels {
+		staticLabels[name] = value
+	}
+
+	if s.Spec.Database != nil {
+		for name, value := range s.Spec.Database.Metadata.Labels {
+			staticLabels[name] = value
+		}
+	}
+
+	return CombineLabels(staticLabels, s.Spec.DynamicLabels)
+}
+
 // Copy returns a copy of this database server object.
 func (s *DatabaseServerV3) Copy() DatabaseServer {
 	return proto.Clone(s).(*DatabaseServerV3)
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (s *DatabaseServerV3) MatchSearch(values []string) bool {
+	return MatchSearch(nil, values, nil)
 }
 
 // DatabaseServers represents a list of database servers.

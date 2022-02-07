@@ -1527,6 +1527,29 @@ message RoleOptions {
         (gogoproto.jsontag) = "lock,omitempty",
         (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
     ];
+
+    // RecordDesktopSession indicates whether desktop access sessions should be recorded.
+    // It defaults to true unless explicitly set to false.
+    RecordSession RecordSession = 15 [ (gogoproto.jsontag) = "record_session" ];
+
+    // DesktopClipboard indicates whether clipboard sharing is allowed between the user's
+    // workstation and the remote desktop. It defaults to true unless explicitly set to
+    // false.
+    BoolValue DesktopClipboard = 16 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "desktop_clipboard",
+        (gogoproto.customtype) = "BoolOption"
+    ];
+}
+
+message RecordSession {
+    // Desktop indicates whether desktop sessions should be recorded.
+    // It defaults to true unless explicitly set to false.
+    BoolValue Desktop = 1 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "desktop",
+        (gogoproto.customtype) = "BoolOption"
+    ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
@@ -2309,8 +2332,8 @@ message ResourcesInNamespaceRequest {
     string Namespace = 1;
 }
 
-// OIDCConnectorV2 represents an OIDC connector.
-message OIDCConnectorV2 {
+// OIDCConnectorV3 represents an OIDC connector.
+message OIDCConnectorV3 {
     // Kind is a resource kind.
     string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources.
@@ -2320,20 +2343,20 @@ message OIDCConnectorV2 {
     // Metadata holds resource metadata.
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is an OIDC connector specification.
-    OIDCConnectorSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+    OIDCConnectorSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
-// OIDCConnectorV2List is a list of OIDC connectors.
-message OIDCConnectorV2List {
+// OIDCConnectorV3List is a list of OIDC connectors.
+message OIDCConnectorV3List {
     // OIDCConnectors is a list of OIDC connectors.
-    repeated OIDCConnectorV2 OIDCConnectors = 1;
+    repeated OIDCConnectorV3 OIDCConnectors = 1;
 }
 
-// OIDCConnectorSpecV2 is an OIDC connector specification.
+// OIDCConnectorSpecV3 is an OIDC connector specification.
 //
 // It specifies configuration for Open ID Connect compatible external
 // identity provider: https://openid.net/specs/openid-connect-core-1_0.html
-message OIDCConnectorSpecV2 {
+message OIDCConnectorSpecV3 {
     // IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
     string IssuerURL = 1 [ (gogoproto.jsontag) = "issuer_url" ];
     // ClientID is the id of the authentication client (Teleport Auth server).
@@ -2589,6 +2612,9 @@ message LockTarget {
 
     // WindowsDesktop specifies the name of a Windows desktop.
     string WindowsDesktop = 6 [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
+
+    // AccessRequest specifies the UUID of an access request.
+    string AccessRequest = 7 [ (gogoproto.jsontag) = "access_request,omitempty" ];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specfied

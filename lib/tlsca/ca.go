@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 
 	"github.com/gravitational/trace"
@@ -628,6 +629,14 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 	return id, nil
+}
+
+func (id Identity) GetUserMetadata() events.UserMetadata {
+	return events.UserMetadata{
+		User:           id.Username,
+		Impersonator:   id.Impersonator,
+		AccessRequests: id.ActiveRequests,
+	}
 }
 
 // CertificateRequest is a X.509 signing certificate request
