@@ -29,7 +29,7 @@ $ cd content/(=version=)
 Check out a new branch of `gravitational/teleport`.
 
 ```code
-$ git checkout -b my-branch
+$ git switch -c my-branch
 ```
 
 ## Step 2/4 Test your changes
@@ -79,8 +79,8 @@ Copy the hash of the commit we made to `my-branch`, then run the following comma
 
 ```code
 $ git fetch origin
-$ git checkout branch/v8
-$ git checkout -b my-branch-backport-v8
+$ git switch branch/v8
+$ git switch -c my-branch-backport-v8
 $ git cherry-pick <commit-hash>
 $ git push -u fork my-branch-backport-v8
 ```

@@ -7,7 +7,9 @@ Teleport uses Next.js to generate its static documentation site. Next.js uses Ma
 This section briefly describes some of the features that are most relevant when writing documentation.
 
 ## Variables, templating, and interpolation
-Many documentation teams struggle with maintaining the vast number of articles and resources that are eventually created and consumed. Links and images have to be rechecked for accuracy and relevance.
+Many documentation teams struggle with maintaining the vast number of articles
+and resources that are eventually created and consumed. Links and images have to
+be rechecked for accuracy and relevance.
 
 To ease this burden, we can replace links and code examples with *variables* so we don't have to constantly update everything after each release.
 
@@ -18,13 +20,17 @@ To insert a variable into a page, use the `(\= path.to.variable \=)` syntax (rem
 Variables will be linted when a PR is created as part of our CI/CD process. If a variable does not exist in the config, you will see an error that you must remedy in order to merge your PR.
 
 ## Partials
-To prevent content duplication, it's useful to include code examples or Markdown content from a partial file into the current page. This allows our documentation to reduce maintenance overhead so we can focus on writing new articles.
+To prevent content duplication, it's useful to include code examples or Markdown
+content from a partial file into the current page. This allows our documentation
+to reduce maintenance overhead so we can focus on writing new articles.
 
 To include a partial, use the following syntax: `(\!path-to-file.mdx\!)` syntax (remove the backslashes in an actual page).
 
 Paths are resolved from the root of the repository.
 
-Partials will be linted when a PR is created as part of our CI/CD process. If a partial does not exist in the repository, our system will throw an error. Incorrect placement of include statements will also throw errors.
+Partials will be linted when a PR is created as part of our CI/CD process. If a
+partial does not exist in the repository, our system will throw an error.
+Incorrect placement of include statements will also throw errors.
 
 Partials will only be included in these two cases:
 
@@ -57,15 +63,20 @@ These will be inserted as-is, even in the case of `.mdx` files.
 ## Image pixel density markers
 Browsers can't distinguish between images that are suitable for Apple's Retina display and images that are not. Because of this, screenshots taken on Retina screens may look large on the page.
 
-To hint to browsers that an image is meant for a Retina display, we can add the suffix `@Nx` to the image's file name. For example, screenshots made on MacOS should have the suffix `filename@2x.png`. This will tell the browser to scale images down twice to show them in their actual size.
+To hint to browsers that an image is meant for a Retina display, we can add the
+suffix `@Nx` to the image's file name. For example, screenshots made on MacOS
+should have the suffix `filename@2x.png`. This will tell the browser to scale
+images down twice to show them in their actual size.
 
 ## Scopes
 There are three versions of Teleport: `oss`, `enterprise`, and `cloud`. Readers can switch the scope of the documentation using a dropdown menu at the top of the page.
 
 Based on the selector's value, some `.mdx` components can hide or show different content sections. Check the components' descriptions below to see which component can be affected by this selector. These components will include the `scope` property.
 
-If `scope` is set, the component will be only shown if the scope
-is selected via the dropdown menu. `scope` can be either a single string or an array of strings. Possible values are `oss`, `enterprise`, and `cloud`. For an array of strings, use this syntax: `scope={["oss", "cloud"]}`.
+If `scope` is set, the component will be only shown if the scope is selected via
+the dropdown menu. `scope` can be either a single string or an array of strings.
+Possible values are `oss`, `enterprise`, and `cloud`. For an array of strings,
+use this syntax: `scope={["oss", "cloud"]}`.
 
 ## Notices
 <Notice type="tip">Notice content.</Notice>
