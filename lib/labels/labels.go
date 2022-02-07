@@ -19,7 +19,9 @@ limitations under the License.
 package labels
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"os/exec"
 	"strings"
 	"sync"
@@ -147,12 +149,24 @@ func (l *Dynamic) periodicUpdateLabel(name string, label types.CommandLabel) {
 
 // updateLabel will run a command, then update the value of a label.
 func (l *Dynamic) updateLabel(name string, label types.CommandLabel) {
-	out, err := exec.Command(label.GetCommand()[0], label.GetCommand()[1:]...).Output()
+	var logMsg string
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd := exec.Command(label.GetCommand()[0], label.GetCommand()[1:]...)
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
 	if err != nil {
-		l.c.Log.Errorf("Failed to run command and update label: %v.", err)
-		label.SetResult(err.Error() + " output: " + string(out))
+		if logrus.GetLevel() == logrus.DebugLevel {
+			cmdString := strings.Join(label.GetCommand(), " ")
+			logMsg = fmt.Sprintf("Failed to run command '%v' and update label: %v.", cmdString, stderr.String())
+		} else {
+			logMsg = fmt.Sprintf("Failed to run command and update label: %v.", err)
+		}
+		l.c.Log.Error(logMsg)
+		label.SetResult(err.Error() + " output: " + out.String())
 	} else {
-		label.SetResult(strings.TrimSpace(string(out)))
+		label.SetResult(strings.TrimSpace(out.String()))
 	}
 
 	// Perform the actual label update under a lock.

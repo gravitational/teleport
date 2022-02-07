@@ -17,16 +17,18 @@ limitations under the License.
 package labels
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
+"github.com/stretchr/testify/require"
 
-	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 func TestMain(m *testing.M) {
@@ -73,6 +75,8 @@ func TestStart(t *testing.T) {
 
 // TestInvalidCommand makes sure that invalid commands return a error message.
 func TestInvalidCommand(t *testing.T) {
+	var buf bytes.Buffer
+	logrus.SetOutput(&buf)
 	// Create invalid labels and sync right away.
 	l, err := NewDynamic(context.Background(), &DynamicConfig{
 		Labels: map[string]types.CommandLabel{
@@ -84,8 +88,9 @@ func TestInvalidCommand(t *testing.T) {
 	require.NoError(t, err)
 	l.Sync()
 
-	// Check that the output contains that the command was not found.
+	// Check that the output contains that the command was not found and that the failed command has been logged.
 	val, ok := l.Get()["foo"]
 	require.True(t, ok)
 	require.Contains(t, val.GetResult(), "output:")
+	require.Contains(t,val.GetResult(), l.c.Labels["foo"].GetCommand()[0] )
 }
