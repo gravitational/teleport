@@ -93,6 +93,8 @@ func decode(in peekReader) (Message, error) {
 		return decodeKeyboardButton(in)
 	case TypeClientUsername:
 		return decodeClientUsername(in)
+	case TypeClipboardData:
+		return decodeClipboardData(in, maxClipboardDataLength)
 	case TypeError:
 		return decodeError(in)
 	default:
@@ -402,6 +404,45 @@ func decodeMouseWheel(in peekReader) (MouseWheel, error) {
 	return w, trace.Wrap(err)
 }
 
+const maxClipboardDataLength = 1024 * 1024
+
+// ClipboardData represents shared clipboard data.
+type ClipboardData []byte
+
+func (c ClipboardData) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeClipboardData))
+	binary.Write(buf, binary.BigEndian, uint32(len(c)))
+	buf.Write(c)
+	return buf.Bytes(), nil
+}
+
+func decodeClipboardData(in peekReader, maxLen uint32) (ClipboardData, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if t != byte(TypeClipboardData) {
+		return nil, trace.BadParameter("got message type %v, expected TypeClipboardData(%v)", t, TypeClipboardData)
+	}
+
+	var length uint32
+	if err := binary.Read(in, binary.BigEndian, &length); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if length > maxLen {
+		return nil, trace.BadParameter("clipboard data exceeds maximum length")
+	}
+
+	b := make([]byte, int(length))
+	if _, err := io.ReadFull(in, b); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ClipboardData(b), nil
+}
+
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with
 // a 32-bit length prefix (in bytes):
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#field-types
@@ -422,7 +463,7 @@ func decodeString(r io.Reader, maxLen uint32) (string, error) {
 	}
 
 	if length > maxLen {
-		return "", trace.BadParameter("TDP string length exceeds allowable limit of %d (%d)", maxLen, length)
+		return "", trace.BadParameter("TDP string length exceeds allowable limit")
 	}
 
 	s := make([]byte, int(length))
