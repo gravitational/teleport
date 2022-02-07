@@ -275,9 +275,16 @@ func TestWatchers(t *testing.T) {
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
+	// nonsensical combination to test filtering
+	caFilter := types.CertAuthorityFilter{
+		types.HostCA: {types.TrustRelationshipTrusted},
+		types.UserCA: {types.TrustRelationshipLocal, types.TrustRelationshipRemote},
+	}
+
 	w, err := p.cache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
 		{
-			Kind: types.KindCertAuthority,
+			Kind:   types.KindCertAuthority,
+			Filter: caFilter.IntoMap(),
 		},
 		{
 			Kind: types.KindAccessRequest,
@@ -299,6 +306,7 @@ func TestWatchers(t *testing.T) {
 	}
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
+	ca.SetTrustRelationship(types.TrustRelationshipLocal)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
 
 	select {
@@ -349,6 +357,21 @@ func TestWatchers(t *testing.T) {
 	case e := <-w.Events():
 		require.Equal(t, types.OpDelete, e.Type)
 		require.Equal(t, types.KindAccessRequest, e.Resource.GetKind())
+	case <-time.After(time.Second):
+		t.Fatalf("Timeout waiting for event.")
+	}
+
+	// this ca will not be matched by our filter, so the same reasoning applies
+	// as we upsert it and delete it
+	filteredCa := suite.NewTestCA(types.HostCA, "example.net")
+	filteredCa.SetTrustRelationship(types.TrustRelationshipRemote)
+	require.NoError(t, p.trustS.UpsertCertAuthority(filteredCa))
+	require.NoError(t, p.trustS.DeleteCertAuthority(filteredCa.GetID()))
+
+	select {
+	case e := <-w.Events():
+		require.Equal(t, types.OpDelete, e.Type)
+		require.Equal(t, types.KindCertAuthority, e.Resource.GetKind())
 	case <-time.After(time.Second):
 		t.Fatalf("Timeout waiting for event.")
 	}
