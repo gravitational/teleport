@@ -41,6 +41,7 @@ func NewInsecureWebClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: tlsConfig,
+			Proxy:           http.ProxyFromEnvironment,
 		},
 	}
 }
@@ -54,6 +55,7 @@ func newClientWithPool(pool *x509.CertPool) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: tlsConfig,
+			Proxy:           http.ProxyFromEnvironment,
 		},
 	}
 }

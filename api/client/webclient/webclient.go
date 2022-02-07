@@ -46,6 +46,7 @@ func newWebClient(insecure bool, pool *x509.CertPool) *http.Client {
 				RootCAs:            pool,
 				InsecureSkipVerify: insecure,
 			},
+			Proxy: http.ProxyFromEnvironment,
 		},
 	}
 }
