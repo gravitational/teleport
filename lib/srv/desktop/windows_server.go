@@ -81,6 +81,10 @@ const (
 	// not used for interactive login and is only used when issuing certs for
 	// a restrictive service account.
 	windowsDesktopServiceCertTTL = 8 * time.Hour
+
+	// windowsDesktopServiceCertRetryInterval indicates how often to retry
+	// issuing an LDAP certificate if the operation fails.
+	windowsDesktopServiceCertRetryInterval = 10 * time.Minute
 )
 
 // WindowsService implements the RDP-based Windows desktop access service.
@@ -337,23 +341,12 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		close:       close,
 	}
 
-	// run LDAP initialization in a retry loop - this prevents the service
-	// from crashing and taking the entire Teleport process with it if
-	// we cannot connect to LDAP
-	l, err := utils.NewLinear(utils.LinearConfig{
-		First: 5 * time.Second,
-		Step:  30 * time.Second,
-		Max:   30 * time.Minute,
-		Clock: s.cfg.Clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// initialize LDAP - if this fails it will automatically schedule a retry.
+	// we don't want to return an error in this case, because failure to start
+	// the service brings down the entire Teleport process
+	if err := s.initializeLDAP(); err != nil {
+		s.cfg.Log.WithError(err).Error("initializing LDAP client, will retry")
 	}
-	go func() {
-		if retryErr := l.For(s.closeCtx, s.initializeLDAP); retryErr != nil {
-			s.cfg.Log.WithError(retryErr).Error("attempting to initialize LDAP client")
-		}
-	}()
 
 	// TODO(zmb3): session recording.
 
@@ -422,6 +415,12 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 	return tc, nil
 }
 
+// initializeLDAP requests a TLS certificate from the auth server to be used for
+// authenticating with the LDAP server. If the certificate is obtained, and
+// authentication with the LDAP server succeeds, it schedules a renewal to take
+// place before the certificate expires. If we are unable to obtain a certificate
+// and authenticate with the LDAP server, then the operation will be automatically
+// retried.
 func (s *WindowsService) initializeLDAP() error {
 	tc, err := s.tlsConfigForLDAP()
 	if trace.IsAccessDenied(err) && modules.GetModules().BuildType() == modules.BuildEnterprise {
@@ -430,16 +429,19 @@ func (s *WindowsService) initializeLDAP() error {
 	if err != nil {
 		s.mu.Lock()
 		s.ldapInitialized = false
+		// in the case where we're not licensed for desktop access, we retry less frequently,
+		// since this is likely not an intermittent error that will resolve itself quickly
+		s.scheduleNextLDAPCertRenewalLocked(windowsDesktopServiceCertRetryInterval * 3)
 		s.mu.Unlock()
 		return trace.Wrap(err)
 	}
 
 	conn, err := ldap.DialURL("ldaps://"+s.cfg.Addr,
 		ldap.DialWithTLSDialer(tc, &net.Dialer{Timeout: ldapDialTimeout}))
-
 	if err != nil {
 		s.mu.Lock()
 		s.ldapInitialized = false
+		s.scheduleNextLDAPCertRenewalLocked(windowsDesktopServiceCertRetryInterval)
 		s.mu.Unlock()
 		return trace.Wrap(err, "dial")
 	}
@@ -462,22 +464,29 @@ func (s *WindowsService) initializeLDAP() error {
 		return trace.Wrap(err)
 	}
 
-	// if we were successful in initializing the client, (re)schedule a renewal
-	// so that we get a new cert prior to expiration
 	s.mu.Lock()
 	s.ldapInitialized = true
+	s.scheduleNextLDAPCertRenewalLocked(windowsDesktopServiceCertTTL / 3)
+	s.mu.Unlock()
+
+	return nil
+}
+
+// scheduleNextLDAPCertRenewalLocked schedules a renewal of our LDAP credentials
+// after some amount of time has elapsed. If an existing renewal is already
+// scheduled, it is canceled and this new one takes its place.
+//
+// The lock on s.mu MUST be held.
+func (s *WindowsService) scheduleNextLDAPCertRenewalLocked(after time.Duration) {
 	if s.ldapCertRenew != nil {
-		s.ldapCertRenew.Reset(windowsDesktopServiceCertTTL / 3)
+		s.ldapCertRenew.Reset(after)
 	} else {
-		s.ldapCertRenew = time.AfterFunc(windowsDesktopServiceCertTTL/3, func() {
+		s.ldapCertRenew = time.AfterFunc(after, func() {
 			if err := s.initializeLDAP(); err != nil {
 				s.cfg.Log.WithError(err).Error("couldn't renew certificate for LDAP auth")
 			}
 		})
 	}
-	s.mu.Unlock()
-
-	return nil
 }
 
 func (s *WindowsService) startServiceHeartbeat() error {
