@@ -129,7 +129,7 @@ func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
 		return c.getMongoCommand(), nil
 
 	case defaults.ProtocolRedis:
-		return c.getRedisCommand(), nil
+		return c.getRedisCommand()
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -322,7 +322,7 @@ func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
 }
 
 // getRedisCommand returns redis-cli commands used by 'tsh db connect' when connection to a Redis instance.
-func (c *cliCommandBuilder) getRedisCommand() *exec.Cmd {
+func (c *cliCommandBuilder) getRedisCommand() (*exec.Cmd, error) {
 	// TODO(jakub): Add "-3" when Teleport adds support for Redis RESP3 protocol.
 	args := []string{
 		"--tls",
@@ -333,5 +333,19 @@ func (c *cliCommandBuilder) getRedisCommand() *exec.Cmd {
 		"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
 	}
 
-	return exec.Command(redisBin, args...)
+	// append database number if provided
+	if c.db.Database != "" {
+		dbNum, err := strconv.Atoi(c.db.Database)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse Redis DB number: %v", err)
+		}
+
+		if dbNum < 0 || dbNum > 15 {
+			return nil, trace.BadParameter("Redis DB number must be in range 0-15")
+		}
+
+		args = append(args, []string{"-n", c.db.Database}...)
+	}
+
+	return exec.Command(redisBin, args...), nil
 }
