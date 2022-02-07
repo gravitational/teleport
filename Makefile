@@ -767,7 +767,6 @@ buildbox-grpc:
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		events.proto
 
-
 	cd api/types && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		types.proto

@@ -71,7 +71,7 @@ type Client struct {
 	conn *grpc.ClientConn
 	// grpc is the gRPC client specification for the auth server.
 	grpc proto.AuthServiceClient
-	// joinServiceClient is a client for the JoinService, which runs on both the
+	// JoinServiceClient is a client for the JoinService, which runs on both the
 	// auth and proxy.
 	*JoinServiceClient
 	// closedFlag is set to indicate that the connnection is closed.
