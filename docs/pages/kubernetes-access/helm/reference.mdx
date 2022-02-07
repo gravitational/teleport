@@ -81,14 +81,6 @@ This reference details available values for the `teleport-cluster` chart.
 
 See [Second Factor - WebAuthn](../../access-controls/guides/webauthn.mdx) for more details.
 
-#### `authenticationSecondFactor.webauthn.rpId`
-
-| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
-| - | - | - | - | - |
-| `string` | `` | Yes | `auth_service.authentication.webauthn.rp_id` | ❌ |
-
-`authenticationSecondFactor.webauthn.rpId` is public domain of the Teleport proxy, excluding protocol (https://) and port number.
-
 #### `authenticationSecondFactor.webauthn.attestationAllowedCas`
 
 | Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |

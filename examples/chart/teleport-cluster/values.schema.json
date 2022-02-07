@@ -46,13 +46,8 @@
                 "webauthn": {
                     "$id": "#/properties/authenticationSecondFactor/properties/webauthn",
                     "type": "object",
-                    "required": ["rpId"],
+                    "required": [],
                     "properties": {
-                        "rpId": {
-                            "$id": "#/properties/authenticationSecondFactor/properties/webauthn/properties/rpId",
-                            "type": "string",
-                            "default": ""
-                        },
                         "attestationAllowedCas": {
                             "$id": "#/properties/authenticationSecondFactor/properties/webauthn/properties/attestationAllowedCas",
                             "type": "array",
