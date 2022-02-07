@@ -392,6 +392,51 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	return s, nil
 }
 
+func (s *WindowsService) newStreamWriter(record bool, sessionID string) (libevents.StreamWriter, error) {
+	return libevents.NewAuditWriter(libevents.AuditWriterConfig{
+		Component:    teleport.ComponentWindowsDesktop,
+		Namespace:    apidefaults.Namespace,
+		Context:      s.closeCtx,
+		Clock:        s.cfg.Clock,
+		ClusterName:  s.clusterName,
+		SessionID:    session.ID(sessionID),
+		Streamer:     s.streamer,
+		ServerID:     s.cfg.Heartbeat.HostUUID,
+		RecordOutput: record,
+	})
+}
+
+// newStreamer creates a streamer (sync or async) based on the cluster configuration.
+// Synchronous streamers send events directly to the auth server, and blocks if the server
+// cannot keep up. Asynchronous streamers buffers the events to disk and uploads them later.
+func (s *WindowsService) newStreamer(ctx context.Context, recConfig types.SessionRecordingConfig) (libevents.Streamer, error) {
+	if services.IsRecordSync(recConfig.GetMode()) {
+		s.cfg.Log.Debugf("using sync streamer (for mode %v)", recConfig.GetMode())
+		return s.cfg.AuthClient, nil
+	}
+	s.cfg.Log.Debugf("using async streamer (for mode %v)", recConfig.GetMode())
+	uploadDir := filepath.Join(s.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
+		libevents.StreamingLogsDir, apidefaults.Namespace)
+
+	// ensure upload dir exists
+	_, err := utils.StatDir(uploadDir)
+	if trace.IsNotFound(err) {
+		s.cfg.Log.Debugf("Creating upload dir %v.", uploadDir)
+		if err := os.MkdirAll(uploadDir, 0755); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fileStreamer, err := filesessions.NewStreamer(uploadDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return libevents.NewTeeStreamer(fileStreamer, s.cfg.Emitter), nil
+}
+
 func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 	// trim NETBIOS name from username
 	user := s.cfg.Username
@@ -431,52 +476,6 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 	}
 
 	return tc, nil
-}
-
-func (s *WindowsService) newStreamWriter(recConfig types.SessionRecordingConfig, sessionID string) (libevents.StreamWriter, error) {
-	return libevents.NewAuditWriter(libevents.AuditWriterConfig{
-		Component:    teleport.ComponentWindowsDesktop,
-		Namespace:    apidefaults.Namespace,
-		Context:      s.closeCtx,
-		Clock:        s.cfg.Clock,
-		ClusterName:  s.clusterName,
-		SessionID:    session.ID(sessionID),
-		Streamer:     s.streamer,
-		ServerID:     s.cfg.Heartbeat.HostUUID,               // TODO(zmb3): is this the service ID or desktop ID?
-		RecordOutput: recConfig.GetMode() != types.RecordOff, // TODO(zmb3) this will eventually depend on user roles, not cluster-wide config
-	})
-}
-
-// newStreamer creates a streamer (sync or async) based on the cluster configuration.
-// Synchronous streamers send events directly to the auth server, and blocks if the server
-// cannot keep up. Asynchronous streamers buffers the events to disk and uploads them later.
-func (s *WindowsService) newStreamer(ctx context.Context, recConfig types.SessionRecordingConfig) (libevents.Streamer, error) {
-	// TODO(zmb3): determine whether we should even support sync
-	// (it may be that the volume of desktop recordings is too high)
-	if services.IsRecordSync(recConfig.GetMode()) {
-		s.cfg.Log.Debugf("using sync streamer (for mode %v)", recConfig.GetMode())
-		return s.cfg.AuthClient, nil
-	}
-	s.cfg.Log.Debugf("using async streamer (for mode %v)", recConfig.GetMode())
-	uploadDir := filepath.Join(s.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		libevents.StreamingLogsDir, apidefaults.Namespace)
-
-	// ensure upload dir exists
-	_, err := utils.StatDir(uploadDir)
-	if trace.IsNotFound(err) {
-		s.cfg.Log.Debugf("Creating upload dir %v.", uploadDir)
-		if err := os.MkdirAll(uploadDir, 0755); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	fileStreamer, err := filesessions.NewStreamer(uploadDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return libevents.NewTeeStreamer(fileStreamer, s.cfg.Emitter), nil
 }
 
 // initializeLDAP requests a TLS certificate from the auth server to be used for
@@ -668,7 +667,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	tdpConn := tdp.NewConn(proxyConn)
 
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
-	sendTdpError := func(message string) {
+	sendTDPError := func(message string) {
 		if err := tdpConn.OutputMessage(tdp.Error{Message: message}); err != nil {
 			log.Errorf("Failed to send TDP error message %v: %v", tdp.Error{Message: message}, err)
 		}
@@ -686,13 +685,13 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	remoteAddr, _, err := net.SplitHostPort(proxyConn.RemoteAddr().String())
 	if err != nil {
 		log.WithError(err).Errorf("Could not parse client IP from %q", proxyConn.RemoteAddr().String())
-		sendTdpError("Internal error.")
+		sendTDPError("Internal error.")
 		return
 	}
 	log = log.WithField("client-ip", remoteAddr)
 	if err := s.cfg.ConnLimiter.AcquireConnection(remoteAddr); err != nil {
 		log.WithError(err).Warning("Connection limit exceeded, rejecting connection")
-		sendTdpError("Connection limit exceeded.")
+		sendTDPError("Connection limit exceeded.")
 		return
 	}
 	defer s.cfg.ConnLimiter.ReleaseConnection(remoteAddr)
@@ -701,7 +700,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, proxyConn)
 	if err != nil {
 		log.WithError(err).Warning("mTLS authentication failed for incoming connection")
-		sendTdpError("Connection authentication failed.")
+		sendTDPError("Connection authentication failed.")
 		return
 	}
 	log.Debug("Authenticated Windows desktop connection")
@@ -709,7 +708,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	authContext, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
 		log.WithError(err).Warning("authorization failed for Windows desktop connection")
-		sendTdpError("Connection authorization failed.")
+		sendTDPError("Connection authorization failed.")
 		return
 	}
 
@@ -720,7 +719,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopName)
 	if err != nil {
 		log.WithError(err).Warning("Failed to fetch desktop by name")
-		sendTdpError("Teleport failed to find the requested desktop in its database.")
+		sendTDPError("Teleport failed to find the requested desktop in its database.")
 		return
 	}
 
@@ -730,7 +729,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	if err := s.connectRDP(ctx, log, proxyConn, desktop, authContext); err != nil {
 		log.Errorf("RDP connection failed: %v", err)
-		sendTdpError("RDP connection failed.")
+		sendTDPError("RDP connection failed.")
 		return
 	}
 }
@@ -805,7 +804,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 					Time: s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 				},
 				Message:           b,
-				DelayMilliseconds: delay(), // TODO(zmb3): AuditWriter should set this for us if necessary
+				DelayMilliseconds: delay(),
 			}); err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
@@ -825,7 +824,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 					Time: s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 				},
 				Message:           b,
-				DelayMilliseconds: delay(), // TODO(zmb3): AuditWriter should set this for us if necessary
+				DelayMilliseconds: delay(),
 			}); err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
