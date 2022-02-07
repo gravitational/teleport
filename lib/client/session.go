@@ -75,6 +75,10 @@ type NodeSession struct {
 	enableEscapeSequences bool
 
 	terminal *terminal.Terminal
+
+	// shouldClearOnExit marks whether or not the terminal should be cleared
+	// when the session ends.
+	shouldClearOnExit bool
 }
 
 // newSession creates a new Teleport session with the given remote node
@@ -143,6 +147,12 @@ func newSession(client *NodeClient,
 
 	ns.env[sshutils.SessionEnvVar] = string(ns.id)
 
+	boring, err := client.Proxy.isAuthBoring(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ns.shouldClearOnExit = isFIPS() || boring
+
 	// Close the Terminal when finished.
 	ns.closeWait.Add(1)
 	go func() {
@@ -150,7 +160,7 @@ func newSession(client *NodeClient,
 
 		<-ns.closer.C
 
-		if isFIPS() || isAuthServerBoring(client) {
+		if ns.shouldClearOnExit {
 			if err := ns.terminal.Clear(); err != nil {
 				log.Warnf("Failed to clear screen: %v.", err)
 			}
@@ -159,15 +169,6 @@ func newSession(client *NodeClient,
 	}()
 
 	return ns, nil
-}
-
-func isAuthServerBoring(client *NodeClient) bool {
-	boring, err := client.Proxy.isAuthBoring(context.Background())
-	if err != nil {
-		log.Errorf("Failed to ping auth server: %v.", err)
-		return false
-	}
-	return boring
 }
 
 func (ns *NodeSession) NodeClient() *NodeClient {
