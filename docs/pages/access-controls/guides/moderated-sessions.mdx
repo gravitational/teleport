@@ -1,99 +1,153 @@
 ---
 title: Moderated Sessions
-description: Session moderation with RBAC and humans
+description: Moderated Sessions
 h1: Moderated Sessions
 ---
 
 ## Introduction
 
 Moderated sessions allows Teleport administrators to
-define requirements for other users to be present in a Server or Kubernetes Access session.
+define requirements for other users to be present in a Server or Kubernetes Access session. Depending on the requirements, these users can observe the session in real time, participate in the session, and terminate the session at will.
 
+### Use cases
 Moderated Sessions are useful in the following scenarios:
 - When you have stringent security requirements and need to have people watching over user-initiated sessions to a set of servers.
 - When you want to share a terminal with someone else to be able to instruct or collaborate.
 
-## Core Features
 
-With Moderated Sessions you can:
-- Join SSH and Kubernetes sessions from the terminal as an observer, moderator or peer.
-- Require auditors to be present in certain sessions.
-- Allow people to join your session to observe what you are doing in real time.
+## Policies
+Moderated Sessions makes use of RBAC policies to allow for fine grained control over
+who can join a session and who is required to be present to start one.
 
-## Getting Started
+The system is based around **require policies** and **allow policies**. 
 
-In this guide we'll be using Moderated Sessions to define required participants for a Kubernetes session.
-This guide assumes an already running Teleport cluster with a connected Kubernetes cluster named `minikube`.
+Require policies define a set of conditions
+that must be a met for a session to start or run.
 
-<Admonition type="tip">
-  If you don't have a cluster that meets the aforementioned requirements,
-  you can create one by following [this guide](https://goteleport.com/docs/kubernetes-access/getting-started/).
-</Admonition>
+Allow policies are used to define what sessions a user can join
+and under what conditions they may join a session.
 
-### Step 1/4: Create the prod-access role
+## Configuring Moderated Sessions
+### `require_session_join`
 
-```code
-$ cat > prod-access.yaml <<EOF
+#### Options
+The following are required options for `require_session_join`:
+
+|Option|Type|Description|
+|---|---|---|
+|`name`|String|The name of the require policy|
+|`filter`|[Filter](./moderated-sessions.mdx#filters)|An expression that, if it evaluates to true for a given user, enables the user to be present in a Moderated Session|
+|`kinds`|`[]`[Session kind](./moderated-sessions.mdx/#session-kinds)|The kind of session that the policy applies to|
+|`modes`|`[]`[Participant mode](./moderated-sessions.mdx#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
+
+#### Example
+The policy below specifies that a given role
+must have a minimum of two users with the role `auditor` and the mode `moderator` present in the session
+to start it. The policy applies to SSH and Kubernetes sessions only.
+
+When a user with this require policy starts a session, it will be pending
+until the policy is fulfilled. 
+
+```yaml
 kind: role
 metadata:
   name: prod-access
 spec:
   allow:
-    kubernetes_groups:
-      - view
     require_session_join:
       - name: Auditor oversight
         filter: 'contains(user.roles, "auditor")'
-        kinds: ['k8s']
+        kinds: ['k8s', 'ssh']
         modes: ['moderator']
-        count: 1
-EOF
-
-$ tctl create -f prod-access.yaml
 ```
 
-### Step 2/4: Create the auditor role
 
-```code
-$ cat > auditor.yaml <<EOF
+### `join_sessions`
+
+#### Options
+The following are required options for `join_sessions`:
+
+{/* TODO: See if `roles` can be substituted with a `filter` here as well as with require policies */}
+
+|Option|Type|Description|
+|---|---|---|
+|`name`|String|The name of the allow policy|
+|`roles`|[]String|A list of names for Teleport roles that this policy applies to. Users with this role are eligible to join a Moderated Session under this policy.|
+|`kinds`|`[]`[Session kind](./moderated-sessions.mdx#session-kinds)|The kind of session that the policy applies to|
+|`modes`|`[]`[Participant mode](./moderated-sessions.mdx#participant-modes)|The participant mode that paplies to the user joining the Moderated Session under this policy|
+
+#### Example
+The following allow policy attaches to the role `auditor` and allows one to join
+SSH and Kubernetes sessions started by a user with the role `prod_access` as a moderator or observer.
+
+```yaml
 kind: role
 metadata:
   name: auditor
 spec:
   allow:
     join_sessions:
-    - kinds:
-      - k8s
-      modes:
-      - moderator
-      name: Auditor
-      roles:
-      - member
-EOF
-
-$ tctl create -f auditor.yaml
+      - name: Auditor oversight
+        roles : ['prod-access']
+        kinds: ['k8s', 'ssh']
+        modes: ['moderator', 'observer']
 ```
 
-### Step 3/4: Add users
 
-```code
-$ tctl users add adam --roles=prod-access
-$ tctl users add bob --roles=auditor
-```
+### Filters
 
-### Step 4/4: Try it out
+A filter expression or predicate is a string statement used to define logic based on a set of input variables.
 
-Please substitute `$SESSION_ID` with the UUID shown when starting the session.
+Filter expressions  allow for more detailed control.
+`user.name == "adam" || contains(user.traits, "view")` is a simple example of a filter expression
+that evaluates to true if the user is Adam or if the user has the trait `view`.
 
-```code
-# adam
+Require policies can specify which users they consider as valid with a filter expression. They work like
+other filters used within Teleport such with access requests. The filter context has a `user` object defined
+which the set fields `roles`, `traits` and `name`.
 
-$ tsh kube login minikube
-$ tsh kube exec -st nginx /bin/bash
-```
+### Session kinds
+Require and allow policies have to specify which sessions they apply to. Valid options are `ssh` and `k8s`.
 
-```code
-# bob
+{/* TODO: Describe the implications of each value */}
 
-$ tsh kube join $SESSION_ID
-```
+
+### Participant modes
+A participant joining a session will always have one of three modes:
+
+- `peer`: Can join and collaborate in a session. They can view output and send input.
+- `moderator`: Can join and watch a session. They can view output and forcefully terminate the session at will.
+- `observer`: Can join and watch a session. They cannot control the session in any way.
+
+When joining a session with `tsh join` or `tsh kube join`, a user can specify a mode with the `--mode <mode>` flag
+, where the mode is one of `peer`, `moderator` or `observer`. By default, the mode is `peer` for SSH and
+`moderator` for Kubernetes sessions.
+
+A participant may leave a session with the shortcut `c` while in observer or moderator mode.
+When in moderator mode, a participant may also forcefully terminate the session at any point in time
+with the shortcut `t`.
+
+
+## Backwards compatibility with Server Access
+
+Previously, Server Access did not include controls over which users can join a session.
+To work around this, RBAC rules are ignored for users that only have V4 roles (`version: v4` in the role specification).
+New roles are created as V5. V4 roles are upgraded when they are modified in the UI.
+If a user has any attached V5 roles, the new RBAC access checks will be enforced.
+
+## MFA-based presence
+
+When `per_session_mfa` is set to `true` via [role or cluster settings](../../access-controls/guides/per-session-mfa.mdx), Teleport enforces
+MFA-based presence checks for moderators.
+This requires that all moderators wishing to join have a configured U2F or WebAuthn MFA token.
+
+Every 30 seconds, Teleport will issue a prompt to the user in the terminal, asking them
+to press their MFA token in the next 15 seconds. This will happen continously during the session
+and exists so that moderators are always present and watching a given session.
+
+If no MFA input is received within 60 seconds, the user is kicked
+from the session which may pause it, if RBAC policies are no longer met.
+
+## RFD
+
+- [Moderated Sessions](https://github.com/gravitational/teleport/blob/master/rfd/0043-kubeaccess-multiparty.md)
