@@ -14,20 +14,21 @@ Moderated Sessions are useful in the following scenarios:
 - When you have stringent security requirements and need to have people watching over user-initiated sessions to a set of servers.
 - When you want to share a terminal with someone else to be able to instruct or collaborate.
 
-
 ## Policies
+
 Moderated Sessions makes use of RBAC policies to allow for fine grained control over
 who can join a session and who is required to be present to start one.
 
 The system is based around **require policies** and **allow policies**. 
 
-Require policies define a set of conditions
-that must be a met for a session to start or run.
+Require policies define a set of conditions that must be a met for a session to start or run.
+A minimum of one policy from each relevant role the user has must match for the session to start.
 
 Allow policies are used to define what sessions a user can join
 and under what conditions they may join a session.
 
 ## Configuring Moderated Sessions
+
 ### `require_session_join`
 
 #### Options
@@ -41,6 +42,7 @@ The following are required options for `require_session_join`:
 |`modes`|`[]`[Participant mode](./moderated-sessions.mdx#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
 
 #### Example
+
 The policy below specifies that a given role
 must have a minimum of two users with the role `auditor` and the mode `moderator` present in the session
 to start it. The policy applies to SSH and Kubernetes sessions only.
@@ -61,10 +63,10 @@ spec:
         modes: ['moderator']
 ```
 
-
 ### `join_sessions`
 
 #### Options
+
 The following are required options for `join_sessions`:
 
 {/* TODO: See if `roles` can be substituted with a `filter` here as well as with require policies */}
@@ -93,24 +95,24 @@ spec:
         modes: ['moderator', 'observer']
 ```
 
-
 ### Filters
 
 A filter expression or predicate is a string statement used to define logic based on a set of input variables.
 
 Filter expressions  allow for more detailed control.
-`user.name == "adam" || contains(user.traits, "view")` is a simple example of a filter expression
-that evaluates to true if the user is Adam or if the user has the trait `view`.
+`user.name == "adam" || contains(user.roles, "cs-observe")` is a simple example of a filter expression
+that evaluates to true if the user is Adam or if the user has the trait `cs-observe`.
 
 Require policies can specify which users they consider as valid with a filter expression. They work like
 other filters used within Teleport such with access requests. The filter context has a `user` object defined
-which the set fields `roles`, `traits` and `name`.
+which the set fields `roles` and `name`.
 
 ### Session kinds
+
 Require and allow policies have to specify which sessions they apply to. Valid options are `ssh` and `k8s`.
 
-{/* TODO: Describe the implications of each value */}
-
+- `ssh` policies apply to all SSH sessions towards a node running the Teleport SSH server.
+- `k8s` policies apply to all kubernetes sessions to clusters connected to teleport.
 
 ### Participant modes
 A participant joining a session will always have one of three modes:
@@ -127,13 +129,12 @@ A participant may leave a session with the shortcut `c` while in observer or mod
 When in moderator mode, a participant may also forcefully terminate the session at any point in time
 with the shortcut `t`.
 
-
 ## Backwards compatibility with Server Access
 
 Previously, Server Access did not include controls over which users can join a session.
 To work around this, RBAC rules are ignored for users that only have V4 roles (`version: v4` in the role specification).
 New roles are created as V5. V4 roles are upgraded when they are modified in the UI.
-If a user has any attached V5 roles, the new RBAC access checks will be enforced.
+If a user has any attached V5 roles (`version: v5` in the role specification), the new RBAC access checks will be enforced.
 
 ## MFA-based presence
 
