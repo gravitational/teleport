@@ -52,14 +52,15 @@ func TestPlainHttpFallback(t *testing.T) {
 			desc:    "Ping",
 			handler: newPingHandler("/webapi/ping"),
 			actionUnderTest: func(addr string, insecure bool) error {
-				_, err := Ping(context.Background(), addr, insecure, nil /*pool*/, "")
+				_, err := Ping(
+					&Config{Context: context.Background(), ProxyAddr: addr, Insecure: insecure})
 				return err
 			},
 		}, {
 			desc:    "Find",
 			handler: newPingHandler("/webapi/find"),
 			actionUnderTest: func(addr string, insecure bool) error {
-				_, err := Find(context.Background(), addr, insecure, nil /*pool*/)
+				_, err := Find(&Config{Context: context.Background(), ProxyAddr: addr, Insecure: insecure})
 				return err
 			},
 		},
@@ -104,7 +105,7 @@ func TestPlainHttpFallback(t *testing.T) {
 
 func TestGetTunnelAddr(t *testing.T) {
 	t.Setenv(defaults.TunnelPublicAddrEnvar, "tunnel.example.com:4024")
-	tunnelAddr, err := GetTunnelAddr(context.Background(), "", true, nil)
+	tunnelAddr, err := GetTunnelAddr(&Config{Context: context.Background(), ProxyAddr: "", Insecure: false})
 	require.NoError(t, err)
 	require.Equal(t, "tunnel.example.com:4024", tunnelAddr)
 }
@@ -292,7 +293,14 @@ func TestExtract(t *testing.T) {
 
 func TestNewWebClientRespectHTTPProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	client := newWebClient(false /* insecure */, nil /* pool */)
+	client, err := newWebClient(
+		&Config{
+			ProxyAddr: "proxy_addr",
+			Context:   context.Background(),
+			Insecure:  false,
+			Pool:      nil,
+		})
+	require.NoError(t, err)
 	// resp should be nil, so there will be no body to close.
 	//nolint:bodyclose
 	resp, err := client.Get("https://fakedomain.example.com")
@@ -306,7 +314,14 @@ func TestNewWebClientRespectHTTPProxy(t *testing.T) {
 func TestNewWebClientNoProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
 	t.Setenv("NO_PROXY", "fakedomain.example.com")
-	client := newWebClient(false /* insecure */, nil /* pool */)
+	client, err := newWebClient(
+		&Config{
+			ProxyAddr: "proxy_addr",
+			Context:   context.Background(),
+			Insecure:  false,
+			Pool:      nil,
+		})
+	require.NoError(t, err)
 	//nolint:bodyclose
 	resp, err := client.Get("https://fakedomain.example.com")
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
