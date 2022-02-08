@@ -452,7 +452,7 @@ func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, p
 	// with the join request
 	certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 		// create the signed sts:GetCallerIdentity request and include the challenge
-		signedRequest, err := createSignedSTSIdentityRequest(challenge)
+		signedRequest, err := createSignedStsIdentityRequest(challenge)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -469,7 +469,7 @@ func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, p
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
 			},
-			STSIdentityRequest: signedRequest,
+			StsIdentityRequest: signedRequest,
 		}, nil
 	})
 

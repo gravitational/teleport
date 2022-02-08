@@ -22,11 +22,11 @@ import "github.com/gravitational/teleport/api/types/types.proto";
 message RegisterUsingIAMMethodRequest {
     // RegisterUsingTokenRequest holds registration parameters common to all
     // join methods.
-    types.RegisterUsingTokenRequest registerUsingTokenRequest = 1;
-    // STSIdentityRequest is a signed HTTP request to the AWS
+    types.RegisterUsingTokenRequest register_using_token_request = 1;
+    // StsIdentityRequest is a signed HTTP request to the AWS
     // sts:GetCallerIdentity API endpoint used to prove the AWS identity of a
     // joining node. It must include the challenge string as a signed header.
-    bytes STSIdentityRequest = 2;
+    bytes sts_identity_request = 2;
 }
 
 // RegisterUsingIAMMethodResponse is a stream response and will contain either a

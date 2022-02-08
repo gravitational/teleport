@@ -415,7 +415,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 						PublicSSHKey: sshPublicKey,
 						PublicTLSKey: tlsPublicKey,
 					},
-					STSIdentityRequest: identityRequest,
+					StsIdentityRequest: identityRequest,
 				}
 				return req, tc.challengeResponseErr
 			})

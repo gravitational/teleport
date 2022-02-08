@@ -123,13 +123,13 @@ func TestJoinServiceGRPCServer_RegisterUsingIAMMethod(t *testing.T) {
 		{
 			desc:              "pass case",
 			challenge:         "foo",
-			challengeResponse: &proto.RegisterUsingIAMMethodRequest{STSIdentityRequest: []byte("bar")},
+			challengeResponse: &proto.RegisterUsingIAMMethodRequest{StsIdentityRequest: []byte("bar")},
 			certs:             &proto.Certs{SSH: []byte("baz")},
 		},
 		{
 			desc:              "auth error",
 			challenge:         "foo",
-			challengeResponse: &proto.RegisterUsingIAMMethodRequest{STSIdentityRequest: []byte("bar")},
+			challengeResponse: &proto.RegisterUsingIAMMethodRequest{StsIdentityRequest: []byte("bar")},
 			authErr:           trace.AccessDenied("test auth error"),
 		},
 		{
