@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/roundtrip"
@@ -246,7 +245,7 @@ func (a *Server) establishTrust(trustedCluster types.TrustedCluster) ([]types.Ce
 	}
 	for _, lca := range allLocalCAs {
 		if lca.GetClusterName() == domainName {
-			localCertAuthorities = append(localCertAuthorities, lca)
+			localCertAuthorities = append(localCertAuthorities, lca.WithTrustRelationship(types.TrustRelationshipRemote))
 		}
 	}
 
@@ -269,26 +268,22 @@ func (a *Server) establishTrust(trustedCluster types.TrustedCluster) ([]types.Ce
 		return nil, trace.Wrap(err)
 	}
 
+	if len(validateResponse.CAs) == 0 {
+		return nil, trace.BadParameter("received no CAs from trusted cluster")
+	}
+
 	// log the remote certificate authorities we are adding
 	log.Debugf("Received validate response; CAs=%v", validateResponse.CAs)
 
+	remoteClusterName := validateResponse.CAs[0].GetName()
+	if remoteClusterName == domainName {
+		return nil, trace.BadParameter("trusted cluster name can not be the same as local cluster name")
+	}
 	for _, ca := range validateResponse.CAs {
-		for _, keyPair := range ca.GetActiveKeys().TLS {
-			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			remoteClusterName, err := tlsca.ClusterName(cert.Subject)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if remoteClusterName == domainName {
-				return nil, trace.BadParameter("remote cluster name can not be the same as local cluster name")
-			}
-			// TODO(klizhentas) in 2.5.0 prohibit adding trusted cluster resource name
-			// different from cluster name (we had no way of checking this before x509,
-			// because SSH CA was a public key, not a cert with metadata)
+		if ca.GetName() != remoteClusterName {
+			return nil, trace.BadParameter("received inconsistently named CAs from trusted cluster")
 		}
+		ca.SetTrustRelationship(types.TrustRelationshipTrusted)
 	}
 
 	return validateResponse.CAs, nil

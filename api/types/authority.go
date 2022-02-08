@@ -99,6 +99,8 @@ type CertAuthority interface {
 	GetTrustRelationship() TrustRelationship
 	// SetTrustRelationship sets the trust relationship of this CA.
 	SetTrustRelationship(TrustRelationship)
+	// WithTrustRelationship returns a clone of the CA with the specified trust relationship.
+	WithTrustRelationship(TrustRelationship) CertAuthority
 }
 
 // NewCertAuthority returns new cert authority
@@ -398,6 +400,12 @@ func (ca *CertAuthorityV2) SetTrustRelationship(rel TrustRelationship) {
 		ca.Metadata.Labels = make(map[string]string)
 	}
 	ca.Metadata.Labels[labelTrustRelationship] = string(rel)
+}
+
+func (ca *CertAuthorityV2) WithTrustRelationship(rel TrustRelationship) CertAuthority {
+	newCA := ca.Clone()
+	newCA.SetTrustRelationship(rel)
+	return newCA
 }
 
 // setStaticFields sets static resource header and metadata fields.
