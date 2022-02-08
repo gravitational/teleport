@@ -1956,6 +1956,16 @@ message WebauthnDevice {
     // Actual counter values received from the authenticator are expected to be
     // higher than the previously-stored value.
     uint32 signature_counter = 5;
+    // Raw attestation object, as returned by the authentication during
+    // registration.
+    // Absent for legacy entries (Teleport 9.x).
+    bytes attestation_object = 6;
+    // True if a resident key was requested during registration.
+    // Marks passwordless-capable devices.
+    // (Note that resident_key=true represents the server-side / Relying Party
+    // view of the registration process; the authenticator alone can determine
+    // if a key is truly resident.)
+    bool resident_key = 7;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
