@@ -265,7 +265,10 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 // GetRoles returns a list of roles to initiate for this secret
 func (s *InstanceSecrets) GetRoles(t *testing.T) []types.Role {
 	var roles []types.Role
-	for _, ca := range s.GetCAs(t) {
+
+	cas, err := s.GetCAs()
+	require.NoError(t, err)
+	for _, ca := range cas {
 		if ca.GetType() != types.UserCA {
 			continue
 		}
@@ -279,7 +282,7 @@ func (s *InstanceSecrets) GetRoles(t *testing.T) []types.Role {
 // GetCAs return an array of CAs stored by the secrets object. In i
 // case we always return hard-coded userCA + hostCA (and they share keys
 // for simplicity)
-func (s *InstanceSecrets) GetCAs(t *testing.T) []types.CertAuthority {
+func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 	hostCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: s.SiteName,
@@ -298,7 +301,9 @@ func (s *InstanceSecrets) GetCAs(t *testing.T) []types.CertAuthority {
 		Roles:      []string{},
 		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.UserCA,
@@ -318,9 +323,14 @@ func (s *InstanceSecrets) GetCAs(t *testing.T) []types.CertAuthority {
 		Roles:      []string{services.RoleNameForCertAuthority(s.SiteName)},
 		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return []types.CertAuthority{hostCA, userCA}
+	return []types.CertAuthority{
+		hostCA,
+		userCA,
+	}, nil
 }
 
 func (s *InstanceSecrets) AllowedLogins() []string {
@@ -533,10 +543,22 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tconf.Auth.Authorities = append(tconf.Auth.Authorities, i.Secrets.GetCAs(t)...)
+
+	rootCAs, err := i.Secrets.GetCAs()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tconf.Auth.Authorities = append(tconf.Auth.Authorities, rootCAs...)
+
 	tconf.Identities = append(tconf.Identities, i.Secrets.GetIdentity())
+
 	for _, trusted := range trustedSecrets {
-		tconf.Auth.Authorities = append(tconf.Auth.Authorities, trusted.GetCAs(t)...)
+		leafCAs, err := trusted.GetCAs()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tconf.Auth.Authorities = append(tconf.Auth.Authorities, leafCAs...)
+
 		tconf.Auth.Roles = append(tconf.Auth.Roles, trusted.GetRoles(t)...)
 		tconf.Identities = append(tconf.Identities, trusted.GetIdentity())
 		if trusted.TunnelAddr != "" {
@@ -1212,7 +1234,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 
 // NewClient returns a fully configured and pre-authenticated client
 // (pre-authenticated with server CAs and signed session key).
-func (i *TeleInstance) NewClient(t *testing.T, cfg ClientConfig) (*client.TeleportClient, error) {
+func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, error) {
 	tc, err := i.NewUnauthenticatedClient(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1233,7 +1255,11 @@ func (i *TeleInstance) NewClient(t *testing.T, cfg ClientConfig) (*client.Telepo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	for _, ca := range i.Secrets.GetCAs(t) {
+	cas, err := i.Secrets.GetCAs()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, ca := range cas {
 		err = tc.AddTrustedCA(ca)
 		if err != nil {
 			return nil, trace.Wrap(err)
