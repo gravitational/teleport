@@ -39,6 +39,11 @@ message RegisterUsingIAMMethodResponse {
     Certs certs = 2;
 }
 
+// JoinService provides methods which allow Teleport nodes, proxies, and other
+// services to join the Teleport cluster by fetching signed cluster
+// certificates. It is implemented on both the Auth and Proxy servers to serve
+// the needs of both nodes connecting directly to the Auth server and IoT mode
+// nodes connecting only to the Proxy.
 service JoinService {
     // RegisterUsingIAMMethod is used to register a new node to the cluster using
     // the IAM join method.
