@@ -261,6 +261,10 @@ func (m *Metadata) CheckAndSetDefaults() error {
 // MatchLabels takes a map of labels and returns `true` if the resource has ALL
 // of them.
 func MatchLabels(resource ResourceWithLabels, labels map[string]string) bool {
+	if len(labels) == 0 {
+		return true
+	}
+
 	resourceLabels := resource.GetAllLabels()
 	for name, value := range labels {
 		if resourceLabels[name] != value {
@@ -287,6 +291,13 @@ func IsValidLabelKey(s string) bool {
 // Returns true if all search vals were matched (or if nil search vals).
 // Returns false if no or partial match (or nil field values).
 func MatchSearch(fieldVals []string, searchVals []string, customMatch func(val string) bool) bool {
+	if len(searchVals) == 0 {
+		return true
+	}
+	if len(fieldVals) == 0 && customMatch == nil {
+		return false
+	}
+
 	// Case fold all values to avoid repeated case folding while matching.
 	caseFoldedSearchVals := utils.ToLowerStrings(searchVals)
 	caseFoldedFieldVals := utils.ToLowerStrings(fieldVals)

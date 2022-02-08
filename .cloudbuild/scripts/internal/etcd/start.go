@@ -72,6 +72,4 @@ func Start(ctx context.Context, workspace string, uid, gid int, env ...string) e
 			return trace.Errorf("Timed out waiting for etcd to start")
 		}
 	}
-
-	return nil
 }
