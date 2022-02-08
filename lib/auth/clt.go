@@ -1894,7 +1894,6 @@ type ClientI interface {
 	services.Apps
 	services.Databases
 	services.WindowsDesktops
-	services.JoinService
 	WebService
 	session.Service
 	services.ClusterConfiguration

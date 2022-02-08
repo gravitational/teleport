@@ -14,7 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+// Package joinserver contains the implementation of the JoinService gRPC server
+// which runs on both Auth and Proxy.
+package joinserver
 
 import (
 	"context"
@@ -24,27 +26,18 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// JoinService abstracts the proto.JoinService interface so that it can by
-// implemented by both the auth client and the auth server.
-type JoinService interface {
-
-	// RegisterUsingIAMMethod registers the caller using the IAM join method and
-	// returns signed certs to join the cluster.
-	//
-	// The caller must provide a ChallengeResponseFunc which returns a
-	// *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity
-	// request including the challenge as a signed header.
+type joinServiceClient interface {
 	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error)
 }
 
 // JoinServiceGRPCServer implements proto.JoinServiceServer and is designed
 // to run on both the Teleport Proxy and Auth servers.
 type JoinServiceGRPCServer struct {
-	joinServiceClient JoinService
+	joinServiceClient joinServiceClient
 }
 
 // NewJoinGRPCServer returns a new JoinServiceGRPCServer.
-func NewJoinServiceGRPCServer(joinServiceClient JoinService) *JoinServiceGRPCServer {
+func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient) *JoinServiceGRPCServer {
 	return &JoinServiceGRPCServer{
 		joinServiceClient: joinServiceClient,
 	}

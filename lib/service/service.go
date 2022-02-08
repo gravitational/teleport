@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/firestoreevents"
 	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
+	"github.com/gravitational/teleport/lib/joinserver"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -3213,7 +3214,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				proxyLimiter.StreamServerInterceptor,
 			),
 		)
-		joinServiceServer := services.NewJoinServiceGRPCServer(conn.Client)
+		joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
 		proto.RegisterJoinServiceServer(grpcServer, joinServiceServer)
 		process.RegisterCriticalFunc("proxy.grpc", func() error {
 			log.Infof("Starting proxy gRPC server on %v.", listeners.grpc.Addr())

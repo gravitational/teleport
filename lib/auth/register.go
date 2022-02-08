@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -281,7 +280,7 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 // proxyJoinServiceClient attempts to connect to the join service running on the
 // proxy. The Proxy's TLS cert will be verified using the host's root CA pool
 // (PKI) unless the --insecure flag was passed.
-func proxyJoinServiceClient(params RegisterParams) (services.JoinService, error) {
+func proxyJoinServiceClient(params RegisterParams) (*client.JoinServiceClient, error) {
 	if len(params.Servers) == 0 {
 		return nil, trace.BadParameter("no auth servers set")
 	}
@@ -440,14 +439,18 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	return authClient, nil
 }
 
+type joinServiceClient interface {
+	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error)
+}
+
 // registerUsingIAMMethod is used to register using the IAM join method. It is
 // able to register through a proxy or through the auth server directly.
-func registerUsingIAMMethod(joinService services.JoinService, token string, params RegisterParams) (*proto.Certs, error) {
+func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, params RegisterParams) (*proto.Certs, error) {
 	ctx := context.Background()
 
 	// call RegisterUsingIAMMethod with a callback to respond to the challenge
 	// with the join request
-	certs, err := joinService.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
+	certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 		// create the signed sts:GetCallerIdentity request and include the challenge
 		signedRequest, err := createSignedSTSIdentityRequest(challenge)
 		if err != nil {
