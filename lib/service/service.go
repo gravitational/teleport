@@ -3449,7 +3449,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 		listeners.web = webWrapper
 	}
 
-	grpcListener := alpnproxy.NewMuxListenerWrapper(nil, listeners.web)
+	grpcListener := alpnproxy.NewMuxListenerWrapper(nil /* serviceListener */, listeners.web)
 	router.Add(alpnproxy.HandlerDecs{
 		MatchFunc: alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolProxyGRPC)),
 		Handler:   grpcListener.HandleConnection,
