@@ -633,7 +633,7 @@ func (s *APIServer) validateTrustedCluster(auth ClientI, w http.ResponseWriter, 
 		return nil, trace.Wrap(err)
 	}
 
-	validateResponse, err := auth.ValidateTrustedCluster(validateRequest)
+	validateResponse, err := auth.ValidateTrustedCluster(r.Context(), validateRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
