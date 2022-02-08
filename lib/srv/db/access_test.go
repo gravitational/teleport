@@ -872,10 +872,12 @@ func TestRedisPubSub(t *testing.T) {
 
 	go func() {
 		fooSub = redisClient.Subscribe(ctx, "foo")
-		defer fooSub.Close()
 		// If one of the checks fails the syncChan will be closed. If the main goroutine is waiting for a response
 		// it will be unblocked, and it will fail the test.
-		defer close(syncChan)
+		defer func() {
+			fooSub.Close()
+			close(syncChan)
+		}()
 
 		event, err := fooSub.Receive(ctx)
 		require.NoError(t, err)
@@ -886,14 +888,14 @@ func TestRedisPubSub(t *testing.T) {
 		require.NoError(t, err)
 
 		msg, ok := event.(*goredis.Message)
-		require.True(t, ok, "Redis message has wrong type")
-		require.Equal(t, "bar1", msg.Payload)
+		require.True(t, ok, "Redis message has a wrong type")
+		require.Equal(t, "bar", msg.Payload)
 		syncChan <- true
 	}()
 
 	// Wait for a subscription to be active.
 	require.True(t, <-syncChan)
-	err = redisClient.Publish(ctx, "foo", "bar1").Err()
+	err = redisClient.Publish(ctx, "foo", "bar").Err()
 	require.NoError(t, err)
 	// Wait for a message to be received in subscribed goroutine.
 	require.True(t, <-syncChan)
