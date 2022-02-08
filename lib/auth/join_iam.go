@@ -161,6 +161,8 @@ func stsClientFromContext(ctx context.Context) stsClient {
 	return http.DefaultClient
 }
 
+// executeSTSIdentityRequest sends the sts:GetCallerIdentity HTTP request to the
+// AWS API, parses the response, and returns the awsIdentity
 func executeSTSIdentityRequest(ctx context.Context, req *http.Request) (*awsIdentity, error) {
 	client := stsClientFromContext(ctx)
 
@@ -210,6 +212,8 @@ func arnMatches(pattern, arn string) (bool, error) {
 	return matched, trace.Wrap(err)
 }
 
+// checkIAMAllowRules checks if the given identity matches any of the given
+// allowRules.
 func checkIAMAllowRules(identity *awsIdentity, allowRules []*types.TokenRule) error {
 	for _, rule := range allowRules {
 		// if this rule specifies an AWS account, the identity must match
@@ -236,6 +240,8 @@ func checkIAMAllowRules(identity *awsIdentity, allowRules []*types.TokenRule) er
 	return trace.AccessDenied("instance did not match any allow rules")
 }
 
+// checkIAMRequest checks if the given request satisfies the token rules and
+// included the required challenge.
 func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *proto.RegisterUsingIAMMethodRequest) error {
 	tokenName := req.RegisterUsingTokenRequest.Token
 	provisionToken, err := a.GetToken(ctx, tokenName)

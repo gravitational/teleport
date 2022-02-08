@@ -1396,6 +1396,10 @@ message ListResourcesRequest {
     string StartKey = 4 [ (gogoproto.jsontag) = "start_key,omitempty" ];
     // Labels is a label-based matcher if non-empty.
     map<string, string> Labels = 5 [ (gogoproto.jsontag) = "labels,omitempty" ];
+    // PredicateExpression defines boolean conditions that will be matched against the resource.
+    string PredicateExpression = 6 [ (gogoproto.jsontag) = "predicate_expression,omitempty" ];
+    // SearchKeywords is a list of search keywords to match against resource field values.
+    repeated string SearchKeywords = 7 [ (gogoproto.jsontag) = "search_keywords,omitempty" ];
 }
 
 // ListResourceResponse response of ListResources.
