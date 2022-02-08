@@ -1,5 +1,11 @@
 # Changelog
 
+## 8.1.5
+
+This release of Teleport contains a fix.
+
+* Fixed an issue impacting clusters that upgraded to 8.1.3 that broke the Web UI and audit log search functionality. [#10193](https://github.com/gravitational/teleport/pull/10193)
+
 ## 8.1.4
 
 This release of Teleport contains a few improvements and fixes.
