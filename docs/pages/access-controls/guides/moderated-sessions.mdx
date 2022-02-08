@@ -10,6 +10,7 @@ Moderated sessions allows Teleport administrators to
 define requirements for other users to be present in a Server or Kubernetes Access session. Depending on the requirements, these users can observe the session in real time, participate in the session, and terminate the session at will.
 
 ### Use cases
+
 Moderated Sessions are useful in the following scenarios:
 - When you have stringent security requirements and need to have people watching over user-initiated sessions to a set of servers.
 - When you want to share a terminal with someone else to be able to instruct or collaborate.
@@ -156,6 +157,16 @@ and exists so that moderators are always present and watching a given session.
 
 If no MFA input is received within 60 seconds, the user is kicked
 from the session which may pause it, if RBAC policies are no longer met.
+
+## Session invites
+
+Moderatated Sessions tracks sessions via `SessionTracker` resource. When starting
+an interactive SSH or Kubernetes session using `tsh ssh` or `tsh kube exec` respectively,
+one may supply a `--reason <reason>` and/or a `--invited <users>` flag where `<reason>`
+is a string and `<users>` is a comma-separated list of usernames.
+
+This information can be picked up by a third party integration and may for example be used to
+enable notifications over some external communication system.
 
 ## RFD
 
