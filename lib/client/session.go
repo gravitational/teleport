@@ -158,11 +158,15 @@ func newSession(client *NodeClient,
 
 	ns.env[sshutils.SessionEnvVar] = string(ns.id)
 
-	boring, err := client.Proxy.isAuthBoring(context.TODO())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Determine if terminal should clear on exit.
+	ns.shouldClearOnExit = isFIPS()
+	if client.Proxy != nil {
+		boring, err := client.Proxy.isAuthBoring(context.TODO())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ns.shouldClearOnExit = ns.shouldClearOnExit || boring
 	}
-	ns.shouldClearOnExit = isFIPS() || boring
 
 	// Close the Terminal when finished.
 	ns.closeWait.Add(1)
