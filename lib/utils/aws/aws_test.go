@@ -89,3 +89,53 @@ func TestExtractCredFromAuthHeader(t *testing.T) {
 		})
 	}
 }
+
+// TestFilterAWSRoles verifies filtering AWS role ARNs by AWS account ID.
+func TestFilterAWSRoles(t *testing.T) {
+	acc1ARN1 := AWSRole{
+		ARN:     "arn:aws:iam::1234567890:role/EC2FullAccess",
+		Display: "EC2FullAccess",
+	}
+	acc1ARN2 := AWSRole{
+		ARN:     "arn:aws:iam::1234567890:role/EC2ReadOnly",
+		Display: "EC2ReadOnly",
+	}
+	acc1ARN3 := AWSRole{
+		ARN:     "arn:aws:iam::1234567890:role/path/to/customrole",
+		Display: "customrole",
+	}
+	acc2ARN1 := AWSRole{
+		ARN:     "arn:aws:iam::0987654321:role/test-role",
+		Display: "test-role",
+	}
+	invalidARN := AWSRole{
+		ARN: "invalid-arn",
+	}
+	allARNS := []string{
+		acc1ARN1.ARN, acc1ARN2.ARN, acc1ARN3.ARN, acc2ARN1.ARN, invalidARN.ARN,
+	}
+	tests := []struct {
+		name      string
+		accountID string
+		outARNs   []AWSRole
+	}{
+		{
+			name:      "first account roles",
+			accountID: "1234567890",
+			outARNs:   []AWSRole{acc1ARN1, acc1ARN2, acc1ARN3},
+		},
+		{
+			name:      "second account roles",
+			accountID: "0987654321",
+			outARNs:   []AWSRole{acc2ARN1},
+		},
+		{
+			name:      "all roles",
+			accountID: "",
+			outARNs:   []AWSRole{acc1ARN1, acc1ARN2, acc1ARN3, acc2ARN1},
+		},
+	}
+	for _, test := range tests {
+		require.Equal(t, test.outARNs, FilterAWSRoles(allARNS, test.accountID))
+	}
+}

@@ -227,17 +227,18 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 	defer client.Close()
 
 	// Get the SSH and X509 certificates for a node.
-	certs, err := client.RegisterUsingToken(types.RegisterUsingTokenRequest{
-		Token:                token,
-		HostID:               params.ID.HostUUID,
-		NodeName:             params.ID.NodeName,
-		Role:                 params.ID.Role,
-		AdditionalPrincipals: params.AdditionalPrincipals,
-		DNSNames:             params.DNSNames,
-		PublicTLSKey:         params.PublicTLSKey,
-		PublicSSHKey:         params.PublicSSHKey,
-		EC2IdentityDocument:  params.EC2IdentityDocument,
-	})
+	certs, err := client.RegisterUsingToken(context.Background(),
+		&types.RegisterUsingTokenRequest{
+			Token:                token,
+			HostID:               params.ID.HostUUID,
+			NodeName:             params.ID.NodeName,
+			Role:                 params.ID.Role,
+			AdditionalPrincipals: params.AdditionalPrincipals,
+			DNSNames:             params.DNSNames,
+			PublicTLSKey:         params.PublicTLSKey,
+			PublicSSHKey:         params.PublicSSHKey,
+			EC2IdentityDocument:  params.EC2IdentityDocument,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
