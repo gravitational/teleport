@@ -18,6 +18,7 @@ package integration
 
 import (
 	"context"
+	"io"
 	"net"
 	"os"
 	"testing"
@@ -42,6 +43,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func newSilentLogger() utils.Logger {
+	logger := utils.NewLoggerForTests()
+	logger.SetLevel(logrus.PanicLevel)
+	logger.SetOutput(io.Discard)
+	return logger
+}
+
 func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
 	config := service.MakeDefaultConfig()
 	config.Token = tokenName
@@ -52,6 +60,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	config.Proxy.Enabled = false
 	config.DataDir = t.TempDir()
 	config.AuthServers = append(config.AuthServers, authAddr)
+	config.Log = newSilentLogger()
 	return config
 }
 
@@ -68,10 +77,10 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	config.Proxy.DisableWebInterface = true
 	config.Proxy.WebAddr.Addr = proxyAddr
 	config.Proxy.EnableProxyProtocol = true
-	config.Log.SetLevel(logrus.DebugLevel)
 
 	config.DataDir = t.TempDir()
 	config.AuthServers = append(config.AuthServers, authAddr)
+	config.Log = newSilentLogger()
 	return config
 }
 
@@ -87,7 +96,6 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 
 	config := service.MakeDefaultConfig()
 	config.DataDir = t.TempDir()
-	config.Log.SetLevel(logrus.DebugLevel)
 	config.Auth.SSHAddr.Addr = net.JoinHostPort(Host, ports.Pop())
 	config.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "testcluster",
@@ -103,6 +111,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 	config.Proxy.Enabled = false
 	config.SSH.Enabled = false
 	config.Clock = clock
+	config.Log = newSilentLogger()
 	return config
 }
 
@@ -121,7 +130,7 @@ func getCallerIdentity(t *testing.T) *sts.GetCallerIdentityOutput {
 	})
 	require.NoError(t, err)
 	stsService := sts.New(sess)
-	output, err := stsService.GetCallerIdentity(nil)
+	output, err := stsService.GetCallerIdentity(nil /*input*/)
 	require.NoError(t, err)
 	return output
 }
@@ -199,7 +208,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	}
 
 	// create and start the auth server
-	authConfig := newAuthConfig(t, nil)
+	authConfig := newAuthConfig(t, nil /*clock*/)
 	authSvc, err := service.NewTeleport(authConfig)
 	require.NoError(t, err)
 	require.NoError(t, authSvc.Start())
@@ -247,8 +256,9 @@ func TestIAMNodeJoin(t *testing.T) {
 	}, time.Minute, time.Second, "waiting for proxy to join cluster")
 
 	// InsecureDevMode needed for node to trust proxy
+	wasInsecureDevMode := lib.IsInsecureDevMode()
+	t.Cleanup(func() { lib.SetInsecureDevMode(wasInsecureDevMode) })
 	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
 
 	// sanity check there are no nodes to start with
 	nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
