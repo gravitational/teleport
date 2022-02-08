@@ -25,11 +25,12 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
 )
 
 type mockJoinServiceClient struct {
@@ -61,7 +62,7 @@ func newGRPCConn(t *testing.T, l *bufconn.Listener) *grpc.ClientConn {
 	conn, err := grpc.DialContext(
 		context.Background(),
 		"bufconn",
-		grpc.WithInsecure(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
 			return l.DialContext(ctx)
 		}))
