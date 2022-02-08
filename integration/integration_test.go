@@ -5163,6 +5163,9 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	userRole, err := types.NewRole(userRoleName, types.RoleSpecV4{
 		Options: types.RoleOptions{},
 		Allow: types.RoleConditions{
+			Logins: []string{
+				suite.me.Username,
+			},
 			Request: &types.AccessRequestConditions{
 				Roles: []string{requestedRoleName},
 			},
