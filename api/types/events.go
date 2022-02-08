@@ -153,7 +153,7 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 			}
 			return target.Match(res), nil
 		case CertAuthority:
-			filter := make(CertAuthorityFilter)
+			var filter CertAuthorityFilter
 			if err := filter.FromMap(kind.Filter); err != nil {
 				return false, trace.Wrap(err)
 			}

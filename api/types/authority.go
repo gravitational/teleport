@@ -793,7 +793,7 @@ func (f CertAuthorityFilter) IntoMap() map[string]string {
 		return nil
 	}
 
-	m := make(map[string]string)
+	m := make(map[string]string, len(f))
 	for caType, trustRels := range f {
 		tr := make([]string, 0, len(trustRels))
 		for _, trustRel := range trustRels {
@@ -805,11 +805,13 @@ func (f CertAuthorityFilter) IntoMap() map[string]string {
 }
 
 // FromMap converts the provided map into this filter.
-func (f CertAuthorityFilter) FromMap(m map[string]string) error {
-	if f == nil {
-		return trace.BadParameter("CertAuthorityFilter.FromMap called on a nil filter")
+func (f *CertAuthorityFilter) FromMap(m map[string]string) error {
+	if len(m) == 0 {
+		*f = nil
+		return nil
 	}
 
+	*f = make(CertAuthorityFilter, len(m))
 	// there's not a lot of value in rejecting unknown values from the filter
 	for key, val := range m {
 		tr := strings.Split(val, ",")
@@ -817,7 +819,7 @@ func (f CertAuthorityFilter) FromMap(m map[string]string) error {
 		for _, t := range tr {
 			trustRels = append(trustRels, TrustRelationship(t))
 		}
-		f[CertAuthType(key)] = trustRels
+		(*f)[CertAuthType(key)] = trustRels
 	}
 	return nil
 }
