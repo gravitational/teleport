@@ -68,6 +68,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"io"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -258,7 +259,9 @@ func (c *Client) start() {
 		var mouseX, mouseY uint32
 		for {
 			msg, err := c.cfg.Conn.InputMessage()
-			if err != nil {
+			if errors.Is(err, io.EOF) {
+				return
+			} else if err != nil {
 				c.cfg.Log.Warningf("Failed reading TDP input message: %v", err)
 				return
 			}
