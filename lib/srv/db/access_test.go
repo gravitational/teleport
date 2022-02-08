@@ -1030,6 +1030,27 @@ func TestRedisTransaction(t *testing.T) {
 	require.Equal(t, 10, n)
 }
 
+func TestRedisNil(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	// Try to connect to the database as this user.
+	redisClient, err := testCtx.redisClient(ctx, "alice", "redis", "admin")
+	require.NoError(t, err)
+
+	// Get Redis to return nil. It should be parsed correctly as nil, not a Redis error.
+	result := redisClient.Get(ctx, "keyDoesntExist")
+	require.Equal(t, goredis.Nil, result.Err())
+
+	// Disconnect.
+	err = redisClient.Close()
+	require.NoError(t, err)
+}
+
 type testContext struct {
 	hostID         string
 	clusterName    string

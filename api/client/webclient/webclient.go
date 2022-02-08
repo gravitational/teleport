@@ -266,6 +266,8 @@ type DBProxySettings struct {
 	MongoListenAddr string `json:"mongo_listen_addr,omitempty"`
 	// MongoPublicAddr is advertised to Mongo clients.
 	MongoPublicAddr string `json:"mongo_public_addr,omitempty"`
+	// RedisPublicAddr is advertised to Redis clients.
+	RedisPublicAddr string `json:"redis_public_addr,omitempty"`
 }
 
 // AuthenticationSettings contains information about server authentication

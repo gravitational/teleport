@@ -34,6 +34,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -208,12 +209,12 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 
 // ServeRedis starts accepting Redis client connections.
 func (s *ProxyServer) ServeRedis(listener net.Listener, tlsConfig *tls.Config) error {
-	return s.serveGenericTLS(listener, tlsConfig, "Redis")
+	return s.serveGenericTLS(listener, tlsConfig, defaults.ProtocolRedis)
 }
 
 // ServeMongo starts accepting Mongo client connections.
 func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) error {
-	return s.serveGenericTLS(listener, tlsConfig, "Mongo")
+	return s.serveGenericTLS(listener, tlsConfig, defaults.ProtocolMongoDB)
 }
 
 // serveGenericTLS starts accepting a plain TLS database client connection.

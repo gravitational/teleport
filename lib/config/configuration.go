@@ -637,46 +637,53 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 	if fc.Proxy.ListenAddress != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, int(defaults.SSHProxyListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, defaults.SSHProxyListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.SSHAddr = *addr
 	}
 	if fc.Proxy.WebAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.WebAddr, int(defaults.HTTPListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.WebAddr, defaults.HTTPListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.WebAddr = *addr
 	}
 	if fc.Proxy.TunAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.TunAddr, int(defaults.SSHProxyTunnelListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.TunAddr, defaults.SSHProxyTunnelListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
 	if fc.Proxy.MySQLAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.MySQLAddr, int(defaults.MySQLListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MySQLAddr, defaults.MySQLListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.MySQLAddr = *addr
 	}
 	if fc.Proxy.PostgresAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.PostgresAddr, int(defaults.PostgresListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.PostgresAddr, defaults.PostgresListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.PostgresAddr = *addr
 	}
 	if fc.Proxy.MongoAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.MongoAddr, int(defaults.MongoListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MongoAddr, defaults.MongoListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.MongoAddr = *addr
+	}
+	if fc.Proxy.RedisAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.RedisAddr, defaults.RedisListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.RedisAddr = *addr
 	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
@@ -831,6 +838,17 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.MongoPublicAddrs = addrs
+	}
+
+	if len(fc.Proxy.RedisPublicAddr) != 0 {
+		if fc.Proxy.RedisAddr == "" {
+			return trace.BadParameter("redis_listen_addr must be set when redis_public_addr is set")
+		}
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.RedisPublicAddr, defaults.RedisListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.RedisPublicAddrs = addrs
 	}
 
 	acme, err := fc.Proxy.ACME.Parse()

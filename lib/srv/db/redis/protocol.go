@@ -20,7 +20,6 @@ package redis
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -28,8 +27,20 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/trace"
+)
+
+// List of all commands that Teleport handles in a special way.
+const (
+	helloCmd        = "hello"
+	authCmd         = "auth"
+	subscribeCmd    = "subscribe"
+	psubscribeCmd   = "psubscribe"
+	punsubscribeCmd = "punsubscribe"
+	ssubscribeCmd   = "ssubscribe"
+	sunsubscribeCmd = "sunsubscribe"
 )
 
 // processCmd processes commands received from connected client. Most commands are just passed to Redis instance,
@@ -39,21 +50,34 @@ import (
 //  * Subscribe related commands created a new DB connection as they change Redis request-response model to Pub/Sub.
 func (e *Engine) processCmd(ctx context.Context, redisClient redis.UniversalClient, cmd *redis.Cmd) error {
 	switch strings.ToLower(cmd.Name()) {
-	case "hello":
-		return redis.RedisError("RESP3 is not supported")
-	case "auth":
-		return e.processAuth(ctx, redisClient, cmd)
-	case "subscribe":
-		return e.subscribeCmd(ctx, redisClient.Subscribe, cmd)
-	case "psubscribe":
-		return e.subscribeCmd(ctx, redisClient.PSubscribe, cmd)
-	case "punsubscribe":
+	case helloCmd:
+		return trace.NotImplemented("RESP3 is not supported")
+	case authCmd:
+		if err := e.processAuth(ctx, redisClient, cmd); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	case subscribeCmd:
+		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
+		if err := e.subscribeCmd(ctx, redisClient.Subscribe, cmd); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	case psubscribeCmd:
+		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
+		if err := e.subscribeCmd(ctx, redisClient.PSubscribe, cmd); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	case punsubscribeCmd:
 		// TODO(jakub): go-redis doesn't expose any API for this command. Investigate alternative options.
-		return errors.New("PUNSUBSCRIBE is not supported by Teleport")
-	case "ssubscribe", "sunsubscribe":
+		return trace.NotImplemented("PUNSUBSCRIBE is not supported by Teleport")
+	case ssubscribeCmd, sunsubscribeCmd:
 		// go-redis doesn't support Redis 7+ commands yet.
-		return errors.New("Redis 7.0+ is not yet supported")
+		return trace.NotImplemented("Redis 7.0+ is not yet supported")
 	default:
+		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
+
 		// Here the command is sent to the DB.
 		return redisClient.Process(ctx, cmd)
 	}
@@ -73,6 +97,11 @@ func (e *Engine) subscribeCmd(ctx context.Context, subscribeFn redisSubscribeFn,
 		args = append(args, a.(string))
 	}
 	pubSub := subscribeFn(ctx, args...)
+	defer func() {
+		if err := pubSub.Close(); err != nil {
+			e.Log.Errorf("failed to close Redis Pub/Sub connection: %v", err)
+		}
+	}()
 
 	return e.processPubSub(ctx, pubSub)
 }
@@ -121,8 +150,9 @@ func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalCli
 	switch len(cmd.Args()) {
 	case 1:
 		// Passed AUTH command without any arguments. Mimic Redis error response.
-		return errors.New("wrong number of arguments for 'auth' command")
+		return trace.BadParameter("wrong number of arguments for 'auth' command")
 	case 2:
+		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: "AUTH ****"})
 		// Old Redis command. Password is the only argument here. Pass to Redis to validate.
 		// ex. AUTH my-secret-password
 		return redisClient.Process(ctx, cmd)
@@ -131,7 +161,7 @@ func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalCli
 		// ex. AUTH bob my-secret-password
 		dbUser, ok := cmd.Args()[1].(string)
 		if !ok {
-			return errors.New("username has a wrong type, expected string")
+			return trace.BadParameter("username has a wrong type, expected string")
 		}
 
 		err := e.sessionCtx.Checker.CheckAccess(e.sessionCtx.Database,
@@ -145,10 +175,12 @@ func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalCli
 			return err
 		}
 
+		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: fmt.Sprintf("AUTH %s ****", dbUser)})
+
 		return redisClient.Process(ctx, cmd)
 	default:
 		// Redis returns "syntax error" if AUTH has more than 2 arguments.
-		return errors.New("syntax error")
+		return trace.BadParameter("syntax error")
 	}
 }
 
@@ -162,37 +194,23 @@ func writeCmd(wr *redis.Writer, vals interface{}) error {
 	case redis.Error:
 		if val == redis.Nil {
 			// go-redis returns nil value as errors, but Redis Wire protocol decodes them differently.
-			// Note: RESP3 has different sequence for nil.
+			// Note: RESP3 has different sequence for nil, current nil is RESP2 compatible as the rest
+			// of our implementation.
 			if _, err := wr.WriteString("$-1\r\n"); err != nil {
 				return trace.Wrap(err)
 			}
 			return nil
 		}
 
-		if err := wr.WriteByte('-'); err != nil {
-			// Redis error passed from DB itself. Just add '-' to mark as error.
+		if err := writeError(wr, "-", val); err != nil {
 			return trace.Wrap(err)
 		}
-
-		if _, err := wr.WriteString(val.Error()); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if _, err := wr.Write([]byte("\r\n")); err != nil {
+	case trace.Error:
+		if err := writeError(wr, "-ERR Teleport: ", val); err != nil {
 			return trace.Wrap(err)
 		}
 	case error:
-		if _, err := wr.WriteString("-ERR "); err != nil {
-			// Add error header specified in https://redis.io/topics/protocol#resp-errors
-			// to follow the convention.
-			return trace.Wrap(err)
-		}
-
-		if _, err := wr.WriteString(val.Error()); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if _, err := wr.Write([]byte("\r\n")); err != nil {
+		if err := writeError(wr, "-ERR ", val); err != nil {
 			return trace.Wrap(err)
 		}
 	case int:
@@ -215,31 +233,82 @@ func writeCmd(wr *redis.Writer, vals interface{}) error {
 		if err := writeInteger(wr, val); err != nil {
 			return trace.Wrap(err)
 		}
+	case []string:
+		if err := writeStringSlice(wr, val); err != nil {
+			return trace.Wrap(err)
+		}
 	case []interface{}:
-		if err := wr.WriteByte(redis.ArrayReply); err != nil {
+		if err := writeSlice(wr, val); err != nil {
 			return trace.Wrap(err)
-		}
-		n := len(val)
-		if err := wr.WriteLen(n); err != nil {
-			return trace.Wrap(err)
-		}
-
-		for _, v0 := range val {
-			if err := writeCmd(wr, v0); err != nil {
-				return trace.Wrap(err)
-			}
 		}
 	case interface{}:
 		err := wr.WriteArg(val)
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 	}
 
 	return nil
 }
 
-// writeInteger converts integers to Redis wire form.
+// writeError converts Go error to Redis wire form.
+func writeError(wr *redis.Writer, prefix string, val error) error {
+	if _, err := wr.WriteString(prefix); err != nil {
+		// Add error header specified in https://redis.io/topics/protocol#resp-errors
+		// to follow the convention.
+		return trace.Wrap(err)
+	}
+
+	if _, err := wr.WriteString(val.Error()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := wr.Write([]byte("\r\n")); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// writeSlice converts []interface{} to Redis wire form.
+func writeSlice(wr *redis.Writer, vals []interface{}) error {
+	if err := wr.WriteByte(redis.ArrayReply); err != nil {
+		return trace.Wrap(err)
+	}
+	n := len(vals)
+	if err := wr.WriteLen(n); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, v0 := range vals {
+		if err := writeCmd(wr, v0); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// writeStringSlice converts []string to Redis wire form.
+func writeStringSlice(wr *redis.Writer, vals []string) error {
+	if err := wr.WriteByte(redis.ArrayReply); err != nil {
+		return trace.Wrap(err)
+	}
+	n := len(vals)
+	if err := wr.WriteLen(n); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, v0 := range vals {
+		if err := writeCmd(wr, v0); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// writeInteger converts integer to Redis wire form.
 func writeInteger(wr *redis.Writer, val int64) error {
 	if err := wr.WriteByte(redis.IntReply); err != nil {
 		return trace.Wrap(err)

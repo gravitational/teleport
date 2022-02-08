@@ -377,12 +377,12 @@ type ProxyConfig struct {
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
-	// for the HTTP endpoint. The hosts in in PublicAddr are included in the
+	// for the HTTP endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
 	PublicAddrs []utils.NetAddr
 
 	// SSHPublicAddrs is a list of the public addresses the proxy advertises
-	// for the SSH endpoint. The hosts in in PublicAddr are included in the
+	// for the SSH endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
 	SSHPublicAddrs []utils.NetAddr
 
@@ -402,6 +402,10 @@ type ProxyConfig struct {
 	// MongoPublicAddrs is a list of the public addresses the proxy
 	// advertises for Mongo clients.
 	MongoPublicAddrs []utils.NetAddr
+
+	// RedisPublicAddrs is a list of the public addresses the proxy
+	// advertises for Redis clients.
+	RedisPublicAddrs []utils.NetAddr
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig

@@ -38,8 +38,8 @@ const (
 type ConnectionMode string
 
 const (
-	// Single mode should be used when connecting to a single Redis instance.
-	Single ConnectionMode = "single"
+	// Standalone mode should be used when connecting to a single Redis instance.
+	Standalone ConnectionMode = "standalone"
 	// Cluster mode should be used then connecting to a Redis Cluster.
 	Cluster ConnectionMode = "cluster"
 )
@@ -68,7 +68,7 @@ func ParseRedisURI(uri string) (*ConnectionOptions, error) {
 	}
 
 	switch u.Scheme {
-	case URIScheme, URISchemeSSL:
+	case URIScheme, URISchemeSSL, "": // let user skip redis schema, but reject incorrect one
 	default:
 		return nil, trace.BadParameter("invalid Redis URI scheme: %q. Expected %q or %q.",
 			u.Scheme, URIScheme, URISchemeSSL)
@@ -87,17 +87,17 @@ func ParseRedisURI(uri string) (*ConnectionOptions, error) {
 	// Get additional connections options
 
 	// Default to the single mode.
-	mode := Single
+	mode := Standalone
 	if values.Has("mode") {
 		connMode := strings.ToLower(values.Get("mode"))
 		switch ConnectionMode(connMode) {
-		case Single:
-			mode = Single
+		case Standalone:
+			mode = Standalone
 		case Cluster:
 			mode = Cluster
 		default:
 			return nil, trace.BadParameter("incorrect connection mode %q, supported are: %s and %s",
-				connMode, Single, Cluster)
+				connMode, Standalone, Cluster)
 		}
 	}
 

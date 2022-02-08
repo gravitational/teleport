@@ -147,12 +147,17 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	// TODO(jakub): Use system CA bundle if connecting to AWS.
 	// TODO(jakub): Investigate Redis Sentinel.
 	switch connectionOptions.mode {
-	case Single:
+	case Standalone:
 		redisConn = redis.NewClient(&redis.Options{
 			Addr:      connectionAddr,
 			TLSConfig: tlsConfig,
 		})
 	case Cluster:
+		if sessionCtx.DatabaseName != "" {
+			// ref: https://redis.io/commands/select
+			return trace.BadParameter("Redis Cluster only supports database zero")
+		}
+
 		redisConn = redis.NewClusterClient(&redis.ClusterOptions{
 			Addrs:     []string{connectionAddr},
 			TLSConfig: tlsConfig,
@@ -162,12 +167,16 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.BadParameter("incorrect connection mode %s", connectionOptions.mode)
 	}
 
-	defer redisConn.Close()
+	defer func() {
+		if err := redisConn.Close(); err != nil {
+			e.Log.Errorf("failed to close Redis connection: %v", err)
+		}
+	}()
 
 	// TODO(jakub): Currently Teleport supports only RESP2 as RESP3 is not supported by go-redis.
 	// When migration to RESP3 protocol this PING should be removed in favor of "HELLO 3" cmd.
 	// https://github.com/antirez/RESP3/blob/master/spec.md#the-hello-command-and-connection-handshake
-	pingResp := redisConn.Ping(context.Background())
+	pingResp := redisConn.Ping(ctx)
 	if pingResp.Err() != nil {
 		return trace.Wrap(pingResp.Err())
 	}
@@ -207,8 +216,6 @@ func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient)
 			return trace.Wrap(err)
 		}
 
-		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
-
 		// send valid commands to Redis instance/cluster.
 		err = e.processCmd(ctx, redisClient, cmd)
 
@@ -218,12 +225,15 @@ func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient)
 		} else if errors.Is(err, context.DeadlineExceeded) {
 			// Do not return Deadline Exceeded to the client as it's not very self-explanatory.
 			// Return "connection timeout" as this is what most likely happened.
-			vals = errors.New("connection timeout")
+			vals = trace.ConnectionProblem(err, "connection timeout")
 		} else if err != nil {
-			// Send the error to the client as connection will be terminated after return.
-			e.SendError(err)
+			// Terminate connection only on connection errors. Errors that comes from Redis
+			// should be propagated back to the client.
+			if utils.IsOKNetworkError(err) {
+				return trace.Wrap(err)
+			}
 
-			return trace.Wrap(err)
+			vals = err
 		} else {
 			vals, err = cmd.Result()
 			if err != nil {
