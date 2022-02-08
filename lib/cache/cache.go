@@ -357,7 +357,7 @@ type Cache struct {
 
 	// fnCache is used to perform short ttl-based caching of the results of
 	// regularly called methods.
-	fnCache *fnCache
+	fnCache *utils.FnCache
 
 	trustCache           services.Trust
 	clusterConfigCache   services.ClusterConfiguration
@@ -630,6 +630,14 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	fnCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:   time.Second,
+		Clock: config.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ctx, cancel := context.WithCancel(config.Context)
 	cs := &Cache{
 		wrapper:              wrapper,
@@ -638,7 +646,7 @@ func New(config Config) (*Cache, error) {
 		Config:               config,
 		generation:           atomic.NewUint64(0),
 		initC:                make(chan struct{}),
-		fnCache:              newFnCache(time.Second),
+		fnCache:              fnCache,
 		trustCache:           local.NewCAService(wrapper),
 		clusterConfigCache:   clusterConfigCache,
 		provisionerCache:     local.NewProvisioningService(wrapper),

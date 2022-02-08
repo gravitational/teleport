@@ -192,6 +192,9 @@ const (
 	// MetricRegisteredServers tracks the number of Teleport servers that have successfully registered with the Teleport cluster and have not reached the end of their ttl
 	MetricRegisteredServers = "registered_servers"
 
+	// MetricReverseSSHTunnels defines the number of connected SSH reverse tunnels to the proxy
+	MetricReverseSSHTunnels = "reverse_tunnels_connected"
+
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
 
@@ -218,4 +221,7 @@ const (
 
 	// TagCacheComponent is a prometheus label for the cache component
 	TagCacheComponent = "cache_component"
+
+	// TagType is a prometheus label for type of resource or tunnel connected
+	TagType = "type"
 )

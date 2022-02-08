@@ -451,7 +451,15 @@ $(RENDER_TESTS): $(wildcard ./build.assets/tooling/cmd/render-tests/*.go)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-sh test-api test-go
+test: test-sh test-api test-go test-rust
+
+# Runs bot Go tests.
+#
+.PHONY: test-bot
+test-bot:
+test-bot: FLAGS ?= '-race'
+test-bot:
+	cd .github/workflows/robot && go test $(FLAGS) ./...
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -479,7 +487,8 @@ test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v integration
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
-# Runs API Go tests. These have to be run separately as the package name is different.
+#
+# Runs Go tests on the api module. These have to be run separately as the package name is different.
 #
 .PHONY: test-api
 test-api:
@@ -487,6 +496,21 @@ test-api: FLAGS ?= '-race'
 test-api: PACKAGES = $(shell cd api && go list ./...)
 test-api: $(VERSRC)
 	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+
+#
+# Runs cargo test on our Rust modules.
+# (a no-op if cargo and rustc are not installed)
+#
+ifneq ($(CHECK_RUST),)
+ifneq ($(CHECK_CARGO),)
+.PHONY: test-rust
+test-rust:
+	cargo test
+else
+.PHONY: test-rust
+test-rust:
+endif
+endif
 
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
@@ -532,18 +556,51 @@ integration-root: $(RENDER_TESTS)
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go lint-license lint-rdp
+lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools
 
-.PHONY: lint-rdp
-lint-rdp:
-	cd lib/srv/desktop/rdp/rdpclient \
-		&& cargo clippy --locked --all-targets -- -D warnings \
+.PHONY: lint-tools
+lint-tools: lint-version-check lint-bot lint-ci-scripts lint-backport
+
+#
+# Runs the clippy linter on our rust modules
+# (a no-op if cargo and rustc are not installed)
+#
+ifneq ($(CHECK_RUST),)
+ifneq ($(CHECK_CARGO),)
+.PHONY: lint-rust
+lint-rust:
+	cargo clippy --locked --all-targets -- -D warnings \
 		&& cargo fmt -- --check
+else
+.PHONY: lint-rust
+lint-rust:
+endif
+endif
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
 	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
+
+.PHONY: lint-version-check
+lint-version-check: GO_LINT_FLAGS ?=
+lint-version-check:
+	cd build.assets/version-check && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
+
+.PHONY: lint-backport
+lint-backport: GO_LINT_FLAGS ?=
+lint-backport:
+	cd assets/backport && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
+
+.PHONY: lint-bot
+lint-bot: GO_LINT_FLAGS ?=
+lint-bot:
+	cd .github/workflows/robot && golangci-lint run -c ../../../.golangci.yml $(GO_LINT_FLAGS)
+
+.PHONY: lint-ci-scripts
+lint-ci-scripts: GO_LINT_FLAGS ?=
+lint-ci-scripts:
+	cd .cloudbuild/scripts/ && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
 
 # api is no longer part of the teleport package, so golangci-lint skips it by default
 .PHONY: lint-api
@@ -959,4 +1016,4 @@ dronegen:
 # installed locally. To backport, type "make backport PR=1234 TO=branch/1,branch/2".
 .PHONY: backport
 backport:
-	(cd ./assets/backport && go run main.go -pr=$(PR) -to=$(TO)) 
+	(cd ./assets/backport && go run main.go -pr=$(PR) -to=$(TO))
