@@ -4721,6 +4721,7 @@ name: build-buildboxes
 environment:
   GID: "1000"
   RUNTIME: go1.17.3
+  BUILDBOX_VERSION: teleport8
   UID: "1000"
 trigger:
   event:
@@ -4732,6 +4733,7 @@ trigger:
   branch:
     include:
     - master
+    - branch/v8
 workspace:
   path: /go/src/github.com/gravitational/teleport
 clone:
@@ -4757,7 +4759,7 @@ steps:
   - chown -R $UID:$GID /go
   - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
   - make -C build.assets buildbox
-  - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
+  - docker push quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION
   environment:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
@@ -4773,7 +4775,7 @@ steps:
   - chown -R $UID:$GID /go
   - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
   - make -C build.assets buildbox-fips
-  - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
+  - docker push quay.io/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
   environment:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
@@ -4789,7 +4791,7 @@ steps:
   - chown -R $UID:$GID /go
   - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
   - make -C build.assets buildbox-centos6
-  - docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
+  - docker push quay.io/gravitational/teleport-buildbox-centos6:$BUILDBOX_VERSION
   environment:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
@@ -4805,7 +4807,7 @@ steps:
   - chown -R $UID:$GID /go
   - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
   - make -C build.assets buildbox-arm
-  - docker push quay.io/gravitational/teleport-buildbox-arm:$RUNTIME
+  - docker push quay.io/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION
   environment:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
@@ -5213,6 +5215,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 35b04926a6bf74eb9cffaeb16471d924f28b8768770a5c3715527a304278c6f2
+hmac: 1c1409a92ceaf1dcc9d9c29d757ab339a37676fff15a1f679a21185b9848ad1a
 
 ...
