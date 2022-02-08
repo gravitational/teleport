@@ -56,6 +56,10 @@ var (
 	}
 )
 
+const branchName string = "branch/v9"
+
+var buildboxVersion value = value{raw: "teleport9"}
+
 var goRuntime value
 
 func init() {
@@ -64,6 +68,16 @@ func init() {
 		log.Fatalf("could not get Go version: %v", err)
 	}
 	goRuntime = value{raw: string(bytes.TrimSpace(v))}
+}
+
+func pushTriggerMasterAnd(branches ...string) trigger {
+	t := trigger{
+		Event:  triggerRef{Include: []string{"push"}},
+		Branch: triggerRef{Include: []string{"master"}},
+		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
+	}
+	t.Branch.Include = append(t.Branch.Include, branches...)
+	return t
 }
 
 type buildType struct {
