@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// the crepe! macro expands to code that triggers a linter warning.
+// supressing the warning on the offending line breaks the macro,
+// so we just disable it for the entire file
+#![allow(clippy::collapsible_if)]
+
 use bytes::BytesMut;
 use crepe::crepe;
 use libc::{c_uchar, size_t};

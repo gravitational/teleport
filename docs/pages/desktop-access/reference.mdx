@@ -25,7 +25,7 @@ description: Teleport Desktop Access configuration and CLI reference.
 # You can have multiple Desktop Access services in your cluster (but not in the
 # same teleport.yaml), connected to the same or different Active Directory
 # domains.
-(!docs/pages/includes/desktop-access/desktop-config.mdx!)
+(!docs/pages/includes/desktop-access/desktop-config.yaml!)
 ```
 
 This `host_labels` configuration would apply the `environment: dev` label to a
@@ -36,14 +36,14 @@ to a desktop named `desktop.prod.example.com`.
 
 The Windows Desktop Service can be deployed in two modes.
 
-In _direct_ mode, Windows Desktop Services registers directly with the Teleport
+In *direct* mode, Windows Desktop Services registers directly with the Teleport
 Auth Server, and listens for desktop connections from the Teleport Proxy. To
 enable direct mode, set `windows_desktop_service.listen_addr` in
 `teleport.yaml`, and ensure that `teleport.auth_servers` points directly at the
 auth server. Direct mode requires network connectivity from the Teleport Proxy
 to Windows Desktop Service, and from Windows Desktop Service to the auth server.
 
-In _IoT mode_, Windows Desktop Service only needs to be able to make an outbound
+In *IoT mode*, Windows Desktop Service only needs to be able to make an outbound
 connection to a Teleport Proxy. The Windows Desktop Service establishes a
 reverse tunnel to the proxy, and both registration with the auth server and
 desktop sessions are performed over this tunnel. To enable this mode, ensure
