@@ -32,6 +32,7 @@ and under what conditions they may join a session.
 ### `require_session_join`
 
 #### Options
+
 The following are required options for `require_session_join`:
 
 |Option|Type|Description|
@@ -62,6 +63,7 @@ spec:
         filter: 'contains(user.roles, "auditor")'
         kinds: ['k8s', 'ssh']
         modes: ['moderator']
+        count: 2
 ```
 
 ### `join_sessions`
@@ -69,8 +71,6 @@ spec:
 #### Options
 
 The following are required options for `join_sessions`:
-
-{/* TODO: See if `roles` can be substituted with a `filter` here as well as with require policies */}
 
 |Option|Type|Description|
 |---|---|---|
@@ -80,8 +80,9 @@ The following are required options for `join_sessions`:
 |`modes`|`[]`[Participant mode](./moderated-sessions.mdx#participant-modes)|The participant mode that paplies to the user joining the Moderated Session under this policy|
 
 #### Example
+
 The following allow policy attaches to the role `auditor` and allows one to join
-SSH and Kubernetes sessions started by a user with the role `prod_access` as a moderator or observer.
+SSH and Kubernetes sessions started by a user with the role `prod-access` as a moderator or observer.
 
 ```yaml
 kind: role
