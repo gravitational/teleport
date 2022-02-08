@@ -155,5 +155,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     rustup target add aarch64-unknown-linux-gnu && \
     cargo install cbindgen
 
+USER root
+
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
