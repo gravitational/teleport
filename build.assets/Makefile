@@ -49,6 +49,7 @@ BUILDBOX_CENTOS7=quay.io/gravitational/teleport-buildbox-centos7:$(BUILDBOX_VERS
 BUILDBOX_CENTOS7_FIPS=quay.io/gravitational/teleport-buildbox-centos7-fips:$(BUILDBOX_VERSION)
 BUILDBOX_ARM=quay.io/gravitational/teleport-buildbox-arm:$(BUILDBOX_VERSION)
 BUILDBOX_ARM_FIPS=quay.io/gravitational/teleport-buildbox-arm-fips:$(BUILDBOX_VERSION)
+DEVBOX=teleport-devbox
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
