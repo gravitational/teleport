@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"crypto/x509"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -141,16 +142,22 @@ func onStart(botConfig *config.BotConfig) error {
 
 	var authClient *auth.Client
 
-	// First, attempt to load an identity from the given destination
+	// First, attempt to load an identity from storage.
 	ident, err := identity.LoadIdentity(dest)
 	if err == nil {
-		log.Infof("successfully loaded identity %+v", ident)
+		identStr, err := describeIdentity(ident)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		log.Infof("Successfully loaded bot identity, %s", identStr)
 
 		// TODO: we should cache the token; if --token is provided but
 		// different, assume the user is attempting to start with a new
-		// identity
+		// identity. (May want to store a sha256 has to avoid storing the
+		// token directly.)
 		if botConfig.Onboarding != nil {
-			log.Warn("note: onboard config ignored as identity was loaded from persistent storage")
+			log.Warn("Note: onboarding config ignored as identity was loaded from persistent storage")
 		}
 
 		authClient, err = authenticatedUserClientFromIdentity(ident, botConfig.AuthServer)
@@ -191,7 +198,7 @@ func onStart(botConfig *config.BotConfig) error {
 			Clock:        clockwork.NewRealClock(),
 		}
 
-		log.Info("attempting to generate new identity from token")
+		log.Info("Attempting to generate new identity from token")
 		ident, err = newIdentityViaAuth(params)
 		if err != nil {
 			return trace.Wrap(err)
@@ -200,9 +207,7 @@ func onStart(botConfig *config.BotConfig) error {
 		// Attach the ssh public key.
 		//ident.SSHPublicKeyBytes = sshPublicKey
 
-		// TODO: consider `memory` dest type for testing / ephemeral use / etc
-
-		log.Debug("attempting first connection using initial auth client")
+		log.Debug("Attempting first connection using initial auth client")
 		authClient, err = authenticatedUserClientFromIdentity(ident, botConfig.AuthServer)
 		if err != nil {
 			return trace.Wrap(err)
@@ -213,13 +218,17 @@ func onStart(botConfig *config.BotConfig) error {
 			return trace.WrapWithMessage(err, "unable to communicate with auth server")
 		}
 
-		log.Infof("storing new identity to destination: %+v", dest)
+		identStr, err := describeIdentity(ident)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.Infof("Successfully generated new bot identity, %s", identStr)
+
+		log.Debugf("Storing new bot identity to %s", dest)
 		if err := identity.SaveIdentity(ident, dest); err != nil {
 			return trace.WrapWithMessage(err, "unable to save generated identity back to destination")
 		}
 	}
-
-	log.Infof("Certificate is valid for principals: %+v", ident.Cert.ValidPrincipals)
 
 	// TODO: handle cases where an identity exists on disk but we might _not_
 	// want to use it:
@@ -374,18 +383,10 @@ func fetchDefaultRoles(ctx context.Context, client *auth.Client, botRole string)
 
 // describeIdentity writes an informational message about the given identity to
 // the log.
-func describeIdentity(ident *identity.Identity) error {
+func describeIdentity(ident *identity.Identity) (string, error) {
 	tlsIdent, err := tlsca.FromSubject(ident.XCert.Subject, ident.XCert.NotAfter)
 	if err != nil {
-		return trace.WrapWithMessage(err, "bot TLS certificate can not be parsed as an identity")
-	}
-
-	// certType describes which type of certificates this is
-	var certType string
-	if tlsIdent.Impersonator == "" {
-		certType = "bot"
-	} else {
-		certType = "impersonated"
+		return "", trace.WrapWithMessage(err, "bot TLS certificate can not be parsed as an identity")
 	}
 
 	var principals []string
@@ -396,9 +397,8 @@ func describeIdentity(ident *identity.Identity) error {
 	}
 
 	duration := time.Second * time.Duration(ident.Cert.ValidBefore-ident.Cert.ValidAfter)
-	log.Infof(
-		"Successfully fetched new %s certificates, now valid: after=%v, before=%v, duration=%s, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v",
-		certType,
+	return fmt.Sprintf(
+		"valid: after=%v, before=%v, duration=%s | properties: renewable=%v, disallow-reissue=%v, roles=%v, principals=%v",
 		time.Unix(int64(ident.Cert.ValidAfter), 0),
 		time.Unix(int64(ident.Cert.ValidBefore), 0),
 		duration,
@@ -406,9 +406,7 @@ func describeIdentity(ident *identity.Identity) error {
 		tlsIdent.DisallowReissue,
 		tlsIdent.Groups,
 		principals,
-	)
-
-	return nil
+	), nil
 }
 
 func renewLoop(cfg *config.BotConfig, client *auth.Client, ident *identity.Identity) error {
@@ -438,15 +436,18 @@ func renewLoop(cfg *config.BotConfig, client *auth.Client, ident *identity.Ident
 	ticker := time.NewTicker(cfg.RenewInterval)
 	defer ticker.Stop()
 	for {
-		log.Info("Attempting to renew bot certificates...")
+		log.Debug("Attempting to renew bot certificates...")
 		newIdentity, err := renewIdentityViaAuth(client, ident, cfg.CertificateTTL)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := describeIdentity(ident); err != nil {
+		identStr, err := describeIdentity(ident)
+		if err != nil {
 			return trace.WrapWithMessage(err, "Could not describe bot identity at %s", botDestination)
 		}
+
+		log.Infof("Successfully renewed bot certificates, %s", identStr)
 
 		// TODO: warn if duration < certTTL? would indicate TTL > server's max renewable cert TTL
 		// TODO: error if duration < renewalInterval? next renewal attempt will fail
@@ -503,9 +504,11 @@ func renewLoop(cfg *config.BotConfig, client *auth.Client, ident *identity.Ident
 				return trace.WrapWithMessage(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
 			}
 
-			if err := describeIdentity(impersonatedIdent); err != nil {
+			impersonatedIdentStr, err := describeIdentity(impersonatedIdent)
+			if err != nil {
 				return trace.WrapWithMessage(err, "could not describe impersonated certs for destination %s", destImpl)
 			}
+			log.Infof("Successfully renewed impersonated certificates for %s, %s", destImpl, impersonatedIdentStr)
 
 			if err := identity.SaveIdentity(impersonatedIdent, destImpl); err != nil {
 				return trace.WrapWithMessage(err, "failed to save impersonated identity to destination %s", destImpl)
