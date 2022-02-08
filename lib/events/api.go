@@ -395,6 +395,12 @@ const (
 	MFADeviceAddEvent = "mfa.add"
 	// MFADeviceDeleteEvent is an event type for users deleting MFA devices.
 	MFADeviceDeleteEvent = "mfa.delete"
+
+	// CertificateCreateEvent is emitted when a certificate is issued.
+	CertificateCreateEvent = "cert.create"
+
+	// CertificateTypeUser is the CertificateType for certificate events pertaining to user certificates.
+	CertificateTypeUser = "user"
 )
 
 const (

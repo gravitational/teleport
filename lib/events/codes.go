@@ -419,4 +419,7 @@ const (
 	RoleCreatedCode = "T9000I"
 	// RoleDeletedCode is the role deleted event code.
 	RoleDeletedCode = "T9001I"
+
+	// CertificateCreateCode is the certificate issuance event code.
+	CertificateCreateCode = "TC000I"
 )
