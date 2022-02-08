@@ -68,19 +68,25 @@ func ParseRedisURI(uri string) (*ConnectionOptions, error) {
 	}
 
 	switch u.Scheme {
-	case URIScheme, URISchemeSSL, "": // let user skip redis schema, but reject incorrect one
+	case URIScheme, URISchemeSSL:
 	default:
 		return nil, trace.BadParameter("invalid Redis URI scheme: %q. Expected %q or %q.",
 			u.Scheme, URIScheme, URISchemeSSL)
 	}
 
-	host, port, err := net.SplitHostPort(u.Host)
-	if err != nil {
-		return nil, trace.BadParameter("failed to parse Redis host: %v", err)
-	}
+	var (
+		host string
+		port string
+	)
 
-	if port == "" {
+	if strings.Contains(u.Host, ":") {
+		host, port, err = net.SplitHostPort(u.Host)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse Redis host: %v", err)
+		}
+	} else {
 		port = DefaultPort
+		host = u.Host
 	}
 
 	values := u.Query()

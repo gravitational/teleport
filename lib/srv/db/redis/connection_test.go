@@ -52,16 +52,6 @@ func Test_parseRedisURI(t *testing.T) {
 			errStr: "",
 		},
 		{
-			name: "uri without schema is accepted",
-			uri:  "localhost:6379",
-			want: &ConnectionOptions{
-				mode:    Standalone,
-				address: "localhost",
-				port:    "6379",
-			},
-			errStr: "",
-		},
-		{
 			name: "IP address passes",
 			uri:  "rediss://1.2.3.4:6379",
 			want: &ConnectionOptions{
@@ -73,7 +63,7 @@ func Test_parseRedisURI(t *testing.T) {
 		},
 		{
 			name: "single instance explicit",
-			uri:  "redis://localhost:6379?mode=single",
+			uri:  "redis://localhost:6379?mode=standalone",
 			want: &ConnectionOptions{
 				mode:    Standalone,
 				address: "localhost",
@@ -128,6 +118,10 @@ func Test_parseRedisURI(t *testing.T) {
 
 			got, err := ParseRedisURI(tt.uri)
 			if err != nil {
+				if tt.errStr == "" {
+					require.FailNow(t, "unexpected error: %v", err)
+					return
+				}
 				require.Contains(t, err.Error(), tt.errStr)
 				return
 			}
