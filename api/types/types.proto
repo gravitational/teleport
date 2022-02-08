@@ -903,6 +903,17 @@ message ClusterNetworkingConfigSpecV2 {
 
     // RoutingStrategy determines the strategy used to route to nodes.
     RoutingStrategy RoutingStrategy = 8 [ (gogoproto.jsontag) = "routing_strategy,omitempty" ];
+
+    // ProxyPeeringMode determines if proxy peering is enabled in the cluster.
+    ProxyPeering ProxyPeering = 9 [ (gogoproto.jsontag) = "proxy_peering,omitempty" ];
+}
+
+// ProxyPeeringMode represents the cluster proxy peering mode.
+enum ProxyPeering {
+    // Disabled is set if proxy peering is disabled.
+    Disabled = 0;
+    // Enabled is set if proxy peering is enabled.
+    Enabled = 1;
 }
 
 // ProxyListenerMode represents the cluster proxy listener mode.

@@ -88,6 +88,12 @@ type ClusterNetworkingConfig interface {
 
 	// SetRoutingStrategy sets the routing strategy setting.
 	SetRoutingStrategy(strategy RoutingStrategy)
+
+	// GetProxyPeering gets the proxy peering setting.
+	GetProxyPeering() ProxyPeering
+
+	// SetProxyPeering sets the proxy peering setting.
+	SetProxyPeering(peering ProxyPeering)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -278,6 +284,16 @@ func (c *ClusterNetworkingConfigV2) SetRoutingStrategy(strategy RoutingStrategy)
 	c.Spec.RoutingStrategy = strategy
 }
 
+// GetProxyPeering gets the proxy peering setting.
+func (c *ClusterNetworkingConfigV2) GetProxyPeering() ProxyPeering {
+	return c.Spec.ProxyPeering
+}
+
+// SetProxyPeering sets the proxy peering setting.
+func (c *ClusterNetworkingConfigV2) SetProxyPeering(peering ProxyPeering) {
+	c.Spec.ProxyPeering = peering
+}
+
 // CheckAndSetDefaults verifies the constraints for ClusterNetworkingConfig.
 func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 	c.setStaticFields()
@@ -348,6 +364,33 @@ func (s *RoutingStrategy) UnmarshalYAML(unmarshal func(interface{}) error) error
 
 	available := make([]string, 0, len(RoutingStrategy_value))
 	for k := range RoutingStrategy_value {
+		available = append(available, strings.ToLower(k))
+	}
+	return trace.BadParameter(
+		"routing strategy must be one of %s; got %q", strings.Join(available, ","), stringVar)
+}
+
+// MarshalYAML defines how proxy peering should be marshalled to a string
+func (s ProxyPeering) MarshalYAML() (interface{}, error) {
+	return strings.ToLower(s.String()), nil
+}
+
+// UnmarshalYAML unmarshalls proxy peering from YAML value.
+func (s *ProxyPeering) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var stringVar string
+	if err := unmarshal(&stringVar); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for k, v := range ProxyPeering_value {
+		if strings.EqualFold(k, stringVar) {
+			*s = ProxyPeering(v)
+			return nil
+		}
+	}
+
+	available := make([]string, 0, len(ProxyPeering_value))
+	for k := range ProxyPeering_value {
 		available = append(available, strings.ToLower(k))
 	}
 	return trace.BadParameter(

@@ -654,6 +654,7 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "magadan", cfg.Auth.ClusterName.GetClusterName())
 	require.True(t, cfg.Auth.Preference.GetAllowLocalAuth())
 	require.Equal(t, "10.10.10.1", cfg.AdvertiseIP)
+	require.Equal(t, types.ProxyPeering_Enabled, cfg.Auth.NetworkingConfig.GetProxyPeering())
 
 	require.True(t, cfg.Proxy.Enabled)
 	require.Equal(t, "tcp://webhost:3080", cfg.Proxy.WebAddr.FullAddress())
@@ -666,6 +667,7 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "tcp://mysql.example:3306", cfg.Proxy.MySQLPublicAddrs[0].FullAddress())
 	require.Len(t, cfg.Proxy.MongoPublicAddrs, 1)
 	require.Equal(t, "tcp://mongo.example:27017", cfg.Proxy.MongoPublicAddrs[0].FullAddress())
+	require.Equal(t, "tcp://peerhost:1234", cfg.Proxy.PeerAddr.FullAddress())
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 
