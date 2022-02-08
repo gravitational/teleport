@@ -1,3 +1,5 @@
+import { arrayBufferToBase64 } from 'shared/utils/base64';
+
 export type Message = ArrayBuffer;
 
 export enum MessageType {
@@ -363,18 +365,8 @@ export default class Codec {
     return pngFrame;
   }
 
-  // Taken as the winning algorithm of https://jsbench.me/vjk9nczxst/1
-  // jsbench link was discovered in https://gist.github.com/jonleighton/958841
-  _toBase64(array: Uint8Array) {
-    const binary = String.fromCharCode.apply(null, array);
-    return btoa(binary);
-  }
-
   // _asBase64Url creates a data:image uri from the png data part of a PNG_FRAME tdp message.
   _asBase64Url(buffer: ArrayBuffer): string {
-    // return `data:image/png;base64,${this._toBase64(buffer)}`;
-    return `data:image/png;base64,${this._toBase64(
-      new Uint8Array(buffer, 17)
-    )}`;
+    return `data:image/png;base64,${arrayBufferToBase64(buffer.slice(17))}`;
   }
 }

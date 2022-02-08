@@ -44,7 +44,7 @@ export const SSH = () => {
 export const Desktop = () => {
   const history = createMemoryHistory({
     initialEntries: [
-      '/web/cluster/localhost/session/123?recordingType=desktop',
+      '/web/cluster/localhost/session/123?recordingType=desktop&durationMs=1234',
     ],
     initialIndex: 0,
   });
@@ -60,9 +60,28 @@ export const Desktop = () => {
   );
 };
 
-export const Error = () => {
+export const RecordingTypeError = () => {
   const history = createMemoryHistory({
     initialEntries: ['/web/cluster/localhost/session/123?recordingType=bla'],
+    initialIndex: 0,
+  });
+
+  return (
+    <Router history={history}>
+      <Flex m={-3}>
+        <Route path="/web/cluster/:clusterId/session/:sid">
+          <PlayerComponent />
+        </Route>
+      </Flex>
+    </Router>
+  );
+};
+
+export const DurationMsError = () => {
+  const history = createMemoryHistory({
+    initialEntries: [
+      '/web/cluster/localhost/session/123?recordingType=desktop&durationMs=blabla',
+    ],
     initialIndex: 0,
   });
 
