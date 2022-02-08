@@ -678,10 +678,6 @@ func certRequestClientIP(ip string) certRequestOption {
 	return func(r *certRequest) { r.clientIP = ip }
 }
 
-func certRequestRenewable() certRequestOption {
-	return func(r *certRequest) { r.renewable = true }
-}
-
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
 func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster string) ([]byte, []byte, error) {
 	user, err := a.Identity.GetUser(username, false)
