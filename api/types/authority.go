@@ -771,8 +771,8 @@ func (k *JWTKeyPair) CheckAndSetDefaults() error {
 // certain combinations of CA type and trust relationship through. An empty or
 // nil filter lets through every CA, whereas a nonempty filter will let through
 // only the CAs with a trust relationship listed in the filter under the CA's
-// type. CAs with an unspecified (empty) trust relationships will always go
-// through.
+// type. CAs with an unspecified (empty) trust relationships will count as any
+// trust relationship, so they will only get filtered by an empty selector.
 type CertAuthorityFilter map[CertAuthType][]TrustRelationship
 
 // Match checks if a given CA matches this filter.
@@ -783,7 +783,7 @@ func (f CertAuthorityFilter) Match(ca CertAuthority) bool {
 
 	trustRel := ca.GetTrustRelationship()
 	if trustRel == "" {
-		return true
+		return len(f[ca.GetType()]) > 0
 	}
 
 	for _, t := range f[ca.GetType()] {
