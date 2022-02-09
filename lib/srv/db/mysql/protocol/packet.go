@@ -18,6 +18,8 @@ package protocol
 
 import (
 	"bytes"
+	"encoding/hex"
+	"fmt"
 	"io"
 	"net"
 
@@ -103,13 +105,16 @@ func (p *ChangeUser) User() string {
 
 // ParsePacket reads a protocol packet from the connection and returns it
 // in a parsed form. See ReadPacket below for the packet structure.
-func ParsePacket(conn net.Conn) (Packet, error) {
+func ParsePacket(conn io.Reader) (Packet, error) {
 	packetBytes, packetType, err := ReadPacket(conn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	packet := packet{packetBytes}
+	fmt.Println("--- steve packet type ", packetType)
+	fmt.Println(hex.Dump(packetBytes))
+	fmt.Println("--- steve packet end")
 
 	switch packetType {
 	case mysql.OK_HEADER:
@@ -123,7 +128,7 @@ func ParsePacket(conn net.Conn) (Packet, error) {
 		//
 		// https://dev.mysql.com/doc/internals/en/packet-ERR_Packet.html
 		minLen := 7 // 4-byte header + 3-byte payload before message
-		if bytes.Contains(packetBytes, []byte("#")) {
+		if len(packetBytes) > 7 && packetBytes[7] == byte('#') {
 			minLen = 13 // 4-byte header + 9-byte payload before message
 		}
 		// Be a bit paranoid and make sure the packet is not truncated.
@@ -154,6 +159,15 @@ func ParsePacket(conn net.Conn) (Packet, error) {
 			return nil, trace.BadParameter("failed to parse COM_CHANGE_USER packet: %s", packetBytes)
 		}
 		return &ChangeUser{packet: packet, user: string(packetBytes[5 : 5+idx])}, nil
+
+		/*
+			case mysql.COM_STMT_PREPARE:
+			case mysql.COM_STMT_SEND_LONG_DATA:
+			case mysql.COM_STMT_EXECUTE:
+			case mysql.COM_STMT_CLOSE:
+			case mysql.COM_STMT_RESET:
+			case mysql.COM_STMT_FETCH:
+		*/
 	}
 
 	return &Generic{packet: packet}, nil
@@ -176,7 +190,7 @@ func ParsePacket(conn net.Conn) (Packet, error) {
 //           number
 //
 // https://dev.mysql.com/doc/internals/en/mysql-packet.html
-func ReadPacket(conn net.Conn) (pkt []byte, pktType byte, err error) {
+func ReadPacket(conn io.Reader) (pkt []byte, pktType byte, err error) {
 	// Read 4-byte packet header.
 	var header [4]byte
 	if _, err := io.ReadFull(conn, header[:]); err != nil {
