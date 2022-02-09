@@ -298,4 +298,6 @@ func TestNewWebClientRespectHTTPProxy(t *testing.T) {
 	_, err := client.Get("https://example.com")
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err)
+	require.Contains(t, err.Error(), "proxyconnect")
+	require.Contains(t, err.Error(), "connection refused")
 }
