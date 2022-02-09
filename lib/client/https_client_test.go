@@ -32,7 +32,7 @@ func TestNewInsecureWebClientHTTPProxy(t *testing.T) {
 		}
 	}()
 	// Client should try to proxy through nonexistent server at localhost.
-	require.Error(t, err)
+	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.Contains(t, err.Error(), "proxyconnect")
 	require.Contains(t, err.Error(), "connection refused")
 }
@@ -47,7 +47,7 @@ func TestNewClientWithPoolHTTPProxy(t *testing.T) {
 		}
 	}()
 	// Client should try to proxy through nonexistent server at localhost.
-	require.Error(t, err)
+	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.Contains(t, err.Error(), "proxyconnect")
 	require.Contains(t, err.Error(), "connection refused")
 }
