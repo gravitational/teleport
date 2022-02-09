@@ -1,5 +1,11 @@
 # Changelog
 
+## 8.2.0
+
+This release of Teleport contains a new feature.
+
+* Added support for X11 forwarding to Server Access. [#9897](https://github.com/gravitational/teleport/pull/9897)
+
 ## 8.1.5
 
 This release of Teleport contains a fix.
