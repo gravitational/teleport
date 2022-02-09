@@ -316,10 +316,8 @@ $ kubectl --namespace teleport get all
 
 You'll need to set up a DNS `A` record for `teleport.example.com`. In our example, this record is an alias to an ELB.
 
-<Details opened={false} title="Using Application Access?">
-Teleport assigns a subdomain to each application you have configured for Application Access (e.g., `grafana.teleport.example.com`), so you will also need to create a DNS A record with a wildcard subdomain (e.g., `*.tele.example.com`). This way, Let's Encrypt can issue a wildcard certificate, enabling clients to verify your Teleport hosts regardless of the application they are accessing.
-
-[Learn more about Teleport Application Access](../../../application-access/getting-started.mdx)
+<Details title="Using Application Access?">
+(!docs/pages/includes/dns-app-access.mdx!)
 </Details>
 
 Here's how to do this in a hosted zone with AWS Route 53:
