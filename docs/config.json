@@ -234,6 +234,22 @@
           ]
         }
       ]
+    },
+    {
+      "icon": "wrench",
+      "title": "Contribute",
+      "entries": [
+        {
+          "title": "Documentation",
+          "slug": "/contributing/documentation/",
+          "entries":[
+            { "title": "How to Contribute", "slug": "/contributing/documentation/how-to-contribute/" },
+            { "title": "Creating documentation issues", "slug": "/contributing/documentation/issues/"},
+            { "title": "Style Guide", "slug": "/contributing/documentation/style-guide/" },
+            { "title": "UI Reference", "slug": "/contributing/documentation/reference/" }
+          ]
+        }
+      ]
     }
   ],
   "variables": {
@@ -359,6 +375,16 @@
     {
       "source": "/cloud/faq/",
       "destination": "/pro/faq/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/",
+      "destination": "/contributing/documentation/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/best-practices/",
+      "destination": "/contributing/documentation/",
       "permanent": true
     }
   ]
