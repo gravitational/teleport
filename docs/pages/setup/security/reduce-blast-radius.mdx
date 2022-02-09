@@ -197,7 +197,7 @@ spec:
       - contractors
 ```
 
-Analysts sometimes need write access to your organization's database in order to create stored procedures, and can request access to the `db-writer` role. Only trusted analysts can request this access, and belong to a special `admins` group. Using `deny` rules, you can prevent analysts who are _not_ in the `admins` group from requesting access to the `db-writer` role:
+Analysts sometimes need write access to your organization's database in order to create stored procedures, and can request access to the `db-writer` role. Only trusted analysts can request this access, and belong to a special `admins` group. Using `deny` rules, you can prevent analysts who are *not* in the `admins` group from requesting access to the `db-writer` role:
 
 ```yaml
 kind: role
@@ -219,7 +219,7 @@ spec:
           deny: 1
 ```
 
-The `claims_to_roles` field within an `allow` or `deny` rule maps a user's `traits` to `roles` that they are either permitted or forbidden to request. In this case, we use the `{{regexp.not_match(\"admin\")}}` template function to prevent any user  from requesting the `db-writer` role unless they have a `groups` trait with a value like `administrator` or `admins`. Users who _do_ have such a trait can request the role with two approvals.
+The `claims_to_roles` field within an `allow` or `deny` rule maps a user's `traits` to `roles` that they are either permitted or forbidden to request. In this case, we use the `{{regexp.not_match(\"admin\")}}` template function to prevent any user  from requesting the `db-writer` role unless they have a `groups` trait with a value like `administrator` or `admins`. Users who *do* have such a trait can request the role with two approvals.
 
 
 ## Set up your RBAC without admin roles
@@ -268,7 +268,7 @@ Two `user`s can grant elevated privileges to another `user` temporarily without 
 - [Per-session MFA](../../access-controls/guides/per-session-mfa.mdx)
 - [Dual authorization](../../access-controls/guides/dual-authz.mdx)
 - [Role templates, allow/deny rules, and traits](../../access-controls/guides/role-templates.mdx)
-- [Access requests and plugins](../../enterprise/workflow.mdx)
+- [Access requests and plugins](../../enterprise/workflow)
 
 ### Background reading
 - [Authentication connectors](../reference/authentication.mdx)
