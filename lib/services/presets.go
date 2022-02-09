@@ -44,6 +44,9 @@ func NewPresetEditorRole() types.Role {
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
 				BPF:               apidefaults.EnhancedEvents(),
+				RecordSession: &types.RecordSession{
+					Desktop: types.NewBoolOption(false),
+				},
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
@@ -87,6 +90,7 @@ func NewPresetAccessRole() types.Role {
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
 				BPF:               apidefaults.EnhancedEvents(),
+				RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
 			},
 			Allow: types.RoleConditions{
 				Namespaces:           []string{apidefaults.Namespace},
@@ -126,6 +130,9 @@ func NewPresetAuditorRole() types.Role {
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+				RecordSession: &types.RecordSession{
+					Desktop: types.NewBoolOption(false),
+				},
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},

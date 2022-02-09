@@ -40,7 +40,7 @@ import (
 func newNodeConfig(t *testing.T, authAddr utils.NetAddr, awsTokenName string) *service.Config {
 	config := service.MakeDefaultConfig()
 	config.Token = awsTokenName
-	config.JoinMethod = service.JoinMethodEC2
+	config.JoinMethod = types.JoinMethodEC2
 	config.SSH.Enabled = true
 	config.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
 	config.Auth.Enabled = false

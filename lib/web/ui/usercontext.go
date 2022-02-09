@@ -82,6 +82,8 @@ type userACL struct {
 	AccessRequests access `json:"accessRequests"`
 	// Billing defines access to billing information.
 	Billing access `json:"billing"`
+	// Clipboard defines whether the user can use a shared clipboard during windows desktop sessions.
+	Clipboard bool `json:"clipboard"`
 }
 
 type authType string
@@ -220,6 +222,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	logins := getLogins(userRoles)
 	accessStrategy := getAccessStrategy(userRoles)
 	windowsLogins := getWindowsDesktopLogins(userRoles)
+	clipboard := userRoles.DesktopClipboard()
 
 	acl := userACL{
 		AccessRequests:  requestAccess,
@@ -238,6 +241,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Tokens:          tokenAccess,
 		Nodes:           nodeAccess,
 		Billing:         billingAccess,
+		Clipboard:       clipboard,
 	}
 
 	// local user
