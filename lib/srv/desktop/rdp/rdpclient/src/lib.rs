@@ -38,6 +38,7 @@ use rdp::model::link::{Link, Stream};
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 use std::io::Error as IoError;
+use std::io::ErrorKind;
 use std::io::{Cursor, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::os::raw::c_char;
@@ -449,9 +450,13 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
                     debug!("got unexpected keyboard event from RDP server, ignoring");
                 }
             });
-        if let Err(e) = res {
-            return Some(format!("failed forwarding RDP bitmap frame: {:?}", e));
-        };
+        match res {
+            Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => return None,
+            Err(e) => {
+                return Some(format!("failed forwarding RDP bitmap frame: {:?}", e));
+            }
+            _ => {}
+        }
         if err != CGO_OK {
             let err_str = unsafe { from_cgo_error(err) };
             return Some(format!("failed forwarding RDP bitmap frame: {}", err_str));
