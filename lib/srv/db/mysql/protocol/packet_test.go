@@ -24,6 +24,7 @@ import (
 	"testing/iotest"
 
 	"github.com/gravitational/trace"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -63,7 +64,8 @@ var (
 				0x0f, 0x00, 0x00, 0x00, // header
 				0xff,       // type
 				0x51, 0x04, // error code
-				0x23, 0x48, 0x59, 0x30, 0x30, 0x30, // #HY000
+				0x23,                         // marker #
+				0x48, 0x59, 0x30, 0x30, 0x30, // state - HY000
 				0x64, 0x65, 0x6e, 0x69, 0x65, 0x64, // message
 			},
 		},
@@ -85,6 +87,86 @@ var (
 			},
 		},
 		user: "bob",
+	}
+
+	sampleStatementPreparePacket = &StatementPreparePacket{
+		packet: packet{
+			bytes: []byte{
+				0x09, 0x00, 0x00, 0x00, // header
+				0x16, // type
+				0x73, 0x65, 0x6c, 0x65, 0x63, 0x74, 0x20, 0x31,
+			},
+		},
+		query: "select 1",
+	}
+
+	sampleStatementSendLongDataPacket = &StatementSendLongDataPacket{
+		statementIDPacket: statementIDPacket{
+			packet: packet{
+				bytes: []byte{
+					0x0a, 0x00, 0x00, 0x00, // header
+					0x18,                   // type
+					0x05, 0x00, 0x00, 0x00, // statement ID
+					0x02, 0x00, // parameter ID
+					0x62, 0x6f, 0x62, //data
+				},
+			},
+			statementID: 5,
+		},
+		paramID: 2,
+		data:    "bob",
+	}
+
+	sampleStatementExecutePacket = &StatementExecutePacket{
+		statementIDPacket: statementIDPacket{
+			packet: packet{
+				bytes: []byte{
+					0x1e, 0x00, 0x00, 0x00, // header
+					0x17,                   // type
+					0x02, 0x00, 0x00, 0x00, // statement ID
+					0x00,                   // flags
+					0x01, 0x00, 0x00, 0x00, // iteration count
+					0x00, // null map
+					0x01, // new-params-bound flag
+
+					// https://dev.mysql.com/doc/internals/en/com-query-response.html#column-type
+					0xfe, 0x00, // param 1 type - MYSQL_TYPE_STRING
+					0x08, 0x00, // param 2 type - MYSQL_TYPE_LONGLONG
+
+					0x05, 0x68, 0x65, 0x6c, 0x6c, 0x6f, // param 1 value - "hello"
+					0xc8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // param 2 value - 200
+				},
+			},
+			statementID: 2,
+		},
+		iterations:        1,
+		paramsStartingPos: 16,
+	}
+
+	sampleStatementClosePacket = &StatementClosePacket{
+		statementIDPacket: statementIDPacket{
+			packet: packet{
+				bytes: []byte{
+					0x05, 0x00, 0x00, 0x00, // header
+					0x19,                   // type
+					0x01, 0x00, 0x00, 0x00, // statement ID
+				},
+			},
+			statementID: 1,
+		},
+	}
+
+	sampleStatementResetPacket = &StatementResetPacket{
+		statementIDPacket: statementIDPacket{
+			packet: packet{
+				bytes: []byte{
+					0x05, 0x00, 0x00, 0x00, // header
+					0x1a,                   // type
+					0x01, 0x00, 0x00, 0x00, // statement ID
+				},
+			},
+			statementID: 1,
+		},
 	}
 )
 
@@ -129,6 +211,31 @@ func TestParsePacket(t *testing.T) {
 			name:           "COM_CHANGE_USER",
 			input:          bytes.NewBuffer(sampleChangeUserPacket.Bytes()),
 			expectedPacket: sampleChangeUserPacket,
+		},
+		{
+			name:           "COM_STMT_PREPARE",
+			input:          bytes.NewBuffer(sampleStatementPreparePacket.Bytes()),
+			expectedPacket: sampleStatementPreparePacket,
+		},
+		{
+			name:           "COM_STMT_SEND_LONG_DATA",
+			input:          bytes.NewBuffer(sampleStatementSendLongDataPacket.Bytes()),
+			expectedPacket: sampleStatementSendLongDataPacket,
+		},
+		{
+			name:           "COM_STMT_EXECUTE",
+			input:          bytes.NewBuffer(sampleStatementExecutePacket.Bytes()),
+			expectedPacket: sampleStatementExecutePacket,
+		},
+		{
+			name:           "COM_STMT_CLOSE",
+			input:          bytes.NewBuffer(sampleStatementClosePacket.Bytes()),
+			expectedPacket: sampleStatementClosePacket,
+		},
+		{
+			name:           "COM_STMT_RESET",
+			input:          bytes.NewBuffer(sampleStatementResetPacket.Bytes()),
+			expectedPacket: sampleStatementResetPacket,
 		},
 	}
 
