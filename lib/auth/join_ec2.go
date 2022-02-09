@@ -68,13 +68,13 @@ func ec2ClientFromConfig(ctx context.Context, cfg aws.Config) ec2Client {
 func checkEC2AllowRules(ctx context.Context, iid *imds.InstanceIdentityDocument, provisionToken types.ProvisionToken) error {
 	allowRules := provisionToken.GetAllowRules()
 	for _, rule := range allowRules {
-		// If this rule specifies and AWS account, the IID must match
+		// if this rule specifies an AWS account, the IID must match
 		if len(rule.AWSAccount) > 0 {
 			if rule.AWSAccount != iid.AccountID {
 				continue
 			}
 		}
-		// If this rule specifies any AWS regions, the IID must match one of them
+		// if this rule specifies any AWS regions, the IID must match one of them
 		if len(rule.AWSRegions) > 0 {
 			if !apiutils.SliceContainsStr(rule.AWSRegions, iid.Region) {
 				continue
@@ -258,7 +258,7 @@ func dbExists(ctx context.Context, presence services.Presence, hostID string) (b
 // only allow the roles which will actually be used by all expected instances so
 // that a stolen IID could not be used to join the cluster with a different
 // role.
-func (a *Server) checkInstanceUnique(ctx context.Context, req types.RegisterUsingTokenRequest, iid *imds.InstanceIdentityDocument) error {
+func (a *Server) checkInstanceUnique(ctx context.Context, req *types.RegisterUsingTokenRequest, iid *imds.InstanceIdentityDocument) error {
 	requestedHostID := req.HostID
 	expectedHostID := utils.NodeIDFromIID(iid)
 	if requestedHostID != expectedHostID {
@@ -294,7 +294,7 @@ func (a *Server) checkInstanceUnique(ctx context.Context, req types.RegisterUsin
 	return nil
 }
 
-// CheckEC2Request checks register requests which use EC2 Simplified Node
+// checkEC2JoinRequest checks register requests which use EC2 Simplified Node
 // Joining. This method checks that:
 // 1. The given Instance Identity Document has a valid signature (signed by AWS).
 // 2. A node has not already joined the cluster from this EC2 instance (to
@@ -304,33 +304,20 @@ func (a *Server) checkInstanceUnique(ctx context.Context, req types.RegisterUsin
 // If the request does not include an Instance Identity Document, and the
 // token does not include any allow rules, this method returns nil and the
 // normal token checking logic resumes.
-func (a *Server) CheckEC2Request(ctx context.Context, req types.RegisterUsingTokenRequest) error {
-	requestIncludesIID := req.EC2IdentityDocument != nil
+func (a *Server) checkEC2JoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
 	tokenName := req.Token
-	provisionToken, err := a.GetCache().GetToken(ctx, tokenName)
+	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
-		if trace.IsNotFound(err) && !requestIncludesIID {
-			// This is not a Simplified Node Joining request, pass on to the
-			// regular token checking logic in case this is a static token.
-			return nil
-		}
 		return trace.Wrap(err)
-	}
-	tokenRequiresIID := len(provisionToken.GetAllowRules()) > 0
-
-	if !requestIncludesIID && !tokenRequiresIID {
-		// not a simplified node joining request, pass on to the regular token
-		// checking logic
-		return nil
-	}
-	if tokenRequiresIID && !requestIncludesIID {
-		return trace.AccessDenied("this token requires an EC2 Identity Document from the node")
-	}
-	if !tokenRequiresIID && requestIncludesIID {
-		return trace.BadParameter("an EC2 Identity Document is included in a register request for a token which does not expect it")
 	}
 
 	log.Debugf("Received Simplified Node Joining request for host %q", req.HostID)
+
+	if len(req.EC2IdentityDocument) == 0 {
+		return trace.AccessDenied("this token is only valid for the EC2 join " +
+			"method but the node has not included an EC2 Instance Identity " +
+			"Document, make sure your node is configured to use the EC2 join method")
+	}
 
 	iid, err := parseAndVerifyIID(req.EC2IdentityDocument)
 	if err != nil {
