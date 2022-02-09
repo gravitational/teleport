@@ -294,7 +294,7 @@ func TestExtract(t *testing.T) {
 func TestNewWebClientRespectHTTPProxy(t *testing.T) {
 	os.Setenv("HTTPS_PROXY", "localhost:9999")
 	defer os.Unsetenv("HTTPS_PROXY")
-	client := newWebClient(false, nil)
+	client := newWebClient(false /* insecure */, nil /* pool */)
 	_, err := client.Get("https://example.com")
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err)
