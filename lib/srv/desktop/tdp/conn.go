@@ -52,11 +52,9 @@ func NewConn(rw io.ReadWriter) *Conn {
 // InputMessage reads the next incoming message from the connection.
 func (c *Conn) InputMessage() (Message, error) {
 	m, err := decode(c.bufr)
-
 	if c.OnRecv != nil {
 		c.OnRecv(m)
 	}
-
 	return m, trace.Wrap(err)
 }
 
@@ -68,10 +66,8 @@ func (c *Conn) OutputMessage(m Message) error {
 	}
 
 	_, err = c.rw.Write(buf)
-
 	if c.OnSend != nil {
 		c.OnSend(m, buf)
 	}
-
 	return trace.Wrap(err)
 }

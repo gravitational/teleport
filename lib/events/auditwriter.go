@@ -88,7 +88,7 @@ type AuditWriterConfig struct {
 	// MakeEvents converts bytes written via the io.Writer interface
 	// into AuditEvents that are written to the stream.
 	// For backwards compatibility, AuditWriter will convert bytes to
-	// SessionPrint events when MakeEvent is not provided.
+	// SessionPrint events when MakeEvents is not provided.
 	MakeEvents func([]byte) []apievents.AuditEvent
 
 	// Streamer is used to create and resume audit streams
@@ -146,32 +146,34 @@ func (cfg *AuditWriterConfig) CheckAndSetDefaults() error {
 		cfg.BackoffDuration = defaults.NetworkBackoffDuration
 	}
 	if cfg.MakeEvents == nil {
-		cfg.MakeEvents = func(b []byte) []apievents.AuditEvent {
-			start := time.Now().UTC().Round(time.Millisecond)
-			var result []apievents.AuditEvent
-			for len(b) != 0 {
-				printEvent := &apievents.SessionPrint{
-					Metadata: apievents.Metadata{
-						Type: SessionPrintEvent,
-						Time: start,
-					},
-					Data: b,
-				}
-				if printEvent.Size() > MaxProtoMessageSizeBytes {
-					extraBytes := printEvent.Size() - MaxProtoMessageSizeBytes
-					printEvent.Data = b[:extraBytes]
-					printEvent.Bytes = int64(len(printEvent.Data))
-					b = b[extraBytes:]
-				} else {
-					printEvent.Bytes = int64(len(printEvent.Data))
-					b = nil
-				}
-				result = append(result, printEvent)
-			}
-			return result
-		}
+		cfg.MakeEvents = bytesToSessionPrintEvents
 	}
 	return nil
+}
+
+func bytesToSessionPrintEvents(b []byte) []apievents.AuditEvent {
+	start := time.Now().UTC().Round(time.Millisecond)
+	var result []apievents.AuditEvent
+	for len(b) != 0 {
+		printEvent := &apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Type: SessionPrintEvent,
+				Time: start,
+			},
+			Data: b,
+		}
+		if printEvent.Size() > MaxProtoMessageSizeBytes {
+			extraBytes := printEvent.Size() - MaxProtoMessageSizeBytes
+			printEvent.Data = b[:extraBytes]
+			printEvent.Bytes = int64(len(printEvent.Data))
+			b = b[extraBytes:]
+		} else {
+			printEvent.Bytes = int64(len(printEvent.Data))
+			b = nil
+		}
+		result = append(result, printEvent)
+	}
+	return result
 }
 
 // AuditWriter wraps session stream
