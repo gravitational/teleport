@@ -48,7 +48,7 @@ module.exports = function modifyIndexHtmlMiddleware(compiler) {
 
 function injectCsrf(source, target) {
   var value = source.match(
-    new RegExp(/<meta name="grv_csrf_token" content="[a-zA-Z0-9_.-=]*"\/>/)
+    new RegExp(/<meta name="grv_csrf_token" content="[a-zA-Z0-9_.-=]*"( )?\/>/)
   );
   if (value) {
     return target.replace(
@@ -62,7 +62,9 @@ function injectCsrf(source, target) {
 
 function injectBearer(source, target) {
   var value = source.match(
-    new RegExp(/<meta name="grv_bearer_token" content="[a-zA-Z0-9_.-=]*"\/>/)
+    new RegExp(
+      /<meta name="grv_bearer_token" content="[a-zA-Z0-9_.-=]*"( )?\/>/
+    )
   );
   if (value) {
     return target.replace(
