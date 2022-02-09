@@ -222,6 +222,16 @@ type Config struct {
 	// ForwardAgent is used by the client to request agent forwarding from the server.
 	ForwardAgent AgentForwardingMode
 
+	// EnableX11Forwarding specifies whether X11 forwarding should be enabled.
+	EnableX11Forwarding bool
+
+	// X11ForwardingTimeout can be set to set a X11 forwarding timeout in seconds,
+	// after which any X11 forwarding requests in that session will be rejected.
+	X11ForwardingTimeout time.Duration
+
+	// X11ForwardingTrusted specifies the X11 forwarding security mode.
+	X11ForwardingTrusted bool
+
 	// AuthMethods are used to login into the cluster. If specified, the client will
 	// use them in addition to certs stored in its local agent (from disk)
 	AuthMethods []ssh.AuthMethod
@@ -414,11 +424,11 @@ func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
 	return p.ValidUntil.Sub(clock.Now()) <= 0
 }
 
-// CACertPath returns path to the CA certificate for this profile.
+// CACertPathForCluster returns path to the cluster CA certificate for this profile.
 //
-// It's stored in <profile-dir>/keys/<proxy>/certs.pem by default.
-func (p *ProfileStatus) CACertPath() string {
-	return keypaths.TLSCAsPath(p.Dir, p.Name)
+// It's stored in  <profile-dir>/keys/<proxy>/cas/<cluster>.pem by default.
+func (p *ProfileStatus) CACertPathForCluster(cluster string) string {
+	return filepath.Join(keypaths.ProxyKeyDir(p.Dir, p.Name), "cas", cluster+".pem")
 }
 
 // KeyPath returns path to the private key for this profile.
@@ -1133,7 +1143,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		// if the client was passed an agent in the configuration and skip local auth, use
 		// the passed in agent.
 		if c.Agent != nil {
-			tc.localAgent = &LocalKeyAgent{Agent: c.Agent, keyStore: noLocalKeyStore{}}
+			tc.localAgent = &LocalKeyAgent{Agent: c.Agent, keyStore: noLocalKeyStore{}, siteName: tc.SiteName}
 		}
 	} else {
 		// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
@@ -1155,6 +1165,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			Username:   c.Username,
 			KeysOption: c.AddKeysToAgent,
 			Insecure:   c.InsecureSkipVerify,
+			SiteName:   tc.SiteName,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1201,6 +1212,19 @@ func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clus
 // LocalAgent is a getter function for the client's local agent
 func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 	return tc.localAgent
+}
+
+// RootClusterName returns root cluster name.
+func (tc *TeleportClient) RootClusterName() (string, error) {
+	key, err := tc.LocalAgent().GetCoreKey()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	name, err := key.RootClusterName()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return name, nil
 }
 
 // getTargetNodes returns a list of node addresses this SSH command needs to
@@ -1435,7 +1459,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	if len(nodeAddrs) > 1 {
 		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
 	}
-	return tc.runShell(nodeClient, nil)
+	return tc.runShell(ctx, nodeClient, nil)
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) {
@@ -1545,7 +1569,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	tc.startPortForwarding(ctx, nc)
 
 	// running shell with a given session means "join" it:
-	return tc.runShell(nc, session)
+	return tc.runShell(ctx, nc, session)
 }
 
 // Play replays the recorded session
@@ -2014,13 +2038,13 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 }
 
 // runShell starts an interactive SSH session/shell.
-// sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session) error {
+// sessToJoin : when empty, creates a new shell. otherwise it tries to join the existing session.
+func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, sessToJoin *session.Session) error {
 	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = nodeSession.runShell(tc.OnShellCreated); err != nil {
+	if err = nodeSession.runShell(ctx, tc.OnShellCreated); err != nil {
 		switch e := trace.Unwrap(err).(type) {
 		case *ssh.ExitError:
 			tc.ExitStatus = e.ExitStatus()
@@ -3059,7 +3083,13 @@ func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", tc.Username)
 	}
-	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil)
+
+	rootCluster, err := tlsKey.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, []string{rootCluster})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}

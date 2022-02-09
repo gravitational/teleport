@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -417,7 +418,7 @@ func TestMakeClient(t *testing.T) {
 	// different from the default.
 	conf = CLIConf{
 		Proxy:              proxyWebAddr.String(),
-		IdentityFileIn:     "../../fixtures/certs/identities/key-cert-ca.pem",
+		IdentityFileIn:     "../../fixtures/certs/identities/tls.pem",
 		Context:            context.Background(),
 		InsecureSkipVerify: true,
 	}
@@ -651,117 +652,12 @@ func TestIdentityRead(t *testing.T) {
 	require.NotNil(t, k.TLSCert)
 
 	// generate a TLS client config
-	conf, err := k.TeleportClientTLSConfig(nil)
+	conf, err := k.TeleportClientTLSConfig(nil, []string{"one"})
 	require.NoError(t, err)
 	require.NotNil(t, conf)
 
 	// ensure that at least root CA was successfully loaded
 	require.Greater(t, len(conf.RootCAs.Subjects()), 0)
-}
-
-func TestOptions(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		desc        string
-		inOptions   []string
-		assertError require.ErrorAssertionFunc
-		outOptions  Options
-	}{
-		// Generic option-parsing tests
-		{
-			desc:        "Space Delimited",
-			inOptions:   []string{"AddKeysToAgent yes"},
-			assertError: require.NoError,
-			outOptions: Options{
-				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentNo,
-				RequestTTY:            false,
-				StrictHostKeyChecking: true,
-			},
-		},
-		{
-			desc:        "Equals Sign Delimited",
-			inOptions:   []string{"AddKeysToAgent=yes"},
-			assertError: require.NoError,
-			outOptions: Options{
-				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentNo,
-				RequestTTY:            false,
-				StrictHostKeyChecking: true,
-			},
-		},
-		{
-			desc:        "Invalid key",
-			inOptions:   []string{"foo foo"},
-			assertError: require.Error,
-			outOptions:  Options{},
-		},
-		{
-			desc:        "Incomplete option",
-			inOptions:   []string{"AddKeysToAgent"},
-			assertError: require.Error,
-			outOptions:  Options{},
-		},
-		// AddKeysToAgent Tests
-		{
-			desc:        "AddKeysToAgent Invalid Value",
-			inOptions:   []string{"AddKeysToAgent foo"},
-			assertError: require.Error,
-			outOptions:  Options{},
-		},
-		// ForwardAgent Tests
-		{
-			desc:        "Forward Agent Yes",
-			inOptions:   []string{"ForwardAgent yes"},
-			assertError: require.NoError,
-			outOptions: Options{
-				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentYes,
-				RequestTTY:            false,
-				StrictHostKeyChecking: true,
-			},
-		},
-		{
-			desc:        "Forward Agent No",
-			inOptions:   []string{"ForwardAgent no"},
-			assertError: require.NoError,
-			outOptions: Options{
-				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentNo,
-				RequestTTY:            false,
-				StrictHostKeyChecking: true,
-			},
-		},
-		{
-			desc:        "Forward Agent Local",
-			inOptions:   []string{"ForwardAgent local"},
-			assertError: require.NoError,
-			outOptions: Options{
-				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentLocal,
-				RequestTTY:            false,
-				StrictHostKeyChecking: true,
-			},
-		},
-		{
-			desc:        "Forward Agent InvalidValue",
-			inOptions:   []string{"ForwardAgent potato"},
-			assertError: require.Error,
-			outOptions:  Options{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			options, err := parseOptions(tt.inOptions)
-			tt.assertError(t, err)
-
-			require.Equal(t, tt.outOptions.AddKeysToAgent, options.AddKeysToAgent)
-			require.Equal(t, tt.outOptions.ForwardAgent, options.ForwardAgent)
-			require.Equal(t, tt.outOptions.RequestTTY, options.RequestTTY)
-			require.Equal(t, tt.outOptions.StrictHostKeyChecking, options.StrictHostKeyChecking)
-		})
-	}
 }
 
 func TestFormatConnectCommand(t *testing.T) {
@@ -1143,6 +1039,205 @@ func TestMakeTableWithTruncatedColumn(t *testing.T) {
 	}
 }
 
+func TestSetX11Config(t *testing.T) {
+	t.Parallel()
+
+	envMapGetter := func(envMap map[string]string) envGetter {
+		return func(s string) string {
+			return envMap[s]
+		}
+	}
+
+	for _, tc := range []struct {
+		desc         string
+		cf           CLIConf
+		opts         []string
+		envMap       map[string]string
+		assertError  require.ErrorAssertionFunc
+		expectConfig client.Config
+	}{
+		// Test Teleport flag usage
+		{
+			desc: "-X",
+			cf: CLIConf{
+				X11ForwardingUntrusted: true,
+			},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: false,
+			},
+		}, {
+			desc: "-Y",
+			cf: CLIConf{
+				X11ForwardingTrusted: true,
+			},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc: "--x11-untrustedTimeout=1m",
+			cf: CLIConf{
+				X11ForwardingTimeout: time.Minute,
+			},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				X11ForwardingTimeout: time.Minute,
+			},
+		}, {
+			desc: "$DISPLAY not set",
+			cf: CLIConf{
+				X11ForwardingUntrusted: true,
+			},
+			assertError: require.Error,
+			expectConfig: client.Config{
+				EnableX11Forwarding: false,
+			},
+		},
+		// Test OpenSSH flag usage
+		{
+			desc:        "-oForwardX11=yes",
+			opts:        []string{"ForwardX11=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc:        "-oForwardX11Trusted=yes",
+			opts:        []string{"ForwardX11Trusted=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc:        "-oForwardX11Trusted=yes",
+			opts:        []string{"ForwardX11Trusted=no"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				X11ForwardingTrusted: false,
+			},
+		}, {
+			desc:        "-oForwardX11=yes with -oForwardX11Trusted=yes",
+			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc:        "-oForwardX11=yes with -oForwardX11Trusted=no",
+			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=no"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: false,
+			},
+		}, {
+			desc:        "-oForwardX11Timeout=60",
+			opts:        []string{"ForwardX11Timeout=60"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				X11ForwardingTimeout: time.Minute,
+			},
+		},
+		// Test Combined usage - options generally take priority
+		{
+			desc: "-X with -oForwardX11=yes",
+			cf: CLIConf{
+				X11ForwardingUntrusted: true,
+			},
+			opts:        []string{"ForwardX11=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc: "-X with -oForwardX11Trusted=yes",
+			cf: CLIConf{
+				X11ForwardingUntrusted: true,
+			},
+			opts:        []string{"ForwardX11Trusted=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc: "-X with -oForwardX11Trusted=no",
+			cf: CLIConf{
+				X11ForwardingUntrusted: true,
+			},
+			opts:        []string{"ForwardX11Trusted=no"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: false,
+			},
+		}, {
+			desc: "-Y with -oForwardX11Trusted=yes",
+			cf: CLIConf{
+				X11ForwardingTrusted: true,
+			},
+			opts:        []string{"ForwardX11Trusted=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc: "-Y with -oForwardX11Trusted=no",
+			cf: CLIConf{
+				X11ForwardingTrusted: true,
+			},
+			opts:        []string{"ForwardX11Trusted=no"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc: "--x11-untrustedTimeout=1m with -oForwardX11Timeout=120",
+			cf: CLIConf{
+				X11ForwardingTimeout: time.Minute,
+			},
+			opts:        []string{"ForwardX11Timeout=120"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				X11ForwardingTimeout: time.Minute * 2,
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			opts, err := parseOptions(tc.opts)
+			require.NoError(t, err)
+
+			clt := client.Config{}
+			err = setX11Config(&clt, &tc.cf, opts, envMapGetter(tc.envMap))
+			tc.assertError(t, err)
+			require.Equal(t, tc.expectConfig, clt)
+		})
+	}
+}
+
 type testServersOpts struct {
 	bootstrap      []types.Resource
 	authConfigFunc func(cfg *service.AuthConfig)
@@ -1269,7 +1364,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 func mockConnector(t *testing.T) types.OIDCConnector {
 	// Connector need not be functional since we are going to mock the actual
 	// login operation.
-	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV3{
 		IssuerURL:   "https://auth.example.com",
 		RedirectURL: "https://cluster.example.com",
 		ClientID:    "fake-client",
