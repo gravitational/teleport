@@ -484,3 +484,84 @@ func LabelsToV2(labels map[string]CommandLabel) map[string]CommandLabelV2 {
 // client side, in the ~/.tsh directory. Restricting characters helps with
 // sneaky cluster names being used for client directory traversal and exploits.
 var validKubeClusterName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
+type serverSorter struct {
+	servers []Server
+	lessFn  func(i, j int) bool
+}
+
+// Servers returns a sorter that implements the Sort interface,
+// Call its Sort method to sort the data.
+func Servers(servers []Server) *serverSorter {
+	return &serverSorter{
+		servers: servers,
+	}
+}
+
+// Len is part of sort.Interface.
+func (s *serverSorter) Len() int { return len(s.servers) }
+
+// Less is part of sort.Interface.
+func (s *serverSorter) Less(i, j int) bool { return s.lessFn(i, j) }
+
+// Swap is part of sort.Interface.
+func (s *serverSorter) Swap(i, j int) { s.servers[i], s.servers[j] = s.servers[j], s.servers[i] }
+
+// Sort sorts a list of servers according to the sort criteria.
+func (s *serverSorter) Sort(sortBy *SortBy) error {
+	if sortBy == nil {
+		return nil
+	}
+
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		s.lessFn = func(i, j int) bool {
+			return compareStrByDir(s.servers[i].GetName(), s.servers[j].GetName(), sortBy.Dir)
+		}
+	case ResourceSpecHostname:
+		s.lessFn = func(i, j int) bool {
+			return compareStrByDir(s.servers[i].GetHostname(), s.servers[j].GetHostname(), sortBy.Dir)
+		}
+	case ResourceSpecAddr:
+		s.lessFn = func(i, j int) bool {
+			return compareStrByDir(s.servers[i].GetAddr(), s.servers[j].GetAddr(), sortBy.Dir)
+		}
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindNode)
+	}
+
+	sort.Sort(s)
+	return nil
+}
+
+// AsResources returns servers as type resources with labels.
+func (s *serverSorter) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, len(s.servers))
+	for i, server := range s.servers {
+		resources[i] = ResourceWithLabels(server)
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (s *serverSorter) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, len(s.servers))
+	switch field {
+	case ResourceMetadataName:
+		for i, server := range s.servers {
+			vals[i] = server.GetName()
+		}
+	case ResourceSpecHostname:
+		for i, server := range s.servers {
+			vals[i] = server.GetHostname()
+		}
+	case ResourceSpecAddr:
+		for i, server := range s.servers {
+			vals[i] = server.GetAddr()
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindNode)
+	}
+
+	return vals, nil
+}
