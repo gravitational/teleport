@@ -214,7 +214,7 @@ func filterHeaders(r *http.Request, headers []string) {
 // specified AWS account ID.
 //
 // If AWS account ID is empty, all roles are returned.
-func FilterAWSRoles(arns []string, accountID string) (result []AWSRole) {
+func FilterAWSRoles(arns []string, accountID string) (result []Role) {
 	for _, roleARN := range arns {
 		parsed, err := arn.Parse(roleARN)
 		if err != nil || (accountID != "" && parsed.AccountID != accountID) {
@@ -232,7 +232,7 @@ func FilterAWSRoles(arns []string, accountID string) (result []AWSRole) {
 		if numParts < 2 || parts[0] != "role" {
 			continue
 		}
-		result = append(result, AWSRole{
+		result = append(result, Role{
 			Display: parts[numParts-1],
 			ARN:     roleARN,
 		})
@@ -240,8 +240,8 @@ func FilterAWSRoles(arns []string, accountID string) (result []AWSRole) {
 	return result
 }
 
-// AWSRole describes an AWS IAM role for AWS console access.
-type AWSRole struct {
+// Role describes an AWS IAM role for AWS console access.
+type Role struct {
 	// Display is the role display name.
 	Display string `json:"display"`
 	// ARN is the full role ARN.
