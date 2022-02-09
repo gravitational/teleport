@@ -191,6 +191,8 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		e = &events.SessionConnect{}
 	case AccessRequestDeleteEvent:
 		e = &events.AccessRequestDelete{}
+	case CertificateCreateEvent:
+		e = &events.CertificateCreate{}
 	default:
 		return nil, trace.BadParameter("unknown event type: %q", eventType)
 	}

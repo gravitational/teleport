@@ -592,6 +592,9 @@ func (r *RoleV4) CheckAndSetDefaults() error {
 			Desktop: NewBoolOption(true),
 		}
 	}
+	if r.Spec.Options.DesktopClipboard == nil {
+		r.Spec.Options.DesktopClipboard = NewBoolOption(true)
+	}
 
 	switch r.Version {
 	case V3:
