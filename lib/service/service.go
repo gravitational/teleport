@@ -648,9 +648,9 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			cfg.Log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
 		} else {
 			switch cfg.JoinMethod {
-			case JoinMethodToken:
+			case types.JoinMethodToken, types.JoinMethodUnspecified, types.JoinMethodIAM:
 				cfg.HostUUID = uuid.New().String()
-			case JoinMethodEC2:
+			case types.JoinMethodEC2:
 				cfg.HostUUID, err = utils.GetEC2NodeID()
 				if err != nil {
 					return nil, trace.Wrap(err)
@@ -2902,7 +2902,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register web proxy server
 	var webServer *http.Server
-	var webHandler *web.WebAPIHandler
+	var webHandler *web.APIHandler
 	if !process.Config.Proxy.DisableWebService {
 		var fs http.FileSystem
 		if !process.Config.Proxy.DisableWebInterface {
