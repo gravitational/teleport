@@ -22,7 +22,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -292,10 +291,14 @@ func TestExtract(t *testing.T) {
 }
 
 func TestNewWebClientRespectHTTPProxy(t *testing.T) {
-	os.Setenv("HTTPS_PROXY", "localhost:9999")
-	defer os.Unsetenv("HTTPS_PROXY")
+	t.Setenv("HTTPS_PROXY", "localhost:9999")
 	client := newWebClient(false /* insecure */, nil /* pool */)
-	_, err := client.Get("https://example.com")
+	resp, err := client.Get("https://example.com")
+	defer func() {
+		if resp != nil {
+			resp.Body.Close()
+		}
+	}()
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "proxyconnect")

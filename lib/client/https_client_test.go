@@ -17,17 +17,20 @@ limitations under the License.
 package client
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewInsecureWebClientHTTPProxy(t *testing.T) {
-	os.Setenv("HTTPS_PROXY", "localhost:9999")
-	defer os.Unsetenv("HTTPS_PROXY")
+	t.Setenv("HTTPS_PROXY", "localhost:9999")
 	client := NewInsecureWebClient()
-	_, err := client.Get("https://example.com")
+	resp, err := client.Get("https://example.com")
+	defer func() {
+		if resp != nil {
+			resp.Body.Close()
+		}
+	}()
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "proxyconnect")
@@ -35,10 +38,14 @@ func TestNewInsecureWebClientHTTPProxy(t *testing.T) {
 }
 
 func TestNewClientWithPoolHTTPProxy(t *testing.T) {
-	os.Setenv("HTTPS_PROXY", "localhost:9999")
-	defer os.Unsetenv("HTTPS_PROXY")
+	t.Setenv("HTTPS_PROXY", "localhost:9999")
 	client := newClientWithPool(nil)
-	_, err := client.Get("https://example.com")
+	resp, err := client.Get("https://example.com")
+	defer func() {
+		if resp != nil {
+			resp.Body.Close()
+		}
+	}()
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "proxyconnect")
