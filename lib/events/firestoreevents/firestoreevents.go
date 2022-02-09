@@ -480,7 +480,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 }
 
 func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter) ([]apievents.AuditEvent, string, error) {
-	var eventsArr []apievents.AuditEvent
+	var eventsArr []events.EventFields
 	var estimatedSize int
 	checkpoint := startKey
 	left := limit
@@ -501,10 +501,30 @@ func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string,
 		}
 	}
 
-	return eventsArr, checkpoint, nil
+	var toSort sort.Interface
+	switch order {
+	case types.EventOrderAscending:
+		toSort = events.ByTimeAndIndex(eventsArr)
+	case types.EventOrderDescending:
+		toSort = sort.Reverse(events.ByTimeAndIndex(eventsArr))
+	default:
+		return nil, "", trace.BadParameter("invalid event order: %v", order)
+	}
+	sort.Sort(toSort)
+
+	var eventsToReturn []apievents.AuditEvent
+	for _, fields := range eventsArr {
+		event, err := events.FromEventFields(fields)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		eventsToReturn = append(eventsToReturn, event)
+	}
+
+	return eventsToReturn, checkpoint, nil
 }
 
-func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, spaceRemaining int) ([]apievents.AuditEvent, int, string, error) {
+func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, spaceRemaining int) ([]events.EventFields, int, string, error) {
 	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "Filter": filter, "Limit": limit, "StartKey": startKey})
 
 	var lastKey int64
@@ -566,7 +586,7 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 		reachedEnd = true
 	}
 
-	g.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Query completed.")
+	g.WithFields(log.Fields{"duration": time.Since(start), "count": len(docSnaps)}).Debugf("Query completed.")
 	for _, docSnap := range docSnaps {
 		var e event
 		err = docSnap.DataTo(&e)
@@ -597,32 +617,12 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 		}
 	}
 
-	var toSort sort.Interface
-	switch order {
-	case types.EventOrderAscending:
-		toSort = events.ByTimeAndIndex(values)
-	case types.EventOrderDescending:
-		toSort = sort.Reverse(events.ByTimeAndIndex(values))
-	default:
-		return nil, 0, "", trace.BadParameter("invalid event order: %v", order)
-	}
-	sort.Sort(toSort)
-
-	eventArr := make([]apievents.AuditEvent, 0, len(values))
-	for _, fields := range values {
-		event, err := events.FromEventFields(fields)
-		if err != nil {
-			return nil, 0, "", trace.Wrap(err)
-		}
-		eventArr = append(eventArr, event)
-	}
-
 	var lastKeyString string
-	if lastKey != 0 && !reachedEnd {
+	if !reachedEnd {
 		lastKeyString = fmt.Sprintf("%d", lastKey)
 	}
 
-	return eventArr, totalSize, lastKeyString, nil
+	return values, totalSize, lastKeyString, nil
 }
 
 // SearchSessionEvents returns session related events only. This is used to
