@@ -2957,3 +2957,21 @@ enum SessionState {
     // Terminated variant represents a session that is no longer running and due for removal.
     SessionStateTerminated = 2;
 }
+
+// SortDir defines sort directions for sorting.
+enum SortDir {
+    // Default value that implies direction was not set.
+    SORT_DIR_UNSPECIFIED = 0;
+    // SORT_DIR_ASC is increasing order (ascend).
+    SORT_DIR_ASC = 1;
+    // SORT_DIR_DESC is decreasing order (descend).
+    SORT_DIR_DESC = 2;
+}
+
+// SortBy defines a sort criteria.
+message SortBy {
+    // Dir is the sort direction.
+    SortDir Dir = 1 [ (gogoproto.jsontag) = "dir" ];
+    // Field is the name of an objects field to sort by.
+    string Field = 2 [ (gogoproto.jsontag) = "field" ];
+}
