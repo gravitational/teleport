@@ -109,6 +109,45 @@ func (r ResourcesWithLabels) Less(i, j int) bool { return r[i].GetName() < r[j].
 // Swap swaps two resources.
 func (r ResourcesWithLabels) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 
+// AsAppServers converts each resource into type AppServer.
+func (r ResourcesWithLabels) AsAppServers() ([]AppServer, error) {
+	apps := make([]AppServer, len(r))
+	for i := range r {
+		app, ok := r[i].(AppServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.AppServer, got: %T", r[i])
+		}
+		apps[i] = app
+	}
+	return apps, nil
+}
+
+// AsServers converts each resource into type Server.
+func (r ResourcesWithLabels) AsServers() ([]Server, error) {
+	servers := make([]Server, len(r))
+	for i := range r {
+		server, ok := r[i].(Server)
+		if !ok {
+			return nil, trace.BadParameter("expected types.Server, got: %T", r[i])
+		}
+		servers[i] = server
+	}
+	return servers, nil
+}
+
+// AsDatabaseServers converts each resource into type DatabaseServer.
+func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
+	dbs := make([]DatabaseServer, len(r))
+	for i := range r {
+		db, ok := r[i].(DatabaseServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.DatabaseServer, got: %T", r[i])
+		}
+		dbs[i] = db
+	}
+	return dbs, nil
+}
+
 // GetVersion returns resource version
 func (h *ResourceHeader) GetVersion() string {
 	return h.Version
@@ -313,4 +352,11 @@ Outer:
 	}
 
 	return true
+}
+
+func compareStrByDir(a string, b string, dir SortDir) bool {
+	if dir == SortDir_SORT_DIR_DESC {
+		return a > b
+	}
+	return a < b
 }
