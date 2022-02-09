@@ -29,13 +29,10 @@ If you are already running Teleport on another platform, you can use your existi
 
 ## Prerequisites
 - A registered domain name. This is required for Teleport to set up TLS via Let's Encrypt and for Teleport clients to verify the Proxy Service host.
-
 - A Kubernetes cluster hosted by a cloud provider, which is required for the load balancer we deploy in this guide.
 
 <Admonition title="Local-only setups" type="tip">
 Teleport also supports Kubernetes in on-premise and air-gapped environments. If you would like to try out Teleport on your local machine, we recommend following our [Docker Compose guide](../../getting-started/docker-compose.mdx). 
-
-You can also [contact us](/contact-us/) so we can work with you to determine the best setup for your Kubernetes environment.
 </Admonition>
 
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
@@ -97,16 +94,16 @@ to create a public IP for Teleport.
     # NAME               TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
     # teleport-cluster   LoadBalancer   10.4.4.73    104.199.126.88   443:31204/TCP,3026:32690/TCP   89s
 
-    # Save the pod IP or Hostname. If the IP is not available, check the pod and load balancer status.
+    # Save the pod IP or hostname.
     $ MYIP=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
     $ echo $MYIP
     # 192.168.2.1
     ```
 
-    If `$MYIP` is blank, your cloud provider may have assigned a hostname to the load balancer rather than an IP address. Run the following command to retrieve the hostname:
+    If `$MYIP` is blank, your cloud provider may have assigned a hostname to the load balancer rather than an IP address. Run the following command to retrieve the hostname, which you will use in place of `$MYIP` for subsequent commands.
 
     ```code 
-    $ MYHOSTNAME=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+    $ MYIP=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
     ```
   </TabItem>
 
@@ -120,16 +117,16 @@ to create a public IP for Teleport.
     # NAME                   TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
     # teleport-cluster-ent   LoadBalancer   10.4.4.73    104.199.126.88   443:31204/TCP,3026:32690/TCP   89s
 
-    # Save the pod IP or Hostname. If the IP is not available, check the pod and load balancer status.
+    # Save the pod IP or hostname.
     $ MYIP=$(kubectl get services teleport-cluster-ent -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
     $ echo $MYIP
     # 192.168.2.1
     ```
 
-    If `$MYIP` is blank, your cloud provider may have assigned a hostname to the load balancer rather than an IP address. Run the following command to retrieve the hostname:
+    If `$MYIP` is blank, your cloud provider may have assigned a hostname to the load balancer rather than an IP address. Run the following command to retrieve the hostname, which you will use in place of `$MYIP` for subsequent commands.
 
     ```code 
-    $ MYHOSTNAME=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+    $ MYIP=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
     ```
   </TabItem>
 </Tabs>
