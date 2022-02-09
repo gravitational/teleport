@@ -291,7 +291,7 @@ func TestExtract(t *testing.T) {
 }
 
 func TestNewWebClientRespectHTTPProxy(t *testing.T) {
-	t.Setenv("HTTPS_PROXY", "localhost:9999")
+	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
 	client := newWebClient(false /* insecure */, nil /* pool */)
 	resp, err := client.Get("https://example.com")
 	defer func() {
@@ -302,5 +302,5 @@ func TestNewWebClientRespectHTTPProxy(t *testing.T) {
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.Contains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "connection refused")
+	require.Contains(t, err.Error(), "no such host")
 }

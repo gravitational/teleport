@@ -23,7 +23,7 @@ import (
 )
 
 func TestNewInsecureWebClientHTTPProxy(t *testing.T) {
-	t.Setenv("HTTPS_PROXY", "localhost:9999")
+	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
 	client := NewInsecureWebClient()
 	resp, err := client.Get("https://example.com")
 	defer func() {
@@ -34,11 +34,11 @@ func TestNewInsecureWebClientHTTPProxy(t *testing.T) {
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.Contains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "connection refused")
+	require.Contains(t, err.Error(), "no such host")
 }
 
 func TestNewClientWithPoolHTTPProxy(t *testing.T) {
-	t.Setenv("HTTPS_PROXY", "localhost:9999")
+	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
 	client := newClientWithPool(nil)
 	resp, err := client.Get("https://example.com")
 	defer func() {
@@ -49,5 +49,5 @@ func TestNewClientWithPoolHTTPProxy(t *testing.T) {
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.Contains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "connection refused")
+	require.Contains(t, err.Error(), "no such host")
 }
