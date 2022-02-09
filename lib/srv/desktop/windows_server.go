@@ -801,43 +801,10 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 
 	delay := timer()
 	tdpConn := tdp.NewConn(proxyConn)
-	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
-	tdpConn.OnSend = func(m tdp.Message, b []byte) {
-		switch b[0] {
-		case byte(tdp.TypePNGFrame), byte(tdp.TypeClipboardData):
-			if err := sw.EmitAuditEvent(ctx, &events.DesktopRecording{
-				Metadata: events.Metadata{
-					Type: libevents.DesktopRecordingEvent,
-					Time: s.cfg.Clock.Now().UTC().Round(time.Millisecond),
-				},
-				Message:           b,
-				DelayMilliseconds: delay(),
-			}); err != nil {
-				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
-			}
-		}
-	}
-	tdpConn.OnRecv = func(m tdp.Message) {
-		switch m.(type) {
-		// TODO(zmb3): record audit events for clipboard usage
-		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
-			b, err := m.Encode()
-			if err != nil {
-				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
-			}
-			if err := sw.EmitAuditEvent(ctx, &events.DesktopRecording{
-				Metadata: events.Metadata{
-					Type: libevents.DesktopRecordingEvent,
-					Time: s.cfg.Clock.Now().UTC().Round(time.Millisecond),
-				},
-				Message:           b,
-				DelayMilliseconds: delay(),
-			}); err != nil {
-				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
-			}
+	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay)
+	tdpConn.OnRecv = s.makeTDPRecieveHandler(ctx, sw, delay)
 
-		}
-	}
+	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
@@ -886,6 +853,47 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	s.onSessionEnd(ctx, &identity, sessionStartTime, recordSession, windowsUser, string(sessionID), desktop)
 
 	return trace.Wrap(err)
+}
+
+func (s *WindowsService) makeTDPSendHandler(ctx context.Context, sw libevents.StreamWriter, delay func() int64) func(m tdp.Message, b []byte) {
+	return func(m tdp.Message, b []byte) {
+		switch b[0] {
+		case byte(tdp.TypePNGFrame), byte(tdp.TypeClipboardData):
+			if err := sw.EmitAuditEvent(ctx, &events.DesktopRecording{
+				Metadata: events.Metadata{
+					Type: libevents.DesktopRecordingEvent,
+					Time: s.cfg.Clock.Now().UTC().Round(time.Millisecond),
+				},
+				Message:           b,
+				DelayMilliseconds: delay(),
+			}); err != nil {
+				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
+			}
+		}
+	}
+}
+
+func (s *WindowsService) makeTDPRecieveHandler(ctx context.Context, sw libevents.StreamWriter, delay func() int64) func(m tdp.Message) {
+	return func(m tdp.Message) {
+		switch m.(type) {
+		// TODO(zmb3): record audit events for clipboard usage
+		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
+			b, err := m.Encode()
+			if err != nil {
+				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
+			}
+			if err := sw.EmitAuditEvent(ctx, &events.DesktopRecording{
+				Metadata: events.Metadata{
+					Type: libevents.DesktopRecordingEvent,
+					Time: s.cfg.Clock.Now().UTC().Round(time.Millisecond),
+				},
+				Message:           b,
+				DelayMilliseconds: delay(),
+			}); err != nil {
+				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
+			}
+		}
+	}
 }
 
 func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
