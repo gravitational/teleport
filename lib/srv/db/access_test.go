@@ -286,7 +286,7 @@ func TestAccessRedis(t *testing.T) {
 			role:         "admin",
 			allowDbUsers: []string{},
 			dbUser:       "root",
-			err:          "authorized database access",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "access allowed to specific user",
@@ -301,7 +301,7 @@ func TestAccessRedis(t *testing.T) {
 			role:         "admin",
 			allowDbUsers: []string{"alice"},
 			dbUser:       "root",
-			err:          "authorized database access",
+			err:          "access to db denied",
 		},
 	}
 
@@ -427,6 +427,31 @@ func TestAccessMySQLChangeUser(t *testing.T) {
 // TestAccessRedisAUTHCmd checks if AUTH commands is verified against Teleport RBAC before is sent to Redis.
 func TestAccessRedisAUTHCmd(t *testing.T) {
 	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis", redis.TestServerPassword("123")))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"default"}, []string{types.Wildcard})
+
+	// Connect to the database as this user.
+	redisConn, err := testCtx.redisClient(ctx, "alice", "redis", "", redis.SkipPing(true))
+	require.NoError(t, err)
+
+	err = redisConn.Process(ctx, goredis.NewCmd(ctx, "AUTH", "123"))
+	require.NoError(t, err)
+
+	// Check if we can execute some commands
+	resp := redisConn.Echo(ctx, "ping")
+	require.NoError(t, resp.Err())
+	require.Equal(t, "ping", resp.Val())
+
+	err = redisConn.Close()
+	require.NoError(t, err)
+}
+
+// TestAccessRedisAUTHDefaultCmd checks if AUTH commands is verified against Teleport RBAC before is sent to Redis.
+func TestAccessRedisAUTHDefaultCmd(t *testing.T) {
+	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 	go testCtx.startHandlingConnections()
 
@@ -439,7 +464,10 @@ func TestAccessRedisAUTHCmd(t *testing.T) {
 
 	err = redisConn.Process(ctx, goredis.NewCmd(ctx, "AUTH", "attacker", "secret-password"))
 	require.Error(t, err)
-	require.Contains(t, "ERR access to db denied", err.Error())
+	require.Contains(t, err.Error(), "ERR Teleport: failed to authenticate as")
+
+	err = redisConn.Close()
+	require.NoError(t, err)
 }
 
 // TestAccessMySQLServerPacket verifies some edge-cases related to reading
@@ -899,6 +927,12 @@ func TestRedisPubSub(t *testing.T) {
 	require.NoError(t, err)
 	// Wait for a message to be received in subscribed goroutine.
 	require.True(t, <-syncChan)
+
+	// Check if the connection is still active
+	resp := redisClient.Echo(ctx, "ping")
+	require.NoError(t, resp.Err())
+	require.Equal(t, "ping", resp.Val())
+
 	// Disconnect.
 	err = redisClient.Close()
 	require.NoError(t, err)
@@ -1206,12 +1240,12 @@ func (c *testContext) mongoClientWithAddr(ctx context.Context, address, teleport
 }
 
 // redisClient connects to test Redis through database access as a specified Teleport user and database account.
-func (c *testContext) redisClient(ctx context.Context, teleportUser, dbService, dbUser string, opts ...*options.ClientOptions) (*redis.Client, error) {
+func (c *testContext) redisClient(ctx context.Context, teleportUser, dbService, dbUser string, opts ...redis.ClientOptions) (*redis.Client, error) {
 	return c.redisClientWithAddr(ctx, c.webListener.Addr().String(), teleportUser, dbService, dbUser, opts...)
 }
 
 // redisClientWithAddr is like redisClient but allows overriding connection address.
-func (c *testContext) redisClientWithAddr(ctx context.Context, proxyAddress, teleportUser, dbService, dbUser string, _ ...*options.ClientOptions) (*redis.Client, error) {
+func (c *testContext) redisClientWithAddr(ctx context.Context, proxyAddress, teleportUser, dbService, dbUser string, opts ...redis.ClientOptions) (*redis.Client, error) {
 	return redis.MakeTestClient(ctx, common.TestClientConfig{
 		AuthClient: c.authClient,
 		AuthServer: c.authServer,
@@ -1223,7 +1257,7 @@ func (c *testContext) redisClientWithAddr(ctx context.Context, proxyAddress, tel
 			Protocol:    defaults.ProtocolRedis,
 			Username:    dbUser,
 		},
-	})
+	}, opts...)
 }
 
 // createUserAndRole creates Teleport user and role with specified names
@@ -1862,12 +1896,12 @@ func withSelfHostedMongo(name string, opts ...mongodb.TestServerOption) withData
 	}
 }
 
-func withSelfHostedRedis(name string) withDatabaseOption {
+func withSelfHostedRedis(name string, opts ...redis.TestServerOption) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
-		})
+		}, opts...)
 		require.NoError(t, err)
 
 		database, err := types.NewDatabaseV3(types.Metadata{

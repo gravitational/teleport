@@ -34,12 +34,33 @@ import (
 // Client alias for easier use.
 type Client = redis.Client
 
+// ClientOptionsParams is a struct for client configuration options.
+type ClientOptionsParams struct {
+	skipPing bool
+}
+
+// ClientOptions allows setting test client options.
+type ClientOptions func(*ClientOptionsParams)
+
+// SkipPing skips Redis server ping right after the connection is established.
+func SkipPing(skip bool) ClientOptions {
+	return func(ts *ClientOptionsParams) {
+		ts.skipPing = skip
+	}
+}
+
 // MakeTestClient returns Redis client connection according to the provided
 // parameters.
-func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ...*redis.Options) (*Client, error) {
+func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ...ClientOptions) (*Client, error) {
 	tlsConfig, err := common.MakeTestClientTLSConfig(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	clientOptions := &ClientOptionsParams{}
+
+	for _, opt := range opts {
+		opt(clientOptions)
 	}
 
 	client := redis.NewClient(&redis.Options{
@@ -47,8 +68,11 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 		TLSConfig: tlsConfig,
 	})
 
-	if err := client.Ping(ctx).Err(); err != nil {
-		return nil, trace.Wrap(err)
+	if !clientOptions.skipPing {
+		if err := client.Ping(ctx).Err(); err != nil {
+			_ = client.Close()
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return client, nil
@@ -61,10 +85,24 @@ type TestServer struct {
 	cfg    common.TestServerConfig
 	server *miniredis.Miniredis
 	log    logrus.FieldLogger
+
+	// password is the default user password.
+	// If set, AUTH must be sent first to get access to the server.
+	password string
+}
+
+// TestServerOption allows setting test server options.
+type TestServerOption func(*TestServer)
+
+// TestServerPassword sets the test Redis server password for default user.
+func TestServerPassword(password string) TestServerOption {
+	return func(ts *TestServer) {
+		ts.password = password
+	}
 }
 
 // NewTestServer returns a new instance of a test Redis server.
-func NewTestServer(t *testing.T, config common.TestServerConfig) (*TestServer, error) {
+func NewTestServer(t *testing.T, config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
 	tlsConfig, err := common.MakeTestServerTLSConfig(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -78,8 +116,16 @@ func NewTestServer(t *testing.T, config common.TestServerConfig) (*TestServer, e
 		log: log,
 	}
 
+	for _, opt := range opts {
+		opt(server)
+	}
+
 	// Create a new test Redis instance.
 	s := miniredis.NewMiniRedis()
+	if server.password != "" {
+		s.RequireAuth(server.password)
+	}
+
 	err = s.StartTLS(tlsConfig)
 	require.NoError(t, err)
 

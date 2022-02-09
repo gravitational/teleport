@@ -61,6 +61,12 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 	e.clientReader = redis.NewReader(clientConn)
 	e.sessionCtx = sessionCtx
 
+	// Let client to not set the database user, as Redis uses default user "default" if a user
+	// is not provided.
+	if e.sessionCtx.DatabaseUser == "" {
+		e.sessionCtx.DatabaseUser = defaultUsername
+	}
+
 	return nil
 }
 
@@ -126,7 +132,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	// Check that the user has access to the database.
 	err := e.authorizeConnection(ctx)
 	if err != nil {
-		return trace.Wrap(err, "error authorized database access")
+		return trace.Wrap(err)
 	}
 
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)

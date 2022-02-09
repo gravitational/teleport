@@ -151,7 +151,7 @@ func TestAuditRedis(t *testing.T) {
 
 	t.Run("access denied", func(t *testing.T) {
 		// Access denied should trigger an unsuccessful session start event.
-		_, err := testCtx.mongoClient(ctx, "alice", "redis", "notadmin")
+		_, err := testCtx.redisClient(ctx, "alice", "redis", "notadmin")
 		require.Error(t, err)
 		waitForEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
 	})
