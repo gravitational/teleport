@@ -259,6 +259,8 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 
 // ListNodes returns a paginated list of registered servers.
 // StartKey is a resource name, which is the suffix of its key.
+//
+// DELETE IN 10.0.0 in favor of ListResources.
 func (s *PresenceService) ListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
 	// NOTE: changes to the outward behavior of this method may require updating cache.Cache.ListNodes, since that method
 	// emulates this one but relies on a different implementation internally.
@@ -1517,10 +1519,22 @@ func (s *PresenceService) DeleteAllWindowsDesktopServices(ctx context.Context) e
 }
 
 // ListResources returns a paginated list of resources.
-// It implements label filtering for scenarios where the call comes directly
+// It implements various filtering for scenarios where the call comes directly
 // here (without passing through the RBAC).
 func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+	switch {
+	case req.SortBy != nil:
+		return s.listResourcesWithSort(ctx, req)
+	default:
+		return s.listResources(ctx, req)
+	}
+}
+
+func (s *PresenceService) listResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
 	limit := int(req.Limit)
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive limit value")
+	}
 
 	var keyPrefix []string
 	var unmarshalItemFunc backendItemToResourceFunc
@@ -1566,11 +1580,9 @@ func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResou
 			switch match, err := services.MatchResourceByFilters(resource, filter); {
 			case err != nil:
 				return false, trace.Wrap(err)
-			case !match:
-				continue
+			case match:
+				resources = append(resources, resource)
 			}
-
-			resources = append(resources, resource)
 		}
 
 		return len(resources) == limit, nil
@@ -1585,6 +1597,110 @@ func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResou
 	}
 
 	return resources, nextKey, nil
+}
+
+// listResourcesWithSort supports sorting by falling back to retrieving all resources
+// with GetXXXs, filter, and then fake pagination.
+func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+	var resources []types.ResourceWithLabels
+	switch req.ResourceType {
+	case types.KindNode:
+		nodes, err := s.GetNodes(ctx, req.Namespace)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		servers := types.Servers(nodes)
+		if err := servers.Sort(req.SortBy); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		resources = servers.AsResources()
+
+	case types.KindAppServer:
+		appservers, err := s.GetApplicationServers(ctx, req.Namespace)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		servers := types.AppServers(appservers)
+		if err := servers.Sort(req.SortBy); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		resources = servers.AsResources()
+
+	case types.KindDatabaseServer:
+		dbservers, err := s.GetDatabaseServers(ctx, req.Namespace)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		servers := types.DatabaseServers(dbservers)
+		if err := servers.Sort(req.SortBy); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		resources = servers.AsResources()
+
+	default:
+		return nil, "", trace.NotImplemented("resource type %q is not supported for ListResourcesWithSort", req.ResourceType)
+	}
+
+	return FakePaginate(resources, req)
+}
+
+// FakePaginate is used when we are working with an entire list of resources upfront but still requires pagination.
+func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+	limit := int(req.Limit)
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive limit value")
+	}
+
+	// Trim resources that precede start key.
+	if req.StartKey != "" {
+		pageStart := 0
+		for i, resource := range resources {
+			cKey := backend.GetPaginationKey(resource)
+			sKey := req.StartKey
+			cLen := len(cKey) - 1
+			sLen := len(sKey) - 1
+
+			// All chars in both key's should match minus the last character.
+			// (The last char of key is what we increment when we call `backend.NextPaginationKey`)
+			// When keys match, we can assume this is the key where we left of.
+			// The last character of the currKey should be less than the startKey.
+			if (cKey[0:cLen] == sKey[0:sLen]) && (cKey[cLen:] < sKey[sLen:]) {
+				pageStart = i + 1
+				break
+			}
+		}
+		resources = resources[pageStart:]
+	}
+
+	// Iterate and filter resources, halting when we reach page limit.
+	var filtered []types.ResourceWithLabels
+	for _, resource := range resources {
+		if len(filtered) == limit {
+			break
+		}
+
+		switch match, err := services.MatchResourceByFilters(resource, services.MatchResourceFilter{
+			ResourceKind:        req.ResourceType,
+			Labels:              req.Labels,
+			SearchKeywords:      req.SearchKeywords,
+			PredicateExpression: req.PredicateExpression,
+		}); {
+		case err != nil:
+			return nil, "", trace.Wrap(err)
+		case match:
+			filtered = append(filtered, resource)
+		}
+	}
+
+	var nextKey string
+	if len(filtered) == limit {
+		nextKey = backend.NextPaginationKey(filtered[len(filtered)-1])
+	}
+
+	return filtered, nextKey, nil
 }
 
 // backendItemToDatabaseServer unmarshals `backend.Item` into a

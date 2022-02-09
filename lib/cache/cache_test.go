@@ -731,9 +731,9 @@ func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
 	}
 }
 
-// TestListNodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
+// TestListResources_NodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
 // using ttl-based caching works as expected.
-func TestListNodesTTLVariant(t *testing.T) {
+func TestListResources_NodesTTLVariant(t *testing.T) {
 	const nodeCount = 100
 	const pageSize = 10
 	var err error
@@ -780,6 +780,8 @@ func TestListNodesTTLVariant(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, allNodes, nodeCount)
 
+	// DELETE IN 10.0.0 this block with ListNodes is replaced
+	// by the following block with ListResources test.
 	var nodes []types.Server
 	var startKey string
 	for {
@@ -802,23 +804,33 @@ func TestListNodesTTLVariant(t *testing.T) {
 			break
 		}
 	}
-
 	require.Len(t, nodes, nodeCount)
 
 	var resources []types.ResourceWithLabels
 	var listResourcesStartKey string
+	sortBy := &types.SortBy{
+		Field: types.ResourceMetadataName,
+		Dir:   types.SortDir_SORT_DIR_DESC,
+	}
 	require.Eventually(t, func() bool {
 		page, nextKey, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
 			Namespace:    apidefaults.Namespace,
 			ResourceType: types.KindNode,
 			StartKey:     listResourcesStartKey,
 			Limit:        int32(pageSize),
+			SortBy:       sortBy,
 		})
 		require.NoError(t, err)
 		resources = append(resources, page...)
 		listResourcesStartKey = nextKey
 		return len(resources) == nodeCount
 	}, 5*time.Second, 100*time.Millisecond)
+
+	servers, err := types.ResourcesWithLabels(resources).AsServers()
+	require.NoError(t, err)
+	fieldVals, err := types.Servers(servers).GetFieldVals(sortBy.Field)
+	require.NoError(t, err)
+	require.IsDecreasing(t, fieldVals)
 }
 
 func initStrategy(t *testing.T) {

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services/suite"
 
 	"github.com/gravitational/trace"
 )
@@ -725,6 +726,50 @@ func TestListResources(t *testing.T) {
 			}, time.Second, 100*time.Millisecond)
 			require.Empty(t, nextKey)
 
+			// Test sorting by metadata.name, since not all resources support sorting:
+			sortBy := &types.SortBy{Field: types.ResourceMetadataName, Dir: types.SortDir_SORT_DIR_DESC}
+			var sortedResources []types.ResourceWithLabels
+
+			switch test.resourceType {
+			case types.KindNode, types.KindAppServer, types.KindDatabaseServer:
+				require.Eventually(t, func() bool {
+					resources, nextKey, err = presence.ListResources(ctx, proto.ListResourcesRequest{
+						Limit:        int32(resourcesPerPage),
+						Namespace:    apidefaults.Namespace,
+						ResourceType: test.resourceType,
+						StartKey:     nextKey,
+						SortBy:       sortBy,
+					})
+					require.NoError(t, err)
+
+					sortedResources = append(sortedResources, resources...)
+					return len(sortedResources) == totalResources
+				}, time.Second, 100*time.Millisecond)
+				require.Empty(t, nextKey)
+			}
+
+			// Test sorted resources are in the correct direction.
+			switch test.resourceType {
+			case types.KindNode:
+				servers, err := types.ResourcesWithLabels(sortedResources).AsServers()
+				require.NoError(t, err)
+				fieldVals, err := types.Servers(servers).GetFieldVals(sortBy.Field)
+				require.NoError(t, err)
+				require.IsDecreasing(t, fieldVals)
+			case types.KindAppServer:
+				servers, err := types.ResourcesWithLabels(sortedResources).AsAppServers()
+				require.NoError(t, err)
+				fieldVals, err := types.AppServers(servers).GetFieldVals(sortBy.Field)
+				require.NoError(t, err)
+				require.IsDecreasing(t, fieldVals)
+			case types.KindDatabaseServer:
+				servers, err := types.ResourcesWithLabels(sortedResources).AsDatabaseServers()
+				require.NoError(t, err)
+				fieldVals, err := types.DatabaseServers(servers).GetFieldVals(sortBy.Field)
+				require.NoError(t, err)
+				require.IsDecreasing(t, fieldVals)
+			}
+
 			// delete everything
 			err = test.deleteAllResourcesFunc(ctx, presence)
 			require.NoError(t, err)
@@ -740,4 +785,97 @@ func TestListResources(t *testing.T) {
 			require.Empty(t, resources)
 		})
 	}
+}
+
+func TestFakePaginate(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	bend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+
+	// Add some test servers.
+	namespace := apidefaults.Namespace
+	presence := NewPresenceService(bend)
+	for i := 0; i < 20; i++ {
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
+		_, err = presence.UpsertNode(ctx, server)
+		require.NoError(t, err)
+	}
+
+	// Retreive upserted nodes.
+	nodes, err := presence.GetNodes(ctx, namespace)
+	require.NoError(t, err)
+
+	// First fetch.
+	resources := types.Servers(nodes).AsResources()
+	page, nextKey, err := FakePaginate(resources, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    namespace,
+		StartKey:     "",
+		Limit:        10,
+	})
+	require.NoError(t, err)
+	require.Len(t, page, 10)
+	require.Equal(t, resources[:10], page)
+	// Get the next key of the 10th element in slice.
+	expectedNextKey := backend.NextPaginationKey(resources[9])
+	require.Equal(t, expectedNextKey, nextKey)
+
+	// Middle fetch.
+	page, nextKey, err = FakePaginate(resources, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    namespace,
+		StartKey:     nextKey,
+		Limit:        5,
+	})
+	require.NoError(t, err)
+	require.Len(t, page, 5)
+	require.Equal(t, resources[10:15], page)
+	// Get the next key of the 15th element in slice.
+	expectedNextKey = backend.NextPaginationKey(resources[14])
+	require.Equal(t, expectedNextKey, nextKey)
+
+	// Last fetch.
+	page, nextKey, err = FakePaginate(resources, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    namespace,
+		StartKey:     nextKey,
+		Limit:        5,
+	})
+	require.NoError(t, err)
+	require.Len(t, page, 5)
+	require.Equal(t, resources[15:20], page)
+	// Get the next key of the 20th element in slice.
+	expectedNextKey = backend.NextPaginationKey(resources[len(resources)-1])
+	require.Equal(t, expectedNextKey, nextKey)
+
+	// Fetch with no more data to be expected.
+	page, nextKey, err = FakePaginate(resources, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    namespace,
+		StartKey:     nextKey,
+		Limit:        5,
+	})
+	require.NoError(t, err)
+	require.Len(t, page, 0)
+	require.Empty(t, nextKey)
+
+	// Test a filter.
+	targetVal := resources[14].GetName()
+	page, nextKey, err = FakePaginate(resources, proto.ListResourcesRequest{
+		ResourceType:   types.KindNode,
+		Namespace:      namespace,
+		StartKey:       "",
+		Limit:          1,
+		SearchKeywords: []string{targetVal},
+	})
+	require.NoError(t, err)
+	require.Len(t, page, 1)
+	require.Equal(t, targetVal, page[0].GetName())
+	require.NotEmpty(t, nextKey)
 }
