@@ -225,6 +225,16 @@ type Config struct {
 	// ForwardAgent is used by the client to request agent forwarding from the server.
 	ForwardAgent AgentForwardingMode
 
+	// EnableX11Forwarding specifies whether X11 forwarding should be enabled.
+	EnableX11Forwarding bool
+
+	// X11ForwardingTimeout can be set to set a X11 forwarding timeout in seconds,
+	// after which any X11 forwarding requests in that session will be rejected.
+	X11ForwardingTimeout time.Duration
+
+	// X11ForwardingTrusted specifies the X11 forwarding security mode.
+	X11ForwardingTrusted bool
+
 	// AuthMethods are used to login into the cluster. If specified, the client will
 	// use them in addition to certs stored in its local agent (from disk)
 	AuthMethods []ssh.AuthMethod
@@ -1465,7 +1475,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	if len(nodeAddrs) > 1 {
 		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
 	}
-	return tc.runShell(nodeClient, nil)
+	return tc.runShell(ctx, nodeClient, nil)
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) {
@@ -1575,7 +1585,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	tc.startPortForwarding(ctx, nc)
 
 	// running shell with a given session means "join" it:
-	return tc.runShell(nc, session)
+	return tc.runShell(ctx, nc, session)
 }
 
 // Play replays the recorded session
@@ -2044,13 +2054,13 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 }
 
 // runShell starts an interactive SSH session/shell.
-// sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session) error {
+// sessToJoin : when empty, creates a new shell. otherwise it tries to join the existing session.
+func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, sessToJoin *session.Session) error {
 	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = nodeSession.runShell(tc.OnShellCreated); err != nil {
+	if err = nodeSession.runShell(ctx, tc.OnShellCreated); err != nil {
 		switch e := trace.Unwrap(err).(type) {
 		case *ssh.ExitError:
 			tc.ExitStatus = e.ExitStatus()
