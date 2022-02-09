@@ -152,7 +152,7 @@ spec:
       # Defines the name of the policy. The name serves only as an
       # identifier in logs and for organisation/categorisation.
       - name: Auditor oversight
-        # The list of roles of whom you can join their session.
+        # Allows one to join sessions created by other users with these roles
         roles : ['prod-access']
         # The different session kinds this policy applies to.
         kinds: ['k8s', 'ssh']

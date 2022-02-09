@@ -101,9 +101,16 @@ spec:
 ### Filters
 
 A filter expression is a string statement used to define logic based on a set of input variables.
+The filter expressions follow a restricted subset of Go syntax and have the environment supports
+the following functions and operators:
+- `contains(set, item)`: Returns true if the item is in the set, otherwise false. The set can be a list or an array
+- `equals(a, b)`: Returns true if the two values are equal, otherwise returns false.
+- `![expr]`: Negates a boolean expression.
+- `[expr] && [expr]`: Performs a logical AND on two boolean expressions.
+- `[expr] || [expr]`: Performs a logical OR on two boolean expressions.
 
 Filter expressions allow for more detailed control over the scope of an allow policy or require policy.
-`user.name == "adam" || contains(user.roles, "cs-observe")` is a simple example of a filter expression
+`equals(user.name, "adam") || contains(user.roles, "cs-observe")` is a simple example of a filter expression
 that evaluates to true if the user is Adam or if the user has the trait `cs-observe`.
 
 Require policies can specify which users they consider as valid with a filter expression.
@@ -160,8 +167,7 @@ from the session which may pause it, if RBAC policies are no longer met.
 
 ## Session invites
 
-Moderated Sessions tracks sessions via the `SessionTracker` resource. When starting
-an interactive SSH or Kubernetes session using `tsh ssh` or `tsh kube exec` respectively,
+When starting an interactive SSH or Kubernetes session using `tsh ssh` or `tsh kube exec` respectively,
 one may supply a `--reason <reason>` and/or an `--invited <users>` flag where `<reason>`
 is a string and `<users>` is a comma-separated list of usernames.
 
