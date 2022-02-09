@@ -179,14 +179,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		}
 	}()
 
-	// TODO(jakub): Currently Teleport supports only RESP2 as RESP3 is not supported by go-redis.
-	// When migration to RESP3 protocol this PING should be removed in favor of "HELLO 3" cmd.
-	// https://github.com/antirez/RESP3/blob/master/spec.md#the-hello-command-and-connection-handshake
-	pingResp := redisConn.Ping(ctx)
-	if pingResp.Err() != nil {
-		return trace.Wrap(pingResp.Err())
-	}
-
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
