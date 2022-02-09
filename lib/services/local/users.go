@@ -19,6 +19,7 @@ package local
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"sort"
 	"time"
@@ -632,14 +633,30 @@ func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user stri
 		return trace.Wrap(err)
 	}
 
-	value, err := json.Marshal(wla)
+	wlaJSON, err := json.Marshal(wla)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "marshal webauthn local auth")
 	}
-	_, err = s.Put(ctx, backend.Item{
+	if _, err = s.Put(ctx, backend.Item{
 		Key:   webauthnLocalAuthKey(user),
-		Value: value,
+		Value: wlaJSON,
+	}); err != nil {
+		return trace.WrapWithMessage(err, "writing webauthn local auth")
+	}
+
+	userJSON, err := json.Marshal(&wantypes.User{
+		TeleportUser: user,
 	})
+	if err != nil {
+		return trace.WrapWithMessage(err, "marshal webauthn user")
+	}
+	if _, err = s.Put(ctx, backend.Item{
+		Key:   webauthnUserKey(wla.UserID),
+		Value: userJSON,
+	}); err != nil {
+		return trace.WrapWithMessage(err, "writing webauthn user")
+	}
+
 	return trace.Wrap(err)
 }
 
@@ -656,8 +673,29 @@ func (s *IdentityService) GetWebauthnLocalAuth(ctx context.Context, user string)
 	return wal, trace.Wrap(json.Unmarshal(item.Value, wal))
 }
 
+func (s *IdentityService) GetTeleportUserByWebauthnID(ctx context.Context, webID []byte) (string, error) {
+	if len(webID) == 0 {
+		return "", trace.BadParameter("missing parameter webID")
+	}
+
+	item, err := s.Get(ctx, webauthnUserKey(webID))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	user := &wantypes.User{}
+	if err := json.Unmarshal(item.Value, user); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return user.TeleportUser, nil
+}
+
 func webauthnLocalAuthKey(user string) []byte {
 	return backend.Key(webPrefix, usersPrefix, user, webauthnLocalAuthPrefix)
+}
+
+func webauthnUserKey(id []byte) []byte {
+	key := base64.RawStdEncoding.EncodeToString(id)
+	return backend.Key(webauthnPrefix, usersPrefix, key)
 }
 
 func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {

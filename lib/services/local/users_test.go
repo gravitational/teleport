@@ -481,12 +481,47 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 			err := test.update(ctx, test.name, test.wal)
 			require.NoError(t, err)
 
-			want := test.wal
-			got, err := test.get(ctx, test.name)
+			wantWLA := test.wal
+			gotWLA, err := test.get(ctx, test.name)
 			require.NoError(t, err)
-			if diff := cmp.Diff(want, got); diff != "" {
+			if diff := cmp.Diff(wantWLA, gotWLA); diff != "" {
 				t.Fatalf("WebauthnLocalAuth mismatch (-want +got):\n%s", diff)
 			}
+
+			gotUser, err := identity.GetTeleportUserByWebauthnID(ctx, gotWLA.UserID)
+			require.NoError(t, err)
+			require.Equal(t, test.name, gotUser)
+		})
+	}
+}
+
+func TestIdentityService_GetTeleportUserByWebauthnID(t *testing.T) {
+	t.Parallel()
+	identity, _ := newIdentityService(t)
+
+	tests := []struct {
+		name      string
+		webID     []byte
+		assertErr func(error) bool
+	}{
+		{
+			name:      "NOK empty web ID",
+			webID:     nil,
+			assertErr: trace.IsBadParameter,
+		},
+		{
+			name:      "NOK unknown web ID",
+			webID:     []byte{1, 2, 3, 4, 5},
+			assertErr: trace.IsNotFound,
+		},
+	}
+
+	ctx := context.Background()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := identity.GetTeleportUserByWebauthnID(ctx, test.webID)
+			require.Error(t, err)
+			require.True(t, test.assertErr(err))
 		})
 	}
 }
