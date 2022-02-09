@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/gravitational/teleport/api"
@@ -295,16 +296,90 @@ func (s *AppServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
 }
 
-// AppServers represents a list of app servers.
-type AppServers []AppServer
-
-// Len returns the slice length.
-func (s AppServers) Len() int { return len(s) }
-
-// Less compares app servers by name and host ID.
-func (s AppServers) Less(i, j int) bool {
-	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
+type appServerSorter struct {
+	servers []AppServer
+	lessFn  func(i, j int) bool
 }
 
-// Swap swaps two app servers.
-func (s AppServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+// AppServers returns a sorter that implements the Sort interface,
+// Call its Sort method to sort the data by sort criteria.
+func AppServers(servers []AppServer) *appServerSorter {
+	return &appServerSorter{
+		servers: servers,
+	}
+}
+
+// Len is part of sort.Interface.
+func (s *appServerSorter) Len() int { return len(s.servers) }
+
+// Less is part of sort.Interface.
+func (s *appServerSorter) Less(i, j int) bool { return s.lessFn(i, j) }
+
+// Swap is part of sort.Interface.
+func (s *appServerSorter) Swap(i, j int) { s.servers[i], s.servers[j] = s.servers[j], s.servers[i] }
+
+// Sort sorts a list of app servers according to the sort criteria.
+func (s *appServerSorter) Sort(sortBy *SortBy) error {
+	if sortBy == nil {
+		return nil
+	}
+
+	// We assume sorting by type AppServer, we are really
+	// wanting to sort its contained resource Application.
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		s.lessFn = func(i, j int) bool {
+			return compareStrByDir(s.servers[i].GetApp().GetName(), s.servers[j].GetApp().GetName(), sortBy.Dir)
+		}
+	case ResourceSpecDescription:
+		s.lessFn = func(i, j int) bool {
+			return compareStrByDir(s.servers[i].GetApp().GetDescription(), s.servers[j].GetApp().GetDescription(), sortBy.Dir)
+		}
+	case ResourceSpecPublicAddr:
+		s.lessFn = func(i, j int) bool {
+			return compareStrByDir(s.servers[i].GetApp().GetPublicAddr(), s.servers[j].GetApp().GetPublicAddr(), sortBy.Dir)
+		}
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindAppServer)
+	}
+
+	sort.Sort(s)
+	return nil
+}
+
+// AsResources returns app servers as type resources with labels.
+func (s *appServerSorter) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, len(s.servers))
+	for i, server := range s.servers {
+		resources[i] = ResourceWithLabels(server)
+	}
+	return resources
+}
+
+// SetCustomLessFn allows you to define custom less function used by sort.
+func (s *appServerSorter) SetCustomLessFn(fn func(i, j int) bool) {
+	s.lessFn = fn
+}
+
+// GetFieldVals returns list of select field values.
+func (s *appServerSorter) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, len(s.servers))
+	switch field {
+	case ResourceMetadataName:
+		for i, server := range s.servers {
+			vals[i] = server.GetApp().GetName()
+		}
+	case ResourceSpecDescription:
+		for i, server := range s.servers {
+			vals[i] = server.GetApp().GetDescription()
+		}
+	case ResourceSpecPublicAddr:
+		for i, server := range s.servers {
+			vals[i] = server.GetApp().GetPublicAddr()
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindAppServer)
+	}
+
+	return vals, nil
+}
