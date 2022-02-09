@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/gravitational/teleport/api"
@@ -282,16 +283,100 @@ func (s *DatabaseServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
 }
 
-// DatabaseServers represents a list of database servers.
-type DatabaseServers []DatabaseServer
+// // Less compares database servers by name and host ID.
+// func (s DatabaseServers) Less(i, j int) bool {
+// 	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
+// }
 
-// Len returns the slice length.
-func (s DatabaseServers) Len() int { return len(s) }
-
-// Less compares database servers by name and host ID.
-func (s DatabaseServers) Less(i, j int) bool {
-	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
+type dbServerSorter struct {
+	servers []DatabaseServer
+	lessFn  func(i, j int) bool
 }
 
-// Swap swaps two database servers.
-func (s DatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+// // Less compares app servers by name and host ID.
+// func (s DatabaseServers) Less(i, j int) bool {
+// 	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
+// }
+
+// DatabaseServers returns a sorter that implements the Sort interface,
+// Call its Sort method to sort the data by sort criteria.
+func DatabaseServers(servers []DatabaseServer) *dbServerSorter {
+	return &dbServerSorter{
+		servers: servers,
+	}
+}
+
+// Len is part of sort.Interface.
+func (s *dbServerSorter) Len() int { return len(s.servers) }
+
+// Less is part of sort.Interface.
+func (s *dbServerSorter) Less(i, j int) bool { return s.lessFn(i, j) }
+
+// Swap is part of sort.Interface.
+func (s *dbServerSorter) Swap(i, j int) { s.servers[i], s.servers[j] = s.servers[j], s.servers[i] }
+
+// Sort sorts a list of app servers according to the sort criteria.
+func (s *dbServerSorter) Sort(sortBy *SortBy) error {
+	if sortBy == nil {
+		return nil
+	}
+
+	// We assume sorting by type DatabaseServer, we are really
+	// wanting to sort its contained resource Database.
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		s.lessFn = func(i, j int) bool {
+			return compareStrByDir(s.servers[i].GetDatabase().GetName(), s.servers[j].GetDatabase().GetName(), sortBy.Dir)
+		}
+	case ResourceSpecDescription:
+		s.lessFn = func(i, j int) bool {
+			return compareStrByDir(s.servers[i].GetDatabase().GetDescription(), s.servers[j].GetDatabase().GetDescription(), sortBy.Dir)
+		}
+	case ResourceSpecType:
+		s.lessFn = func(i, j int) bool {
+			return compareStrByDir(s.servers[i].GetDatabase().GetType(), s.servers[j].GetDatabase().GetType(), sortBy.Dir)
+		}
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindDatabaseServer)
+	}
+
+	sort.Sort(s)
+	return nil
+}
+
+// AsResources returns db servers as type resources with labels.
+func (s *dbServerSorter) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, len(s.servers))
+	for i, server := range s.servers {
+		resources[i] = ResourceWithLabels(server)
+	}
+	return resources
+}
+
+// SetCustomLessFn allows you to define custom less function used by sort.
+func (s *dbServerSorter) SetCustomLessFn(fn func(i, j int) bool) {
+	s.lessFn = fn
+}
+
+// GetFieldVals returns list of select field values.
+func (s *dbServerSorter) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, len(s.servers))
+	switch field {
+	case ResourceMetadataName:
+		for i, server := range s.servers {
+			vals[i] = server.GetDatabase().GetName()
+		}
+	case ResourceSpecDescription:
+		for i, server := range s.servers {
+			vals[i] = server.GetDatabase().GetDescription()
+		}
+	case ResourceSpecType:
+		for i, server := range s.servers {
+			vals[i] = server.GetDatabase().GetType()
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindDatabaseServer)
+	}
+
+	return vals, nil
+}
