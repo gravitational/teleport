@@ -51,6 +51,7 @@ import (
 	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -177,6 +178,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(clock),
 		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
+		SetX11ForwardingConfig(&x11.ServerConfig{}),
 	}
 
 	serverOptions = append(serverOptions, sshOpts...)
@@ -682,6 +684,143 @@ func TestAgentForward(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	require.FailNow(t, "expected socket to be closed, still could dial after 150 ms")
+}
+
+// TestX11Forward tests x11 forwarding via unix sockets
+func TestX11Forward(t *testing.T) {
+	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
+		t.Skip("Skipping test as xauth is not enabled")
+	}
+
+	t.Parallel()
+	f := newFixture(t)
+	f.ssh.srv.x11 = &x11.ServerConfig{
+		Enabled:       true,
+		DisplayOffset: x11.DefaultDisplayOffset,
+		MaxDisplay:    x11.DefaultMaxDisplay,
+	}
+
+	ctx := context.Background()
+	roleName := services.RoleNameForUser(f.user)
+	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
+	require.NoError(t, err)
+	roleOptions := role.GetOptions()
+	roleOptions.PermitX11Forwarding = types.NewBool(true)
+	role.SetOptions(roleOptions)
+	err = f.testSrv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	se, err := f.ssh.clt.NewSession()
+	require.NoError(t, err)
+	defer se.Close()
+
+	// Client requests x11 forwarding for the server session.
+	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
+	require.NoError(t, err)
+	err = x11.RequestForwarding(se, clientXAuthEntry)
+	require.NoError(t, err)
+
+	// Create a fake client XServer listener which echos
+	// back whatever it receives.
+	fakeClientDisplay, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+	go func() {
+		for {
+			conn, err := fakeClientDisplay.Accept()
+			require.NoError(t, err)
+			_, err = io.Copy(conn, conn)
+			require.NoError(t, err)
+			conn.Close()
+		}
+	}()
+
+	// Handle any x11 channel requests received from the server
+	// and start x11 forwarding to the client display.
+	err = x11.ServeChannelRequests(ctx, f.ssh.clt, func(ctx context.Context, nch ssh.NewChannel) {
+		sch, sin, err := nch.Accept()
+		require.NoError(t, err)
+		defer sch.Close()
+
+		clientConn, err := net.Dial("tcp", fakeClientDisplay.Addr().String())
+		require.NoError(t, err)
+		clientXConn, ok := clientConn.(*net.TCPConn)
+		require.True(t, ok)
+		defer clientConn.Close()
+
+		go func() {
+			err := sshutils.ForwardRequests(ctx, sin, se)
+			if err != nil {
+				log.WithError(err).Debug("Failed to forward ssh request from server during X11 forwarding")
+			}
+		}()
+
+		err = x11.Forward(ctx, clientXConn, sch)
+		require.NoError(t, err)
+	})
+	require.NoError(t, err)
+
+	// prepare to send virtual "keyboard input" into the shell:
+	keyboard, err := se.StdinPipe()
+	require.NoError(t, err)
+
+	// start interactive SSH session with x11 forwarding enabled (new shell):
+	err = se.Shell()
+	require.NoError(t, err)
+
+	// create a temp file to collect the shell output into:
+	tmpFile, err := os.CreateTemp(os.TempDir(), "teleport-x11-forward-test")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		os.Remove(tmpFile.Name())
+	})
+
+	// type 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
+	_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v >> %s\n\r", x11.DisplayEnv, tmpFile.Name())))
+	require.NoError(t, err)
+
+	// wait for the output
+	var display string
+	require.Eventually(t, func() bool {
+		output, err := os.ReadFile(tmpFile.Name())
+		if err == nil && len(output) != 0 {
+			display = strings.TrimSpace(string(output))
+			return true
+		}
+		return false
+	}, 5*time.Second, 10*time.Millisecond, "failed to read display")
+
+	// Make a new connection to the XServer proxy, the client
+	// XServer should echo back anything written on it.
+	serverDisplay, err := x11.ParseDisplay(display)
+	require.NoError(t, err)
+	conn, err := serverDisplay.Dial()
+	require.NoError(t, err)
+	defer conn.Close()
+
+	msg := "msg"
+	_, err = conn.Write([]byte(msg))
+	require.NoError(t, err)
+	err = conn.CloseWrite()
+	require.NoError(t, err)
+
+	echo, err := io.ReadAll(conn)
+	require.NoError(t, err)
+	require.Equal(t, msg, string(echo))
+	conn.Close()
+
+	// Make a new second connection to the XServer proxy
+	conn2, err := serverDisplay.Dial()
+	require.NoError(t, err)
+	defer conn2.Close()
+
+	_, err = conn2.Write([]byte(msg))
+	require.NoError(t, err)
+	err = conn2.CloseWrite()
+	require.NoError(t, err)
+
+	echo, err = io.ReadAll(conn2)
+	require.NoError(t, err)
+	require.Equal(t, msg, string(echo))
 }
 
 func TestAllowedUsers(t *testing.T) {
@@ -1484,7 +1623,7 @@ func startX11EchoServer(ctx context.Context, t *testing.T, authSrv *auth.Server)
 		select {
 		case req = <-creqs:
 		case <-time.After(time.Second * 3):
-			return trace.LimitExceeded("Timeout waiting for x11 forwarding request")
+			return trace.LimitExceeded("Timeout waiting for X11 forwarding request")
 		case <-ctx.Done():
 			return nil
 		}
@@ -1607,7 +1746,7 @@ func TestX11ProxySupport(t *testing.T) {
 	defer requireNoErrors(t, doneGathering)
 
 	// The error gathering routine needs this context to expire or it will wait
-	// forever on the x11 server to exit. Hence we defer a call to the x11cancel
+	// forever on the X11 server to exit. Hence we defer a call to the x11cancel
 	// here rather than directly below the context creation
 	defer x11Cancel()
 

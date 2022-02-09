@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -568,6 +569,9 @@ type SSHConfig struct {
 	// the inactivity timeout expiring. The empty string indicates that no
 	// timeout message will be sent.
 	IdleTimeoutMessage string
+
+	// X11 holds x11 forwarding configuration for Teleport.
+	X11 *x11.ServerConfig
 }
 
 // KubeConfig specifies configuration for kubernetes service
