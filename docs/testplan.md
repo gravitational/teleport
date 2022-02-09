@@ -261,8 +261,8 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 
 - [ ] G Suite install instructions work
     - [ ] G Suite Screenshots are up to date
-- [ ] ActiveDirectoy install instructions work
-    - [ ] Active Directoy Screenshots are up to date
+- [ ] ActiveDirectory install instructions work
+    - [ ] Active Directory Screenshots are up to date
 - [ ] Okta install instructions work
     - [ ] Okta Screenshots are up to date
 - [ ] OneLogin install instructions work
@@ -357,7 +357,7 @@ For main, test with a role that has access to all resources.
 
 ## Access Requests
 
-### Creating Access Rquests
+### Creating Access Requests
 1. Create a role with limited permissions (defined below as `allow-roles`). This role allows you to see the Role screen and ssh into all nodes.
 1. Create another role with limited permissions (defined below as `allow-users`). This role session expires in 4 minutes, allows you to see Users screen, and denies access to all nodes.
 1. Create another role with no permissions other than being able to create requests (defined below as `default`)
@@ -519,7 +519,7 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 - [ ] Verify that it can replay a session
 - [ ] Verify that when playing, scroller auto scrolls to bottom most content
 - [ ] Verify when resizing player to a small screen, scroller appears and is working
-- [ ] Verify that error message is displayed (enter a invalid SID in the URL)
+- [ ] Verify that error message is displayed (enter an invalid SID in the URL)
 
 ## Invite and Reset Form
 - [ ] Verify that input validates
@@ -789,6 +789,7 @@ and non interactive tsh bench loads.
 - [ ] Connect to a database within a local cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
+  - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
   - [ ] AWS Aurora Postgres.
@@ -799,6 +800,7 @@ and non interactive tsh bench loads.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
+  - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
   - [ ] AWS Aurora Postgres.
@@ -859,6 +861,7 @@ and non interactive tsh bench loads.
   - [ ] Verify that `tsh db connect` works through proxy running in `multiplex` mode
     - [ ] Postgres
     - [ ] MySQL
+    - [ ] MariaDB
     - [ ] MongoDB
     - [ ] CockroachDB
   - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.

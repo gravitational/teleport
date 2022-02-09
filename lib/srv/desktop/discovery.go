@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
@@ -67,7 +66,7 @@ func (s *WindowsService) startDesktopDiscovery() error {
 		GetCurrentResources: func() types.ResourcesWithLabels { return s.lastDiscoveryResults },
 		GetNewResources:     s.getDesktopsFromLDAP,
 		OnCreate:            s.upsertDesktop,
-		OnUpdate:            s.updateDesktop,
+		OnUpdate:            s.upsertDesktop,
 		OnDelete:            s.deleteDesktop,
 		Log:                 s.cfg.Log,
 	})
@@ -113,7 +112,7 @@ func (s *WindowsService) ldapSearchFilter() string {
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
 func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabels {
-	if atomic.LoadInt32(&s.ldapInitialized) == 0 {
+	if !s.ldapReady() {
 		s.cfg.Log.Warn("skipping desktop discovery: LDAP not yet initialized")
 		return nil
 	}
@@ -122,7 +121,17 @@ func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabels {
 	s.cfg.Log.Debugf("searching for desktops with LDAP filter %v", filter)
 
 	entries, err := s.lc.readWithFilter(s.cfg.DiscoveryBaseDN, filter, computerAttribtes)
-	if err != nil {
+	if trace.IsConnectionProblem(err) {
+		// If the connection was broken, re-initialize the LDAP client so that it's
+		// ready for the next reconcile loop. Return the last known set of desktops
+		// in this case, so that the reconciler doesn't delete the desktops it already
+		// knows about.
+		s.cfg.Log.Info("LDAP connection error when searching for desktops, reinitializing client")
+		if err := s.initializeLDAP(); err != nil {
+			s.cfg.Log.Errorf("failed to reinitialize LDAP client, will retry on next reconcile: %v", err)
+		}
+		return s.lastDiscoveryResults
+	} else if err != nil {
 		s.cfg.Log.Warnf("could not discover Windows Desktops: %v", err)
 		return nil
 	}
@@ -148,17 +157,9 @@ func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabels {
 func (s *WindowsService) upsertDesktop(ctx context.Context, r types.ResourceWithLabels) error {
 	d, ok := r.(types.WindowsDesktop)
 	if !ok {
-		return trace.Errorf("create: expected a WindowsDesktop, got %T", r)
+		return trace.Errorf("upsert: expected a WindowsDesktop, got %T", r)
 	}
 	return s.cfg.AuthClient.UpsertWindowsDesktop(ctx, d)
-}
-
-func (s *WindowsService) updateDesktop(ctx context.Context, r types.ResourceWithLabels) error {
-	d, ok := r.(types.WindowsDesktop)
-	if !ok {
-		return trace.Errorf("update: expected a WindowsDesktop, got %T", r)
-	}
-	return s.cfg.AccessPoint.UpdateWindowsDesktop(ctx, d)
 }
 
 func (s *WindowsService) deleteDesktop(ctx context.Context, r types.ResourceWithLabels) error {

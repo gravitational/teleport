@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/gravitational/trace"
@@ -45,7 +46,7 @@ const (
 	// https://docs.aws.amazon.com/general/latest/gr/sigv4-date-handling.html
 	AmzDateHeader = "X-Amz-Date"
 
-	authorizationHeader        = "Authorization"
+	AuthorizationHeader        = "Authorization"
 	credentialAuthHeaderElem   = "Credential"
 	signedHeaderAuthHeaderElem = "SignedHeaders"
 	signatureAuthHeaderElem    = "Signature"
@@ -118,7 +119,7 @@ func ParseSigV4(header string) (*SigV4, error) {
 // IsSignedByAWSSigV4 checks is the request was signed by AWS Signature Version 4 algorithm.
 // https://docs.aws.amazon.com/general/latest/gr/signing_aws_api_requests.html
 func IsSignedByAWSSigV4(r *http.Request) bool {
-	return strings.HasPrefix(r.Header.Get(authorizationHeader), AmazonSigV4AuthorizationPrefix)
+	return strings.HasPrefix(r.Header.Get(AuthorizationHeader), AmazonSigV4AuthorizationPrefix)
 }
 
 // GetAndReplaceReqBody returns the request and replace the drained body reader with io.NopCloser
@@ -207,4 +208,42 @@ func filterHeaders(r *http.Request, headers []string) {
 		}
 	}
 	r.Header = out
+}
+
+// FilterAWSRoles returns role ARNs from the provided list that belong to the
+// specified AWS account ID.
+//
+// If AWS account ID is empty, all roles are returned.
+func FilterAWSRoles(arns []string, accountID string) (result []AWSRole) {
+	for _, roleARN := range arns {
+		parsed, err := arn.Parse(roleARN)
+		if err != nil || (accountID != "" && parsed.AccountID != accountID) {
+			continue
+		}
+
+		// In AWS convention, the display of the role is the last
+		// /-delineated substring.
+		//
+		// Example ARNs:
+		// arn:aws:iam::1234567890:role/EC2FullAccess      (display: EC2FullAccess)
+		// arn:aws:iam::1234567890:role/path/to/customrole (display: customrole)
+		parts := strings.Split(parsed.Resource, "/")
+		numParts := len(parts)
+		if numParts < 2 || parts[0] != "role" {
+			continue
+		}
+		result = append(result, AWSRole{
+			Display: parts[numParts-1],
+			ARN:     roleARN,
+		})
+	}
+	return result
+}
+
+// AWSRole describes an AWS IAM role for AWS console access.
+type AWSRole struct {
+	// Display is the role display name.
+	Display string `json:"display"`
+	// ARN is the full role ARN.
+	ARN string `json:"arn"`
 }
