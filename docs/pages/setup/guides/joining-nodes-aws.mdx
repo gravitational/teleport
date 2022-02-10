@@ -16,23 +16,23 @@ Read more in the following guide:
 
 There are two AWS join methods available depending on your use case.
 
-The EC2 join method is available in Teleport 7.3+ self-hosted.
+The **EC2 join method** is available in Teleport 7.3+ self-hosted.
 It is available to any Teleport Node or Proxy running on an EC2 instance.
 Only one Teleport Node or Proxy per EC2 instance may use the EC2 join method.
 IAM credentials with `ec2:DescribeInstances` permissions are required on your
 Teleport Auth server.
 No IAM credentials are required on the Nodes or Proxies.
 
-The IAM join method is available in Teleport 8.3+ cloud or self-hosted.
+The **IAM join method** is available in Teleport 8.3+ cloud or self-hosted.
 It is available to any Teleport Node or Proxy running anywhere with access to
 IAM credentials, such as an EC2 instance with an attached IAM role.
-No specific permissions or IAM policy is required, an IAM role with no attached
+No specific permissions or IAM policy is required: an IAM role with no attached
 policies is sufficient.
 No IAM credentials at all are required on the Teleport Auth server.
 
 ## Prerequisites
 
-- Teleport v(=teleport.version=) Cloud, Open Source, or Enterprise (Cloud does
+- Teleport v(=teleport.version=) Cloud, Open Source, or Enterprise. (Cloud does
   not support the EC2 join method.)
 - A running Teleport cluster for the Node to join.
 - An AWS EC2 instance to act as the Node, with the Teleport binary installed.
@@ -134,7 +134,7 @@ spec:
 ```
 
 The optional `aws_arn` field in the allow rules supports wildcard characters:
-- `*` to match any combination of characters and
+- `*` to match any combination of characters
 - `?` to match any single character
 
 See the
