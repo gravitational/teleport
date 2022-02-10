@@ -243,7 +243,8 @@ message DesktopRecording {
     bytes Message = 2 [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "message" ];
 
     // DelayMilliseconds is the delay in milliseconds from the start of the session
-    int64 DelayMilliseconds = 3 [ (gogoproto.jsontag) = "ms" ];
+    int64 DelayMilliseconds = 3
+        [ (gogoproto.jsontag) = "ms" ]; // JSON tag intentionally matches SessionPrintEvent
 }
 
 // SessionReject event happens when a user hits a session control restriction.
@@ -1696,7 +1697,7 @@ message WindowsDesktopSessionEnd {
     google.protobuf.Timestamp StartTime = 9 [
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
-        (gogoproto.jsontag) = "session_start,omitempty"
+        (gogoproto.jsontag) = "session_start,omitempty" // JSON tag set to match SessoinEnd event
     ];
     // EndTime is the timestamp at which the session ended.
     google.protobuf.Timestamp EndTime = 10 [

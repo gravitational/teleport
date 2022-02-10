@@ -855,11 +855,12 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	return trace.Wrap(err)
 }
 
-func (s *WindowsService) makeTDPSendHandler(ctx context.Context, sw libevents.StreamWriter, delay func() int64) func(m tdp.Message, b []byte) {
+func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.Emitter, delay func() int64) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypePNGFrame), byte(tdp.TypeClipboardData):
-			if err := sw.EmitAuditEvent(ctx, &events.DesktopRecording{
+		// TODO(zmb3): record audit events for clipboard usage
+		case byte(tdp.TypePNGFrame):
+			if err := emitter.EmitAuditEvent(ctx, &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
 					Time: s.cfg.Clock.Now().UTC().Round(time.Millisecond),
@@ -873,7 +874,7 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, sw libevents.St
 	}
 }
 
-func (s *WindowsService) makeTDPRecieveHandler(ctx context.Context, sw libevents.StreamWriter, delay func() int64) func(m tdp.Message) {
+func (s *WindowsService) makeTDPRecieveHandler(ctx context.Context, emitter events.Emitter, delay func() int64) func(m tdp.Message) {
 	return func(m tdp.Message) {
 		switch m.(type) {
 		// TODO(zmb3): record audit events for clipboard usage
@@ -882,7 +883,7 @@ func (s *WindowsService) makeTDPRecieveHandler(ctx context.Context, sw libevents
 			if err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
-			if err := sw.EmitAuditEvent(ctx, &events.DesktopRecording{
+			if err := emitter.EmitAuditEvent(ctx, &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
 					Time: s.cfg.Clock.Now().UTC().Round(time.Millisecond),

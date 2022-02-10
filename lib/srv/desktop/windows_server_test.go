@@ -22,7 +22,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
 
@@ -191,4 +194,84 @@ func TestGenerateCredentials(t *testing.T) {
 	}
 	require.True(t, foundKeyUsage)
 	require.True(t, foundAltName)
+}
+
+func TestEmitsRecordingEventsOnSend(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	s := &WindowsService{
+		cfg: WindowsServiceConfig{
+			Clock: clock,
+		},
+	}
+
+	// a fake PNG Frame message
+	encoded := []byte{byte(tdp.TypePNGFrame), 0x01, 0x02}
+
+	ch := make(chan events.AuditEvent)
+	go func() {
+		delay := func() int64 { return 0 }
+		handler := s.makeTDPSendHandler(context.Background(), &channelEmitter{eventsCh: ch}, delay)
+
+		// the handler accepts both the message structure and its encoded form,
+		// but our logic only depends on the encoded form, so pass a nil message
+		var msg tdp.Message = nil
+		handler(msg, encoded)
+	}()
+
+	select {
+	case e := <-ch:
+		dr, ok := e.(*events.DesktopRecording)
+		require.True(t, ok)
+		require.Equal(t, encoded, dr.Message)
+	case <-time.After(1 * time.Second):
+		require.FailNow(t, "timed out waiting for event")
+	}
+}
+
+func TestEmitsRecordingEventsOnReceive(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	s := &WindowsService{
+		cfg: WindowsServiceConfig{
+			Clock: clock,
+		},
+	}
+
+	msg := tdp.MouseButton{
+		Button: tdp.LeftMouseButton,
+		State:  tdp.ButtonPressed,
+	}
+
+	ch := make(chan events.AuditEvent)
+	go func() {
+		delay := func() int64 { return 0 }
+		handler := s.makeTDPRecieveHandler(context.Background(), &channelEmitter{eventsCh: ch}, delay)
+		handler(msg)
+	}()
+
+	select {
+	case e := <-ch:
+		dr, ok := e.(*events.DesktopRecording)
+		require.True(t, ok)
+		decoded, err := tdp.Decode(dr.Message)
+		require.NoError(t, err)
+		require.Equal(t, msg, decoded)
+	case <-time.After(1 * time.Second):
+		require.FailNow(t, "timed out waiting for event")
+	}
+}
+
+// TODO(zmb3): this is duplicated from lib/events/emitter_test.go
+// move common testing emitters to a testevents package
+
+type channelEmitter struct {
+	eventsCh chan events.AuditEvent
+}
+
+func (c *channelEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case c.eventsCh <- event:
+		return nil
+	}
 }
