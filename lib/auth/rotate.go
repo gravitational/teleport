@@ -280,7 +280,10 @@ func (a *Server) RotateExternalCertAuthority(ca types.CertAuthority) error {
 	if err := updated.SetAdditionalTrustedKeys(ca.GetAdditionalTrustedKeys().Clone()); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// this should only ever be needed for CAs stored before we started labeling the trust relationship
 	updated.SetTrustRelationship(types.TrustRelationshipTrusted)
+
 	updated.SetRotation(ca.GetRotation())
 
 	// use compare and swap to protect from concurrent updates

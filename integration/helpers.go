@@ -534,11 +534,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	localCAs := i.Secrets.GetCAs(t)
-	for i := range localCAs {
-		localCAs[i].SetTrustRelationship(types.TrustRelationshipLocal)
-	}
-	tconf.Auth.Authorities = append(tconf.Auth.Authorities, localCAs...)
+	tconf.Auth.Authorities = append(tconf.Auth.Authorities, i.Secrets.GetCAs(t)...)
 	tconf.Identities = append(tconf.Identities, i.Secrets.GetIdentity())
 	for _, trusted := range trustedSecrets {
 		tconf.Auth.Authorities = append(tconf.Auth.Authorities, trusted.GetCAs(t)...)

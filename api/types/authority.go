@@ -210,7 +210,7 @@ func RemoveCASecrets(ca CertAuthority) {
 
 // String returns human readable version of the CertAuthorityV2.
 func (ca *CertAuthorityV2) String() string {
-	return fmt.Sprintf("CA(name=%v, type=%v)", ca.GetClusterName(), ca.GetType())
+	return fmt.Sprintf("CA(name=%v, type=%v, trust_rel=%v)", ca.GetClusterName(), ca.GetType(), ca.GetTrustRelationship())
 }
 
 // AddRole adds a role to ca role list
@@ -388,18 +388,34 @@ func (ca *CertAuthorityV2) GetTrustedJWTKeyPairs() []*JWTKeyPair {
 }
 
 // labelTrustRelationship is the internal-use label to store a trust
-// relationship in a metadata label of a CertAuthorityV2.
+// relationship in a metadata label of a CertAuthorityV2. Of note is that we
+// represent "local" as no label, so any CA that's missing the trust
+// relationship will also be treated as "local".
 const labelTrustRelationship = "teleport.dev/trust_rel"
 
 func (ca *CertAuthorityV2) GetTrustRelationship() TrustRelationship {
-	return TrustRelationship(ca.Metadata.Labels[labelTrustRelationship])
+	rel := ca.Metadata.Labels[labelTrustRelationship]
+	if rel == "" {
+		return TrustRelationshipLocal
+	}
+
+	return TrustRelationship(rel)
 }
 
 func (ca *CertAuthorityV2) SetTrustRelationship(rel TrustRelationship) {
-	if ca.Metadata.Labels == nil {
-		ca.Metadata.Labels = make(map[string]string)
+	// older versions used to do compare-and-swap for CertAuthority resources by
+	// comparing the marshalled json of the "existing" against what's stored in
+	// the backend without sorting the keys for the Labels map; as maps have a
+	// random order, this means that we can't ever have more than one key in the
+	// map or the CAS will spuriously fail, so here we just clear it or replace
+	// it with a new one
+	if rel == TrustRelationshipLocal {
+		ca.Metadata.Labels = nil
+	} else {
+		ca.Metadata.Labels = map[string]string{
+			labelTrustRelationship: string(rel),
+		}
 	}
-	ca.Metadata.Labels[labelTrustRelationship] = string(rel)
 }
 
 func (ca *CertAuthorityV2) WithTrustRelationship(rel TrustRelationship) CertAuthority {
@@ -771,8 +787,7 @@ func (k *JWTKeyPair) CheckAndSetDefaults() error {
 // certain combinations of CA type and trust relationship through. An empty or
 // nil filter lets through every CA, whereas a nonempty filter will let through
 // only the CAs with a trust relationship listed in the filter under the CA's
-// type. CAs with an unspecified (empty) trust relationships will count as any
-// trust relationship, so they will only get filtered by an empty selector.
+// type.
 type CertAuthorityFilter map[CertAuthType][]TrustRelationship
 
 // Match checks if a given CA matches this filter.
@@ -782,10 +797,6 @@ func (f CertAuthorityFilter) Match(ca CertAuthority) bool {
 	}
 
 	trustRel := ca.GetTrustRelationship()
-	if trustRel == "" {
-		return len(f[ca.GetType()]) > 0
-	}
-
 	for _, t := range f[ca.GetType()] {
 		if trustRel == t {
 			return true

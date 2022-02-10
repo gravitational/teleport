@@ -492,9 +492,10 @@ func (s *remoteSite) watchCertAuthorities() error {
 						localCA.GetType() != types.UserCA) {
 					continue
 				}
-				outboundCA := localCA.WithTrustRelationship(types.TrustRelationshipTrusted)
+				// ensure that metadata labels are cleared
+				localCA = localCA.WithTrustRelationship(types.TrustRelationshipLocal)
 
-				if err := s.remoteClient.RotateExternalCertAuthority(outboundCA); err != nil {
+				if err := s.remoteClient.RotateExternalCertAuthority(localCA); err != nil {
 					s.WithError(err).Warn("Failed to rotate external ca")
 					return trace.Wrap(err)
 				}
@@ -505,11 +506,11 @@ func (s *remoteSite) watchCertAuthorities() error {
 					remoteCA.GetClusterName() != s.domainName {
 					continue
 				}
-				inboundCA := remoteCA.WithTrustRelationship(types.TrustRelationshipRemote)
+				remoteCA = remoteCA.WithTrustRelationship(types.TrustRelationshipRemote)
 
 				oldRemoteCA, err := s.localClient.GetCertAuthority(types.CertAuthID{
 					Type:       types.HostCA,
-					DomainName: inboundCA.GetClusterName(),
+					DomainName: remoteCA.GetClusterName(),
 				}, false)
 
 				if err != nil && !trace.IsNotFound(err) {
@@ -517,14 +518,14 @@ func (s *remoteSite) watchCertAuthorities() error {
 				}
 
 				// if CA is changed or does not exist, update backend
-				if err != nil || !services.CertAuthoritiesEquivalent(oldRemoteCA, inboundCA) {
-					if err := s.localClient.UpsertCertAuthority(inboundCA); err != nil {
+				if err != nil || !services.CertAuthoritiesEquivalent(oldRemoteCA, remoteCA) {
+					if err := s.localClient.UpsertCertAuthority(remoteCA); err != nil {
 						return trace.Wrap(err)
 					}
 				}
 
 				// always update our local reference to the cert authority
-				if err := s.compareAndSwapCertAuthority(inboundCA); err != nil {
+				if err := s.compareAndSwapCertAuthority(remoteCA); err != nil {
 					return trace.Wrap(err)
 				}
 			}

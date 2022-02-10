@@ -245,7 +245,8 @@ func (a *Server) establishTrust(trustedCluster types.TrustedCluster) ([]types.Ce
 	}
 	for _, lca := range allLocalCAs {
 		if lca.GetClusterName() == domainName {
-			localCertAuthorities = append(localCertAuthorities, lca.WithTrustRelationship(types.TrustRelationshipRemote))
+			// ensure there's no labels, should already be the case
+			localCertAuthorities = append(localCertAuthorities, lca.WithTrustRelationship(types.TrustRelationshipLocal))
 		}
 	}
 
