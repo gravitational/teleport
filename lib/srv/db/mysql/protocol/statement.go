@@ -16,6 +16,8 @@ limitations under the License.
 
 package protocol
 
+import "github.com/siddontang/go-mysql/mysql"
+
 // StatementPreparePacket represents the COM_STMT_PREPARE command.
 //
 // https://dev.mysql.com/doc/internals/en/com-stmt-prepare.html
@@ -106,12 +108,10 @@ type StatementExecutePacket struct {
 }
 
 // Parameters returns a slice of parameters.
-func (p *StatementExecutePacket) Parameters(n int) []interface{} {
-	// TODO(greedy52) number of parameters is required in order to parse
-	// paremeters out of the packet. Number of parameters can be obtained from
-	// the response of COM_STMT_PREPARE. And all MySQL supported types needs be
-	// converted from their binary form to golang types.
-	return nil
+func (p *StatementExecutePacket) Parameters(definitions []mysql.Field) (parameters []interface{}, ok bool) {
+	// TODO(greedy52) implement parsing of null bitmap, parameter types, and
+	// paramerter binary values.
+	return nil, true
 }
 
 // StatementClosePacket represents the COM_STMT_CLOSE command.

@@ -298,6 +298,22 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 			return
 		case *protocol.Quit:
 			return
+
+		case *protocol.StatementPreparePacket:
+			e.Audit.EmitEvent(e.Context, makeStatementPrepareEvent(sessionCtx, pkt))
+		case *protocol.StatementExecutePacket:
+			// TODO(greedy52) number of parameters is required in order to
+			// parse paremeters out of the packet. Parameter definitions are
+			// quired to properly format parameters for including in Audit log.
+			// Both number of parameters and parameter definitions can be
+			// obtained from the response of COM_STMT_PREPARE.
+			e.Audit.EmitEvent(e.Context, makeStatementExecuteEvent(sessionCtx, pkt, nil))
+		case *protocol.StatementSendLongDataPacket:
+			e.Audit.EmitEvent(e.Context, makeStatementSendLongDataEvent(sessionCtx, pkt))
+		case *protocol.StatementClosePacket:
+			e.Audit.EmitEvent(e.Context, makeStatementCloseEvent(sessionCtx, pkt))
+		case *protocol.StatementResetPacket:
+			e.Audit.EmitEvent(e.Context, makeStatementResetEvent(sessionCtx, pkt))
 		}
 		_, err = protocol.WritePacket(packet.Bytes(), serverConn)
 		if err != nil {
