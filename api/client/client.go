@@ -27,6 +27,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -42,10 +43,12 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/status"
 )
 
 func init() {
@@ -76,7 +79,7 @@ type Client struct {
 	// JoinServiceClient is a client for the JoinService, which runs on both the
 	// auth and proxy.
 	*JoinServiceClient
-	// closedFlag is set to indicate that the connnection is closed.
+	// closedFlag is set to indicate that the connection is closed.
 	// It's a pointer to allow the Client struct to be copied.
 	closedFlag *int32
 	// callOpts configure calls made by this client.
@@ -377,29 +380,39 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialContext, cancel := context.WithTimeout(ctx, c.c.DialTimeout)
 	defer cancel()
 
+	cb, err := breaker.New(c.c.BreakerConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithChainUnaryInterceptor(
 			otelgrpc.UnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
+			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
 			otelgrpc.StreamClientInterceptor(),
 			metadata.StreamClientInterceptor),
+		breaker.StreamClientInterceptor(cb),
 	)
 	// Only set transportCredentials if tlsConfig is set. This makes it possible
-	// to explicitly provide gprc.WithInsecure in the client's dial options.
+	// to explicitly provide grpc.WithTransportCredentials(insecure.NewCredentials())
+	// in the client's dial options.
 	if c.tlsConfig != nil {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
 	}
 	// must come last, otherwise provided opts may get clobbered by defaults above
 	dialOpts = append(dialOpts, c.c.DialOpts...)
 
-	var err error
-	if c.conn, err = grpc.DialContext(dialContext, addr, dialOpts...); err != nil {
+	conn, err := grpc.DialContext(dialContext, addr, dialOpts...)
+	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	c.conn = conn
 	c.grpc = proto.NewAuthServiceClient(c.conn)
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
@@ -435,7 +448,7 @@ func (c *Client) grpcDialer() func(ctx context.Context, addr string) (net.Conn, 
 	}
 }
 
-// waitForConnectionReady waits for the client's grpc connection finish dialing, returning an errror
+// waitForConnectionReady waits for the client's grpc connection finish dialing, returning an error
 // if the ctx is canceled or the client's gRPC connection enters an unexpected state. This can be used
 // alongside the DialInBackground client config option to wait until background dialing has completed.
 func (c *Client) waitForConnectionReady(ctx context.Context) error {
@@ -489,6 +502,22 @@ type Config struct {
 	ALPNSNIAuthDialClusterName string
 	// IgnoreHTTPProxy disables support for HTTP proxying when true.
 	IgnoreHTTPProxy bool
+	// BreakerConfig specifies the CircuitBreaker configuration to be used.
+	BreakerConfig breaker.Config
+}
+
+// IsGrpcResponseSuccessful determines whether the error provided should be ignored by the circuit breaker. This is
+// the default IsSuccessful value of Config.BreakerConfig if one is not provided.
+func IsGrpcResponseSuccessful(_ interface{}, err error) bool {
+	code := status.Code(err)
+	switch {
+	case err == nil:
+		return true
+	case code == codes.Canceled || code == codes.Unknown || code == codes.Unavailable || code == codes.DeadlineExceeded:
+		return false
+	default:
+		return true
+	}
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -514,6 +543,26 @@ func (c *Config) CheckAndSetDefaults() error {
 	}))
 	if !c.DialInBackground {
 		c.DialOpts = append(c.DialOpts, grpc.WithBlock())
+	}
+
+	if c.BreakerConfig.Interval <= 0 {
+		c.BreakerConfig.Interval = defaults.BreakerInterval
+	}
+
+	if c.BreakerConfig.RecoveryLimit <= 0 {
+		c.BreakerConfig.RecoveryLimit = defaults.RecoveryLimit
+	}
+
+	if c.BreakerConfig.Trip == nil {
+		c.BreakerConfig.Trip = breaker.RatioTripper(defaults.BreakerRatio, defaults.BreakerRatioMinExecutions)
+	}
+
+	if c.BreakerConfig.IsSuccessful == nil {
+		c.BreakerConfig.IsSuccessful = IsGrpcResponseSuccessful
+	}
+
+	if err := c.BreakerConfig.CheckAndSetDefaults(); err != nil {
+		return err
 	}
 
 	return nil

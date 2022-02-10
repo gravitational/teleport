@@ -51,6 +51,27 @@ const (
 
 	// SessionTrackerTTL defines the default base ttl of a session tracker.
 	SessionTrackerTTL = time.Hour
+
+	// BreakerInterval is the period in time the circuit breaker will
+	// tally metrics for
+	BreakerInterval = time.Minute
+
+	// TrippedPeriod is the default period of time the circuit breaker will
+	// remain in breaker.StateTripped before transitioning to breaker.StateRecovering. No
+	// outbound requests are allowed for the duration of this period.
+	TrippedPeriod = 60 * time.Second
+
+	// RecoveryRampPeriod is the default ramp up time used in breaker.StateRecovering to slowly
+	// start allow letting new requests be processed
+	RecoveryRampPeriod = 10 * time.Second
+
+	// RecoveryLimit is the default number of consecutive successful requests needed to transition
+	// from breaker.StateRecovering to breaker.StateStandby
+	RecoveryLimit = 3
+
+	BreakerRatio = 0.9
+
+	BreakerRatioMinExecutions = 10
 )
 
 var (

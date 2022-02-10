@@ -24,28 +24,34 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 // mockServer mocks an Auth Server.
 type mockServer struct {
+	addr string
 	grpc *grpc.Server
 	*proto.UnimplementedAuthServiceServer
 }
 
-func newMockServer() *mockServer {
+func newMockServer(addr string) *mockServer {
 	m := &mockServer{
+		addr:                           addr,
 		grpc:                           grpc.NewServer(),
 		UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
 	}
@@ -53,13 +59,67 @@ func newMockServer() *mockServer {
 	return m
 }
 
+func (m *mockServer) Stop() {
+	m.grpc.Stop()
+}
+
+func (m *mockServer) Addr() string {
+	return m.addr
+}
+
+type ConfigOpt func(*Config)
+
+func WithBreakerConfig(breakCfg breaker.Config) ConfigOpt {
+	return func(config *Config) {
+		config.BreakerConfig = breakCfg
+	}
+}
+
+func WithConfig(cfg Config) ConfigOpt {
+	return func(config *Config) {
+		*config = cfg
+	}
+}
+
+func (m *mockServer) NewClient(ctx context.Context, opts ...ConfigOpt) (*Client, error) {
+	cfg := Config{
+		Addrs: []string{m.addr},
+		Credentials: []Credentials{
+			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
+		},
+		DialOpts: []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
+		},
+		BreakerConfig: breaker.Config{
+			Interval:      time.Second,
+			RecoveryLimit: 1,
+			Trip:          breaker.StaticTripper(false),
+		},
+	}
+
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	return New(ctx, cfg)
+}
+
 // startMockServer starts a new mock server. Parallel tests cannot use the same addr.
-func startMockServer(t *testing.T) string {
+func startMockServer(t *testing.T) *mockServer {
 	l, err := net.Listen("tcp", "")
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, l.Close()) })
-	go newMockServer().grpc.Serve(l)
-	return l.Addr().String()
+	return startMockServerWithListener(t, l)
+}
+
+// startMockServerWithListener starts a new mock server with the provided listener
+func startMockServerWithListener(t *testing.T, l net.Listener) *mockServer {
+	srv := newMockServer(l.Addr().String())
+	t.Cleanup(srv.grpc.Stop)
+
+	go func() {
+		require.NoError(t, srv.grpc.Serve(l))
+	}()
+	return srv
 }
 
 func (m *mockServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
@@ -142,6 +202,10 @@ func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResources
 	}
 
 	return resp, nil
+}
+
+func (m *mockServer) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
+	return nil, status.Error(codes.AlreadyExists, "Already Exists")
 }
 
 const fiveMBNode = "fiveMBNode"
@@ -276,7 +340,7 @@ func (mc *mockInsecureTLSCredentials) SSHClientConfig() (*ssh.ClientConfig, erro
 func TestNew(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	addr := startMockServer(t)
+	srv := startMockServer(t)
 
 	tests := []struct {
 		desc      string
@@ -285,7 +349,7 @@ func TestNew(t *testing.T) {
 	}{{
 		desc: "successfully dial tcp address.",
 		config: Config{
-			Addrs: []string{addr},
+			Addrs: []string{srv.Addr()},
 			Credentials: []Credentials{
 				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
 			},
@@ -297,7 +361,7 @@ func TestNew(t *testing.T) {
 	}, {
 		desc: "synchronously dial addr/cred pairs and succeed with the 1 good pair.",
 		config: Config{
-			Addrs: []string{"bad addr", addr, "bad addr"},
+			Addrs: []string{"bad addr", srv.Addr(), "bad addr"},
 			Credentials: []Credentials{
 				&tlsConfigCreds{nil},
 				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
@@ -343,11 +407,11 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			clt, err := New(ctx, tt.config)
+			clt, err := srv.NewClient(ctx, WithConfig(tt.config))
 			tt.assertErr(t, err)
 
 			if err == nil {
-				defer clt.Close()
+				t.Cleanup(func() { require.NoError(t, clt.Close()) })
 				// requests to the server should succeed.
 				_, err = clt.Ping(ctx)
 				require.NoError(t, err)
@@ -363,7 +427,6 @@ func TestNewDialBackground(t *testing.T) {
 	// get listener but don't serve it yet.
 	l, err := net.Listen("tcp", "")
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, l.Close()) })
 	addr := l.Addr().String()
 
 	// Create client before the server is listening.
@@ -376,9 +439,13 @@ func TestNewDialBackground(t *testing.T) {
 		DialOpts: []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 		},
+		BreakerConfig: breaker.Config{
+			Interval: time.Second,
+			Trip:     breaker.StaticTripper(false),
+		},
 	})
 	require.NoError(t, err)
-	defer clt.Close()
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 	// requests to the server will result in a connection error.
 	cancelCtx, cancel := context.WithTimeout(ctx, time.Second*3)
@@ -387,7 +454,7 @@ func TestNewDialBackground(t *testing.T) {
 	require.Error(t, err)
 
 	// Start the server and wait for the client connection to be ready.
-	go newMockServer().grpc.Serve(l)
+	startMockServerWithListener(t, l)
 	require.NoError(t, clt.waitForConnectionReady(ctx))
 
 	// requests to the server should succeed.
@@ -401,7 +468,6 @@ func TestWaitForConnectionReady(t *testing.T) {
 
 	l, err := net.Listen("tcp", "")
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, l.Close()) })
 	addr := l.Addr().String()
 
 	// Create client before the server is listening.
@@ -416,7 +482,7 @@ func TestWaitForConnectionReady(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer clt.Close()
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 	// WaitForConnectionReady should return false once the
 	// context is canceled if the server isn't open to connections.
@@ -425,29 +491,21 @@ func TestWaitForConnectionReady(t *testing.T) {
 	require.Error(t, clt.waitForConnectionReady(cancelCtx))
 
 	// WaitForConnectionReady should return nil if the server is open to connections.
-	go newMockServer().grpc.Serve(l)
+	startMockServerWithListener(t, l)
 	require.NoError(t, clt.waitForConnectionReady(ctx))
 
 	// WaitForConnectionReady should return an error if the grpc connection is closed.
-	require.NoError(t, clt.GetConnection().Close())
+	require.NoError(t, clt.Close())
 	require.Error(t, clt.waitForConnectionReady(ctx))
 }
 
 func TestLimitExceeded(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	addr := startMockServer(t)
+	srv := startMockServer(t)
 
 	// Create client
-	clt, err := New(ctx, Config{
-		Addrs: []string{addr},
-		Credentials: []Credentials{
-			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
-		},
-		DialOpts: []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-		},
-	})
+	clt, err := srv.NewClient(ctx)
 	require.NoError(t, err)
 
 	// ListNodes should return a limit exceeded error when exceeding gRPC message size limit.
@@ -481,7 +539,7 @@ func TestLimitExceeded(t *testing.T) {
 func TestListResources(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	addr := startMockServer(t)
+	srv := startMockServer(t)
 
 	testCases := map[string]struct {
 		resourceType   string
@@ -510,15 +568,7 @@ func TestListResources(t *testing.T) {
 	}
 
 	// Create client
-	clt, err := New(ctx, Config{
-		Addrs: []string{addr},
-		Credentials: []Credentials{
-			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
-		},
-		DialOpts: []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-		},
-	})
+	clt, err := srv.NewClient(ctx)
 	require.NoError(t, err)
 
 	for name, test := range testCases {
@@ -557,18 +607,10 @@ func TestListResources(t *testing.T) {
 func TestGetResources(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	addr := startMockServer(t)
+	srv := startMockServer(t)
 
 	// Create client
-	clt, err := New(ctx, Config{
-		Addrs: []string{addr},
-		Credentials: []Credentials{
-			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
-		},
-		DialOpts: []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-		},
-	})
+	clt, err := srv.NewClient(ctx)
 	require.NoError(t, err)
 
 	testCases := map[string]struct {
@@ -713,4 +755,102 @@ func TestSetOIDCRedirectURLBackwardsCompatibility(t *testing.T) {
 	require.Equal(t, 1, len(connectorsResp))
 	require.Equal(t, 1, len(connectorsResp[0].GetRedirectURLs()))
 	require.Equal(t, "one.example.com", connectorsResp[0].GetRedirectURLs()[0])
+}
+
+func TestClient_NotAllErrorsTripBreaker(t *testing.T) {
+	t.Parallel()
+	srv := startMockServer(t)
+	clock := clockwork.NewFakeClock()
+
+	tripped := make(chan struct{}, 1)
+	standby := make(chan struct{}, 1)
+
+	clt, err := srv.NewClient(context.Background(), WithBreakerConfig(breaker.Config{
+		Clock:         clock,
+		Interval:      time.Second,
+		RecoveryLimit: 1,
+		Trip:          breaker.ConsecutiveFailureTripper(0),
+		OnTripped: func() {
+			tripped <- struct{}{}
+		},
+		OnStandBy: func() {
+			standby <- struct{}{}
+		},
+	}))
+	require.NoError(t, err)
+
+	returnBreakerToStandBy := func() {
+		ctx := context.Background()
+		// advance clock to enter recovering - next request will be blocked
+		clock.Advance(time.Hour)
+
+		_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseServer,
+			Namespace:    defaults.Namespace,
+			Limit:        1,
+		})
+		require.Error(t, err)
+		require.ErrorIs(t, err, breaker.ErrLimitExceeded)
+
+		// advance clock to allow request
+		clock.Advance(time.Hour)
+
+		_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseServer,
+			Namespace:    defaults.Namespace,
+			Limit:        1,
+		})
+		require.NoError(t, err)
+
+		select {
+		case <-standby:
+		case <-time.After(time.Minute):
+			t.Fatal("timeout waiting to return to standby")
+		}
+	}
+
+	_, err = clt.ListResources(context.Background(), proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseServer,
+		Namespace:    defaults.Namespace,
+		Limit:        1,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseServer,
+		Namespace:    defaults.Namespace,
+		Limit:        1,
+	})
+	require.Error(t, err)
+
+	select {
+	case <-tripped:
+	case <-time.After(time.Minute):
+		t.Fatal("timeout waiting to be tripped")
+	}
+
+	returnBreakerToStandBy()
+
+	_, err = clt.AddMFADeviceSync(context.Background(), &proto.AddMFADeviceSyncRequest{})
+	require.Error(t, err)
+
+	select {
+	case <-tripped:
+		t.Fatal("expected breaker to remain in standby")
+	default:
+	}
+
+	srv.Stop()
+
+	_, err = clt.CreateAppSession(context.Background(), types.CreateAppSessionRequest{})
+	require.Error(t, err)
+
+	select {
+	case <-tripped:
+	case <-time.After(time.Minute):
+		t.Fatal("timeout waiting to be tripped")
+	}
 }

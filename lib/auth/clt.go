@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -117,8 +118,29 @@ type HTTPClient struct {
 	tls *tls.Config
 }
 
+func IsHTTPResponseSuccessful(v interface{}, err error) bool {
+	if err != nil {
+		return false
+	}
+
+	if v == nil {
+		return false
+	}
+
+	switch t := v.(type) {
+	case *http.Response:
+		return t.StatusCode < http.StatusInternalServerError
+	}
+
+	return true
+}
+
 // NewHTTPClient creates a new HTTP client with TLS authentication and the given dialer.
 func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.ClientParam) (*HTTPClient, error) {
+	if cfg.BreakerConfig.IsSuccessful == nil {
+		cfg.BreakerConfig.IsSuccessful = IsHTTPResponseSuccessful
+	}
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, err
 	}
@@ -186,9 +208,14 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		IdleConnTimeout: defaults.HTTPIdleTimeout,
 	}
 
+	cb, err := breaker.New(cfg.BreakerConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clientParams := append(
 		[]roundtrip.ClientParam{
-			roundtrip.HTTPClient(&http.Client{Transport: otelhttp.NewTransport(transport)}),
+			roundtrip.HTTPClient(&http.Client{Transport: otelhttp.NewTransport(breaker.NewRoundTripper(cb, transport))}),
 			roundtrip.SanitizerEnabled(true),
 		},
 		params...,
