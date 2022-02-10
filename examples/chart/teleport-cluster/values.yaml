@@ -62,6 +62,8 @@ labels: {}
 #     kubectl -n ${TELEPORT_NAMESPACE?} create configmap ${HELM_RELEASE_NAME?} --from-file=teleport.yaml
 chartMode: standalone
 
+useExistingConfigMap: false
+
 ################################################################
 # Standalone-specific settings (only used in "standalone" mode)
 ################################################################

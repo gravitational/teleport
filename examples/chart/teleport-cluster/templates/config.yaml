@@ -1,4 +1,4 @@
-{{- if not (eq .Values.chartMode "custom") -}}
+{{- if and (not (.Values.useExistingConfigMap)) (not (eq .Values.chartMode "custom")) -}}
   {{- $logLevel := (coalesce .Values.logLevel .Values.log.level "INFO") -}}
 apiVersion: v1
 kind: ConfigMap
