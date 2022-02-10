@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -36,10 +37,14 @@ const (
 
 // ServerConfig configures a Server instance.
 type ServerConfig struct {
+	AccessCache   auth.AccessCache
 	Listener      net.Listener
 	TLSConfig     *tls.Config
 	ClusterDialer ClusterDialer
 	Log           logrus.FieldLogger
+
+	// getConfigForClient gets the client tls config.
+	getConfigForClient func(*tls.ClientHelloInfo) (*tls.Config, error)
 }
 
 // checkAndSetDefaults checks and sets default values
@@ -60,18 +65,22 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 	if c.TLSConfig.RootCAs == nil {
 		return trace.BadParameter("missing tls root ca")
 	}
-
-	c.TLSConfig = c.TLSConfig.Clone()
-	c.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
-	c.TLSConfig.ClientCAs = c.TLSConfig.RootCAs
-
 	if c.Log == nil {
 		c.Log = logrus.New()
 	}
 	c.Log = c.Log.WithField(
 		trace.Component,
-		teleport.Component(teleport.ComponentProxy),
+		teleport.Component(teleport.ComponentProxy, "peer"),
 	)
+
+	c.TLSConfig = c.TLSConfig.Clone()
+	c.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+
+	if c.getConfigForClient == nil {
+		c.getConfigForClient = getConfigForClient(c.TLSConfig, c.AccessCache, c.Log)
+	}
+
+	c.TLSConfig.GetConfigForClient = c.getConfigForClient
 
 	return nil
 }

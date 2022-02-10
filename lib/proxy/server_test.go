@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -97,6 +98,10 @@ func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identit
 	return config
 }
 
+type mockAccessCache struct {
+	auth.AccessCache
+}
+
 // TestServerTLS ensures that only trusted certificates with the proxy role
 // are accepted by the server.
 func TestServerTLS(t *testing.T) {
@@ -149,9 +154,16 @@ func TestServerTLS(t *testing.T) {
 		require.NoError(t, err)
 
 		server, err := NewServer(ServerConfig{
+			AccessCache:   &mockAccessCache{},
 			Listener:      listener,
 			TLSConfig:     tc.server,
 			ClusterDialer: &mockClusterDialer{},
+			getConfigForClient: func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
+				config := tc.server.Clone()
+				config.ClientAuth = tls.RequireAndVerifyClientCert
+				config.ClientCAs = config.RootCAs
+				return config, nil
+			},
 		})
 		require.NoError(t, err)
 		go server.Serve()

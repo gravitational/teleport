@@ -16,11 +16,14 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/credentials"
 )
 
@@ -88,4 +91,24 @@ func checkProxyRole(authInfo credentials.AuthInfo) error {
 	}
 
 	return trace.AccessDenied("proxy system role required")
+}
+
+func getConfigForClient(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+		clusterName, err := ap.GetClusterName()
+		if err != nil {
+			log.WithError(err).Error("Failed to retrieve cluster name.")
+			return nil, nil
+		}
+
+		pool, err := auth.ClientCertPool(ap, clusterName.GetClusterName())
+		if err != nil {
+			log.WithError(err).Error("Failed to retrieve client CA pool.")
+			return nil, nil
+		}
+
+		tlsCopy := tlsConfig.Clone()
+		tlsCopy.ClientCAs = pool
+		return tlsCopy, nil
+	}
 }

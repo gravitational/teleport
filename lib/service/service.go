@@ -3044,6 +3044,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	var proxyServer *proxy.Server
 	if listeners.proxy != nil {
 		proxyServer, err = proxy.NewServer(proxy.ServerConfig{
+			AccessCache:   accessPoint,
 			Listener:      listeners.proxy,
 			TLSConfig:     serverTLSConfig,
 			ClusterDialer: proxy.NewClusterDialer(tsrv),
