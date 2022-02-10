@@ -64,7 +64,7 @@ if (goog.DEBUG && !COMPILED) {
  * @private {!Array<number>}
  * @const
  */
-proto.teleport.terminal.v1.App.repeatedFields_ = [8,10];
+proto.teleport.terminal.v1.App.repeatedFields_ = [7,9];
 
 
 
@@ -103,10 +103,9 @@ proto.teleport.terminal.v1.App.toObject = function(includeInstance, msg) {
     appUri: jspb.Message.getFieldWithDefault(msg, 4, ""),
     publicAddr: jspb.Message.getFieldWithDefault(msg, 5, ""),
     fqdn: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    clusterId: jspb.Message.getFieldWithDefault(msg, 7, ""),
     labelsList: jspb.Message.toObjectList(msg.getLabelsList(),
     v1_label_pb.Label.toObject, includeInstance),
-    awsConsole: jspb.Message.getBooleanFieldWithDefault(msg, 9, false),
+    awsConsole: jspb.Message.getBooleanFieldWithDefault(msg, 8, false),
     awsRolesList: jspb.Message.toObjectList(msg.getAwsRolesList(),
     proto.teleport.terminal.v1.App.AWSRole.toObject, includeInstance)
   };
@@ -170,19 +169,15 @@ proto.teleport.terminal.v1.App.deserializeBinaryFromReader = function(msg, reade
       msg.setFqdn(value);
       break;
     case 7:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setClusterId(value);
-      break;
-    case 8:
       var value = new v1_label_pb.Label;
       reader.readMessage(value,v1_label_pb.Label.deserializeBinaryFromReader);
       msg.addLabels(value);
       break;
-    case 9:
+    case 8:
       var value = /** @type {boolean} */ (reader.readBool());
       msg.setAwsConsole(value);
       break;
-    case 10:
+    case 9:
       var value = new proto.teleport.terminal.v1.App.AWSRole;
       reader.readMessage(value,proto.teleport.terminal.v1.App.AWSRole.deserializeBinaryFromReader);
       msg.addAwsRoles(value);
@@ -258,17 +253,10 @@ proto.teleport.terminal.v1.App.serializeBinaryToWriter = function(message, write
       f
     );
   }
-  f = message.getClusterId();
-  if (f.length > 0) {
-    writer.writeString(
-      7,
-      f
-    );
-  }
   f = message.getLabelsList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      8,
+      7,
       f,
       v1_label_pb.Label.serializeBinaryToWriter
     );
@@ -276,14 +264,14 @@ proto.teleport.terminal.v1.App.serializeBinaryToWriter = function(message, write
   f = message.getAwsConsole();
   if (f) {
     writer.writeBool(
-      9,
+      8,
       f
     );
   }
   f = message.getAwsRolesList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      10,
+      9,
       f,
       proto.teleport.terminal.v1.App.AWSRole.serializeBinaryToWriter
     );
@@ -560,30 +548,12 @@ proto.teleport.terminal.v1.App.prototype.setFqdn = function(value) {
 
 
 /**
- * optional string cluster_id = 7;
- * @return {string}
- */
-proto.teleport.terminal.v1.App.prototype.getClusterId = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
-};
-
-
-/**
- * @param {string} value
- * @return {!proto.teleport.terminal.v1.App} returns this
- */
-proto.teleport.terminal.v1.App.prototype.setClusterId = function(value) {
-  return jspb.Message.setProto3StringField(this, 7, value);
-};
-
-
-/**
- * repeated Label labels = 8;
+ * repeated Label labels = 7;
  * @return {!Array<!proto.teleport.terminal.v1.Label>}
  */
 proto.teleport.terminal.v1.App.prototype.getLabelsList = function() {
   return /** @type{!Array<!proto.teleport.terminal.v1.Label>} */ (
-    jspb.Message.getRepeatedWrapperField(this, v1_label_pb.Label, 8));
+    jspb.Message.getRepeatedWrapperField(this, v1_label_pb.Label, 7));
 };
 
 
@@ -592,7 +562,7 @@ proto.teleport.terminal.v1.App.prototype.getLabelsList = function() {
  * @return {!proto.teleport.terminal.v1.App} returns this
 */
 proto.teleport.terminal.v1.App.prototype.setLabelsList = function(value) {
-  return jspb.Message.setRepeatedWrapperField(this, 8, value);
+  return jspb.Message.setRepeatedWrapperField(this, 7, value);
 };
 
 
@@ -602,7 +572,7 @@ proto.teleport.terminal.v1.App.prototype.setLabelsList = function(value) {
  * @return {!proto.teleport.terminal.v1.Label}
  */
 proto.teleport.terminal.v1.App.prototype.addLabels = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 8, opt_value, proto.teleport.terminal.v1.Label, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 7, opt_value, proto.teleport.terminal.v1.Label, opt_index);
 };
 
 
@@ -616,11 +586,11 @@ proto.teleport.terminal.v1.App.prototype.clearLabelsList = function() {
 
 
 /**
- * optional bool aws_console = 9;
+ * optional bool aws_console = 8;
  * @return {boolean}
  */
 proto.teleport.terminal.v1.App.prototype.getAwsConsole = function() {
-  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 9, false));
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 8, false));
 };
 
 
@@ -629,17 +599,17 @@ proto.teleport.terminal.v1.App.prototype.getAwsConsole = function() {
  * @return {!proto.teleport.terminal.v1.App} returns this
  */
 proto.teleport.terminal.v1.App.prototype.setAwsConsole = function(value) {
-  return jspb.Message.setProto3BooleanField(this, 9, value);
+  return jspb.Message.setProto3BooleanField(this, 8, value);
 };
 
 
 /**
- * repeated AWSRole aws_roles = 10;
+ * repeated AWSRole aws_roles = 9;
  * @return {!Array<!proto.teleport.terminal.v1.App.AWSRole>}
  */
 proto.teleport.terminal.v1.App.prototype.getAwsRolesList = function() {
   return /** @type{!Array<!proto.teleport.terminal.v1.App.AWSRole>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.teleport.terminal.v1.App.AWSRole, 10));
+    jspb.Message.getRepeatedWrapperField(this, proto.teleport.terminal.v1.App.AWSRole, 9));
 };
 
 
@@ -648,7 +618,7 @@ proto.teleport.terminal.v1.App.prototype.getAwsRolesList = function() {
  * @return {!proto.teleport.terminal.v1.App} returns this
 */
 proto.teleport.terminal.v1.App.prototype.setAwsRolesList = function(value) {
-  return jspb.Message.setRepeatedWrapperField(this, 10, value);
+  return jspb.Message.setRepeatedWrapperField(this, 9, value);
 };
 
 
@@ -658,7 +628,7 @@ proto.teleport.terminal.v1.App.prototype.setAwsRolesList = function(value) {
  * @return {!proto.teleport.terminal.v1.App.AWSRole}
  */
 proto.teleport.terminal.v1.App.prototype.addAwsRoles = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 10, opt_value, proto.teleport.terminal.v1.App.AWSRole, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 9, opt_value, proto.teleport.terminal.v1.App.AWSRole, opt_index);
 };
 
 

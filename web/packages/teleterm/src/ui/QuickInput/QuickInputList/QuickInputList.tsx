@@ -61,7 +61,7 @@ const QuickInputList = React.forwardRef<HTMLElement, Props>((props, ref) => {
 export default QuickInputList;
 
 function ServerItem(props: { item: types.ItemServer }) {
-  const { hostname, clusterId, labelsList } = props.item.data;
+  const { hostname, uri, labelsList } = props.item.data;
   const $labels = labelsList.map((label, index) => (
     <Label mr="1" key={index} kind="secondary">
       {label.name}: {label.value}
@@ -72,7 +72,7 @@ function ServerItem(props: { item: types.ItemServer }) {
     <div>
       <Flex alignItems="center">
         <Box mr={2}>{hostname}</Box>
-        <Box color="text.placeholder">{`/clusters/${clusterId}/servers/${hostname}`}</Box>
+        <Box color="text.placeholder">{uri}</Box>
       </Flex>
       {$labels}
     </div>

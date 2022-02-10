@@ -35,7 +35,6 @@ const databaseMock: tsh.Database = {
   desc: 'Desc',
   name: 'Name',
   addr: 'addr',
-  clusterId: clusterUri,
   protocol: 'psql',
   type: '',
   hostname: 'localhost',
@@ -48,7 +47,6 @@ const serverMock: tsh.Server = {
   name: 'Name',
   hostname: 'localhost',
   labelsList: [],
-  clusterId: clusterUri,
   tunnel: false,
 };
 
