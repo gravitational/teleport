@@ -45,7 +45,7 @@ The IAM join method:
   <TabItem label="IAM Method">
 Every Node or Proxy using the IAM method to join your Teleport cluster needs AWS
 IAM credentials in order to call the `sts:GetCallerIdentity` API. No specific
-IAM policy or permissions are needed, any IAM user or role can call this API.
+IAM policy or permissions are needed. Any IAM user or role can call this API.
 
 If running your Node on an EC2 instance, it is sufficient to attach any IAM
 role to the instance. To attach an IAM role from the EC2 dashboard, select
