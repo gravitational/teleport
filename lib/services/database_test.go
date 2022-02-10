@@ -30,6 +30,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/stretchr/testify/require"
 )
 
@@ -379,4 +380,50 @@ func TestRDSTagsToLabels(t *testing.T) {
 	}
 	labels := rdsTagsToLabels(rdsTags)
 	require.Equal(t, map[string]string{"Name": "test", "Env": "dev"}, labels)
+}
+
+// TestDatabaseFromRedshiftCluster tests converting an Redshift cluster to a database resource.
+func TestDatabaseFromRedshiftCluster(t *testing.T) {
+	cluster := &redshift.Cluster{
+		ClusterIdentifier:   aws.String("mycluster"),
+		ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:1234567890:namespace:u-u-i-d"),
+		Endpoint: &redshift.Endpoint{
+			Address: aws.String("localhost"),
+			Port:    aws.Int64(5439),
+		},
+		Tags: []*redshift.Tag{
+			{
+				Key:   aws.String("key"),
+				Value: aws.String("val"),
+			},
+			{
+				Key:   aws.String("elasticbeanstalk:environment-id"),
+				Value: aws.String("id"),
+			},
+		},
+	}
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "mycluster",
+		Description: "Redshift cluster in us-east-1",
+		Labels: map[string]string{
+			types.OriginLabel: types.OriginCloud,
+			labelAccountID:    "1234567890",
+			labelRegion:       "us-east-1",
+			"key":             "val",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5439",
+		AWS: types.AWS{
+			AccountID: "1234567890",
+			Region:    "us-east-1",
+			Redshift: types.Redshift{
+				ClusterID: "mycluster",
+			},
+		},
+	})
+	require.NoError(t, err)
+	actual, err := NewDatabaseFromRedshiftCluster(cluster)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
 }
