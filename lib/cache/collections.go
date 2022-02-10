@@ -51,7 +51,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 			if c.Trust == nil {
 				return nil, trace.BadParameter("missing parameter Trust")
 			}
-			collections[resourceKind] = &certAuthority{watch: watch, Cache: c}
+			var filter types.CertAuthorityFilter
+			if err := filter.FromMap(watch.Filter); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			collections[resourceKind] = &certAuthority{Cache: c, watch: watch, filter: filter}
 		case types.KindStaticTokens:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
@@ -785,6 +789,8 @@ func (c *namespace) watchKind() types.WatchKind {
 type certAuthority struct {
 	*Cache
 	watch types.WatchKind
+	// filter extracted from watch.Filter, to avoid rebuilding it on every event
+	filter types.CertAuthorityFilter
 }
 
 // erase erases all data in the collection
@@ -839,6 +845,19 @@ func (c *certAuthority) fetchCertAuthorities(caType types.CertAuthType) (apply f
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// this can be removed once we get the ability to fetch CAs with a filter,
+	// but it should be harmless, and it could be kept as additional safety
+	if len(c.filter) > 0 {
+		filteredCAs := make([]types.CertAuthority, 0, len(authorities))
+		for _, ca := range authorities {
+			if c.filter.Match(ca) {
+				filteredCAs = append(filteredCAs, ca)
+			}
+		}
+		authorities = filteredCAs
+	}
+
 	return func(ctx context.Context) error {
 		if err := c.trustCache.DeleteAllCertAuthorities(caType); err != nil {
 			if !trace.IsNotFound(err) {
