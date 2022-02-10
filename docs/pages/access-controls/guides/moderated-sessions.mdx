@@ -44,13 +44,6 @@ The following are required options for `require_session_join`:
 |`modes`|`[]`[Participant mode](./moderated-sessions.mdx#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
 |`count`|Integer|The number of users that need to match the filter expression to satisfy the policy|
 
-Filter expressions allow for more detailed control over the scope of an allow policy or require policy.
-`equals(user.name, "adam") || contains(user.roles, "cs-observe")` is a simple example of a filter expression
-that evaluates to true if the user is Adam or if the user has the trait `cs-observe`.
-
-Require policies can specify which users they consider as valid with a filter expression.
-The filter context has a `user` object defined with the set fields `roles` and `name`.
-
 #### Example
 
 The policy below specifies that the `prod-access` role
@@ -106,6 +99,17 @@ spec:
 ```
 
 ### Filters
+
+Filter expressions allow for more detailed control over the scope of an allow policy or require policy.
+
+Require policies can specify which users they consider as valid with a filter expression.
+The filter context has a `user` object defined with the set fields `roles` and `name`.
+
+Here is an example of a filter expression that evaluates to true if the user is Adam or if the user has the trait `cs-observe`:
+
+```
+equals(user.name, "adam") || contains(user.roles, "cs-observe")
+```
 
 A filter expression is a string statement used to define logic based on a set of input variables.
 The filter expressions follow a restricted subset of Go syntax and supports
