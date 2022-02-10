@@ -370,6 +370,17 @@ const (
 	// PostgresFunctionCallCode is the db.session.postgres.function event code.
 	PostgresFunctionCallCode = "TPG04I"
 
+	// MySQLStatementPrepareCode is the db.session.mysql.stmt_prepare event code.
+	MySQLStatementPrepareCode = "TMY00I"
+	// MySQLStatementExecuteCode is the db.session.mysql.stmt_execute event code.
+	MySQLStatementExecuteCode = "TMY01I"
+	// MySQLStatementSendLongDataCode is the db.session.mysql.stmt_send_long_data event code.
+	MySQLStatementSendLongDataCode = "TMY02I"
+	// MySQLStatementCloseCode is the db.session.mysql.stmt_close event code.
+	MySQLStatementCloseCode = "TMY03I"
+	// MySQLStatementResetCode is the db.session.mysql.stmt_reset event code.
+	MySQLStatementResetCode = "TMY04I"
+
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
 	// DatabaseUpdateCode is the db.update event code.

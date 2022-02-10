@@ -420,6 +420,23 @@ const (
 	// calls an internal function.
 	DatabaseSessionPostgresFunctionEvent = "db.session.postgres.function"
 
+	// DatabaseSessionMySQLStatementPrepareEvent is emitted when a MySQL client
+	// creates a prepared statement using the parepared statement protocol.
+	DatabaseSessionMySQLStatementPrepareEvent = "db.session.mysql.stmt_prepare"
+	// DatabaseSessionMySQLStatementExecuteEvent is emitted when a MySQL client
+	// executes a prepared statement using the parepared statement protocol.
+	DatabaseSessionMySQLStatementExecuteEvent = "db.session.mysql.stmt_execute"
+	// DatabaseSessionMySQLStatementSendLongDataEvent is emitted when a MySQL
+	// client sends long bytes stream using the parepared statement protocol.
+	DatabaseSessionMySQLStatementSendLongDataEvent = "db.session.mysql.stmt_send_long_data"
+	// DatabaseSessionMySQLStatementCloseEvent is emitted when a MySQL client
+	// deallocates a prepared statement using the parepared statement protocol.
+	DatabaseSessionMySQLStatementCloseEvent = "db.session.mysql.stmt_close"
+	// DatabaseSessionMySQLStatementResetEvent is emitted when a MySQL client
+	// resets the data of a prepared statement using the parepared statement
+	// protocol.
+	DatabaseSessionMySQLStatementResetEvent = "db.session.mysql.stmt_reset"
+
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
 	SessionRejectedReasonMaxConnections = "max_connections limit reached"

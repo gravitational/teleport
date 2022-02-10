@@ -165,6 +165,16 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		e = &events.PostgresClose{}
 	case DatabaseSessionPostgresFunctionEvent:
 		e = &events.PostgresFunctionCall{}
+	case DatabaseSessionMySQLStatementPrepareEvent:
+		e = &events.MySQLStatementPrepare{}
+	case DatabaseSessionMySQLStatementExecuteEvent:
+		e = &events.MySQLStatementExecute{}
+	case DatabaseSessionMySQLStatementSendLongDataEvent:
+		e = &events.MySQLStatementSendLongData{}
+	case DatabaseSessionMySQLStatementCloseEvent:
+		e = &events.MySQLStatementClose{}
+	case DatabaseSessionMySQLStatementResetEvent:
+		e = &events.MySQLStatementReset{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:

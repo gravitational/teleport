@@ -1765,6 +1765,11 @@ message OneOf {
         events.AccessRequestDelete AccessRequestDelete = 66;
         events.SessionConnect SessionConnect = 67;
         events.CertificateCreate CertificateCreate = 68;
+        events.MySQLStatementPrepare MySQLStatementPrepare = 69;
+        events.MySQLStatementExecute MySQLStatementExecute = 70;
+        events.MySQLStatementSendLongData MySQLStatementSendLongData = 71;
+        events.MySQLStatementClose MySQLStatementClose = 72;
+        events.MySQLStatementReset MySQLStatementReset = 73;
     }
 }
 
@@ -1887,4 +1892,105 @@ message RouteToDatabase {
     string Username = 3 [ (gogoproto.jsontag) = "username,omitempty" ];
     // Database is an optional database name to embed.
     string Database = 4 [ (gogoproto.jsontag) = "database,omitempty" ];
+}
+
+// MySQLStatementPrepare is emitted when a MySQL client creates a prepared
+// statement using the parepared statement protocol.
+message MySQLStatementPrepare {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Query is the prepared statement query.
+    string Query = 5 [ (gogoproto.jsontag) = "query" ];
+}
+
+// MySQLStatementExecute is emitted when a MySQL client executes a prepared
+// statement using the parepared statement protocol.
+message MySQLStatementExecute {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // StatementID is the identifier of the prepared statement.
+    uint32 StatementID = 5 [ (gogoproto.jsontag) = "statement_id" ];
+    // Parameters are the parameters used to execute the prepared statement.
+    repeated string Parameters = 6 [ (gogoproto.jsontag) = "parameters" ];
+}
+
+// MySQLStatementSendLongData is emitted when a MySQL client sends long bytes
+// stream using the parepared statement protocol.
+message MySQLStatementSendLongData {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // StatementID is the identifier of the prepared statement.
+    uint32 StatementID = 5 [ (gogoproto.jsontag) = "statement_id" ];
+    // ParameterID is the identifier of the parameter.
+    uint32 ParameterID = 6 [ (gogoproto.jsontag) = "parameter_id" ];
+    // DataSize is the size of the data.
+    uint32 DataSize = 7 [ (gogoproto.jsontag) = "data_size" ];
+}
+
+// MySQLStatementClose is emitted when a MySQL client deallocates a prepared
+// statement using the parepared statement protocol.
+message MySQLStatementClose {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // StatementID is the identifier of the prepared statement.
+    uint32 StatementID = 5 [ (gogoproto.jsontag) = "statement_id" ];
+}
+
+// MySQLStatementReset is emitted when a MySQL client resets the data of a
+// prepared statement using the parepared statement protocol.
+message MySQLStatementReset {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // StatementID is the identifier of the prepared statement.
+    uint32 StatementID = 5 [ (gogoproto.jsontag) = "statement_id" ];
 }
