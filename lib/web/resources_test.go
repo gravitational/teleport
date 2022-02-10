@@ -111,12 +111,15 @@ spec:
   deny: {}
   options:
     cert_format: standard
+    desktop_clipboard: true
     enhanced_recording:
     - command
     - network
     forward_agent: false
     max_session_ttl: 30h0m0s
     port_forwarding: true
+    record_session:
+      desktop: true
 version: v3
 `
 	role, err := types.NewRole("roleName", types.RoleSpecV4{
@@ -128,12 +131,12 @@ version: v3
 
 	item, err := ui.NewResourceItem(role)
 	require.Nil(t, err)
-	require.Equal(t, item, &ui.ResourceItem{
+	require.Equal(t, &ui.ResourceItem{
 		ID:      "role:roleName",
 		Kind:    types.KindRole,
 		Name:    "roleName",
 		Content: contents,
-	})
+	}, item)
 }
 
 func TestNewResourceItemTrustedCluster(t *testing.T) {
