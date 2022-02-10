@@ -899,7 +899,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	if h.ClusterFeatures.GetCloud() {
 		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 		if err != nil {
-			h.log.WithError(err).Error("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
+			h.log.WithError(err).Warn("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
 		} else {
 			tunnelPublicAddr = proxyConfig.SSH.TunnelPublicAddr
 		}
