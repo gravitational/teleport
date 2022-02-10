@@ -65,17 +65,17 @@ type ConnectionOptions struct {
 //
 // Incorrect input:
 //	redis.example.com:6379?mode=cluster
-func ParseRedisURI(uri string) (*ConnectionOptions, error) {
-	if uri == "" {
-		return nil, trace.BadParameter("Redis uri is empty")
+func ParseRedisURI(addr string) (*ConnectionOptions, error) {
+	if addr == "" {
+		return nil, trace.BadParameter("Redis address is empty")
 	}
 
 	var redisURL url.URL
 	var instanceAddr string
 
-	if strings.Contains(uri, "://") {
+	if strings.Contains(addr, "://") {
 		// Assume URI version
-		u, err := url.Parse(uri)
+		u, err := url.Parse(addr)
 		if err != nil {
 			return nil, trace.BadParameter("failed to parse Redis URI: %v", err)
 		}
@@ -84,14 +84,14 @@ func ParseRedisURI(uri string) (*ConnectionOptions, error) {
 		case URIScheme, URISchemeSSL:
 		default:
 			return nil, trace.BadParameter("failed to parse Redis address %q, invalid Redis URI scheme: %q. "+
-				"Expected %q or %q.", uri, u.Scheme, URIScheme, URISchemeSSL)
+				"Expected %q or %q.", addr, u.Scheme, URIScheme, URISchemeSSL)
 		}
 
 		redisURL = *u
 		instanceAddr = u.Host
 	} else {
 		// Assume host:port pair
-		instanceAddr = uri
+		instanceAddr = addr
 	}
 
 	var (
@@ -110,7 +110,7 @@ func ParseRedisURI(uri string) (*ConnectionOptions, error) {
 		_, err = strconv.Atoi(port)
 		if err != nil {
 			return nil, trace.BadParameter("failed to parse Redis URL %q, please provide instance address in "+
-				"form address:port or rediss://address:port. Error: %v", uri, err)
+				"form address:port or rediss://address:port. Error: %v", addr, err)
 		}
 
 	} else {
