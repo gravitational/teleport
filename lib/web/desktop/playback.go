@@ -19,13 +19,11 @@ package desktop
 import (
 	"context"
 	"errors"
-	"io"
 	"net"
 	"sync"
 	"time"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/sirupsen/logrus"
@@ -36,8 +34,8 @@ import (
 // It streams events from the audit log to the browser over
 // a websocket connection.
 type Player struct {
-	ws  *websocket.Conn
-	clt *auth.Client
+	ws       *websocket.Conn
+	streamer Streamer
 
 	mu        sync.Mutex
 	cond      *sync.Cond
@@ -49,12 +47,21 @@ type Player struct {
 	closeOnce sync.Once
 }
 
+// Streamer is the interface that can provide with a stream of events related to
+// a particular session.
+type Streamer interface {
+	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+	// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+	// The event channel is not closed on error to prevent race conditions in downstream select statements.
+	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
+}
+
 // NewPlayer creates a player that streams a desktop session
 // over the provided websocket connection.
-func NewPlayer(sID string, ws *websocket.Conn, clt *auth.Client, log logrus.FieldLogger) *Player {
+func NewPlayer(sID string, ws *websocket.Conn, streamer Streamer, log logrus.FieldLogger) *Player {
 	p := &Player{
 		ws:        ws,
-		clt:       clt,
+		streamer:  streamer,
 		playState: playStatePlaying,
 		log:       log,
 		sID:       sID,
@@ -164,13 +171,11 @@ func (pp *Player) receiveActions(cancel context.CancelFunc) {
 
 	for {
 		var action actionMessage
-		// Hangs until there is data to be received, or until an error.
-		err := websocket.JSON.Receive(pp.ws, &action)
-		if err != nil {
+		if err := websocket.JSON.Receive(pp.ws, &action); err != nil {
 			// We expect net.ErrClosed if the websocket is closed by another
 			// goroutine and io.EOF if the websocket is closed by the browser
 			// while websocket.JSON.Receive() is hanging.
-			if !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) {
+			if !utils.IsOKNetworkError(err) {
 				pp.log.WithError(err).Error("error reading from websocket")
 			}
 			return
@@ -192,31 +197,28 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 	defer pp.close(cancel)
 
 	var lastDelay int64
-	eventsC, errC := pp.clt.StreamSessionEvents(ctx, session.ID(pp.sID), 0)
+	eventsC, errC := pp.streamer.StreamSessionEvents(ctx, session.ID(pp.sID), 0)
 	for {
 		pp.waitWhilePaused()
 
 		select {
 		case err := <-errC:
-			if !errors.Is(err, context.Canceled) {
+			if err != nil && !errors.Is(err, context.Canceled) {
 				pp.log.WithError(err).Errorf("streaming session %v", pp.sID)
 			}
-
 			return
 		case evt := <-eventsC:
 			if evt == nil {
 				pp.log.Debug("reached end of playback")
-
 				if _, err := pp.ws.Write([]byte(`{"message":"end"}`)); err != nil {
 					pp.log.WithError(err).Error("failed to write \"end\" message over websocket")
 				}
-
-				// deferred ps.Close() will set ps.playState = playStateFinished for us
 				return
 			}
 			switch e := evt.(type) {
 			case *apievents.DesktopRecording:
 				if e.DelayMilliseconds > lastDelay {
+					// TODO(zmb3): replace with time.After so we can cancel
 					time.Sleep(time.Duration(e.DelayMilliseconds-lastDelay) * time.Millisecond)
 					lastDelay = e.DelayMilliseconds
 				}
