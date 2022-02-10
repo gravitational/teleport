@@ -272,7 +272,7 @@ message RouteToDatabase {
 message RouteToWindowsDesktop {
     // DesktopServer is the Windows Desktop server name to embed.
     string DesktopServer = 1 [ (gogoproto.jsontag) = "desktop_server" ];
-    // Login is the Windows desktop logic to embed.
+    // Login is the Windows desktop user login to embed.
     string Login = 2 [ (gogoproto.jsontag) = "login" ];
 }
 

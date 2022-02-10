@@ -1170,7 +1170,7 @@ func (m *RouteToDatabase) GetDatabase() string {
 type RouteToWindowsDesktop struct {
 	// DesktopServer is the Windows Desktop server name to embed.
 	DesktopServer string `protobuf:"bytes,1,opt,name=DesktopServer,proto3" json:"desktop_server"`
-	// Login is the Windows desktop logic to embed.
+	// Login is the Windows desktop user login to embed.
 	Login                string   `protobuf:"bytes,2,opt,name=Login,proto3" json:"login"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
