@@ -11,7 +11,7 @@ steps:
 
   # Set up BCC headers in a volume to replace the incompatible system-level 
   # headers
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:teleport6.2-v0.1.0
+  - name: quay.io/gravitational/teleport-buildbox:go1.15.5
     id: configure BCC headers
     volumes: 
       - name: bcc-headers
@@ -23,7 +23,7 @@ steps:
 
   # Run the integration tests. Actual content of this job depends on the changes 
   # detected in the PR
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:teleport6.2-v0.1.0
+  - name: quay.io/gravitational/teleport-buildbox:go1.15.5
     id: run-tests
     volumes: 
       - name: bcc-headers
