@@ -32,7 +32,7 @@ const DefaultPort = "6379"
 
 const (
 	URIScheme    = "redis"
-	URISchemeSSL = "rediss"
+	URISchemeTSL = "rediss"
 )
 
 // ConnectionMode defines the mode in which Redis is configured. Currently, supported are single and cluster.
@@ -55,7 +55,7 @@ type ConnectionOptions struct {
 	port string
 }
 
-// ParseRedisURI parses a Redis connection string and returns the parsed
+// ParseRedisAddress parses a Redis connection string and returns the parsed
 // connection options like address and connection mode. If port is skipped
 // default Redis 6379 is used.
 // Correct inputs:
@@ -65,7 +65,7 @@ type ConnectionOptions struct {
 //
 // Incorrect input:
 //	redis.example.com:6379?mode=cluster
-func ParseRedisURI(addr string) (*ConnectionOptions, error) {
+func ParseRedisAddress(addr string) (*ConnectionOptions, error) {
 	if addr == "" {
 		return nil, trace.BadParameter("Redis address is empty")
 	}
@@ -77,14 +77,14 @@ func ParseRedisURI(addr string) (*ConnectionOptions, error) {
 		// Assume URI version
 		u, err := url.Parse(addr)
 		if err != nil {
-			return nil, trace.BadParameter("failed to parse Redis URI: %v", err)
+			return nil, trace.BadParameter("failed to parse Redis URI: %q, error: %v", addr, err)
 		}
 
 		switch u.Scheme {
-		case URIScheme, URISchemeSSL:
+		case URIScheme, URISchemeTSL:
 		default:
 			return nil, trace.BadParameter("failed to parse Redis address %q, invalid Redis URI scheme: %q. "+
-				"Expected %q or %q.", addr, u.Scheme, URIScheme, URISchemeSSL)
+				"Expected %q or %q.", addr, u.Scheme, URIScheme, URISchemeTSL)
 		}
 
 		redisURL = *u

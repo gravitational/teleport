@@ -130,10 +130,10 @@ func Test_parseRedisURI(t *testing.T) {
 			errStr: "invalid Redis URI scheme",
 		},
 		{
-			name:   "empty URI",
+			name:   "empty address",
 			uri:    "",
 			want:   nil,
-			errStr: "uri is empty",
+			errStr: "address is empty",
 		},
 	}
 	for _, tt := range tests {
@@ -142,7 +142,7 @@ func Test_parseRedisURI(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := ParseRedisURI(tt.uri)
+			got, err := ParseRedisAddress(tt.uri)
 			if err != nil {
 				if tt.errStr == "" {
 					require.FailNow(t, "unexpected error: %v", err)

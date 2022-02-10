@@ -65,7 +65,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 	// Let client to not set the database user, as Redis uses default user "default" if a user
 	// is not provided.
 	if e.sessionCtx.DatabaseUser == "" {
-		e.sessionCtx.DatabaseUser = defaultUsername
+		e.sessionCtx.DatabaseUser = defaults.DefaultRedisUsername
 	}
 
 	return nil
@@ -141,7 +141,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	connectionOptions, err := ParseRedisURI(sessionCtx.Database.GetURI())
+	connectionOptions, err := ParseRedisAddress(sessionCtx.Database.GetURI())
 	if err != nil {
 		return trace.BadParameter("Redis connection string is incorrect: %v", err)
 	}

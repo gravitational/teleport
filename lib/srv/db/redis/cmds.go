@@ -42,8 +42,6 @@ const (
 	sunsubscribeCmd = "sunsubscribe"
 )
 
-const defaultUsername = "default"
-
 // processCmd processes commands received from connected client. Most commands are just passed to Redis instance,
 // but some require special actions:
 //  * Redis 7.0+ commands are rejected as at the moment of writing Redis 7.0 hasn't been released and go-redis doesn't support it.
@@ -160,9 +158,9 @@ func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalCli
 		// Redis sets "default" as a default username. Here we need to check if the "implicit" username
 		// matches the one provided as teleport db-user.
 		// ref: https://redis.io/commands/auth
-		if e.sessionCtx.DatabaseUser != defaultUsername {
+		if e.sessionCtx.DatabaseUser != defaults.DefaultRedisUsername {
 			return trace.AccessDenied("failed to authenticate as the default user. " +
-				"Please provide the db username when connection to Redis")
+				"Please provide the db username when connecting to Redis")
 		}
 
 		err := e.sessionCtx.Checker.CheckAccess(e.sessionCtx.Database,
@@ -187,7 +185,7 @@ func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalCli
 
 		if dbUser != e.sessionCtx.DatabaseUser {
 			return trace.AccessDenied("failed to authenticate as %s user. "+
-				"Please provide a correct db username when connection to Redis", dbUser)
+				"Please provide a correct db username when connecting to Redis", dbUser)
 		}
 
 		err := e.sessionCtx.Checker.CheckAccess(e.sessionCtx.Database,

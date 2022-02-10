@@ -424,7 +424,7 @@ func TestAccessMySQLChangeUser(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestAccessRedisAUTHCmd checks if AUTH commands is verified against Teleport RBAC before is sent to Redis.
+// TestAccessRedisAUTHCmd checks if AUTH command is verified against Teleport RBAC before is sent to Redis.
 func TestAccessRedisAUTHCmd(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis", redis.TestServerPassword("123")))

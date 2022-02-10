@@ -100,7 +100,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	if db.Protocol == defaults.ProtocolRedis && db.Username == "" {
 		// Default to "default" in the same way as Redis does. We need the username to check access on our side.
 		// ref: https://redis.io/commands/auth
-		db.Username = "default"
+		db.Username = defaults.DefaultRedisUsername
 	}
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
