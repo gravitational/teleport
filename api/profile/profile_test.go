@@ -19,7 +19,6 @@ package profile_test
 
 import (
 	"os"
-	"path"
 	"path/filepath"
 	"testing"
 
@@ -91,14 +90,13 @@ func TestAppPath(t *testing.T) {
 	dir := t.TempDir()
 
 	p := &profile.Profile{
-		WebProxyAddr:          "proxy:3088",
-		SSHProxyAddr:          "proxy:3023",
-		Username:              "testuser",
-		ForwardedPorts:        []string{},
-		DynamicForwardedPorts: []string{},
-		Dir:                   dir,
-		SiteName:              "example.com",
+		WebProxyAddr: "proxy:3088",
+		SSHProxyAddr: "proxy:3023",
+		Username:     "testuser",
+		Dir:          dir,
+		SiteName:     "example.com",
 	}
 
-	require.Equal(t, path.Join(dir, "keys", "proxy", "testuser-app", "example.com", "banana-x509.pem"), p.AppCertPath("banana"))
+	expected := filepath.Join(dir, "keys", "proxy", "testuser-app", "example.com", "banana-x509.pem")
+	require.Equal(t, expected, p.AppCertPath("banana"))
 }
