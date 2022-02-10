@@ -33,20 +33,20 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// ConfigTemplateSSHClient contains parameters for the ssh_config config
+// TemplateSSHClient contains parameters for the ssh_config config
 // template
-type ConfigTemplateSSHClient struct {
+type TemplateSSHClient struct {
 	ProxyPort uint16 `yaml:"proxy_port"`
 }
 
-func (c *ConfigTemplateSSHClient) CheckAndSetDefaults() error {
+func (c *TemplateSSHClient) CheckAndSetDefaults() error {
 	if c.ProxyPort == 0 {
 		c.ProxyPort = defaults.SSHProxyListenPort
 	}
 	return nil
 }
 
-func (c *ConfigTemplateSSHClient) Describe() []FileDescription {
+func (c *TemplateSSHClient) Describe() []FileDescription {
 	return []FileDescription{
 		{
 			Name:     "ssh_config",
@@ -59,9 +59,9 @@ func (c *ConfigTemplateSSHClient) Describe() []FileDescription {
 	}
 }
 
-func (c *ConfigTemplateSSHClient) Render(authClient *auth.Client, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (c *TemplateSSHClient) Render(authClient *auth.Client, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	if !destination.ContainsKind(KindSSH) {
-		return trace.BadParameter("%s config template requires kind `ssh` to be enabled", CONFIG_TEMPLATE_SSH_CLIENT)
+		return trace.BadParameter("%s config template requires kind `ssh` to be enabled", TemplateSSHClientName)
 	}
 
 	dest, err := destination.GetDestination()

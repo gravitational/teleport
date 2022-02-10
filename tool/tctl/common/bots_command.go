@@ -81,7 +81,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.botsUnlock.Hidden() // TODO
 }
 
-// TryRun attemps to run subcommands.
+// TryRun attempts to run subcommands.
 func (c *BotsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
 	// TODO: create a smaller interface - we don't need all of ClientI
 

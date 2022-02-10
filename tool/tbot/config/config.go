@@ -214,7 +214,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		onboarding := config.Onboarding
 		if onboarding != nil && (onboarding.Token != "" || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) {
 			// To be safe, warn about possible confusion.
-			log.Warn("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
+			log.Warnf("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
 		}
 
 		config.Onboarding = &OnboardingConfig{
