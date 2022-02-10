@@ -120,12 +120,6 @@ func createDesktopConnection(w http.ResponseWriter, r *http.Request, desktopName
 	}
 	defer pc.Close()
 
-	_, err = pc.RootClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-
-	}
-
 	websocket.Handler(func(conn *websocket.Conn) {
 		tlsConfig, err := desktopTLSConfig(r.Context(), conn, pc, ctx, desktopName, username, site.GetName())
 		if err != nil {
