@@ -26,7 +26,6 @@ import (
 
 	"github.com/jackc/pgconn"
 	"github.com/siddontang/go-mysql/client"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -120,7 +119,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 		// We keep the previous connections open, so this one should be rejected, because we exhausted the limit.
 		_, err = testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "exceeded connection limit")
+		require.Contains(t, err.Error(), "exceeded connection limit")
 	})
 
 	t.Run("mysql", func(t *testing.T) {
@@ -144,7 +143,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 		// We keep the previous connections open, so this one should be rejected, because we exhausted the limit.
 		_, err = testCtx.mysqlClient(user, "mysql", dbUser)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "exceeded connection limit")
+		require.Contains(t, err.Error(), "exceeded connection limit")
 	})
 
 	t.Run("mongodb", func(t *testing.T) {
@@ -168,7 +167,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 				continue
 			}
 
-			assert.Contains(t, err.Error(), "exceeded connection limit")
+			require.Contains(t, err.Error(), "exceeded connection limit")
 			// When we hit the expected error we can exit.
 			return
 		}

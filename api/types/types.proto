@@ -44,6 +44,7 @@ message KeepAlive {
         APP = 2;
         DATABASE = 3;
         WINDOWS_DESKTOP = 4;
+        KUBERNETES = 5;
     }
     KeepAliveType Type = 9 [ (gogoproto.jsontag) = "type" ];
     // HostID is an optional UUID of the host the resource belongs to.
@@ -2733,9 +2734,6 @@ message RegisterUsingTokenRequest {
     // EC2IdentityDocument is used for the EC2 join method to prove the identity
     // of a joining EC2 instance.
     bytes EC2IdentityDocument = 10 [ (gogoproto.jsontag) = "ec2_id" ];
-    // STSIdentityRequest is used for the IAM join method to prove the AWS
-    // identity of a joining node.
-    bytes STSIdentityRequest = 11 [ (gogoproto.jsontag) = "-" ];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
