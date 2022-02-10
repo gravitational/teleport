@@ -479,6 +479,7 @@ export type RawEvents = {
     {
       name: string;
       db_service: string;
+      db_name: string;
       query: string;
     }
   >;
@@ -487,6 +488,7 @@ export type RawEvents = {
     {
       name: string;
       db_service: string;
+      db_name: string;
       statement_id: number;
     }
   >;
@@ -495,6 +497,7 @@ export type RawEvents = {
     {
       name: string;
       db_service: string;
+      db_name: string;
       statement_id: number;
       parameter_id: number;
       data_size: number;
@@ -505,6 +508,7 @@ export type RawEvents = {
     {
       name: string;
       db_service: string;
+      db_name: string;
       statement_id: number;
     }
   >;
@@ -513,6 +517,7 @@ export type RawEvents = {
     {
       name: string;
       db_service: string;
+      db_name: string;
       statement_id: number;
     }
   >;
