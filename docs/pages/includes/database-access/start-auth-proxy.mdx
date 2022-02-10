@@ -1,13 +1,16 @@
-<Tabs>
+<Tabs> 
 <TabItem scope={["oss","enterprise"]} label="Self Hosted">
-Teleport requires a valid TLS certificate to operate and can fetch one automatically
-using Let's Encrypt's ACME protocol. Before Let's Encrypt can issue a TLS certificate for the Teleport Proxy host's domain, the ACME protocol must verify that an HTTPS server is reachable on port 443 of the host.  
+Teleport requires a valid TLS certificate to operate and can fetch one
+automatically using Let's Encrypt's ACME protocol. Before Let's Encrypt can
+issue a TLS certificate for the Teleport Proxy host's domain, the ACME protocol
+must verify that an HTTPS server is reachable on port 443 of the host.  
 
-We will assume that you have configured DNS records for `teleport.example.com` and
-`*.teleport.example.com` to point to your Teleport node.
+We will assume that you have configured DNS records for `teleport.example.com`
+and `*.teleport.example.com` to point to your Teleport node.
 
 <Admonition type="note" title="Web Proxy Port">
-To support the ACME protocol, Teleport Proxy must listen on port 443, rather than the default port 3080.
+To support the ACME protocol, Teleport Proxy must listen on port 443, rather
+than the default port 3080.
 </Admonition>
 
 Download the latest version of Teleport for your platform from our
@@ -25,15 +28,19 @@ Start the Teleport Auth and Proxy services:
 ```code
 $ sudo teleport start
 ```
-</TabItem>
-<TabItem label="Teleport Cloud" scope={["cloud"]}>
-If you do not have a Teleport Cloud account, use our [signup form](/signup) to get started. Teleport Cloud manages instances of the Proxy Service and Auth Service, and automatically issues and renews the required TLS certificate.
+</TabItem> 
+<TabItem label="Teleport Cloud" scope={["cloud"]}> 
+If you do not have a Teleport Cloud account, use our [signup form](/signup) to
+get started. Teleport Cloud manages instances of the Proxy Service and Auth
+Service, and automatically issues and renews the required TLS certificate.
 
-You will need to download the Enterprise version of Teleport from the [customer portal](https://dashboard.gravitational.com/web/login) to run `tctl` commands in Teleport Cloud.
+You will need to download the Enterprise version of Teleport from the
+[customer portal](https://dashboard.gravitational.com/web/login) to run `tctl`
+commands in Teleport Cloud.
 
 You must log into your cluster before you can run `tctl` commands.
 ```code
-$ tsh login --proxy=myinstance.teleport.sh
+$ tsh login --proxy=mytenant.teleport.sh
 $ tctl status
 ```
 </TabItem>

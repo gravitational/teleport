@@ -70,8 +70,8 @@ See below for details on `--uri` and `--ca-cert` flags.
 
 #### Configuration file
 
-If you're starting the Database Sgent with a YAML configuration instead of CLI flags,
-the following config is equivalent to the `teleport dbv start` command shown earlier:
+If you're starting the Database Agent with a YAML configuration instead of CLI flags,
+the following config is equivalent to the `teleport db start` command shown earlier:
 
 <Tabs>
 <TabItem label="Self Hosted" scope={["enterprise","oss"]}>
@@ -136,7 +136,7 @@ MongoDB Atlas uses certificates signed by Let's Encrypt.
 Download the Let's Encrypt root certificate and use it as a CA in the database service configuration:
 
 ```code
-$ curl -o /tmp/isrgrootx12.pem.txt https://letsencrypt.org/certs/isrgrootx1.pem.txt
+$ curl -o /tmp/isrgrootx1.pem https://letsencrypt.org/certs/isrgrootx1.pem.txt
 ```
 
 You can then use `/tmp/isrgrootx1.pem` as the value of the `db_service.databases[*].ca_cert_file` configuration option or `--ca-cert` CLI flag.
