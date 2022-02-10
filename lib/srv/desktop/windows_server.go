@@ -29,7 +29,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
@@ -60,6 +60,15 @@ const (
 	// when resolving Windows Desktop hostnames
 	dnsDialTimeout = 5 * time.Second
 
+	// ldapDialTimeout is the timeout for dialing the LDAP server
+	// when making an initial connection
+	ldapDialTimeout = 5 * time.Second
+
+	// ldapRequestTimeout is the timeout for making LDAP requests.
+	// It is larger than the dial timeout because LDAP queries in large
+	// Active Directory environments may take longer to complete.
+	ldapRequestTimeout = 20 * time.Second
+
 	// windowsDesktopCertTTL is the TTL for Teleport-issued Windows Certificates.
 	// Certificates are requested on each connection attempt, so the TTL is
 	// deliberately set to a small value to give enough time to establish a
@@ -72,6 +81,10 @@ const (
 	// not used for interactive login and is only used when issuing certs for
 	// a restrictive service account.
 	windowsDesktopServiceCertTTL = 8 * time.Hour
+
+	// windowsDesktopServiceCertRetryInterval indicates how often to retry
+	// issuing an LDAP certificate if the operation fails.
+	windowsDesktopServiceCertRetryInterval = 10 * time.Minute
 )
 
 // WindowsService implements the RDP-based Windows desktop access service.
@@ -83,11 +96,16 @@ type WindowsService struct {
 	cfg        WindowsServiceConfig
 	middleware *auth.Middleware
 
-	ldapInitialized int32
-	lc              *ldapClient
+	lc *ldapClient
+
+	mu              sync.Mutex // mu protects the fields that follow
+	ldapInitialized bool
+	ldapCertRenew   *time.Timer
 
 	// lastDisoveryResults stores the results of the most recent LDAP search
-	// when desktop discovery is enabled
+	// when desktop discovery is enabled.
+	// no synchronization is necessary because this is only read/written from
+	// the reconciler goroutine.
 	lastDiscoveryResults types.ResourcesWithLabels
 
 	// Windows hosts discovered via LDAP likely won't resolve with the
@@ -323,23 +341,12 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		close:       close,
 	}
 
-	// run LDAP initialization in a retry loop - this prevents the service
-	// from crashing and taking the entire Teleport process with it if
-	// we cannot connect to LDAP
-	l, err := utils.NewLinear(utils.LinearConfig{
-		First: 5 * time.Second,
-		Step:  30 * time.Second,
-		Max:   30 * time.Minute,
-		Clock: s.cfg.Clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// initialize LDAP - if this fails it will automatically schedule a retry.
+	// we don't want to return an error in this case, because failure to start
+	// the service brings down the entire Teleport process
+	if err := s.initializeLDAP(); err != nil {
+		s.cfg.Log.WithError(err).Error("initializing LDAP client, will retry")
 	}
-	go func() {
-		if retryErr := l.For(s.closeCtx, s.initializeLDAP); retryErr != nil {
-			s.cfg.Log.WithError(retryErr).Error("attempting to initialize LDAP client")
-		}
-	}()
 
 	// TODO(zmb3): session recording.
 
@@ -408,22 +415,38 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 	return tc, nil
 }
 
+// initializeLDAP requests a TLS certificate from the auth server to be used for
+// authenticating with the LDAP server. If the certificate is obtained, and
+// authentication with the LDAP server succeeds, it schedules a renewal to take
+// place before the certificate expires. If we are unable to obtain a certificate
+// and authenticate with the LDAP server, then the operation will be automatically
+// retried.
 func (s *WindowsService) initializeLDAP() error {
 	tc, err := s.tlsConfigForLDAP()
 	if trace.IsAccessDenied(err) && modules.GetModules().BuildType() == modules.BuildEnterprise {
 		s.cfg.Log.Warn("Could not generate certificate for LDAPS. Ensure that the auth server is licensed for desktop access.")
 	}
 	if err != nil {
-		atomic.StoreInt32(&s.ldapInitialized, 0)
+		s.mu.Lock()
+		s.ldapInitialized = false
+		// in the case where we're not licensed for desktop access, we retry less frequently,
+		// since this is likely not an intermittent error that will resolve itself quickly
+		s.scheduleNextLDAPCertRenewalLocked(windowsDesktopServiceCertRetryInterval * 3)
+		s.mu.Unlock()
 		return trace.Wrap(err)
 	}
 
-	conn, err := ldap.DialURL("ldaps://"+s.cfg.Addr, ldap.DialWithTLSConfig(tc))
+	conn, err := ldap.DialURL("ldaps://"+s.cfg.Addr,
+		ldap.DialWithTLSDialer(tc, &net.Dialer{Timeout: ldapDialTimeout}))
 	if err != nil {
-		atomic.StoreInt32(&s.ldapInitialized, 0)
+		s.mu.Lock()
+		s.ldapInitialized = false
+		s.scheduleNextLDAPCertRenewalLocked(windowsDesktopServiceCertRetryInterval)
+		s.mu.Unlock()
 		return trace.Wrap(err, "dial")
 	}
 
+	conn.SetTimeout(ldapRequestTimeout)
 	s.lc.setClient(conn)
 
 	// Note: admin still needs to import our CA into the Group Policy following
@@ -441,22 +464,29 @@ func (s *WindowsService) initializeLDAP() error {
 		return trace.Wrap(err)
 	}
 
-	atomic.StoreInt32(&s.ldapInitialized, 1)
+	s.mu.Lock()
+	s.ldapInitialized = true
+	s.scheduleNextLDAPCertRenewalLocked(windowsDesktopServiceCertTTL / 3)
+	s.mu.Unlock()
 
-	// if we were successful in initializing the client, schedule a renewal
-	// so that we get a new cert prior to expiration
-	go func() {
-		select {
-		case <-time.After(windowsDesktopServiceCertTTL / 3):
+	return nil
+}
+
+// scheduleNextLDAPCertRenewalLocked schedules a renewal of our LDAP credentials
+// after some amount of time has elapsed. If an existing renewal is already
+// scheduled, it is canceled and this new one takes its place.
+//
+// The lock on s.mu MUST be held.
+func (s *WindowsService) scheduleNextLDAPCertRenewalLocked(after time.Duration) {
+	if s.ldapCertRenew != nil {
+		s.ldapCertRenew.Reset(after)
+	} else {
+		s.ldapCertRenew = time.AfterFunc(after, func() {
 			if err := s.initializeLDAP(); err != nil {
 				s.cfg.Log.WithError(err).Error("couldn't renew certificate for LDAP auth")
 			}
-		case <-s.closeCtx.Done():
-			return
-		}
-	}()
-
-	return nil
+		})
+	}
 }
 
 func (s *WindowsService) startServiceHeartbeat() error {
@@ -519,6 +549,12 @@ func (s *WindowsService) startStaticHostHeartbeats() error {
 // Close instructs the server to stop accepting new connections and abort all
 // established ones. Close does not wait for the connections to be finished.
 func (s *WindowsService) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.ldapCertRenew != nil {
+		s.ldapCertRenew.Stop()
+	}
 	s.close()
 	s.lc.close()
 	return nil
@@ -553,6 +589,12 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 	}
 }
 
+func (s *WindowsService) ldapReady() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.ldapInitialized
+}
+
 // handleConnection handles TLS connections from a Teleport proxy.
 // It authenticates and authorizes the connection, and then begins
 // translating the TDP messages from the proxy into native RDP.
@@ -564,13 +606,13 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTdpError := func(message string) {
 		if err := tdpConn.OutputMessage(tdp.Error{Message: message}); err != nil {
-			s.cfg.Log.Errorf("Failed to send TDP error message %v: %v", tdp.Error{Message: message}, err)
+			log.Errorf("Failed to send TDP error message %v: %v", tdp.Error{Message: message}, err)
 		}
 	}
 
 	// don't handle connections until the LDAP initialization retry loop has succeeded
 	// (it would fail anyway, but this presents a better error to the user)
-	if atomic.LoadInt32(&s.ldapInitialized) != 1 {
+	if !s.ldapReady() {
 		// TODO(zmb3): send TDP error message
 		log.Error("This service cannot accept connections until LDAP initialization has completed.")
 		return
