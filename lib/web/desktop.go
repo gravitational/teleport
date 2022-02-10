@@ -205,11 +205,11 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	windowDesktopCerts, ok := key.WindowsDesktopCerts[desktopName]
+	windowsDesktopCerts, ok := key.WindowsDesktopCerts[desktopName]
 	if !ok {
 		return nil, trace.NotFound("failed to found windows desktop certificates for %q", desktopName)
 	}
-	certConf, err := tls.X509KeyPair(windowDesktopCerts, sessCtx.session.GetPriv())
+	certConf, err := tls.X509KeyPair(windowsDesktopCerts, sessCtx.session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

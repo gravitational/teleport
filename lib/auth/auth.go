@@ -3215,15 +3215,15 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			services.AccessMFAParams{},
 			dbRoleMatchers...,
 		)
-	case *proto.IsMFARequiredRequest_WindowDesktop:
-		desktop, err := a.GetWindowsDesktop(ctx, t.WindowDesktop.GetDesktopServer())
+	case *proto.IsMFARequiredRequest_WindowsDesktop:
+		desktop, err := a.GetWindowsDesktop(ctx, t.WindowsDesktop.GetDesktopServer())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		noMFAAccessErr = checker.CheckAccess(desktop,
 			services.AccessMFAParams{},
-			services.NewWindowsLoginMatcher(t.WindowDesktop.GetLogin()))
+			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
 	default:
 		return nil, trace.BadParameter("unknown Target %T", req.Target)

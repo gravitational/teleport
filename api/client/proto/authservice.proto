@@ -1005,8 +1005,8 @@ message IsMFARequiredRequest {
         RouteToDatabase Database = 2;
         // Node specifies the target SSH node.
         NodeLogin Node = 3;
-        // RouteToWindowsDesktop  specifies the target Windows Desktop.
-        RouteToWindowsDesktop WindowDesktop = 4;
+        // WindowsDesktop specifies the target Windows Desktop.
+        RouteToWindowsDesktop WindowsDesktop = 4;
     }
 }
 

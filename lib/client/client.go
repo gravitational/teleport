@@ -191,7 +191,7 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequire
 	case p.RouteToDatabase.ServiceName != "":
 		req.Target = &proto.IsMFARequiredRequest_Database{Database: &p.RouteToDatabase}
 	case p.RouteToWindowsDesktop.DesktopServer != "":
-		req.Target = &proto.IsMFARequiredRequest_WindowDesktop{WindowDesktop: &p.RouteToWindowsDesktop}
+		req.Target = &proto.IsMFARequiredRequest_WindowsDesktop{WindowsDesktop: &p.RouteToWindowsDesktop}
 	}
 	return req
 }
