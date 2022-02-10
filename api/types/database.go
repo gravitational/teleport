@@ -19,6 +19,7 @@ package types
 import (
 	"fmt"
 	"net"
+	"regexp"
 	"strings"
 	"time"
 
@@ -84,6 +85,10 @@ type Database interface {
 	IsCloudSQL() bool
 	// IsAzure returns true if this is an Azure database.
 	IsAzure() bool
+	// IsElastiCache returns true if this is an AWS ElastiCache database
+	IsElastiCache() bool
+	// IsMemoryDB returns true if this is an AWS MemoryDB database.
+	IsMemoryDB() bool
 	// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
 	IsCloudHosted() bool
 	// Copy returns a copy of this database resource.
@@ -296,9 +301,20 @@ func (d *DatabaseV3) IsAzure() bool {
 	return d.GetType() == DatabaseTypeAzure
 }
 
-// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
+// IsElastiCache returns true is the database is ElastiCache instance.
+func (d *DatabaseV3) IsElastiCache() bool {
+	return strings.Contains(d.Spec.URI, ".cache.amazonaws.com")
+}
+
+// IsMemoryDB returns true if the database is MemoryDB instance.
+func (d *DatabaseV3) IsMemoryDB() bool {
+	return memoryDBUriRegex.MatchString(d.Spec.URI)
+}
+
+// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift/ElastiCache/MemoryDB, Azure or Cloud SQL).
 func (d *DatabaseV3) IsCloudHosted() bool {
-	return d.IsRDS() || d.IsRedshift() || d.IsCloudSQL() || d.IsAzure()
+	return d.IsRDS() || d.IsRedshift() || d.IsCloudSQL() || d.IsAzure() ||
+		d.IsElastiCache() || d.IsMemoryDB()
 }
 
 // GetType returns the database type.
@@ -314,6 +330,12 @@ func (d *DatabaseV3) GetType() string {
 	}
 	if d.GetAzure().Name != "" {
 		return DatabaseTypeAzure
+	}
+	if d.IsElastiCache() {
+		return DatabaseTypeElastiCache
+	}
+	if d.IsMemoryDB() {
+		return DatabaseTypeMemoryDB
 	}
 	return DatabaseTypeSelfHosted
 }
@@ -538,6 +560,10 @@ const (
 	DatabaseTypeCloudSQL = "gcp"
 	// DatabaseTypeAzure is Azure-hosted database.
 	DatabaseTypeAzure = "azure"
+	// DatabaseTypeElastiCache is AWS-hosted ElastiCache database.
+	DatabaseTypeElastiCache = "elasticache"
+	// DatabaseTypeMemoryDB is AWS-hosted MemoryDB database.
+	DatabaseTypeMemoryDB = "memoryDB"
 )
 
 // DeduplicateDatabases deduplicates databases by name.
@@ -599,7 +625,11 @@ const (
 	redshiftEndpointSuffix = ".redshift.amazonaws.com"
 	// azureEndpointSuffix is the Azure database endpoint suffix.
 	azureEndpointSuffix = ".database.azure.com"
+	// elastiCacheSuffix is the AWS ElastiCache database endpoint suffix.
+	elastiCacheSuffix = ".cache.amazonaws.com"
 )
+
+var memoryDBUriRegex = regexp.MustCompile(`.*\.memorydb\.[\w\d-]+\.amazonaws.com.*`)
 
 var (
 	// rdsPolicyTemplate is the IAM policy template for RDS databases access.

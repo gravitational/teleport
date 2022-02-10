@@ -151,7 +151,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		connectionAddr = fmt.Sprintf("%s:%s", connectionOptions.address, connectionOptions.port)
 	)
 
-	// TODO(jakub): Use system CA bundle if connecting to AWS.
 	// TODO(jakub): Investigate Redis Sentinel.
 	switch connectionOptions.mode {
 	case Standalone:
