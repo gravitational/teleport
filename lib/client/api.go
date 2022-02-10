@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
+	"github.com/gravitational/teleport/lib/utils/proxy"
 
 	"github.com/gravitational/trace"
 
@@ -2198,37 +2199,20 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}, nil
 }
 
-func makeProxySSHClientWithTLSWrapper(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
-	cfg := tc.Config
-	clientTLSConf, err := tc.loadTLSConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clientTLSConf.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
-	clientTLSConf.InsecureSkipVerify = cfg.InsecureSkipVerify
-
-	tlsConn, err := tls.Dial("tcp", cfg.WebProxyAddr, clientTLSConf)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to dial tls %v", cfg.WebProxyAddr)
-	}
-	c, chans, reqs, err := ssh.NewClientConn(tlsConn, cfg.WebProxyAddr, sshConfig)
-	if err != nil {
-		// tlsConn is closed inside ssh.NewClientConn function
-		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", cfg.WebProxyAddr)
-	}
-	return ssh.NewClient(c, chans, reqs), nil
-}
-
 func makeProxySSHClient(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+	var opts []proxy.DialerOptionFunc
 	if tc.Config.TLSRoutingEnabled {
-		return makeProxySSHClientWithTLSWrapper(tc, sshConfig)
+		tlsConfig, err := tc.loadTLSConfig()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
+		tlsConfig.InsecureSkipVerify = tc.Config.InsecureSkipVerify
+		opts = append(opts, proxy.WithALPNDialer(), proxy.WithTLSConfig(tlsConfig))
 	}
-	client, err := ssh.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", tc.Config.SSHProxyAddr)
-	}
-	return client, nil
+	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, opts...)
+	client, err := dialer.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
+	return client, trace.Wrap(err, "failed to authenticate with proxy %v", tc.Config.SSHProxyAddr)
 }
 
 func (tc *TeleportClient) rootClusterName() (string, error) {

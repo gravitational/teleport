@@ -57,7 +57,7 @@ func dialWithDeadline(network string, addr string, config *ssh.ClientConfig) (*s
 // dialALPNWithDeadline allows connecting to Teleport in single-port mode. SSH protocol is wrapped into
 // TLS connection where TLS ALPN protocol is set to ProtocolReverseTunnel allowing ALPN Proxy to route the
 // incoming connection to ReverseTunnel proxy service.
-func dialALPNWithDeadline(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
+func dialALPNWithDeadline(network string, addr string, config *ssh.ClientConfig, tlsConfig *tls.Config) (*ssh.Client, error) {
 	dialer := &net.Dialer{
 		Timeout: config.Timeout,
 	}
@@ -65,11 +65,15 @@ func dialALPNWithDeadline(network string, addr string, config *ssh.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConn, err := tls.DialWithDialer(dialer, network, addr, &tls.Config{
-		NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
-		InsecureSkipVerify: lib.IsInsecureDevMode(),
-		ServerName:         address.Host(),
-	})
+	conf := tlsConfig.Clone()
+	if conf == nil {
+		conf = &tls.Config{
+			NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
+			InsecureSkipVerify: lib.IsInsecureDevMode(),
+		}
+	}
+	conf.ServerName = address.Host()
+	tlsConn, err := tls.DialWithDialer(dialer, network, addr, conf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -86,13 +90,14 @@ type Dialer interface {
 }
 
 type directDial struct {
-	useTLS bool
+	useTLS    bool
+	tlsConfig *tls.Config
 }
 
 // Dial calls ssh.Dial directly.
 func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	if d.useTLS {
-		client, err := dialALPNWithDeadline(network, addr, config)
+		client, err := dialALPNWithDeadline(network, addr, config, d.tlsConfig)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -112,11 +117,15 @@ func (d directDial) DialTimeout(network, address string, timeout time.Duration) 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tlsConn, err := tls.Dial("tcp", address, &tls.Config{
-			NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
-			InsecureSkipVerify: lib.IsInsecureDevMode(),
-			ServerName:         addr.Host(),
-		})
+		conf := d.tlsConfig.Clone()
+		if conf == nil {
+			conf = &tls.Config{
+				NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
+				InsecureSkipVerify: lib.IsInsecureDevMode(),
+			}
+		}
+		conf.ServerName = addr.Host()
+		tlsConn, err := tls.Dial("tcp", address, conf)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -132,6 +141,7 @@ func (d directDial) DialTimeout(network, address string, timeout time.Duration) 
 type proxyDial struct {
 	proxyHost string
 	useTLS    bool
+	tlsConfig *tls.Config
 }
 
 // DialTimeout acts like Dial but takes a timeout.
@@ -152,11 +162,15 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		conn = tls.Client(conn, &tls.Config{
-			NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
-			InsecureSkipVerify: lib.IsInsecureDevMode(),
-			ServerName:         address.Host(),
-		})
+		conf := d.tlsConfig.Clone()
+		if conf == nil {
+			conf = &tls.Config{
+				NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
+				InsecureSkipVerify: lib.IsInsecureDevMode(),
+			}
+		}
+		conf.ServerName = address.Host()
+		conn = tls.Client(conn, conf)
 	}
 	return conn, nil
 }
@@ -177,11 +191,15 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		pconn = tls.Client(pconn, &tls.Config{
-			NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
-			InsecureSkipVerify: lib.IsInsecureDevMode(),
-			ServerName:         address.Host(),
-		})
+		conf := d.tlsConfig.Clone()
+		if conf == nil {
+			conf = &tls.Config{
+				NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
+				InsecureSkipVerify: lib.IsInsecureDevMode(),
+			}
+		}
+		conf.ServerName = address.Host()
+		pconn = tls.Client(pconn, conf)
 	}
 
 	// Do the same as ssh.Dial but pass in proxy connection.
@@ -196,7 +214,8 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 }
 
 type dialerOptions struct {
-	dialTLS bool
+	dialTLS   bool
+	tlsConfig *tls.Config
 }
 
 // DialerOptionFunc allows setting options as functional arguments to DialerFromEnvironment
@@ -206,6 +225,13 @@ type DialerOptionFunc func(options *dialerOptions)
 func WithALPNDialer() DialerOptionFunc {
 	return func(options *dialerOptions) {
 		options.dialTLS = true
+	}
+}
+
+// WithTLSConfig creates a dialer that uses a specific tls config.
+func WithTLSConfig(tlsConfig *tls.Config) DialerOptionFunc {
+	return func(options *dialerOptions) {
+		options.tlsConfig = tlsConfig
 	}
 }
 
@@ -226,10 +252,10 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	// otherwise return a proxy dialer.
 	if proxyAddr == "" {
 		log.Debugf("No proxy set in environment, returning direct dialer.")
-		return directDial{useTLS: options.dialTLS}
+		return directDial{useTLS: options.dialTLS, tlsConfig: options.tlsConfig}
 	}
 	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyAddr)
-	return proxyDial{proxyHost: proxyAddr, useTLS: options.dialTLS}
+	return proxyDial{proxyHost: proxyAddr, useTLS: options.dialTLS, tlsConfig: options.tlsConfig}
 }
 
 type DirectDialerOptFunc func(dial *directDial)
