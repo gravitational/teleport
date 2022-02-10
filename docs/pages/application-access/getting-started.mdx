@@ -37,12 +37,14 @@ Download the latest version of Teleport for your platform from our
 [downloads page](https://goteleport.com/teleport/download).
 
 We will assume that you have configured DNS records for `teleport.example.com`
-and `*.teleport.example.com` to point to the Teleport node.
+and `*.teleport.example.com` to point to the Teleport Proxy Service.
 
+### Configure TLS
 Teleport uses TLS to communicate with clients, and can fetch certificates automatically via Let's Encrypt.
 
 (!docs/pages/includes/acme.mdx!)
 
+### Start Teleport
 Now start Teleport and point it to the application endpoint:
 
 ```code
@@ -55,6 +57,7 @@ $ sudo teleport start \
 Make sure to update `--app-name` and `--app-uri` accordingly if you're using
 your own web application.
 
+### Create a user
 Next, let's create a user to access the application we've just connected. Teleport has a built-in role called `access` that allows users to access cluster resources. Create a local user assigned this role:
 
 ```code
