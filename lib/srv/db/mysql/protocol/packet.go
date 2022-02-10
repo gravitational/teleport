@@ -18,10 +18,7 @@ package protocol
 
 import (
 	"bytes"
-	"encoding/hex"
-	"fmt"
 	"io"
-	"net"
 
 	"github.com/gravitational/trace"
 	"github.com/siddontang/go-mysql/mysql"
@@ -112,9 +109,6 @@ func ParsePacket(conn io.Reader) (Packet, error) {
 	}
 
 	packet := packet{packetBytes}
-	fmt.Println("--- steve packet type ", packetType)
-	fmt.Println(hex.Dump(packetBytes))
-	fmt.Println("--- steve packet end")
 
 	switch packetType {
 	case mysql.OK_HEADER:
@@ -127,7 +121,7 @@ func ParsePacket(conn io.Reader) (Packet, error) {
 		// fields. In protocol version 4.1 it includes '#' marker:
 		//
 		// https://dev.mysql.com/doc/internals/en/packet-ERR_Packet.html
-		minLen := headerSize + typeSize + 2 // 4-byte header + 1-byte type + 2-byte error ccode
+		minLen := packetHeaderSize + packetTypeSize + 2 // 4-byte header + 1-byte type + 2-byte error ccode
 		if len(packetBytes) > minLen && packetBytes[minLen] == byte('#') {
 			minLen += 6 // 1-byte marker '#' + 5-byte state
 		}
@@ -139,7 +133,7 @@ func ParsePacket(conn io.Reader) (Packet, error) {
 
 	case mysql.COM_QUERY:
 		// Be a bit paranoid and make sure the packet is not truncated.
-		if len(packetBytes) < headerAndTypeSize {
+		if len(packetBytes) < packetHeaderAndTypeSize {
 			return nil, trace.BadParameter("failed to parse COM_QUERY packet: %v", packetBytes)
 		}
 		// 4-byte packet header + 1-byte payload header, then query text.
@@ -149,12 +143,12 @@ func ParsePacket(conn io.Reader) (Packet, error) {
 		return &Quit{packet: packet}, nil
 
 	case mysql.COM_CHANGE_USER:
-		if len(packetBytes) < headerAndTypeSize {
+		if len(packetBytes) < packetHeaderAndTypeSize {
 			return nil, trace.BadParameter("failed to parse COM_CHANGE_USER packet: %s", packetBytes)
 		}
 		// User is the first null-terminated string in the payload:
 		// https://dev.mysql.com/doc/internals/en/com-change-user.html#packet-COM_CHANGE_USER
-		idx := bytes.IndexByte(packetBytes[headerAndTypeSize:], 0x00)
+		idx := bytes.IndexByte(packetBytes[packetHeaderAndTypeSize:], 0x00)
 		if idx < 0 {
 			return nil, trace.BadParameter("failed to parse COM_CHANGE_USER packet: %s", packetBytes)
 		}
@@ -246,7 +240,7 @@ func ReadPacket(conn io.Reader) (pkt []byte, pktType byte, err error) {
 }
 
 // WritePacket writes the provided protocol packet to the connection.
-func WritePacket(pkt []byte, conn net.Conn) (int, error) {
+func WritePacket(pkt []byte, conn io.Writer) (int, error) {
 	n, err := conn.Write(pkt)
 	if err != nil {
 		return 0, trace.ConvertSystemError(err)
@@ -255,7 +249,12 @@ func WritePacket(pkt []byte, conn net.Conn) (int, error) {
 }
 
 const (
-	headerSize        = 4
-	typeSize          = 1
-	headerAndTypeSize = 4 + 1
+	// packetHeaderSize is the size of the packet header.
+	packetHeaderSize = 4
+
+	// packetTypeSize is the size of the command type.
+	packetTypeSize = 1
+
+	// packetHeaderAndTypeSize
+	packetHeaderAndTypeSize = packetHeaderSize + packetTypeSize
 )

@@ -16,11 +16,13 @@ limitations under the License.
 
 package protocol
 
-import "bytes"
-
 // StatementPreparePacket represents the COM_STMT_PREPARE command.
 //
 // https://dev.mysql.com/doc/internals/en/com-stmt-prepare.html
+//
+// COM_STMT_PREPARE creates a prepared statement from passed query string.
+// Parameter placeholders are marked with "?" in the query. A COM_STMT_PREPARE
+// response is expected from the server after sending this command.
 type StatementPreparePacket struct {
 	packet
 
@@ -33,11 +35,20 @@ func (p *StatementPreparePacket) Query() string {
 	return p.query
 }
 
-// statementIDPacket represents a common statement packet where statement ID is
+// statementIDPacket represents a common packet format where statement ID is
 // right after packet type.
+//
+// The statement ID is returned by the server in the COM_STMT_PREPARE response.
+// All prepared statement packets except COM_STMT_PREPARE starts with the
+// statement ID after the packet type to identify the prepared statement to
+// use.
+//
+// The statement ID is an unsigned integer, usually starts at 1 for each client
+// connection.
 type statementIDPacket struct {
 	packet
 
+	// statementID is the ID of the associated statement.
 	statementID uint32
 }
 
@@ -49,44 +60,65 @@ func (p *statementIDPacket) StatementID() uint32 {
 // StatementSendLongDataPacket represents the COM_STMT_SEND_LONG_DATA command.
 //
 // https://dev.mysql.com/doc/internals/en/com-stmt-send-long-data.html
+//
+// COM_STMT_SEND_LONG_DATA is used to send byte stream data to server, usually
+// big blobs.
 type StatementSendLongDataPacket struct {
 	statementIDPacket
 
-	paramID uint16
-	data    string
+	// parameterID is the identifier of the parameter or column.
+	parameterID uint16
+
+	// data is the byte data sent in the packet.
+	data []byte
 }
 
-// ParamID returns the parameter ID.
-func (p *StatementSendLongDataPacket) ParamID() uint16 {
-	return p.paramID
+// ParameterID returns the parameter ID.
+func (p *StatementSendLongDataPacket) ParameterID() uint16 {
+	return p.parameterID
 }
 
-// Data returns the data in string.
-func (p *StatementSendLongDataPacket) Data() string {
+// Data returns the data in bytes.
+func (p *StatementSendLongDataPacket) Data() []byte {
 	return p.data
 }
 
 // StatementExecutePacket represents the COM_STMT_EXECUTE command.
 //
 // https://dev.mysql.com/doc/internals/en/com-stmt-execute.html
+//
+// COM_STMT_EXECUTE asks the server to execute a prepared statement, with the
+// types and values for the placeholders.
 type StatementExecutePacket struct {
 	statementIDPacket
 
-	iterations        uint32
-	paramsStartingPos int
+	// cursorFlag specifies type of the cursor.
+	cursorFlag byte
+
+	// iterations is the iteration count specified in the command. The MySQL
+	// doc states that it is always 1.
+	iterations uint32
+
+	// nullBitmapAndParameters are raw packet bytes that represent a null
+	// bitmap and parameter types with values. They are not decoded in the
+	// initial parsing because number of parameters is unknown.
+	nullBitmapAndParameters []byte
 }
 
-// Parameters returns a slice of formatted parameters
-func (p *StatementExecutePacket) Parameters(n int) []string {
+// Parameters returns a slice of parameters.
+func (p *StatementExecutePacket) Parameters(n int) []interface{} {
 	// TODO(greedy52) number of parameters is required in order to parse
 	// paremeters out of the packet. Number of parameters can be obtained from
-	// the response of COM_STMT_PREPARE.
+	// the response of COM_STMT_PREPARE. And all MySQL supported types needs be
+	// converted from their binary form to golang types.
 	return nil
 }
 
 // StatementClosePacket represents the COM_STMT_CLOSE command.
 //
 // https://dev.mysql.com/doc/internals/en/com-stmt-close.html
+//
+// COM_STMT_CLOSE deallocates a prepared statement.
 type StatementClosePacket struct {
 	statementIDPacket
 }
@@ -94,6 +126,9 @@ type StatementClosePacket struct {
 // StatementResetPacket represents the COM_STMT_RESET command.
 //
 // https://dev.mysql.com/doc/internals/en/com-stmt-reset.html
+//
+// COM_STMT_RESET resets the data of a prepared statement which was accumulated
+// with COM_STMT_SEND_LONG_DATA.
 type StatementResetPacket struct {
 	statementIDPacket
 }
@@ -108,11 +143,12 @@ func parseStatementPreparePacket(rawPacket packet) (Packet, bool) {
 
 	return &StatementPreparePacket{
 		packet: rawPacket,
-		query:  readString(unread),
+		query:  string(unread),
 	}, true
 }
 
-// parseStatementIDPacket parses packet bytes and returns a statementIDPacket.
+// parseStatementIDPacket parses packet bytes and returns a statementIDPacket
+// if successful.
 func parseStatementIDPacket(rawPacket packet) (statementIDPacket, []byte, bool) {
 	unread, ok := skipHeaderAndType(rawPacket.bytes)
 	if !ok {
@@ -138,15 +174,15 @@ func parseStatementSendLongDataPacket(rawPacket packet) (Packet, bool) {
 		return nil, false
 	}
 
-	unread, paramID, ok := readUint16(unread)
+	unread, parameterID, ok := readUint16(unread)
 	if !ok {
 		return nil, false
 	}
 
 	return &StatementSendLongDataPacket{
 		statementIDPacket: parent,
-		paramID:           paramID,
-		data:              readString(unread),
+		parameterID:       parameterID,
+		data:              unread,
 	}, true
 }
 
@@ -158,8 +194,8 @@ func parseStatementExecutePacket(rawPacket packet) (Packet, bool) {
 		return nil, false
 	}
 
-	// Skip cursor flag.
-	if unread, ok = skipBytes(unread, 1); !ok {
+	unread, cursorFlag, ok := readByte(unread)
+	if !ok {
 		return nil, false
 	}
 
@@ -168,19 +204,11 @@ func parseStatementExecutePacket(rawPacket packet) (Packet, bool) {
 		return nil, false
 	}
 
-	// Read through null bitmap and find new-params-bound flag. If bound flag
-	// is 0, there is no more data after. If bound flag is 1, rest of the bytes
-	// are parameters.
-	paramsStartingPos := 0
-	flagPos := bytes.IndexByte(unread, 0x01)
-	if flagPos > 0 {
-		paramsStartingPos = len(rawPacket.bytes) - len(unread[flagPos:]) + 1
-	}
-
 	return &StatementExecutePacket{
-		statementIDPacket: parent,
-		iterations:        iterations,
-		paramsStartingPos: paramsStartingPos,
+		statementIDPacket:       parent,
+		cursorFlag:              cursorFlag,
+		iterations:              iterations,
+		nullBitmapAndParameters: unread,
 	}, true
 }
 

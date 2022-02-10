@@ -113,8 +113,8 @@ var (
 			},
 			statementID: 5,
 		},
-		paramID: 2,
-		data:    "bob",
+		parameterID: 2,
+		data:        []byte("bob"),
 	}
 
 	sampleStatementExecutePacket = &StatementExecutePacket{
@@ -124,9 +124,9 @@ var (
 					0x1e, 0x00, 0x00, 0x00, // header
 					0x17,                   // type
 					0x02, 0x00, 0x00, 0x00, // statement ID
-					0x00,                   // flags
+					0x00,                   // cursor flag
 					0x01, 0x00, 0x00, 0x00, // iteration count
-					0x00, // null map
+					0x00, // nullbit map
 					0x01, // new-params-bound flag
 
 					// https://dev.mysql.com/doc/internals/en/com-query-response.html#column-type
@@ -139,8 +139,16 @@ var (
 			},
 			statementID: 2,
 		},
-		iterations:        1,
-		paramsStartingPos: 16,
+		cursorFlag: 0x00,
+		iterations: 1,
+		nullBitmapAndParameters: []byte{
+			0x00,       // null bitmap
+			0x01,       // new-params-bound flag
+			0xfe, 0x00, // param 1 type - MYSQL_TYPE_STRING
+			0x08, 0x00, // param 2 type - MYSQL_TYPE_LONGLONG
+			0x05, 0x68, 0x65, 0x6c, 0x6c, 0x6f, // param 1 value - "hello"
+			0xc8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // param 2 value - 200
+		},
 	}
 
 	sampleStatementClosePacket = &StatementClosePacket{

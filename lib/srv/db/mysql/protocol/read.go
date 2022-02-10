@@ -18,10 +18,13 @@ package protocol
 
 import "encoding/binary"
 
+// skipHeaderAndType skips packet header and command type, and returns rest of
+// the bytes.
 func skipHeaderAndType(input []byte) (unread []byte, ok bool) {
-	return skipBytes(input, headerAndTypeSize)
+	return skipBytes(input, packetHeaderAndTypeSize)
 }
 
+// skipBytes skips n bytes from input and returns rest of the bytes.
 func skipBytes(input []byte, n int) (unread []byte, ok bool) {
 	if len(input) < n {
 		return nil, false
@@ -29,6 +32,15 @@ func skipBytes(input []byte, n int) (unread []byte, ok bool) {
 	return input[n:], true
 }
 
+// readByte reads one byte from input and returns rest of the bytes.
+func readByte(input []byte) (unread []byte, read byte, ok bool) {
+	if len(input) < 1 {
+		return nil, 0x00, false
+	}
+	return input[1:], input[0], true
+}
+
+// readUint32 reads an uint32 from input and returns rest of the bytes.
 func readUint32(input []byte) (unread []byte, read uint32, ok bool) {
 	if len(input) < 4 {
 		return nil, 0, false
@@ -36,13 +48,10 @@ func readUint32(input []byte) (unread []byte, read uint32, ok bool) {
 	return input[4:], binary.LittleEndian.Uint32(input[:4]), true
 }
 
+// readUint16 reads an uint16 from input and returns rest of the bytes.
 func readUint16(input []byte) (unread []byte, read uint16, ok bool) {
 	if len(input) < 2 {
 		return nil, 0, false
 	}
 	return input[2:], binary.LittleEndian.Uint16(input[:2]), true
-}
-
-func readString(input []byte) string {
-	return string(input)
 }
