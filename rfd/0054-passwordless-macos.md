@@ -171,7 +171,7 @@ also preferred and used by default.
 To allow users agency over the eager behaviors of Touch ID, `tsh` is augmented
 with the following flags:
 
-* `tsh --pwdless_mode={auto,on,off}` - activate/deactivate passwordless
+* `tsh --pwdless-mode={auto,on,off}` - activate/deactivate passwordless
   authentication
 
     `auto` is the default behavior described above (passwordless is preferred
@@ -182,7 +182,7 @@ with the following flags:
 
     `off` disables passwordless logins
 
-* `tsh --mfa_mode={auto,platform,cross-platform}` - choose whether to use
+* `tsh --mfa-mode={auto,platform,cross-platform}` - choose whether to use
   platform or cross-platform MFA
 
     `auto` is the default behavior described above, which favors Touch ID
@@ -192,7 +192,7 @@ with the following flags:
 
     `cross-platform` prefers FIDO2 or OTP (aka `tsh` behavior prior to this RFD)
 
-Both `--pwdless_mode` and `--mfa_mode` may be specified for fine-grained control
+Both `--pwdless-mode` and `--mfa-mode` may be specified for fine-grained control
 over `tsh` authentication logic. Note that those flags apply not only to
 `tsh login`, but also for any commands that require re-authentication (such as
 `tsh mfa add`).
@@ -301,7 +301,7 @@ credential registered for "example.com")
 `tsh login --proxy=example.com --user=llama` behaves as above, but using a
 specific user
 
-`tsh login --pwdless_mode=on --mfa_mode=platform --proxy=example.com
+`tsh login --pwdless-mode=on --mfa-mode=platform --proxy=example.com
 --user=llama` is the zero ambiguity, (needlessly) long form of the above.
 
 `tsh mfa add` adds support for Touch ID, both for authentication and registering
