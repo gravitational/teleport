@@ -451,7 +451,7 @@ $(RENDER_TESTS): $(wildcard ./build.assets/tooling/cmd/render-tests/*.go)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-sh test-api test-go
+test: test-sh test-api test-go test-rust
 
 # Runs bot Go tests.
 #
@@ -487,7 +487,8 @@ test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v integration
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
-# Runs API Go tests. These have to be run separately as the package name is different.
+#
+# Runs Go tests on the api module. These have to be run separately as the package name is different.
 #
 .PHONY: test-api
 test-api:
@@ -495,6 +496,21 @@ test-api: FLAGS ?= '-race'
 test-api: PACKAGES = $(shell cd api && go list ./...)
 test-api: $(VERSRC)
 	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+
+#
+# Runs cargo test on our Rust modules.
+# (a no-op if cargo and rustc are not installed)
+#
+ifneq ($(CHECK_RUST),)
+ifneq ($(CHECK_CARGO),)
+.PHONY: test-rust
+test-rust:
+	cargo test
+else
+.PHONY: test-rust
+test-rust:
+endif
+endif
 
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
@@ -540,16 +556,26 @@ integration-root: $(RENDER_TESTS)
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go lint-license lint-rdp lint-tools
+lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools
 
 .PHONY: lint-tools
 lint-tools: lint-version-check lint-bot lint-ci-scripts lint-backport
 
-.PHONY: lint-rdp
-lint-rdp:
-	cd lib/srv/desktop/rdp/rdpclient \
-		&& cargo clippy --locked --all-targets -- -D warnings \
+#
+# Runs the clippy linter on our rust modules
+# (a no-op if cargo and rustc are not installed)
+#
+ifneq ($(CHECK_RUST),)
+ifneq ($(CHECK_CARGO),)
+.PHONY: lint-rust
+lint-rust:
+	cargo clippy --locked --all-targets -- -D warnings \
 		&& cargo fmt -- --check
+else
+.PHONY: lint-rust
+lint-rust:
+endif
+endif
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
@@ -777,6 +803,7 @@ buildbox-grpc:
 	echo $$PROTO_INCLUDE
 	$(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}' \
 		api/client/proto/authservice.proto \
+		api/client/proto/joinservice.proto \
 		api/types/events/events.proto \
 		api/types/types.proto \
 		api/types/webauthn/webauthn.proto \
@@ -791,7 +818,7 @@ buildbox-grpc:
 
 	cd api/client/proto && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		authservice.proto
+		certs.proto authservice.proto joinservice.proto
 
 	cd api/types/events && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
@@ -990,4 +1017,4 @@ dronegen:
 # installed locally. To backport, type "make backport PR=1234 TO=branch/1,branch/2".
 .PHONY: backport
 backport:
-	(cd ./assets/backport && go run main.go -pr=$(PR) -to=$(TO)) 
+	(cd ./assets/backport && go run main.go -pr=$(PR) -to=$(TO))

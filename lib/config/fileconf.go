@@ -294,8 +294,8 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 
 // JoinParams configures the parameters for Simplified Node Joining.
 type JoinParams struct {
-	TokenName string `yaml:"token_name"`
-	Method    string `yaml:"method"`
+	TokenName string           `yaml:"token_name"`
+	Method    types.JoinMethod `yaml:"method"`
 }
 
 // ConnectionRate configures rate limiter

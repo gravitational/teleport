@@ -200,7 +200,7 @@ func (p *ProxySuite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config C
 		nextIterWaitTime = time.Millisecond * 100
 	)
 
-	tc, err := p.root.NewClient(t, config)
+	tc, err := p.root.NewClient(config)
 	require.NoError(t, err)
 
 	output := &bytes.Buffer{}
