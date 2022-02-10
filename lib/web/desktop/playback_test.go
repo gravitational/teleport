@@ -59,7 +59,6 @@ func TestStreamsDesktopEvents(t *testing.T) {
 		var dr apievents.DesktopRecording
 		err = utils.FastUnmarshal(b[:n], &dr)
 		require.NoError(t, err)
-
 		require.Equal(t, evt.(*apievents.DesktopRecording).Message, dr.Message)
 	}
 

@@ -214,7 +214,7 @@ func TestEmitsRecordingEventsOnSend(t *testing.T) {
 
 		// the handler accepts both the message structure and its encoded form,
 		// but our logic only depends on the encoded form, so pass a nil message
-		var msg tdp.Message = nil
+		var msg tdp.Message
 		handler(msg, encoded)
 	}()
 

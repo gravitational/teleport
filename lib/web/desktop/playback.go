@@ -163,7 +163,7 @@ func (pp *Player) close(cancel context.CancelFunc) {
 	})
 }
 
-// receiveActions handles logic for recieving playbackAction jsons
+// receiveActions handles logic for receiving playbackAction jsons
 // over the websocket and modifying playbackPlayer's state accordingly.
 func (pp *Player) receiveActions(cancel context.CancelFunc) {
 	defer pp.log.Debug("playbackPlayer.ReceiveActions returned")
@@ -180,7 +180,7 @@ func (pp *Player) receiveActions(cancel context.CancelFunc) {
 			}
 			return
 		}
-		pp.log.Debugf("recieved playback action: %+v", action)
+		pp.log.Debugf("received playback action: %+v", action)
 		switch action.Action {
 		case actionPlayPause:
 			pp.togglePlaying()
