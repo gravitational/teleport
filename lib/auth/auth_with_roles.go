@@ -603,10 +603,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveKube:
-		if serverName != handle.Name {
-			return trace.AccessDenied("access denied")
-		}
-		if !a.hasBuiltinRole(string(types.RoleKube)) {
+		if serverName != handle.Name || !a.hasBuiltinRole(string(types.RoleKube)) {
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbUpdate); err != nil {
