@@ -60,7 +60,7 @@ func (c *ConfigTemplateSSHClient) Describe() []FileDescription {
 }
 
 func (c *ConfigTemplateSSHClient) Render(authClient *auth.Client, currentIdentity *identity.Identity, destination *DestinationConfig) error {
-	if !destination.ContainsKind(KindSSH) {
+	if !destination.ContainsKind(identity.KindSSH) {
 		return trace.BadParameter("%s config template requires kind `ssh` to be enabled", CONFIG_TEMPLATE_SSH_CLIENT)
 	}
 

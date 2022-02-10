@@ -65,6 +65,17 @@ type CLIConf struct {
 	// CertificateTTL is the requested TTL of certificates. It should be some
 	// multiple of the renewal interval to allow for failed renewals.
 	CertificateTTL time.Duration
+
+	// InitDir specifies which destination to initialize if multiple are
+	// configured.
+	InitDir string
+
+	// BotUser is a Unix username that should be given permission to write
+	BotUser string
+
+	// Clean is a flag that, if set, instructs `tbot init` to remove existing
+	// unexpected files.
+	Clean bool
 }
 
 // OnboardingConfig contains values only required on first connect.
@@ -93,6 +104,10 @@ type BotConfig struct {
 }
 
 func (conf *BotConfig) CheckAndSetDefaults() error {
+	if conf.AuthServer == "" {
+		return trace.BadParameter("an auth server address must be configured")
+	}
+
 	if err := conf.Storage.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -101,10 +116,6 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		if err := dest.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	if conf.AuthServer == "" {
-		return trace.BadParameter("an auth server address must be configured")
 	}
 
 	if conf.CertificateTTL == 0 {
@@ -252,4 +263,28 @@ func ReadConfig(reader io.Reader) (*BotConfig, error) {
 	}
 
 	return &config, nil
+}
+
+// GetDestinationByPath attempts to fetch a destination by its filesystem path.
+// Only valid for filesystem destinations; returns nil if no matching
+// destination exists.
+func (c *BotConfig) GetDestinationByPath(path string) (*DestinationConfig, error) {
+	for _, dest := range c.Destinations {
+		destImpl, err := dest.GetDestination()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		destDir, ok := destImpl.(*DestinationDirectory)
+		if !ok {
+			continue
+		}
+
+		// TODO: consider comparing via filepath.Abs()?
+		if destDir.Path == path {
+			return dest, nil
+		}
+	}
+
+	return nil, nil
 }

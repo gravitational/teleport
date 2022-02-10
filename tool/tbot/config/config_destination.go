@@ -17,26 +17,17 @@ limitations under the License.
 package config
 
 import (
+	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
 )
-
-type ConfigKind string
-
-const (
-	KindSSH ConfigKind = "ssh"
-	KindTLS ConfigKind = "tls"
-)
-
-// allKinds lists all valid config kinds, intended for validation purposes.
-var allKinds = [...]ConfigKind{KindSSH, KindTLS}
 
 // DestinationConfig configures a user certificate destination.
 type DestinationConfig struct {
 	DestinationMixin `yaml:",inline"`
 
-	Roles   []string               `yaml:"roles,omitempty"`
-	Kinds   []ConfigKind           `yaml:"kinds,omitempty"`
-	Configs []ConfigTemplateConfig `yaml:"configs,omitempty"`
+	Roles   []string                `yaml:"roles,omitempty"`
+	Kinds   []identity.ArtifactKind `yaml:"kinds,omitempty"`
+	Configs []ConfigTemplateConfig  `yaml:"configs,omitempty"`
 }
 
 // destinationDefaults applies defaults for an output sink's destination. Since
@@ -55,7 +46,7 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 	// time
 
 	if len(dc.Kinds) == 0 && len(dc.Configs) == 0 {
-		dc.Kinds = []ConfigKind{KindSSH}
+		dc.Kinds = []identity.ArtifactKind{identity.KindSSH}
 		dc.Configs = []ConfigTemplateConfig{{
 			SSHClient: &ConfigTemplateSSHClient{},
 		}}
@@ -71,7 +62,7 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 }
 
 // ContainsKind determins if this destination contains the given ConfigKind.
-func (dc *DestinationConfig) ContainsKind(kind ConfigKind) bool {
+func (dc *DestinationConfig) ContainsKind(kind identity.ArtifactKind) bool {
 	for _, k := range dc.Kinds {
 		if k == kind {
 			return true

@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/x509"
 	"fmt"
 	"os"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tbot/config"
@@ -76,9 +78,13 @@ func Run(args []string) error {
 	startCmd.Flag("certificate-ttl", "TTL of generated certificates").Default("60m").DurationVar(&cf.CertificateTTL)
 	startCmd.Flag("renew-interval", "Interval at which certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewInterval)
 
-	configCmd := app.Command("config", "Parse and dump a config file")
+	initCmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
+	initCmd.Flag("destination-dir", "Destination directory to initialize.").StringVar(&cf.DestinationDir)
+	initCmd.Flag("init-dir", "If multiple destinations are configured, specify which to initialize").StringVar(&cf.InitDir)
+	initCmd.Flag("clean", "If set, remove unexpected files and directories from the destination").BoolVar(&cf.Clean)
+	initCmd.Arg("bot-user", "Name of the bot Unix user which should have write access to the destination.").Required().StringVar(&cf.BotUser)
 
-	initCmd := app.Command("init", "Initialize a certificate destination directory.")
+	configCmd := app.Command("config", "Parse and dump a config file")
 
 	watchCmd := app.Command("watch", "Watch a destination directory for changes.")
 
@@ -103,7 +109,7 @@ func Run(args []string) error {
 	case configCmd.FullCommand():
 		err = onConfig(botConfig)
 	case initCmd.FullCommand():
-		err = onInit(botConfig)
+		err = onInit(botConfig, &cf)
 	case watchCmd.FullCommand():
 		err = onWatch(botConfig)
 	default:
@@ -118,10 +124,6 @@ func onConfig(botConfig *config.BotConfig) error {
 	pretty.Println(botConfig)
 
 	return nil
-}
-
-func onInit(botConfig *config.BotConfig) error {
-	return trace.NotImplemented("init not yet implemented")
 }
 
 func onWatch(botConfig *config.BotConfig) error {
@@ -143,9 +145,9 @@ func onStart(botConfig *config.BotConfig) error {
 	var authClient *auth.Client
 
 	// First, attempt to load an identity from storage.
-	ident, err := identity.LoadIdentity(dest)
+	ident, err := identity.LoadIdentity(dest, identity.BotKinds()...)
 	if err == nil {
-		identStr, err := describeIdentity(ident)
+		identStr, err := describeTLSIdentity(ident)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -204,9 +206,6 @@ func onStart(botConfig *config.BotConfig) error {
 			return trace.Wrap(err)
 		}
 
-		// Attach the ssh public key.
-		//ident.SSHPublicKeyBytes = sshPublicKey
-
 		log.Debug("Attempting first connection using initial auth client")
 		authClient, err = authenticatedUserClientFromIdentity(ident, botConfig.AuthServer)
 		if err != nil {
@@ -218,14 +217,14 @@ func onStart(botConfig *config.BotConfig) error {
 			return trace.WrapWithMessage(err, "unable to communicate with auth server")
 		}
 
-		identStr, err := describeIdentity(ident)
+		identStr, err := describeTLSIdentity(ident)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		log.Infof("Successfully generated new bot identity, %s", identStr)
 
 		log.Debugf("Storing new bot identity to %s", dest)
-		if err := identity.SaveIdentity(ident, dest); err != nil {
+		if err := identity.SaveIdentity(ident, dest, identity.BotKinds()...); err != nil {
 			return trace.WrapWithMessage(err, "unable to save generated identity back to destination")
 		}
 	}
@@ -233,7 +232,7 @@ func onStart(botConfig *config.BotConfig) error {
 	// TODO: handle cases where an identity exists on disk but we might _not_
 	// want to use it:
 	//  - identity has expired
-	//  - user provided a new token
+	//  - user provided a new token (can now compare to the stored tokenhash)
 	//  - ???
 
 	watcher, err := authClient.NewWatcher(context.Background(), types.Watch{
@@ -315,7 +314,14 @@ func newIdentityViaAuth(params RegisterParams) (*identity.Identity, error) {
 		certs.TLSCACerts = append(certs.TLSCACerts, pemBytes)
 	}
 
-	return identity.ReadIdentityFromKeyPair(params.PrivateKey, params.PublicSSHKey, certs)
+	tokenHash := fmt.Sprintf("%x", sha256.Sum256([]byte(params.Token)))
+	loadParams := identity.LoadIdentityParams{
+		PrivateKeyBytes: params.PrivateKey,
+		PublicKeyBytes:  params.PublicSSHKey,
+		TokenHashBytes:  []byte(tokenHash),
+	}
+
+	return identity.ReadIdentityFromStore(&loadParams, certs, identity.KindBotInternal, identity.KindTLS)
 }
 
 func renewIdentityViaAuth(
@@ -328,7 +334,7 @@ func renewIdentityViaAuth(
 	// First, ask the auth server to generate a new set of certs with a new
 	// expiration date.
 	certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
-		PublicKey: currentIdentity.SSHPublicKeyBytes,
+		PublicKey: currentIdentity.PublicKeyBytes,
 		Username:  currentIdentity.XCert.Subject.CommonName,
 		Expires:   time.Now().Add(certTTL),
 	})
@@ -357,10 +363,10 @@ func renewIdentityViaAuth(
 		certs.TLSCACerts = append(certs.TLSCACerts, pemBytes)
 	}
 
-	newIdentity, err := identity.ReadIdentityFromKeyPair(
-		currentIdentity.KeyBytes,
-		currentIdentity.SSHPublicKeyBytes,
+	newIdentity, err := identity.ReadIdentityFromStore(
+		currentIdentity.Params(),
 		certs,
+		identity.KindBotInternal, identity.KindTLS,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -381,30 +387,80 @@ func fetchDefaultRoles(ctx context.Context, client *auth.Client, botRole string)
 	return conditions.Roles, nil
 }
 
-// describeIdentity writes an informational message about the given identity to
+// describeTLSIdentity writes an informational message about the given identity to
 // the log.
-func describeIdentity(ident *identity.Identity) (string, error) {
-	tlsIdent, err := tlsca.FromSubject(ident.XCert.Subject, ident.XCert.NotAfter)
+func describeTLSIdentity(ident *identity.Identity) (string, error) {
+	cert := ident.XCert
+	if cert == nil {
+		return "", trace.BadParameter("attempted to describe TLS identity without TLS credentials")
+	}
+
+	tlsIdent, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 	if err != nil {
 		return "", trace.WrapWithMessage(err, "bot TLS certificate can not be parsed as an identity")
 	}
 
 	var principals []string
-	for _, principal := range ident.Cert.ValidPrincipals {
+	for _, principal := range tlsIdent.Principals {
 		if !strings.HasPrefix(principal, nologinPrefix) {
 			principals = append(principals, principal)
 		}
 	}
 
-	duration := time.Second * time.Duration(ident.Cert.ValidBefore-ident.Cert.ValidAfter)
+	duration := cert.NotAfter.Sub(cert.NotBefore)
 	return fmt.Sprintf(
-		"valid: after=%v, before=%v, duration=%s | properties: renewable=%v, disallow-reissue=%v, roles=%v, principals=%v",
-		time.Unix(int64(ident.Cert.ValidAfter), 0),
-		time.Unix(int64(ident.Cert.ValidBefore), 0),
+		"valid: after=%v, before=%v, duration=%s | kind=tls, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v",
+		cert.NotBefore.Format(time.RFC3339),
+		cert.NotAfter.Format(time.RFC3339),
 		duration,
 		tlsIdent.Renewable,
 		tlsIdent.DisallowReissue,
 		tlsIdent.Groups,
+		principals,
+	), nil
+}
+
+// describeIdentity writes an informational message about the given identity to
+// the log.
+func describeSSHIdentity(ident *identity.Identity) (string, error) {
+	cert := ident.Cert
+	if cert == nil {
+		return "", trace.BadParameter("attempted to describe SSH identity without SSH credentials")
+	}
+
+	// TODO: pending #10098 (renewable flag not added to SSH certs)
+	//renewable := false
+	//if _, ok := cert.Extensions[teleport.CertExtensionRenewable]; ok {
+	//	renewable = true
+	//}
+
+	disallowReissue := false
+	if _, ok := cert.Extensions[teleport.CertExtensionDisallowReissue]; ok {
+		disallowReissue = true
+	}
+
+	var roles []string
+	if rolesStr, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]; ok {
+		if actualRoles, err := services.UnmarshalCertRoles(rolesStr); err == nil {
+			roles = actualRoles
+		}
+	}
+
+	var principals []string
+	for _, principal := range cert.ValidPrincipals {
+		if !strings.HasPrefix(principal, nologinPrefix) {
+			principals = append(principals, principal)
+		}
+	}
+
+	duration := time.Second * time.Duration(cert.ValidBefore-cert.ValidAfter)
+	return fmt.Sprintf(
+		"valid: after=%v, before=%v, duration=%s | kind=ssh, disallow-reissue=%v, roles=%v, principals=%v",
+		time.Unix(int64(cert.ValidAfter), 0).Format(time.RFC3339),
+		time.Unix(int64(cert.ValidBefore), 0).Format(time.RFC3339),
+		duration,
+		disallowReissue,
+		roles,
 		principals,
 	), nil
 }
@@ -442,7 +498,7 @@ func renewLoop(cfg *config.BotConfig, client *auth.Client, ident *identity.Ident
 			return trace.Wrap(err)
 		}
 
-		identStr, err := describeIdentity(ident)
+		identStr, err := describeTLSIdentity(ident)
 		if err != nil {
 			return trace.WrapWithMessage(err, "Could not describe bot identity at %s", botDestination)
 		}
@@ -470,21 +526,22 @@ func renewLoop(cfg *config.BotConfig, client *auth.Client, ident *identity.Ident
 		ident = newIdentity
 
 		// Now that we're sure the new creds work, persist them.
-		if err := identity.SaveIdentity(newIdentity, botDestination); err != nil {
+		if err := identity.SaveIdentity(newIdentity, botDestination, identity.BotKinds()...); err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Determine the default role list based on the bot role. The role's
 		// name should match the certificate's Key ID (user and role names
 		// should all match bot-$name)
-		defaultRoles, err := fetchDefaultRoles(context.Background(), client, ident.Cert.KeyId)
+		botResourceName := ident.XCert.Subject.CommonName
+		defaultRoles, err := fetchDefaultRoles(context.Background(), client, botResourceName)
 		if err != nil {
 			log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
 			defaultRoles = []string{}
 		}
 
 		// Next, generate impersonated certs
-		expires := time.Unix(int64(ident.Cert.ValidBefore), 0)
+		expires := ident.XCert.NotAfter
 		for _, dest := range cfg.Destinations {
 			destImpl, err := dest.GetDestination()
 			if err != nil {
@@ -499,18 +556,27 @@ func renewLoop(cfg *config.BotConfig, client *auth.Client, ident *identity.Ident
 				desiredRoles = defaultRoles
 			}
 
-			impersonatedIdent, err := generateImpersonatedIdentity(client, ident, expires, desiredRoles)
+			impersonatedIdent, err := generateImpersonatedIdentity(client, ident, expires, desiredRoles, dest.Kinds)
 			if err != nil {
 				return trace.WrapWithMessage(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
 			}
 
-			impersonatedIdentStr, err := describeIdentity(impersonatedIdent)
-			if err != nil {
-				return trace.WrapWithMessage(err, "could not describe impersonated certs for destination %s", destImpl)
+			var impersonatedIdentStr string
+			if dest.ContainsKind(identity.KindTLS) {
+				impersonatedIdentStr, err = describeTLSIdentity(impersonatedIdent)
+				if err != nil {
+					return trace.WrapWithMessage(err, "could not describe impersonated certs for destination %s", destImpl)
+				}
+			} else {
+				// Note: kinds must contain at least 1 of TLS or SSH
+				impersonatedIdentStr, err = describeSSHIdentity(impersonatedIdent)
+				if err != nil {
+					return trace.WrapWithMessage(err, "could not describe impersonated certs for destination %s", destImpl)
+				}
 			}
 			log.Infof("Successfully renewed impersonated certificates for %s, %s", destImpl, impersonatedIdentStr)
 
-			if err := identity.SaveIdentity(impersonatedIdent, destImpl); err != nil {
+			if err := identity.SaveIdentity(impersonatedIdent, destImpl, dest.Kinds...); err != nil {
 				return trace.WrapWithMessage(err, "failed to save impersonated identity to destination %s", destImpl)
 			}
 
@@ -555,13 +621,14 @@ func generateImpersonatedIdentity(
 	currentIdentity *identity.Identity,
 	expires time.Time,
 	roleRequests []string,
+	kinds []identity.ArtifactKind,
 ) (*identity.Identity, error) {
 	// TODO: enforce expiration > renewal period (by what margin?)
 
 	// First, ask the auth server to generate a new set of certs with a new
 	// expiration date.
 	certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
-		PublicKey:    currentIdentity.SSHPublicKeyBytes,
+		PublicKey:    currentIdentity.PublicKeyBytes,
 		Username:     currentIdentity.XCert.Subject.CommonName,
 		Expires:      expires,
 		RoleRequests: roleRequests,
@@ -591,11 +658,8 @@ func generateImpersonatedIdentity(
 		certs.TLSCACerts = append(certs.TLSCACerts, pemBytes)
 	}
 
-	newIdentity, err := identity.ReadIdentityFromKeyPair(
-		currentIdentity.KeyBytes,
-		currentIdentity.SSHPublicKeyBytes,
-		certs,
-	)
+	params := currentIdentity.Params()
+	newIdentity, err := identity.ReadIdentityFromStore(params, certs, kinds...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
