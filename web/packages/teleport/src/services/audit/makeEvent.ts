@@ -427,6 +427,39 @@ export const formatters: Formatters = {
     format: ({ user, db_service, function_oid }) =>
       `User [${user}] has executed function with OID [${function_oid}] on [${db_service}]`,
   },
+  [eventCodes.MYSQL_STATEMENT_PREPARE]: {
+    type: 'db.session.mysql.stmt_prepare',
+    desc: 'MySQL Statement Prepare',
+    format: ({ user, db_service, query }) =>
+      `User [${user}] has prepared [${truncateStr(
+        query,
+        80
+      )}] on [${db_service}]`,
+  },
+  [eventCodes.MYSQL_STATEMENT_EXECUTE]: {
+    type: 'db.session.mysql.stmt_execute',
+    desc: 'MySQL Statement Execute',
+    format: ({ user, db_service, statement_id }) =>
+      `User [${user}] has executed statement [${statement_id}] on [${db_service}]`,
+  },
+  [eventCodes.MYSQL_STATEMENT_SEND_LONG_DATA]: {
+    type: 'db.session.mysql.stmt_send_long_data',
+    desc: 'MySQL Statement Send Long Data',
+    format: ({ user, db_service, statement_id, param_id, data_size }) =>
+      `User [${user}] has sent ${data_size} bytes of data to parameter [${parameter_id}] of statement [${statement_id}] on [${db_service}]`,
+  },
+  [eventCodes.MYSQL_STATEMENT_CLOSE]: {
+    type: 'db.session.mysql.stmt_close',
+    desc: 'MySQL Statement Close',
+    format: ({ user, db_service, statement_id}) =>
+      `User [${user}] has closed statement [${statement_id}] on [${db_service}]`,
+  },
+  [eventCodes.MYSQL_STATEMENT_RESET]: {
+    type: 'db.session.mysql.stmt_reset',
+    desc: 'MySQL Statement Reset',
+    format: ({ user, db_service, statement_id}) =>
+      `User [${user}] has reset statement [${statement_id}] on [${db_service}]`,
+  },
   [eventCodes.MFA_DEVICE_ADD]: {
     type: 'mfa.add',
     desc: 'MFA Device Added',
