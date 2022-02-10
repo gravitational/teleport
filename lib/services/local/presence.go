@@ -1512,6 +1512,12 @@ func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResou
 
 	rangeStart := backend.Key(append(keyPrefix, req.StartKey)...)
 	rangeEnd := backend.RangeEnd(backend.Key(keyPrefix...))
+	filter := services.MatchResourceFilter{
+		ResourceKind:        req.ResourceType,
+		Labels:              req.Labels,
+		SearchKeywords:      req.SearchKeywords,
+		PredicateExpression: req.PredicateExpression,
+	}
 
 	var resources []types.ResourceWithLabels
 	err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, limit, func(items []backend.Item) (stop bool, err error) {
@@ -1525,7 +1531,10 @@ func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResou
 				return false, trace.Wrap(err)
 			}
 
-			if !types.MatchLabels(resource, req.Labels) {
+			switch match, err := services.MatchResourceByFilters(resource, filter); {
+			case err != nil:
+				return false, trace.Wrap(err)
+			case !match:
 				continue
 			}
 
