@@ -85,16 +85,11 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 
 	h.GET("/enterprise/license/status", httplib.MakeHandler(p.getLicenseCheckStatusHandle))
 
-	h.POST("/enterprise/nodes/token", h.WithAuth(p.createScriptJoinTokenHandle))
-
 	h.POST("/enterprise/accessrequest", h.WithAuth(p.createAccessRequestHandle))
 	h.PUT("/enterprise/accessrequest", h.WithAuth(p.reviewAccessRequestHandle))
 	h.DELETE("/enterprise/accessrequest/:requestId", h.WithAuth(p.deleteAccessRequestHandle))
 	h.GET("/enterprise/accessrequest/:requestId", h.WithAuth(p.getAccessRequestHandle))
 	h.GET("/enterprise/accessrequest", h.WithAuth(p.getAccessRequestsHandle))
-
-	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(p.getNodeJoinScriptHandle))
-	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(p.getAppJoinScriptHandle))
 
 	if p.h.ClusterFeatures.GetCloud() {
 		h.DELETE("/enterprise/cloud/card", p.withCloudAuth(p.removeCardHandle))
