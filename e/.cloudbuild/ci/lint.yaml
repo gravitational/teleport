@@ -1,9 +1,9 @@
 steps:
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
+  - name: quay.io/gravitational/teleport-buildbox:go1.17.2
     id: pull-buildbox-image
     args: ["echo", "done"]
 
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
+  - name: quay.io/gravitational/teleport-buildbox:go1.17.2
     id: checkout
     secretEnv:
       - WEBASSETS_DEPLOYMENT_KEY
@@ -12,7 +12,7 @@ steps:
       - "-c"
       - "go run .cloudbuild/ci/checkout.go -workspace=/tmp/teleport -target=$_BASE_BRANCH"
 
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
+  - name: quay.io/gravitational/teleport-buildbox:go1.17.2
     id: lint
     dir: /tmp/teleport
     args: [ "make", "lint" ]
