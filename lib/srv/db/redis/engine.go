@@ -143,7 +143,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	connectionOptions, err := ParseRedisAddress(sessionCtx.Database.GetURI())
 	if err != nil {
-		return trace.BadParameter("Redis connection string is incorrect: %v", err)
+		return trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
 	}
 
 	var (
