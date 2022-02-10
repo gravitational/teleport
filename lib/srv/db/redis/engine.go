@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -116,7 +117,7 @@ func (e *Engine) sendToClient(vals interface{}) error {
 	buf := &bytes.Buffer{}
 	wr := redis.NewWriter(buf)
 
-	if err := writeCmd(wr, vals); err != nil {
+	if err := protocol.WriteCmd(wr, vals); err != nil {
 		return trace.BadParameter("failed to convert error to a message: %v", err)
 	}
 
