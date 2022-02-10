@@ -268,10 +268,11 @@ message RouteToDatabase {
     string Database = 4 [ (gogoproto.jsontag) = "database,omitempty" ];
 }
 
-// RouteToDatabase combines parameters for database service routing information.
+// RouteToWindowsDesktop combines parameters for windows desktop routing information.
 message RouteToWindowsDesktop {
-    // DesktopServer is the Teleport database proxy service name the cert is for.
+    // DesktopServer is the Windows Desktop server name to embed.
     string DesktopServer = 1 [ (gogoproto.jsontag) = "desktop_server" ];
+    // Login is the Windows desktop logic to embed.
     string Login = 2 [ (gogoproto.jsontag) = "login" ];
 }
 
@@ -1004,8 +1005,7 @@ message IsMFARequiredRequest {
         RouteToDatabase Database = 2;
         // Node specifies the target SSH node.
         NodeLogin Node = 3;
-
-        // RouteToWindowsDesktop
+        // RouteToWindowsDesktop  specifies the target Windows Desktop.
         RouteToWindowsDesktop WindowDesktop = 4;
     }
 }
