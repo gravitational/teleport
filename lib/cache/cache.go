@@ -1960,9 +1960,9 @@ func (c *Cache) listResourcesFromTTLCache(ctx context.Context, rg readGuard, req
 
 		// Nodes returned from the TTL caching layer
 		// must be cloned to avoid concurrent modification.
-		clonedNodes := make([]types.Server, len(cachedNodes))
-		for i, node := range cachedNodes {
-			clonedNodes[i] = node.DeepCopy()
+		clonedNodes := make([]types.Server, 0, len(cachedNodes))
+		for _, node := range cachedNodes {
+			clonedNodes = append(clonedNodes, node.DeepCopy())
 		}
 
 		servers := types.Servers(clonedNodes)

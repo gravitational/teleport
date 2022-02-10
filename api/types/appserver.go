@@ -341,28 +341,28 @@ func (s AppServers) SortByCustom(sortBy *SortBy) error {
 
 // AsResources returns app servers as type resources with labels.
 func (s AppServers) AsResources() []ResourceWithLabels {
-	resources := make([]ResourceWithLabels, len(s))
-	for i, server := range s {
-		resources[i] = ResourceWithLabels(server)
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
 	}
 	return resources
 }
 
 // GetFieldVals returns list of select field values.
 func (s AppServers) GetFieldVals(field string) ([]string, error) {
-	vals := make([]string, len(s))
+	vals := make([]string, 0, len(s))
 	switch field {
 	case ResourceMetadataName:
-		for i, server := range s {
-			vals[i] = server.GetApp().GetName()
+		for _, server := range s {
+			vals = append(vals, server.GetApp().GetName())
 		}
 	case ResourceSpecDescription:
-		for i, server := range s {
-			vals[i] = server.GetApp().GetDescription()
+		for _, server := range s {
+			vals = append(vals, server.GetApp().GetDescription())
 		}
 	case ResourceSpecPublicAddr:
-		for i, server := range s {
-			vals[i] = server.GetApp().GetPublicAddr()
+		for _, server := range s {
+			vals = append(vals, server.GetApp().GetPublicAddr())
 		}
 	default:
 		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindAppServer)

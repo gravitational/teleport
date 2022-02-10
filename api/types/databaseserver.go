@@ -328,28 +328,28 @@ func (s DatabaseServers) SortByCustom(sortBy *SortBy) error {
 
 // AsResources returns db servers as type resources with labels.
 func (s DatabaseServers) AsResources() []ResourceWithLabels {
-	resources := make([]ResourceWithLabels, len(s))
-	for i, server := range s {
-		resources[i] = ResourceWithLabels(server)
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
 	}
 	return resources
 }
 
 // GetFieldVals returns list of select field values.
 func (s DatabaseServers) GetFieldVals(field string) ([]string, error) {
-	vals := make([]string, len(s))
+	vals := make([]string, 0, len(s))
 	switch field {
 	case ResourceMetadataName:
-		for i, server := range s {
-			vals[i] = server.GetDatabase().GetName()
+		for _, server := range s {
+			vals = append(vals, server.GetDatabase().GetName())
 		}
 	case ResourceSpecDescription:
-		for i, server := range s {
-			vals[i] = server.GetDatabase().GetDescription()
+		for _, server := range s {
+			vals = append(vals, server.GetDatabase().GetDescription())
 		}
 	case ResourceSpecType:
-		for i, server := range s {
-			vals[i] = server.GetDatabase().GetType()
+		for _, server := range s {
+			vals = append(vals, server.GetDatabase().GetType())
 		}
 	default:
 		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindDatabaseServer)
