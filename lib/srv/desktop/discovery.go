@@ -215,7 +215,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 		types.WindowsDesktopSpecV3{
 			Addr:   addr.String(),
 			Domain: s.cfg.Domain,
-			HostID: s.cfg.HostID,
+			HostID: s.cfg.Heartbeat.HostUUID,
 		},
 	)
 	if err != nil {

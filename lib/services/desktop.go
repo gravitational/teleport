@@ -27,9 +27,7 @@ import (
 
 // WindowsDesktops defines an interface for managing Windows desktop hosts.
 type WindowsDesktops interface {
-	GetWindowsDesktops(context.Context) ([]types.WindowsDesktop, error)
-	GetWindowsDesktop(ctx context.Context, hostID, name string) (types.WindowsDesktop, error)
-	GetWindowsDesktopsByName(ctx context.Context, name string) ([]types.WindowsDesktop, error)
+	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
 	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
 	UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error

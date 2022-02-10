@@ -2197,8 +2197,8 @@ func (c *Client) DeleteAllWindowsDesktopServices(ctx context.Context) error {
 }
 
 // GetWindowsDesktops returns all registered windows desktop hosts.
-func (c *Client) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
-	resp, err := c.grpc.GetWindowsDesktops(ctx, &empty.Empty{}, c.callOpts...)
+func (c *Client) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
+	resp, err := c.grpc.GetWindowsDesktops(ctx, &filter, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -2207,29 +2207,6 @@ func (c *Client) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop
 		desktops = append(desktops, desktop)
 	}
 	return desktops, nil
-}
-
-// GetWindowsDesktopsByName returns all registered windows desktop hosts matching name.
-func (c *Client) GetWindowsDesktopsByName(ctx context.Context, name string) ([]types.WindowsDesktop, error) {
-	resp, err := c.grpc.GetWindowsDesktopsByName(ctx,
-		&proto.GetWindowsDesktopsByNameRequest{Name: name}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	desktops := make([]types.WindowsDesktop, 0, len(resp.GetDesktops()))
-	for _, desktop := range resp.GetDesktops() {
-		desktops = append(desktops, desktop)
-	}
-	return desktops, nil
-}
-
-// GetWindowsDesktop returns a registered windows desktop host.
-func (c *Client) GetWindowsDesktop(ctx context.Context, hostID, name string) (types.WindowsDesktop, error) {
-	desktop, err := c.grpc.GetWindowsDesktop(ctx, &proto.GetWindowsDesktopRequest{Name: name, HostID: hostID}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return desktop, nil
 }
 
 // CreateWindowsDesktop registers a new windows desktop host.

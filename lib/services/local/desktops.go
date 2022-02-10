@@ -36,55 +36,32 @@ func NewWindowsDesktopService(backend backend.Backend) *WindowsDesktopService {
 	return &WindowsDesktopService{Backend: backend}
 }
 
-// GetWindowsDesktops returns all windows desktop resources.
-func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
+// GetWindowsDesktops returns all Windows desktops matching filter.
+func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	startKey := backend.Key(windowsDesktopsPrefix, "")
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	desktops := make([]types.WindowsDesktop, len(result.Items))
-	for i, item := range result.Items {
+
+	var desktops []types.WindowsDesktop
+	for _, item := range result.Items {
 		desktop, err := services.UnmarshalWindowsDesktop(item.Value,
 			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		desktops[i] = desktop
+		if !filter.Match(desktop) {
+			continue
+		}
+		desktops = append(desktops, desktop)
 	}
+	// If both HostID and Name are set in the filter only one desktop should be expected
+	if filter.HostID != "" && filter.Name != "" && len(desktops) == 0 {
+		return nil, trace.NotFound("windows desktop \"%s/%s\" doesn't exist", filter.HostID, filter.Name)
+	}
+
 	return desktops, nil
-}
-
-// GetWindowsDesktops returns all windows desktop resources matching name.
-func (s *WindowsDesktopService) GetWindowsDesktopsByName(ctx context.Context, name string) ([]types.WindowsDesktop, error) {
-	desktops, err := s.GetWindowsDesktops(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var matchingDesktops []types.WindowsDesktop
-	for _, desktop := range desktops {
-		if desktop.GetName() == name {
-			matchingDesktops = append(matchingDesktops, desktop)
-		}
-	}
-	return matchingDesktops, nil
-}
-
-// GetWindowsDesktop returns the specified windows desktop resource.
-func (s *WindowsDesktopService) GetWindowsDesktop(ctx context.Context, hostID, name string) (types.WindowsDesktop, error) {
-	item, err := s.Get(ctx, backend.Key(windowsDesktopsPrefix, hostID, name))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("windows desktop \"%s/%s\" doesn't exist", hostID, name)
-		}
-		return nil, trace.Wrap(err)
-	}
-	desktop, err := services.UnmarshalWindowsDesktop(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return desktop, nil
 }
 
 // CreateWindowsDesktop creates a windows desktop resource.
@@ -155,14 +132,32 @@ func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, deskto
 
 // DeleteWindowsDesktop removes the specified windows desktop resource.
 func (s *WindowsDesktopService) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
-	err := s.Delete(ctx, backend.Key(windowsDesktopsPrefix, hostID, name))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("windows desktop \"%s/%s\" doesn't exist", hostID, name)
-		}
-		return trace.Wrap(err)
+	if name == "" {
+		return trace.Errorf("name must not be empty")
 	}
-	return nil
+
+	doSingleDelete := func(hostID, name string) error {
+		err := s.Delete(ctx, backend.Key(windowsDesktopsPrefix, hostID, name))
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return trace.NotFound("windows desktop \"%s/%s\" doesn't exist", hostID, name)
+			}
+			return trace.Wrap(err)
+		}
+		return nil
+	}
+
+	if hostID == "" {
+		err := s.Delete(ctx, backend.Key(windowsDesktopsPrefix, name))
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return trace.NotFound("windows desktop \"%s/%s\" doesn't exist", hostID, name)
+			}
+			return trace.Wrap(err)
+		}
+		return nil
+	}
+	return doSingleDelete(hostID, name)
 }
 
 // DeleteAllWindowsDesktops removes all windows desktop resources.

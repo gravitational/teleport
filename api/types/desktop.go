@@ -207,3 +207,14 @@ func DeduplicateDesktops(desktops []WindowsDesktop) (result []WindowsDesktop) {
 	}
 	return result
 }
+
+// Match checks if a given desktop request matches this filter.
+func (f *WindowsDesktopFilter) Match(req WindowsDesktop) bool {
+	if f.HostID != "" && req.GetHostID() != f.HostID {
+		return false
+	}
+	if f.Name != "" && req.GetName() != f.Name {
+		return false
+	}
+	return true
+}

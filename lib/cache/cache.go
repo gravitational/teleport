@@ -1913,33 +1913,13 @@ func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (type
 }
 
 // GetWindowsDesktops returns all registered Windows desktop hosts.
-func (c *Cache) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
+func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.windowsDesktops.GetWindowsDesktops(ctx)
-}
-
-// GetWindowsDesktopsByName returns all registered Windows desktop hosts matching name.
-func (c *Cache) GetWindowsDesktopsByName(ctx context.Context, name string) ([]types.WindowsDesktop, error) {
-	rg, err := c.read()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.windowsDesktops.GetWindowsDesktopsByName(ctx, name)
-}
-
-// GetWindowsDesktop returns a registered Windows desktop host.
-func (c *Cache) GetWindowsDesktop(ctx context.Context, hostID, name string) (types.WindowsDesktop, error) {
-	rg, err := c.read()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.windowsDesktops.GetWindowsDesktop(ctx, hostID, name)
+	return rg.windowsDesktops.GetWindowsDesktops(ctx, filter)
 }
 
 // ListResources is a part of auth.Cache implementation

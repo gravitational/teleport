@@ -73,10 +73,11 @@ func (h *Handler) getDesktopsHandle(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
-	windowsDesktops, err := clt.GetWindowsDesktops(r.Context())
+	windowsDesktops, err := clt.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	windowsDesktops = types.DeduplicateDesktops(windowsDesktops)
 
 	return ui.MakeDesktops(windowsDesktops), nil
 }
@@ -90,13 +91,16 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 
 	desktopName := p.ByName("desktopName")
 
-	windowsDesktops, err := clt.GetWindowsDesktopsByName(r.Context(), desktopName)
+	windowsDesktops, err := clt.GetWindowsDesktops(r.Context(),
+		types.WindowsDesktopFilter{Name: desktopName})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if len(windowsDesktops) == 0 {
-		return nil, trace.NotFound("Expected at least one desktop, got %d", len(windowsDesktops))
+		return nil, trace.NotFound("expected at least one desktop, got 0")
 	}
-
+	// windowsDesktops may contain the same desktop multiple times
+	// if multiple Windows Desktop Services are in use. We only need
+	// to see the desktop once in the UI, so just take the first one.
 	return ui.MakeDesktop(windowsDesktops[0]), nil
 }

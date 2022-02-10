@@ -740,29 +740,36 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 		}
 		fmt.Printf("windows desktop service %q has been deleted\n", rc.ref.Name)
 	case types.KindWindowsDesktop:
-		desktops, err := client.GetWindowsDesktopsByName(ctx, rc.ref.Name)
+		desktops, err := client.GetWindowsDesktops(ctx,
+			types.WindowsDesktopFilter{Name: rc.ref.Name})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		deleted := false
+		if len(desktops) == 0 {
+			return trace.NotFound("no desktops with name %q were found", rc.ref.Name)
+		}
+		deleted := 0
 		var errs []error
 		for _, desktop := range desktops {
-			if desktop.GetAddr() == rc.ref.Name {
+			if desktop.GetName() != rc.ref.Name {
 				if err = client.DeleteWindowsDesktop(ctx, desktop.GetHostID(), rc.ref.Name); err != nil {
 					errs = append(errs, err)
 					continue
 				}
-				deleted = true
+				deleted++
 			}
 		}
-		if !deleted {
+		if deleted == 0 {
 			errs = append(errs,
-				trace.Errorf("failed to delete desktop %q", rc.ref.Name))
+				trace.Errorf("failed to delete any desktops with the name %q, %d were found",
+					rc.ref.Name, len(desktops)))
 		}
+		fmts := "%d windows desktops with name %q have been deleted"
 		if err := trace.NewAggregate(errs...); err != nil {
+			fmt.Printf(fmts+" with errors while deleting\n", deleted, rc.ref.Name)
 			return err
 		}
-		fmt.Printf("windows desktop %q has been deleted\n", rc.ref.Name)
+		fmt.Printf(fmts+"\n", deleted, rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -1199,7 +1206,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		}
 		return &windowsDesktopServiceCollection{services: out}, nil
 	case types.KindWindowsDesktop:
-		desktops, err := client.GetWindowsDesktops(ctx)
+		desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

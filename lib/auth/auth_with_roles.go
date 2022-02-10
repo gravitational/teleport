@@ -3846,11 +3846,11 @@ func (a *ServerWithRoles) DeleteAllWindowsDesktopServices(ctx context.Context) e
 }
 
 // GetWindowsDesktops returns all registered windows desktop hosts.
-func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
+func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	hosts, err := a.authServer.GetWindowsDesktops(ctx)
+	hosts, err := a.authServer.GetWindowsDesktops(ctx, filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3859,38 +3859,6 @@ func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context) ([]types.Windo
 		return nil, trace.Wrap(err)
 	}
 	return filtered, nil
-}
-
-func (a *ServerWithRoles) GetWindowsDesktopsByName(ctx context.Context, name string) ([]types.WindowsDesktop, error) {
-	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	hosts, err := a.authServer.GetWindowsDesktopsByName(ctx, name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	filtered, err := a.filterWindowsDesktops(hosts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return filtered, nil
-}
-
-// GetWindowsDesktop returns a registered windows desktop host.
-func (a *ServerWithRoles) GetWindowsDesktop(ctx context.Context, hostID, name string) (types.WindowsDesktop, error) {
-	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	host, err := a.authServer.GetWindowsDesktop(ctx, hostID, name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if filtered, err := a.filterWindowsDesktops([]types.WindowsDesktop{host}); err != nil {
-		return nil, trace.Wrap(err)
-	} else if len(filtered) == 0 {
-		return nil, trace.NotFound("not found")
-	}
-	return host, nil
 }
 
 // CreateWindowsDesktop creates a new windows desktop host.
@@ -3907,11 +3875,17 @@ func (a *ServerWithRoles) UpdateWindowsDesktop(ctx context.Context, s types.Wind
 		return trace.Wrap(err)
 	}
 
-	existing, err := a.authServer.GetWindowsDesktop(ctx, s.GetHostID(), s.GetName())
+	existing, err := a.authServer.GetWindowsDesktops(ctx,
+		types.WindowsDesktopFilter{HostID: s.GetHostID(), Name: s.GetName()})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.checkAccessToWindowsDesktop(existing); err != nil {
+	if len(existing) == 0 {
+		return trace.NotFound("no windows desktops with HostID %s and Name %s",
+			s.GetHostID(), s.GetName())
+	}
+
+	if err := a.checkAccessToWindowsDesktop(existing[0]); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.checkAccessToWindowsDesktop(s); err != nil {
@@ -3927,11 +3901,17 @@ func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.Wind
 		return trace.Wrap(err)
 	}
 
+	if s.GetHostID() == "" {
+		// dont try to insert desktops with empty hostIDs
+		return nil
+	}
+
 	// If the desktop exists, check access,
 	// if it doesn't, continue.
-	existing, err := a.authServer.GetWindowsDesktop(ctx, s.GetHostID(), s.GetName())
-	if err == nil {
-		if err := a.checkAccessToWindowsDesktop(existing); err != nil {
+	existing, err := a.authServer.GetWindowsDesktops(ctx,
+		types.WindowsDesktopFilter{HostID: s.GetHostID(), Name: s.GetName()})
+	if err == nil && len(existing) != 0 {
+		if err := a.checkAccessToWindowsDesktop(existing[0]); err != nil {
 			return trace.Wrap(err)
 		}
 	} else if err != nil && !trace.IsNotFound(err) {
@@ -3949,11 +3929,16 @@ func (a *ServerWithRoles) DeleteWindowsDesktop(ctx context.Context, hostID, name
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	desktop, err := a.authServer.GetWindowsDesktop(ctx, hostID, name)
+	desktop, err := a.authServer.GetWindowsDesktops(ctx,
+		types.WindowsDesktopFilter{HostID: hostID, Name: name})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.checkAccessToWindowsDesktop(desktop); err != nil {
+	if len(desktop) == 0 {
+		return trace.NotFound("no windows desktops with HostID %s and Name %s",
+			hostID, name)
+	}
+	if err := a.checkAccessToWindowsDesktop(desktop[0]); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteWindowsDesktop(ctx, hostID, name)
@@ -3965,7 +3950,7 @@ func (a *ServerWithRoles) DeleteAllWindowsDesktops(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	// Only delete the desktops the user has access to.
-	desktops, err := a.authServer.GetWindowsDesktops(ctx)
+	desktops, err := a.authServer.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	if err != nil {
 		return trace.Wrap(err)
 	}

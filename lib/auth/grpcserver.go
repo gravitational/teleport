@@ -3322,12 +3322,12 @@ func (g *GRPCServer) DeleteAllWindowsDesktopServices(ctx context.Context, _ *emp
 }
 
 // GetWindowsDesktops returns all registered Windows desktop hosts.
-func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, _ *empty.Empty) (*proto.GetWindowsDesktopsResponse, error) {
+func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, filter *types.WindowsDesktopFilter) (*proto.GetWindowsDesktopsResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	windowsDesktops, err := auth.GetWindowsDesktops(ctx)
+	windowsDesktops, err := auth.GetWindowsDesktops(ctx, *filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3342,46 +3342,6 @@ func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, _ *empty.Empty) (*p
 	return &proto.GetWindowsDesktopsResponse{
 		Desktops: desktops,
 	}, nil
-}
-
-// GetWindowsDesktopsByName returns all registered Windows desktop hosts matching name.
-func (g *GRPCServer) GetWindowsDesktopsByName(ctx context.Context, req *proto.GetWindowsDesktopsByNameRequest) (*proto.GetWindowsDesktopsResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	windowsDesktops, err := auth.GetWindowsDesktopsByName(ctx, req.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var desktops []*types.WindowsDesktopV3
-	for _, s := range windowsDesktops {
-		desktop, ok := s.(*types.WindowsDesktopV3)
-		if !ok {
-			return nil, trace.BadParameter("unexpected type %T", s)
-		}
-		desktops = append(desktops, desktop)
-	}
-	return &proto.GetWindowsDesktopsResponse{
-		Desktops: desktops,
-	}, nil
-}
-
-// GetWindowsDesktop returns a named registered Windows desktop host.
-func (g *GRPCServer) GetWindowsDesktop(ctx context.Context, req *proto.GetWindowsDesktopRequest) (*types.WindowsDesktopV3, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	windowsDesktop, err := auth.GetWindowsDesktop(ctx, req.GetHostID(), req.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	desktop, ok := windowsDesktop.(*types.WindowsDesktopV3)
-	if !ok {
-		return nil, trace.BadParameter("unexpected type %T", windowsDesktop)
-	}
-	return desktop, nil
 }
 
 // CreateWindowsDesktop registers a new Windows desktop host.

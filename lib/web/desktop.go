@@ -97,7 +97,8 @@ func createDesktopConnection(
 	//
 	// In the future, we may want to do something smarter like latency-based
 	// routing.
-	winDesktops, err := ctx.unsafeCachedAuthClient.GetWindowsDesktopsByName(r.Context(), desktopName)
+	winDesktops, err := ctx.unsafeCachedAuthClient.GetWindowsDesktops(r.Context(),
+		types.WindowsDesktopFilter{Name: desktopName})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -106,6 +107,11 @@ func createDesktopConnection(
 	}
 	var validServiceIDs []string
 	for _, desktop := range winDesktops {
+		if desktop.GetHostID() == "" {
+			// desktops with empty host ids are invalid and should
+			// only occur when migrating from an old version of teleport
+			continue
+		}
 		validServiceIDs = append(validServiceIDs, desktop.GetHostID())
 	}
 	rand.Shuffle(len(validServiceIDs), func(i, j int) {
@@ -127,17 +133,20 @@ func createDesktopConnection(
 			ConnType: types.WindowsDesktopTunnel,
 			ServerID: service.GetName() + "." + ctx.parent.clusterName,
 		})
-		if err != nil {
-			if trace.IsConnectionProblem(err) {
-				log.Errorf("Error connecting to service %q, trying another.", service.GetAddr())
-				continue
-			}
-			return trace.WrapWithMessage(err, "error connecting to windows_desktop_service at %q: %v", service.GetAddr(), err)
+		if err == nil {
+			break
 		}
-		break
+		if !trace.IsConnectionProblem(err) {
+			return trace.WrapWithMessage(err,
+				"error connecting to windows_desktop_service at %q: %v", service.GetAddr(), err)
+		}
+		log.Infof("Error connecting to service %q, trying another.", service.GetAddr())
 	}
 	if err != nil {
-		return trace.Errorf("Failed to connect to any windows_desktop_service: %v", err)
+		return trace.Errorf("failed to connect to any windows_desktop_service: %v", err)
+	}
+	if serviceCon == nil {
+		return trace.Errorf("failed to connect to any windows_desktop_service: connection unexpectedly nil")
 	}
 	defer serviceCon.Close()
 	tlsConfig := ctx.clt.Config()
