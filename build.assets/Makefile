@@ -17,15 +17,21 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 RUNTIME ?= go1.17.2
-RUST_VERSION ?= 1.56.1
+RUST_VERSION ?= 1.58.1
 BORINGCRYPTO_RUNTIME=$(RUNTIME)b7
 LIBBPF_VERSION ?= 0.3.1
 
 UID := $$(id -u)
 GID := $$(id -g)
 
+HOST_ARCH := $(shell uname -m)
+RUNTIME_ARCH_x86_64 := amd64
+# uname returns different value on Linux (aarch64) and MacOS (arm64).
+RUNTIME_ARCH_arm64 := arm64
+RUNTIME_ARCH_aarch64 := arm64
+RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
+
 PROTOC_VER ?= 3.6.1
-PROTOC_PLATFORM := linux-x86_64
 GOGO_PROTO_TAG ?= v1.3.2
 
 BUILDBOX=quay.io/gravitational/teleport-buildbox:$(RUNTIME)
@@ -101,25 +107,25 @@ build-binaries-fips: buildbox-fips
 # If running in CI and there is no image with the buildbox name:tag combination present locally,
 # the image is pulled from the Docker repository. If this pull fails (i.e. when a new Go runtime is
 # first used), the error is ignored and the buildbox is built using the Dockerfile.
+# BUILDARCH is set explicitly, so it's set with and without BuildKit enabled.
 #
 .PHONY:buildbox
 buildbox:
 	if [[ "$(BUILDBOX_NAME)" == "$(BUILDBOX)" ]]; then \
 		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX) 2>&1 >/dev/null; then docker pull $(BUILDBOX) || true; fi; \
-		docker build --platform=linux/amd64 \
+		docker build --platform=linux/$(RUNTIME_ARCH) \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
+			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 			--build-arg RUNTIME=$(RUNTIME) \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg PROTOC_VER=$(PROTOC_VER) \
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
-			--build-arg PROTOC_PLATFORM=$(PROTOC_PLATFORM) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 			--cache-from $(BUILDBOX) \
 			--tag $(BUILDBOX) . ; \
 	fi
 
-#
 # Builds a Docker buildbox for FIPS
 #
 .PHONY:buildbox-fips
@@ -210,8 +216,8 @@ buildbox-arm-fips: buildbox-fips
 # grpc generates GRPC stubs from inside the buildbox
 .PHONY: grpc
 grpc: buildbox
-	docker run --platform=linux/amd64 \
-		$(DOCKERFLAGS) -t $(BUILDBOX) \
+	docker run \
+		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX) \
 		make -C /go/src/github.com/gravitational/teleport buildbox-grpc
 
 #
@@ -230,6 +236,7 @@ clean:
 test: buildbox
 	docker run \
 		--env TELEPORT_ETCD_TEST="yes" \
+		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
@@ -242,6 +249,7 @@ test: buildbox
 test-root: buildbox
 	docker run \
 		--env TELEPORT_ETCD_TEST="yes" \
+		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \

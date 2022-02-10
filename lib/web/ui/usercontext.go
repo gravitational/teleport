@@ -82,6 +82,8 @@ type userACL struct {
 	AccessRequests access `json:"accessRequests"`
 	// Billing defines access to billing information.
 	Billing access `json:"billing"`
+	// Clipboard defines whether the user can use a shared clipboard during windows desktop sessions.
+	Clipboard bool `json:"clipboard"`
 }
 
 type authType string
@@ -149,14 +151,12 @@ func getWindowsDesktopLogins(roleSet services.RoleSet) []string {
 
 func hasAccess(roleSet services.RoleSet, ctx *services.Context, kind string, verbs ...string) bool {
 	for _, verb := range verbs {
-		// Since this check occurs often and it does not imply the caller is trying
-		// to access any resource, silence any logging done on the proxy.
-		err := roleSet.CheckAccessToRule(ctx, apidefaults.Namespace, kind, verb, true)
-		if err != nil {
+		// Since this check occurs often and does not imply the caller is trying to
+		// access any resource, silence any logging done on the proxy.
+		if err := roleSet.GuessIfAccessIsPossible(ctx, apidefaults.Namespace, kind, verb, true); err != nil {
 			return false
 		}
 	}
-
 	return true
 }
 
@@ -222,6 +222,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	logins := getLogins(userRoles)
 	accessStrategy := getAccessStrategy(userRoles)
 	windowsLogins := getWindowsDesktopLogins(userRoles)
+	clipboard := userRoles.DesktopClipboard()
 
 	acl := userACL{
 		AccessRequests:  requestAccess,
@@ -240,6 +241,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Tokens:          tokenAccess,
 		Nodes:           nodeAccess,
 		Billing:         billingAccess,
+		Clipboard:       clipboard,
 	}
 
 	// local user

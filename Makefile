@@ -136,11 +136,13 @@ ifneq ($(CHECK_CARGO),)
 with_roletester := yes
 ROLETESTER_MESSAGE := "with access tester"
 ROLETESTER_TAG := roletester
-ROLETESTER_BUILDDIR := lib/datalog/roletester/Cargo.toml
 
+ifneq ("$(ARCH)","arm")
+# Do not build RDP client on ARM. The client includes OpenSSL which requires libatomic on ARM 32bit.
 with_rdpclient := yes
 RDPCLIENT_MESSAGE := "with Windows RDP client"
 RDPCLIENT_TAG := desktop_access_rdp
+endif
 endif
 endif
 
@@ -246,7 +248,7 @@ endif
 ifeq ("$(with_roletester)", "yes")
 .PHONY: roletester
 roletester:
-	cargo build --manifest-path=$(ROLETESTER_BUILDDIR) --release $(CARGO_TARGET)
+	cargo build -p role_tester --release $(CARGO_TARGET)
 else
 .PHONY: roletester
 roletester:
@@ -255,7 +257,7 @@ endif
 ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
-	cargo build --manifest-path=lib/srv/desktop/rdp/rdpclient/Cargo.toml --release $(CARGO_TARGET)
+	cargo build -p rdp-client --release $(CARGO_TARGET)
 	cargo install cbindgen
 	cbindgen --quiet --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
 else
@@ -294,13 +296,13 @@ clean:
 	rm -rf $(BUILDDIR)
 	rm -rf $(ER_BPF_BUILDDIR)
 	rm -rf $(RS_BPF_BUILDDIR)
-	rm -rf lib/srv/desktop/rdp/rdpclient/target
-	rm -rf lib/datalog/roletester/target
+	-cargo clean
 	-go clean -cache
 	rm -rf teleport
 	rm -rf *.gz
 	rm -rf *.zip
 	rm -f gitref.go
+	rm -rf build.assets/tooling/bin
 
 #
 # make release - Produces a binary release tarball.
@@ -436,26 +438,43 @@ docs-test-whitespace:
 	fi
 
 
+
+
+#
+# Builds some tooling for filtering and displaying test progress/output/etc
+#
+RENDER_TESTS := ./build.assets/tooling/bin/render-tests
+$(RENDER_TESTS): $(wildcard ./build.assets/tooling/cmd/render-tests/*.go)
+	go build -o "$@" ./build.assets/tooling/cmd/render-tests
+
 #
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-sh test-api test-go
+test: test-sh test-api test-go test-rust
+
+# Runs bot Go tests.
+#
+.PHONY: test-bot
+test-bot:
+test-bot: FLAGS ?= '-race'
+test-bot:
+	cd .github/workflows/robot && go test $(FLAGS) ./...
 
 #
 # Runs all Go tests except integration, called by CI/CD.
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 #
 .PHONY: test-go
-test-go: ensure-webassets bpf-bytecode roletester rdpclient
+test-go: ensure-webassets bpf-bytecode roletester rdpclient $(RENDER_TESTS)
 test-go: FLAGS ?= '-race'
-test-go: PACKAGES := $(shell go list ./... | grep -v integration)
-test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
+test-go: PACKAGES = $(shell go list ./... | grep -v integration)
+test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
-		| go run build.assets/render-tests/main.go
+		| ${RENDER_TESTS}
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
-		| go run build.assets/render-tests/main.go
+		| ${RENDER_TESTS}
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
@@ -464,18 +483,34 @@ UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
 test-go-root: ensure-webassets bpf-bytecode roletester rdpclient
 test-go-root: FLAGS ?= '-race'
-test-go-root: PACKAGES := $(shell go list $(ADDFLAGS) ./... | grep -v integration)
+test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
-# Runs API Go tests. These have to be run separately as the package name is different.
+#
+# Runs Go tests on the api module. These have to be run separately as the package name is different.
 #
 .PHONY: test-api
 test-api:
 test-api: FLAGS ?= '-race'
-test-api: PACKAGES := $(shell cd api && go list ./...)
+test-api: PACKAGES = $(shell cd api && go list ./...)
 test-api: $(VERSRC)
 	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+
+#
+# Runs cargo test on our Rust modules.
+# (a no-op if cargo and rustc are not installed)
+#
+ifneq ($(CHECK_RUST),)
+ifneq ($(CHECK_CARGO),)
+.PHONY: test-rust
+test-rust:
+	cargo test
+else
+.PHONY: test-rust
+test-rust:
+endif
+endif
 
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
@@ -497,10 +532,11 @@ run-etcd:
 #
 .PHONY: integration
 integration: FLAGS ?= -v -race
-integration: PACKAGES := $(shell go list ./... | grep integration)
-integration:
+integration: PACKAGES = $(shell go list ./... | grep integration)
+integration: $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -timeout 30m -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
+		| $(RENDER_TESTS) -report-by test
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -509,9 +545,10 @@ integration:
 INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
 integration-root: FLAGS ?= -v -race
-integration-root: PACKAGES := $(shell go list ./... | grep integration)
-integration-root:
-	$(CGOFLAG) go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
+integration-root: PACKAGES = $(shell go list ./... | grep integration)
+integration-root: $(RENDER_TESTS)
+	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
+		| $(RENDER_TESTS) -report-by test
 
 #
 # Lint the source code.
@@ -519,21 +556,53 @@ integration-root:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go lint-license lint-rdp
+lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools
 
-.PHONY: lint-rdp
-lint-rdp:
-	cd lib/srv/desktop/rdp/rdpclient \
-		&& cargo clippy --locked --all-targets -- -D warnings \
+.PHONY: lint-tools
+lint-tools: lint-version-check lint-bot lint-ci-scripts lint-backport
+
+#
+# Runs the clippy linter on our rust modules
+# (a no-op if cargo and rustc are not installed)
+#
+ifneq ($(CHECK_RUST),)
+ifneq ($(CHECK_CARGO),)
+.PHONY: lint-rust
+lint-rust:
+	cargo clippy --locked --all-targets -- -D warnings \
 		&& cargo fmt -- --check
+else
+.PHONY: lint-rust
+lint-rust:
+endif
+endif
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
 	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
 
+.PHONY: lint-version-check
+lint-version-check: GO_LINT_FLAGS ?=
+lint-version-check:
+	cd build.assets/version-check && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
+
+.PHONY: lint-backport
+lint-backport: GO_LINT_FLAGS ?=
+lint-backport:
+	cd assets/backport && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
+
+.PHONY: lint-bot
+lint-bot: GO_LINT_FLAGS ?=
+lint-bot:
+	cd .github/workflows/robot && golangci-lint run -c ../../../.golangci.yml $(GO_LINT_FLAGS)
+
+.PHONY: lint-ci-scripts
+lint-ci-scripts: GO_LINT_FLAGS ?=
+lint-ci-scripts:
+	cd .cloudbuild/scripts/ && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
+
 # api is no longer part of the teleport package, so golangci-lint skips it by default
-# GOMODCACHE needs to be set here as api downloads dependencies and cannot write to /go/pkg/mod/cache
 .PHONY: lint-api
 lint-api: GO_LINT_API_FLAGS ?=
 lint-api:
@@ -543,7 +612,7 @@ lint-api:
 .PHONY: lint-sh
 lint-sh: SH_LINT_FLAGS ?=
 lint-sh:
-	find . -type f -name '*.sh' | grep -v vendor | xargs \
+	find . -type f -name '*.sh' | xargs \
 		shellcheck \
 		--exclude=SC2086 \
 		$(SH_LINT_FLAGS)
@@ -603,11 +672,11 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'e/**' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/web/build/**' \
-		-ignore 'vendor/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme' \
-		-ignore lib/srv/desktop/rdp/rdpclient/target
+		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
+		-ignore 'lib/datalog/roletester/target/**'
 
 .PHONY: lint-license
 lint-license: $(ADDLICENSE)
@@ -628,7 +697,7 @@ version: $(VERSRC)
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 	# Update api module path, but don't fail on error.
-	$(MAKE) update-api-module-path || true
+	$(MAKE) update-api-import-path || true
 
 # This rule updates the api module path to be in sync with the current api release version.
 # e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
@@ -640,10 +709,9 @@ $(VERSRC): Makefile
 #    - v0.0.0 -> v1.0.0 - both have no version suffix - github.com/gravitational/teleport/api
 #
 # Note: any build flags needed to compile go files (such as build tags) should be provided below.
-.PHONY: update-api-module-path
-update-api-module-path:
-	go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
-	$(MAKE) update-vendor
+.PHONY: update-api-import-path
+update-api-import-path:
+	go run build.assets/gomod/update-api-import-path/main.go -tags "bpf fips pam roletester desktop_access_rdp linux"
 	$(MAKE) grpc
 
 # make tag - prints a tag to use with git for the current version
@@ -693,7 +761,7 @@ profile:
 
 .PHONY: sloccount
 sloccount:
-	find . -path ./vendor -prune -o -name "*.go" -print0 | xargs -0 wc -l
+	find . -o -name "*.go" -print0 | xargs -0 wc -l
 
 .PHONY: remove-temp-files
 remove-temp-files:
@@ -720,50 +788,70 @@ enter:
 grpc:
 	$(MAKE) -C build.assets grpc
 
+# proto file dependencies within the api module must be passed with the 'M' flag. This
+# way protoc generated files will use the correct api module import path in the case where
+# the import path has a version suffix, e.g. github.com/gravitational/teleport/api/v8
+GOGOPROTO_IMPORTMAP ?= $\
+	Mgithub.com/gravitational/teleport/api/types/types.proto=$(API_IMPORT_PATH)/types,$\
+	Mgithub.com/gravitational/teleport/api/types/events/events.proto=$(API_IMPORT_PATH)/types/events,$\
+	Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,$\
+	Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn
+
 # buildbox-grpc generates GRPC stubs
 .PHONY: buildbox-grpc
 buildbox-grpc:
-# standard GRPC output
 	echo $$PROTO_INCLUDE
-	find lib/ -iname *.proto | xargs $(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
-	find api/ -iname *.proto | xargs $(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
+	$(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}' \
+		api/client/proto/authservice.proto \
+		api/client/proto/joinservice.proto \
+		api/types/events/events.proto \
+		api/types/types.proto \
+		api/types/webauthn/webauthn.proto \
+		api/types/wrappers/wrappers.proto \
+		lib/datalog/types.proto \
+		lib/events/slice.proto \
+		lib/multiplexer/test/ping.proto \
+		lib/web/envelope.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/types/events \
-		--gogofast_out=plugins=grpc:api/types/events \
+# we eval within the make target to avoid invoking `go run` with every other call to the makefile
+	$(eval API_IMPORT_PATH := $(shell go run build.assets/gomod/print-import-path/main.go ./api))
+
+	cd api/client/proto && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
+		certs.proto authservice.proto joinservice.proto
+
+	cd api/types/events && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		events.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/types/webauthn \
-		--gogofast_out=plugins=grpc:api/types/webauthn \
-		webauthn.proto
-
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/types/wrappers \
-		--gogofast_out=plugins=grpc:api/types/wrappers \
-		wrappers.proto
-
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/types \
-		--gogofast_out=plugins=grpc:api/types \
+	cd api/types && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		types.proto
 
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/client/proto \
-		--gogofast_out=plugins=grpc:api/client/proto \
-		authservice.proto
+	cd api/types/webauthn && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
+		webauthn.proto
 
-	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
-	  --gogofast_out=plugins=grpc:.\
-    *.proto
-
-	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
-	  --gogofast_out=plugins=grpc:.\
-    *.proto
+	cd api/types/wrappers && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
+		wrappers.proto
 
 	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
-	  --gogofast_out=plugins=grpc:.\
-    types.proto
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
+		types.proto
+
+	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
+		slice.proto
+
+	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
+		ping.proto
+
+	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
+		envelope.proto
+
 
 .PHONY: goinstall
 goinstall:
@@ -912,31 +1000,6 @@ init-submodules-e: init-webapps-submodules-e
 	git submodule init e
 	git submodule update
 
-# Update go.mod and vendor files.
-.PHONY: update-vendor
-update-vendor:
-	# update modules in api/
-	cd api && go mod tidy
-	# update modules in root directory
-	go mod tidy
-	go mod vendor
-	$(MAKE) vendor-api
-
-# When teleport vendors its dependencies, Go also vendors the local api sub module. To get
-# around this issue, we replace the vendored api package with a symlink to the
-# local module. The symlink should be in vendor/.../api or vendor/.../api/vX if X >= 2.
-.PHONY: vendor-api
-vendor-api: API_VENDOR_PATH := vendor/$(shell head -1 api/go.mod | awk '{print $$2;}')
-vendor-api:
-	rm -rf vendor/github.com/gravitational/teleport/api
-	mkdir -p $(shell dirname $(API_VENDOR_PATH))
-	# make a relative link to the true api dir (without using `ln -r` for non-linux OS compatibility)
-	if [ -d $(shell dirname $(API_VENDOR_PATH))/../../../../../api/ ]; then \
-		ln -s ../../../../../api $(API_VENDOR_PATH); \
-	else \
-		ln -s ../../../../api $(API_VENDOR_PATH); \
-	fi;
-
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.
 .PHONY: update-webassets
@@ -949,3 +1012,9 @@ update-webassets:
 .PHONY: dronegen
 dronegen:
 	go run ./dronegen
+
+# backport will automatically create backports for a given PR as long as you have the "gh" tool
+# installed locally. To backport, type "make backport PR=1234 TO=branch/1,branch/2".
+.PHONY: backport
+backport:
+	(cd ./assets/backport && go run main.go -pr=$(PR) -to=$(TO))

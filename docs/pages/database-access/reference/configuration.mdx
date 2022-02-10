@@ -20,8 +20,10 @@ db_service:
 
   # Matchers for registering AWS-hosted databases.
   aws:
-    # Database types, only "rds" is supported currently.
-  - types: ["rds"]
+    # Database types. Valid options are:
+    # 'rds' - discovers and registers AWS RDS and Aurora databases.
+    # 'redshift' - discovers and registers AWS Redshift databases.
+  - types: ["rds", "redshift"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]
     # AWS resource tags to match when registering databases.
@@ -38,8 +40,19 @@ db_service:
     protocol: "postgres"
     # Database connection endpoint. Must be reachable from Database Service.
     uri: "postgres.example.com:5432"
-    # Optional path to the CA used to validate the database certificate.
-    ca_cert_file: /path/to/ca.pem
+    # Optional TLS configuration.
+    tls:
+      # TLS verification mode. Valid options are:
+      # 'verify-full' - performs full certificate validation (default).
+      # 'verify-ca' - the same as `verify-full`, but skips the server name validation.
+      # 'insecure' - accepts any certificate provided by database (not recommended).
+      mode: verify-full
+      # Optional database DNS server name. It allows to override the DNS name on
+      # a client certificate when connecting to a database.
+      # Use only with 'verify-full' mode.
+      server_name: db.example.com
+      # Optional path to the CA used to validate the database certificate.
+      ca_cert_file: /path/to/pem
     # AWS specific configuration, only required for RDS/Aurora/Redshift.
     aws:
       # Region the database is deployed in.
@@ -85,14 +98,22 @@ proxy_service:
   # MySQL proxy is listening on a separate port and needs to be enabled
   # on the proxy server.
   mysql_listen_addr: "0.0.0.0:3036"
+  # Postgres proxy listening address. If provided, proxy will use a separate listener
+  # instead of multiplexing Postgres protocol on web_listener_addr.
+  # postgres_listen_addr: "0.0.0.0:5432"
+  # Mongo proxy listening address. If provided, proxy will use a separate listener
+  # instead of multiplexing Mongo protocol on web_listener_addr.
+  # mongo_listen_addr: "0.0.0.0:27017"
   # By default database clients will be connecting to the Proxy over this
   # hostname. To override public address for specific database protocols
   # use postgres_public_addr and mysql_public_addr.
   public_addr: "teleport.example.com:3080"
-  # Address advertised to PostgreSQL clients. If not set, public_addr is used.
-  postgres_public_addr: "postgres.teleport.example.com:443"
   # Address advertised to MySQL clients. If not set, public_addr is used.
   mysql_public_addr: "mysql.teleport.example.com:3306"
+  # Address advertised to PostgreSQL clients. If not set, public_addr is used.
+  postgres_public_addr: "postgres.teleport.example.com:443"
+  # Address advertised to Mongo clients. If not set, public_addr is used.
+  mongo_public_addr: "mongo.teleport.example.com:443"
 ```
 
 ## Database resource

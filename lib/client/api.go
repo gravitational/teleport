@@ -199,6 +199,9 @@ type Config struct {
 	// PostgresProxyAddr is the host:port the Postgres proxy can be accessed at.
 	PostgresProxyAddr string
 
+	// MongoProxyAddr is the host:port the Mongo proxy can be accessed at.
+	MongoProxyAddr string
+
 	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
 	MySQLProxyAddr string
 
@@ -218,6 +221,16 @@ type Config struct {
 
 	// ForwardAgent is used by the client to request agent forwarding from the server.
 	ForwardAgent AgentForwardingMode
+
+	// EnableX11Forwarding specifies whether X11 forwarding should be enabled.
+	EnableX11Forwarding bool
+
+	// X11ForwardingTimeout can be set to set a X11 forwarding timeout in seconds,
+	// after which any X11 forwarding requests in that session will be rejected.
+	X11ForwardingTimeout time.Duration
+
+	// X11ForwardingTrusted specifies the X11 forwarding security mode.
+	X11ForwardingTrusted bool
 
 	// AuthMethods are used to login into the cluster. If specified, the client will
 	// use them in addition to certs stored in its local agent (from disk)
@@ -411,11 +424,11 @@ func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
 	return p.ValidUntil.Sub(clock.Now()) <= 0
 }
 
-// CACertPath returns path to the CA certificate for this profile.
+// CACertPathForCluster returns path to the cluster CA certificate for this profile.
 //
-// It's stored in <profile-dir>/keys/<proxy>/certs.pem by default.
-func (p *ProfileStatus) CACertPath() string {
-	return keypaths.TLSCAsPath(p.Dir, p.Name)
+// It's stored in  <profile-dir>/keys/<proxy>/cas/<cluster>.pem by default.
+func (p *ProfileStatus) CACertPathForCluster(cluster string) string {
+	return filepath.Join(keypaths.ProxyKeyDir(p.Dir, p.Name), "cas", cluster+".pem")
 }
 
 // KeyPath returns path to the private key for this profile.
@@ -524,7 +537,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return trace.Wrap(err)
 	}
 	// Save profile to record proxy credentials
-	if err := tc.SaveProfile("", true); err != nil {
+	if err := tc.SaveProfile(tc.HomePath, true); err != nil {
 		log.Warningf("Failed to save profile: %v", err)
 		return trace.Wrap(err)
 	}
@@ -800,6 +813,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.SSHProxyAddr = cp.SSHProxyAddr
 	c.PostgresProxyAddr = cp.PostgresProxyAddr
 	c.MySQLProxyAddr = cp.MySQLProxyAddr
+	c.MongoProxyAddr = cp.MongoProxyAddr
 	c.TLSRoutingEnabled = cp.TLSRoutingEnabled
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
@@ -831,6 +845,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.KubeProxyAddr = c.KubeProxyAddr
 	cp.PostgresProxyAddr = c.PostgresProxyAddr
 	cp.MySQLProxyAddr = c.MySQLProxyAddr
+	cp.MongoProxyAddr = c.MongoProxyAddr
 	cp.ForwardedPorts = c.LocalForwardPorts.String()
 	cp.SiteName = c.SiteName
 	cp.TLSRoutingEnabled = c.TLSRoutingEnabled
@@ -996,6 +1011,17 @@ func (c *Config) PostgresProxyHostPort() (string, int) {
 	return c.WebProxyHostPort()
 }
 
+// MongoProxyHostPort returns the host and port of Mongo proxy.
+func (c *Config) MongoProxyHostPort() (string, int) {
+	if c.MongoProxyAddr != "" {
+		addr, err := utils.ParseAddr(c.MongoProxyAddr)
+		if err == nil {
+			return addr.Host(), addr.Port(defaults.MongoListenPort)
+		}
+	}
+	return c.WebProxyHostPort()
+}
+
 // MySQLProxyHostPort returns the host and port of MySQL proxy.
 func (c *Config) MySQLProxyHostPort() (string, int) {
 	if c.MySQLProxyAddr != "" {
@@ -1016,7 +1042,7 @@ func (c *Config) DatabaseProxyHostPort(db tlsca.RouteToDatabase) (string, int) {
 	case defaults.ProtocolMySQL:
 		return c.MySQLProxyHostPort()
 	case defaults.ProtocolMongoDB:
-		return c.WebProxyHostPort()
+		return c.MongoProxyHostPort()
 	}
 	return c.WebProxyHostPort()
 }
@@ -1117,7 +1143,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		// if the client was passed an agent in the configuration and skip local auth, use
 		// the passed in agent.
 		if c.Agent != nil {
-			tc.localAgent = &LocalKeyAgent{Agent: c.Agent, keyStore: noLocalKeyStore{}}
+			tc.localAgent = &LocalKeyAgent{Agent: c.Agent, keyStore: noLocalKeyStore{}, siteName: tc.SiteName}
 		}
 	} else {
 		// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
@@ -1139,6 +1165,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			Username:   c.Username,
 			KeysOption: c.AddKeysToAgent,
 			Insecure:   c.InsecureSkipVerify,
+			SiteName:   tc.SiteName,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1185,6 +1212,19 @@ func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clus
 // LocalAgent is a getter function for the client's local agent
 func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 	return tc.localAgent
+}
+
+// RootClusterName returns root cluster name.
+func (tc *TeleportClient) RootClusterName() (string, error) {
+	key, err := tc.LocalAgent().GetCoreKey()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	name, err := key.RootClusterName()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return name, nil
 }
 
 // getTargetNodes returns a list of node addresses this SSH command needs to
@@ -1419,7 +1459,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	if len(nodeAddrs) > 1 {
 		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
 	}
-	return tc.runShell(nodeClient, nil)
+	return tc.runShell(ctx, nodeClient, nil)
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) {
@@ -1529,7 +1569,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	tc.startPortForwarding(ctx, nc)
 
 	// running shell with a given session means "join" it:
-	return tc.runShell(nc, session)
+	return tc.runShell(ctx, nc, session)
 }
 
 // Play replays the recorded session
@@ -1573,6 +1613,32 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	}
 
 	return playSession(sessionEvents, stream)
+}
+
+func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessionID string) ([]events.EventFields, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter(auth.MissingNamespaceError)
+	}
+	sid, err := session.ParseID(sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
+	}
+	// connect to the auth server (site) who made the recording
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	events, err := site.GetSessionEvents(namespace, *sid, 0, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return events, nil
 }
 
 // PlayFile plays the recorded session from a tar file
@@ -1972,13 +2038,13 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 }
 
 // runShell starts an interactive SSH session/shell.
-// sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session) error {
+// sessToJoin : when empty, creates a new shell. otherwise it tries to join the existing session.
+func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, sessToJoin *session.Session) error {
 	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = nodeSession.runShell(tc.OnShellCreated); err != nil {
+	if err = nodeSession.runShell(ctx, tc.OnShellCreated); err != nil {
 		switch e := trace.Unwrap(err).(type) {
 		case *ssh.ExitError:
 			tc.ExitStatus = e.ExitStatus()
@@ -2663,6 +2729,24 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 		tc.PostgresProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(webProxyPort))
 	}
 
+	// Read Mongo proxy settings.
+	switch {
+	case proxySettings.DB.MongoPublicAddr != "":
+		addr, err := utils.ParseAddr(proxySettings.DB.MongoPublicAddr)
+		if err != nil {
+			return trace.BadParameter("failed to parse Mongo public address received from server: %q, contact your administrator for help",
+				proxySettings.DB.MongoPublicAddr)
+		}
+		tc.MongoProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(tc.WebProxyPort())))
+	case proxySettings.DB.MongoListenAddr != "":
+		addr, err := utils.ParseAddr(proxySettings.DB.MongoListenAddr)
+		if err != nil {
+			return trace.BadParameter("failed to parse Mongo listen address received from server: %q, contact your administrator for help",
+				proxySettings.DB.MongoListenAddr)
+		}
+		tc.MongoProxyAddr = net.JoinHostPort(tc.WebProxyHost(), strconv.Itoa(addr.Port(defaults.MongoListenPort)))
+	}
+
 	// Read MySQL proxy settings if enabled on the server.
 	switch {
 	case proxySettings.DB.MySQLPublicAddr != "":
@@ -2999,7 +3083,13 @@ func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", tc.Username)
 	}
-	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil)
+
+	rootCluster, err := tlsKey.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, []string{rootCluster})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}

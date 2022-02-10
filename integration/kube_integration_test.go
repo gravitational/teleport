@@ -33,35 +33,36 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/events"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 
-	v1 "k8s.io/api/core/v1"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/net/http2"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	streamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport"
 	"k8s.io/client-go/transport/spdy"
+
+	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	streamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 )
 
 type KubeSuite struct {
@@ -144,7 +145,7 @@ type kubeIntegrationTest func(t *testing.T, suite *KubeSuite)
 
 func (s *KubeSuite) bind(test kubeIntegrationTest) func(t *testing.T) {
 	return func(t *testing.T) {
-		s.log = testlog.FailureOnly(t)
+		s.log = utils.NewLoggerForTests()
 		os.RemoveAll(profile.FullProfilePath(""))
 		t.Cleanup(func() { s.log = nil })
 		test(t, s)
@@ -156,6 +157,7 @@ func TestKube(t *testing.T) {
 	t.Run("Exec", suite.bind(testKubeExec))
 	t.Run("Deny", suite.bind(testKubeDeny))
 	t.Run("PortForward", suite.bind(testKubePortForward))
+	t.Run("TransportProtocol", suite.bind(testKubeTransportProtocol))
 	t.Run("TrustedClustersClientCert", suite.bind(testKubeTrustedClustersClientCert))
 	t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
 	t.Run("Disconnect", suite.bind(testKubeDisconnect))
@@ -576,12 +578,11 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	// make sure we upsert a trusted cluster
 	require.True(t, upsertSuccess)
 
-	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-	abortTime := time.Now().Add(time.Second * 10)
-	for len(checkGetClusters(t, main.Tunnel)) < 2 && len(checkGetClusters(t, aux.Tunnel)) < 2 {
-		time.Sleep(time.Millisecond * 2000)
-		require.False(t, time.Now().After(abortTime), "two clusters do not see each other: tunnels are not working")
-	}
+	// Wait for both cluster to see each other via reverse tunnels.
+	require.Eventually(t, waitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, waitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
 
 	// impersonating client requests will be denied
 	impersonatingProxyClient, impersonatingProxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
@@ -832,14 +833,11 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	// make sure we upsert a trusted cluster
 	require.True(t, upsertSuccess)
 
-	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-	abortTime := time.Now().Add(time.Second * 10)
-	for len(checkGetClusters(t, main.Tunnel)) < 2 && len(checkGetClusters(t, aux.Tunnel)) < 2 {
-		time.Sleep(time.Millisecond * 2000)
-		if time.Now().After(abortTime) {
-			t.Fatalf("two clusters do not see each other: tunnels are not working")
-		}
-	}
+	// Wait for both cluster to see each other via reverse tunnels.
+	require.Eventually(t, waitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, waitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
 
 	// impersonating client requests will be denied
 	impersonatingProxyClient, impersonatingProxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
@@ -979,7 +977,6 @@ loop:
 	err = impersonatingForwarder.ForwardPorts()
 	require.Error(t, err)
 	require.Regexp(t, ".*impersonation request has been denied.*", err.Error())
-
 }
 
 // TestKubeDisconnect tests kubernetes session disconnects
@@ -1092,6 +1089,97 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 	case <-sessionCtx.Done():
 		// session closed
 	}
+}
+
+// testKubeTransportProtocol tests the proxy transport protocol capabilities
+func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
+	tconf := suite.teleKubeConfig(Host)
+
+	teleport := NewInstance(InstanceConfig{
+		ClusterName: Site,
+		HostID:      HostID,
+		NodeName:    Host,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		log:         suite.log,
+	})
+
+	username := suite.me.Username
+	kubeGroups := []string{testImpersonationGroup}
+	role, err := types.NewRole("kubemaster", types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			KubeGroups: kubeGroups,
+		},
+	})
+	require.NoError(t, err)
+	teleport.AddUserWithRole(username, role)
+
+	err = teleport.CreateEx(t, nil, tconf)
+	require.NoError(t, err)
+
+	err = teleport.Start()
+	require.NoError(t, err)
+	defer teleport.StopAll()
+
+	// set up kube configuration using proxy
+	proxyClient, proxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
+		t:          teleport,
+		username:   username,
+		kubeGroups: kubeGroups,
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	pod, err := proxyClient.CoreV1().Pods(testNamespace).Get(ctx, testPod, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	u, err := url.Parse(proxyClientConfig.Host)
+	require.NoError(t, err)
+
+	u.Scheme = "https"
+	u.Path = fmt.Sprintf("/api/v1/namespaces/%v/pods/%v", pod.Namespace, pod.Name)
+
+	tlsConfig, err := tlsClientConfig(proxyClientConfig)
+	require.NoError(t, err)
+
+	trans := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+
+	// call proxy with an HTTP1 client
+	client := &http.Client{Transport: trans}
+	resp1, err := client.Get(u.String())
+	require.NoError(t, err)
+	defer resp1.Body.Close()
+	require.Equal(t, resp1.StatusCode, 200)
+	require.Equal(t, resp1.Proto, "HTTP/1.1")
+
+	// call proxy with an HTTP2 client
+	err = http2.ConfigureTransport(trans)
+	require.NoError(t, err)
+
+	resp2, err := client.Get(u.String())
+	require.NoError(t, err)
+	defer resp2.Body.Close()
+	require.Equal(t, resp2.StatusCode, 200)
+	require.Equal(t, resp2.Proto, "HTTP/2.0")
+
+	// stream succeeds with an h1 transport
+	command := kubeExecArgs{
+		podName:      pod.Name,
+		podNamespace: pod.Namespace,
+		container:    pod.Spec.Containers[0].Name,
+		command:      []string{"ls"},
+	}
+
+	err = kubeExec(proxyClientConfig, command)
+	require.NoError(t, err)
+
+	// stream fails with an h2 transport
+	proxyClientConfig.TLSClientConfig.NextProtos = []string{"h2"}
+	err = kubeExec(proxyClientConfig, command)
+	require.Error(t, err)
 }
 
 // teleKubeConfig sets up teleport with kubernetes turned on

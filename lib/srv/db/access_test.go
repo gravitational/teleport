@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -44,14 +45,18 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/siddontang/go-mysql/client"
+	mysqllib "github.com/siddontang/go-mysql/mysql"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
 
 func TestMain(m *testing.M) {
@@ -297,12 +302,131 @@ func TestMySQLBadHandshake(t *testing.T) {
 	}
 }
 
+// TestAccessMySQLChangeUser verifies that COM_CHANGE_USER command is rejected.
+func TestAccessMySQLChangeUser(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"alice"}, []string{types.Wildcard})
+
+	// Connect to the database as this user.
+	mysqlConn, err := testCtx.mysqlClient("alice", "mysql", "alice")
+	require.NoError(t, err)
+
+	// Send COM_CHANGE_USER command. The driver doesn't support it natively so
+	// assemble the raw packet and send it which should be enough to test the
+	// rejection logic.
+	packet := []byte{
+		0x05,                     // Payload length.
+		0x00,                     // Payload length cont'd.
+		0x00,                     // Payload length cont'd.
+		0x00,                     // Sequence number.
+		mysqllib.COM_CHANGE_USER, // Command type.
+		'b',                      // Null-terminated string with new user name.
+		'o',
+		'b',
+		0x00,
+		// There would've been other fields in "real" packet but these will
+		// do for the test to detect the command.
+	}
+	err = mysqlConn.WritePacket(packet)
+	require.NoError(t, err)
+
+	// Connection should've been closed so any attempt to use it should fail.
+	_, err = mysqlConn.Execute("select 1")
+	require.Error(t, err)
+}
+
+// TestAccessMySQLServerPacket verifies some edge-cases related to reading
+// wire packets sent by the MySQL server.
+func TestAccessMySQLServerPacket(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with access permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"alice"}, []string{types.Wildcard})
+
+	// Connect to the database as this user.
+	mysqlConn, err := testCtx.mysqlClient("alice", "mysql", "alice")
+	require.NoError(t, err)
+
+	// Execute "show tables" command which will make the test server to reply
+	// in a way that previously would cause our packet parsing logic to fail.
+	_, err = mysqlConn.Execute("show tables")
+	require.NoError(t, err)
+}
+
+// TestGCPRequireSSL tests connecting to GCP Cloud SQL Postgres and MySQL
+// databases with an ephemeral client certificate.
+func TestGCPRequireSSL(t *testing.T) {
+	ctx := context.Background()
+	user := "alice"
+	testCtx := setupTestContext(ctx, t)
+	testCtx.createUserAndRole(ctx, t, user, "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	// Generate ephemeral cert returned from mock GCP API.
+	ephemeralCert, err := common.MakeTestClientTLSCert(common.TestClientConfig{
+		AuthClient: testCtx.authClient,
+		AuthServer: testCtx.authServer,
+		Cluster:    testCtx.clusterName,
+		Username:   user,
+	})
+	require.NoError(t, err)
+
+	// Setup database servers for Postgres and MySQL with a mock GCP API that
+	// will require SSL and return the ephemeral certificate created above.
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: []types.Database{
+			withCloudSQLPostgres("postgres", cloudSQLAuthToken)(t, ctx, testCtx),
+			withCloudSQLMySQLTLS("mysql", user, cloudSQLPassword)(t, ctx, testCtx),
+		},
+		GCPSQL: &cloud.GCPSQLAdminClientMock{
+			EphemeralCert: ephemeralCert,
+			DatabaseInstance: &sqladmin.DatabaseInstance{
+				Settings: &sqladmin.Settings{
+					IpConfiguration: &sqladmin.IpConfiguration{
+						RequireSsl: true,
+					},
+				},
+			},
+		},
+	})
+	go testCtx.startHandlingConnections()
+
+	// Try to connect to postgres.
+	pgConn, err := testCtx.postgresClient(ctx, user, "postgres", "postgres", "postgres")
+	require.NoError(t, err)
+
+	// Execute a query.
+	pgResult, err := pgConn.Exec(ctx, "select 1").ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, pgResult)
+
+	// Disconnect.
+	err = pgConn.Close(ctx)
+	require.NoError(t, err)
+
+	// Try to connect to MySQL.
+	mysqlConn, err := testCtx.mysqlClient(user, "mysql", user)
+	require.NoError(t, err)
+
+	// Execute a query.
+	mysqlResult, err := mysqlConn.Execute("select 1")
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, mysqlResult)
+
+	// Disconnect.
+	err = mysqlConn.Close()
+	require.NoError(t, err)
+}
+
 // TestAccessMongoDB verifies access scenarios to a MongoDB database based
 // on the configured RBAC rules.
 func TestAccessMongoDB(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo"))
-	go testCtx.startHandlingConnections()
 
 	tests := []struct {
 		desc         string
@@ -360,7 +484,7 @@ func TestAccessMongoDB(t *testing.T) {
 			queryErr:     "",
 		},
 		{
-			desc:         "access allowed to specific user/database",
+			desc:         "access allowed to specific user and database",
 			user:         "alice",
 			role:         "admin",
 			allowDbNames: []string{"admin"},
@@ -371,7 +495,7 @@ func TestAccessMongoDB(t *testing.T) {
 			queryErr:     "",
 		},
 		{
-			desc:         "access denied to specific user/database",
+			desc:         "access denied to specific user and database",
 			user:         "alice",
 			role:         "admin",
 			allowDbNames: []string{"admin"},
@@ -383,35 +507,76 @@ func TestAccessMongoDB(t *testing.T) {
 		},
 	}
 
+	// Each scenario is executed multiple times with different server/client
+	// options to test things like legacy MongoDB servers and clients that
+	// use compression.
+	serverOpts := []struct {
+		name string
+		opts []mongodb.TestServerOption
+	}{
+		{
+			name: "new server",
+			opts: []mongodb.TestServerOption{},
+		},
+		{
+			name: "old server",
+			opts: []mongodb.TestServerOption{
+				mongodb.TestServerWireVersion(wiremessage.OpmsgWireVersion - 1),
+			},
+		},
+	}
+
+	clientOpts := []struct {
+		name string
+		opts *options.ClientOptions
+	}{
+		{
+			name: "client without compression",
+			opts: options.Client(),
+		},
+		{
+			name: "client with compression",
+			opts: options.Client().SetCompressors([]string{"zlib"}),
+		},
+	}
+
+	// Execute each scenario on both modern and legacy Mongo servers
+	// to make sure legacy messages are also subject to RBAC.
 	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			// Create user/role with the requested permissions.
-			testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
+		for _, serverOpt := range serverOpts {
+			for _, clientOpt := range clientOpts {
+				t.Run(fmt.Sprintf("%v/%v/%v", serverOpt.name, clientOpt.name, test.desc), func(t *testing.T) {
+					testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo", serverOpt.opts...))
+					go testCtx.startHandlingConnections()
 
-			// Try to connect to the database as this user.
-			client, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser)
-			if test.connectErr != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), test.connectErr)
-				return
+					// Create user/role with the requested permissions.
+					testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
+
+					// Try to connect to the database as this user.
+					client, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)
+					defer func() {
+						if client != nil {
+							client.Disconnect(ctx)
+						}
+					}()
+					if test.connectErr != "" {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), test.connectErr)
+						return
+					}
+					require.NoError(t, err)
+
+					// Execute a "find" command. Collection name doesn't matter currently.
+					_, err = client.Database(test.dbName).Collection("test").Find(ctx, bson.M{})
+					if test.queryErr != "" {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), test.queryErr)
+						return
+					}
+					require.NoError(t, err)
+				})
 			}
-
-			require.NoError(t, err)
-
-			// Execute a "find" command. Collection name doesn't matter currently.
-			_, err = client.Database(test.dbName).Collection("test").Find(ctx, bson.M{})
-			if test.queryErr != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), test.queryErr)
-				return
-			}
-
-			require.NoError(t, err)
-
-			// Disconnect.
-			err = client.Disconnect(ctx)
-			require.NoError(t, err)
-		})
+		}
 	}
 }
 
@@ -421,7 +586,7 @@ type testModules struct {
 
 func (m *testModules) Features() modules.Features {
 	return modules.Features{
-		DB: false, // Explicily turn off database access.
+		DB: false, // Explicitly turn off database access.
 	}
 }
 
@@ -683,12 +848,12 @@ func (c *testContext) mysqlClientWithAddr(address, teleportUser, dbService, dbUs
 
 // mongoClient connects to test MongoDB through database access as a
 // specified Teleport user and database account.
-func (c *testContext) mongoClient(ctx context.Context, teleportUser, dbService, dbUser string) (*mongo.Client, error) {
-	return c.mongoClientWithAddr(ctx, c.webListener.Addr().String(), teleportUser, dbService, dbUser)
+func (c *testContext) mongoClient(ctx context.Context, teleportUser, dbService, dbUser string, opts ...*options.ClientOptions) (*mongo.Client, error) {
+	return c.mongoClientWithAddr(ctx, c.webListener.Addr().String(), teleportUser, dbService, dbUser, opts...)
 }
 
 // mongoClientWithAddr is like mongoClient but allows to override connection address.
-func (c *testContext) mongoClientWithAddr(ctx context.Context, address, teleportUser, dbService, dbUser string) (*mongo.Client, error) {
+func (c *testContext) mongoClientWithAddr(ctx context.Context, address, teleportUser, dbService, dbUser string, opts ...*options.ClientOptions) (*mongo.Client, error) {
 	return mongodb.MakeTestClient(ctx, common.TestClientConfig{
 		AuthClient: c.authClient,
 		AuthServer: c.authServer,
@@ -700,7 +865,7 @@ func (c *testContext) mongoClientWithAddr(ctx context.Context, address, teleport
 			Protocol:    defaults.ProtocolMongoDB,
 			Username:    dbUser,
 		},
-	})
+	}, opts...)
 }
 
 // createUserAndRole creates Teleport user and role with specified names
@@ -750,7 +915,7 @@ func (c *testContext) Close() error {
 func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDatabaseOption) *testContext {
 	testCtx := &testContext{
 		clusterName: "root.example.com",
-		hostID:      uuid.New(),
+		hostID:      uuid.New().String(),
 		postgres:    make(map[string]testPostgres),
 		mysql:       make(map[string]testMySQL),
 		mongo:       make(map[string]testMongoDB),
@@ -839,6 +1004,9 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 			testCtx.fakeRemoteSite,
 		},
 	}
+	// Empty config means no limit.
+	connLimiter, err := limiter.NewLimiter(limiter.Config{})
+	require.NoError(t, err)
 
 	// Create test audit events emitter.
 	testCtx.emitter = newTestEmitter()
@@ -850,6 +1018,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		Authorizer:  proxyAuthorizer,
 		Tunnel:      tunnel,
 		TLSConfig:   tlsConfig,
+		Limiter:     connLimiter,
 		Emitter:     testCtx.emitter,
 		Clock:       testCtx.clock,
 		ServerID:    "proxy-server",
@@ -886,11 +1055,24 @@ type agentParams struct {
 	OnReconcile func(types.Databases)
 	// NoStart indicates server should not be started.
 	NoStart bool
+	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
+	GCPSQL *cloud.GCPSQLAdminClientMock
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
 	if p.HostID == "" {
 		p.HostID = c.hostID
+	}
+	if p.GCPSQL == nil {
+		p.GCPSQL = &cloud.GCPSQLAdminClientMock{
+			DatabaseInstance: &sqladmin.DatabaseInstance{
+				Settings: &sqladmin.Settings{
+					IpConfiguration: &sqladmin.IpConfiguration{
+						RequireSsl: false,
+					},
+				},
+			},
+		}
 	}
 }
 
@@ -922,6 +1104,10 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 	})
 	require.NoError(t, err)
 
+	// Create default limiter.
+	connLimiter, err := limiter.NewLimiter(limiter.Config{})
+	require.NoError(t, err)
+
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
 		Clock:            clockwork.NewFakeClockAt(time.Now()),
@@ -933,6 +1119,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		Hostname:         constants.APIDomain,
 		HostID:           p.HostID,
 		TLSConfig:        tlsConfig,
+		Limiter:          connLimiter,
 		Auth:             testAuth,
 		Databases:        p.Databases,
 		ResourceMatchers: p.ResourceMatchers,
@@ -957,6 +1144,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 			RDS:      &cloud.RDSMock{},
 			Redshift: &cloud.RedshiftMock{},
 			IAM:      &cloud.IAMMock{},
+			GCPSQL:   p.GCPSQL,
 		},
 	})
 	require.NoError(t, err)
@@ -1218,6 +1406,46 @@ func withCloudSQLMySQL(name, authUser, authToken string) withDatabaseOption {
 	}
 }
 
+// withCloudSQLMySQLTLS creates a test MySQL server that simulates GCP Cloud SQL
+// and requires client authentication using an ephemeral client certificate.
+func withCloudSQLMySQLTLS(name, authUser, authToken string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+			AuthUser:   authUser,
+			AuthToken:  authToken,
+			// Cloud SQL presented certificate must have <project-id>:<instance-id>
+			// in its CN.
+			CN: "project-1:instance-1",
+			// Enable TLS listener.
+			ListenTLS: true,
+		})
+		require.NoError(t, err)
+		go mysqlServer.Serve()
+		t.Cleanup(func() { mysqlServer.Close() })
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolMySQL,
+			URI:           net.JoinHostPort("localhost", mysqlServer.Port()),
+			DynamicLabels: dynamicLabels,
+			GCP: types.GCPCloudSQL{
+				ProjectID:  "project-1",
+				InstanceID: "instance-1",
+			},
+			// Set CA cert to pass cert validation.
+			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+		})
+		require.NoError(t, err)
+		testCtx.mysql[name] = testMySQL{
+			db:       mysqlServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
 func withAzureMySQL(name, authUser, authToken string) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
@@ -1250,12 +1478,12 @@ func withAzureMySQL(name, authUser, authToken string) withDatabaseOption {
 	}
 }
 
-func withSelfHostedMongo(name string) withDatabaseOption {
+func withSelfHostedMongo(name string, opts ...mongodb.TestServerOption) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
-		})
+		}, opts...)
 		require.NoError(t, err)
 		go mongoServer.Serve()
 		t.Cleanup(func() { mongoServer.Close() })

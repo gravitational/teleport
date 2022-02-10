@@ -27,12 +27,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
-	"github.com/pborman/uuid"
 
 	"github.com/gravitational/trace"
 )
@@ -58,8 +58,8 @@ func (s *ID) Check() error {
 
 // ParseID parses ID and checks if it's correct.
 func ParseID(id string) (*ID, error) {
-	val := uuid.Parse(id)
-	if val == nil {
+	_, err := uuid.Parse(id)
+	if err != nil {
 		return nil, trace.BadParameter("%v not a valid UUID", id)
 	}
 	uid := ID(id)
@@ -68,14 +68,14 @@ func ParseID(id string) (*ID, error) {
 
 // NewID returns new session ID. The session ID is based on UUIDv4.
 func NewID() ID {
-	return ID(uuid.New())
+	return ID(uuid.New().String())
 }
 
 // DELETE IN: 4.1.0.
 //
 // NewLegacyID creates a new session ID in the UUIDv1 legacy format.
 func NewLegacyID() ID {
-	return ID(uuid.NewUUID().String())
+	return ID(uuid.New().String())
 }
 
 // Session is an interactive collaboration session that represents one

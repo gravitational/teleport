@@ -27,8 +27,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
@@ -223,17 +223,10 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 
 		errs := []error{err}
 
-		// Figure out the reverse tunnel address on the proxy first.
-		tunAddr, err := findReverseTunnel(ctx, cfg.AuthServers, clientConfig.TLS.InsecureSkipVerify)
-		if err != nil {
-			errs = append(errs, trace.Wrap(err, "failed lookup of proxy reverse tunnel address: %v", err))
-			return nil, trace.NewAggregate(errs...)
-		}
-		log.Debugf("Attempting to connect using reverse tunnel address %v.", tunAddr)
 		// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
 		// within an SSH tunnel.
 		dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
-			ProxyAddr:    tunAddr,
+			Resolver:     reversetunnel.WebClientResolver(ctx, cfg.AuthServers, clientConfig.TLS.InsecureSkipVerify),
 			ClientConfig: clientConfig.SSH,
 			Log:          cfg.Log,
 		})
@@ -257,22 +250,6 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 		}
 	}
 	return client, nil
-}
-
-// findReverseTunnel uses the web proxy to discover where the SSH reverse tunnel
-// server is running.
-func findReverseTunnel(ctx context.Context, addrs []utils.NetAddr, insecureTLS bool) (string, error) {
-	var errs []error
-	for _, addr := range addrs {
-		// In insecure mode, any certificate is accepted. In secure mode the hosts
-		// CAs are used to validate the certificate on the proxy.
-		tunnelAddr, err := webclient.GetTunnelAddr(ctx, addr.String(), insecureTLS, nil)
-		if err == nil {
-			return tunnelAddr, nil
-		}
-		errs = append(errs, err)
-	}
-	return "", trace.NewAggregate(errs...)
 }
 
 // applyConfig takes configuration values from the config file and applies
@@ -346,12 +323,17 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientCo
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		authConfig.TLS, err = key.TeleportClientTLSConfig(cfg.CipherSuites)
+		clusterName, err := key.RootClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		authConfig.SSH, err = key.ProxyClientSSHConfig(nil)
+
+		authConfig.TLS, err = key.TeleportClientTLSConfig(cfg.CipherSuites, []string{clusterName})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		authConfig.SSH, err = key.ProxyClientSSHConfig(&sshTrustedHostKeyWrapper{key}, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -379,6 +361,24 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientCo
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
 
 	return authConfig, nil
+}
+
+// sshTrustedHostKeyWrapper wraps a client Key allowing to call GetKnownHostKeys function for particular hostname.
+type sshTrustedHostKeyWrapper struct {
+	*client.Key
+}
+
+// GetKnownHostKeys returns know trusted key for a particular hostname.
+func (m *sshTrustedHostKeyWrapper) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {
+	ca, err := m.Key.SSHCAsForClusters([]string{hostname})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	trustedKeys, err := sshutils.ParseKnownHosts(ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return trustedKeys, nil
 }
 
 // loadConfigFromProfile applies config from ~/.tsh/ profile if it's present
@@ -433,12 +433,12 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 	}
 
 	authConfig := &AuthServiceClientConfig{}
-	authConfig.TLS, err = key.TeleportClientTLSConfig(cfg.CipherSuites)
+	authConfig.TLS, err = key.TeleportClientTLSConfig(cfg.CipherSuites, []string{rootCluster})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
-	authConfig.SSH, err = key.ProxyClientSSHConfig(keyStore)
+	authConfig.SSH, err = key.ProxyClientSSHConfig(keyStore, rootCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

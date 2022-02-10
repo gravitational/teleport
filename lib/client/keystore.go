@@ -21,6 +21,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	osfs "io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -472,6 +473,16 @@ func (fs *fsLocalNonSessionKeyStore) proxyKeyDir(proxy string) string {
 	return keypaths.ProxyKeyDir(fs.KeyDir, proxy)
 }
 
+// casDir returns path to trusted clusters certificates directory.
+func (fs *fsLocalNonSessionKeyStore) casDir(proxy string) string {
+	return keypaths.CAsDir(fs.KeyDir, proxy)
+}
+
+// clusterCAPath returns path to cluster certificate.
+func (fs *fsLocalNonSessionKeyStore) clusterCAPath(proxy, clusterName string) string {
+	return keypaths.TLSCAsPathCluster(fs.KeyDir, proxy, clusterName)
+}
+
 // knownHostsPath returns the keystore's known hosts file path.
 func (fs *fsLocalNonSessionKeyStore) knownHostsPath() string {
 	return keypaths.KnownHostsPath(fs.KeyDir)
@@ -485,11 +496,6 @@ func (fs *fsLocalNonSessionKeyStore) UserKeyPath(idx KeyIndex) string {
 // tlsCertPath returns the TLS certificate path given KeyIndex.
 func (fs *fsLocalNonSessionKeyStore) tlsCertPath(idx KeyIndex) string {
 	return keypaths.TLSCertPath(fs.KeyDir, idx.ProxyHost, idx.Username)
-}
-
-// tlsCAsPath returns the TLS CA certificates path for the given KeyIndex.
-func (fs *fsLocalNonSessionKeyStore) tlsCAsPath(proxy string) string {
-	return keypaths.TLSCAsPath(fs.KeyDir, proxy)
 }
 
 // sshCertPath returns the SSH certificate path for the given KeyIndex.
@@ -651,49 +657,97 @@ func (fs *fsLocalNonSessionKeyStore) SaveTrustedCerts(proxyHost string, cas []au
 		fs.log.Error(err)
 		return trace.ConvertSystemError(err)
 	}
-	certsFile := fs.tlsCAsPath(proxyHost)
-	fp, err := os.OpenFile(certsFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
-	if err != nil {
+
+	casDirPath := filepath.Join(fs.casDir(proxyHost))
+	if err := os.MkdirAll(casDirPath, os.ModeDir|profileDirPerms); err != nil {
+		fs.log.Error(err)
 		return trace.ConvertSystemError(err)
 	}
-	defer utils.StoreErrorOf(fp.Close, &retErr)
+
 	for _, ca := range cas {
-		for _, cert := range ca.TLSCertificates {
-			if _, err := fp.Write(cert); err != nil {
-				return trace.ConvertSystemError(err)
-			}
-			if _, err := fmt.Fprintln(fp); err != nil {
-				return trace.ConvertSystemError(err)
-			}
+		if !isSafeClusterName(ca.ClusterName) {
+			fs.log.Warnf("Skipped unsafe cluster name: %q", ca.ClusterName)
+			continue
+		}
+		// Create CA files in cas dir for each cluster.
+		caFile, err := os.OpenFile(fs.clusterCAPath(proxyHost, ca.ClusterName), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+
+		if err := writeClusterCertificates(caFile, ca.TLSCertificates); err != nil {
+			return trace.Wrap(err)
+		}
+
+	}
+	return nil
+}
+
+// isSafeClusterName check if cluster name is safe and doesn't contain miscellaneous characters.
+func isSafeClusterName(name string) bool {
+	return !strings.Contains(name, "..")
+}
+
+func writeClusterCertificates(f *os.File, tlsCertificates [][]byte) error {
+	defer f.Close()
+	for _, cert := range tlsCertificates {
+		if _, err := f.Write(cert); err != nil {
+			return trace.ConvertSystemError(err)
 		}
 	}
-	return fp.Sync()
+	if err := f.Sync(); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }
 
 // GetTrustedCertsPEM returns trusted TLS certificates of certificate authorities PEM
 // blocks.
 func (fs *fsLocalNonSessionKeyStore) GetTrustedCertsPEM(proxyHost string) ([][]byte, error) {
-	data, err := ioutil.ReadFile(fs.tlsCAsPath(proxyHost))
-	if err != nil {
+	dir := fs.casDir(proxyHost)
+
+	if _, err := os.Stat(dir); err != nil {
+		if os.IsNotExist(err) {
+			return nil, trace.NotFound("please relogin, tsh user profile doesn't contain CAS directory: %s", dir)
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
+
 	var blocks [][]byte
-	for len(data) > 0 {
-		block, rest := pem.Decode(data)
-		if block == nil {
-			break
+	err := filepath.Walk(dir, func(path string, info osfs.FileInfo, err error) error {
+		if err != nil {
+			return nil
 		}
-		if block.Type != "CERTIFICATE" || len(block.Headers) != 0 {
-			fs.log.Debugf("Skipping PEM block type=%v headers=%v.", block.Type, block.Headers)
+		if info.IsDir() {
+			return nil
+		}
+
+		data, err := ioutil.ReadFile(path)
+		for len(data) > 0 {
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			block, rest := pem.Decode(data)
+			if block == nil {
+				break
+			}
+			if block.Type != "CERTIFICATE" || len(block.Headers) != 0 {
+				fs.log.Debugf("Skipping PEM block type=%v headers=%v.", block.Type, block.Headers)
+				data = rest
+				continue
+			}
+			// rest contains the remainder of data after reading a block.
+			// Therefore, the block length is len(data) - len(rest).
+			// Use that length to slice the block from the start of data.
+			blocks = append(blocks, data[:len(data)-len(rest)])
 			data = rest
-			continue
 		}
-		// rest contains the remainder of data after reading a block.
-		// Therefore, the block length is len(data) - len(rest).
-		// Use that length to slice the block from the start of data.
-		blocks = append(blocks, data[:len(data)-len(rest)])
-		data = rest
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
 	return blocks, nil
 }
 

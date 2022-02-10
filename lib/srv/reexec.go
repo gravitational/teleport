@@ -18,6 +18,7 @@ package srv
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/sirupsen/logrus"
@@ -89,6 +91,9 @@ type ExecCommand struct {
 
 	// UaccMetadata contains metadata needed for user accounting.
 	UaccMetadata UaccMetadata `json:"uacc_meta"`
+
+	// X11Config contains an xauth entry to be added to the command user's xauthority.
+	X11Config X11Config `json:"x11_config"`
 }
 
 // PAMConfig represents all the configuration data that needs to be passed to the child.
@@ -102,6 +107,14 @@ type PAMConfig struct {
 
 	// Environment represents env variables to pass to PAM.
 	Environment map[string]string `json:"environment"`
+}
+
+// X11Config contains information used by the child process to set up X11 forwarding.
+type X11Config struct {
+	// XAuthEntry contains xauth data used for X11 forwarding.
+	XAuthEntry x11.XAuthEntry `json:"xauth_entry,omitempty"`
+	// XServerUnixSocket is the name of an open XServer unix socket used for X11 forwarding.
+	XServerUnixSocket string `json:"xserver_unix_socket"`
 }
 
 // UaccMetadata contains information the child needs from the parent for user accounting.
@@ -153,12 +166,12 @@ func RunCommand() (io.Writer, int, error) {
 	var pty *os.File
 	uaccEnabled := false
 
-	// If a terminal was requested, file descriptor 4 and 5 always point to the
+	// If a terminal was requested, file descriptors 6 and 7 always point to the
 	// PTY and TTY. Extract them and set the controlling TTY. Otherwise, connect
 	// std{in,out,err} directly.
 	if c.Terminal {
-		pty = os.NewFile(uintptr(5), "/proc/self/fd/5")
-		tty = os.NewFile(uintptr(6), "/proc/self/fd/6")
+		pty = os.NewFile(uintptr(6), "/proc/self/fd/6")
+		tty = os.NewFile(uintptr(7), "/proc/self/fd/7")
 		if pty == nil || tty == nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
 		}
@@ -215,8 +228,13 @@ func RunCommand() (io.Writer, int, error) {
 		pamEnvironment = pamContext.Environment()
 	}
 
+	localUser, err := user.Lookup(c.Login)
+	if err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
 	// Build the actual command that will launch the shell.
-	cmd, err := buildCommand(&c, tty, pty, pamEnvironment)
+	cmd, err := buildCommand(&c, localUser, tty, pty, pamEnvironment)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -226,6 +244,66 @@ func RunCommand() (io.Writer, int, error) {
 	err = waitForContinue(contfd)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	if c.X11Config.XServerUnixSocket != "" {
+		// Set the open XServer unix socket's owner to the localuser
+		// to prevent a potential privilege escalation vulnerability.
+		uid, err := strconv.Atoi(localUser.Uid)
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+		gid, err := strconv.Atoi(localUser.Gid)
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+		if err := os.Chown(c.X11Config.XServerUnixSocket, uid, gid); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+
+		// Update localUser's xauth database for X11 forwarding.
+		removeCmd := x11.NewXAuthCommand(context.Background(), "")
+		addCmd := x11.NewXAuthCommand(context.Background(), "")
+
+		// Copy the re-exec command's io and user environment fields.
+		cpyCmdFields := func(cmd *exec.Cmd, params *exec.Cmd) {
+			cmd.Stdout = params.Stdout
+			cmd.Stdin = params.Stdin
+			cmd.Stderr = params.Stderr
+			cmd.SysProcAttr = params.SysProcAttr
+			cmd.Env = params.Env
+			cmd.Dir = params.Dir
+		}
+		cpyCmdFields(removeCmd.Cmd, cmd)
+		cpyCmdFields(addCmd.Cmd, cmd)
+
+		if err := removeCmd.RemoveEntries(c.X11Config.XAuthEntry.Display); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+		if err := addCmd.AddEntry(c.X11Config.XAuthEntry); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+
+		// Set $DISPLAY so that XServer requests forwarded to the X11 unix listener.
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", x11.DisplayEnv, c.X11Config.XAuthEntry.Display.String()))
+
+		// Open x11rdy fd to signal parent process once X11 forwarding is set up.
+		x11rdyfd := os.NewFile(uintptr(5), "/proc/self/fd/5")
+		if x11rdyfd == nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
+		}
+
+		// Write a single byte to signal to the parent process that X11 forwarding is set up.
+		if _, err := x11rdyfd.Write([]byte{0}); err != nil {
+			if err2 := x11rdyfd.Close(); err2 != nil {
+				return errorWriter, teleport.RemoteCommandFailure, trace.NewAggregate(err, err2)
+			}
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+
+		if err := x11rdyfd.Close(); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
 	}
 
 	// Start the command.
@@ -359,14 +437,10 @@ func RunAndExit(commandType string) {
 
 // buildCommand constructs a command that will execute the users shell. This
 // function is run by Teleport while it's re-executing.
-func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
+func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
 
-	// Lookup the UID and GID for the user.
-	localUser, err := user.Lookup(c.Login)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// Get UID and GID.
 	uid, err := strconv.Atoi(localUser.Uid)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -423,11 +497,18 @@ func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []s
 		cmd.Args = []string{shellPath, "-c", c.Command}
 	}
 
+	// Ensure that the user has a home directory.
+	// TODO: Generalize this to support Windows.
+	homeDir := string(os.PathSeparator)
+	if utils.IsDir(localUser.HomeDir) {
+		homeDir = localUser.HomeDir
+	}
+
 	// Create default environment for user.
 	cmd.Env = []string{
 		"LANG=en_US.UTF-8",
 		getDefaultEnvPath(localUser.Uid, defaultLoginDefsPath),
-		"HOME=" + localUser.HomeDir,
+		"HOME=" + homeDir,
 		"USER=" + c.Login,
 		"SHELL=" + shellPath,
 	}
@@ -450,7 +531,7 @@ func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []s
 	cmd.Env = append(cmd.Env, pamEnvironment...)
 
 	// Set the home directory for the user.
-	cmd.Dir = localUser.HomeDir
+	cmd.Dir = homeDir
 
 	// If a terminal was requested, connect std{in,out,err} to the TTY and set
 	// the controlling TTY. Otherwise, connect std{in,out,err} to
@@ -560,6 +641,7 @@ func ConfigureCommand(ctx *ServerContext) (*exec.Cmd, error) {
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
 			ctx.contr,
+			ctx.x11rdyw,
 		},
 	}
 

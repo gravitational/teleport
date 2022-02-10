@@ -23,6 +23,107 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestIsInternal checks if docs and code reviewers show up as internal.
+func TestIsInternal(t *testing.T) {
+	tests := []struct {
+		desc        string
+		assignments *Assignments
+		author      string
+		expect      bool
+	}{
+		{
+			desc: "code-is-internal",
+			assignments: &Assignments{
+				c: &Config{
+					// Code.
+					CodeReviewers: map[string]Reviewer{
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: false},
+						"4": Reviewer{Team: "Core", Owner: false},
+					},
+					CodeReviewersOmit: map[string]bool{},
+					// Docs.
+					DocsReviewers: map[string]Reviewer{
+						"5": Reviewer{Team: "Core", Owner: true},
+						"6": Reviewer{Team: "Core", Owner: true},
+					},
+					DocsReviewersOmit: map[string]bool{},
+					// Admins.
+					Admins: []string{
+						"1",
+						"2",
+					},
+				},
+			},
+			author: "1",
+			expect: true,
+		},
+		{
+			desc: "docs-is-internal",
+			assignments: &Assignments{
+				c: &Config{
+					// Code.
+					CodeReviewers: map[string]Reviewer{
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: false},
+						"4": Reviewer{Team: "Core", Owner: false},
+					},
+					CodeReviewersOmit: map[string]bool{},
+					// Docs.
+					DocsReviewers: map[string]Reviewer{
+						"5": Reviewer{Team: "Core", Owner: true},
+						"6": Reviewer{Team: "Core", Owner: true},
+					},
+					DocsReviewersOmit: map[string]bool{},
+					// Admins.
+					Admins: []string{
+						"1",
+						"2",
+					},
+				},
+			},
+			author: "5",
+			expect: true,
+		},
+		{
+			desc: "other-is-not-internal",
+			assignments: &Assignments{
+				c: &Config{
+					// Code.
+					CodeReviewers: map[string]Reviewer{
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: false},
+						"4": Reviewer{Team: "Core", Owner: false},
+					},
+					CodeReviewersOmit: map[string]bool{},
+					// Docs.
+					DocsReviewers: map[string]Reviewer{
+						"5": Reviewer{Team: "Core", Owner: true},
+						"6": Reviewer{Team: "Core", Owner: true},
+					},
+					DocsReviewersOmit: map[string]bool{},
+					// Admins.
+					Admins: []string{
+						"1",
+						"2",
+					},
+				},
+			},
+			author: "7",
+			expect: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			expect := test.assignments.IsInternal(test.author)
+			require.Equal(t, expect, test.expect)
+		})
+	}
+}
+
 // TestGetCodeReviewers checks internal code review assignments.
 func TestGetCodeReviewers(t *testing.T) {
 	tests := []struct {
@@ -104,6 +205,39 @@ func TestGetCodeReviewers(t *testing.T) {
 			author: "5",
 			setA:   []string{"1"},
 			setB:   []string{"2"},
+		},
+		{
+			desc: "cloud-gets-core-reviewers",
+			assignments: &Assignments{
+				c: &Config{
+					// Code.
+					CodeReviewers: map[string]Reviewer{
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: true},
+						"4": Reviewer{Team: "Core", Owner: false},
+						"5": Reviewer{Team: "Core", Owner: false},
+						"6": Reviewer{Team: "Core", Owner: false},
+						"7": Reviewer{Team: "Internal", Owner: false},
+						"8": Reviewer{Team: "Cloud", Owner: false},
+						"9": Reviewer{Team: "Cloud", Owner: false},
+					},
+					CodeReviewersOmit: map[string]bool{
+						"6": true,
+					},
+					// Docs.
+					DocsReviewers:     map[string]Reviewer{},
+					DocsReviewersOmit: map[string]bool{},
+					// Admins.
+					Admins: []string{
+						"1",
+						"2",
+					},
+				},
+			},
+			author: "8",
+			setA:   []string{"1", "2", "3"},
+			setB:   []string{"4", "5"},
 		},
 		{
 			desc: "normal",
@@ -337,13 +471,17 @@ func TestCheckInternal(t *testing.T) {
 		c: &Config{
 			// Code.
 			CodeReviewers: map[string]Reviewer{
-				"1": Reviewer{Team: "Core", Owner: true},
-				"2": Reviewer{Team: "Core", Owner: true},
-				"3": Reviewer{Team: "Core", Owner: true},
-				"4": Reviewer{Team: "Core", Owner: false},
-				"5": Reviewer{Team: "Core", Owner: false},
-				"6": Reviewer{Team: "Core", Owner: false},
-				"8": Reviewer{Team: "Internal", Owner: false},
+				"1":  Reviewer{Team: "Core", Owner: true},
+				"2":  Reviewer{Team: "Core", Owner: true},
+				"3":  Reviewer{Team: "Core", Owner: true},
+				"9":  Reviewer{Team: "Core", Owner: true},
+				"4":  Reviewer{Team: "Core", Owner: false},
+				"5":  Reviewer{Team: "Core", Owner: false},
+				"6":  Reviewer{Team: "Core", Owner: false},
+				"8":  Reviewer{Team: "Internal", Owner: false},
+				"10": Reviewer{Team: "Cloud", Owner: false},
+				"11": Reviewer{Team: "Cloud", Owner: false},
+				"12": Reviewer{Team: "Cloud", Owner: false},
 			},
 			// Docs.
 			DocsReviewers: map[string]Reviewer{
@@ -500,6 +638,39 @@ func TestCheckInternal(t *testing.T) {
 			reviews: map[string]*github.Review{
 				"3": &github.Review{Author: "3", State: approved},
 				"4": &github.Review{Author: "4", State: approved},
+			},
+			docs:   false,
+			code:   true,
+			result: true,
+		},
+		{
+			desc:   "code-only-internal-two-code-owner-approval-success",
+			author: "4",
+			reviews: map[string]*github.Review{
+				"3": &github.Review{Author: "3", State: approved},
+				"9": &github.Review{Author: "9", State: approved},
+			},
+			docs:   false,
+			code:   true,
+			result: true,
+		},
+		{
+			desc:   "cloud-with-self-approval-failure",
+			author: "10",
+			reviews: map[string]*github.Review{
+				"11": &github.Review{Author: "11", State: approved},
+				"12": &github.Review{Author: "12", State: approved},
+			},
+			docs:   false,
+			code:   true,
+			result: false,
+		},
+		{
+			desc:   "cloud-with-core-approval-success",
+			author: "10",
+			reviews: map[string]*github.Review{
+				"3": &github.Review{Author: "3", State: approved},
+				"9": &github.Review{Author: "9", State: approved},
 			},
 			docs:   false,
 			code:   true,

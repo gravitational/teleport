@@ -70,7 +70,16 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 	if config.Address != "" {
 		address = config.Address
 	}
-	listener, err := net.Listen("tcp", address)
+	tlsConfig, err := common.MakeTestServerTLSConfig(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var listener net.Listener
+	if config.ListenTLS {
+		listener, err = tls.Listen("tcp", address, tlsConfig)
+	} else {
+		listener, err = net.Listen("tcp", address)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -78,22 +87,21 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig, err := common.MakeTestServerTLSConfig(config)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: defaults.ProtocolMySQL,
 		"name":          config.Name,
 	})
-	return &TestServer{
-		cfg:       config,
-		listener:  listener,
-		port:      port,
-		tlsConfig: tlsConfig,
-		log:       log,
-		handler:   &testHandler{log: log},
-	}, nil
+	server := &TestServer{
+		cfg:      config,
+		listener: listener,
+		port:     port,
+		log:      log,
+		handler:  &testHandler{log: log},
+	}
+	if !config.ListenTLS {
+		server.tlsConfig = tlsConfig
+	}
+	return server, nil
 }
 
 // Serve starts serving client connections.
@@ -198,6 +206,24 @@ type testHandler struct {
 func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
 	h.log.Debugf("Received query %q.", query)
 	atomic.AddUint32(&h.queryCount, 1)
+	// When getting a "show tables" query, construct the response in a way
+	// which previously caused server packets parsing logic to fail.
+	if query == "show tables" {
+		resultSet, err := mysql.BuildSimpleTextResultset(
+			[]string{"Tables_in_test"},
+			[][]interface{}{
+				// In raw bytes, this table name starts with 0x11 which used to
+				// cause server packet parsing issues since it clashed with
+				// COM_CHANGE_USER packet type.
+				{"metadata_md_table"},
+			})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &mysql.Result{
+			Resultset: resultSet,
+		}, nil
+	}
 	return TestQueryResponse, nil
 }
 

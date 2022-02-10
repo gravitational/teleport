@@ -15,15 +15,22 @@ This guide will explain how to:
 - Setup example AWS IAM Read Only and Power User roles.
 - Use Teleport's role-based access control with AWS IAM roles.
 - View Teleport users' AWS console activity in CloudTrail.
-- AWS command line tool [Installing the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
-
+- Access the AWS Command Line Interface (CLI) through Teleport. 
 ## Prerequisites
 
 - Teleport with Application Access. Follow [Getting Started](../getting-started.mdx)
   or [Connecting Apps](./connecting-apps.mdx) guides to get it running.
 - IAM permissions in the AWS account you want to connect.
 - AWS EC2 or other instance where you can assign a IAM Security Role for the Teleport Agent.
+- `aws` command line interface (CLI) tool in PATH. [Installing or updating the latest version of the AWS CLI
+](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
 
+<Admonition type="note">
+If using the Teleport agent deployed in AWS EKS, you cannot use Helm chart
+annotations to specify the IAM permissions;
+you must associate the policy with the cluster role for the worker nodes.
+Otherwise, you will receive "400 Bad Request" errors from AWS.
+</Admonition>
 
 ## Step 1. [Optional] Configure Read Only and Power User roles
 
@@ -235,6 +242,11 @@ federated login and the name of your assumed IAM role:
 
 Note that your federated login session is marked with your Teleport username.
 
+<Admonition type="note" title="Session Duration">
+    If the Teleport agent is running with [temporary security credentials](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html),
+    the management console session will be limited to a maximum of one hour.
+</Admonition>
+
 ## Step 7. Use CloudTrail to see Teleport user activity
 
 To view CloudTrail events for your federated sessions, navigate to the CloudTrail
@@ -247,7 +259,9 @@ username which you can search for to get the events history:
 
 ## Step 8. Using AWS CLI
 
-First, log into the previously configured AWS console app:
+Before beginning this step, make sure that the `aws` command line interface (CLI) tool is installed in PATH. For more information, read [Installing or updating the latest version of the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html).
+
+First, log into the previously configured AWS console app on your desktop:
 
 ```code
 $ tsh app login --aws-role ExamplePowerUser awsconsole-test
@@ -264,10 +278,6 @@ Now you can use the `tsh aws` command like the native `aws` command-line tool:
 ```code
 $ tsh aws s3 ls
 ```
-
-<Admonition type="note" title="Note">
-    The `aws` command-line tool should be available in PATH
-</Admonition>
 
 To log out of the aws application and remove credentials:
 

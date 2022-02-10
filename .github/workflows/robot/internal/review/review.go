@@ -115,8 +115,9 @@ func New(c *Config) (*Assignments, error) {
 
 // IsInternal returns if the author of a PR is internal.
 func (r *Assignments) IsInternal(author string) bool {
-	_, ok := r.c.CodeReviewers[author]
-	return ok
+	_, code := r.c.CodeReviewers[author]
+	_, docs := r.c.DocsReviewers[author]
+	return code || docs
 }
 
 // Get will return a list of code reviewers a given author.
@@ -184,11 +185,19 @@ func (r *Assignments) getCodeReviewerSets(author string) ([]string, []string) {
 		return reviewers[:n], reviewers[n:]
 	}
 
-	return getReviewerSets(author, v.Team, r.c.CodeReviewers, r.c.CodeReviewersOmit)
+	// Cloud gets reviewers assigned from Core.
+	team := v.Team
+	if v.Team == "Cloud" {
+		team = "Core"
+	}
+
+	return getReviewerSets(author, team, r.c.CodeReviewers, r.c.CodeReviewersOmit)
 }
 
 // CheckExternal requires two admins have approved.
 func (r *Assignments) CheckExternal(author string, reviews map[string]*github.Review) error {
+	log.Printf("Check: Found external author %v.", author)
+
 	reviewers := r.getAdminReviewers(author)
 
 	if checkN(reviewers, reviews) > 1 {
@@ -201,6 +210,8 @@ func (r *Assignments) CheckExternal(author string, reviews map[string]*github.Re
 // docs and if each set of code reviews have approved. Admin approvals bypass
 // all checks.
 func (r *Assignments) CheckInternal(author string, reviews map[string]*github.Review, docs bool, code bool) error {
+	log.Printf("Check: Found internal author %v.", author)
+
 	// Skip checks if admins have approved.
 	if check(r.getAdminReviewers(author), reviews) {
 		return nil
@@ -254,15 +265,20 @@ func (r *Assignments) checkCodeReviews(author string, reviews map[string]*github
 		return trace.BadParameter("rejecting checking external review")
 	}
 
-	// Internal Teleport reviews get checked by same Core rules. Other teams do
-	// own internal reviews.
+	// Cloud and Internal get reviews from the Core team. Other teams do own
+	// internal reviews.
 	team := v.Team
-	if team == "Internal" {
+	if team == "Internal" || team == "Cloud" {
 		team = "Core"
 	}
 
 	setA, setB := getReviewerSets(author, team, r.c.CodeReviewers, r.c.CodeReviewersOmit)
 
+	// PRs can be approved if you either have multiple code owners that approve
+	// or code owner and code reviewer.
+	if checkN(setA, reviews) >= 2 {
+		return nil
+	}
 	if check(setA, reviews) && check(setB, reviews) {
 		return nil
 	}

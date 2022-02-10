@@ -50,6 +50,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -182,6 +183,9 @@ type Server struct {
 	// TCP port forwarding.
 	allowTCPForwarding bool
 
+	// x11 is the X11 forwarding configuration for the server
+	x11 *x11.ServerConfig
+
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
 }
@@ -263,8 +267,7 @@ func (s *Server) isAuditedAtProxy() bool {
 // ServerOption is a functional option passed to the server
 type ServerOption func(s *Server) error
 
-// Close closes listening socket and stops accepting connections
-func (s *Server) Close() error {
+func (s *Server) close() {
 	s.cancel()
 	s.reg.Close()
 	if s.heartbeat != nil {
@@ -273,6 +276,14 @@ func (s *Server) Close() error {
 		}
 		s.heartbeat = nil
 	}
+	if s.dynamicLabels != nil {
+		s.dynamicLabels.Close()
+	}
+}
+
+// Close closes listening socket and stops accepting connections
+func (s *Server) Close() error {
+	s.close()
 	return s.srv.Close()
 }
 
@@ -280,14 +291,7 @@ func (s *Server) Close() error {
 func (s *Server) Shutdown(ctx context.Context) error {
 	// wait until connections drain off
 	err := s.srv.Shutdown(ctx)
-	s.cancel()
-	s.reg.Close()
-	if s.heartbeat != nil {
-		if err := s.heartbeat.Close(); err != nil {
-			s.Warningf("Failed to close heartbeat: %v.", err)
-		}
-		s.heartbeat = nil
-	}
+	s.close()
 	return err
 }
 
@@ -547,6 +551,14 @@ func SetAllowTCPForwarding(allow bool) ServerOption {
 func SetLockWatcher(lockWatcher *services.LockWatcher) ServerOption {
 	return func(s *Server) error {
 		s.lockWatcher = lockWatcher
+		return nil
+	}
+}
+
+// SetX11ForwardingConfig sets the server's X11 forwarding configuration
+func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
+	return func(s *Server) error {
+		s.x11 = xc
 		return nil
 	}
 }
@@ -830,11 +842,6 @@ func (s *Server) getServerInfo() (types.Resource, error) {
 	return server, nil
 }
 
-// syncUpdateLabels synchronously updates dynamic labels. Only used in tests.
-func (s *Server) syncUpdateLabels() {
-	s.dynamicLabels.Sync()
-}
-
 // serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.
 func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	// gather information about user and process. this will be used to set the
@@ -932,11 +939,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 			Type: events.SessionRejectedEvent,
 			Code: events.SessionRejectedCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			Login:        identityContext.Login,
-			User:         identityContext.TeleportUser,
-			Impersonator: identityContext.Impersonator,
-		},
+		UserMetadata: identityContext.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			Protocol:   events.EventProtocolSSH,
 			LocalAddr:  ccx.ServerConn.LocalAddr().String(),
@@ -1077,11 +1080,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 						Type: events.SessionRejectedEvent,
 						Code: events.SessionRejectedCode,
 					},
-					UserMetadata: apievents.UserMetadata{
-						Login:        identityContext.Login,
-						User:         identityContext.TeleportUser,
-						Impersonator: identityContext.Impersonator,
-					},
+					UserMetadata: identityContext.GetUserMetadata(),
 					ConnectionMetadata: apievents.ConnectionMetadata{
 						Protocol:   events.EventProtocolSSH,
 						LocalAddr:  ccx.ServerConn.LocalAddr().String(),
@@ -1277,11 +1276,7 @@ Loop:
 			Type: events.PortForwardEvent,
 			Code: events.PortForwardCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			Login:        scx.Identity.Login,
-			User:         scx.Identity.TeleportUser,
-			Impersonator: scx.Identity.Impersonator,
-		},
+		UserMetadata: scx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  scx.ServerConn.LocalAddr().String(),
 			RemoteAddr: scx.ServerConn.RemoteAddr().String(),
@@ -1439,6 +1434,8 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
 		return s.handleSubsystem(ch, req, ctx)
+	case sshutils.X11ForwardRequest:
+		return s.handleX11Forward(ch, req, ctx)
 	case sshutils.AgentForwardRequest:
 		// This happens when SSH client has agent forwarding enabled, in this case
 		// client sends a special request, in return SSH server opens new channel
@@ -1504,6 +1501,69 @@ func (s *Server) handleAgentForwardProxy(req *ssh.Request, ctx *srv.ServerContex
 	// Enable agent forwarding for the broader connection-level
 	// context.
 	ctx.Parent().SetForwardAgent(true)
+
+	return nil
+}
+
+// handleX11Forward handles an X11 forwarding request from the client.
+func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) (err error) {
+	event := &apievents.X11Forward{
+		Metadata: apievents.Metadata{
+			Type: events.X11ForwardEvent,
+			Code: events.X11ForwardCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			Login:        ctx.Identity.Login,
+			User:         ctx.Identity.TeleportUser,
+			Impersonator: ctx.Identity.Impersonator,
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			LocalAddr:  ctx.ServerConn.LocalAddr().String(),
+			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+	}
+
+	defer func() {
+		if err != nil {
+			event.Metadata.Code = events.X11ForwardFailureCode
+			event.Status.Success = false
+			event.Status.Error = err.Error()
+		}
+		if trace.IsAccessDenied(err) {
+			// denied X11 requests are ok from a protocol perspective so we
+			// don't return them, just reply over ssh and emit the audit log.
+			s.replyError(ch, req, err)
+			err = nil
+		}
+		if err := s.EmitAuditEvent(s.ctx, event); err != nil {
+			log.WithError(err).Warn("Failed to emit x11-forward event.")
+		}
+	}()
+
+	// check if X11 forwarding is disabled, or if xauth can't be handled.
+	if !s.x11.Enabled || x11.CheckXAuthPath() != nil {
+		return trace.AccessDenied("X11 forwarding is not enabled")
+	}
+
+	// Check if the user's RBAC role allows X11 forwarding.
+	if err := s.authHandlers.CheckX11Forward(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var x11Req x11.ForwardRequestPayload
+	if err := ssh.Unmarshal(req.Payload, &x11Req); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := ctx.OpenXServerListener(x11Req, s.x11.DisplayOffset, s.x11.MaxDisplay); err != nil {
+		if trace.IsLimitExceeded(err) {
+			return trace.AccessDenied("The server cannot support any more X11 forwarding sessions at this time")
+		}
+		return trace.Wrap(err)
+	}
 
 	return nil
 }
