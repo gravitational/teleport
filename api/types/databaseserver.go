@@ -283,40 +283,32 @@ func (s *DatabaseServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
 }
 
-// // Less compares database servers by name and host ID.
-// func (s DatabaseServers) Less(i, j int) bool {
-// 	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
-// }
-
-type dbServerSorter struct {
+type DatabaseServerSorter struct {
 	servers []DatabaseServer
 	lessFn  func(i, j int) bool
 }
 
-// // Less compares app servers by name and host ID.
-// func (s DatabaseServers) Less(i, j int) bool {
-// 	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
-// }
-
 // DatabaseServers returns a sorter that implements the Sort interface,
 // Call its Sort method to sort the data by sort criteria.
-func DatabaseServers(servers []DatabaseServer) *dbServerSorter {
-	return &dbServerSorter{
+func DatabaseServers(servers []DatabaseServer) *DatabaseServerSorter {
+	return &DatabaseServerSorter{
 		servers: servers,
 	}
 }
 
 // Len is part of sort.Interface.
-func (s *dbServerSorter) Len() int { return len(s.servers) }
+func (s *DatabaseServerSorter) Len() int { return len(s.servers) }
 
 // Less is part of sort.Interface.
-func (s *dbServerSorter) Less(i, j int) bool { return s.lessFn(i, j) }
+func (s *DatabaseServerSorter) Less(i, j int) bool { return s.lessFn(i, j) }
 
 // Swap is part of sort.Interface.
-func (s *dbServerSorter) Swap(i, j int) { s.servers[i], s.servers[j] = s.servers[j], s.servers[i] }
+func (s *DatabaseServerSorter) Swap(i, j int) {
+	s.servers[i], s.servers[j] = s.servers[j], s.servers[i]
+}
 
 // Sort sorts a list of app servers according to the sort criteria.
-func (s *dbServerSorter) Sort(sortBy *SortBy) error {
+func (s *DatabaseServerSorter) Sort(sortBy *SortBy) error {
 	if sortBy == nil {
 		return nil
 	}
@@ -345,7 +337,7 @@ func (s *dbServerSorter) Sort(sortBy *SortBy) error {
 }
 
 // AsResources returns db servers as type resources with labels.
-func (s *dbServerSorter) AsResources() []ResourceWithLabels {
+func (s *DatabaseServerSorter) AsResources() []ResourceWithLabels {
 	resources := make([]ResourceWithLabels, len(s.servers))
 	for i, server := range s.servers {
 		resources[i] = ResourceWithLabels(server)
@@ -354,12 +346,12 @@ func (s *dbServerSorter) AsResources() []ResourceWithLabels {
 }
 
 // SetCustomLessFn allows you to define custom less function used by sort.
-func (s *dbServerSorter) SetCustomLessFn(fn func(i, j int) bool) {
+func (s *DatabaseServerSorter) SetCustomLessFn(fn func(i, j int) bool) {
 	s.lessFn = fn
 }
 
 // GetFieldVals returns list of select field values.
-func (s *dbServerSorter) GetFieldVals(field string) ([]string, error) {
+func (s *DatabaseServerSorter) GetFieldVals(field string) ([]string, error) {
 	vals := make([]string, len(s.servers))
 	switch field {
 	case ResourceMetadataName:

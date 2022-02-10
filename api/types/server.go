@@ -485,30 +485,30 @@ func LabelsToV2(labels map[string]CommandLabel) map[string]CommandLabelV2 {
 // sneaky cluster names being used for client directory traversal and exploits.
 var validKubeClusterName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
-type serverSorter struct {
+type ServerSorter struct {
 	servers []Server
 	lessFn  func(i, j int) bool
 }
 
 // Servers returns a sorter that implements the Sort interface,
 // Call its Sort method to sort the data.
-func Servers(servers []Server) *serverSorter {
-	return &serverSorter{
+func Servers(servers []Server) *ServerSorter {
+	return &ServerSorter{
 		servers: servers,
 	}
 }
 
 // Len is part of sort.Interface.
-func (s *serverSorter) Len() int { return len(s.servers) }
+func (s *ServerSorter) Len() int { return len(s.servers) }
 
 // Less is part of sort.Interface.
-func (s *serverSorter) Less(i, j int) bool { return s.lessFn(i, j) }
+func (s *ServerSorter) Less(i, j int) bool { return s.lessFn(i, j) }
 
 // Swap is part of sort.Interface.
-func (s *serverSorter) Swap(i, j int) { s.servers[i], s.servers[j] = s.servers[j], s.servers[i] }
+func (s *ServerSorter) Swap(i, j int) { s.servers[i], s.servers[j] = s.servers[j], s.servers[i] }
 
 // Sort sorts a list of servers according to the sort criteria.
-func (s *serverSorter) Sort(sortBy *SortBy) error {
+func (s *ServerSorter) Sort(sortBy *SortBy) error {
 	if sortBy == nil {
 		return nil
 	}
@@ -535,7 +535,7 @@ func (s *serverSorter) Sort(sortBy *SortBy) error {
 }
 
 // AsResources returns servers as type resources with labels.
-func (s *serverSorter) AsResources() []ResourceWithLabels {
+func (s *ServerSorter) AsResources() []ResourceWithLabels {
 	resources := make([]ResourceWithLabels, len(s.servers))
 	for i, server := range s.servers {
 		resources[i] = ResourceWithLabels(server)
@@ -544,7 +544,7 @@ func (s *serverSorter) AsResources() []ResourceWithLabels {
 }
 
 // GetFieldVals returns list of select field values.
-func (s *serverSorter) GetFieldVals(field string) ([]string, error) {
+func (s *ServerSorter) GetFieldVals(field string) ([]string, error) {
 	vals := make([]string, len(s.servers))
 	switch field {
 	case ResourceMetadataName:

@@ -296,30 +296,30 @@ func (s *AppServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
 }
 
-type appServerSorter struct {
+type AppServerSorter struct {
 	servers []AppServer
 	lessFn  func(i, j int) bool
 }
 
 // AppServers returns a sorter that implements the Sort interface,
 // Call its Sort method to sort the data by sort criteria.
-func AppServers(servers []AppServer) *appServerSorter {
-	return &appServerSorter{
+func AppServers(servers []AppServer) *AppServerSorter {
+	return &AppServerSorter{
 		servers: servers,
 	}
 }
 
 // Len is part of sort.Interface.
-func (s *appServerSorter) Len() int { return len(s.servers) }
+func (s *AppServerSorter) Len() int { return len(s.servers) }
 
 // Less is part of sort.Interface.
-func (s *appServerSorter) Less(i, j int) bool { return s.lessFn(i, j) }
+func (s *AppServerSorter) Less(i, j int) bool { return s.lessFn(i, j) }
 
 // Swap is part of sort.Interface.
-func (s *appServerSorter) Swap(i, j int) { s.servers[i], s.servers[j] = s.servers[j], s.servers[i] }
+func (s *AppServerSorter) Swap(i, j int) { s.servers[i], s.servers[j] = s.servers[j], s.servers[i] }
 
 // Sort sorts a list of app servers according to the sort criteria.
-func (s *appServerSorter) Sort(sortBy *SortBy) error {
+func (s *AppServerSorter) Sort(sortBy *SortBy) error {
 	if sortBy == nil {
 		return nil
 	}
@@ -348,7 +348,7 @@ func (s *appServerSorter) Sort(sortBy *SortBy) error {
 }
 
 // AsResources returns app servers as type resources with labels.
-func (s *appServerSorter) AsResources() []ResourceWithLabels {
+func (s *AppServerSorter) AsResources() []ResourceWithLabels {
 	resources := make([]ResourceWithLabels, len(s.servers))
 	for i, server := range s.servers {
 		resources[i] = ResourceWithLabels(server)
@@ -357,12 +357,12 @@ func (s *appServerSorter) AsResources() []ResourceWithLabels {
 }
 
 // SetCustomLessFn allows you to define custom less function used by sort.
-func (s *appServerSorter) SetCustomLessFn(fn func(i, j int) bool) {
+func (s *AppServerSorter) SetCustomLessFn(fn func(i, j int) bool) {
 	s.lessFn = fn
 }
 
 // GetFieldVals returns list of select field values.
-func (s *appServerSorter) GetFieldVals(field string) ([]string, error) {
+func (s *AppServerSorter) GetFieldVals(field string) ([]string, error) {
 	vals := make([]string, len(s.servers))
 	switch field {
 	case ResourceMetadataName:
