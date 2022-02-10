@@ -212,6 +212,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	authSvc, err := service.NewTeleport(authConfig)
 	require.NoError(t, err)
 	require.NoError(t, authSvc.Start())
+	t.Cleanup(func() { require.NoError(t, authSvc.Close()) })
 
 	authServer := authSvc.GetAuthServer()
 
@@ -247,6 +248,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	proxySvc, err := service.NewTeleport(proxyConfig)
 	require.NoError(t, err)
 	require.NoError(t, proxySvc.Start())
+	t.Cleanup(func() { require.NoError(t, proxySvc.Close()) })
 
 	// the proxy should eventually join the cluster and heartbeat
 	require.Eventually(t, func() bool {
@@ -271,6 +273,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
+	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
 
 	// the node should eventually join the cluster and heartbeat
 	require.Eventually(t, func() bool {

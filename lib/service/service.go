@@ -2581,6 +2581,9 @@ func (l *proxyListeners) Close() {
 	if !l.db.Empty() {
 		l.db.Close()
 	}
+	if l.grpc != nil {
+		l.grpc.Close()
+	}
 }
 
 // setupProxyListeners sets up web proxy listeners based on the configuration
