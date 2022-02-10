@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -473,7 +474,7 @@ func (a *ServerWithRoles) RegisterNewAuthServer(ctx context.Context, token strin
 //
 // This wrapper does not do any extra authz checks, as the register method has
 // its own authz mechanism.
-func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeResponse ChallengeResponseFunc) (*proto.Certs, error) {
+func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error) {
 	certs, err := a.authServer.RegisterUsingIAMMethod(ctx, challengeResponse)
 	return certs, trace.Wrap(err)
 }
