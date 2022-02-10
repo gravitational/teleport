@@ -53,6 +53,6 @@ export function displayDateTime(date: Date) {
   }
 }
 
-function dateToUtc(date: Date) {
+export function dateToUtc(date: Date) {
   return new Date(date.getTime() + date.getTimezoneOffset() * 60 * 1000);
 }

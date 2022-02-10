@@ -54,6 +54,7 @@ const Pane = styled(Flex)`
   ${props => {
     return {
       flexDirection: props.split === SplitEnum.VERTICAL ? 'row' : 'column',
+      height: '100%',
     };
   }}
 `;

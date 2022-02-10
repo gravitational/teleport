@@ -34,6 +34,7 @@ export type Props = {
   options: Option<any>[];
   width?: string | number;
   menuPlacement?: string;
+  minMenuHeight?: number;
   components?: any;
   customProps?: Record<string, any>;
   menuPosition?: 'fixed' | 'absolute';
