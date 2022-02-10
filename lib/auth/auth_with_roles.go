@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -456,14 +457,26 @@ func (a *ServerWithRoles) GenerateToken(ctx context.Context, req GenerateTokenRe
 	return a.authServer.GenerateToken(ctx, req)
 }
 
-func (a *ServerWithRoles) RegisterUsingToken(req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	// tokens have authz mechanism  on their own, no need to check
-	return a.authServer.RegisterUsingToken(req)
+	return a.authServer.RegisterUsingToken(ctx, req)
 }
 
 func (a *ServerWithRoles) RegisterNewAuthServer(ctx context.Context, token string) error {
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterNewAuthServer(ctx, token)
+}
+
+// RegisterUsingIAMMethod registers the caller using the IAM join method and
+// returns signed certs to join the cluster.
+//
+// See (*Server).RegisterUsingIAMMethod for further documentation.
+//
+// This wrapper does not do any extra authz checks, as the register method has
+// its own authz mechanism.
+func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error) {
+	certs, err := a.authServer.RegisterUsingIAMMethod(ctx, challengeResponse)
+	return certs, trace.Wrap(err)
 }
 
 // GenerateHostCerts generates new host certificates (signed
@@ -2716,9 +2729,9 @@ func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.Tru
 	return a.authServer.UpsertTrustedCluster(ctx, tc)
 }
 
-func (a *ServerWithRoles) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
 	// the token provides it's own authorization and authentication
-	return a.authServer.validateTrustedCluster(validateRequest)
+	return a.authServer.validateTrustedCluster(ctx, validateRequest)
 }
 
 // DeleteTrustedCluster deletes a trusted cluster by name.
