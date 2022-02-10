@@ -744,7 +744,7 @@ devbox-grpc:
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/client/proto \
 		--gogofast_out=plugins=grpc:api/client/proto \
-		authservice.proto
+		certs.proto authservice.proto joinservice.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
 	  --gogofast_out=plugins=grpc:.\

@@ -24,14 +24,19 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/net/http2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 // LocalRegister is used to generate host keys when a node or proxy is running
@@ -111,6 +116,8 @@ type RegisterParams struct {
 	// EC2IdentityDocument is used for Simplified Node Joining to prove the
 	// identity of a joining EC2 instance.
 	EC2IdentityDocument []byte
+	// JoinMethod is the joining method used for this register request.
+	JoinMethod types.JoinMethod
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -122,7 +129,7 @@ func (r *RegisterParams) setDefaults() {
 // CredGetter is an interface for a client that can be used to get host
 // credentials. This interface is needed because lib/client can not be imported
 // in lib/auth due to circular imports.
-type HostCredentials func(context.Context, string, bool, RegisterUsingTokenRequest) (*proto.Certs, error)
+type HostCredentials func(context.Context, string, bool, types.RegisterUsingTokenRequest) (*proto.Certs, error)
 
 // Register is used to generate host keys when a node or proxy are running on
 // different hosts than the auth server. This method requires provisioning
@@ -186,22 +193,38 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 		return nil, trace.BadParameter("no auth servers set")
 	}
 
-	certs, err := params.GetHostCredentials(context.Background(),
-		params.Servers[0].String(),
-		lib.IsInsecureDevMode(),
-		RegisterUsingTokenRequest{
-			Token:                token,
-			HostID:               params.ID.HostUUID,
-			NodeName:             params.ID.NodeName,
-			Role:                 params.ID.Role,
-			AdditionalPrincipals: params.AdditionalPrincipals,
-			DNSNames:             params.DNSNames,
-			PublicTLSKey:         params.PublicTLSKey,
-			PublicSSHKey:         params.PublicSSHKey,
-			EC2IdentityDocument:  params.EC2IdentityDocument,
-		})
-	if err != nil {
-		return nil, trace.Unwrap(err)
+	var certs *proto.Certs
+	if params.JoinMethod == types.JoinMethodIAM {
+		// IAM join method requires gRPC client
+		client, err := proxyJoinServiceClient(params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certs, err = registerUsingIAMMethod(client, token, params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// non-IAM join methods use GetHostCredentials function passed through
+		// params to call proxy HTTP endpoint
+		var err error
+		certs, err = params.GetHostCredentials(context.Background(),
+			params.Servers[0].String(),
+			lib.IsInsecureDevMode(),
+			types.RegisterUsingTokenRequest{
+				Token:                token,
+				HostID:               params.ID.HostUUID,
+				NodeName:             params.ID.NodeName,
+				Role:                 params.ID.Role,
+				AdditionalPrincipals: params.AdditionalPrincipals,
+				DNSNames:             params.DNSNames,
+				PublicTLSKey:         params.PublicTLSKey,
+				PublicSSHKey:         params.PublicSSHKey,
+				EC2IdentityDocument:  params.EC2IdentityDocument,
+			})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
@@ -226,23 +249,63 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 	}
 	defer client.Close()
 
-	// Get the SSH and X509 certificates for a node.
-	certs, err := client.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:                token,
-		HostID:               params.ID.HostUUID,
-		NodeName:             params.ID.NodeName,
-		Role:                 params.ID.Role,
-		AdditionalPrincipals: params.AdditionalPrincipals,
-		DNSNames:             params.DNSNames,
-		PublicTLSKey:         params.PublicTLSKey,
-		PublicSSHKey:         params.PublicSSHKey,
-		EC2IdentityDocument:  params.EC2IdentityDocument,
-	})
+	var certs *proto.Certs
+	if params.JoinMethod == types.JoinMethodIAM {
+		// IAM method uses unique gRPC endpoint
+		certs, err = registerUsingIAMMethod(client, token, params)
+	} else {
+		// non-IAM join methods use HTTP endpoint
+		// Get the SSH and X509 certificates for a node.
+		certs, err = client.RegisterUsingToken(
+			context.Background(),
+			&types.RegisterUsingTokenRequest{
+				Token:                token,
+				HostID:               params.ID.HostUUID,
+				NodeName:             params.ID.NodeName,
+				Role:                 params.ID.Role,
+				AdditionalPrincipals: params.AdditionalPrincipals,
+				DNSNames:             params.DNSNames,
+				PublicTLSKey:         params.PublicTLSKey,
+				PublicSSHKey:         params.PublicSSHKey,
+				EC2IdentityDocument:  params.EC2IdentityDocument,
+			})
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
+}
+
+// proxyJoinServiceClient attempts to connect to the join service running on the
+// proxy. The Proxy's TLS cert will be verified using the host's root CA pool
+// (PKI) unless the --insecure flag was passed.
+func proxyJoinServiceClient(params RegisterParams) (*client.JoinServiceClient, error) {
+	if len(params.Servers) == 0 {
+		return nil, trace.BadParameter("no auth servers set")
+	}
+
+	tlsConfig := utils.TLSConfig(params.CipherSuites)
+	tlsConfig.Time = params.Clock.Now
+	// set NextProtos for TLS routing, the actual protocol will be h2
+	tlsConfig.NextProtos = []string{string(common.ProtocolProxyGRPC), http2.NextProtoTLS}
+
+	if lib.IsInsecureDevMode() {
+		tlsConfig.InsecureSkipVerify = true
+		log.Warnf("Joining cluster without validating the identity of the Proxy Server.")
+	}
+
+	conn, err := grpc.Dial(
+		params.Servers[0].String(),
+		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
+		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return client.NewJoinServiceClient(proto.NewJoinServiceClient(conn)), nil
 }
 
 // insecureRegisterClient attempts to connects to the Auth Server using the
@@ -374,6 +437,43 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	}
 
 	return authClient, nil
+}
+
+type joinServiceClient interface {
+	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error)
+}
+
+// registerUsingIAMMethod is used to register using the IAM join method. It is
+// able to register through a proxy or through the auth server directly.
+func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, params RegisterParams) (*proto.Certs, error) {
+	ctx := context.Background()
+
+	// call RegisterUsingIAMMethod with a callback to respond to the challenge
+	// with the join request
+	certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
+		// create the signed sts:GetCallerIdentity request and include the challenge
+		signedRequest, err := createSignedStsIdentityRequest(challenge)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// send the register request including the challenge response
+		return &proto.RegisterUsingIAMMethodRequest{
+			RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
+				Token:                token,
+				HostID:               params.ID.HostUUID,
+				NodeName:             params.ID.NodeName,
+				Role:                 params.ID.Role,
+				AdditionalPrincipals: params.AdditionalPrincipals,
+				DNSNames:             params.DNSNames,
+				PublicTLSKey:         params.PublicTLSKey,
+				PublicSSHKey:         params.PublicSSHKey,
+			},
+			StsIdentityRequest: signedRequest,
+		}, nil
+	})
+
+	return certs, trace.Wrap(err)
 }
 
 // ReRegisterParams specifies parameters for re-registering

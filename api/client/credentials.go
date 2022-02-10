@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -361,8 +362,7 @@ func (c *profileCreds) load() error {
 
 func configureTLS(c *tls.Config) *tls.Config {
 	tlsConfig := c.Clone()
-
-	tlsConfig.NextProtos = []string{http2.NextProtoTLS}
+	tlsConfig.NextProtos = utils.Deduplicate(append(tlsConfig.NextProtos, http2.NextProtoTLS))
 
 	if tlsConfig.ServerName == "" {
 		tlsConfig.ServerName = constants.APIDomain

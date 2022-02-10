@@ -633,7 +633,7 @@ func (s *APIServer) validateTrustedCluster(auth ClientI, w http.ResponseWriter, 
 		return nil, trace.Wrap(err)
 	}
 
-	validateResponse, err := auth.ValidateTrustedCluster(validateRequest)
+	validateResponse, err := auth.ValidateTrustedCluster(r.Context(), validateRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1025,7 +1025,7 @@ func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.R
 }
 
 func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req RegisterUsingTokenRequest
+	var req types.RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1033,7 +1033,7 @@ func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *h
 	// Pass along the remote address the request came from to the registration function.
 	req.RemoteAddr = r.RemoteAddr
 
-	certs, err := auth.RegisterUsingToken(req)
+	certs, err := auth.RegisterUsingToken(r.Context(), &req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

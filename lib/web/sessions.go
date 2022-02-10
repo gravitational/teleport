@@ -666,8 +666,8 @@ func (s *sessionCache) Ping(ctx context.Context) (proto.PingResponse, error) {
 	return s.proxyClient.Ping(ctx)
 }
 
-func (s *sessionCache) ValidateTrustedCluster(validateRequest *auth.ValidateTrustedClusterRequest) (*auth.ValidateTrustedClusterResponse, error) {
-	return s.proxyClient.ValidateTrustedCluster(validateRequest)
+func (s *sessionCache) ValidateTrustedCluster(ctx context.Context, validateRequest *auth.ValidateTrustedClusterRequest) (*auth.ValidateTrustedClusterResponse, error) {
+	return s.proxyClient.ValidateTrustedCluster(ctx, validateRequest)
 }
 
 // validateSession validates the session given with user and session ID.
