@@ -190,21 +190,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	return nil
 }
 
-// readClientCmd reads commands from connected Redis client.
-func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
-	cmd := &redis.Cmd{}
-	if err := cmd.ReadReply(e.clientReader); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	val, ok := cmd.Val().([]interface{})
-	if !ok {
-		return nil, trace.BadParameter("failed to cast Redis value to a slice, got %T", cmd.Val())
-	}
-
-	return redis.NewCmd(ctx, val...), nil
-}
-
 // process is the main processing function for Redis. It reads commands passed from client and passes them to
 // a Redis instance. It's also responsible for audit.
 func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient) error {
@@ -229,6 +214,21 @@ func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient)
 			return trace.Wrap(err)
 		}
 	}
+}
+
+// readClientCmd reads commands from connected Redis client.
+func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
+	cmd := &redis.Cmd{}
+	if err := cmd.ReadReply(e.clientReader); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	val, ok := cmd.Val().([]interface{})
+	if !ok {
+		return nil, trace.BadParameter("failed to cast Redis value to a slice, got %T", cmd.Val())
+	}
+
+	return redis.NewCmd(ctx, val...), nil
 }
 
 // serverResponseToValue takes server response and an error and return a message that should be propagated back
