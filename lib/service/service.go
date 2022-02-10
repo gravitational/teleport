@@ -45,6 +45,7 @@ import (
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -70,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/firestoreevents"
 	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
+	"github.com/gravitational/teleport/lib/joinserver"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -91,9 +93,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
@@ -230,23 +232,25 @@ type Connector struct {
 	Client *auth.Client
 }
 
-// TunnelProxy if non-empty, indicates that the client is connected to the Auth Server
+// TunnelProxyResolver if non-nil, indicates that the client is connected to the Auth Server
 // through the reverse SSH tunnel proxy
-func (c *Connector) TunnelProxy() string {
+func (c *Connector) TunnelProxyResolver() reversetunnel.Resolver {
 	if c.Client == nil || c.Client.Dialer() == nil {
-		return ""
+		return nil
 	}
-	tun, ok := c.Client.Dialer().(*reversetunnel.TunnelAuthDialer)
-	if !ok {
-		return ""
+
+	switch dialer := c.Client.Dialer().(type) {
+	case *reversetunnel.TunnelAuthDialer:
+		return dialer.Resolver
+	default:
+		return nil
 	}
-	return tun.ProxyAddr
 }
 
 // UseTunnel indicates if the client is connected directly to the Auth Server
 // (false) or through the proxy (true).
 func (c *Connector) UseTunnel() bool {
-	return c.TunnelProxy() != ""
+	return c.TunnelProxyResolver() != nil
 }
 
 // Close closes resources associated with connector
@@ -319,9 +323,6 @@ type TeleportProcess struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
-
-	// connectFailureC is a channel to notify of failures to connect to auth (used in tests).
-	connectFailureC chan time.Duration
 }
 
 type keyPairKey struct {
@@ -649,10 +650,10 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			cfg.Log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
 		} else {
 			switch cfg.JoinMethod {
-			case JoinMethodToken:
-				cfg.HostUUID = uuid.New()
-			case JoinMethodEC2:
-				cfg.HostUUID, err = getEC2NodeID()
+			case types.JoinMethodToken, types.JoinMethodUnspecified, types.JoinMethodIAM:
+				cfg.HostUUID = uuid.New().String()
+			case types.JoinMethodEC2:
+				cfg.HostUUID, err = utils.GetEC2NodeID()
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -666,7 +667,8 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	}
 
-	if uuid.Parse(cfg.HostUUID) == nil {
+	_, err = uuid.Parse(cfg.HostUUID)
+	if err != nil {
 		cfg.Log.Warnf("Host UUID %q is not a true UUID (not eligible for UUID-based proxying)", cfg.HostUUID)
 	}
 
@@ -713,7 +715,6 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		id:                  processID,
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
-		connectFailureC:     make(chan time.Duration),
 	}
 
 	process.registerAppDepend()
@@ -1958,6 +1959,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentNode)),
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 			regular.SetLockWatcher(lockWatcher),
+			regular.SetX11ForwardingConfig(cfg.SSH.X11),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2002,7 +2004,7 @@ func (process *TeleportProcess) initSSH() error {
 				reversetunnel.AgentPoolConfig{
 					Component:   teleport.ComponentNode,
 					HostUUID:    conn.ServerIdentity.ID.HostUUID,
-					ProxyAddr:   conn.TunnelProxy(),
+					Resolver:    conn.TunnelProxyResolver(),
 					Client:      conn.Client,
 					AccessPoint: conn.Client,
 					HostSigner:  conn.ServerIdentity.KeySigner,
@@ -2523,6 +2525,7 @@ type proxyListeners struct {
 	kube          net.Listener
 	db            dbListeners
 	alpn          net.Listener
+	grpc          net.Listener
 }
 
 // dbListeners groups database access listeners.
@@ -2577,6 +2580,9 @@ func (l *proxyListeners) Close() {
 	}
 	if !l.db.Empty() {
 		l.db.Close()
+	}
+	if l.grpc != nil {
+		l.grpc.Close()
 	}
 }
 
@@ -2902,7 +2908,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register web proxy server
 	var webServer *http.Server
-	var webHandler *web.WebAPIHandler
+	var webHandler *web.APIHandler
 	if !process.Config.Proxy.DisableWebService {
 		var fs http.FileSystem
 		if !process.Config.Proxy.DisableWebInterface {
@@ -3124,6 +3130,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		connLimiter, err := limiter.NewLimiter(process.Config.Databases.Limiter)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		dbProxyServer, err := db.NewProxyServer(process.ExitContext(),
 			db.ProxyServerConfig{
 				AuthClient:  conn.Client,
@@ -3131,6 +3141,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Authorizer:  authorizer,
 				Tunnel:      tsrv,
 				TLSConfig:   tlsConfig,
+				Limiter:     connLimiter,
 				Emitter:     asyncEmitter,
 				Clock:       process.Clock,
 				ServerID:    cfg.HostUUID,
@@ -3197,6 +3208,26 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 	}
 
+	var grpcServer *grpc.Server
+	if alpnRouter != nil {
+		grpcServer := grpc.NewServer(
+			grpc.ChainUnaryInterceptor(
+				utils.ErrorConvertUnaryInterceptor,
+				proxyLimiter.UnaryServerInterceptor(),
+			),
+			grpc.ChainStreamInterceptor(
+				utils.ErrorConvertStreamInterceptor,
+				proxyLimiter.StreamServerInterceptor,
+			),
+		)
+		joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
+		proto.RegisterJoinServiceServer(grpcServer, joinServiceServer)
+		process.RegisterCriticalFunc("proxy.grpc", func() error {
+			log.Infof("Starting proxy gRPC server on %v.", listeners.grpc.Addr())
+			return trace.Wrap(grpcServer.Serve(listeners.grpc))
+		})
+	}
+
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
 		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, accessPoint)
@@ -3259,6 +3290,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if kubeServer != nil {
 				warnOnErr(kubeServer.Close(), log)
 			}
+			if grpcServer != nil {
+				grpcServer.Stop()
+			}
 			if alpnServer != nil {
 				warnOnErr(alpnServer.Close(), log)
 			}
@@ -3277,6 +3311,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 			if webHandler != nil {
 				warnOnErr(webHandler.Close(), log)
+			}
+			if grpcServer != nil {
+				grpcServer.GracefulStop()
 			}
 			if alpnServer != nil {
 				warnOnErr(alpnServer.Close(), log)
@@ -3418,6 +3455,13 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 		listeners.web = webWrapper
 	}
 
+	grpcListener := alpnproxy.NewMuxListenerWrapper(nil /* serviceListener */, listeners.web)
+	router.Add(alpnproxy.HandlerDecs{
+		MatchFunc: alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolProxyGRPC)),
+		Handler:   grpcListener.HandleConnection,
+	})
+	listeners.grpc = grpcListener
+
 	sshProxyListener := alpnproxy.NewMuxListenerWrapper(listeners.ssh, listeners.web)
 	router.Add(alpnproxy.HandlerDecs{
 		MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolProxySSH),
@@ -3521,13 +3565,9 @@ func (process *TeleportProcess) initApps() {
 		// If it was not, it is running in single process mode which is used for
 		// development and demos. In that case, wait until all dependencies (like
 		// auth and reverse tunnel server) are ready before starting.
-		var tunnelAddr string
-		if conn.TunnelProxy() != "" {
-			tunnelAddr = conn.TunnelProxy()
-		} else {
-			if tunnelAddr, ok = process.singleProcessMode(resp.GetProxyListenerMode()); !ok {
-				return trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
-			}
+		tunnelAddrResolver := conn.TunnelProxyResolver()
+		if tunnelAddrResolver == nil {
+			tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
 
 			// Block and wait for all dependencies to start before starting.
 			log.Debugf("Waiting for application service dependencies to start.")
@@ -3649,11 +3689,12 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		// Create and start an agent pool.
-		agentPool, err = reversetunnel.NewAgentPool(process.ExitContext(),
+		agentPool, err = reversetunnel.NewAgentPool(
+			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
 				Component:   teleport.ComponentApp,
 				HostUUID:    conn.ServerIdentity.ID.HostUUID,
-				ProxyAddr:   tunnelAddr,
+				Resolver:    tunnelAddrResolver,
 				Client:      conn.Client,
 				Server:      appServer,
 				AccessPoint: accessPoint,
@@ -3908,31 +3949,49 @@ func (process *TeleportProcess) initDebugApp() {
 	})
 }
 
+// singleProcessModeResolver returns the reversetunnel.Resolver that should be used when running all components needed
+// within the same process. It's used for development and demo purposes.
+func (process *TeleportProcess) singleProcessModeResolver(mode types.ProxyListenerMode) reversetunnel.Resolver {
+	return func() (*utils.NetAddr, error) {
+		addr, ok := process.singleProcessMode(mode)
+		if !ok {
+			return nil, trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
+		}
+		return addr, nil
+	}
+}
+
 // singleProcessMode returns true when running all components needed within
 // the same process. It's used for development and demo purposes.
-func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) (string, bool) {
+func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) (*utils.NetAddr, bool) {
 	if !process.Config.Proxy.Enabled || !process.Config.Auth.Enabled {
-		return "", false
+		return nil, false
 	}
 	if process.Config.Proxy.DisableReverseTunnel {
-		return "", false
+		return nil, false
 	}
 
 	if !process.Config.Proxy.DisableTLS && !process.Config.Proxy.DisableALPNSNIListener && mode == types.ProxyListenerMode_Multiplex {
 		if len(process.Config.Proxy.PublicAddrs) != 0 {
-			return process.Config.Proxy.PublicAddrs[0].String(), true
+			return &process.Config.Proxy.PublicAddrs[0], true
 		}
 		// If WebAddress is unspecified "0.0.0.0" replace 0.0.0.0 with localhost since 0.0.0.0 is never a valid
 		// principal (auth server explicitly removes it when issuing host certs) and when WebPort is used
 		// in the single process mode to establish SSH reverse tunnel connection the host is validated against
 		// the valid principal list.
-		return utils.ReplaceUnspecifiedHost(&process.Config.Proxy.WebAddr, defaults.HTTPListenPort), true
+		addr := process.Config.Proxy.WebAddr
+		addr.Addr = utils.ReplaceUnspecifiedHost(&addr, defaults.HTTPListenPort)
+		return &addr, true
 	}
 
 	if len(process.Config.Proxy.TunnelPublicAddrs) == 0 {
-		return net.JoinHostPort(string(teleport.PrincipalLocalhost), strconv.Itoa(defaults.SSHProxyTunnelListenPort)), true
+		addr, err := utils.ParseHostPortAddr(string(teleport.PrincipalLocalhost), defaults.SSHProxyTunnelListenPort)
+		if err != nil {
+			return nil, false
+		}
+		return addr, true
 	}
-	return process.Config.Proxy.TunnelPublicAddrs[0].String(), true
+	return &process.Config.Proxy.TunnelPublicAddrs[0], true
 }
 
 // dumperHandler is an Application Access debugging application that will

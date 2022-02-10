@@ -243,7 +243,9 @@ message DatabaseSpecV3 {
     // URI is the database connection endpoint.
     string URI = 2 [ (gogoproto.jsontag) = "uri" ];
     // CACert is the PEM-encoded database CA certificate.
-    string CACert = 3 [ (gogoproto.jsontag) = "ca_cert,omitempty" ];
+    //
+    // DEPRECATED: Moved to TLS.CACert. DELETE IN 10.0.
+    string CACert = 3 [ (gogoproto.jsontag) = "ca_cert,omitempty", deprecated = true ];
     // DynamicLabels is the database dynamic labels.
     map<string, CommandLabelV2> DynamicLabels = 4
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
@@ -253,6 +255,9 @@ message DatabaseSpecV3 {
     GCPCloudSQL GCP = 6 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty" ];
     // Azure contains Azure specific database metadata.
     Azure Azure = 7 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "azure,omitempty" ];
+    // TLS is the TLS configuration used when establishing connection to target database.
+    // Allows to provide custom CA cert or override server name.
+    DatabaseTLS TLS = 8 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "tls,omitempty" ];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.
@@ -306,6 +311,29 @@ message GCPCloudSQL {
 message Azure {
     // Name is the Azure database server name.
     string Name = 1 [ (gogoproto.jsontag) = "name,omitempty" ];
+}
+
+// DatabaseTLSMode represents the level of TLS verification performed by
+// DB agent when connecting to a database.
+enum DatabaseTLSMode {
+    // VERIFY_FULL performs full certificate validation.
+    VERIFY_FULL = 0;
+    // VERIFY_CA works the same as VERIFY_FULL, but it skips the hostname check.
+    VERIFY_CA = 1;
+    // INSECURE accepts any certificate provided by server. This is the least secure option.
+    INSECURE = 2;
+}
+
+// DatabaseTLS contains TLS configuration options.
+message DatabaseTLS {
+    // Mode is a TLS connection mode. See DatabaseTLSMode for details.
+    DatabaseTLSMode Mode = 1 [ (gogoproto.jsontag) = "mode" ];
+    // CACert is an optional user provided CA certificate used for verifying
+    // database TLS connection.
+    string CACert = 2 [ (gogoproto.jsontag) = "ca_cert,omitempty" ];
+    // ServerName allows to provide custom hostname. This value will override the
+    // servername/hostname on a certificate during validation.
+    string ServerName = 3 [ (gogoproto.jsontag) = "server_name,omitempty" ];
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
@@ -622,7 +650,7 @@ message CAKeySet {
     repeated JWTKeyPair JWT = 3 [ (gogoproto.jsontag) = "jwt,omitempty" ];
 }
 
-// RoleMappping provides mapping of remote roles to local roles
+// RoleMapping provides mapping of remote roles to local roles
 // for trusted clusters
 message RoleMapping {
     // Remote specifies remote role name to map from
@@ -675,10 +703,20 @@ message ProvisionTokenV2List {
     repeated ProvisionTokenV2 ProvisionTokens = 1;
 }
 
+// TokenRule is a rule that a joining node must match in order to use the
+// associated token.
 message TokenRule {
+    // AWSAccount is the AWS account ID.
     string AWSAccount = 1 [ (gogoproto.jsontag) = "aws_account,omitempty" ];
+    // AWSRegions is used for the EC2 join method and is a list of AWS regions a
+    // node is allowed to join from.
     repeated string AWSRegions = 2 [ (gogoproto.jsontag) = "aws_regions,omitempty" ];
+    // AWSRole is used for the EC2 join method and is the the ARN of the AWS
+    // role that the auth server will assume in order to call the ec2 API.
     string AWSRole = 3 [ (gogoproto.jsontag) = "aws_role,omitempty" ];
+    // AWSARN is used for the IAM join method, the AWS identity of joining nodes
+    // must match this ARN. Supports wildcards "*" and "?".
+    string AWSARN = 4 [ (gogoproto.jsontag) = "aws_arn,omitempty" ];
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
@@ -688,9 +726,17 @@ message ProvisionTokenSpecV2 {
     // certificates issued to the user of the token
     repeated string Roles = 1
         [ (gogoproto.jsontag) = "roles", (gogoproto.casttype) = "SystemRole" ];
-    repeated TokenRule allow = 2 [ (gogoproto.jsontag) = "allow,omitempty" ];
+    // Allow is a list of TokenRules, nodes using this token must match one
+    // allow rule to use this token.
+    repeated TokenRule Allow = 2 [ (gogoproto.jsontag) = "allow,omitempty" ];
+    // AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used
+    // to join the cluster with this token.
     int64 AWSIIDTTL = 3
         [ (gogoproto.jsontag) = "aws_iid_ttl,omitempty", (gogoproto.casttype) = "Duration" ];
+    // JoinMethod is the joining method required in order to use this token.
+    // Supported joining methods include "token", "ec2", and "iam".
+    string JoinMethod = 4
+        [ (gogoproto.jsontag) = "join_method", (gogoproto.casttype) = "JoinMethod" ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -828,7 +874,7 @@ message ClusterNetworkingConfigSpecV2 {
     int64 ClientIdleTimeout = 1
         [ (gogoproto.jsontag) = "client_idle_timeout", (gogoproto.casttype) = "Duration" ];
 
-    // KeepAliveInterval is the interval at which the server sends keep-alive messsages
+    // KeepAliveInterval is the interval at which the server sends keep-alive messages
     // to the client.
     int64 KeepAliveInterval = 2
         [ (gogoproto.jsontag) = "keep_alive_interval", (gogoproto.casttype) = "Duration" ];
@@ -1498,6 +1544,29 @@ message RoleOptions {
     string Lock = 14 [
         (gogoproto.jsontag) = "lock,omitempty",
         (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
+    ];
+
+    // RecordDesktopSession indicates whether desktop access sessions should be recorded.
+    // It defaults to true unless explicitly set to false.
+    RecordSession RecordSession = 15 [ (gogoproto.jsontag) = "record_session" ];
+
+    // DesktopClipboard indicates whether clipboard sharing is allowed between the user's
+    // workstation and the remote desktop. It defaults to true unless explicitly set to
+    // false.
+    BoolValue DesktopClipboard = 16 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "desktop_clipboard",
+        (gogoproto.customtype) = "BoolOption"
+    ];
+}
+
+message RecordSession {
+    // Desktop indicates whether desktop sessions should be recorded.
+    // It defaults to true unless explicitly set to false.
+    BoolValue Desktop = 1 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "desktop",
+        (gogoproto.customtype) = "BoolOption"
     ];
 }
 
@@ -2281,8 +2350,8 @@ message ResourcesInNamespaceRequest {
     string Namespace = 1;
 }
 
-// OIDCConnectorV2 represents an OIDC connector.
-message OIDCConnectorV2 {
+// OIDCConnectorV3 represents an OIDC connector.
+message OIDCConnectorV3 {
     // Kind is a resource kind.
     string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource sub kind, used in some resources.
@@ -2292,20 +2361,20 @@ message OIDCConnectorV2 {
     // Metadata holds resource metadata.
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is an OIDC connector specification.
-    OIDCConnectorSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+    OIDCConnectorSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
-// OIDCConnectorV2List is a list of OIDC connectors.
-message OIDCConnectorV2List {
+// OIDCConnectorV3List is a list of OIDC connectors.
+message OIDCConnectorV3List {
     // OIDCConnectors is a list of OIDC connectors.
-    repeated OIDCConnectorV2 OIDCConnectors = 1;
+    repeated OIDCConnectorV3 OIDCConnectors = 1;
 }
 
-// OIDCConnectorSpecV2 is an OIDC connector specification.
+// OIDCConnectorSpecV3 is an OIDC connector specification.
 //
 // It specifies configuration for Open ID Connect compatible external
 // identity provider: https://openid.net/specs/openid-connect-core-1_0.html
-message OIDCConnectorSpecV2 {
+message OIDCConnectorSpecV3 {
     // IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
     string IssuerURL = 1 [ (gogoproto.jsontag) = "issuer_url" ];
     // ClientID is the id of the authentication client (Teleport Auth server).
@@ -2561,6 +2630,9 @@ message LockTarget {
 
     // WindowsDesktop specifies the name of a Windows desktop.
     string WindowsDesktop = 6 [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
+
+    // AccessRequest specifies the UUID of an access request.
+    string AccessRequest = 7 [ (gogoproto.jsontag) = "access_request,omitempty" ];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specfied
@@ -2658,8 +2730,8 @@ message RegisterUsingTokenRequest {
     // RemoteAddr is the remote address of the host requesting a host certificate.
     // It is used to replace 0.0.0.0 in the list of additional principals.
     string RemoteAddr = 9 [ (gogoproto.jsontag) = "remote_addr" ];
-    // EC2IdentityDocument is used for Simplified Node Joining to prove the
-    // identity of a joining EC2 instance.
+    // EC2IdentityDocument is used for the EC2 join method to prove the identity
+    // of a joining EC2 instance.
     bytes EC2IdentityDocument = 10 [ (gogoproto.jsontag) = "ec2_id" ];
 }
 

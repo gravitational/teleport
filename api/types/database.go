@@ -24,13 +24,14 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
 // Database represents a database proxied by a database server.
 type Database interface {
-	// ResourceWithOrigin provides common resource methods.
-	ResourceWithOrigin
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
 	// GetNamespace returns the database namespace.
 	GetNamespace() string
 	// GetStaticLabels returns the database static labels.
@@ -41,8 +42,6 @@ type Database interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the database dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
-	// GetAllLabels returns combined static and dynamic labels.
-	GetAllLabels() map[string]string
 	// LabelsString returns all labels as a string.
 	LabelsString() string
 	// String returns string representation of the database.
@@ -57,6 +56,8 @@ type Database interface {
 	SetURI(string)
 	// GetCA returns the database CA certificate.
 	GetCA() string
+	// GetTLS returns the database TLS configuration.
+	GetTLS() DatabaseTLS
 	// SetStatusCA sets the database CA certificate in the status field.
 	SetStatusCA(string)
 	// GetAWS returns the database AWS metadata.
@@ -83,6 +84,8 @@ type Database interface {
 	IsCloudSQL() bool
 	// IsAzure returns true if this is an Azure database.
 	IsAzure() bool
+	// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
+	IsCloudHosted() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
 }
@@ -222,12 +225,22 @@ func (d *DatabaseV3) SetURI(uri string) {
 	d.Spec.URI = uri
 }
 
-// GetCA returns the database CA certificate.
+// GetCA returns the database CA certificate. If more than one CA is set, then
+// the user provided CA is returned first (Spec field).
+// Auto-downloaded CA certificate is returned otherwise.
 func (d *DatabaseV3) GetCA() string {
-	if d.Status.CACert != "" {
-		return d.Status.CACert
+	if d.Spec.TLS.CACert != "" {
+		return d.Spec.TLS.CACert
 	}
-	return d.Spec.CACert
+	if d.Spec.CACert != "" {
+		return d.Spec.CACert
+	}
+	return d.Status.CACert
+}
+
+// GetTLS returns Database TLS configuration.
+func (d *DatabaseV3) GetTLS() DatabaseTLS {
+	return d.Spec.TLS
 }
 
 // SetStatusCA sets the database CA certificate in the status field.
@@ -263,7 +276,7 @@ func (d *DatabaseV3) GetAzure() Azure {
 	return d.Spec.Azure
 }
 
-// IsRDS returns true if this is a AWS RDS/Aurora instance.
+// IsRDS returns true if this is an AWS RDS/Aurora instance.
 func (d *DatabaseV3) IsRDS() bool {
 	return d.GetType() == DatabaseTypeRDS
 }
@@ -281,6 +294,11 @@ func (d *DatabaseV3) IsCloudSQL() bool {
 // IsAzure returns true if this is Azure hosted database.
 func (d *DatabaseV3) IsAzure() bool {
 	return d.GetType() == DatabaseTypeAzure
+}
+
+// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
+func (d *DatabaseV3) IsCloudHosted() bool {
+	return d.IsRDS() || d.IsRedshift() || d.IsCloudSQL() || d.IsAzure()
 }
 
 // GetType returns the database type.
@@ -309,6 +327,22 @@ func (d *DatabaseV3) String() string {
 // Copy returns a copy of this database resource.
 func (d *DatabaseV3) Copy() *DatabaseV3 {
 	return proto.Clone(d).(*DatabaseV3)
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (d *DatabaseV3) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(d.GetAllLabels()), d.GetName(), d.GetDescription(), d.GetProtocol(), d.GetType())
+
+	var custom func(string) bool
+	switch d.GetType() {
+	case DatabaseTypeCloudSQL:
+		custom = func(val string) bool {
+			return strings.EqualFold(val, "cloud") || strings.EqualFold(val, "cloud sql")
+		}
+	}
+
+	return MatchSearch(fieldVals, values, custom)
 }
 
 // setStaticFields sets static resource header and metadata fields.

@@ -144,6 +144,9 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return IdentityContext{}, trace.Wrap(err)
 	}
 	identity.ActiveRequests = accessRequestIDs
+	if _, ok := certificate.Extensions[teleport.CertExtensionDisallowReissue]; ok {
+		identity.DisallowReissue = true
+	}
 	return identity, nil
 }
 
@@ -153,6 +156,14 @@ func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
 		return trace.Wrap(err)
 	}
 
+	return nil
+}
+
+// CheckX11Forward checks if X11 forwarding is permitted for the user's RoleSet.
+func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
+	if !ctx.Identity.RoleSet.PermitX11Forwarding() {
+		return trace.AccessDenied("x11 forwarding not permitted")
+	}
 	return nil
 }
 
@@ -168,11 +179,7 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 				Type: events.PortForwardEvent,
 				Code: events.PortForwardFailureCode,
 			},
-			UserMetadata: apievents.UserMetadata{
-				Login:        ctx.Identity.Login,
-				User:         ctx.Identity.TeleportUser,
-				Impersonator: ctx.Identity.Impersonator,
-			},
+			UserMetadata: ctx.Identity.GetUserMetadata(),
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  ctx.ServerConn.LocalAddr().String(),
 				RemoteAddr: ctx.ServerConn.RemoteAddr().String(),

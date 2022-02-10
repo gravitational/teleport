@@ -1,5 +1,5 @@
 /*
-Copyright 2020-2021 Gravitational, Inc.
+Copyright 2020-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -71,6 +71,9 @@ type Client struct {
 	conn *grpc.ClientConn
 	// grpc is the gRPC client specification for the auth server.
 	grpc proto.AuthServiceClient
+	// JoinServiceClient is a client for the JoinService, which runs on both the
+	// auth and proxy.
+	*JoinServiceClient
 	// closedFlag is set to indicate that the connnection is closed.
 	// It's a pointer to allow the Client struct to be copied.
 	closedFlag *int32
@@ -216,7 +219,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 				})
 			}
 
-			// Attempt to connect to each address as Auth, Proxy, and Tunnel
+			// Attempt to connect to each address as Auth, Proxy, Tunnel and TLS Routing.
 			for _, addr := range cfg.Addrs {
 				syncConnect(ctx, authConnect, connectParams{
 					cfg:       cfg,
@@ -224,18 +227,14 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					addr:      addr,
 				})
 				if sshConfig != nil {
-					syncConnect(ctx, proxyConnect, connectParams{
-						cfg:       cfg,
-						tlsConfig: tlsConfig,
-						sshConfig: sshConfig,
-						addr:      addr,
-					})
-					syncConnect(ctx, tunnelConnect, connectParams{
-						cfg:       cfg,
-						tlsConfig: tlsConfig,
-						sshConfig: sshConfig,
-						addr:      addr,
-					})
+					for _, cf := range []connectFunc{proxyConnect, tunnelConnect, tlsRoutingConnect} {
+						syncConnect(ctx, cf, connectParams{
+							cfg:       cfg,
+							tlsConfig: tlsConfig,
+							sshConfig: sshConfig,
+							addr:      addr,
+						})
+					}
 				}
 			}
 		}
@@ -321,6 +320,19 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
+// tlsRoutingConnect connects to the Teleport Auth Server through the proxy using TLS Routing.
+func tlsRoutingConnect(ctx context.Context, params connectParams) (*Client, error) {
+	if params.sshConfig == nil {
+		return nil, trace.BadParameter("must provide ssh client config")
+	}
+	dialer := newTLSRoutingTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
+	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	if err := clt.dialGRPC(ctx, params.addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing dialer", params.addr)
+	}
+	return clt, nil
+}
+
 // dialerConnect connects to the Teleport Auth Server through a custom dialer.
 // The dialer must provide the address in a custom ContextDialerFunc function.
 func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
@@ -360,6 +372,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		return trace.Wrap(err)
 	}
 	c.grpc = proto.NewAuthServiceClient(c.conn)
+	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
 	return nil
 }
@@ -814,15 +827,43 @@ func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
 // GetKubeServices returns the list of kubernetes services registered in the
 // cluster.
 func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
+	resources, err := c.GetResources(ctx, defaults.Namespace, types.KindKubeService)
+	if err != nil {
+		// DELETE IN 10.0
+		if trace.IsNotImplemented(err) {
+			return c.getKubeServicesFallback(ctx)
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	servers := make([]types.Server, len(resources))
+	for i, resource := range resources {
+		srv, ok := resource.(types.Server)
+		if !ok {
+			return nil, trace.BadParameter("expected Server resource, got %T", resource)
+		}
+
+		servers[i] = srv
+	}
+
+	return servers, nil
+}
+
+// getKubeServicesFallback previous implementation of `GetKubeServices` function
+// using `GetKubeServices` RPC call.
+// DELETE IN 10.0
+func (c *Client) getKubeServicesFallback(ctx context.Context) ([]types.Server, error) {
 	resp, err := c.grpc.GetKubeServices(ctx, &proto.GetKubeServicesRequest{}, c.callOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var servers []types.Server
-	for _, server := range resp.GetServers() {
-		servers = append(servers, server)
+	servers := make([]types.Server, len(resp.GetServers()))
+	for i, server := range resp.GetServers() {
+		servers[i] = server
 	}
+
 	return servers, nil
 }
 
@@ -1317,11 +1358,11 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
 func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OIDCConnector) error {
-	oidcConnectorV2, ok := oidcConnector.(*types.OIDCConnectorV2)
+	connector, ok := oidcConnector.(*types.OIDCConnectorV3)
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
-	_, err := c.grpc.UpsertOIDCConnector(ctx, oidcConnectorV2, c.callOpts...)
+	_, err := c.grpc.UpsertOIDCConnector(ctx, connector, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
@@ -1589,6 +1630,38 @@ func GetNodesWithLabels(ctx context.Context, clt NodeClient, namespace string, l
 // nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
 // ListNodes will return a trace.LimitExceeded error if the page of nodes retrieved exceeds 4MiB.
 func (c *Client) ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error) {
+	resources, nextKey, err := c.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    req.Namespace,
+		StartKey:     req.StartKey,
+		Limit:        req.Limit,
+		Labels:       req.Labels,
+	})
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return c.listNodesFallback(ctx, req)
+		}
+
+		return nil, "", trace.Wrap(err)
+	}
+
+	servers := make([]types.Server, len(resources))
+	for i, resource := range resources {
+		server, ok := resource.(*types.ServerV2)
+		if !ok {
+			return nil, "", trace.BadParameter("invalid node type %T", resource)
+		}
+
+		servers[i] = server
+	}
+
+	return servers, nextKey, nil
+}
+
+// listNodesFallback previous implementation of `ListNodes` function using
+// `ListNodes` RPC call.
+// DELETE IN 10.0
+func (c *Client) listNodesFallback(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error) {
 	if req.Namespace == "" {
 		return nil, "", trace.BadParameter("missing parameter namespace")
 	}
@@ -2142,6 +2215,16 @@ func (c *Client) UpdateWindowsDesktop(ctx context.Context, desktop types.Windows
 	return trail.FromGRPC(err)
 }
 
+// UpsertWindowsDesktop updates a windows desktop resource, creating it if it doesn't exist.
+func (c *Client) UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	d, ok := desktop.(*types.WindowsDesktopV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.UpsertWindowsDesktop(ctx, d, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // DeleteWindowsDesktop removes the specified windows desktop host.
 func (c *Client) DeleteWindowsDesktop(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteWindowsDesktop(ctx, &proto.DeleteWindowsDesktopRequest{
@@ -2251,7 +2334,7 @@ func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAu
 // `GetResources` function.
 // It will return a `trace.LimitExceeded` error if the page exceeds gRPC max
 // message size.
-func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.Resource, nextKey string, err error) {
+func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.ResourceWithLabels, nextKey string, err error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2261,13 +2344,17 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 		return nil, "", trail.FromGRPC(err)
 	}
 
-	resources = make([]types.Resource, len(resp.GetResources()))
+	resources = make([]types.ResourceWithLabels, len(resp.GetResources()))
 	for i, respResource := range resp.GetResources() {
 		switch req.ResourceType {
 		case types.KindDatabaseServer:
 			resources[i] = respResource.GetDatabaseServer()
 		case types.KindAppServer:
 			resources[i] = respResource.GetAppServer()
+		case types.KindNode:
+			resources[i] = respResource.GetNode()
+		case types.KindKubeService:
+			resources[i] = respResource.GetKubeService()
 		default:
 			return nil, "", trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -2278,9 +2365,9 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 
 // GetResources retrieves all pages from ListResourcesPage and return all
 // resources.
-func (c *Client) GetResources(ctx context.Context, namespace, resourceType string) ([]types.Resource, error) {
+func (c *Client) GetResources(ctx context.Context, namespace, resourceType string) ([]types.ResourceWithLabels, error) {
 	var (
-		resources []types.Resource
+		resources []types.ResourceWithLabels
 		startKey  string
 		chunkSize = int32(defaults.DefaultChunkSize)
 	)
