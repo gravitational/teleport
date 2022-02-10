@@ -283,87 +283,72 @@ func (s *DatabaseServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
 }
 
-type DatabaseServerSorter struct {
-	servers []DatabaseServer
-	lessFn  func(i, j int) bool
+// DatabaseServers represents a list of database servers.
+type DatabaseServers []DatabaseServer
+
+// Len returns the slice length.
+func (s DatabaseServers) Len() int { return len(s) }
+
+// Less compares database servers by name and host ID.
+func (s DatabaseServers) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
 }
 
-// DatabaseServers returns a sorter that implements the Sort interface,
-// Call its Sort method to sort the data by sort criteria.
-func DatabaseServers(servers []DatabaseServer) *DatabaseServerSorter {
-	return &DatabaseServerSorter{
-		servers: servers,
-	}
-}
+// Swap swaps two database servers.
+func (s DatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
-// Len is part of sort.Interface.
-func (s *DatabaseServerSorter) Len() int { return len(s.servers) }
-
-// Less is part of sort.Interface.
-func (s *DatabaseServerSorter) Less(i, j int) bool { return s.lessFn(i, j) }
-
-// Swap is part of sort.Interface.
-func (s *DatabaseServerSorter) Swap(i, j int) {
-	s.servers[i], s.servers[j] = s.servers[j], s.servers[i]
-}
-
-// Sort sorts a list of app servers according to the sort criteria.
-func (s *DatabaseServerSorter) Sort(sortBy *SortBy) error {
+// SortByCustom custom sorts by given sort criteria.
+func (s DatabaseServers) SortByCustom(sortBy *SortBy) error {
 	if sortBy == nil {
 		return nil
 	}
 
 	// We assume sorting by type DatabaseServer, we are really
 	// wanting to sort its contained resource Database.
+	isDesc := sortBy.IsDesc
 	switch sortBy.Field {
 	case ResourceMetadataName:
-		s.lessFn = func(i, j int) bool {
-			return compareStrByDir(s.servers[i].GetDatabase().GetName(), s.servers[j].GetDatabase().GetName(), sortBy.Dir)
-		}
+		sort.Slice(s, func(i, j int) bool {
+			return compareStrByDir(s[i].GetDatabase().GetName(), s[j].GetDatabase().GetName(), isDesc)
+		})
 	case ResourceSpecDescription:
-		s.lessFn = func(i, j int) bool {
-			return compareStrByDir(s.servers[i].GetDatabase().GetDescription(), s.servers[j].GetDatabase().GetDescription(), sortBy.Dir)
-		}
+		sort.Slice(s, func(i, j int) bool {
+			return compareStrByDir(s[i].GetDatabase().GetDescription(), s[j].GetDatabase().GetDescription(), isDesc)
+		})
 	case ResourceSpecType:
-		s.lessFn = func(i, j int) bool {
-			return compareStrByDir(s.servers[i].GetDatabase().GetType(), s.servers[j].GetDatabase().GetType(), sortBy.Dir)
-		}
+		sort.Slice(s, func(i, j int) bool {
+			return compareStrByDir(s[i].GetDatabase().GetType(), s[j].GetDatabase().GetType(), isDesc)
+		})
 	default:
 		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindDatabaseServer)
 	}
 
-	sort.Sort(s)
 	return nil
 }
 
 // AsResources returns db servers as type resources with labels.
-func (s *DatabaseServerSorter) AsResources() []ResourceWithLabels {
-	resources := make([]ResourceWithLabels, len(s.servers))
-	for i, server := range s.servers {
+func (s DatabaseServers) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, len(s))
+	for i, server := range s {
 		resources[i] = ResourceWithLabels(server)
 	}
 	return resources
 }
 
-// SetCustomLessFn allows you to define custom less function used by sort.
-func (s *DatabaseServerSorter) SetCustomLessFn(fn func(i, j int) bool) {
-	s.lessFn = fn
-}
-
 // GetFieldVals returns list of select field values.
-func (s *DatabaseServerSorter) GetFieldVals(field string) ([]string, error) {
-	vals := make([]string, len(s.servers))
+func (s DatabaseServers) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, len(s))
 	switch field {
 	case ResourceMetadataName:
-		for i, server := range s.servers {
+		for i, server := range s {
 			vals[i] = server.GetDatabase().GetName()
 		}
 	case ResourceSpecDescription:
-		for i, server := range s.servers {
+		for i, server := range s {
 			vals[i] = server.GetDatabase().GetDescription()
 		}
 	case ResourceSpecType:
-		for i, server := range s.servers {
+		for i, server := range s {
 			vals[i] = server.GetDatabase().GetType()
 		}
 	default:

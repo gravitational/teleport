@@ -354,8 +354,8 @@ Outer:
 	return true
 }
 
-func compareStrByDir(a string, b string, dir SortDir) bool {
-	if dir == SortDir_SORT_DIR_DESC {
+func compareStrByDir(a string, b string, isDesc bool) bool {
+	if isDesc {
 		return a > b
 	}
 	return a < b

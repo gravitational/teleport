@@ -2958,20 +2958,10 @@ enum SessionState {
     SessionStateTerminated = 2;
 }
 
-// SortDir defines sort directions for sorting.
-enum SortDir {
-    // Default value that implies direction was not set.
-    SORT_DIR_UNSPECIFIED = 0;
-    // SORT_DIR_ASC is increasing order (ascend).
-    SORT_DIR_ASC = 1;
-    // SORT_DIR_DESC is decreasing order (descend).
-    SORT_DIR_DESC = 2;
-}
-
 // SortBy defines a sort criteria.
 message SortBy {
-    // Dir is the sort direction.
-    SortDir Dir = 1 [ (gogoproto.jsontag) = "dir" ];
+    // IsDesc is a sort direction flag where if true the direction is descending, else ascending.
+    bool IsDesc = 1 [ (gogoproto.jsontag) = "is_desc" ];
     // Field is the name of an objects field to sort by.
     string Field = 2 [ (gogoproto.jsontag) = "field" ];
 }

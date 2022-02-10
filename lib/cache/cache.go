@@ -1966,7 +1966,7 @@ func (c *Cache) listResourcesFromTTLCache(ctx context.Context, rg readGuard, req
 		}
 
 		servers := types.Servers(clonedNodes)
-		if err := servers.Sort(req.SortBy); err != nil {
+		if err := servers.SortByCustom(req.SortBy); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 

@@ -809,8 +809,8 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 	var resources []types.ResourceWithLabels
 	var listResourcesStartKey string
 	sortBy := &types.SortBy{
-		Field: types.ResourceMetadataName,
-		Dir:   types.SortDir_SORT_DIR_DESC,
+		Field:  types.ResourceMetadataName,
+		IsDesc: true,
 	}
 	require.Eventually(t, func() bool {
 		page, nextKey, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{

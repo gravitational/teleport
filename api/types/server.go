@@ -485,78 +485,70 @@ func LabelsToV2(labels map[string]CommandLabel) map[string]CommandLabelV2 {
 // sneaky cluster names being used for client directory traversal and exploits.
 var validKubeClusterName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
-type ServerSorter struct {
-	servers []Server
-	lessFn  func(i, j int) bool
+// Servers represents a list of servers.
+type Servers []Server
+
+// Len returns the slice length.
+func (s Servers) Len() int { return len(s) }
+
+// Less compares servers by name.
+func (s Servers) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName()
 }
 
-// Servers returns a sorter that implements the Sort interface,
-// Call its Sort method to sort the data.
-func Servers(servers []Server) *ServerSorter {
-	return &ServerSorter{
-		servers: servers,
-	}
-}
+// Swap swaps two servers.
+func (s Servers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
-// Len is part of sort.Interface.
-func (s *ServerSorter) Len() int { return len(s.servers) }
-
-// Less is part of sort.Interface.
-func (s *ServerSorter) Less(i, j int) bool { return s.lessFn(i, j) }
-
-// Swap is part of sort.Interface.
-func (s *ServerSorter) Swap(i, j int) { s.servers[i], s.servers[j] = s.servers[j], s.servers[i] }
-
-// Sort sorts a list of servers according to the sort criteria.
-func (s *ServerSorter) Sort(sortBy *SortBy) error {
+// SortByCustom custom sorts by given sort criteria.
+func (s Servers) SortByCustom(sortBy *SortBy) error {
 	if sortBy == nil {
 		return nil
 	}
 
+	isDesc := sortBy.IsDesc
 	switch sortBy.Field {
 	case ResourceMetadataName:
-		s.lessFn = func(i, j int) bool {
-			return compareStrByDir(s.servers[i].GetName(), s.servers[j].GetName(), sortBy.Dir)
-		}
+		sort.Slice(s, func(i, j int) bool {
+			return compareStrByDir(s[i].GetName(), s[j].GetName(), isDesc)
+		})
 	case ResourceSpecHostname:
-		s.lessFn = func(i, j int) bool {
-			return compareStrByDir(s.servers[i].GetHostname(), s.servers[j].GetHostname(), sortBy.Dir)
-		}
+		sort.Slice(s, func(i, j int) bool {
+			return compareStrByDir(s[i].GetHostname(), s[j].GetHostname(), isDesc)
+		})
 	case ResourceSpecAddr:
-		s.lessFn = func(i, j int) bool {
-			return compareStrByDir(s.servers[i].GetAddr(), s.servers[j].GetAddr(), sortBy.Dir)
-		}
+		sort.Slice(s, func(i, j int) bool {
+			return compareStrByDir(s[i].GetAddr(), s[j].GetAddr(), isDesc)
+		})
 	default:
 		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindNode)
 	}
 
-	sort.Sort(s)
 	return nil
 }
 
-// AsResources returns servers as type resources with labels.
-func (s *ServerSorter) AsResources() []ResourceWithLabels {
-	resources := make([]ResourceWithLabels, len(s.servers))
-	for i, server := range s.servers {
+// AsResources returns as type resources with labels.
+func (s Servers) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, len(s))
+	for i, server := range s {
 		resources[i] = ResourceWithLabels(server)
 	}
 	return resources
 }
 
 // GetFieldVals returns list of select field values.
-func (s *ServerSorter) GetFieldVals(field string) ([]string, error) {
-	vals := make([]string, len(s.servers))
+func (s Servers) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, len(s))
 	switch field {
 	case ResourceMetadataName:
-		for i, server := range s.servers {
+		for i, server := range s {
 			vals[i] = server.GetName()
 		}
 	case ResourceSpecHostname:
-		for i, server := range s.servers {
+		for i, server := range s {
 			vals[i] = server.GetHostname()
 		}
 	case ResourceSpecAddr:
-		for i, server := range s.servers {
+		for i, server := range s {
 			vals[i] = server.GetAddr()
 		}
 	default:

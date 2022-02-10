@@ -1611,7 +1611,7 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 
 		servers := types.Servers(nodes)
-		if err := servers.Sort(req.SortBy); err != nil {
+		if err := servers.SortByCustom(req.SortBy); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		resources = servers.AsResources()
@@ -1623,7 +1623,7 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 
 		servers := types.AppServers(appservers)
-		if err := servers.Sort(req.SortBy); err != nil {
+		if err := servers.SortByCustom(req.SortBy); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		resources = servers.AsResources()
@@ -1635,7 +1635,7 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 
 		servers := types.DatabaseServers(dbservers)
-		if err := servers.Sort(req.SortBy); err != nil {
+		if err := servers.SortByCustom(req.SortBy); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		resources = servers.AsResources()

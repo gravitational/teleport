@@ -322,11 +322,7 @@ func TestStart(t *testing.T) {
 	serverAWS, err := types.NewAppServerV3FromApp(appAWS, "test", s.hostUUID)
 	require.NoError(t, err)
 
-	sorter := types.AppServers(servers)
-	sorter.SetCustomLessFn(func(i, j int) bool {
-		return servers[i].GetName() < servers[j].GetName() && servers[i].GetHostID() < servers[j].GetHostID()
-	})
-	sort.Sort(sorter)
+	sort.Sort(types.AppServers(servers))
 	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverFoo}, servers,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Expires")))
 

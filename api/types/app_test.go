@@ -143,9 +143,9 @@ func TestAppServerSorter(t *testing.T) {
 		t.Run(fmt.Sprintf("%s desc", c.name), func(t *testing.T) {
 			t.Parallel()
 
-			sortBy := &SortBy{Field: c.fieldName, Dir: SortDir_SORT_DIR_DESC}
+			sortBy := &SortBy{Field: c.fieldName, IsDesc: true}
 			servers := AppServers(makeServers(testValsUnordered, c.fieldName))
-			require.NoError(t, servers.Sort(sortBy))
+			require.NoError(t, servers.SortByCustom(sortBy))
 			targetVals, err := servers.GetFieldVals(c.fieldName)
 			require.NoError(t, err)
 			require.IsDecreasing(t, targetVals)
@@ -156,7 +156,7 @@ func TestAppServerSorter(t *testing.T) {
 
 			sortBy := &SortBy{Field: c.fieldName}
 			servers := AppServers(makeServers(testValsUnordered, c.fieldName))
-			require.NoError(t, servers.Sort(sortBy))
+			require.NoError(t, servers.SortByCustom(sortBy))
 			targetVals, err := servers.GetFieldVals(c.fieldName)
 			require.NoError(t, err)
 			require.IsIncreasing(t, targetVals)
@@ -166,5 +166,5 @@ func TestAppServerSorter(t *testing.T) {
 	// Test error.
 	sortBy := &SortBy{Field: "unsupported"}
 	servers := makeServers(testValsUnordered, "does-not-matter")
-	require.True(t, trace.IsNotImplemented(AppServers(servers).Sort(sortBy)))
+	require.True(t, trace.IsNotImplemented(AppServers(servers).SortByCustom(sortBy)))
 }

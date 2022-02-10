@@ -1016,11 +1016,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		ServerID:    "proxy-server",
 		Shuffle: func(servers []types.DatabaseServer) []types.DatabaseServer {
 			// To ensure predictability in tests, sort servers instead of shuffling.
-			sorter := types.DatabaseServers(servers)
-			sorter.SetCustomLessFn(func(i, j int) bool {
-				return servers[i].GetName() < servers[j].GetName() && servers[i].GetHostID() < servers[j].GetHostID()
-			})
-			sort.Sort(sorter)
+			sort.Sort(types.DatabaseServers(servers))
 			return servers
 		},
 		LockWatcher: proxyLockWatcher,

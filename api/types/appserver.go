@@ -296,85 +296,72 @@ func (s *AppServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
 }
 
-type AppServerSorter struct {
-	servers []AppServer
-	lessFn  func(i, j int) bool
+// AppServers represents a list of app servers.
+type AppServers []AppServer
+
+// Len returns the slice length.
+func (s AppServers) Len() int { return len(s) }
+
+// Less compares app servers by name and host ID.
+func (s AppServers) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
 }
 
-// AppServers returns a sorter that implements the Sort interface,
-// Call its Sort method to sort the data by sort criteria.
-func AppServers(servers []AppServer) *AppServerSorter {
-	return &AppServerSorter{
-		servers: servers,
-	}
-}
+// Swap swaps two app servers.
+func (s AppServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
-// Len is part of sort.Interface.
-func (s *AppServerSorter) Len() int { return len(s.servers) }
-
-// Less is part of sort.Interface.
-func (s *AppServerSorter) Less(i, j int) bool { return s.lessFn(i, j) }
-
-// Swap is part of sort.Interface.
-func (s *AppServerSorter) Swap(i, j int) { s.servers[i], s.servers[j] = s.servers[j], s.servers[i] }
-
-// Sort sorts a list of app servers according to the sort criteria.
-func (s *AppServerSorter) Sort(sortBy *SortBy) error {
+// SortByCustom custom sorts by given sort criteria.
+func (s AppServers) SortByCustom(sortBy *SortBy) error {
 	if sortBy == nil {
 		return nil
 	}
 
 	// We assume sorting by type AppServer, we are really
 	// wanting to sort its contained resource Application.
+	isDesc := sortBy.IsDesc
 	switch sortBy.Field {
 	case ResourceMetadataName:
-		s.lessFn = func(i, j int) bool {
-			return compareStrByDir(s.servers[i].GetApp().GetName(), s.servers[j].GetApp().GetName(), sortBy.Dir)
-		}
+		sort.Slice(s, func(i, j int) bool {
+			return compareStrByDir(s[i].GetApp().GetName(), s[j].GetApp().GetName(), isDesc)
+		})
 	case ResourceSpecDescription:
-		s.lessFn = func(i, j int) bool {
-			return compareStrByDir(s.servers[i].GetApp().GetDescription(), s.servers[j].GetApp().GetDescription(), sortBy.Dir)
-		}
+		sort.Slice(s, func(i, j int) bool {
+			return compareStrByDir(s[i].GetApp().GetDescription(), s[j].GetApp().GetDescription(), isDesc)
+		})
 	case ResourceSpecPublicAddr:
-		s.lessFn = func(i, j int) bool {
-			return compareStrByDir(s.servers[i].GetApp().GetPublicAddr(), s.servers[j].GetApp().GetPublicAddr(), sortBy.Dir)
-		}
+		sort.Slice(s, func(i, j int) bool {
+			return compareStrByDir(s[i].GetApp().GetPublicAddr(), s[j].GetApp().GetPublicAddr(), isDesc)
+		})
 	default:
 		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindAppServer)
 	}
 
-	sort.Sort(s)
 	return nil
 }
 
 // AsResources returns app servers as type resources with labels.
-func (s *AppServerSorter) AsResources() []ResourceWithLabels {
-	resources := make([]ResourceWithLabels, len(s.servers))
-	for i, server := range s.servers {
+func (s AppServers) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, len(s))
+	for i, server := range s {
 		resources[i] = ResourceWithLabels(server)
 	}
 	return resources
 }
 
-// SetCustomLessFn allows you to define custom less function used by sort.
-func (s *AppServerSorter) SetCustomLessFn(fn func(i, j int) bool) {
-	s.lessFn = fn
-}
-
 // GetFieldVals returns list of select field values.
-func (s *AppServerSorter) GetFieldVals(field string) ([]string, error) {
-	vals := make([]string, len(s.servers))
+func (s AppServers) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, len(s))
 	switch field {
 	case ResourceMetadataName:
-		for i, server := range s.servers {
+		for i, server := range s {
 			vals[i] = server.GetApp().GetName()
 		}
 	case ResourceSpecDescription:
-		for i, server := range s.servers {
+		for i, server := range s {
 			vals[i] = server.GetApp().GetDescription()
 		}
 	case ResourceSpecPublicAddr:
-		for i, server := range s.servers {
+		for i, server := range s {
 			vals[i] = server.GetApp().GetPublicAddr()
 		}
 	default:
