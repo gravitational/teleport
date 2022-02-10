@@ -1,5 +1,5 @@
 steps:
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:teleport6.2-v0.1.0
+  - name: quay.io/gravitational/teleport-buildbox:go1.15.5
     id: lint
     args: ['make', 'lint']
 options:
