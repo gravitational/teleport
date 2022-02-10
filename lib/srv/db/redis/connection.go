@@ -106,14 +106,14 @@ func ParseRedisAddress(addr string) (*ConnectionOptions, error) {
 		var err error
 		host, port, err = net.SplitHostPort(instanceAddr)
 		if err != nil {
-			return nil, trace.BadParameter("failed to parse Redis host: %v", err)
+			return nil, trace.BadParameter("failed to parse Redis host: %q, error: %v", addr, err)
 		}
 
 		// Check if the port can be parsed as a number. net.SplitHostPort() doesn't guarantee that.
 		_, err = strconv.Atoi(port)
 		if err != nil {
 			return nil, trace.BadParameter("failed to parse Redis URL %q, please provide instance address in "+
-				"form address:port or rediss://address:port. Error: %v", addr, err)
+				"form address:port or rediss://address:port, error: %v", addr, err)
 		}
 
 	} else {

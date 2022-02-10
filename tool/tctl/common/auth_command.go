@@ -90,7 +90,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authExport = auth.Command("export", "Export public cluster (CA) keys to stdout")
 	a.authExport.Flag("keys", "if set, will print private keys").BoolVar(&a.exportPrivateKeys)
 	a.authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&a.exportAuthorityFingerprint)
-	a.authExport.Flag("compat", "export cerfiticates compatible with specific version of Teleport").StringVar(&a.compatVersion)
+	a.authExport.Flag("compat", "export certificates compatible with specific version of Teleport").StringVar(&a.compatVersion)
 	a.authExport.Flag("type", "export certificate type").EnumVar(&a.authType, allowedCertificateTypes...)
 
 	a.authGenerate = auth.Command("gen", "Generate a new SSH keypair").Hidden()
@@ -101,15 +101,8 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
 	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
 	a.authSign.Flag("out", "identity output").Short('o').Required().StringVar(&a.output)
-	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, %q, %q, %q, %q, %q or %q",
-		identityfile.FormatFile,
-		identityfile.FormatOpenSSH,
-		identityfile.FormatTLS,
-		identityfile.FormatKubernetes,
-		identityfile.FormatDatabase,
-		identityfile.FormatCockroach,
-		identityfile.FormatRedis,
-		identityfile.FormatMongo)).
+	a.authSign.Flag("format", fmt.Sprintf("identity format: %s. %q is the default.",
+		identityfile.KnownFileFormats.String(), identityfile.DefaultFormat)).
 		Default(string(identityfile.DefaultFormat)).
 		StringVar((*string)(&a.outputFormat))
 	a.authSign.Flag("ttl", "TTL (time to live) for the generated certificate").

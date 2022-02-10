@@ -74,9 +74,27 @@ const (
 	DefaultFormat = FormatFile
 )
 
-// KnownFormats is a list of all above formats.
-var KnownFormats = []Format{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
+type FormatList []Format
+
+// KnownFileFormats is a list of all above formats.
+var KnownFileFormats = FormatList{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
 	FormatCockroach, FormatRedis}
+
+func (f FormatList) String() string {
+	sb := strings.Builder{}
+
+	for i := 0; i < len(f)-1; i++ {
+		sb.WriteRune('"')
+		sb.WriteString(string(f[i]))
+		sb.WriteString("\", ")
+	}
+
+	sb.WriteRune('"')
+	sb.WriteString(string(f[len(f)-1]))
+	sb.WriteRune('"')
+
+	return sb.String()
+}
 
 // WriteConfig holds the necessary information to write an identity file.
 type WriteConfig struct {
@@ -93,7 +111,7 @@ type WriteConfig struct {
 	KubeProxyAddr string
 	// OverwriteDestination forces all existing destination files to be
 	// overwritten. When false, user will be prompted for confirmation of
-	// overwite first.
+	// overwrite first.
 	OverwriteDestination bool
 }
 
@@ -239,7 +257,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		}
 
 	default:
-		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q", cfg.Format, KnownFormats)
+		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q", cfg.Format, KnownFileFormats)
 	}
 	return filesWritten, nil
 }

@@ -449,7 +449,7 @@ func TestAccessRedisAUTHCmd(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestAccessRedisAUTHDefaultCmd checks if AUTH commands is verified against Teleport RBAC before is sent to Redis.
+// TestAccessRedisAUTHDefaultCmd checks if AUTH command is verified against Teleport RBAC before is sent to Redis.
 func TestAccessRedisAUTHDefaultCmd(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))

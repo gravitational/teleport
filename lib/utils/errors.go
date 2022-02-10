@@ -34,7 +34,7 @@ func IsUseOfClosedNetworkError(err error) bool {
 }
 
 // IsFailedToSendCloseNotifyError returns true if the provided error is the
-// "tls: failed to send closeNofify".
+// "tls: failed to send closeNotify".
 func IsFailedToSendCloseNotifyError(err error) bool {
 	if err == nil {
 		return false
