@@ -21,6 +21,7 @@ package redis
 import (
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -55,23 +56,42 @@ type ConnectionOptions struct {
 }
 
 // ParseRedisURI parses a Redis connection string and returns the parsed
-// connection options like address and connection mode.
-// ex: rediss://redis.example.com:6379?mode=cluster
+// connection options like address and connection mode. If port is skipped
+// default Redis 6379 is used.
+// Correct inputs:
+// 	rediss://redis.example.com:6379?mode=cluster
+// 	redis://redis.example.com:6379
+// 	redis.example.com:6379
+//
+// Incorrect input:
+//	redis.example.com:6379?mode=cluster
 func ParseRedisURI(uri string) (*ConnectionOptions, error) {
 	if uri == "" {
 		return nil, trace.BadParameter("Redis uri is empty")
 	}
 
-	u, err := url.Parse(uri)
-	if err != nil {
-		return nil, trace.BadParameter("failed to parse Redis URI: %v", err)
-	}
+	var redisURL url.URL
+	var instanceAddr string
 
-	switch u.Scheme {
-	case URIScheme, URISchemeSSL:
-	default:
-		return nil, trace.BadParameter("invalid Redis URI scheme: %q. Expected %q or %q.",
-			u.Scheme, URIScheme, URISchemeSSL)
+	if strings.Contains(uri, "://") {
+		// Assume URI version
+		u, err := url.Parse(uri)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse Redis URI: %v", err)
+		}
+
+		switch u.Scheme {
+		case URIScheme, URISchemeSSL:
+		default:
+			return nil, trace.BadParameter("failed to parse Redis address %q, invalid Redis URI scheme: %q. "+
+				"Expected %q or %q.", uri, u.Scheme, URIScheme, URISchemeSSL)
+		}
+
+		redisURL = *u
+		instanceAddr = u.Host
+	} else {
+		// Assume host:port pair
+		instanceAddr = uri
 	}
 
 	var (
@@ -79,17 +99,26 @@ func ParseRedisURI(uri string) (*ConnectionOptions, error) {
 		port string
 	)
 
-	if strings.Contains(u.Host, ":") {
-		host, port, err = net.SplitHostPort(u.Host)
+	if strings.Contains(instanceAddr, ":") {
+		var err error
+		host, port, err = net.SplitHostPort(instanceAddr)
 		if err != nil {
 			return nil, trace.BadParameter("failed to parse Redis host: %v", err)
 		}
+
+		// Check if the port can be parsed as a number. net.SplitHostPort() doesn't guarantee that.
+		_, err = strconv.Atoi(port)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse Redis URL %q, please provide instance address in "+
+				"form address:port or rediss://address:port. Error: %v", uri, err)
+		}
+
 	} else {
 		port = DefaultPort
-		host = u.Host
+		host = instanceAddr
 	}
 
-	values := u.Query()
+	values := redisURL.Query()
 	// Get additional connections options
 
 	// Default to the single mode.

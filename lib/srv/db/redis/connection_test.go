@@ -32,8 +32,18 @@ func Test_parseRedisURI(t *testing.T) {
 		errStr string
 	}{
 		{
-			name: "simple test",
+			name: "correct URI",
 			uri:  "redis://localhost:6379",
+			want: &ConnectionOptions{
+				mode:    Standalone,
+				address: "localhost",
+				port:    "6379",
+			},
+			errStr: "",
+		},
+		{
+			name: "correct host:port",
+			uri:  "localhost:6379",
 			want: &ConnectionOptions{
 				mode:    Standalone,
 				address: "localhost",
@@ -86,6 +96,22 @@ func Test_parseRedisURI(t *testing.T) {
 			uri:    "redis://localhost:6379?mode=foo",
 			want:   nil,
 			errStr: "incorrect connection mode",
+		},
+		{
+			name:   "invalid connection string",
+			uri:    "localhost:6379?mode=foo",
+			want:   nil,
+			errStr: "failed to parse Redis URL",
+		},
+		{
+			name: "only address default port",
+			uri:  "localhost",
+			want: &ConnectionOptions{
+				mode:    Standalone,
+				address: "localhost",
+				port:    "6379",
+			},
+			errStr: "",
 		},
 		{
 			name: "default port",
