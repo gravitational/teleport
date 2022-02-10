@@ -130,14 +130,12 @@ func createDesktopConnection(w http.ResponseWriter, r *http.Request, desktopName
 		tlsConfig, err := desktopTLSConfig(r.Context(), conn, pc, ctx, desktopName, username, site.GetName())
 		if err != nil {
 			writeError(err, conn, log)
-			log.Error(err)
 			return
 		}
 		serviceConTLS := tls.Client(serviceCon, tlsConfig)
 
 		if err := serviceConTLS.Handshake(); err != nil {
 			writeError(err, conn, log)
-			log.Error(err)
 			return
 		}
 		log.Debug("Connected to windows_desktop_service")
