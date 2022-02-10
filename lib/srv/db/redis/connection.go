@@ -31,8 +31,11 @@ import (
 const DefaultPort = "6379"
 
 const (
-	URIScheme    = "redis"
-	URISchemeTSL = "rediss"
+	// URIScheme is a Redis scheme: https://www.iana.org/assignments/uri-schemes/prov/redis
+	// Teleport always uses Redis connection over TLS.
+	URIScheme = "redis"
+	// URISchemeTLS is a Redis scheme that uses TLS for database connection: https://www.iana.org/assignments/uri-schemes/prov/rediss
+	URISchemeTLS = "rediss"
 )
 
 // ConnectionMode defines the mode in which Redis is configured. Currently, supported are single and cluster.
@@ -81,10 +84,10 @@ func ParseRedisAddress(addr string) (*ConnectionOptions, error) {
 		}
 
 		switch u.Scheme {
-		case URIScheme, URISchemeTSL:
+		case URIScheme, URISchemeTLS:
 		default:
 			return nil, trace.BadParameter("failed to parse Redis address %q, invalid Redis URI scheme: %q. "+
-				"Expected %q or %q.", addr, u.Scheme, URIScheme, URISchemeTSL)
+				"Expected %q or %q.", addr, u.Scheme, URIScheme, URISchemeTLS)
 		}
 
 		redisURL = *u
