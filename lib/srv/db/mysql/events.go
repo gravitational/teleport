@@ -132,5 +132,5 @@ func formatParameters(definitions []mysql.Field, values []interface{}) (formatte
 			}
 		}
 	}
-	return nil
+	return formatted
 }
