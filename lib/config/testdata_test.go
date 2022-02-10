@@ -161,8 +161,6 @@ proxy_service:
   mysql_public_addr: mysql.example:3306
   mongo_listen_addr: webhost:27017
   mongo_public_addr: mongo.example:27017
-  redis_listen_addr: webhost:6379
-  redis_public_addr: redis.example:6379
 `
 
 // NoServicesConfigString is a configuration file with no services enabled

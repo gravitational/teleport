@@ -678,13 +678,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.MongoAddr = *addr
 	}
-	if fc.Proxy.RedisAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.RedisAddr, defaults.RedisListenPort)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Proxy.RedisAddr = *addr
-	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.
@@ -838,17 +831,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.MongoPublicAddrs = addrs
-	}
-
-	if len(fc.Proxy.RedisPublicAddr) != 0 {
-		if fc.Proxy.RedisAddr == "" {
-			return trace.BadParameter("redis_listen_addr must be set when redis_public_addr is set")
-		}
-		addrs, err := utils.AddrsFromStrings(fc.Proxy.RedisPublicAddr, defaults.RedisListenPort)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Proxy.RedisPublicAddrs = addrs
 	}
 
 	acme, err := fc.Proxy.ACME.Parse()

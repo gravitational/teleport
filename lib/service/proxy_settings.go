@@ -85,10 +85,6 @@ func (p *proxySettings) buildProxySettings(proxyListenerMode types.ProxyListener
 		proxySettings.DB.MongoListenAddr = p.cfg.Proxy.MongoAddr.String()
 	}
 
-	if !p.cfg.Proxy.RedisAddr.IsEmpty() {
-		proxySettings.DB.RedisPublicAddr = p.cfg.Proxy.RedisAddr.String()
-	}
-
 	if p.cfg.Proxy.Kube.Enabled {
 		proxySettings.Kube.ListenAddr = p.cfg.Proxy.Kube.ListenAddr.String()
 	}

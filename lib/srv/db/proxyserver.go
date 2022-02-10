@@ -207,11 +207,6 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 	}
 }
 
-// ServeRedis starts accepting Redis client connections.
-func (s *ProxyServer) ServeRedis(listener net.Listener, tlsConfig *tls.Config) error {
-	return s.serveGenericTLS(listener, tlsConfig, defaults.ProtocolRedis)
-}
-
 // ServeMongo starts accepting Mongo client connections.
 func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) error {
 	return s.serveGenericTLS(listener, tlsConfig, defaults.ProtocolMongoDB)

@@ -1199,12 +1199,6 @@ type Proxy struct {
 	// MongoPublicAddr is the hostport the proxy advertises for Mongo
 	// client connections.
 	MongoPublicAddr apiutils.Strings `yaml:"mongo_public_addr,omitempty"`
-
-	// RedisAddr is Redis proxy listen address.
-	RedisAddr string `yaml:"redis_listen_addr,omitempty"`
-	// RedisPublicAddr is the hostport the proxy advertises for Redis
-	// client connections.
-	RedisPublicAddr apiutils.Strings `yaml:"redis_public_addr,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
