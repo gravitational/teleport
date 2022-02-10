@@ -163,10 +163,12 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			TLSConfig: tlsConfig,
 		})
 	case Cluster:
-		redisConn = redis.NewClusterClient(&redis.ClusterOptions{
-			Addrs:     []string{connectionAddr},
-			TLSConfig: tlsConfig,
-		})
+		redisConn = &clusterClient{
+			ClusterClient: *redis.NewClusterClient(&redis.ClusterOptions{
+				Addrs:     []string{connectionAddr},
+				TLSConfig: tlsConfig,
+			}),
+		}
 	default:
 		// We've checked that while validating the config, but checking again can help with regression.
 		return trace.BadParameter("incorrect connection mode %s", connectionOptions.mode)
