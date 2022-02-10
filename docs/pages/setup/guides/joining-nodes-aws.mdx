@@ -52,9 +52,9 @@ role to the instance. To attach an IAM role from the EC2 dashboard, select
 `Actions > Security > Modify IAM role`.
 
 You can also provide the IAM credentials to Teleport through a shared
-configuration file or environment variables, see
-https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials
-for details.
+configuration file or environment variables. For details, see the following guide:
+
+[Specifying Credentials](https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials)
   </TabItem>
   <TabItem label="EC2 Method">
 Teleport Auth needs permission to call `ec2:DescribeInstances` in order to check
@@ -96,7 +96,7 @@ for details.
   </TabItem>
 </Tabs>
 
-## Step 2/4. Create the AWS Node Joining Token
+## Step 2/4. Create the AWS Node Joining token
 
 Configure your Teleport auth server with a special dynamic token which will
 allow nodes from your AWS account to join your Teleport cluster.
@@ -104,7 +104,7 @@ allow nodes from your AWS account to join your Teleport cluster.
 <Tabs>
   <TabItem label="IAM Method">
 Under the hood, Nodes will prove that they are running in your AWS account by
-sending a pre-signed `sts:GetCallerIdentity` request to the auth server. The
+sending a pre-signed `sts:GetCallerIdentity` request to the Teleport Auth Server. The
 Node's identity must match an allow rule configured in your AWS Node Joining
 Token.
 
@@ -141,7 +141,7 @@ The optional `aws_arn` field in the allow rules supports wildcard characters
 [IAM docs](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html)
 for more details on this format.
 
-You can check what your AWS identity looks like by calling
+You can check what your AWS identity looks like by running
 `aws sts get-caller-identity` on the
 [AWS CLI](https://aws.amazon.com/cli/).
   </TabItem>
@@ -188,10 +188,10 @@ Run `tctl create token.yaml` to create the token on the auth server.
 
 <Tabs>
   <TabItem label="IAM Method">
-The IAM join method can be used for Teleport services running SSH, Proxy,
-Kubernetes, Application, or Database roles.
+The IAM join method can be used for Teleport services running the SSH, Proxy,
+Kubernetes, Application, or Database Service.
 
-Configure your Teleport node with a custom `teleport.yaml` file. Use the
+Configure your Teleport Node with a custom `teleport.yaml` file. Use the
 `join_params` section with `token_name` matching your token created in Step 2
 and `method: iam` as shown in the following example config:
 
