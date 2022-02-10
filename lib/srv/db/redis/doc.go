@@ -18,11 +18,11 @@ limitations under the License.
 // authorization and protocol parsing of connections from Redis clients to
 // Redis standalone or Redis clusters.
 //
-// After accepting a connection from a Redis client and authorizing it, the
-// proxy dials to the target Redis instance. Unfortunately, Redis 6 (the latest at the moment
-// of writing) only supports password authentication. As Teleport doesn't support password
-// authentication we only authenticate Redis user and leave password authentication to
-// the client.
+// After accepting a connection from a Redis client and authorizing it, the proxy dials to the database
+// service agent over reverse tunnel which dials to the target Redis instance.
+// Unfortunately, Redis 6 (the latest at the moment of writing) only supports password authentication.
+// As Teleport doesn't support password authentication we only authenticate Redis user and leave password
+// authentication to the client.
 //
 // In case of authorization failure the command is not passed to the server,
 // instead an "access denied" error is sent back to the Redis client in the
