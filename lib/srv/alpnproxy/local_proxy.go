@@ -52,7 +52,7 @@ type LocalProxyConfig struct {
 	RemoteProxyAddr string
 	// Protocol set for the upstream TLS connection.
 	Protocol common.Protocol
-	// Insecure turns off verification for x509 upstream ALPN proxy service certificate.
+	// InsecureSkipTLSVerify turns off verification for x509 upstream ALPN proxy service certificate.
 	InsecureSkipVerify bool
 	// Listener is listener running on local machine.
 	Listener net.Listener
