@@ -25,7 +25,7 @@ import (
 
 // GitHub is a minimal GitHub client for ease of use
 type GitHub interface {
-	ListReleases(ctx context.Context, organization string, repository string) ([]string, error)
+	ListReleases(ctx context.Context, organization, repository string) ([]github.RepositoryRelease, error)
 }
 
 type ghClient struct {
@@ -40,9 +40,7 @@ func NewGitHub() GitHub {
 }
 
 // ListReleases lists all releases associated with a repository
-func (c *ghClient) ListReleases(ctx context.Context, organization string, repository string) ([]string, error) {
-	var releases []string
-
+func (c *ghClient) ListReleases(ctx context.Context, organization, repository string) (releases []github.RepositoryRelease, err error) {
 	opt := &github.ListOptions{
 		Page:    0,
 		PerPage: 100,
@@ -56,8 +54,8 @@ func (c *ghClient) ListReleases(ctx context.Context, organization string, reposi
 			return nil, trace.Wrap(err)
 		}
 
-		for _, p := range page {
-			releases = append(releases, p.GetTagName())
+		for _, r := range page {
+			releases = append(releases, *r)
 		}
 
 		if resp.NextPage == 0 {
