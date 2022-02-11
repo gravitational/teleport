@@ -78,7 +78,7 @@ func TestServerSorter(t *testing.T) {
 		t.Run(fmt.Sprintf("%s desc", c.name), func(t *testing.T) {
 			t.Parallel()
 
-			sortBy := &SortBy{Field: c.fieldName, IsDesc: true}
+			sortBy := SortBy{Field: c.fieldName, IsDesc: true}
 			servers := Servers(makeServers(testValsUnordered, c.fieldName))
 			require.NoError(t, servers.SortByCustom(sortBy))
 			targetVals, err := servers.GetFieldVals(c.fieldName)
@@ -89,7 +89,7 @@ func TestServerSorter(t *testing.T) {
 		t.Run(fmt.Sprintf("%s asc", c.name), func(t *testing.T) {
 			t.Parallel()
 
-			sortBy := &SortBy{Field: c.fieldName}
+			sortBy := SortBy{Field: c.fieldName}
 			servers := Servers(makeServers(testValsUnordered, c.fieldName))
 			require.NoError(t, servers.SortByCustom(sortBy))
 			targetVals, err := servers.GetFieldVals(c.fieldName)
@@ -99,7 +99,7 @@ func TestServerSorter(t *testing.T) {
 	}
 
 	// Test error.
-	sortBy := &SortBy{Field: "unsupported"}
+	sortBy := SortBy{Field: "unsupported"}
 	servers := makeServers(testValsUnordered, "does-not-matter")
 	require.True(t, trace.IsNotImplemented(Servers(servers).SortByCustom(sortBy)))
 }

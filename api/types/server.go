@@ -500,23 +500,23 @@ func (s Servers) Less(i, j int) bool {
 func (s Servers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
 // SortByCustom custom sorts by given sort criteria.
-func (s Servers) SortByCustom(sortBy *SortBy) error {
-	if sortBy == nil {
+func (s Servers) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
 		return nil
 	}
 
 	isDesc := sortBy.IsDesc
 	switch sortBy.Field {
 	case ResourceMetadataName:
-		sort.Slice(s, func(i, j int) bool {
+		sort.SliceStable(s, func(i, j int) bool {
 			return compareStrByDir(s[i].GetName(), s[j].GetName(), isDesc)
 		})
 	case ResourceSpecHostname:
-		sort.Slice(s, func(i, j int) bool {
+		sort.SliceStable(s, func(i, j int) bool {
 			return compareStrByDir(s[i].GetHostname(), s[j].GetHostname(), isDesc)
 		})
 	case ResourceSpecAddr:
-		sort.Slice(s, func(i, j int) bool {
+		sort.SliceStable(s, func(i, j int) bool {
 			return compareStrByDir(s[i].GetAddr(), s[j].GetAddr(), isDesc)
 		})
 	default:

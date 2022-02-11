@@ -1401,7 +1401,8 @@ message ListResourcesRequest {
     // SearchKeywords is a list of search keywords to match against resource field values.
     repeated string SearchKeywords = 7 [ (gogoproto.jsontag) = "search_keywords,omitempty" ];
     // SortBy describes which resource field and which direction to sort by.
-    types.SortBy SortBy = 8 [ (gogoproto.jsontag) = "sort_by,omitempty" ];
+    types.SortBy SortBy = 8
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "sort_by,omitempty" ];
 }
 
 // ListResourceResponse response of ListResources.

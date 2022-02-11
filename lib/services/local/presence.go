@@ -1523,7 +1523,7 @@ func (s *PresenceService) DeleteAllWindowsDesktopServices(ctx context.Context) e
 // here (without passing through the RBAC).
 func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
 	switch {
-	case req.SortBy != nil:
+	case req.SortBy.Field != "":
 		return s.listResourcesWithSort(ctx, req)
 	default:
 		return s.listResources(ctx, req)
@@ -1677,17 +1677,19 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 
 	// Iterate and filter resources, halting when we reach page limit.
 	var filtered []types.ResourceWithLabels
+	filter := services.MatchResourceFilter{
+		ResourceKind:        req.ResourceType,
+		Labels:              req.Labels,
+		SearchKeywords:      req.SearchKeywords,
+		PredicateExpression: req.PredicateExpression,
+	}
+
 	for _, resource := range resources {
 		if len(filtered) == limit {
 			break
 		}
 
-		switch match, err := services.MatchResourceByFilters(resource, services.MatchResourceFilter{
-			ResourceKind:        req.ResourceType,
-			Labels:              req.Labels,
-			SearchKeywords:      req.SearchKeywords,
-			PredicateExpression: req.PredicateExpression,
-		}); {
+		switch match, err := services.MatchResourceByFilters(resource, filter); {
 		case err != nil:
 			return nil, "", trace.Wrap(err)
 		case match:

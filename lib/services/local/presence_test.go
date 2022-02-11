@@ -727,7 +727,7 @@ func TestListResources(t *testing.T) {
 			require.Empty(t, nextKey)
 
 			// Test sorting by metadata.name, since not all resources support sorting:
-			sortBy := &types.SortBy{Field: types.ResourceMetadataName, IsDesc: true}
+			sortBy := types.SortBy{Field: types.ResourceMetadataName, IsDesc: true}
 			var sortedResources []types.ResourceWithLabels
 
 			switch test.resourceType {
@@ -810,6 +810,7 @@ func TestFakePaginate(t *testing.T) {
 	// Retrieve upserted nodes.
 	nodes, err := presence.GetNodes(ctx, namespace)
 	require.NoError(t, err)
+	require.Len(t, nodes, 20)
 
 	// First fetch.
 	resources := types.Servers(nodes).AsResources()

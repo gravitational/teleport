@@ -298,8 +298,8 @@ func (s DatabaseServers) Less(i, j int) bool {
 func (s DatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
 // SortByCustom custom sorts by given sort criteria.
-func (s DatabaseServers) SortByCustom(sortBy *SortBy) error {
-	if sortBy == nil {
+func (s DatabaseServers) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
 		return nil
 	}
 
@@ -308,15 +308,15 @@ func (s DatabaseServers) SortByCustom(sortBy *SortBy) error {
 	isDesc := sortBy.IsDesc
 	switch sortBy.Field {
 	case ResourceMetadataName:
-		sort.Slice(s, func(i, j int) bool {
+		sort.SliceStable(s, func(i, j int) bool {
 			return compareStrByDir(s[i].GetDatabase().GetName(), s[j].GetDatabase().GetName(), isDesc)
 		})
 	case ResourceSpecDescription:
-		sort.Slice(s, func(i, j int) bool {
+		sort.SliceStable(s, func(i, j int) bool {
 			return compareStrByDir(s[i].GetDatabase().GetDescription(), s[j].GetDatabase().GetDescription(), isDesc)
 		})
 	case ResourceSpecType:
-		sort.Slice(s, func(i, j int) bool {
+		sort.SliceStable(s, func(i, j int) bool {
 			return compareStrByDir(s[i].GetDatabase().GetType(), s[j].GetDatabase().GetType(), isDesc)
 		})
 	default:

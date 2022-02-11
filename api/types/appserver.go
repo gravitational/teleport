@@ -311,8 +311,8 @@ func (s AppServers) Less(i, j int) bool {
 func (s AppServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
 // SortByCustom custom sorts by given sort criteria.
-func (s AppServers) SortByCustom(sortBy *SortBy) error {
-	if sortBy == nil {
+func (s AppServers) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
 		return nil
 	}
 
@@ -321,15 +321,15 @@ func (s AppServers) SortByCustom(sortBy *SortBy) error {
 	isDesc := sortBy.IsDesc
 	switch sortBy.Field {
 	case ResourceMetadataName:
-		sort.Slice(s, func(i, j int) bool {
+		sort.SliceStable(s, func(i, j int) bool {
 			return compareStrByDir(s[i].GetApp().GetName(), s[j].GetApp().GetName(), isDesc)
 		})
 	case ResourceSpecDescription:
-		sort.Slice(s, func(i, j int) bool {
+		sort.SliceStable(s, func(i, j int) bool {
 			return compareStrByDir(s[i].GetApp().GetDescription(), s[j].GetApp().GetDescription(), isDesc)
 		})
 	case ResourceSpecPublicAddr:
-		sort.Slice(s, func(i, j int) bool {
+		sort.SliceStable(s, func(i, j int) bool {
 			return compareStrByDir(s[i].GetApp().GetPublicAddr(), s[j].GetApp().GetPublicAddr(), isDesc)
 		})
 	default:
