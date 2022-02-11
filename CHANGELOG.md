@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.2.27
+
+This release of Teleport contains multiple fixes and improvements.
+
+* Added active node inventory cleanup. [#10134](https://github.com/gravitational/teleport/pull/10134)
+
+* Fixed various issues related to k8s labels. [#10188](https://github.com/gravitational/teleport/pull/10188)
+
+* Added access request IDs to various audit events. [#9758](https://github.com/gravitational/teleport/pull/9758)
+
 ## 6.2.26
 
 This release of Teleport contains performance improvements.
