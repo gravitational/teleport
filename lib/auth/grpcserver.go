@@ -2032,6 +2032,9 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 	case proto.UserCertsRequest_All:
 		return trace.BadParameter("must specify a concrete Usage in UserCertsRequest, one of SSH, Kubernetes or Database")
 	case proto.UserCertsRequest_WindowsDesktop:
+		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
+			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
+		}
 	default:
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}

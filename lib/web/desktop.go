@@ -58,7 +58,7 @@ func (h *Handler) desktopConnectHandle(
 	log := ctx.log.WithField("desktop-name", desktopName)
 	log.Debug("New desktop access websocket connection")
 
-	if err := createDesktopConnection(w, r, desktopName, log, ctx, site, h); err != nil {
+	if err := h.createDesktopConnection(w, r, desktopName, log, ctx, site); err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
@@ -66,7 +66,7 @@ func (h *Handler) desktopConnectHandle(
 	return nil, nil
 }
 
-func createDesktopConnection(w http.ResponseWriter, r *http.Request, desktopName string, log *logrus.Entry, ctx *SessionContext, site reversetunnel.RemoteSite, h *Handler) error {
+func (h *Handler) createDesktopConnection(w http.ResponseWriter, r *http.Request, desktopName string, log *logrus.Entry, ctx *SessionContext, site reversetunnel.RemoteSite) error {
 	q := r.URL.Query()
 	username := q.Get("username")
 	if username == "" {
@@ -184,8 +184,8 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 
 	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
-			DesktopServer: desktopName,
-			Login:         username,
+			WindowsDesktop: desktopName,
+			Login:          username,
 		},
 		RouteToCluster: siteName,
 		ExistingCreds: &client.Key{
@@ -201,7 +201,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 	}
 	windowsDesktopCerts, ok := key.WindowsDesktopCerts[desktopName]
 	if !ok {
-		return nil, trace.NotFound("failed to found windows desktop certificates for %q", desktopName)
+		return nil, trace.NotFound("failed to find windows desktop certificates for %q", desktopName)
 	}
 	certConf, err := tls.X509KeyPair(windowsDesktopCerts, sessCtx.session.GetPriv())
 	if err != nil {
@@ -212,7 +212,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		return nil, trace.Wrap(err)
 	}
 	tlsConfig.Certificates = []tls.Certificate{certConf}
-	// Pass target desktop UUID via SNI.
+	// Pass target desktop name via SNI.
 	tlsConfig.ServerName = desktopName + desktop.SNISuffix
 	return tlsConfig, nil
 }

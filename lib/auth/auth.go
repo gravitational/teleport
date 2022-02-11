@@ -3216,7 +3216,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			dbRoleMatchers...,
 		)
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
-		desktop, err := a.GetWindowsDesktop(ctx, t.WindowsDesktop.GetDesktopServer())
+		desktop, err := a.GetWindowsDesktop(ctx, t.WindowsDesktop.GetWindowsDesktop())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

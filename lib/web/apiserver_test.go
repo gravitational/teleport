@@ -1165,13 +1165,12 @@ type windowsDesktopServiceMock struct {
 	listener net.Listener
 }
 
-func (w *windowsDesktopServiceMock) close() {
-	w.listener.Close()
-}
-
 func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windowsDesktopServiceMock {
 	l, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, l.Close())
+	})
 	authID := auth.IdentityID{
 		Role:     types.RoleWindowsDesktop,
 		HostUUID: "windows_server",
@@ -1192,9 +1191,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 	require.NoError(t, err)
 
 	for _, kp := range services.GetTLSCerts(ca) {
-		if ok := tlsConfig.ClientCAs.AppendCertsFromPEM(kp); !ok {
-			t.Fatalf("failed to add ca")
-		}
+		require.True(t, tlsConfig.ClientCAs.AppendCertsFromPEM(kp))
 	}
 
 	wd := &windowsDesktopServiceMock{
@@ -1246,7 +1243,6 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 	pack := proxy.authPack(t, "llama")
 
 	wdMock := mustStartWindowsDesktopMock(t, env.server.Auth())
-	defer wdMock.close()
 	wds, err := types.NewWindowsDesktopServiceV3("desktop-service", types.WindowsDesktopServiceSpecV3{
 		Addr:            wdMock.listener.Addr().String(),
 		TeleportVersion: teleport.Version,
@@ -1288,12 +1284,12 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 
 func handleMFAU2FCChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
 	var raw []byte
-	require.Nil(t, websocket.Message.Receive(ws, &raw))
+	require.NoError(t, websocket.Message.Receive(ws, &raw))
 	var e Envelope
-	require.Nil(t, proto.Unmarshal(raw, &e))
+	require.NoError(t, proto.Unmarshal(raw, &e))
 
 	chals := &auth.MFAAuthenticateChallenge{}
-	require.Nil(t, json.Unmarshal([]byte(e.Payload), &chals))
+	require.NoError(t, json.Unmarshal([]byte(e.Payload), &chals))
 
 	res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
 		U2F: []*apiProto.U2FChallenge{{

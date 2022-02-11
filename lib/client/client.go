@@ -171,7 +171,7 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 		// App means a request for a TLS certificate for access to a specific
 		// web app, as specified by RouteToApp.
 		return proto.UserCertsRequest_App
-	case p.RouteToWindowsDesktop.DesktopServer != "":
+	case p.RouteToWindowsDesktop.WindowsDesktop != "":
 		return proto.UserCertsRequest_WindowsDesktop
 	default:
 		// All means a request for both SSH and TLS certificates for the
@@ -190,7 +190,7 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequire
 		req.Target = &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: p.KubernetesCluster}
 	case p.RouteToDatabase.ServiceName != "":
 		req.Target = &proto.IsMFARequiredRequest_Database{Database: &p.RouteToDatabase}
-	case p.RouteToWindowsDesktop.DesktopServer != "":
+	case p.RouteToWindowsDesktop.WindowsDesktop != "":
 		req.Target = &proto.IsMFARequiredRequest_WindowsDesktop{WindowsDesktop: &p.RouteToWindowsDesktop}
 	}
 	return req
@@ -299,7 +299,7 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 	case proto.UserCertsRequest_Kubernetes:
 		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
 	case proto.UserCertsRequest_WindowsDesktop:
-		key.WindowsDesktopCerts[params.RouteToWindowsDesktop.DesktopServer] = certs.TLS
+		key.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = certs.TLS
 	}
 	return key, nil
 }
@@ -447,7 +447,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = makeDatabaseClientPEM(
 				params.RouteToDatabase.Protocol, crt.TLS, key.Priv)
 		case proto.UserCertsRequest_WindowsDesktop:
-			key.WindowsDesktopCerts[params.RouteToWindowsDesktop.DesktopServer] = crt.TLS
+			key.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = crt.TLS
 		default:
 			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", initReq.Usage)
 		}
@@ -478,17 +478,18 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 	}
 
 	return &proto.UserCertsRequest{
-		PublicKey:         key.Pub,
-		Username:          tlsCert.Subject.CommonName,
-		Expires:           tlsCert.NotAfter,
-		RouteToCluster:    params.RouteToCluster,
-		KubernetesCluster: params.KubernetesCluster,
-		AccessRequests:    params.AccessRequests,
-		RouteToDatabase:   params.RouteToDatabase,
-		RouteToApp:        params.RouteToApp,
-		NodeName:          params.NodeName,
-		Usage:             params.usage(),
-		Format:            proxy.teleportClient.CertificateFormat,
+		PublicKey:             key.Pub,
+		Username:              tlsCert.Subject.CommonName,
+		Expires:               tlsCert.NotAfter,
+		RouteToCluster:        params.RouteToCluster,
+		KubernetesCluster:     params.KubernetesCluster,
+		AccessRequests:        params.AccessRequests,
+		RouteToDatabase:       params.RouteToDatabase,
+		RouteToWindowsDesktop: params.RouteToWindowsDesktop,
+		RouteToApp:            params.RouteToApp,
+		NodeName:              params.NodeName,
+		Usage:                 params.usage(),
+		Format:                proxy.teleportClient.CertificateFormat,
 	}, nil
 }
 
