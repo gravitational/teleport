@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
@@ -3161,6 +3162,10 @@ func (s *TLSSuite) TestEventsPermissions(c *check.C) {
 	}
 }
 
+func (*testModules) BuildType() string {
+	return modules.BuildOSS
+}
+
 // TestEvents tests events suite
 func (s *TLSSuite) TestEvents(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
@@ -3176,6 +3181,7 @@ func (s *TLSSuite) TestEvents(c *check.C) {
 		UsersS:        clt,
 	}
 	suite.Events(c)
+	modules.SetModules(&testModules{})
 }
 
 // TestEventsClusterConfig test cluster configuration

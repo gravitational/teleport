@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/joinserver"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1504,6 +1505,34 @@ func (g *GRPCServer) UpsertKubeService(ctx context.Context, req *proto.UpsertKub
 		return nil, trace.Wrap(err)
 	}
 	return new(empty.Empty), nil
+}
+
+// UpsertKubeServiceV2 adds a kubernetes service
+func (g *GRPCServer) UpsertKubeServiceV2(ctx context.Context, req *proto.UpsertKubeServiceRequest) (*types.KeepAlive, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	server := req.GetServer()
+	// If Addr in the server is localhost, replace it with the address we see
+	// from our end.
+	//
+	// Services that listen on "0.0.0.0:12345" will put that exact address in
+	// the server.Addr field. It's not useful for other services that want to
+	// connect to it (like a proxy). Remote address of the gRPC connection is
+	// the closest thing we have to a public IP for the service.
+	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
+	if !ok {
+		return nil, status.Errorf(codes.FailedPrecondition, "bug: client address not found in request context")
+	}
+	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), clientAddr.String()))
+
+	keepAlive, err := auth.UpsertKubeServiceV2(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return keepAlive, nil
 }
 
 // DeleteKubeService removes a kubernetes service.
@@ -3564,8 +3593,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		grpc.Creds(&httplib.TLSCreds{
 			Config: cfg.TLS,
 		}),
-		grpc.UnaryInterceptor(grpcErrorConvertUnaryInterceptor(cfg.UnaryInterceptor)),
-		grpc.StreamInterceptor(grpcErrorConvertStreamInterceptor(cfg.StreamInterceptor)),
+		grpc.UnaryInterceptor(cfg.UnaryInterceptor),
+		grpc.StreamInterceptor(cfg.StreamInterceptor),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
 				Time:    cfg.KeepAlivePeriod,
@@ -3588,21 +3617,42 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		server: server,
 	}
 	proto.RegisterAuthServiceServer(authServer.server, authServer)
+
+	// create server with no-op role to pass to JoinService server
+	serverWithNopRole, err := serverWithNopRole(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	joinServiceServer := joinserver.NewJoinServiceGRPCServer(serverWithNopRole)
+	proto.RegisterJoinServiceServer(server, joinServiceServer)
+
 	return authServer, nil
 }
 
-func grpcErrorConvertUnaryInterceptor(next grpc.UnaryServerInterceptor) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		resp, err := next(ctx, req, info, handler)
-		return resp, trail.ToGRPC(err)
+func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
+	clusterName, err := cfg.AuthServer.Services.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-}
-
-func grpcErrorConvertStreamInterceptor(next grpc.StreamServerInterceptor) grpc.StreamServerInterceptor {
-	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		err := next(srv, ss, info, handler)
-		return trail.ToGRPC(err)
+	nopRole := BuiltinRole{
+		Role:        types.RoleNop,
+		Username:    string(types.RoleNop),
+		ClusterName: clusterName.GetClusterName(),
 	}
+	recConfig, err := cfg.AuthServer.Services.GetSessionRecordingConfig(context.Background())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	nopCtx, err := contextForBuiltinRole(nopRole, recConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &ServerWithRoles{
+		authServer: cfg.AuthServer,
+		context:    *nopCtx,
+		sessions:   cfg.SessionService,
+		alog:       cfg.AuthServer.IAuditLog,
+	}, nil
 }
 
 type grpcContext struct {

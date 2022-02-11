@@ -305,6 +305,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AccessRequestDelete{
 			AccessRequestDelete: e,
 		}
+	case *CertificateCreate:
+		out.Event = &OneOf_CertificateCreate{
+			CertificateCreate: e,
+		}
 	default:
 		return nil, trace.BadParameter("event type %T is not supported", in)
 	}

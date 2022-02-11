@@ -114,7 +114,6 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				TLS: cfg.Key.TLSCert,
 			},
 		}
-
 		// append trusted host certificate authorities
 		for _, ca := range cfg.Key.TrustedCA {
 			// append ssh ca certificates

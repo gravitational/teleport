@@ -51,6 +51,9 @@ type TestServerConfig struct {
 	// Used when simulating test Cloud SQL database which should contains
 	// <project-id>:<instance-id> in its certificate.
 	CN string
+	// ListenTLS creates a TLS listener when true instead of using a net listener.
+	// This is used to simulate MySQL connections through the GCP Cloud SQL Proxy.
+	ListenTLS bool
 }
 
 // MakeTestServerTLSConfig returns TLS config suitable for configuring test
@@ -111,9 +114,9 @@ type TestClientConfig struct {
 	RouteToDatabase tlsca.RouteToDatabase
 }
 
-// MakeTestClientTLSConfig returns TLS config suitable for configuring test
+// MakeTestClientCert returns TLS certificate suitable for configuring test
 // database Postgres/MySQL clients.
-func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
+func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
 	key, err := client.NewKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -132,6 +135,16 @@ func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return &tlsCert, nil
+}
+
+// MakeTestClientTLSConfig returns TLS config suitable for configuring test
+// database Postgres/MySQL clients.
+func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
+	tlsCert, err := MakeTestClientTLSCert(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	ca, err := config.AuthClient.GetCertAuthority(types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: config.Cluster,
@@ -145,7 +158,7 @@ func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
 	}
 	return &tls.Config{
 		RootCAs:            pool,
-		Certificates:       []tls.Certificate{tlsCert},
+		Certificates:       []tls.Certificate{*tlsCert},
 		InsecureSkipVerify: true,
 	}, nil
 }
