@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"net/url"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
@@ -32,6 +33,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
+
+func TestAPI(t *testing.T) { check.TestingT(t) }
 
 type GithubSuite struct {
 	a           *Server

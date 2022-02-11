@@ -25,9 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -141,44 +138,13 @@ func (c ec2ClientRunning) DescribeInstances(ctx context.Context, params *ec2.Des
 	}, nil
 }
 
-func newAuthServer(t *testing.T) *Server {
-	b, err := lite.NewWithConfig(context.Background(), lite.Config{
-		Path:             t.TempDir(),
-		PollStreamPeriod: 200 * time.Millisecond,
-	})
+func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
+	a := p.a
 
-	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: "test-cluster",
-	})
-	require.NoError(t, err)
-
-	authConfig := &InitConfig{
-		ClusterName:            clusterName,
-		Backend:                b,
-		Authority:              testauthority.New(),
-		SkipPeriodicOperations: true,
-	}
-
-	a, err := NewServer(authConfig)
-	require.NoError(t, err)
-
-	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: []types.ProvisionTokenV1{},
-	})
-	require.NoError(t, err)
-	err = a.SetStaticTokens(staticTokens)
-	require.NoError(t, err)
-
-	err = a.UpsertNamespace(types.DefaultNamespace())
-	require.NoError(t, err)
-
-	return a
-}
-
-func TestSimplifiedNodeJoin(t *testing.T) {
-	a := newAuthServer(t)
-
+	// upsert a node to test duplicates
 	node := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
@@ -187,7 +153,13 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 			Namespace: defaults.Namespace,
 		},
 	}
-	_, err := a.UpsertNode(context.Background(), node)
+	_, err = a.UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	sshPrivateKey, sshPublicKey, err := a.GenerateKeyPair("")
+	require.NoError(t, err)
+
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
 	isNil := func(err error) bool {
@@ -196,7 +168,6 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 
 	testCases := []struct {
 		desc        string
-		tokenRules  []*types.TokenRule
 		tokenSpec   types.ProvisionTokenSpecV2
 		ec2Client   ec2Client
 		request     types.RegisterUsingTokenRequest
@@ -356,6 +327,27 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				Role:                types.RoleNode,
 				HostID:              "bad host id",
 				EC2IdentityDocument: instance1.iid,
+			},
+			expectError: trace.IsAccessDenied,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
+		},
+		{
+			desc: "no identity document",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
+					},
+				},
+			},
+			ec2Client: ec2ClientRunning{},
+			request: types.RegisterUsingTokenRequest{
+				Token:    "test_token",
+				NodeName: "node_name",
+				Role:     types.RoleNode,
+				HostID:   instance1.account + "-" + instance1.instanceID,
 			},
 			expectError: trace.IsAccessDenied,
 			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
@@ -558,7 +550,12 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 
 			ctx := context.WithValue(context.Background(), ec2ClientKey{}, tc.ec2Client)
 
-			err = a.CheckEC2Request(ctx, tc.request)
+			// set common request values here to avoid setting them in every
+			// testcase
+			tc.request.PublicSSHKey = sshPublicKey
+			tc.request.PublicTLSKey = tlsPublicKey
+
+			_, err = a.RegisterUsingToken(ctx, &tc.request)
 			require.True(t, tc.expectError(err))
 
 			err = a.DeleteToken(context.Background(), token.GetName())
@@ -576,16 +573,26 @@ func TestAWSCerts(t *testing.T) {
 	}
 }
 
-// TestHostUniqueCheck tests the uniqueness check used by CheckEC2Request
+// TestHostUniqueCheck tests the uniqueness check used by checkEC2JoinRequest
 func TestHostUniqueCheck(t *testing.T) {
-	a := newAuthServer(t)
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+	a := p.a
+
 	a.clock = clockwork.NewFakeClockAt(instance1.pendingTime)
 
 	token, err := types.NewProvisionTokenFromSpec(
 		"test_token",
 		time.Now().Add(time.Minute),
 		types.ProvisionTokenSpecV2{
-			Roles: []types.SystemRole{types.RoleNode, types.RoleKube},
+			Roles: []types.SystemRole{
+				types.RoleNode,
+				types.RoleProxy,
+				types.RoleKube,
+				types.RoleDatabase,
+				types.RoleApp,
+			},
 			Allow: []*types.TokenRule{
 				&types.TokenRule{
 					AWSAccount: instance1.account,
@@ -596,6 +603,12 @@ func TestHostUniqueCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	err = a.UpsertToken(context.Background(), token)
+	require.NoError(t, err)
+
+	sshPrivateKey, sshPublicKey, err := a.GenerateKeyPair("")
+	require.NoError(t, err)
+
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -643,7 +656,7 @@ func TestHostUniqueCheck(t *testing.T) {
 						Namespace: defaults.Namespace,
 					},
 				}
-				err := a.UpsertKubeService(context.Background(), kube)
+				_, err := a.UpsertKubeServiceV2(context.Background(), kube)
 				require.NoError(t, err)
 			},
 		},
@@ -692,7 +705,7 @@ func TestHostUniqueCheck(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), ec2ClientKey{}, ec2ClientRunning{})
+	ctx = context.WithValue(ctx, ec2ClientKey{}, ec2ClientRunning{})
 
 	for _, tc := range testCases {
 		t.Run(string(tc.role), func(t *testing.T) {
@@ -702,10 +715,12 @@ func TestHostUniqueCheck(t *testing.T) {
 				Role:                tc.role,
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
+				PublicSSHKey:        sshPublicKey,
+				PublicTLSKey:        tlsPublicKey,
 			}
 
 			// request works with no existing host
-			err = a.CheckEC2Request(ctx, request)
+			_, err = a.RegisterUsingToken(ctx, &request)
 			require.NoError(t, err)
 
 			// add the server
@@ -713,8 +728,9 @@ func TestHostUniqueCheck(t *testing.T) {
 			tc.upserter(name)
 
 			// request should fail
-			err = a.CheckEC2Request(ctx, request)
-			require.Error(t, err)
+			_, err = a.RegisterUsingToken(ctx, &request)
+			expectedErr := &trace.AccessDeniedError{}
+			require.ErrorAs(t, err, &expectedErr)
 		})
 	}
 
