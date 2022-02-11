@@ -1597,17 +1597,6 @@ func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 	return c.APIClient.GetBotUsers(ctx)
 }
 
-// CreateBotJoinToken creates a bot join token.
-func (c *Client) CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
-	// Note: we reuse CreateUserTokenRequest as we are still fundamentally
-	// creating a user token, however the function call we want is still
-	// different.
-	return c.APIClient.CreateBotJoinToken(ctx, &proto.CreateBotJoinTokenRequest{
-		Name: req.Name,
-		TTL:  proto.Duration(req.TTL),
-	})
-}
-
 func (c *Client) GenerateInitialRenewableUserCerts(ctx context.Context, req proto.RenewableCertsRequest) (*proto.Certs, error) {
 	if len(req.Token) == 0 {
 		return nil, trace.BadParameter("missing token")
@@ -1851,8 +1840,6 @@ type IdentityService interface {
 	DeleteBot(ctx context.Context, botName string) error
 	// GetBotUsers gets all bot users.
 	GetBotUsers(ctx context.Context) ([]types.User, error)
-	// CreateBotJoinToken creates a new bot join token.
-	CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
 	// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
 	// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).

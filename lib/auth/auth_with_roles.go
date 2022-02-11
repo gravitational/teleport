@@ -1998,14 +1998,6 @@ func (a *ServerWithRoles) GetBotUsers(ctx context.Context) ([]types.User, error)
 	return a.authServer.getBotUsers(ctx)
 }
 
-// CreateBotJoinToken creates a new join token for a certificate renewal bot.
-func (a *ServerWithRoles) CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.CreateBotJoinToken(ctx, req)
-}
-
 func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)

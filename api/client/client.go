@@ -719,16 +719,6 @@ func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 	return users, nil
 }
 
-// CreateBotJoinToken creates a bot token
-func (c *Client) CreateBotJoinToken(ctx context.Context, req *proto.CreateBotJoinTokenRequest) (types.UserToken, error) {
-	token, err := c.grpc.CreateBotJoinToken(ctx, req, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return token, nil
-}
-
 // GenerateInitialRenewableUserCerts exchanges a bot token for a set of
 // renewable user certificates.
 func (c *Client) GenerateInitialRenewableUserCerts(ctx context.Context, req *proto.RenewableCertsRequest) (*proto.Certs, error) {

@@ -812,35 +812,6 @@ func (g *GRPCServer) GetBotUsers(_ *proto.GetBotUsersRequest, stream proto.AuthS
 	return nil
 }
 
-// CreateBotJoinToken creates a new join token to onboard bot users.
-func (g *GRPCServer) CreateBotJoinToken(ctx context.Context, req *proto.CreateBotJoinTokenRequest) (*types.UserTokenV3, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if req == nil {
-		req = &proto.CreateBotJoinTokenRequest{}
-	}
-
-	token, err := auth.CreateBotJoinToken(ctx, CreateUserTokenRequest{
-		Name: req.Name,
-		TTL:  time.Duration(req.TTL),
-		Type: UserTokenTypeBot,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	r, ok := token.(*types.UserTokenV3)
-	if !ok {
-		err = trace.BadParameter("unexpected UserToken type %T", token)
-		return nil, trace.Wrap(err)
-	}
-
-	return r, nil
-}
-
 func (g *GRPCServer) GenerateInitialRenewableUserCerts(ctx context.Context, req *proto.RenewableCertsRequest) (*proto.Certs, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

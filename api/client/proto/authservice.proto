@@ -358,14 +358,6 @@ message CreateResetPasswordTokenRequest {
     int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
 }
 
-// CreateBotJoinTokenRequest is a request to create a bot join token
-message CreateBotJoinTokenRequest {
-    // Name is the bot's user name.
-    string Name = 1 [ (gogoproto.jsontag) = "name" ];
-    // TTL specifies how long the generated token is valid for.
-    int64 TTL = 2 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
-}
-
 // RenewableCertsRequest is a request to generate a first set of renewable
 // certificates from a bot join token.
 message RenewableCertsRequest {
@@ -1538,8 +1530,6 @@ service AuthService {
     rpc DeleteBot(DeleteBotRequest) returns (google.protobuf.Empty);
     // GetBotUsers gets all users with bot labels.
     rpc GetBotUsers(GetBotUsersRequest) returns (stream types.UserV2);
-    // CreateBotJoinToken creates a new bot onboarding user token
-    rpc CreateBotJoinToken(CreateBotJoinTokenRequest) returns (types.UserTokenV3);
     // GenerateInitialRenewableUserCerts generates an initial set of renewable
     // certificates using a bot token.
     rpc GenerateInitialRenewableUserCerts(RenewableCertsRequest) returns (Certs);
