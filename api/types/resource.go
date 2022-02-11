@@ -112,10 +112,10 @@ func (r ResourcesWithLabels) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 // AsAppServers converts each resource into type AppServer.
 func (r ResourcesWithLabels) AsAppServers() ([]AppServer, error) {
 	apps := make([]AppServer, 0, len(r))
-	for i := range r {
-		app, ok := r[i].(AppServer)
+	for _, resource := range r {
+		app, ok := resource.(AppServer)
 		if !ok {
-			return nil, trace.BadParameter("expected types.AppServer, got: %T", r[i])
+			return nil, trace.BadParameter("expected types.AppServer, got: %T", resource)
 		}
 		apps = append(apps, app)
 	}
@@ -125,10 +125,10 @@ func (r ResourcesWithLabels) AsAppServers() ([]AppServer, error) {
 // AsServers converts each resource into type Server.
 func (r ResourcesWithLabels) AsServers() ([]Server, error) {
 	servers := make([]Server, 0, len(r))
-	for i := range r {
-		server, ok := r[i].(Server)
+	for _, resource := range r {
+		server, ok := resource.(Server)
 		if !ok {
-			return nil, trace.BadParameter("expected types.Server, got: %T", r[i])
+			return nil, trace.BadParameter("expected types.Server, got: %T", resource)
 		}
 		servers = append(servers, server)
 	}
@@ -138,10 +138,10 @@ func (r ResourcesWithLabels) AsServers() ([]Server, error) {
 // AsDatabaseServers converts each resource into type DatabaseServer.
 func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
 	dbs := make([]DatabaseServer, 0, len(r))
-	for i := range r {
-		db, ok := r[i].(DatabaseServer)
+	for _, resource := range r {
+		db, ok := resource.(DatabaseServer)
 		if !ok {
-			return nil, trace.BadParameter("expected types.DatabaseServer, got: %T", r[i])
+			return nil, trace.BadParameter("expected types.DatabaseServer, got: %T", resource)
 		}
 		dbs = append(dbs, db)
 	}
