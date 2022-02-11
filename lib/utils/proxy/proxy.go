@@ -87,14 +87,14 @@ type Dialer interface {
 type directDial struct {
 	// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
 	tlsRoutingEnabled bool
-	// insecureSkipTLSVerify is whether to skip certificate validation.
-	insecureSkipTLSVerify bool
+	// insecure is whether to skip certificate validation.
+	insecure bool
 }
 
 // Dial calls ssh.Dial directly.
 func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	if d.tlsRoutingEnabled {
-		client, err := dialALPNWithDeadline(network, addr, config, d.insecureSkipTLSVerify)
+		client, err := dialALPNWithDeadline(network, addr, config, d.insecure)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -116,7 +116,7 @@ func (d directDial) DialTimeout(network, address string, timeout time.Duration) 
 		}
 		tlsConn, err := tls.Dial("tcp", address, &tls.Config{
 			NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
-			InsecureSkipVerify: d.insecureSkipTLSVerify,
+			InsecureSkipVerify: d.insecure,
 			ServerName:         addr.Host(),
 		})
 		if err != nil {
@@ -136,8 +136,8 @@ type proxyDial struct {
 	proxyHost string
 	// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
 	tlsRoutingEnabled bool
-	// insecureSkipTLSVerify is whether to skip certificate validation.
-	insecureSkipTLSVerify bool
+	// insecure is whether to skip certificate validation.
+	insecure bool
 }
 
 // DialTimeout acts like Dial but takes a timeout.
@@ -160,7 +160,7 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 		}
 		conn = tls.Client(conn, &tls.Config{
 			NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
-			InsecureSkipVerify: d.insecureSkipTLSVerify,
+			InsecureSkipVerify: d.insecure,
 			ServerName:         address.Host(),
 		})
 	}
@@ -185,7 +185,7 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 		}
 		pconn = tls.Client(pconn, &tls.Config{
 			NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
-			InsecureSkipVerify: d.insecureSkipTLSVerify,
+			InsecureSkipVerify: d.insecure,
 			ServerName:         address.Host(),
 		})
 	}
@@ -243,15 +243,15 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	if proxyAddr == "" {
 		log.Debugf("No proxy set in environment, returning direct dialer.")
 		return directDial{
-			tlsRoutingEnabled:     options.tlsRoutingEnabled,
-			insecureSkipTLSVerify: options.insecureSkipTLSVerify,
+			tlsRoutingEnabled: options.tlsRoutingEnabled,
+			insecure:          options.insecureSkipTLSVerify,
 		}
 	}
 	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyAddr)
 	return proxyDial{
-		proxyHost:             proxyAddr,
-		tlsRoutingEnabled:     options.tlsRoutingEnabled,
-		insecureSkipTLSVerify: options.insecureSkipTLSVerify,
+		proxyHost:         proxyAddr,
+		tlsRoutingEnabled: options.tlsRoutingEnabled,
+		insecure:          options.insecureSkipTLSVerify,
 	}
 }
 
