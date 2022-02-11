@@ -18,14 +18,18 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/asn1"
+	"io"
+	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -225,6 +229,37 @@ func TestEmitsRecordingEventsOnSend(t *testing.T) {
 		require.Equal(t, encoded, dr.Message)
 	case <-time.After(1 * time.Second):
 		require.FailNow(t, "timed out waiting for event")
+	}
+}
+
+func TestSkipsExtremelyLargePNGs(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	s := &WindowsService{
+		cfg: WindowsServiceConfig{
+			Clock: clock,
+			Log:   &logrus.Logger{Out: io.Discard},
+		},
+	}
+
+	// a fake PNG Frame message, which is way too big to be legitimate
+	maliciousPNG := make([]byte, libevents.MaxProtoMessageSizeBytes+1)
+	rand.Read(maliciousPNG)
+	maliciousPNG[0] = byte(tdp.TypePNGFrame)
+
+	ch := make(chan events.AuditEvent, 1)
+
+	delay := func() int64 { return 0 }
+	handler := s.makeTDPSendHandler(context.Background(), &channelEmitter{eventsCh: ch}, delay)
+
+	// the handler accepts both the message structure and its encoded form,
+	// but our logic only depends on the encoded form, so pass a nil message
+	var msg tdp.Message
+	handler(msg, maliciousPNG)
+
+	select {
+	case e := <-ch:
+		require.FailNowf(t, "", "windows service should not have emitted a %T event", e)
+	default:
 	}
 }
 

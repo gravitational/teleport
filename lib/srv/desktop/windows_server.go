@@ -860,14 +860,22 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 		switch b[0] {
 		// TODO(zmb3): record audit events for clipboard usage
 		case byte(tdp.TypePNGFrame):
-			if err := emitter.EmitAuditEvent(ctx, &events.DesktopRecording{
+			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
 					Time: s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 				},
 				Message:           b,
 				DelayMilliseconds: delay(),
-			}); err != nil {
+			}
+			if e.Size() > libevents.MaxProtoMessageSizeBytes {
+				// Technically a PNG frame is unbounded and could be too big for a single protobuf.
+				// In practice though, Windows limits RDP bitmaps to 64x64 pixels, and we compress
+				// the PNGs before they get here, so most PNG frames are under 500 bytes. The largest
+				// ones are around 2000 bytes. Anything approaching the limit of a single protobuf
+				// is likely some sort of DoS attempt and not legitimate RDP traffic, so we don't log it.
+				s.cfg.Log.Warnf("refusing to record %d byte PNG frame, image too large", len(b))
+			} else if err := emitter.EmitAuditEvent(ctx, e); err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
 		}
@@ -883,14 +891,19 @@ func (s *WindowsService) makeTDPRecieveHandler(ctx context.Context, emitter even
 			if err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
-			if err := emitter.EmitAuditEvent(ctx, &events.DesktopRecording{
+			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
 					Time: s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 				},
 				Message:           b,
 				DelayMilliseconds: delay(),
-			}); err != nil {
+			}
+			if e.Size() > libevents.MaxProtoMessageSizeBytes {
+				// screen spec, mouse button, and mouse move are fixed size messages,
+				// so they cannot exceed the maximum size
+				s.cfg.Log.Warnf("refusing to record %d byte %T message", len(b), m)
+			} else if err := emitter.EmitAuditEvent(ctx, e); err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
 		}
