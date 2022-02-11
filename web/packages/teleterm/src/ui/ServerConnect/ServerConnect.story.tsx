@@ -28,7 +28,6 @@ export const Story = () => {
     uri: 'clusters/localhost/servers/hostname3',
     tunnel: false,
     name: 'server1',
-    clusterId: 'localhost',
     hostname: 'hostname3',
     addr: '123.12.12.12',
     labelsList: [{ name: 'os', value: 'linux' }],

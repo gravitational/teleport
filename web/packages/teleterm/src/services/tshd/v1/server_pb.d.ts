@@ -17,9 +17,6 @@ export class Server extends jspb.Message {
     getName(): string;
     setName(value: string): Server;
 
-    getClusterId(): string;
-    setClusterId(value: string): Server;
-
     getHostname(): string;
     setHostname(value: string): Server;
 
@@ -47,7 +44,6 @@ export namespace Server {
         uri: string,
         tunnel: boolean,
         name: string,
-        clusterId: string,
         hostname: string,
         addr: string,
         labelsList: Array<v1_label_pb.Label.AsObject>,

@@ -128,6 +128,7 @@ export const eventCodes = {
   USER_UPDATED: 'T1003I',
   X11_FORWARD: 'T3008I',
   X11_FORWARD_FAILURE: 'T3008W',
+  CERTIFICATE_CREATED: 'TC000I',
 } as const;
 
 /**
@@ -591,6 +592,13 @@ export type RawEvents = {
   [eventCodes.SESSION_CONNECT]: RawEvent<
     typeof eventCodes.SESSION_CONNECT,
     { server_addr: string }
+  >;
+  [eventCodes.CERTIFICATE_CREATED]: RawEvent<
+    typeof eventCodes.CERTIFICATE_CREATED,
+    {
+      cert_type: 'user';
+      identity: { user: string };
+    }
   >;
 };
 

@@ -111,6 +111,7 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.PRIVILEGE_TOKEN_CREATED]: Icons.Info,
   [eventCodes.X11_FORWARD]: Icons.Info,
   [eventCodes.X11_FORWARD_FAILURE]: Icons.Info,
+  [eventCodes.CERTIFICATE_CREATED]: Icons.Keypair,
 };
 
 export default function renderTypeCell(event: Event, clusterId: string) {
