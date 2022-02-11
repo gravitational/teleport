@@ -39,6 +39,7 @@ func TestParseChanges(t *testing.T) {
 			desc: "code-only",
 			files: []string{
 				"file.go",
+				"examples/README.md",
 			},
 			docs: false,
 			code: true,

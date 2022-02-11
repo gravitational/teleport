@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -86,7 +87,7 @@ type Config struct {
 	Token string
 
 	// JoinMethod is the method the instance will use to join the auth server
-	JoinMethod JoinMethod
+	JoinMethod types.JoinMethod
 
 	// AuthServers is a list of auth servers, proxies and peer auth servers to
 	// connect to. Yes, this is not just auth servers, the field name is
@@ -568,6 +569,9 @@ type SSHConfig struct {
 	// the inactivity timeout expiring. The empty string indicates that no
 	// timeout message will be sent.
 	IdleTimeoutMessage string
+
+	// X11 holds x11 forwarding configuration for Teleport.
+	X11 *x11.ServerConfig
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -967,8 +971,6 @@ type LDAPConfig struct {
 	Domain string
 	// Username for LDAP authentication.
 	Username string
-	// Password for LDAP authentication.
-	Password string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
@@ -1143,14 +1145,3 @@ func ApplyFIPSDefaults(cfg *Config) {
 	// entire cluster is FedRAMP/FIPS 140-2 compliant.
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 }
-
-// JoinMethod is the method the instance will use to join the auth server.
-type JoinMethod int
-
-const (
-	// JoinMethodToken means the instance will use a basic token.
-	JoinMethodToken JoinMethod = iota
-	// JoinMethodEC2 means the instance will use Simplified Node Joining and send an
-	// EC2 Instance Identity Document.
-	JoinMethodEC2
-)

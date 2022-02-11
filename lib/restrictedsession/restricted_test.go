@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"gopkg.in/check.v1"
 )
 
@@ -199,8 +199,8 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	// Create the SessionContext used by both enhanced recording and us (restricted session)
 	s.ctx = &bpf.SessionContext{
 		Namespace: apidefaults.Namespace,
-		SessionID: uuid.New(),
-		ServerID:  uuid.New(),
+		SessionID: uuid.New().String(),
+		ServerID:  uuid.New().String(),
 		Login:     "foo",
 		User:      "foo@example.com",
 		PID:       os.Getpid(),

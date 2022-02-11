@@ -28,6 +28,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -45,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
@@ -926,7 +926,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 			KubernetesClusters: []*types.KubernetesCluster{{Name: "kube-a"}},
 		},
 	}
-	err = srv.Auth().UpsertKubeService(ctx, k8sSrv)
+	_, err = srv.Auth().UpsertKubeServiceV2(ctx, k8sSrv)
 	require.NoError(t, err)
 	// Register a database.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
@@ -2093,7 +2093,7 @@ func TestListResources(t *testing.T) {
 					Protocol: defaults.ProtocolPostgres,
 					URI:      "localhost:5432",
 					Hostname: "localhost",
-					HostID:   uuid.New(),
+					HostID:   uuid.New().String(),
 				})
 				if err != nil {
 					return err
@@ -2119,7 +2119,7 @@ func TestListResources(t *testing.T) {
 					Name: name,
 				}, types.AppServerSpecV3{
 					Hostname: "localhost",
-					HostID:   uuid.New(),
+					HostID:   uuid.New().String(),
 					App:      app,
 				})
 				if err != nil {
@@ -2127,6 +2127,33 @@ func TestListResources(t *testing.T) {
 				}
 
 				_, err = clt.UpsertApplicationServer(ctx, server)
+				return err
+			},
+		},
+		"KubeService": {
+			resourceType: types.KindKubeService,
+			createResource: func(name string) error {
+				server, err := types.NewServer(name, types.KindKubeService, types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{
+						{Name: name, StaticLabels: map[string]string{"name": name}},
+					},
+				})
+				if err != nil {
+					return err
+				}
+				_, err = clt.UpsertKubeServiceV2(ctx, server)
+				return err
+			},
+		},
+		"Node": {
+			resourceType: types.KindNode,
+			createResource: func(name string) error {
+				server, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{})
+				if err != nil {
+					return err
+				}
+
+				_, err = clt.UpsertNode(ctx, server)
 				return err
 			},
 		},

@@ -89,6 +89,9 @@ const (
 	// desktop service.
 	KeepAliveWindowsDesktopService = "windows_desktop_service"
 
+	// KeepAliveKube is the keep alive type for Kubernetes server
+	KeepAliveKube = "kube"
+
 	// WindowsOS is the GOOS constant used for Microsoft Windows.
 	WindowsOS = "windows"
 
@@ -173,4 +176,12 @@ const (
 	ALPNSNIAuthProtocol = "teleport-auth@"
 	// ALPNSNIProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ALPNSNIProtocolReverseTunnel = "teleport-reversetunnel"
+)
+
+const (
+	// KubeSNIPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
+	// DELETE IN 11.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
+	KubeSNIPrefix = "kube."
+	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
+	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
 )

@@ -19,9 +19,11 @@ package client
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -161,12 +163,54 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 	}, nil
 }
 
+// RootClusterCAs returns root cluster CAs.
+func (k *Key) RootClusterCAs() ([][]byte, error) {
+	rootClusterName, err := k.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var out [][]byte
+	for _, cas := range k.TrustedCA {
+		for _, v := range cas.TLSCertificates {
+			cert, err := tlsca.ParseCertificatePEM(v)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if cert.Subject.CommonName == rootClusterName {
+				out = append(out, v)
+			}
+		}
+	}
+	if len(out) > 0 {
+		return out, nil
+	}
+	return nil, trace.NotFound("failed to find TLS CA for %q root cluster", rootClusterName)
+}
+
 // TLSCAs returns all TLS CA certificates from this key
 func (k *Key) TLSCAs() (result [][]byte) {
 	for _, ca := range k.TrustedCA {
 		result = append(result, ca.TLSCertificates...)
 	}
 	return result
+}
+
+func (k *Key) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName string) (*tls.Config, error) {
+	rootCluster, err := k.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsCert, ok := k.KubeTLSCerts[kubeClusterName]
+	if !ok {
+		return nil, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
+	}
+
+	tlsConfig, err := k.clientTLSConfig(cipherSuites, tlsCert, []string{rootCluster})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConfig.ServerName = fmt.Sprintf("%s%s", constants.KubeSNIPrefix, constants.APIDomain)
+	return tlsConfig, nil
 }
 
 // SSHCAs returns all SSH CA certificates from this key
@@ -177,23 +221,34 @@ func (k *Key) SSHCAs() (result [][]byte) {
 	return result
 }
 
-// KubeClientTLSConfig returns client TLS configuration used
-// to authenticate against kubernetes servers.
-func (k *Key) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName string) (*tls.Config, error) {
-	tlsCert, ok := k.KubeTLSCerts[kubeClusterName]
-	if !ok {
-		return nil, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
+// SSHCAsForClusters returns SSH CA for particular clusters.
+func (k *Key) SSHCAsForClusters(clusters []string) (result [][]byte, err error) {
+	for _, ca := range k.TrustedCA {
+		for _, hc := range ca.HostCertificates {
+			_, hosts, _, _, _, err := ssh.ParseKnownHosts(hc)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			for _, h := range hosts {
+				for _, c := range clusters {
+					if h == c {
+						result = append(result, hc)
+					}
+				}
+			}
+		}
 	}
-	return k.clientTLSConfig(cipherSuites, tlsCert)
+	return result, nil
 }
 
 // TeleportClientTLSConfig returns client TLS configuration used
 // to authenticate against API servers.
-func (k *Key) TeleportClientTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
-	return k.clientTLSConfig(cipherSuites, k.TLSCert)
+func (k *Key) TeleportClientTLSConfig(cipherSuites []uint16, clusters []string) (*tls.Config, error) {
+	return k.clientTLSConfig(cipherSuites, k.TLSCert, clusters)
 }
 
-func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte) (*tls.Config, error) {
+func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte, clusters []string) (*tls.Config, error) {
 	tlsCert, err := tls.X509KeyPair(tlsCertRaw, k.Priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -201,8 +256,16 @@ func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte) (*tls.Co
 
 	pool := x509.NewCertPool()
 	for _, caPEM := range k.TLSCAs() {
-		if !pool.AppendCertsFromPEM(caPEM) {
-			return nil, trace.BadParameter("failed to parse TLS CA certificate")
+		cert, err := tlsca.ParseCertificatePEM(caPEM)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, k := range clusters {
+			if cert.Subject.CommonName == k {
+				if !pool.AppendCertsFromPEM(caPEM) {
+					return nil, trace.BadParameter("failed to parse TLS CA certificate")
+				}
+			}
 		}
 	}
 
@@ -225,14 +288,14 @@ func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte) (*tls.Co
 // The config is set up to authenticate to proxy with the first available principal
 // and ( if keyStore != nil ) trust local SSH CAs without asking for public keys.
 //
-func (k *Key) ProxyClientSSHConfig(keyStore LocalKeyStore) (*ssh.ClientConfig, error) {
+func (k *Key) ProxyClientSSHConfig(keyStore sshKnowHostGetter, host string) (*ssh.ClientConfig, error) {
 	sshConfig, err := sshutils.ProxyClientSSHConfig(k.Cert, k.Priv, k.SSHCAs())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if keyStore != nil {
-		sshConfig.HostKeyCallback = NewKeyStoreCertChecker(keyStore)
+		sshConfig.HostKeyCallback = NewKeyStoreCertChecker(keyStore, host)
 	}
 
 	return sshConfig, nil
@@ -424,6 +487,20 @@ func (k *Key) CheckCert() error {
 // fingerprint (same as OpenSSH does for an unknown host).
 func (k *Key) HostKeyCallback(withHostKeyFallback bool) (ssh.HostKeyCallback, error) {
 	return sshutils.HostKeyCallback(k.SSHCAs(), withHostKeyFallback)
+}
+
+// HostKeyCallbackForClusters returns an ssh.HostKeyCallback that validates host
+// keys/certs against SSH clusters CAs.
+//
+// If not CAs are present in the Key, the returned ssh.HostKeyCallback is nil.
+// This causes golang.org/x/crypto/ssh to prompt the user to verify host key
+// fingerprint (same as OpenSSH does for an unknown host).
+func (k *Key) HostKeyCallbackForClusters(withHostKeyFallback bool, clusters []string) (ssh.HostKeyCallback, error) {
+	sshCA, err := k.SSHCAsForClusters(clusters)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sshutils.HostKeyCallback(sshCA, withHostKeyFallback)
 }
 
 // RootClusterName extracts the root cluster name from the issuer

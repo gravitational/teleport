@@ -30,8 +30,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -155,7 +155,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			Metadata: apievents.Metadata{
 				Type:  SessionUploadEvent,
 				Code:  SessionUploadCode,
-				ID:    uuid.New(),
+				ID:    uuid.New().String(),
 				Index: SessionUploadIndex,
 			},
 			SessionMetadata: apievents.SessionMetadata{

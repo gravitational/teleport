@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/fsouza/fake-gcs-server/fakestorage"
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,7 +44,7 @@ func TestFakeStreams(t *testing.T) {
 
 	handler, err := NewHandler(ctx, cancelFunc, Config{
 		Endpoint: server.URL(),
-		Bucket:   fmt.Sprintf("teleport-test-%v", uuid.New()),
+		Bucket:   fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 	}, server.Client())
 	require.Nil(t, err)
 	defer handler.Close()

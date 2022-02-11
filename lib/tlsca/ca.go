@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 
 	"github.com/gravitational/trace"
@@ -196,6 +197,54 @@ func (id *Identity) GetRouteToApp() (RouteToApp, error) {
 	}
 
 	return id.RouteToApp, nil
+}
+
+func (id *Identity) GetEventIdentity() events.Identity {
+	// leave a nil instead of a zero struct so the field doesn't appear when
+	// serialized as json
+	var routeToApp *events.RouteToApp
+	if id.RouteToApp != (RouteToApp{}) {
+		routeToApp = &events.RouteToApp{
+			Name:        id.RouteToApp.Name,
+			SessionID:   id.RouteToApp.SessionID,
+			PublicAddr:  id.RouteToApp.PublicAddr,
+			ClusterName: id.RouteToApp.ClusterName,
+			AWSRoleARN:  id.RouteToApp.AWSRoleARN,
+		}
+	}
+	var routeToDatabase *events.RouteToDatabase
+	if id.RouteToDatabase != (RouteToDatabase{}) {
+		routeToDatabase = &events.RouteToDatabase{
+			ServiceName: id.RouteToDatabase.ServiceName,
+			Protocol:    id.RouteToDatabase.Protocol,
+			Username:    id.RouteToDatabase.Username,
+			Database:    id.RouteToDatabase.Database,
+		}
+	}
+
+	return events.Identity{
+		User:              id.Username,
+		Impersonator:      id.Impersonator,
+		Roles:             id.Groups,
+		Usage:             id.Usage,
+		Logins:            id.Principals,
+		KubernetesGroups:  id.KubernetesGroups,
+		KubernetesUsers:   id.KubernetesUsers,
+		Expires:           id.Expires,
+		RouteToCluster:    id.RouteToCluster,
+		KubernetesCluster: id.KubernetesCluster,
+		Traits:            id.Traits,
+		RouteToApp:        routeToApp,
+		TeleportCluster:   id.TeleportCluster,
+		RouteToDatabase:   routeToDatabase,
+		DatabaseNames:     id.DatabaseNames,
+		DatabaseUsers:     id.DatabaseUsers,
+		MFADeviceUUID:     id.MFAVerified,
+		ClientIP:          id.ClientIP,
+		AWSRoleARNs:       id.AWSRoleARNs,
+		AccessRequests:    id.ActiveRequests,
+		DisallowReissue:   id.DisallowReissue,
+	}
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -648,6 +697,14 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 	return id, nil
+}
+
+func (id Identity) GetUserMetadata() events.UserMetadata {
+	return events.UserMetadata{
+		User:           id.Username,
+		Impersonator:   id.Impersonator,
+		AccessRequests: id.ActiveRequests,
+	}
 }
 
 // CertificateRequest is a X.509 signing certificate request
