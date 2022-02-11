@@ -147,7 +147,7 @@ func (m *MultiLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, even
 }
 
 // SearchSessionEvents is a flexible way to find session events.
-// Only session.end events are returned by this function.
+// Only session.end and windows.desktop.session.end events are returned by this function.
 // This is used to find completed sessions.
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
