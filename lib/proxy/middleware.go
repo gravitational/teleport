@@ -21,8 +21,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// errorStreamInterceptor is GPRC unary interceptor that handles converting errors
-// to the appropriate grpc status code.
+// errorStreamInterceptor is a GPRC stream interceptor that handles converting
+// errors to the appropriate grpc status code.
 func errorStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	err := handler(srv, stream)
 	return toGRPCError(err)

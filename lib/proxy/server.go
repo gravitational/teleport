@@ -49,6 +49,9 @@ type ServerConfig struct {
 
 // checkAndSetDefaults checks and sets default values
 func (c *ServerConfig) checkAndSetDefaults() error {
+	if c.AccessCache == nil {
+		return trace.BadParameter("missing access cache")
+	}
 	if c.Listener == nil {
 		return trace.BadParameter("missing listener")
 	}
@@ -61,9 +64,6 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 	}
 	if len(c.TLSConfig.Certificates) == 0 {
 		return trace.BadParameter("missing tls certificate")
-	}
-	if c.TLSConfig.RootCAs == nil {
-		return trace.BadParameter("missing tls root ca")
 	}
 	if c.Log == nil {
 		c.Log = logrus.New()

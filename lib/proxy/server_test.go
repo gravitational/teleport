@@ -153,6 +153,9 @@ func TestServerTLS(t *testing.T) {
 		listener, err := net.Listen("tcp", "localhost:0")
 		require.NoError(t, err)
 
+		clientCAs := tc.server.RootCAs
+		tc.server.RootCAs = nil
+
 		server, err := NewServer(ServerConfig{
 			AccessCache:   &mockAccessCache{},
 			Listener:      listener,
@@ -161,7 +164,7 @@ func TestServerTLS(t *testing.T) {
 			getConfigForClient: func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
 				config := tc.server.Clone()
 				config.ClientAuth = tls.RequireAndVerifyClientCert
-				config.ClientCAs = config.RootCAs
+				config.ClientCAs = clientCAs
 				return config, nil
 			},
 		})
