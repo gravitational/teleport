@@ -530,7 +530,7 @@ func (a *AuditWriter) tryResumeStream() (apievents.Stream, error) {
 			return nil, trace.ConnectionProblem(a.closeCtx.Err(), "operation has been canceled")
 		}
 	}
-	return nil, trace.Wrap(err)
+	return nil, trace.LimitExceeded("audit stream resume attempts exhausted, last error: %v", err)
 }
 
 func (a *AuditWriter) updateStatus(status apievents.StreamStatus) {
