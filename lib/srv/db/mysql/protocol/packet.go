@@ -255,6 +255,7 @@ const (
 	// packetTypeSize is the size of the command type.
 	packetTypeSize = 1
 
-	// packetHeaderAndTypeSize
+	// packetHeaderAndTypeSize is the combined size of the packet header and
+	// type.
 	packetHeaderAndTypeSize = packetHeaderSize + packetTypeSize
 )

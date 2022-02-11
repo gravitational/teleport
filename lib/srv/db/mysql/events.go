@@ -17,14 +17,11 @@ limitations under the License.
 package mysql
 
 import (
-	"fmt"
-
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/siddontang/go-mysql/mysql"
-	"github.com/sirupsen/logrus"
 )
 
 // makeStatementPrepareEvent creates an audit event for MySQL statement prepare
@@ -44,14 +41,7 @@ func makeStatementPrepareEvent(session *common.Session, packet *protocol.Stateme
 // makeStatementExecuteEvent creates an audit event for MySQL statement execute
 // command.
 func makeStatementExecuteEvent(session *common.Session, packet *protocol.StatementExecutePacket, parameterDefinitions []mysql.Field) events.AuditEvent {
-	formatedParameters := []string{}
-	if len(parameterDefinitions) > 0 {
-		if values, ok := packet.Parameters(parameterDefinitions); ok {
-			formatedParameters = formatParameters(parameterDefinitions, values)
-		} else {
-			logrus.Debugf("Failed to get parameters from MySQL packet %v.", packet.Bytes())
-		}
-	}
+	// TODO(greedy52) get parameters from packet and format them for audit.
 	return &events.MySQLStatementExecute{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionMySQLStatementExecuteEvent,
@@ -60,7 +50,7 @@ func makeStatementExecuteEvent(session *common.Session, packet *protocol.Stateme
 		SessionMetadata:  common.MakeSessionMetadata(session),
 		DatabaseMetadata: common.MakeDatabaseMetadata(session),
 		StatementID:      packet.StatementID(),
-		Parameters:       formatedParameters,
+		Parameters:       nil,
 	}
 }
 
@@ -106,31 +96,4 @@ func makeStatementResetEvent(session *common.Session, packet *protocol.Statement
 		DatabaseMetadata: common.MakeDatabaseMetadata(session),
 		StatementID:      packet.StatementID(),
 	}
-}
-
-// formatParameters converts parameters from MySQL field types into their
-// string representations for including in the audit log.
-func formatParameters(definitions []mysql.Field, values []interface{}) (formatted []string) {
-	if len(definitions) != len(values) {
-		logrus.Warnf("MySQL parameter definitions and values don't match: %#v %#v.", definitions, values)
-		return nil
-	}
-
-	for i, definition := range definitions {
-		switch definition.Type {
-		case mysql.MYSQL_TYPE_NULL:
-			formatted = append(formatted, "<nil>")
-
-		case mysql.MYSQL_TYPE_GEOMETRY:
-			formatted = append(formatted, "<geometry>")
-
-		default:
-			if definition.Flag&mysql.BINARY_FLAG == mysql.BINARY_FLAG {
-				formatted = append(formatted, "<binary>")
-			} else {
-				formatted = append(formatted, fmt.Sprintf("%v", values[i]))
-			}
-		}
-	}
-	return formatted
 }

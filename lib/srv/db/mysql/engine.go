@@ -302,10 +302,10 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		case *protocol.StatementPreparePacket:
 			e.Audit.EmitEvent(e.Context, makeStatementPrepareEvent(sessionCtx, pkt))
 		case *protocol.StatementExecutePacket:
-			// TODO(greedy52) number of parameters is required in order to
-			// parse paremeters out of the packet. Parameter definitions are
-			// required to properly format parameters for including in Audit log.
-			// Both number of parameters and parameter definitions can be
+			// TODO(greedy52) number of parameters is required to parse
+			// paremeters out of the packet. Parameter definitions are required
+			// to properly format the parameters for including in the audit
+			// log. Both number of parameters and parameter definitions can be
 			// obtained from the response of COM_STMT_PREPARE.
 			e.Audit.EmitEvent(e.Context, makeStatementExecuteEvent(sessionCtx, pkt, nil))
 		case *protocol.StatementSendLongDataPacket:

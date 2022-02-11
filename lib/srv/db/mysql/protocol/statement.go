@@ -38,15 +38,15 @@ func (p *StatementPreparePacket) Query() string {
 }
 
 // statementIDPacket represents a common packet format where statement ID is
-// right after packet type.
+// after the packet type.
 //
 // The statement ID is returned by the server in the COM_STMT_PREPARE response.
 // All prepared statement packets except COM_STMT_PREPARE starts with the
 // statement ID after the packet type to identify the prepared statement to
 // use.
 //
-// The statement ID is an unsigned integer, usually starts at 1 for each client
-// connection.
+// The statement ID is an unsigned integer counter, usually starting at 1 for
+// each client connection.
 type statementIDPacket struct {
 	packet
 
@@ -63,8 +63,9 @@ func (p *statementIDPacket) StatementID() uint32 {
 //
 // https://dev.mysql.com/doc/internals/en/com-stmt-send-long-data.html
 //
-// COM_STMT_SEND_LONG_DATA is used to send byte stream data to server, usually
-// big blobs.
+// COM_STMT_SEND_LONG_DATA is used to send byte stream data to the server, and
+// the server appends this data to the specified parameter upon receiving it.
+// It is usually used for big blobs.
 type StatementSendLongDataPacket struct {
 	statementIDPacket
 
@@ -102,7 +103,7 @@ type StatementExecutePacket struct {
 	iterations uint32
 
 	// nullBitmapAndParameters are raw packet bytes that represent a null
-	// bitmap and parameter types with values. They are not decoded in the
+	// bitmap and parameters with types and values. They are not decoded in the
 	// initial parsing because number of parameters is unknown.
 	nullBitmapAndParameters []byte
 }
