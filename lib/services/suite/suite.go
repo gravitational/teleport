@@ -418,9 +418,11 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(len(out), check.Equals, 0)
 
 	kube1 := NewServer(types.KindKubeService, "kube1", "10.0.0.1:3026", apidefaults.Namespace)
-	c.Assert(s.PresenceS.UpsertKubeService(ctx, kube1), check.IsNil)
+	_, err = s.PresenceS.UpsertKubeServiceV2(ctx, kube1)
+	c.Assert(err, check.IsNil)
 	kube2 := NewServer(types.KindKubeService, "kube2", "10.0.0.2:3026", apidefaults.Namespace)
-	c.Assert(s.PresenceS.UpsertKubeService(ctx, kube2), check.IsNil)
+	_, err = s.PresenceS.UpsertKubeServiceV2(ctx, kube2)
+	c.Assert(err, check.IsNil)
 
 	out, err = s.PresenceS.GetKubeServices(ctx)
 	c.Assert(err, check.IsNil)

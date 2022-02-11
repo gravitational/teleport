@@ -926,7 +926,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 			KubernetesClusters: []*types.KubernetesCluster{{Name: "kube-a"}},
 		},
 	}
-	err = srv.Auth().UpsertKubeService(ctx, k8sSrv)
+	_, err = srv.Auth().UpsertKubeServiceV2(ctx, k8sSrv)
 	require.NoError(t, err)
 	// Register a database.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
@@ -2141,8 +2141,8 @@ func TestListResources(t *testing.T) {
 				if err != nil {
 					return err
 				}
-
-				return clt.UpsertKubeService(ctx, server)
+				_, err = clt.UpsertKubeServiceV2(ctx, server)
+				return err
 			},
 		},
 		"Node": {
