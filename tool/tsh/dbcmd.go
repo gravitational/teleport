@@ -326,11 +326,18 @@ func (c *cliCommandBuilder) getRedisCommand() (*exec.Cmd, error) {
 	// TODO(jakub): Add "-3" when Teleport adds support for Redis RESP3 protocol.
 	args := []string{
 		"--tls",
-		"-h", c.options.localProxyHost,
-		"-p", strconv.Itoa(c.options.localProxyPort),
-		"--cacert", c.profile.CACertPathForCluster(c.rootCluster),
+		"-h", c.host,
+		"-p", strconv.Itoa(c.port),
 		"--key", c.profile.KeyPath(),
 		"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+	}
+
+	if c.tc.InsecureSkipVerify {
+		args = append(args, "--insecure")
+	}
+
+	if c.options.caPath != "" {
+		args = append(args, []string{"--cacert", c.options.caPath}...)
 	}
 
 	// append database number if provided
