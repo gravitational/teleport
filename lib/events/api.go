@@ -453,7 +453,7 @@ const (
 	// WindowsDesktopSessionStartEvent is emitted when a user attempts
 	// to connect to a desktop.
 	WindowsDesktopSessionStartEvent = "windows.desktop.session.start"
-	// WindowsDesktopSessionEndEvent is emitted when a user  disconnects
+	// WindowsDesktopSessionEndEvent is emitted when a user disconnects
 	// from a desktop.
 	WindowsDesktopSessionEndEvent = "windows.desktop.session.end"
 
@@ -462,6 +462,9 @@ const (
 
 	// CertificateTypeUser is the CertificateType for certificate events pertaining to user certificates.
 	CertificateTypeUser = "user"
+
+	// DesktopRecordingEvent is emitted as a desktop access session is recorded.
+	DesktopRecordingEvent = "desktop.recording"
 )
 
 const (
