@@ -106,7 +106,7 @@ func NewServer(config ServerConfig) (*Server, error) {
 	transportCreds := newProxyCredentials(credentials.NewTLS(config.TLSConfig))
 	server := grpc.NewServer(
 		grpc.Creds(transportCreds),
-		grpc.ChainStreamInterceptor(metadata.StreamServerInterceptor, errorStreamInterceptor),
+		grpc.ChainStreamInterceptor(metadata.StreamServerInterceptor, streamServerInterceptor(metrics)),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			Time:    peerKeepAlive,
 			Timeout: peerTimeout,
