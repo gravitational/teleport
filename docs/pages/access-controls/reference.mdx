@@ -43,7 +43,7 @@ A role definition looks like this:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: example
 spec:
@@ -130,6 +130,35 @@ spec:
     - resources: [token]
       verbs: [list,create,read,update,delete]
 
+    # Moderated Sessions policy that dictates requirements for starting a session.
+    require_session_join:
+      # Defines the name of the policy. The name serves only as an
+      # identifier in logs and for organisation/categorisation.
+      - name: Auditor oversight
+        # Specifies an RBAC predicate that is used to define
+        # which users count against the required user count of the policy.
+        filter: 'contains(user.roles, "auditor")'
+        # The different session kinds this policy applies to.
+        kinds: ['k8s', 'ssh']
+        # A list of session participant modes that a participant must have
+        # one of in order to count against the policy.
+        modes: ['moderator']
+        # The minimum amount of users that need to match the filter expression
+        # in order to satisfy the policy.
+        count: 1
+     
+    # Moderated Sessions policy that dictates the ability to join sessions
+    join_sessions:
+      # Defines the name of the policy. The name serves only as an
+      # identifier in logs and for organisation/categorisation.
+      - name: Auditor oversight
+        # Allows one to join sessions created by other users with these roles
+        roles : ['prod-access']
+        # The different session kinds this policy applies to.
+        kinds: ['k8s', 'ssh']
+        # The list of session participant modes the role may join the session as.
+        modes: ['moderator', 'observer']
+
   # The deny section uses the identical format as the 'allow' section.
   # The deny rules always override allow rules.
   deny: {}
@@ -201,12 +230,12 @@ that are more appropriately scoped.
 
 ### Role versions
 
-There are currently two supported role versions: `v3` and `v4`. `v4` roles are
+There are currently two supported role versions: `v3` and `v5`. `v5` roles are
 completely backwards-compatible with `v3`, the only difference lies in the
 default allow labels which will be applied to the role if they are not
 explicitly set.
 
-Label              | `v3` Default   | `v4` Default
+Label              | `v3` Default   | `v5` Default
 ------------------ | -------------- | ---------------
 `node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
 `app_labels`        | `[{"*": "*"}]` | `[]`
@@ -234,7 +263,7 @@ Access to any other nodes will be denied:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: example-role
 spec:
@@ -264,7 +293,7 @@ Below are a few examples for more complex filtering using various regexes.
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: example-role
 spec:
@@ -341,7 +370,7 @@ downgrade they will become invalid.
 Role for restricted access to session recordings:
 
 ```yaml
-version: v4
+version: v5
 kind: role
 metadata:
   name: only-own-sessions
@@ -358,7 +387,7 @@ spec:
 Role for restricted access to active sessions:
 
 ```yaml
-version: v4
+version: v5
 kind: role
 metadata:
   name: only-own-ssh-sessions
