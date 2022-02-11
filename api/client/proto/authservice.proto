@@ -1606,7 +1606,12 @@ service AuthService {
         option deprecated = true;
     };
     // UpsertKubeService adds or updates a kubernetes service.
-    rpc UpsertKubeService(UpsertKubeServiceRequest) returns (google.protobuf.Empty);
+    // DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
+    rpc UpsertKubeService(UpsertKubeServiceRequest) returns (google.protobuf.Empty) {
+        option deprecated = true;
+    };
+    // UpsertKubeServiceV2 adds or updates a kubernetes service.
+    rpc UpsertKubeServiceV2(UpsertKubeServiceRequest) returns (types.KeepAlive);
     // DeleteKubeService removes a kubernetes service.
     rpc DeleteKubeService(DeleteKubeServiceRequest) returns (google.protobuf.Empty);
     // DeleteAllKubeServices removes all kubernetes services.
