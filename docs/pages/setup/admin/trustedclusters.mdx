@@ -250,7 +250,7 @@ spec:
     # the cluster labels check is not applied. Otherwise, cluster labels are always enforced.
     # This makes the feature backward-compatible.
     cluster_labels:
-      'env': 'staging'
+      'env': '*'
   deny:
     # Cluster labels control what clusters user can connect to. The wildcard ('*') means
     # any cluster. By default none is set in deny rules to preserve backward compatibility

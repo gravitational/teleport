@@ -113,7 +113,7 @@ spec:
       'environment': '^test|staging$'
 
     kubernetes_labels:
-      # A user can only access prod enviroments
+      # A user can only access prod environments
       'env': 'prod'
       # User can access any region in us-west, e.g us-west-1, us-west-2
       'region': 'us-west-*'
@@ -270,9 +270,9 @@ that only have access to one environment. Let's say you create an intern role wi
 ### Example
 
 The role below allows access to all nodes labeled "env=stage" except those that
-also have "workload=database" (these will always be denied).
+also have "workload=database" or "workload=backup".
 
-Access to any other nodes will be denied:
+Access to any other nodes will be denied.
 
 ```yaml
 kind: role
@@ -286,8 +286,9 @@ spec:
 
   deny:
     node_labels:
-      # multiple labels are interpreted as an "or" operation.  in this case
-      # Teleport will deny access to any node labeled as 'database' or 'backup'
+      # Multiple labels are interpreted as an "or" operation. In this case,
+      # Teleport will deny access to any node labeled as 'workload=database' or
+      # 'workload=backup'
       'workload': ['database', 'backup']
 ```
 
