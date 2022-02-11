@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -522,6 +523,26 @@ func IsGrpcResponseSuccessful(_ interface{}, err error) bool {
 	default:
 		return true
 	}
+}
+
+// IsHTTPResponseSuccessful determines if the response was successful
+// based on the http.Response status code. If err is non-nil or
+// the http status code is > 500 false is returned.
+func IsHTTPResponseSuccessful(v interface{}, err error) bool {
+	if err != nil {
+		return false
+	}
+
+	if v == nil {
+		return false
+	}
+
+	switch t := v.(type) {
+	case *http.Response:
+		return t.StatusCode < http.StatusInternalServerError
+	}
+
+	return true
 }
 
 // CheckAndSetDefaults checks and sets default config values.

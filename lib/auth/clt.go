@@ -118,27 +118,10 @@ type HTTPClient struct {
 	tls *tls.Config
 }
 
-func IsHTTPResponseSuccessful(v interface{}, err error) bool {
-	if err != nil {
-		return false
-	}
-
-	if v == nil {
-		return false
-	}
-
-	switch t := v.(type) {
-	case *http.Response:
-		return t.StatusCode < http.StatusInternalServerError
-	}
-
-	return true
-}
-
 // NewHTTPClient creates a new HTTP client with TLS authentication and the given dialer.
 func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.ClientParam) (*HTTPClient, error) {
 	if cfg.BreakerConfig.IsSuccessful == nil {
-		cfg.BreakerConfig.IsSuccessful = IsHTTPResponseSuccessful
+		cfg.BreakerConfig.IsSuccessful = client.IsHTTPResponseSuccessful
 	}
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {

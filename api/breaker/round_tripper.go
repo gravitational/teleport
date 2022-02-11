@@ -44,5 +44,9 @@ func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) 
 		return t.tripper.RoundTrip(request)
 	})
 
+	if v == nil {
+		return nil, err
+	}
+
 	return v.(*http.Response), err
 }
