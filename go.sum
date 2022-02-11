@@ -418,8 +418,8 @@ github.com/gravitational/oxy v0.0.0-20211213172937-a1ba0900a4c9 h1:7NyppZS8QFt28
 github.com/gravitational/oxy v0.0.0-20211213172937-a1ba0900a4c9/go.mod h1:ESOxlf8BB2yG3zJ0SfZe9U6wpYu3YF3znxIICg73FYA=
 github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf h1:MQ4e8XcxvZTeuOmRl7yE519vcWc2h/lyvYzsvt41cdY=
 github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf/go.mod h1:SlYgWuQ5SjCEi6WLHjHCa1yvBfUnHcTbrrZtXPKa29o=
-github.com/gravitational/redis/v8 v8.0.0-20220130215818-bb3c2767fc7d h1:hNTEaAdLePFEXPnNzUl918JT8abSn+o4BI75TnmQCxQ=
-github.com/gravitational/redis/v8 v8.0.0-20220130215818-bb3c2767fc7d/go.mod h1:oTV66KM4DNr2OWoOP4HxexJUPZxPkXHpi6DeLSDsCnA=
+github.com/gravitational/redis/v8 v8.11.5-0.20220211010318-7af711b76a91 h1:LWtt0fv7KDZt6ykJGBXd/04sONaHIMXFzHvmUAqhG8c=
+github.com/gravitational/redis/v8 v8.11.5-0.20220211010318-7af711b76a91/go.mod h1:oTV66KM4DNr2OWoOP4HxexJUPZxPkXHpi6DeLSDsCnA=
 github.com/gravitational/reporting v0.0.0-20210923183620-237377721140 h1:UACNXsuOXxe2dpjn3SA2g4YUgOoZTxQ6yf+QYAYcQMc=
 github.com/gravitational/reporting v0.0.0-20210923183620-237377721140/go.mod h1:rBJeI3JYVzbL7Yw2hYrp4QdKIkncb1pUHo95DyoEGns=
 github.com/gravitational/roundtrip v1.0.1 h1:eD/y0av12Gu9VIwNgPY/ltmpeVk0Azek/yIJvOPuTuY=
