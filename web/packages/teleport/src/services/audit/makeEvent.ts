@@ -431,7 +431,7 @@ export const formatters: Formatters = {
     type: 'db.session.mysql.stmt_prepare',
     desc: 'MySQL Statement Prepare',
     format: ({ user, db_service, db_name, query }) =>
-      `User [${user}] has prepared statement [${truncateStr(
+      `User [${user}] has prepared [${truncateStr(
         query,
         80
       )}] in database [${db_name}] on [${db_service}]`,
@@ -445,7 +445,7 @@ export const formatters: Formatters = {
   [eventCodes.MYSQL_STATEMENT_SEND_LONG_DATA]: {
     type: 'db.session.mysql.stmt_send_long_data',
     desc: 'MySQL Statement Send Long Data',
-    format: ({ user, db_service, db_name, statement_id, param_id, data_size }) =>
+    format: ({ user, db_service, db_name, statement_id, parameter_id, data_size }) =>
       `User [${user}] has sent ${data_size} bytes of data to parameter [${parameter_id}] of statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
   },
   [eventCodes.MYSQL_STATEMENT_CLOSE]: {
