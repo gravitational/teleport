@@ -681,11 +681,6 @@ func certRequestClientIP(ip string) certRequestOption {
 	return func(r *certRequest) { r.clientIP = ip }
 }
 
-// certRequestRenewable marks a certificate as renewable.
-func certRequestRenewable() certRequestOption {
-	return func(r *certRequest) { r.renewable = true }
-}
-
 // certRequestGeneration adds a generation counter to the certificate.
 func certRequestGeneration(generation uint64) certRequestOption {
 	return func(r *certRequest) { r.generation = generation }

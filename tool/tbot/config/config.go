@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package config
 
 import (
@@ -29,8 +30,8 @@ import (
 )
 
 const (
-	CONFIG_DEFAULT_CERTIFICATE_TTL = 60 * time.Minute
-	CONFIG_DEFAULT_RENEW_INTERVAL  = 20 * time.Minute
+	DefaultCertificateTTL = 60 * time.Minute
+	DefaultRenewInterval  = 20 * time.Minute
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -107,11 +108,11 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	}
 
 	if conf.CertificateTTL == 0 {
-		conf.CertificateTTL = CONFIG_DEFAULT_CERTIFICATE_TTL
+		conf.CertificateTTL = DefaultCertificateTTL
 	}
 
 	if conf.RenewInterval == 0 {
-		conf.RenewInterval = CONFIG_DEFAULT_RENEW_INTERVAL
+		conf.RenewInterval = DefaultRenewInterval
 	}
 
 	return nil
@@ -213,7 +214,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		onboarding := config.Onboarding
 		if onboarding != nil && (onboarding.Token != "" || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) {
 			// To be safe, warn about possible confusion.
-			log.Warn("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
+			log.Warnf("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
 		}
 
 		config.Onboarding = &OnboardingConfig{

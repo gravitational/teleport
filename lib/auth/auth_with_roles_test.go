@@ -69,14 +69,14 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			expiresIn: 1 * time.Hour,
 		}, {
 			desc: "renewable",
-			id:   TestRenewableUser(user.GetName()),
+			id:   TestRenewableUser(user.GetName(), 1),
 			// expiration is allowed to be pushed out into the future
 			reqTTL:    4 * time.Hour,
 			expiresIn: 4 * time.Hour,
 		},
 		{
 			desc: "max-renew",
-			id:   TestRenewableUser(user.GetName()),
+			id:   TestRenewableUser(user.GetName(), 1),
 			// expiration is allowed to be pushed out into the future,
 			// but no more than the maximum renewable cert TTL
 			reqTTL:    2 * libdefaults.MaxRenewableCertTTL,

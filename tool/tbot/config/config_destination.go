@@ -13,29 +13,27 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package config
 
 import (
 	"github.com/gravitational/trace"
 )
 
-type ConfigKind string
+type Kind string
 
 const (
-	CONFIG_KIND_SSH ConfigKind = "ssh"
-	CONFIG_KIND_TLS ConfigKind = "tls"
+	KindSSH Kind = "ssh"
+	KindTLS Kind = "tls"
 )
-
-// AllKinds lists all valid config kinds, intended for validation purposes.
-var AllKinds = [...]ConfigKind{CONFIG_KIND_SSH, CONFIG_KIND_TLS}
 
 // DestinationConfig configures a user certificate destination.
 type DestinationConfig struct {
 	DestinationMixin `yaml:",inline"`
 
-	Roles   []string               `yaml:"roles,omitempty"`
-	Kinds   []ConfigKind           `yaml:"kinds,omitempty"`
-	Configs []ConfigTemplateConfig `yaml:"configs,omitempty"`
+	Roles   []string         `yaml:"roles,omitempty"`
+	Kinds   []Kind           `yaml:"kinds,omitempty"`
+	Configs []TemplateConfig `yaml:"configs,omitempty"`
 }
 
 // destinationDefaults applies defaults for an output sink's destination. Since
@@ -54,9 +52,9 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 	// time
 
 	if len(dc.Kinds) == 0 && len(dc.Configs) == 0 {
-		dc.Kinds = []ConfigKind{CONFIG_KIND_SSH}
-		dc.Configs = []ConfigTemplateConfig{{
-			SSHClient: &ConfigTemplateSSHClient{},
+		dc.Kinds = []Kind{KindSSH}
+		dc.Configs = []TemplateConfig{{
+			SSHClient: &TemplateSSHClient{},
 		}}
 	}
 
@@ -69,8 +67,8 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// ContainsKind determins if this destination contains the given ConfigKind.
-func (dc *DestinationConfig) ContainsKind(kind ConfigKind) bool {
+// ContainsKind determines if this destination contains the given ConfigKind.
+func (dc *DestinationConfig) ContainsKind(kind Kind) bool {
 	for _, k := range dc.Kinds {
 		if k == kind {
 			return true

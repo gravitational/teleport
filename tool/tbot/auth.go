@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package main
 
 import (
@@ -57,7 +58,7 @@ type RegisterParams struct {
 	Clock clockwork.Clock
 }
 
-// insecureRegisterClient attempts to connects to the Auth Server using the
+// insecureAuthClient attempts to connects to the Auth Server using the
 // CA on disk. If no CA is found on disk, Teleport will not verify the Auth
 // Server it is connecting to.
 func insecureAuthClient(params RegisterParams) (*auth.Client, []*x509.Certificate, error) {

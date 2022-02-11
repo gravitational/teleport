@@ -255,9 +255,6 @@ const (
 	// ComponentWindowsDesktop is a Windows desktop access server.
 	ComponentWindowsDesktop = "windows_desktop"
 
-	// ComponentBot is a certificate renewal bot.
-	ComponentBot = "bot"
-
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 

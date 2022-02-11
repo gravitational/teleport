@@ -358,14 +358,6 @@ message CreateResetPasswordTokenRequest {
     int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
 }
 
-// CreateBotJoinTokenRequest is a request to create a reset password token.
-message CreateBotJoinTokenRequest {
-    // Name is the bot's user name.
-    string Name = 1 [ (gogoproto.jsontag) = "name" ];
-    // TTL specifies how long the generated token is valid for.
-    int64 TTL = 2 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
-}
-
 // RenewableCertsRequest is a request to generate a first set of renewable
 // certificates from a bot join token.
 message RenewableCertsRequest {
@@ -381,26 +373,30 @@ message CreateBotRequest {
     // Name is the name of the bot, i.e. the unprefixed User name.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
 
-    // TTL is the desired TTL for the token if one is created.
+    // TTL is the desired TTL for the token if one is created. If unset, a
+    // server default is used.
     int64 TTL = 2 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
 
-    // Token is an optional token name if an EC2/IAM join token should be used.
-    // If unset, a new random token is created and its name returned.
-    string Token = 3 [ (gogoproto.jsontag) = "token" ];
+    // TokenID is an optional token name of an EC2/IAM join token should be
+    // used. If unset, a new random token is created and its name returned.
+    string TokenID = 3 [ (gogoproto.jsontag) = "token_id" ];
 
     // Roles is a list of roles the created bot should be allowed to assume
     // via role impersonation.
     repeated string Roles = 4 [ (gogoproto.jsontag) = "roles" ];
 }
 
-// CreateBotResponse returns required details for
+// CreateBotResponse returns details for bootstrapping a new bot.
 message CreateBotResponse {
     // UserName is the name of the associated bot user.
     string UserName = 1 [ (gogoproto.jsontag) = "user_name" ];
     // RoleName is the name of the associated bot role.
     string RoleName = 2 [ (gogoproto.jsontag) = "role_name" ];
-    // Token is the name of the join token for the bot.
-    string Token = 3 [ (gogoproto.jsontag) = "token" ];
+    // TokenID is the name of the join token for the bot.
+    string TokenID = 3 [ (gogoproto.jsontag) = "token_id" ];
+    // TokenTTL is the TTL for the token. If it differs from the requested TTL,
+    // it may have been limited by server policy.
+    int64 TokenTTL = 4 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
 }
 
 // DeleteBotRequest is a request to delete a bot user
@@ -1534,8 +1530,6 @@ service AuthService {
     rpc DeleteBot(DeleteBotRequest) returns (google.protobuf.Empty);
     // GetBotUsers gets all users with bot labels.
     rpc GetBotUsers(GetBotUsersRequest) returns (stream types.UserV2);
-    // CreateBotJoinToken creates a new bot onboarding user token
-    rpc CreateBotJoinToken(CreateBotJoinTokenRequest) returns (types.UserTokenV3);
     // GenerateInitialRenewableUserCerts generates an initial set of renewable
     // certificates using a bot token.
     rpc GenerateInitialRenewableUserCerts(RenewableCertsRequest) returns (Certs);

@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package config
 
 import (
@@ -20,17 +21,17 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/teleport/tool/tbot/identity"
-	"github.com/gravitational/teleport/tool/tbot/utils"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 )
 
-const CONFIG_TEMPLATE_SSH_CLIENT = "ssh_client"
+const TemplateSSHClientName = "ssh_client"
 
 // AllConfigTemplates lists all valid config templates, intended for help
 // messages
-var AllConfigTemplates = [...]string{CONFIG_TEMPLATE_SSH_CLIENT}
+var AllConfigTemplates = [...]string{TemplateSSHClientName}
 
 // FileDescription is a minimal spec needed to create an empty end-user-owned
 // file with bot-writable ACLs during `tbot init`.
@@ -44,12 +45,12 @@ type FileDescription struct {
 
 	// ModeHint describes the intended permissions for this data, for
 	// Destination backends where permissions are relevant.
-	ModeHint utils.ModeHint
+	ModeHint destination.ModeHint
 }
 
-// ConfigTemplate defines functions for dynamically writing additional files to
+// Template defines functions for dynamically writing additional files to
 // a Destination.
-type ConfigTemplate interface {
+type Template interface {
 	// Describe generates a list of all files this ConfigTemplate will generate
 	// at runtime. Currently ConfigTemplates are required to know this
 	// statically as this must be callable without any auth clients (or any
@@ -61,18 +62,18 @@ type ConfigTemplate interface {
 	Render(authClient *auth.Client, currentIdentity *identity.Identity, destination *DestinationConfig) error
 }
 
-// ConfigTemplateConfig contains all possible config template variants. Exactly one
+// TemplateConfig contains all possible config template variants. Exactly one
 // variant must be set to be considered valid.
-type ConfigTemplateConfig struct {
-	SSHClient *ConfigTemplateSSHClient `yaml:"ssh_client,omitempty"`
+type TemplateConfig struct {
+	SSHClient *TemplateSSHClient `yaml:"ssh_client,omitempty"`
 }
 
-func (c *ConfigTemplateConfig) UnmarshalYAML(node *yaml.Node) error {
+func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
 	var simpleTemplate string
 	if err := node.Decode(&simpleTemplate); err == nil {
 		switch simpleTemplate {
-		case CONFIG_TEMPLATE_SSH_CLIENT:
-			c.SSHClient = &ConfigTemplateSSHClient{}
+		case TemplateSSHClientName:
+			c.SSHClient = &TemplateSSHClient{}
 			fmt.Println("no params, using defaults")
 		default:
 			return trace.BadParameter(
@@ -83,7 +84,7 @@ func (c *ConfigTemplateConfig) UnmarshalYAML(node *yaml.Node) error {
 		return nil
 	}
 
-	type rawTemplate ConfigTemplateConfig
+	type rawTemplate TemplateConfig
 	if err := node.Decode((*rawTemplate)(c)); err != nil {
 		return err
 	}
@@ -91,12 +92,12 @@ func (c *ConfigTemplateConfig) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (c *ConfigTemplateConfig) CheckAndSetDefaults() error {
+func (c *TemplateConfig) CheckAndSetDefaults() error {
 	notNilCount := 0
 
 	if c.SSHClient != nil {
 		c.SSHClient.CheckAndSetDefaults()
-		notNilCount += 1
+		notNilCount++
 	}
 
 	if notNilCount == 0 {
@@ -108,7 +109,7 @@ func (c *ConfigTemplateConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (c *ConfigTemplateConfig) GetConfigTemplate() (ConfigTemplate, error) {
+func (c *TemplateConfig) GetConfigTemplate() (Template, error) {
 	if c.SSHClient != nil {
 		return c.SSHClient, nil
 	}

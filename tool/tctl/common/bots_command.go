@@ -37,8 +37,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-const BOT_LABEL = "teleport.dev/bot"
-
 type BotsCommand struct {
 	format string
 
@@ -83,7 +81,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.botsUnlock.Hidden() // TODO
 }
 
-// TryRun attemps to run subcommands.
+// TryRun attempts to run subcommands.
 func (c *BotsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
 	// TODO: create a smaller interface - we don't need all of ClientI
 
@@ -191,8 +189,8 @@ func (c *BotsCommand) AddBot(client auth.ClientI) error {
 	}
 
 	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
-		"token":       response.Token,
-		"minutes":     int(c.tokenTTL.Minutes()),
+		"token":       response.TokenID,
+		"minutes":     int(time.Duration(response.TokenTTL).Minutes()),
 		"ca_pins":     caPins,
 		"auth_server": addr,
 	})

@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package config
 
 import (
@@ -24,44 +25,43 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/teleport/tool/tbot/identity"
-	botutils "github.com/gravitational/teleport/tool/tbot/utils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
-const DEFAULT_PROXY_PORT = 3023
-
-// ConfigTemplateSSHClient contains parameters for the ssh_config config
+// TemplateSSHClient contains parameters for the ssh_config config
 // template
-type ConfigTemplateSSHClient struct {
+type TemplateSSHClient struct {
 	ProxyPort uint16 `yaml:"proxy_port"`
 }
 
-func (c *ConfigTemplateSSHClient) CheckAndSetDefaults() error {
+func (c *TemplateSSHClient) CheckAndSetDefaults() error {
 	if c.ProxyPort == 0 {
-		c.ProxyPort = DEFAULT_PROXY_PORT
+		c.ProxyPort = defaults.SSHProxyListenPort
 	}
 	return nil
 }
 
-func (c *ConfigTemplateSSHClient) Describe() []FileDescription {
+func (c *TemplateSSHClient) Describe() []FileDescription {
 	return []FileDescription{
 		{
 			Name:     "ssh_config",
-			ModeHint: botutils.ModeHintSecret,
+			ModeHint: destination.ModeHintSecret,
 		},
 		{
 			Name:     "known_hosts",
-			ModeHint: botutils.ModeHintSecret,
+			ModeHint: destination.ModeHintSecret,
 		},
 	}
 }
 
-func (c *ConfigTemplateSSHClient) Render(authClient *auth.Client, currentIdentity *identity.Identity, destination *DestinationConfig) error {
-	if !destination.ContainsKind(CONFIG_KIND_SSH) {
-		return trace.BadParameter("%s config template requires kind `ssh` to be enabled", CONFIG_TEMPLATE_SSH_CLIENT)
+func (c *TemplateSSHClient) Render(authClient *auth.Client, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+	if !destination.ContainsKind(KindSSH) {
+		return trace.BadParameter("%s config template requires kind `ssh` to be enabled", TemplateSSHClientName)
 	}
 
 	dest, err := destination.GetDestination()
