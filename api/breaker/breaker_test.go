@@ -24,6 +24,7 @@ import (
 )
 
 func TestCircuitBreaker_generation(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
 
 	cb, err := New(Config{
@@ -62,6 +63,7 @@ func TestCircuitBreaker_generation(t *testing.T) {
 }
 
 func TestCircuitBreaker_beforeRequest(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		desc       string
 		generation uint64
@@ -94,7 +96,7 @@ func TestCircuitBreaker_beforeRequest(t *testing.T) {
 			state:      StateRecovering,
 			errorCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
-				require.ErrorIs(t, ErrLimitExceeded, err)
+				require.ErrorIs(t, ErrRecoveryLimitExceeded, err)
 			},
 		},
 		{
@@ -108,7 +110,9 @@ func TestCircuitBreaker_beforeRequest(t *testing.T) {
 	}
 
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
 			clock := clockwork.NewFakeClock()
 
 			cb, err := New(Config{
@@ -132,7 +136,7 @@ func TestCircuitBreaker_beforeRequest(t *testing.T) {
 }
 
 func TestCircuitBreaker_afterExecution(t *testing.T) {
-
+	t.Parallel()
 	cases := []struct {
 		desc            string
 		err             error
@@ -194,7 +198,9 @@ func TestCircuitBreaker_afterExecution(t *testing.T) {
 	}
 
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
 			clock := clockwork.NewFakeClock()
 			cb, err := New(Config{
 				Clock:    clock,
@@ -211,7 +217,7 @@ func TestCircuitBreaker_afterExecution(t *testing.T) {
 }
 
 func TestCircuitBreaker_success(t *testing.T) {
-
+	t.Parallel()
 	cases := []struct {
 		desc          string
 		initialState  State
@@ -242,7 +248,9 @@ func TestCircuitBreaker_success(t *testing.T) {
 	}
 
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
 			clock := clockwork.NewFakeClock()
 			cb, err := New(Config{
 				Clock:         clock,
@@ -264,6 +272,7 @@ func TestCircuitBreaker_success(t *testing.T) {
 }
 
 func TestCircuitBreaker_failure(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		desc           string
 		initialState   State
@@ -306,7 +315,9 @@ func TestCircuitBreaker_failure(t *testing.T) {
 	}
 
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
 			clock := clockwork.NewFakeClock()
 
 			if tt.onTrip == nil {

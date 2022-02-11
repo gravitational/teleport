@@ -790,7 +790,7 @@ func TestClient_NotAllErrorsTripBreaker(t *testing.T) {
 			Limit:        1,
 		})
 		require.Error(t, err)
-		require.ErrorIs(t, err, breaker.ErrLimitExceeded)
+		require.ErrorIs(t, err, breaker.ErrRecoveryLimitExceeded)
 
 		// advance clock to allow request
 		clock.Advance(time.Hour)

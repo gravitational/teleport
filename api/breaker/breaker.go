@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/grpc/grpclog"
@@ -43,16 +44,12 @@ type Metrics struct {
 }
 
 func (m *Metrics) String() string {
-	return fmt.Sprintf("Metrics(executions=%d, successes=%d, failures=%d, consecutiveSuccesses=%d, CconsecutiveFailures=%d)", m.Executions, m.Successes, m.Failures, m.ConsecutiveSuccesses, m.ConsecutiveFailures)
+	return fmt.Sprintf("Metrics(executions=%d, successes=%d, failures=%d, consecutiveSuccesses=%d, consecutiveFailures=%d)", m.Executions, m.Successes, m.Failures, m.ConsecutiveSuccesses, m.ConsecutiveFailures)
 }
 
 // reset restores all counts to zero
 func (m *Metrics) reset() {
-	m.Executions = 0
-	m.Successes = 0
-	m.Failures = 0
-	m.ConsecutiveSuccesses = 0
-	m.ConsecutiveFailures = 0
+	*m = Metrics{}
 }
 
 // success increments the counters tracking successful executions
@@ -98,7 +95,7 @@ func (s State) String() string {
 	case StateRecovering:
 		return "recovering"
 	default:
-		return "undefined"
+		return fmt.Sprintf("undefined(%v)", int(s))
 	}
 }
 
@@ -106,16 +103,17 @@ var (
 	// ErrStateTripped will be returned from executions performed while the CircuitBreaker
 	// is in StateTripped
 	ErrStateTripped = errors.New("breaker is tripped")
-	// ErrLimitExceeded will be returned from executions performed while the CircuitBreaker
+	// ErrRecoveryLimitExceeded will be returned from executions performed while the CircuitBreaker
 	// is in StateRecovering and the Config.RecoveryLimit is exceeded
-	ErrLimitExceeded = errors.New("too many requests while breaker is recovering")
+	ErrRecoveryLimitExceeded = trace.LimitExceeded("too many requests while breaker is recovering")
 )
 
 // Config contains configuration of the CircuitBreaker
 type Config struct {
 	// Clock is used to control time - mainly used for testing
 	Clock clockwork.Clock
-	// Interval is the
+	// Interval is the period of time that execution metrics will be collected for within StateStandby before
+	// transitioning to the next generation.
 	Interval time.Duration
 	// TrippedPeriod is the amount of time to remain in StateTripped before transitioning
 	// into StateRecovering
@@ -154,13 +152,13 @@ func StaticTripper(b bool) TripFn {
 // RatioTripper is a TripFn that returns true it the error ratio
 // is greater than the provided ratio and there have been at least
 // minExecutions performed.
-func RatioTripper(ratio float32, minExecutions uint32) TripFn {
+func RatioTripper(ratio float64, minExecutions uint32) TripFn {
 	return func(m Metrics) bool {
 		if m.Executions < minExecutions {
 			return false
 		}
 
-		r := float32(m.Failures) / float32(m.Executions)
+		r := float64(m.Failures) / float64(m.Executions)
 		return r >= ratio
 	}
 }
@@ -283,7 +281,7 @@ func (c *CircuitBreaker) beforeExecution() (uint64, error) {
 	case state == StateTripped:
 		return generation, ErrStateTripped
 	case state == StateRecovering && !c.rc.allowRequest():
-		return generation, ErrLimitExceeded
+		return generation, ErrRecoveryLimitExceeded
 	}
 
 	c.metrics.execute()
