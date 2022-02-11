@@ -8,7 +8,7 @@ This tutorial will guide you through the steps needed to install and run
 Teleport (=teleport.version=) on Linux machines.
 
 <Details scopeOnly={true} scope={["cloud"]} title="Teleport Cloud">
-This guide deploys the Teleport Auth Service and Proxy Service, which are fully managed in Teleport Cloud. If you are a Teleport Cloud customer, we recommend following our guides for deploying specific services on your Teleport nodes. Here are some examples:
+This guide deploys the Teleport Auth Service and Proxy Service, which are fully managed in Teleport Cloud. If you are a Teleport Cloud customer, we recommend following our guides for deploying specific services on your Teleport Nodes. Here are some examples:
 
 - [Application Access](../application-access/getting-started.mdx)
 - [Database Access](../database-access/getting-started.mdx)
@@ -204,7 +204,7 @@ Here are several common commands and operations you'll likely find useful:
 $ tsh status
 ```
 
-### SSH into a node
+### SSH into a Node
 
 ```code
 # list all SSH servers connected to Teleport
@@ -214,7 +214,7 @@ $ tsh ls
 $ tsh ssh root@node-name
 ```
 
-### Add a node to the cluster
+### Add a Node to the cluster
 
 Generate a short-lived dynamic join token using `tctl`:
 
@@ -222,7 +222,7 @@ Generate a short-lived dynamic join token using `tctl`:
 $ tctl tokens add --type=node
 ```
 
-Bootstrap a new node:
+Bootstrap a new Node:
 
 <Tabs>
   <TabItem label="teleport start">
@@ -285,7 +285,7 @@ Add a new application:
 
 <Tabs>
   <TabItem label="teleport start">
-    Install Teleport on the target node, then start it using a command as shown below.
+    Install Teleport on the target Node, then start it using a command as shown below.
     Review and update `auth-server`, `token`, `app-name`, and `app-uri` before running this command.
 
     ```code
