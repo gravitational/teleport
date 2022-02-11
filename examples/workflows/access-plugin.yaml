@@ -3,6 +3,8 @@ metadata:
   name: access-plugin
 spec:
   roles: ['access-plugin']
+  traits:
+    logins:
 version: v2
 ---
 kind: role
