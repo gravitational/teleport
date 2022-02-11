@@ -3,11 +3,11 @@ authors: Matheus Battirola (matheus.battirola@goteleport.com)
 state: draft
 ---
 
-# RFD 56 - Prefill Trusted Cluster YAML file from the Web UI
+# RFD 57 - Prefill Trusted Cluster YAML file from the Web UI
 
 ## What
 
-Make the Web UI provide a YAML file for adding a trusted cluster with some of the values already filled for the user.
+Improve UX of adding a trusted cluster by making the Web UI provide a YAML file with some of the values already filled for the user.
 
 ## Why
 
@@ -62,17 +62,19 @@ To add a root cluster, the leaf admin needs the following information from the r
 - `web_proxy_addr`: the user needs to know or ask the root admin.
 - `role_map`: the user needs to know the roles in the remote (root) cluster and decide how to map to theirs.
 
-Unless the user has access to the root cluster, they are not likely to know most of this information and will have to ask the root’s administrator.
+Unless the user has access to the root cluster, they are not likely to know most of this information and will have to ask the root’s administrator. Even if the the same person has access to both clusters, it may be tough to fill some of the fields.
 
-Then, after saving the YAML to a local file, the user can run `tctl create trusted-cluster.yaml` to add the root cluster.
+Then, after saving the YAML to a local file, the user can run `tctl create trusted-cluster.yaml` to add the root cluster, or use the web UI to do that.
 
-The current process only sees things by the perspective of the leaf, not the root.
+The current process only sees things by the perspective of the leaf, not the root, which can be confusing to people looking to add a **leaf**.
 
 ### Proposal
 
-Differentiate between adding a **leaf** and a **root** cluster and fill the YAML with available data.
+Differentiate in the UI between adding a **leaf** and a **root** cluster and fill the YAML with available data.
 
 The button on `Trust` screen currently has the label `CONNECT TO ROOT CLUSTER`. We can change it to `CONNECT CLUSTER` and prompt the user to connect a `Leaf` or `Root` cluster.
+
+Then, have different flows to each use case:
 
 **Adding a Leaf Cluster from the root:**
 
@@ -82,7 +84,7 @@ Here are the fields that the system needs to fill, and how it can get them:
 
 - `metadata.name`: is the name of the current cluster, already available to the web UI
 - `spec.enabled`: can be `true` by default
-- `spec.token`: currently, there is [an endpoint](https://github.com/gravitational/teleport.e/blob/e9c0cb35467bc9cae40f2b55ca16cbc3e0ff6f07/lib/web/plugin.go#L88) on teleport enterprise to generate tokens for apps and nodes. We can make a new endpoint to add generate tokens for a trusted cluster to use here.
+- `spec.token`: currently, there is [an endpoint](https://github.com/gravitational/teleport.e/blob/e9c0cb35467bc9cae40f2b55ca16cbc3e0ff6f07/lib/web/plugin.go#L88) on teleport enterprise to generate tokens for apps and nodes. We can make a new endpoint to add generate tokens for a trusted cluster to use here. For OSS, we can add the instruction to run `tctl tokens add --type=trusted_cluster` and get the token instead.
 - `spec.tunnel_addr`: can be added in `GRV_CONFIG` which is set from the web server into the web page.
 
 The user would need to set the `role_map` field, with the provided instructions. We could prefill with all the roles available in the root cluster:
@@ -91,9 +93,9 @@ The user would need to set the `role_map` field, with the provided instructions.
 # RBAC for trusted clusters: it says that the users who have the remote role
 # on a root cluster will be mapped to the corresponding local role
 role_map:
-  - local: [EDIT HERE]
+  - local: [EDIT_HERE]
     remote: editor
-  - local: [EDIT HERE]
+  - local: [EDIT_HERE]
     remote: auditor
 ```
 
@@ -110,13 +112,11 @@ $ tctl create trusted-cluster.yaml
 The token is valid until (timestamp)
 ```
 
-TODO: layout image
-
 **Adding a Root Cluster from the Leaf Cluster:**
 
 When adding a **root** cluster, most of the data needs to come from the root. This can’t be done without cooperation from someone with access to the root cluster.
 
-We can't prefill most of the information from the leaf. This should be explained to the user and suggested that he ask for the auto-generate YAML from the root's web UI:
+We can't set most of the information from the leaf. This should be explained to the user and suggested that he ask for the auto-generate YAML from the root's web UI:
 
 ```plaintext
 TIP:
@@ -129,19 +129,17 @@ You can ask for the root cluster administrator to auto-generate the YAML file fr
 
 ```
 
-If the user still wants to fill the YAML file manually, we can use the currently provided with `role_map` partially filled with the roles on the leaf:
+If the user still wants to fill the YAML file manually, we can use the currently provided YAML with the field `role_map` partially filled with the roles on the leaf:
 
 ```yaml
 # RBAC for trusted clusters: it says that the users who have the remote role
 # on a root cluster will be mapped to the corresponding local role
 role_map:
   - local: editor
-    remote: [EDIT HERE]
+    remote: [EDIT_HERE]
   - local: auditor
-    remote: [EDIT HERE]
+    remote: [EDIT_HERE]
 ```
-
-(assuming the leaf has `editor` and `auditor` roles)
 
 And instructions on how to create the token, which are missing currently:
 
@@ -149,7 +147,4 @@ And instructions on how to create the token, which are missing currently:
 To generate the join token, run the following command against the root cluster
 
 $ tctl tokens add --type=trusted_cluster --ttl=1h
-
 ```
-
-The root admin will need to send the token to the leaf’s admin, so they can run `tctl create trusted-cluster.yaml`
