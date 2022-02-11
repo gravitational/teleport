@@ -44,6 +44,7 @@ your platform from our
 [downloads page](https://goteleport.com/teleport/download).
 
 ### Generate a token
+
 A join token is required to authorize a Teleport Application Service agent to
 join the cluster. Generate a short-lived join token and save it, for example,
 in `/tmp/token` on your Teleport Application Service host:
@@ -56,27 +57,28 @@ $ tctl tokens add \
 ```
 
 ### Start Teleport
+
 On the host where you will run the Teleport Application Service, download the latest version of Teleport for your platform from our
 [downloads page](https://goteleport.com/teleport/download).
 
 Now start Teleport and point it to the application endpoint:
 
 ```code
-$ sudo teleport start \
-  --roles=app \
-  --app-name=grafana \
+$ sudo teleport app start \
+  --name=grafana \
   --token=/tmp/token \
-  --app-uri=http://localhost:3000 \
+  --uri=http://localhost:3000 \
   --auth-server=https://teleport.example.com:3080
 ```
 
-Change `https://teleport.example.com:3080` to the address and port of your Teleport Auth Server. If you are a Teleport Cloud cluster, use your tenant's subdomain, e.g., `mytenant.teleport.sh`. 
+Change `https://teleport.example.com:3080` to the address and port of your Teleport Proxy Server. If you are a Teleport Cloud cluster, use your tenant's subdomain, e.g., `mytenant.teleport.sh`. 
 
 Make sure to update `--app-name` and `--app-uri` accordingly if you're using your own web application.
 
 The `--token` flag points to the file on the Application Service host where we stored the token that we generated earlier.
 
 ### Create a user
+
 Next, let's create a user to access the application we've just connected. Teleport has a built-in role called `access` that allows users to access cluster resources. Create a local user assigned this role:
 
 ```code
@@ -94,7 +96,7 @@ the application directly. In our sample Grafana application we have provided a p
 the `--app-public-addr` flag, so go to `https://grafana.teleport.example.com`
 to access the app. 
 
-Replace `grafana` with the value of the `--app-name` flag you used when starting the Teleport Application Service and `teleport.example.com` with the address of your Auth Service or Proxy Service.
+Replace `grafana` with the value of the `--app-name` flag you used when starting the Teleport Application Service and `teleport.example.com` with the address of your Proxy Service.
 
 If you're not logged into Teleport,
 you will need to authenticate before the application will show.

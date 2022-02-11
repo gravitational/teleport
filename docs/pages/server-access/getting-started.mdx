@@ -28,7 +28,7 @@ This guide introduces some of these common scenarios and how to interact with Te
 ## Prerequisites
 
 - The Teleport Auth Service and Proxy Service, deployed on your own infrastructure or managed via Teleport Cloud.
-- One host running your favorite Linux environment (such as Ubuntu 20.05, CentOS 8.0-1905, or Debian 10). This will serve as a Teleport Server Access Node.
+- One host running your favorite Linux environment (such as Ubuntu 20.04, CentOS 8.0-1905, or Debian 10). This will serve as a Teleport Server Access Node.
 - Teleport (=teleport.version=) installed locally.
 
 <Admonition type="tip" title="New Teleport users">
@@ -39,7 +39,7 @@ If you have not yet deployed the Teleport Auth Service and Proxy Service, learn 
 
 ## Step 1/4. Install Teleport 
 
-1. Create a new instance of your desired Linux distribution (such as Ubuntu 20.05, CentOS 8.0-1905, or Debian 10).
+1. Create a new instance of your desired Linux distribution (such as Ubuntu 20.04, CentOS 8.0-1905, or Debian 10).
 
    This instance will be a private resource. Open port 22 so you can initially access, configure, and provision your instance. We'll configure and launch our instance, then demonstrate how to use the `tsh` tool and Teleport in SSH mode thereafter.
 
@@ -52,6 +52,18 @@ If you have not yet deployed the Teleport Auth Service and Proxy Service, learn 
 ## Step 2/4. Add a Node to the cluster
 
 1. Create a join token to add the Node to your Teleport cluster. In run the following command, either on your Auth Service host (for self-hosted deployments) or on your local machine (for Teleport Cloud).
+
+<Details scope={["cloud"]} scopeOnly={true} title="Teleport Cloud and tctl">
+Teleport Cloud users must download the Enterprise version of Teleport to their local machines in order to use `tctl`. To do so, visit the [Teleport Customer Portal](https://dashboard.gravitational.com/web/login).
+
+Once this is done, log in to Teleport:
+
+```code
+$ tsh login --proxy=myinstance.teleport.sh
+```
+
+If you have installed `tctl` as your local user, you will not need to run `tctl` commands via `sudo`.
+</Details>
 
    ```code
    # Let's save the token to a file
@@ -69,7 +81,6 @@ If you have not yet deployed the Teleport Auth Service and Proxy Service, learn 
 2. Now, open a new terminal and connect to the Teleport Auth Service.
 
    - On your Node, save `token.file` to an appropriate, secure, directory you have the rights and access to read.
-
    - Start the Node. Change `tele.example.com` to the address of your Teleport Proxy Service. For Teleport Cloud customers, use a tenant address such as `mytenant.teleport.sh`. Assign the `--token` flag to the path where you saved `token.file`.
 
    ```code
