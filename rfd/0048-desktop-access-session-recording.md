@@ -60,6 +60,46 @@ In asynchronous recording mode, we also leverage a
 which is responsible for filtering out `SessionPrint` events that should not be
 written to Teleport's main audit log.
 
+Additionally, the web UI currently searches for `session.end` events in order to
+populate the session recordings page. We will add a new audit event for
+`desktop.session.end` that captures similar information:
+
+```protobuf
+// WindowsDesktopSessionEnd is emitted when a user ends a Windows desktop session.
+message WindowsDesktopSessionEnd {
+    Metadata Metadata = 1;
+    UserMetadata User = 2;
+    SessionMetadata Session = 3;
+
+    // WindowsDesktopService is the name of the service proxying the RDP session.
+    string WindowsDesktopService = 4;
+    // DesktopAddr is the address of the desktop being accessed.
+    string DesktopAddr = 5;
+    // Domain is the Active Directory domain of the desktop being accessed.
+    string Domain = 6;
+    // WindowsUser is the Windows username used to connect.
+    string WindowsUser = 7;
+    // DesktopLabels are the labels on the desktop resource.
+    map<string, string> DesktopLabels = 8;
+    // StartTime is the timestamp at which the session began.
+    google.protobuf.Timestamp StartTime = 9;
+    // EndTime is the timestamp at which the session ended.
+    google.protobuf.Timestamp EndTime = 10;
+    // DesktopName is the name of the desktop resource.
+    string DesktopName = 11;
+    // Recorded is true if the session was recorded, false otherwise.
+    bool Recorded = 12;
+    // Participants is a list of participants in the session.
+    repeated string Participants = 13;
+ }
+```
+
+Notably:
+
+- Start and end times allow the UI to display the length of the session
+- Recorded indicates whether the session should appear in the recordings list
+- Participants allows for compatibility with RBAC for sessions
+
 #### Playback
 
 In order to maintain compatibility with older versions of Teleport, SSH session
@@ -118,12 +158,16 @@ and retain support for deprecated messages in order to keep recordings valid.
 
 #### Recording
 
-Teleport session recordings are stored as an ordered sequence of protobuf-encoded
-audit events. Desktop session recording will work in the same way.
+Teleport session recordings are stored as an ordered sequence of gzipped,
+protobuf-encoded audit events. Desktop session recording will work in the same
+way. The maximum length of a protobuf-encoded message is 64K, so in the event a
+message exceeds the maximum length, it will be broken up into two separate
+events.
 
 In order to support a new type of session recording, a new audit event will be
 defined for capturing desktop session data. The `DesktopRecordingEvent` will
-implement the `AuditEvent` interface.
+implement the `AuditEvent` interface and is analagous to the `PrintEvent` used
+for SSH recordings.
 
 ```protobuf
 // DesktopRecordingEvent happens when a Teleport Desktop Protocol message
@@ -151,8 +195,11 @@ will contain TDP message 2 (PNG frame), but we will also capture:
 - message 4 - mouse button
 
 Of note: we will not be capturing other user input events (keyboard or mouse
-wheel/scroll), as they are not necessary for playback. The result of keyboard
-input or scrolling captured in the session's PNG frames instead.
+wheel/scroll), as:
+
+1. They are not necessary for playback. The result of keyboard input or
+   scrolling captured in the session's PNG frames instead.
+2. The keyboard input may contain sensitive information, like passwords.
 
 We do, however, need to capture mouse movement and button clicks, as the RDP
 bitmaps sent from the Windows desktop do _not_ include the mouse cursor
