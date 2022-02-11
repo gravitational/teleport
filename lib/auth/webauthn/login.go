@@ -35,8 +35,8 @@ import (
 // loginIdentity contains the subset of services.Identity methods used by
 // loginFlow.
 type loginIdentity interface {
-	userIDStorage                                                                  // MFA
-	GetTeleportUserByWebauthnID(ctx context.Context, webID []byte) (string, error) // Passwordless
+	GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error) // MFA
+	GetTeleportUserByWebauthnID(ctx context.Context, webID []byte) (string, error)           // Passwordless
 
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
@@ -74,12 +74,13 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 	if passwordless {
 		u = &webUser{} // Issue anonymous challenge.
 	} else {
-		// Use existing devices to set the allowed credentials.
-		devices, err := f.identity.GetMFADevices(ctx, user, false /* withSecrets */)
+		webID, err := f.getWebID(ctx, user)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		webID, err := getOrCreateUserWebauthnID(ctx, user, f.identity)
+
+		// Use existing devices to set the allowed credentials.
+		devices, err := f.identity.GetMFADevices(ctx, user, false /* withSecrets */)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -124,6 +125,17 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 	}
 
 	return (*CredentialAssertion)(assertion), nil
+}
+
+func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
+	wla, err := f.identity.GetWebauthnLocalAuth(ctx, user)
+	switch {
+	case trace.IsNotFound(err):
+		return nil, nil // OK, legacy U2F users may not have a webID.
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+	return wla.UserID, nil
 }
 
 func beginLogin(
@@ -193,12 +205,11 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAss
 		}
 		user = teleportUser
 	} else {
-		// Fetch WebAuthn UserID from user
-		wla, err := f.identity.GetWebauthnLocalAuth(ctx, user)
+		var err error
+		webID, err = f.getWebID(ctx, user)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
-		webID = wla.UserID
 	}
 
 	// Find the device used to sign the credentials. It must be a previously

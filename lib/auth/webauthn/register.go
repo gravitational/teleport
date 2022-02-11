@@ -35,7 +35,9 @@ import (
 // RegistrationIdentity represents the subset of Identity methods used by
 // RegistrationFlow.
 type RegistrationIdentity interface {
-	userIDStorage
+	UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error
+	GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error)
+	GetTeleportUserByWebauthnID(ctx context.Context, webID []byte) (string, error)
 
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
@@ -148,9 +150,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 		})
 	}
 
-	// TODO(codingllama): This is the place to fix the webauthn/users/ index, if
-	//  that's what I'm going for.
-	webID, err := getOrCreateUserWebauthnID(ctx, user, f.Identity)
+	webID, err := upsertOrGetWebID(ctx, user, f.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -186,6 +186,36 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 	}
 
 	return (*CredentialCreation)(credentialCreation), nil
+}
+
+func upsertOrGetWebID(ctx context.Context, user string, identity RegistrationIdentity) ([]byte, error) {
+	wla, err := identity.GetWebauthnLocalAuth(ctx, user)
+	switch {
+	case trace.IsNotFound(err): // first-time user, create a new ID
+		webID := []byte(uuid.New().String())
+		err := identity.UpsertWebauthnLocalAuth(ctx, user, &types.WebauthnLocalAuth{
+			UserID: webID[:],
+		})
+		return webID[:], trace.Wrap(err)
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+
+	// Attempt to fix the webID->user index, if necessary.
+	// This applies to legacy (Teleport 8.x) registrations and to eventual bad
+	// writes.
+	indexedUser, err := identity.GetTeleportUserByWebauthnID(ctx, wla.UserID)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	if indexedUser != user {
+		// Re-write wla to force an index update.
+		if err := identity.UpsertWebauthnLocalAuth(ctx, user, wla); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return wla.UserID, nil
 }
 
 // Finish is the second and last step of the registration ceremony.

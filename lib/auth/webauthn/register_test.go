@@ -120,6 +120,61 @@ func TestRegistrationFlow_BeginFinish(t *testing.T) {
 	}
 }
 
+func TestRegistrationFlow_Begin_webID(t *testing.T) {
+	const rpID = "localhost"
+	ctx := context.Background()
+
+	alpacaWebID := []byte{1, 2, 3, 4, 5}
+	tests := []struct {
+		name             string
+		user, mappedUser string
+		wla              *types.WebauthnLocalAuth
+	}{
+		{
+			name: "user without webID", // first registration or U2F user
+			user: "llama",
+		},
+		{
+			name:       "user without webID mapping", // aka legacy or inconsistent storage
+			user:       "alpaca",
+			mappedUser: "", // missing mapping
+			wla:        &types.WebauthnLocalAuth{UserID: alpacaWebID},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			user := test.user
+
+			// Prepare identity/user according to test parameters.
+			identity := newFakeIdentity(user)
+			if test.wla != nil {
+				err := identity.UpsertWebauthnLocalAuth(ctx, user, test.wla)
+				require.NoError(t, err, "failed to upsert WebauthnLocalAuth")
+			}
+			identity.MappedUser = test.mappedUser
+
+			// Begin registration; this should create/fix the webID and webID->user
+			// mappings in storage.
+			webRegistration := &wanlib.RegistrationFlow{
+				Webauthn: &types.Webauthn{RPID: rpID},
+				Identity: identity,
+			}
+			_, err := webRegistration.Begin(ctx, user, false /* passwordless */)
+			require.NoError(t, err, "Begin failed")
+
+			// Verify that we have both the webID and the correct webID->user
+			// mapping.
+			wla, err := identity.GetWebauthnLocalAuth(ctx, user)
+			require.NoError(t, err, "failed to read WebauthnLocalAuth")
+			require.NotEmpty(t, wla.UserID)
+
+			gotUser, err := identity.GetTeleportUserByWebauthnID(ctx, wla.UserID)
+			require.NoError(t, err, "failed to get user from webID")
+			require.Equal(t, user, gotUser)
+		})
+	}
+}
+
 func TestRegistrationFlow_Begin_errors(t *testing.T) {
 	const user = "llama"
 	webRegistration := &wanlib.RegistrationFlow{

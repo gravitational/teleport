@@ -28,7 +28,7 @@ import (
 // It exists to better scope LoginFlow's use of Identity and to facilitate
 // testing.
 type LoginIdentity interface {
-	userIDStorage
+	GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error)
 
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error

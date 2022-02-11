@@ -17,7 +17,6 @@ limitations under the License.
 package webauthn_test
 
 import (
-	"bytes"
 	"context"
 	"crypto/x509"
 	"fmt"
@@ -123,9 +122,14 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 	u2fDev, err := keyToMFADevice(u2fKey, devAddedAt /* addedAt */, devAddedAt /* lastUsed */)
 	require.NoError(t, err)
 
-	// Prepare identity and configs
-	const user = "llama"
-	identity := newFakeIdentity(user, u2fDev)
+	// U2F user has a legacy device and no webID.
+	const u2fUser = "alpaca"
+	u2fIdentity := newFakeIdentity(u2fUser, u2fDev)
+
+	// webUser gets a newly registered device and a webID.
+	const webUser = "llama"
+	webIdentity := newFakeIdentity(webUser)
+
 	u2fConfig := &types.U2F{AppID: "https://example.com:3080"}
 	webConfig := &types.Webauthn{RPID: "example.com"}
 
@@ -134,48 +138,57 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 	ctx := context.Background()
 
 	// Register a Webauthn device.
-	// Last registration step adds the created device to identity.
+	// Last registration step creates the user webID and adds the new device to
+	// identity.
 	webKey, err := mocku2f.Create()
 	require.NoError(t, err)
 	webKey.PreferRPID = true // Webauthn-registered device
 	webKey.SetCounter(20)    // Arbitrary, recorded during registration
 	webRegistration := &wanlib.RegistrationFlow{
 		Webauthn: webConfig,
-		Identity: identity,
+		Identity: webIdentity,
 	}
-	cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
+	cc, err := webRegistration.Begin(ctx, webUser, false /* passwordless */)
 	require.NoError(t, err)
 	ccr, err := webKey.SignCredentialCreation(webOrigin, cc)
 	require.NoError(t, err)
-	_, err = webRegistration.Finish(ctx, user, "webauthn1" /* deviceName */, ccr)
+	_, err = webRegistration.Finish(ctx, webUser, "webauthn1" /* deviceName */, ccr)
 	require.NoError(t, err)
-
-	webLogin := &wanlib.LoginFlow{
-		U2F:      u2fConfig,
-		Webauthn: webConfig,
-		Identity: identity,
-	}
 
 	tests := []struct {
 		name         string
+		identity     *fakeIdentity
 		user, origin string
 		key          *mocku2f.Key
+		wantWebID    bool
 	}{
 		{
-			name:   "OK U2F device login",
-			user:   user,
-			origin: u2fOrigin,
-			key:    u2fKey,
+			name:     "OK U2F device login",
+			identity: u2fIdentity,
+			user:     u2fUser,
+			origin:   u2fOrigin,
+			key:      u2fKey,
 		},
 		{
-			name:   "OK Webauthn device login",
-			user:   user,
-			origin: webOrigin,
-			key:    webKey,
+			name:      "OK Webauthn device login",
+			identity:  webIdentity,
+			user:      webUser,
+			origin:    webOrigin,
+			key:       webKey,
+			wantWebID: true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			identity := test.identity
+			user := test.user
+
+			webLogin := &wanlib.LoginFlow{
+				U2F:      u2fConfig,
+				Webauthn: webConfig,
+				Identity: test.identity,
+			}
+
 			// 1st step of the login ceremony.
 			assertion, err := webLogin.Begin(ctx, user)
 			require.NoError(t, err)
@@ -186,17 +199,17 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 			require.Equal(t, protocol.VerificationDiscouraged, assertion.Response.UserVerification)
 			// Did we record the SessionData in storage?
 			require.Len(t, identity.SessionData, 1)
-			// Retrieve session data without guessing the "sessionID" component of the
-			// key.
+			// Did we record the web ID in the SessionData?
 			var sd *wantypes.SessionData
 			for _, v := range identity.SessionData {
-				sd = v // Get SessionData without guessing the key.
+				sd = v // Retrieve without guessing the key
 				break
 			}
-			// Did we create a new web user ID? Was it used?
-			webID := identity.User.GetLocalAuth().Webauthn.UserID
-			require.NotEmpty(t, webID)
-			require.Equal(t, webID, sd.UserId)
+			if test.wantWebID {
+				require.NotEmpty(t, sd.UserId)
+			} else {
+				require.Empty(t, sd.UserId)
+			}
 
 			// User interaction would happen here.
 			wantCounter := test.key.Counter()
@@ -554,7 +567,10 @@ func TestPasswordlessFlow_Finish_errors(t *testing.T) {
 }
 
 type fakeIdentity struct {
-	User           *types.UserV2
+	User *types.UserV2
+	// MappedUser is used as the reply to GetTeleportUserByWebauthnID.
+	// It's automatically assigned when UpsertWebauthnLocalAuth is called.
+	MappedUser     string
 	UpdatedDevices []*types.MFADevice
 	SessionData    map[string]*wantypes.SessionData
 }
@@ -597,6 +613,7 @@ func (f *fakeIdentity) UpsertMFADevice(ctx context.Context, user string, d *type
 
 func (f *fakeIdentity) UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error {
 	f.User.GetLocalAuth().Webauthn = wla
+	f.MappedUser = user
 	return nil
 }
 
@@ -609,10 +626,10 @@ func (f *fakeIdentity) GetWebauthnLocalAuth(ctx context.Context, user string) (*
 }
 
 func (f *fakeIdentity) GetTeleportUserByWebauthnID(ctx context.Context, webID []byte) (string, error) {
-	if wla := f.User.GetLocalAuth().Webauthn; wla == nil || !bytes.Equal(wla.UserID, webID) {
+	if f.MappedUser == "" {
 		return "", trace.NotFound("not found")
 	}
-	return f.User.GetName(), nil
+	return f.MappedUser, nil
 }
 
 func (f *fakeIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {

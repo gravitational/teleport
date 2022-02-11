@@ -48,6 +48,7 @@ func TestRegister(t *testing.T) {
 			RPID: rpID,
 		},
 		Identity: &fakeIdentity{
+			User:    user,
 			Devices: []*types.MFADevice{registeredKey.mfaDevice},
 		},
 	}
