@@ -19,6 +19,8 @@ package main
 import (
 	"context"
 	"testing"
+
+	"github.com/google/go-github/v41/github"
 )
 
 func TestCheckPrerelease(t *testing.T) {
@@ -131,6 +133,11 @@ type fakeGitHub struct {
 	releases []string
 }
 
-func (f *fakeGitHub) ListReleases(ctx context.Context, organization string, repository string) ([]string, error) {
-	return f.releases, nil
+func (f *fakeGitHub) ListReleases(ctx context.Context, organization, repository string) ([]github.RepositoryRelease, error) {
+	ghReleases := make([]github.RepositoryRelease, 0)
+	for _, r := range f.releases {
+		tag := r
+		ghReleases = append(ghReleases, github.RepositoryRelease{TagName: &tag})
+	}
+	return ghReleases, nil
 }

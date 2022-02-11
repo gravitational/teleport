@@ -84,8 +84,17 @@ func checkLatest(ctx context.Context, tag string, gh github.GitHub) error {
 	if len(releases) == 0 {
 		return trace.BadParameter("failed to find any releases on GitHub")
 	}
-	semver.Sort(releases)
-	latest := releases[len(releases)-1]
+
+	var tags []string
+	for _, r := range releases {
+		if r.GetDraft() {
+			continue
+		}
+		tags = append(tags, r.GetTagName())
+	}
+
+	semver.Sort(tags)
+	latest := tags[len(tags)-1]
 	if semver.Compare(tag, latest) <= 0 {
 		return trace.BadParameter("found newer version of release, not releasing. Latest release: %v, tag: %v", latest, tag)
 	}
