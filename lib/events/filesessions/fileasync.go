@@ -96,14 +96,14 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// completer scans for uploads that have been initiated, but not completed
-	// by the client (aborted or crashed) and completed them
 	handler, err := NewHandler(Config{
 		Directory: cfg.ScanDir,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// completer scans for uploads that have been initiated, but not completed
+	// by the client (aborted or crashed) and completes them
 	uploadCompleter, err := events.NewUploadCompleter(events.UploadCompleterConfig{
 		Uploader:  handler,
 		AuditLog:  cfg.AuditLog,
