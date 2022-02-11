@@ -31,7 +31,7 @@ type RegisterUsingIAMMethodRequest struct {
 	// RegisterUsingTokenRequest holds registration parameters common to all
 	// join methods.
 	RegisterUsingTokenRequest *types.RegisterUsingTokenRequest `protobuf:"bytes,1,opt,name=register_using_token_request,json=registerUsingTokenRequest,proto3" json:"register_using_token_request,omitempty"`
-	// STSIdentityRequest is a signed HTTP request to the AWS
+	// StsIdentityRequest is a signed HTTP request to the AWS
 	// sts:GetCallerIdentity API endpoint used to prove the AWS identity of a
 	// joining node. It must include the challenge string as a signed header.
 	StsIdentityRequest   []byte   `protobuf:"bytes,2,opt,name=sts_identity_request,json=stsIdentityRequest,proto3" json:"sts_identity_request,omitempty"`

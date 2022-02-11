@@ -824,6 +824,20 @@ func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
 	return trace.Wrap(err)
 }
 
+// UpsertKubeServiceV2 is used by kubernetes services to report their presence
+// to other auth servers in form of hearbeat expiring after ttl period.
+func (c *Client) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+	server, ok := s.(*types.ServerV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T, expected *types.ServerV2", server)
+	}
+	keepAlive, err := c.grpc.UpsertKubeServiceV2(ctx, &proto.UpsertKubeServiceRequest{Server: server}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return keepAlive, nil
+}
+
 // GetKubeServices returns the list of kubernetes services registered in the
 // cluster.
 func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
