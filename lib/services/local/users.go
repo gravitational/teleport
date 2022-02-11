@@ -641,20 +641,20 @@ func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user stri
 		Key:   webauthnLocalAuthKey(user),
 		Value: wlaJSON,
 	}); err != nil {
-		return trace.WrapWithMessage(err, "writing webauthn local auth")
+		return trace.Wrap(err, "writing webauthn local auth")
 	}
 
 	userJSON, err := json.Marshal(&wantypes.User{
 		TeleportUser: user,
 	})
 	if err != nil {
-		return trace.WrapWithMessage(err, "marshal webauthn user")
+		return trace.Wrap(err, "marshal webauthn user")
 	}
 	if _, err = s.Put(ctx, backend.Item{
 		Key:   webauthnUserKey(wla.UserID),
 		Value: userJSON,
 	}); err != nil {
-		return trace.WrapWithMessage(err, "writing webauthn user")
+		return trace.Wrap(err, "writing webauthn user")
 	}
 
 	return trace.Wrap(err)
