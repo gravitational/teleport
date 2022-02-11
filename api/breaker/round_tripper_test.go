@@ -134,9 +134,11 @@ func TestRoundTripper_RoundTrip(t *testing.T) {
 			r, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+tt.url, nil)
 			require.NoError(t, err)
 			resp, err := clt.Do(r)
-			t.Cleanup(func() {
-				require.NoError(t, resp.Body.Close())
-			})
+			if resp != nil {
+				t.Cleanup(func() {
+					require.NoError(t, resp.Body.Close())
+				})
+			}
 			tt.errorAssertion(t, err)
 			tt.responseAssertion(t, resp)
 		})
