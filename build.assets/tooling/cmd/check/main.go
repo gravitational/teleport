@@ -24,7 +24,6 @@ import (
 	"context"
 	"flag"
 	"log"
-	"sort"
 	"strings"
 	"time"
 
@@ -82,15 +81,13 @@ func checkLatest(ctx context.Context, tag string, gh github.GitHub) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	sort.SliceStable(releases, func(i int, j int) bool {
-		return releases[i] > releases[j]
-	})
 	if len(releases) == 0 {
 		return trace.BadParameter("failed to find any releases on GitHub")
 	}
-
-	if semver.Compare(tag, releases[0]) <= 0 {
-		return trace.BadParameter("found newer version of release, not releasing. Latest release: %v, tag: %v", releases[0], tag)
+	semver.Sort(releases)
+	latest := releases[len(releases)-1]
+	if semver.Compare(tag, latest) <= 0 {
+		return trace.BadParameter("found newer version of release, not releasing. Latest release: %v, tag: %v", latest, tag)
 	}
 
 	return nil
