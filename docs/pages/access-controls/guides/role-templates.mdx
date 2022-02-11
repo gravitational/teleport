@@ -264,7 +264,7 @@ spec:
     logins: ['{{external.logins}}', 'admin']
 
     # Roles support interpolation in string values.
-    kubernetes_users: ['IAM#{{external.foo}};']
+    kubernetes_users: ['IAM#{{external.email}};']
 
     # Lists get expanded into lists.
     kubernetes_groups: ['{{external.groups}}']
@@ -352,7 +352,7 @@ spec:
           roles: ['$1-admin']     # generates a role name from the value capture
 ```
 
-If we grant Alice the `product-admin` role and add some entried to the `projects` trait:
+If we grant Alice the `product-admin` role and add some entries to the `projects` trait:
 
 ```yaml
 kind: user
