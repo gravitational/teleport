@@ -38,7 +38,6 @@ require (
 	github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b
 	github.com/golang/protobuf v1.5.2
 	github.com/google/btree v1.0.0
-	github.com/google/certificate-transparency-go v1.0.21
 	github.com/google/go-cmp v0.5.6
 	github.com/google/gops v0.3.14
 	github.com/google/uuid v1.2.0
@@ -142,6 +141,7 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/snappy v0.0.3 // indirect
+	github.com/google/certificate-transparency-go v1.0.21 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
 	github.com/googleapis/gnostic v0.4.1 // indirect
