@@ -11,13 +11,15 @@ Improve UX of adding a trusted cluster by making the Web UI provide a YAML file 
 
 ## Why
 
-The web interface doesn’t do much to help users add trusted clusters. This is a common cause for customers contacting support.
+The web interface doesn’t do much to help users add trusted clusters, making the current UX confusing.
 
 ## Context
 
 Adding a [trusted cluster](https://goteleport.com/docs/setup/admin/trustedclusters/) demands actions from the administrators of both root and leaf clusters.
 
 The root admin must provide data and generate a join token, while the leaf must run `tctl create` with the data provided.
+
+### Current State
 
 Currently, in the `Trust` screen, the user sees a button that says `CONNECT TO ROOT CLUSTER`. Once clicked, the user gets a YAML file with placeholder values that they are supposed to replace.
 
