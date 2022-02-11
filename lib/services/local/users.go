@@ -28,7 +28,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -36,6 +35,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
+
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
 
 // IdentityService is responsible for managing web users and currently
@@ -633,31 +634,45 @@ func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user stri
 		return trace.Wrap(err)
 	}
 
+	// Marshal both values before writing, we want to minimize the chances of
+	// having to "undo" a write below.
 	wlaJSON, err := json.Marshal(wla)
 	if err != nil {
 		return trace.Wrap(err, "marshal webauthn local auth")
 	}
-	if _, err = s.Put(ctx, backend.Item{
-		Key:   webauthnLocalAuthKey(user),
-		Value: wlaJSON,
-	}); err != nil {
-		return trace.Wrap(err, "writing webauthn local auth")
-	}
-
 	userJSON, err := json.Marshal(&wantypes.User{
 		TeleportUser: user,
 	})
 	if err != nil {
 		return trace.Wrap(err, "marshal webauthn user")
 	}
+
+	// Write WebauthnLocalAuth.
+	wlaKey := webauthnLocalAuthKey(user)
+	if _, err = s.Put(ctx, backend.Item{
+		Key:   wlaKey,
+		Value: wlaJSON,
+	}); err != nil {
+		return trace.Wrap(err, "writing webauthn local auth")
+	}
+
+	// Write wla.UserID->user mapping, used for usernameless logins.
 	if _, err = s.Put(ctx, backend.Item{
 		Key:   webauthnUserKey(wla.UserID),
 		Value: userJSON,
 	}); err != nil {
+		// Undo the first write if the one below fails.
+		// This is a best-effort attempt, as both the 2nd write and the delete may
+		// fail (it's even likely that both do, depending on the error).
+		// lib/auth/webauthn is prepared to deal with eventual inconsistencies
+		// between "web/users/.../webauthnlocalauth" and "webauthn/users/" keys.
+		if err := s.Delete(ctx, wlaKey); err != nil {
+			s.log.WithError(err).Warn("Failed to undo WebauthnLocalAuth update")
+		}
 		return trace.Wrap(err, "writing webauthn user")
 	}
 
-	return trace.Wrap(err)
+	return nil
 }
 
 func (s *IdentityService) GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error) {
