@@ -411,6 +411,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			GetHostCredentials:   client.HostCredentials,
 			Clock:                process.Clock,
 			EC2IdentityDocument:  ec2IdentityDocument,
+			JoinMethod:           process.Config.JoinMethod,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

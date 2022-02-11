@@ -1969,10 +1969,12 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
 		cfg.Token = fc.JoinParams.TokenName
-		if fc.JoinParams.Method != "ec2" {
-			return trace.BadParameter(`unknown value for join_params.method: %q, expected "ec2"`, fc.JoinParams.Method)
+		switch fc.JoinParams.Method {
+		case types.JoinMethodEC2, types.JoinMethodIAM:
+			cfg.JoinMethod = fc.JoinParams.Method
+		default:
+			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM})
 		}
-		cfg.JoinMethod = types.JoinMethodEC2
 	}
 	return nil
 }
