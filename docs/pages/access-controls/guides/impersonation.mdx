@@ -32,7 +32,7 @@ Save this file as `jenkins.yaml` to create the user and role:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: jenkins
 spec:
@@ -77,7 +77,7 @@ Save this role definition as `impersonator.yaml`:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: impersonator
 spec:
@@ -179,7 +179,7 @@ allowed the impersonation of any users or roles with the label
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: security-impersonator
 spec:
@@ -214,7 +214,7 @@ Create a user and a role `security-scanner` using the following template:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: security-scanner
   labels:
@@ -256,7 +256,7 @@ as the label on the role and/or user to impersonate:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: security-impersonator
 spec:
