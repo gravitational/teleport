@@ -1799,7 +1799,7 @@ func TestGetAndList_KubeServices(t *testing.T) {
 		}, map[string]string{"name": name})
 		require.NoError(t, err)
 
-		err = srv.Auth().UpsertKubeService(ctx, s)
+		_, err = srv.Auth().UpsertKubeServiceV2(ctx, s)
 		require.NoError(t, err)
 	}
 

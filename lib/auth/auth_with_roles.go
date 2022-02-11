@@ -602,6 +602,13 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbUpdate); err != nil {
 			return trace.Wrap(err)
 		}
+	case constants.KeepAliveKube:
+		if serverName != handle.Name || !a.hasBuiltinRole(string(types.RoleKube)) {
+			return trace.AccessDenied("access denied")
+		}
+		if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unknown keep alive type %q", handle.Type)
 	}
@@ -661,6 +668,14 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 			}
 		case types.KindDatabaseServer:
 			if err := a.action(apidefaults.Namespace, types.KindDatabaseServer, types.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case types.KindKubeService:
+			if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case types.KindWindowsDesktopService:
+			if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		default:
@@ -3268,6 +3283,15 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 		}
 	}
 	return a.authServer.UpsertKubeService(ctx, s)
+}
+
+// UpsertKubeServiceV2 creates or updates a Server representing a teleport
+// kubernetes service.
+func (a *ServerWithRoles) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.UpsertKubeServiceV2(ctx, s)
 }
 
 // GetKubeServices returns all Servers representing teleport kubernetes
