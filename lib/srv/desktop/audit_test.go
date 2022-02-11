@@ -76,6 +76,8 @@ func TestSessionStartEvent(t *testing.T) {
 		},
 	}
 
+	userMeta := id.GetUserMetadata()
+	userMeta.Login = "Administrator"
 	expected := &events.WindowsDesktopSessionStart{
 		Metadata: events.Metadata{
 			ClusterName: s.clusterName,
@@ -83,7 +85,7 @@ func TestSessionStartEvent(t *testing.T) {
 			Code:        libevents.DesktopSessionStartCode,
 			Time:        s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		},
-		UserMetadata: id.GetUserMetadata(),
+		UserMetadata: userMeta,
 		SessionMetadata: events.SessionMetadata{
 			SessionID: "sessionID",
 			WithMFA:   id.MFAVerified,
@@ -184,13 +186,15 @@ func TestSessionEndEvent(t *testing.T) {
 	endEvent, ok := event.(*events.WindowsDesktopSessionEnd)
 	require.True(t, ok)
 
+	userMeta := id.GetUserMetadata()
+	userMeta.Login = "Administrator"
 	expected := &events.WindowsDesktopSessionEnd{
 		Metadata: events.Metadata{
 			ClusterName: s.clusterName,
 			Type:        libevents.WindowsDesktopSessionEndEvent,
 			Code:        libevents.DesktopSessionEndCode,
 		},
-		UserMetadata: id.GetUserMetadata(),
+		UserMetadata: userMeta,
 		SessionMetadata: events.SessionMetadata{
 			SessionID: "sessionID",
 			WithMFA:   id.MFAVerified,
@@ -204,6 +208,7 @@ func TestSessionEndEvent(t *testing.T) {
 		EndTime:               c.Now().UTC().Round(time.Millisecond),
 		DesktopName:           desktop.GetName(),
 		Recorded:              true,
+		Participants:          []string{"foo"},
 	}
 	require.Empty(t, cmp.Diff(expected, endEvent))
 }
