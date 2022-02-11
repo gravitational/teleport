@@ -50,11 +50,11 @@ message SessionData {
     // Raw Credential IDs of the credentials allowed for the ceremony.
     repeated bytes allow_credentials = 3 [ (gogoproto.jsontag) = "allowCredentials,omitempty" ];
     // True if resident keys were required by the server / Relying Party.
-    bool resident_key = 4;
+    bool resident_key = 4 [ (gogoproto.jsontag) = "residentKey,omitempty" ];
     // Requested user verification requirement, either "discouraged" or
     // "required".
     // An empty value is treated equivalently to "discouraged".
-    string user_verification = 5;
+    string user_verification = 5 [ (gogoproto.jsontag) = "userVerification,omitempty" ];
 }
 
 // User represents a WebAuthn user.
