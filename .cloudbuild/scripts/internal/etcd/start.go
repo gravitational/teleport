@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	metricsUrl = "https://127.0.0.1:3379"
+	metricsURL = "https://127.0.0.1:3379"
 )
 
 type Instance struct {
@@ -57,7 +57,7 @@ func (etcd *Instance) Stop() {
 
 	case *exec.ExitError:
 		// we expect a return code of -1 because we've just killed the process
-		// above. If we get something else then etcd failed earlier for some 
+		// above. If we get something else then etcd failed earlier for some
 		// reason and we should print diagnostic output
 		if err.ExitCode() != -1 {
 			log.Printf("Etcd exited with unexpected status %d", err.ExitCode())
@@ -102,7 +102,7 @@ func Start(ctx context.Context, workspace string, env ...string) (*Instance, err
 		"--trusted-ca-file", path.Join(certsDir, "ca-cert.pem"),
 		"--advertise-client-urls=https://127.0.0.1:2379",
 		"--listen-client-urls=https://127.0.0.1:2379",
-		"--listen-metrics-urls", metricsUrl,
+		"--listen-metrics-urls", metricsURL,
 		"--client-cert-auth",
 	)
 	etcdInstance.process.Dir = workspace
@@ -139,7 +139,7 @@ func waitForEtcdToStart(ctx context.Context, certDir string) error {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
-	client, err := newHttpsTransport(certDir)
+	client, err := newHTTPSTransport(certDir)
 	if err != nil {
 		return trace.Wrap(err, "failed to create https client")
 	}
@@ -147,7 +147,7 @@ func waitForEtcdToStart(ctx context.Context, certDir string) error {
 	for {
 		select {
 		case <-ticker.C:
-			healthy, err := pollForHealth(ctx, client, metricsUrl+"/health")
+			healthy, err := pollForHealth(ctx, client, metricsURL+"/health")
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -162,9 +162,9 @@ func waitForEtcdToStart(ctx context.Context, certDir string) error {
 	}
 }
 
-// newHttpsTransport creates an HTTP client configured to use TLS with an etcd server
+// newHTTPSTransport creates an HTTP client configured to use TLS with an etcd server
 // as started with Start()
-func newHttpsTransport(certDir string) (*http.Client, error) {
+func newHTTPSTransport(certDir string) (*http.Client, error) {
 	caCertPath := path.Join(certDir, "ca-cert.pem")
 	caCert, err := ioutil.ReadFile(caCertPath)
 	if err != nil {
