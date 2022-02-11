@@ -425,7 +425,7 @@ func TestAccessMySQLChangeUser(t *testing.T) {
 }
 
 // TestAccessRedisAUTHCmd checks if AUTH command is verified against Teleport RBAC before is sent to Redis.
-func TestAccessRedisAUTHCmd(t *testing.T) {
+func TestAccessRedisAUTHDefaultCmd(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis", redis.TestServerPassword("123")))
 	go testCtx.startHandlingConnections()
@@ -440,6 +440,8 @@ func TestAccessRedisAUTHCmd(t *testing.T) {
 	err = redisConn.Process(ctx, goredis.NewCmd(ctx, "AUTH", "123"))
 	require.NoError(t, err)
 
+	// TODO
+
 	// Check if we can execute some commands
 	resp := redisConn.Echo(ctx, "ping")
 	require.NoError(t, resp.Err())
@@ -450,7 +452,7 @@ func TestAccessRedisAUTHCmd(t *testing.T) {
 }
 
 // TestAccessRedisAUTHDefaultCmd checks if AUTH command is verified against Teleport RBAC before is sent to Redis.
-func TestAccessRedisAUTHDefaultCmd(t *testing.T) {
+func TestAccessRedisAUTHCmd(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 	go testCtx.startHandlingConnections()

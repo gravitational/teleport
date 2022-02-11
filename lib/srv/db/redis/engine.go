@@ -160,11 +160,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			TLSConfig: tlsConfig,
 		})
 	case Cluster:
-		if sessionCtx.DatabaseName != "" {
-			// ref: https://redis.io/commands/select
-			return trace.BadParameter("Redis Cluster only supports database zero")
-		}
-
 		redisConn = redis.NewClusterClient(&redis.ClusterOptions{
 			Addrs:     []string{connectionAddr},
 			TLSConfig: tlsConfig,

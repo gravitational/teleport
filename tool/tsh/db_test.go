@@ -520,7 +520,6 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 				"--tls",
 				"-h", "localhost",
 				"-p", "12345",
-				"--cacert", "/tmp/keys/example.com/cas/root.pem",
 				"--key", "/tmp/keys/example.com/bob",
 				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"},
 			wantErr: false,
@@ -533,17 +532,10 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 				"--tls",
 				"-h", "localhost",
 				"-p", "12345",
-				"--cacert", "/tmp/keys/example.com/cas/root.pem",
 				"--key", "/tmp/keys/example.com/bob",
 				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"-n", "2"},
 			wantErr: false,
-		},
-		{
-			name:         "redis-cli with incorrect db",
-			dbProtocol:   defaults.ProtocolRedis,
-			databaseName: "db1",
-			wantErr:      true,
 		},
 	}
 
