@@ -134,6 +134,8 @@ func TestProxySubsys_getMatchingServer(t *testing.T) {
 
 	serverUUID := uuid.NewString()
 
+	ec2NodeID := "123456789012-i-abcdef12345678901"
+
 	setExpiry := func(time time.Time) func(server types.Server) {
 		return func(server types.Server) {
 			server.SetExpiry(time)
@@ -164,6 +166,10 @@ func TestProxySubsys_getMatchingServer(t *testing.T) {
 		}, setExpiry(time.Now().Add(time.Hour*24))),
 		createServer("server3", types.ServerSpecV2{
 			Hostname: serverUUID,
+			Addr:     "127.0.0.1:",
+		}),
+		createServer(ec2NodeID, types.ServerSpecV2{
+			Hostname: "localhost",
 			Addr:     "127.0.0.1:",
 		}),
 	}
@@ -199,6 +205,17 @@ func TestProxySubsys_getMatchingServer(t *testing.T) {
 			servers: servers,
 			req: proxySubsysRequest{
 				host: serverUUID,
+			},
+		},
+		{
+			desc:        "Match by EC2 ID",
+			expectError: require.NoError,
+			expectServer: func(servers []types.Server) types.Server {
+				return servers[3]
+			},
+			servers: servers,
+			req: proxySubsysRequest{
+				host: ec2NodeID,
 			},
 		},
 		{

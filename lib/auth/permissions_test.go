@@ -71,9 +71,10 @@ func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	localUser := LocalUser{
 		Username: user.GetName(),
 		Identity: tlsca.Identity{
-			Username:    user.GetName(),
-			Groups:      []string{"test-role-1"},
-			MFAVerified: "mfa-device-id",
+			Username:       user.GetName(),
+			Groups:         []string{"test-role-1"},
+			MFAVerified:    "mfa-device-id",
+			ActiveRequests: []string{"test-request"},
 		},
 	}
 
@@ -82,7 +83,6 @@ func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 		Target: types.LockTarget{MFADevice: localUser.Identity.MFAVerified},
 	})
 	require.NoError(t, err)
-	require.NoError(t, srv.AuthServer.UpsertLock(ctx, mfaLock))
 	upsertLockWithPutEvent(ctx, t, srv, mfaLock)
 
 	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
@@ -94,12 +94,28 @@ func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
 	require.NoError(t, err)
 
+	// Add an access request lock.
+	requestLock, err := types.NewLock("request-lock", types.LockSpecV2{
+		Target: types.LockTarget{AccessRequest: localUser.Identity.ActiveRequests[0]},
+	})
+	require.NoError(t, err)
+	upsertLockWithPutEvent(ctx, t, srv, requestLock)
+
+	// localUser's identity with a locked access request is locked out.
+	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Not locked out without the request.
+	localUser.Identity.ActiveRequests = nil
+	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
+	require.NoError(t, err)
+
 	// Create a lock targeting the role written in the user's identity.
 	roleLock, err := types.NewLock("role-lock", types.LockSpecV2{
 		Target: types.LockTarget{Role: localUser.Identity.Groups[0]},
 	})
 	require.NoError(t, err)
-	require.NoError(t, srv.AuthServer.UpsertLock(ctx, roleLock))
 	upsertLockWithPutEvent(ctx, t, srv, roleLock)
 
 	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))

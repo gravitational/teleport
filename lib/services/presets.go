@@ -23,7 +23,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 )
 
 // NewPresetEditorRole returns a new pre-defined role for cluster
@@ -44,6 +44,9 @@ func NewPresetEditorRole() types.Role {
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
 				BPF:               apidefaults.EnhancedEvents(),
+				RecordSession: &types.RecordSession{
+					Desktop: types.NewBoolOption(false),
+				},
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
@@ -87,6 +90,7 @@ func NewPresetAccessRole() types.Role {
 				PortForwarding:    types.NewBoolOption(true),
 				ForwardAgent:      types.NewBool(true),
 				BPF:               apidefaults.EnhancedEvents(),
+				RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
 			},
 			Allow: types.RoleConditions{
 				Namespaces:           []string{apidefaults.Namespace},
@@ -126,6 +130,9 @@ func NewPresetAuditorRole() types.Role {
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+				RecordSession: &types.RecordSession{
+					Desktop: types.NewBoolOption(false),
+				},
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
@@ -136,6 +143,6 @@ func NewPresetAuditorRole() types.Role {
 			},
 		},
 	}
-	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New()})
+	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
 	return role
 }

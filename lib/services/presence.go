@@ -175,7 +175,11 @@ type Presence interface {
 	DeleteAllRemoteClusters() error
 
 	// UpsertKubeService registers kubernetes service presence.
+	// DELETE in 11.0. Deprecated, use UpsertKubeServiceV2
 	UpsertKubeService(context.Context, types.Server) error
+
+	// UpsertKubeServiceV2 registers kubernetes service presence
+	UpsertKubeServiceV2(context.Context, types.Server) (*types.KeepAlive, error)
 
 	// GetAppServers gets all application servers.
 	//
@@ -234,5 +238,5 @@ type Presence interface {
 	DeleteAllWindowsDesktopServices(context.Context) error
 
 	// ListResoures returns a paginated list of resources.
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.Resource, nextKey string, err error)
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.ResourceWithLabels, nextKey string, err error)
 }

@@ -24,8 +24,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 
@@ -131,7 +131,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 		Name: appA.GetName(),
 	}, types.AppServerSpecV3{
 		Hostname: "localhost",
-		HostID:   uuid.New(),
+		HostID:   uuid.New().String(),
 		App:      appA,
 	})
 	require.NoError(t, err)
@@ -140,7 +140,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	appBLegacy := &types.App{Name: "b", URI: "http://localhost:8081"}
 	appB, err := types.NewAppV3FromLegacyApp(appBLegacy)
 	require.NoError(t, err)
-	serverBLegacy, err := types.NewServer(uuid.New(), types.KindAppServer,
+	serverBLegacy, err := types.NewServer(uuid.New().String(), types.KindAppServer,
 		types.ServerSpecV2{
 			Hostname: "localhost",
 			Apps:     []*types.App{appBLegacy},
@@ -229,7 +229,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
 		Hostname: "localhost",
-		HostID:   uuid.New(),
+		HostID:   uuid.New().String(),
 	})
 	require.NoError(t, err)
 
@@ -430,33 +430,27 @@ func TestNodeCRUD(t *testing.T) {
 }
 
 func TestListResources(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
-		Clock: clock,
-	})
-	require.NoError(t, err)
-
-	presence := NewPresenceService(backend)
-
 	tests := map[string]struct {
 		resourceType           string
-		createResourceFunc     func(context.Context, string) error
-		deleteAllResourcesFunc func(context.Context) error
+		createResourceFunc     func(context.Context, *PresenceService, string, map[string]string) error
+		deleteAllResourcesFunc func(context.Context, *PresenceService) error
 		expectedType           types.Resource
 	}{
 		"DatabaseServers": {
 			resourceType: types.KindDatabaseServer,
-			createResourceFunc: func(ctx context.Context, name string) error {
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
 				server, err := types.NewDatabaseServerV3(types.Metadata{
-					Name: name,
+					Name:   name,
+					Labels: labels,
 				}, types.DatabaseServerSpecV3{
 					Protocol: defaults.ProtocolPostgres,
 					URI:      "localhost:5432",
 					Hostname: "localhost",
-					HostID:   uuid.New(),
+					HostID:   uuid.New().String(),
 				})
 				if err != nil {
 					return err
@@ -466,15 +460,16 @@ func TestListResources(t *testing.T) {
 				_, err = presence.UpsertDatabaseServer(ctx, server)
 				return err
 			},
-			deleteAllResourcesFunc: func(ctx context.Context) error {
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
 				return presence.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
 			},
 		},
 		"DatabaseServersSameHost": {
 			resourceType: types.KindDatabaseServer,
-			createResourceFunc: func(ctx context.Context, name string) error {
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
 				server, err := types.NewDatabaseServerV3(types.Metadata{
-					Name: name,
+					Name:   name,
+					Labels: labels,
 				}, types.DatabaseServerSpecV3{
 					Protocol: defaults.ProtocolPostgres,
 					URI:      "localhost:5432",
@@ -489,15 +484,16 @@ func TestListResources(t *testing.T) {
 				_, err = presence.UpsertDatabaseServer(ctx, server)
 				return err
 			},
-			deleteAllResourcesFunc: func(ctx context.Context) error {
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
 				return presence.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
 			},
 		},
 		"AppServers": {
 			resourceType: types.KindAppServer,
-			createResourceFunc: func(ctx context.Context, name string) error {
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
 				app, err := types.NewAppV3(types.Metadata{
-					Name: name,
+					Name:   name,
+					Labels: labels,
 				}, types.AppSpecV3{
 					URI: "localhost",
 				})
@@ -506,10 +502,11 @@ func TestListResources(t *testing.T) {
 				}
 
 				server, err := types.NewAppServerV3(types.Metadata{
-					Name: name,
+					Name:   name,
+					Labels: labels,
 				}, types.AppServerSpecV3{
 					Hostname: "localhost",
-					HostID:   uuid.New(),
+					HostID:   uuid.New().String(),
 					App:      app,
 				})
 				if err != nil {
@@ -520,15 +517,16 @@ func TestListResources(t *testing.T) {
 				_, err = presence.UpsertApplicationServer(ctx, server)
 				return err
 			},
-			deleteAllResourcesFunc: func(ctx context.Context) error {
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
 				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
 			},
 		},
 		"AppServersSameHost": {
 			resourceType: types.KindAppServer,
-			createResourceFunc: func(ctx context.Context, name string) error {
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
 				app, err := types.NewAppV3(types.Metadata{
-					Name: name,
+					Name:   name,
+					Labels: labels,
 				}, types.AppSpecV3{
 					URI: "localhost",
 				})
@@ -537,7 +535,8 @@ func TestListResources(t *testing.T) {
 				}
 
 				server, err := types.NewAppServerV3(types.Metadata{
-					Name: name,
+					Name:   name,
+					Labels: labels,
 				}, types.AppServerSpecV3{
 					Hostname: "localhost",
 					HostID:   "some-host",
@@ -551,14 +550,87 @@ func TestListResources(t *testing.T) {
 				_, err = presence.UpsertApplicationServer(ctx, server)
 				return err
 			},
-			deleteAllResourcesFunc: func(ctx context.Context) error {
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
 				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+			},
+		},
+		"KubeService": {
+			resourceType: types.KindKubeService,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				server, err := types.NewServerWithLabels(name, types.KindKubeService, types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{
+						{Name: name, StaticLabels: labels},
+					},
+				}, labels)
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				return presence.UpsertKubeService(ctx, server)
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllKubeServices(ctx)
+			},
+		},
+		"Node": {
+			resourceType: types.KindNode,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				server, err := types.NewServerWithLabels(name, types.KindNode, types.ServerSpecV2{}, labels)
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertNode(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllNodes(ctx, apidefaults.Namespace)
+			},
+		},
+		"NodeWithDynamicLabels": {
+			resourceType: types.KindNode,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				dynamicLabels := make(map[string]types.CommandLabelV2)
+				for name, value := range labels {
+					dynamicLabels[name] = types.CommandLabelV2{
+						Period:  types.NewDuration(time.Second),
+						Command: []string{name},
+						Result:  value,
+					}
+				}
+
+				server, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{
+					CmdLabels: dynamicLabels,
+				})
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertNode(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllNodes(ctx, apidefaults.Namespace)
 			},
 		},
 	}
 
 	for testName, test := range tests {
+		testName := testName
+		test := test
 		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+			backend, err := lite.NewWithConfig(ctx, lite.Config{
+				Path:  t.TempDir(),
+				Clock: clock,
+			})
+			require.NoError(t, err)
+
+			presence := NewPresenceService(backend)
+
 			resources, nextKey, err := presence.ListResources(ctx, proto.ListResourcesRequest{
 				Limit:        1,
 				Namespace:    apidefaults.Namespace,
@@ -570,14 +642,25 @@ func TestListResources(t *testing.T) {
 			require.Empty(t, nextKey)
 
 			resourcesPerPage := 4
-			totalResources := 15
-			for i := 0; i < totalResources; i++ {
-				err = test.createResourceFunc(ctx, fmt.Sprintf("foo-%d", i))
+			totalWithLabels := 7
+			totalWithoutLabels := 8
+			labels := map[string]string{"env": "test"}
+			totalResources := totalWithLabels + totalWithoutLabels
+
+			// with labels
+			for i := 0; i < totalWithLabels; i++ {
+				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-%d", i), labels)
 				require.NoError(t, err)
 			}
 
-			var resultResources []types.Resource
-			for len(resultResources) < totalResources {
+			// without labels
+			for i := 0; i < totalWithoutLabels; i++ {
+				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-label-%d", i), map[string]string{})
+				require.NoError(t, err)
+			}
+
+			resultResourcesLen := 0
+			require.Eventually(t, func() bool {
 				resources, nextKey, err = presence.ListResources(ctx, proto.ListResourcesRequest{
 					Limit:        int32(resourcesPerPage),
 					Namespace:    apidefaults.Namespace,
@@ -586,13 +669,64 @@ func TestListResources(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				resultResources = append(resultResources, resources...)
-			}
+				resultResourcesLen += len(resources)
+				return resultResourcesLen == totalResources
+			}, time.Second, 100*time.Millisecond)
+			require.Empty(t, nextKey)
 
+			// list resources only with matching labels
+			resultResourcesWithLabelsLen := 0
+			require.Eventually(t, func() bool {
+				resources, nextKey, err = presence.ListResources(ctx, proto.ListResourcesRequest{
+					Limit:        int32(resourcesPerPage),
+					Namespace:    apidefaults.Namespace,
+					ResourceType: test.resourceType,
+					StartKey:     nextKey,
+					Labels:       labels,
+				})
+				require.NoError(t, err)
+
+				resultResourcesWithLabelsLen += len(resources)
+				return resultResourcesWithLabelsLen == totalWithLabels
+			}, time.Second, 100*time.Millisecond)
+			require.Empty(t, nextKey)
+
+			// list resources only with matching search keywords
+			resultResourcesWithSearchKeywordsLen := 0
+			require.Eventually(t, func() bool {
+				resources, nextKey, err = presence.ListResources(ctx, proto.ListResourcesRequest{
+					Limit:          int32(resourcesPerPage),
+					Namespace:      apidefaults.Namespace,
+					ResourceType:   test.resourceType,
+					StartKey:       nextKey,
+					SearchKeywords: []string{"env", "test"},
+				})
+				require.NoError(t, err)
+
+				resultResourcesWithSearchKeywordsLen += len(resources)
+				return resultResourcesWithSearchKeywordsLen == totalWithLabels
+			}, time.Second, 100*time.Millisecond)
+			require.Empty(t, nextKey)
+
+			// list resources only with matching expression
+			resultResourcesWithMatchExprsLen := 0
+			require.Eventually(t, func() bool {
+				resources, nextKey, err = presence.ListResources(ctx, proto.ListResourcesRequest{
+					Limit:               int32(resourcesPerPage),
+					Namespace:           apidefaults.Namespace,
+					ResourceType:        test.resourceType,
+					StartKey:            nextKey,
+					PredicateExpression: `labels.env == "test"`,
+				})
+				require.NoError(t, err)
+
+				resultResourcesWithMatchExprsLen += len(resources)
+				return resultResourcesWithMatchExprsLen == totalWithLabels
+			}, time.Second, 100*time.Millisecond)
 			require.Empty(t, nextKey)
 
 			// delete everything
-			err = test.deleteAllResourcesFunc(ctx)
+			err = test.deleteAllResourcesFunc(ctx, presence)
 			require.NoError(t, err)
 
 			resources, nextKey, err = presence.ListResources(ctx, proto.ListResourcesRequest{
@@ -606,5 +740,4 @@ func TestListResources(t *testing.T) {
 			require.Empty(t, resources)
 		})
 	}
-
 }

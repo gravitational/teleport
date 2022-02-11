@@ -44,6 +44,7 @@ import (
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -293,8 +294,8 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 
 // JoinParams configures the parameters for Simplified Node Joining.
 type JoinParams struct {
-	TokenName string `yaml:"token_name"`
-	Method    string `yaml:"method"`
+	TokenName string           `yaml:"token_name"`
+	Method    types.JoinMethod `yaml:"method"`
 }
 
 // ConnectionRate configures rate limiter
@@ -822,6 +823,9 @@ type SSH struct {
 	// Don't read this value directly: call the AllowTCPForwarding method
 	// instead.
 	MaybeAllowTCPForwarding *bool `yaml:"port_forwarding,omitempty"`
+
+	// X11 is used to configure X11 forwarding settings
+	X11 *X11 `yaml:"x11,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -830,6 +834,47 @@ func (ssh *SSH) AllowTCPForwarding() bool {
 		return true
 	}
 	return *ssh.MaybeAllowTCPForwarding
+}
+
+// X11ServerConfig returns the X11 forwarding server configuration.
+func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
+	// Start with default configuration
+	cfg := &x11.ServerConfig{Enabled: false}
+	if ssh.X11 == nil {
+		return cfg, nil
+	}
+
+	var err error
+	cfg.Enabled, err = apiutils.ParseBool(ssh.X11.Enabled)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !cfg.Enabled {
+		return cfg, nil
+	}
+
+	cfg.MaxDisplay = x11.DefaultMaxDisplay
+	if ssh.X11.MaxDisplay != nil {
+		cfg.MaxDisplay = int(*ssh.X11.MaxDisplay)
+		// If set, max display must not be greater than the
+		// max display number supported by X Server
+		if cfg.MaxDisplay > x11.MaxDisplayNumber {
+			cfg.DisplayOffset = x11.MaxDisplayNumber
+		}
+	}
+
+	cfg.DisplayOffset = x11.DefaultDisplayOffset
+	if ssh.X11.DisplayOffset != nil {
+		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
+		// If set, display offset must not be greater than the
+		// max display number
+		if cfg.DisplayOffset > cfg.MaxDisplay {
+			cfg.DisplayOffset = cfg.MaxDisplay
+		}
+	}
+
+	return cfg, nil
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -922,6 +967,18 @@ func (r *RestrictedSession) Parse() (*restricted.Config, error) {
 		Enabled:          enabled,
 		EventsBufferSize: r.EventsBufferSize,
 	}, nil
+}
+
+// X11 is a configuration for X11 forwarding
+type X11 struct {
+	// Enabled controls whether X11 forwarding requests can be granted by the server.
+	Enabled string `yaml:"enabled"`
+	// DisplayOffset tells the server what X11 display number to start from when
+	// searching for an open X11 unix socket for XServer proxies.
+	DisplayOffset *uint `yaml:"display_offset,omitempty"`
+	// DisplayOffset tells the server what X11 display number to stop at when
+	// searching for an open X11 unix socket for XServer proxies.
+	MaxDisplay *uint `yaml:"max_displays,omitempty"`
 }
 
 // Databases represents the database proxy service configuration.
@@ -1309,7 +1366,7 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		})
 	}
 
-	v2, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV3{
 		IssuerURL:     o.IssuerURL,
 		ClientID:      o.ClientID,
 		ClientSecret:  o.ClientSecret,
@@ -1322,12 +1379,12 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	v2.SetACR(o.ACR)
-	v2.SetProvider(o.Provider)
-	if err := v2.CheckAndSetDefaults(); err != nil {
+	connector.SetACR(o.ACR)
+	connector.SetProvider(o.Provider)
+	if err := connector.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return v2, nil
+	return connector, nil
 }
 
 // Metrics is a `metrics_service` section of the config file:
@@ -1385,10 +1442,16 @@ type LDAPConfig struct {
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
 	Username string `yaml:"username"`
-	// PasswordFile is a text file containing the password for LDAP authentication.
-	PasswordFile string `yaml:"password_file"`
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
+
+	// PasswordFile was used in Teleport 8 before we supported client certificates
+	// for LDAP authentication. Support for LDAP passwords was removed for Teleport 9
+	// and this field remains only to issue a warning to users who are upgrading to
+	// Teleport 9.
+	//
+	// TODO(zmb3) DELETE IN 10.0
+	PasswordFile string `yaml:"password_file"`
 }

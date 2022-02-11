@@ -36,8 +36,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -758,7 +758,7 @@ func TestListNodes(t *testing.T) {
 
 	// Create test nodes.
 	for i := 0; i < 10; i++ {
-		name := uuid.New()
+		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
 			types.KindNode,
@@ -809,6 +809,107 @@ func TestListNodes(t *testing.T) {
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
 	require.Empty(t, cmp.Diff(expectedNodes, nodes))
+}
+
+// TestGetAndList_Nodes users can retrieve nodes with various filters
+// and with the appropriate permissions.
+func TestGetAndList_Nodes(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test nodes.
+	for i := 0; i < 10; i++ {
+		name := uuid.New().String()
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// permit user to list all nodes
+	role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// Convert nodes retrieved earlier as types.ResourcesWithLabels
+	testResources := make([]types.ResourceWithLabels, len(testNodes))
+	for i, node := range testNodes {
+		testResources[i] = node
+	}
+
+	// listing nodes 0-4 should list first 5 nodes
+	nodes, _, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    defaults.Namespace,
+		Limit:        5,
+	})
+	require.NoError(t, err)
+	require.Len(t, nodes, 5)
+	expectedNodes := testResources[:5]
+	require.Empty(t, cmp.Diff(expectedNodes, nodes))
+
+	// remove permission for third node
+	role.SetNodeLabels(types.Deny, types.Labels{"name": {testResources[3].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// listing nodes 0-4 should skip the third node and add the fifth to the end.
+	nodes, _, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    defaults.Namespace,
+		Limit:        5,
+	})
+	require.NoError(t, err)
+	require.Len(t, nodes, 5)
+	expectedNodes = append(testResources[:3], testResources[4:6]...)
+	require.Empty(t, cmp.Diff(expectedNodes, nodes))
+
+	// Test various filtering.
+	baseRequest := proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    defaults.Namespace,
+		Limit:        int32(len(testResources) + 1),
+	}
+
+	// Test label match.
+	withLabels := baseRequest
+	withLabels.Labels = map[string]string{"name": testResources[0].GetName()}
+	nodes, _, err = clt.ListResources(ctx, withLabels)
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], nodes))
+
+	// Test search keywords match.
+	withSearchKeywords := baseRequest
+	withSearchKeywords.SearchKeywords = []string{"name", testResources[0].GetName()}
+	nodes, _, err = clt.ListResources(ctx, withSearchKeywords)
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], nodes))
+
+	// Test expression match.
+	withExpression := baseRequest
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testResources[0].GetName())
+	nodes, _, err = clt.ListResources(ctx, withExpression)
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], nodes))
 }
 
 // TestAPILockedOut tests Auth API when there are locks involved.
@@ -1010,14 +1111,14 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 	require.Len(t, dbs, 0)
 }
 
-func TestGetDatabaseServers(t *testing.T) {
+func TestGetAndList_DatabaseServers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
 	// Create test databases.
 	for i := 0; i < 5; i++ {
-		name := uuid.New()
+		name := uuid.New().String()
 		db, err := types.NewDatabaseServerV3(types.Metadata{
 			Name:   name,
 			Labels: map[string]string{"name": name},
@@ -1036,7 +1137,7 @@ func TestGetDatabaseServers(t *testing.T) {
 	testServers, err := srv.Auth().GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
 
-	testResources := make([]types.Resource, len(testServers))
+	testResources := make([]types.ResourceWithLabels, len(testServers))
 	for i, server := range testServers {
 		testResources[i] = server
 	}
@@ -1080,6 +1181,37 @@ func TestGetDatabaseServers(t *testing.T) {
 	require.Len(t, resources, len(testResources))
 	require.Empty(t, cmp.Diff(testResources, resources))
 
+	// Test various filtering.
+	baseRequest := proto.ListResourcesRequest{
+		Namespace:    defaults.Namespace,
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindDatabaseServer,
+	}
+
+	// list only database with label
+	withLabels := baseRequest
+	withLabels.Labels = map[string]string{"name": testServers[0].GetName()}
+	resources, _, err = clt.ListResources(ctx, withLabels)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// Test search keywords match.
+	withSearchKeywords := baseRequest
+	withSearchKeywords.SearchKeywords = []string{"name", testServers[0].GetName()}
+	resources, _, err = clt.ListResources(ctx, withSearchKeywords)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// Test expression match.
+	withExpression := baseRequest
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testServers[0].GetName())
+	resources, _, err = clt.ListResources(ctx, withExpression)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
 	// deny user to get the first database
 	role.SetDatabaseLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
@@ -1102,11 +1234,11 @@ func TestGetDatabaseServers(t *testing.T) {
 	resources, _, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
 	require.Len(t, resources, 0)
-	require.Empty(t, cmp.Diff([]types.Resource{}, resources))
+	require.Empty(t, cmp.Diff([]types.ResourceWithLabels{}, resources))
 }
 
-// TestGetApplicationServers verifies RBAC is applied when fetching app servers.
-func TestGetApplicationServers(t *testing.T) {
+// TestGetAndList_ApplicationServers verifies RBAC and filtering is applied when fetching app servers.
+func TestGetAndList_ApplicationServers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -1130,7 +1262,7 @@ func TestGetApplicationServers(t *testing.T) {
 	testServers, err := srv.Auth().GetApplicationServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
 
-	testResources := make([]types.Resource, len(testServers))
+	testResources := make([]types.ResourceWithLabels, len(testServers))
 	for i, server := range testServers {
 		testResources[i] = server
 	}
@@ -1174,6 +1306,37 @@ func TestGetApplicationServers(t *testing.T) {
 	require.Len(t, resources, len(testResources))
 	require.Empty(t, cmp.Diff(testResources, resources))
 
+	// Test various filtering.
+	baseRequest := proto.ListResourcesRequest{
+		Namespace:    defaults.Namespace,
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindAppServer,
+	}
+
+	// list only application with label
+	withLabels := baseRequest
+	withLabels.Labels = map[string]string{"name": testServers[0].GetName()}
+	resources, _, err = clt.ListResources(ctx, withLabels)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// Test search keywords match.
+	withSearchKeywords := baseRequest
+	withSearchKeywords.SearchKeywords = []string{"name", testServers[0].GetName()}
+	resources, _, err = clt.ListResources(ctx, withSearchKeywords)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// Test expression match.
+	withExpression := baseRequest
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testServers[0].GetName())
+	resources, _, err = clt.ListResources(ctx, withExpression)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
 	// deny user to get the first app
 	role.SetAppLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
@@ -1195,7 +1358,7 @@ func TestGetApplicationServers(t *testing.T) {
 	resources, _, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
 	require.Len(t, resources, 0)
-	require.Empty(t, cmp.Diff([]types.Resource{}, resources))
+	require.Empty(t, cmp.Diff([]types.ResourceWithLabels{}, resources))
 }
 
 func TestGetAppServers(t *testing.T) {
@@ -1205,7 +1368,7 @@ func TestGetAppServers(t *testing.T) {
 
 	// Create test apps.
 	for i := 0; i < 5; i++ {
-		name := uuid.New()
+		name := uuid.New().String()
 		app, err := types.NewServerWithLabels(
 			name,
 			types.KindAppServer,
@@ -1785,4 +1948,118 @@ func TestNoElevatedAccessRequestDeletion(t *testing.T) {
 
 	err = deleterAuth.DeleteAccessRequest(ctx, request.GetName())
 	require.NoError(t, err)
+}
+
+func TestGetAndList_KubeServices(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test kube services.
+	for i := 0; i < 5; i++ {
+		name := uuid.NewString()
+		s, err := types.NewServerWithLabels(name, types.KindKubeService, types.ServerSpecV2{
+			KubernetesClusters: []*types.KubernetesCluster{
+				{Name: name, StaticLabels: map[string]string{"name": name}},
+			},
+		}, map[string]string{"name": name})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertKubeServiceV2(ctx, s)
+		require.NoError(t, err)
+	}
+
+	testServers, err := srv.Auth().GetKubeServices(ctx)
+	require.NoError(t, err)
+
+	testResources := make([]types.ResourceWithLabels, len(testServers))
+	for i, server := range testServers {
+		testResources[i] = server
+	}
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	listRequest := proto.ListResourcesRequest{
+		Namespace: defaults.Namespace,
+		// Guarantee that the list will all the servers.
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindKubeService,
+	}
+
+	// permit user to get all kubernetes service
+	role.SetKubernetesLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err := clt.GetKubeServices(ctx)
+	require.NoError(t, err)
+	require.Len(t, testServers, len(testServers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+	resources, _, err := clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resources))
+
+	// Test various filtering.
+	baseRequest := proto.ListResourcesRequest{
+		Namespace:    defaults.Namespace,
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindKubeService,
+	}
+
+	// Test label match.
+	withLabels := baseRequest
+	withLabels.Labels = map[string]string{"name": testServers[0].GetName()}
+	resources, _, err = clt.ListResources(ctx, withLabels)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// Test search keywords match.
+	withSearchKeywords := baseRequest
+	withSearchKeywords.SearchKeywords = []string{"name", testServers[0].GetName()}
+	resources, _, err = clt.ListResources(ctx, withSearchKeywords)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// Test expression match.
+	withExpression := baseRequest
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testServers[0].GetName())
+	resources, _, err = clt.ListResources(ctx, withExpression)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// deny user to get the first kubernetes service
+	role.SetKubernetesLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
+	testServers[0].SetKubernetesClusters(nil)
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetKubeServices(ctx)
+	require.NoError(t, err)
+	require.Len(t, testServers, len(testServers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resources))
+
+	// deny user to get all databases
+	role.SetKubernetesLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	for _, testServer := range testServers {
+		testServer.SetKubernetesClusters(nil)
+	}
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetKubeServices(ctx)
+	require.NoError(t, err)
+	require.Len(t, testServers, len(testServers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resources))
 }

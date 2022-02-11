@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -40,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
@@ -418,9 +418,11 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(len(out), check.Equals, 0)
 
 	kube1 := NewServer(types.KindKubeService, "kube1", "10.0.0.1:3026", apidefaults.Namespace)
-	c.Assert(s.PresenceS.UpsertKubeService(ctx, kube1), check.IsNil)
+	_, err = s.PresenceS.UpsertKubeServiceV2(ctx, kube1)
+	c.Assert(err, check.IsNil)
 	kube2 := NewServer(types.KindKubeService, "kube2", "10.0.0.2:3026", apidefaults.Namespace)
-	c.Assert(s.PresenceS.UpsertKubeService(ctx, kube2), check.IsNil)
+	_, err = s.PresenceS.UpsertKubeServiceV2(ctx, kube2)
+	c.Assert(err, check.IsNil)
 
 	out, err = s.PresenceS.GetKubeServices(ctx)
 	c.Assert(err, check.IsNil)
@@ -447,7 +449,7 @@ func NewAppServer(name string, internalAddr string, publicAddr string) *types.Se
 		Kind:    types.KindAppServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      uuid.New(),
+			Name:      uuid.New().String(),
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.ServerSpecV2{
@@ -821,7 +823,7 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	c.Assert(&registration, check.DeepEquals, registrationOut)
 
 	// Attempt to upsert the same device name with a different ID.
-	dev.Id = uuid.New()
+	dev.Id = uuid.New().String()
 	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
 	c.Assert(trace.IsAlreadyExists(err), check.Equals, true)
 

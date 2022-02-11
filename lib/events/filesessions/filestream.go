@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 )
 
 // NewStreamer creates a streamer sending uploads to disk
@@ -58,7 +58,7 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 
 	upload := events.StreamUpload{
 		SessionID: sessionID,
-		ID:        uuid.New(),
+		ID:        uuid.New().String(),
 	}
 	if err := upload.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -312,9 +312,9 @@ func checkUpload(upload events.StreamUpload) error {
 // checkUploadID checks that upload ID is a valid UUID
 // to avoid path scanning or using local paths as upload IDs
 func checkUploadID(uploadID string) error {
-	out := uuid.Parse(uploadID)
-	if out == nil {
-		return trace.BadParameter("bad format of upload ID")
+	_, err := uuid.Parse(uploadID)
+	if err != nil {
+		return trace.WrapWithMessage(err, "bad format of upload ID")
 	}
 	return nil
 }

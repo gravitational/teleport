@@ -32,9 +32,9 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
 )
@@ -1111,7 +1111,7 @@ func (m *MemoryUploader) CreateUpload(ctx context.Context, sessionID session.ID)
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 	upload := &StreamUpload{
-		ID:        uuid.New(),
+		ID:        uuid.New().String(),
 		SessionID: sessionID,
 	}
 	m.uploads[upload.ID] = &MemoryUpload{
