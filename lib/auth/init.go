@@ -172,6 +172,9 @@ type InitConfig struct {
 
 	// WindowsServices is a service that manages Windows desktop resources.
 	WindowsDesktops services.WindowsDesktops
+
+	// PluginData is a service that manages per-resource PluginData entries
+	PluginData services.PluginData
 }
 
 // Init instantiates and configures an instance of AuthServer

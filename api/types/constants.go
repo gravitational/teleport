@@ -64,6 +64,10 @@ const (
 	// only to plugin data associated with access requests.
 	KindAccessPluginData = "access_plugin_data"
 
+	// KindUserPluginData is a resource directive that applies
+	// only to plugin data associated with users.
+	KindUserPluginData = "user_plugin_data"
+
 	// KindOIDC is OIDC connector resource
 	KindOIDC = "oidc"
 
