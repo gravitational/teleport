@@ -32,8 +32,24 @@ apps: []
 # Values that must be provided if Database access is enabled.
 ################################################################
 
-# Details of at least one database to be proxied. Example:
-# databases:
+# Set autoDiscovery to true or false to enable db_service configuration. 
+# When set to true the agent will configure db_service to run in auto-discovery mode 
+# and user will need to provide required parameters for Auto-Discovery. 
+# When set to false user will need to provide required parameters for manual database configuration.
+
+#autoDiscovery: true
+
+# Auto-Discovery Mode
+# If using database auto-discovery you must provide type and region information. Example:
+#aws:
+#  - types: ["rds"]
+#    regions: ["us-east-1"]
+#    tags:
+#      "*": "*"
+
+# Manual Configuration Mode
+# If joining databases manually you must provide information for at least one database to be proxied. Example:
+#databases:
 #  - name: aurora
 #    uri: "postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432"
 #    protocol: "postgres"

@@ -51,8 +51,22 @@ data:
     {{- if semverCompare ">=6" (.teleportVersion | toString) }}
 
     db_service:
-      {{- if contains "db" (.Values.roles | toString) }}
+      {{- if and (contains "db" (.Values.roles | toString))  (.Values.autoDiscovery) }}
       enabled: true
+      aws:
+        {{- range $aws := .Values.aws }}
+          {{- if not (hasKey $aws "types") }}
+            {{- fail "'types' is required for all 'aws' in chart values when db role is enabled, see README" }}
+          {{- end }}
+          {{- if not (hasKey $aws "regions") }}
+            {{- fail "'regions' is required for all 'aws' is required in chart values when db role is enabled, see README" }}
+          {{- end }}
+          {{- if not (hasKey $aws "tags") }}
+            {{- fail "'tags' is required for all 'aws' is required in chart values when db role is enabled, see README" }}
+          {{- end }}
+          {{- required "'aws' map is required in chart values when db role is enabled and autoDiscovery set to true, see README" .Values.aws | toYaml | nindent 8 }}
+        {{- end }}
+      {{- else if and (contains "db" (.Values.roles | toString)) (not .Values.autoDiscovery) }}
       databases:
         {{- range $db := .Values.databases }}
           {{- if not (hasKey $db "name") }}
@@ -64,8 +78,8 @@ data:
           {{- if not (hasKey $db "protocol") }}
             {{- fail "'protocol' is required for all 'databases' in chart values when db role is enabled, see README" }}
           {{- end }}
-        {{- end }}
-        {{- required "'databases' map is required in chart values when db role is enabled, see README" .Values.databases | toYaml | nindent 8 }}
+        {{- required "'databases' map is required in chart values when db role is enabled and autoDiscovery set to false, see README" .Values.databases | toYaml | nindent 8 }}
+        {{- end}}
       {{- else }}
       enabled: false
       {{- end }}

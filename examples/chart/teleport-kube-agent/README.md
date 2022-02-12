@@ -127,12 +127,31 @@ After installing, the new application should show up in `tsh apps ls` after a fe
 
 ## Database access
 
+To use Teleport database access in auto-discoveyr mode, you will also need:
+- the database types you are attempting to auto-discover (`$DB_TYPES`)
+- the AWS region(s) you would like to run auto-discovery in (`$DB_REGIONS`)
+- the AWS resource tags if you want to target only certain databases (`$DB_TAGS`)
+
+To install the agent in auto-discovery mode, run:
+
+```sh
+$ helm install teleport-kube-agent . \
+  --create-namespace \
+  --namespace teleport \
+  --set roles=db \
+  --set proxyAddr=${PROXY_ENDPOINT?} \
+  --set authToken=${JOIN_TOKEN?} \
+  --set "aws[0].types=${DB_TYPES?}" \
+  --set "aws[0].regions=${DB_REGIONS?}" \
+  --set "aws[0].tags=${DB_TAGS?}"
+```
+
 To use Teleport database access, you will also need:
 - the name of an database that you would like to proxy (`$DB_NAME`)
 - the URI to connect to the database from the node where this chart is deployed (`$DB_URI`)
 - the database protocol used for the database (`$DB_PROTOCOL`)
 
-To install the agent, run:
+To install the agent in manual mode, run:
 
 ```sh
 $ helm install teleport-kube-agent . \
