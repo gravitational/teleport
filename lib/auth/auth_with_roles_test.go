@@ -47,9 +47,6 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
-	user, _, err := CreateUserAndRole(srv.Auth(), "foo", []string{"role"})
-	require.NoError(t, err)
-
 	_, pub, err := srv.Auth().GenerateKeyPair("")
 	require.NoError(t, err)
 
@@ -57,26 +54,26 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 
 	for _, test := range []struct {
 		desc      string
-		id        TestIdentity
+		renewable bool
 		reqTTL    time.Duration
 		expiresIn time.Duration
 	}{
 		{
-			desc: "not-renewable",
-			id:   TestUser(user.GetName()),
+			desc:      "not-renewable",
+			renewable: false,
 			// expiration limited to duration of the user's session (default 1 hour)
 			reqTTL:    4 * time.Hour,
 			expiresIn: 1 * time.Hour,
 		}, {
-			desc: "renewable",
-			id:   TestRenewableUser(user.GetName(), 1),
+			desc:      "renewable",
+			renewable: true,
 			// expiration is allowed to be pushed out into the future
 			reqTTL:    4 * time.Hour,
 			expiresIn: 4 * time.Hour,
 		},
 		{
-			desc: "max-renew",
-			id:   TestRenewableUser(user.GetName(), 1),
+			desc:      "max-renew",
+			renewable: true,
 			// expiration is allowed to be pushed out into the future,
 			// but no more than the maximum renewable cert TTL
 			reqTTL:    2 * libdefaults.MaxRenewableCertTTL,
@@ -84,7 +81,25 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			client, err := srv.NewClient(test.id)
+			user, _, err := CreateUserAndRole(srv.Auth(), test.desc, []string{"role"})
+			require.NoError(t, err)
+
+			var id TestIdentity
+			if test.renewable {
+				id = TestRenewableUser(user.GetName(), 0)
+
+				meta := user.GetMetadata()
+				meta.Labels = map[string]string{
+					types.BotGenerationLabel: "0",
+				}
+				user.SetMetadata(meta)
+				err := srv.Auth().UpsertUser(user)
+				require.NoError(t, err)
+			} else {
+				id = TestUser(user.GetName())
+			}
+
+			client, err := srv.NewClient(id)
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
@@ -120,7 +135,10 @@ func TestGenerateInitialRenewableUserCerts(t *testing.T) {
 
 	srv := newTestTLSServer(t)
 
-	user, _, err := CreateUserAndRole(srv.Auth(), "bot-user", []string{"bot-role"})
+	_, err := createBotRole(context.Background(), srv.Auth(), "test", "bot-test", []string{})
+	require.NoError(t, err)
+
+	user, err := createBotUser(context.Background(), srv.Auth(), "test", "bot-test")
 	require.NoError(t, err)
 
 	later := srv.Clock().Now().Add(4 * time.Hour)
@@ -205,6 +223,125 @@ func TestGenerateInitialRenewableUserCerts(t *testing.T) {
 			}
 		})
 	}
+}
+
+func renewBotCerts(
+	srv *TestTLSServer, tlsCert tls.Certificate, botUser string,
+	publicKey []byte, privateKey []byte,
+) (*Client, *proto.Certs, tls.Certificate, error) {
+	client := srv.NewClientWithCert(tlsCert)
+
+	certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
+		PublicKey: publicKey,
+		Username:  botUser,
+		Expires:   time.Now().Add(1 * time.Hour),
+	})
+	if err != nil {
+		return nil, nil, tls.Certificate{}, trace.Wrap(err)
+	}
+
+	// Make sure to overwrite tlsCert with the new certs.
+	tlsCert, err = tls.X509KeyPair(certs.TLS, privateKey)
+	if err != nil {
+		return nil, nil, tls.Certificate{}, trace.Wrap(err)
+	}
+
+	return client, certs, tlsCert, nil
+}
+
+// TestBotCertificateGenerationCheck ensures bot cert generation checks work
+// in ordinary conditions, with several rapid renewals.
+func TestBotCertificateGenerationCheck(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	// Create a new bot.
+	bot, err := srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
+		Name: "test",
+	})
+	require.NoError(t, err)
+
+	privateKey, publicKey, err := srv.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	// Create a new unauthenticated client.
+	client, err := srv.NewClient(TestNop())
+	require.NoError(t, err)
+
+	// Generate a first set of certs.
+	certs, err := client.GenerateInitialRenewableUserCerts(context.Background(), proto.RenewableCertsRequest{
+		Token:     bot.TokenID,
+		PublicKey: publicKey,
+	})
+	require.NoError(t, err)
+
+	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
+	require.NoError(t, err)
+
+	// Renew the cert a bunch of times.
+	for i := 0; i < 10; i++ {
+		_, certs, tlsCert, err = renewBotCerts(srv, tlsCert, bot.UserName, publicKey, privateKey)
+		require.NoError(t, err)
+
+		// Parse the Identity
+		impersonatedTLSCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+		require.NoError(t, err)
+		impersonatedIdent, err := tlsca.FromSubject(impersonatedTLSCert.Subject, impersonatedTLSCert.NotAfter)
+		require.NoError(t, err)
+
+		// Cert must be renewable.
+		require.True(t, impersonatedIdent.Renewable)
+		require.False(t, impersonatedIdent.DisallowReissue)
+
+		// Initial certs have generation=1 and we start the loop with a renewal, so add 2
+		require.Equal(t, uint64(i+2), impersonatedIdent.Generation)
+	}
+}
+
+// TestBotCertificateGenerationStolen simulates a stolen renewable certificate
+// where a generation check is expected to fail.
+func TestBotCertificateGenerationStolen(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	// Create a new bot.
+	bot, err := srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
+		Name: "test",
+	})
+	require.NoError(t, err)
+
+	privateKey, publicKey, err := srv.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	// Create a new unauthenticated client.
+	client, err := srv.NewClient(TestNop())
+	require.NoError(t, err)
+
+	// Generate a first set of certs.
+	certs, err := client.GenerateInitialRenewableUserCerts(context.Background(), proto.RenewableCertsRequest{
+		Token:     bot.TokenID,
+		PublicKey: publicKey,
+	})
+	require.NoError(t, err)
+
+	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
+	require.NoError(t, err)
+
+	// Renew the certs once (e.g. this is the actual bot process)
+	_, certsReal, _, err := renewBotCerts(srv, tlsCert, bot.UserName, publicKey, privateKey)
+	require.NoError(t, err)
+
+	// Check the generation, it should be 2.
+	impersonatedTLSCert, err := tlsca.ParseCertificatePEM(certsReal.TLS)
+	require.NoError(t, err)
+	impersonatedIdent, err := tlsca.FromSubject(impersonatedTLSCert.Subject, impersonatedTLSCert.NotAfter)
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), impersonatedIdent.Generation)
+
+	// Meanwhile, the initial set of certs was stolen. Let's try to renew those.
+	_, _, _, err = renewBotCerts(srv, tlsCert, bot.UserName, publicKey, privateKey)
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
 }
 
 // TestSSOUserCanReissueCert makes sure that SSO user can reissue certificate

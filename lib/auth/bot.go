@@ -36,8 +36,8 @@ func botResourceName(botName string) string {
 }
 
 // createBotRole creates a role from a bot template with the given parameters.
-func createBotRole(ctx context.Context, s *Server, botName string, resourceName string, roleRequests []string) error {
-	return s.UpsertRole(ctx, &types.RoleV4{
+func createBotRole(ctx context.Context, s *Server, botName string, resourceName string, roleRequests []string) (*types.RoleV4, error) {
+	role := types.RoleV4{
 		Kind:    types.KindRole,
 		Version: types.V4,
 		Metadata: types.Metadata{
@@ -62,15 +62,20 @@ func createBotRole(ctx context.Context, s *Server, botName string, resourceName 
 				},
 			},
 		},
-	})
+	}
+	if err := s.UpsertRole(ctx, &role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &role, nil
 }
 
 // createBotUser creates a new backing User for bot use. A role with a
 // matching name must already exist (see createBotRole).
-func createBotUser(ctx context.Context, s *Server, botName string, resourceName string) error {
+func createBotUser(ctx context.Context, s *Server, botName string, resourceName string) (types.User, error) {
 	user, err := types.NewUser(resourceName)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	user.SetRoles([]string{resourceName})
@@ -90,10 +95,10 @@ func createBotUser(ctx context.Context, s *Server, botName string, resourceName 
 	})
 
 	if err := s.CreateUser(ctx, user); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return nil
+	return user, nil
 }
 
 // createBot creates a new certificate renewal bot from a bot request.
@@ -127,11 +132,11 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 	}
 
 	// Create the resources.
-	if err := createBotRole(ctx, s, req.Name, resourceName, req.Roles); err != nil {
+	if _, err := createBotRole(ctx, s, req.Name, resourceName, req.Roles); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := createBotUser(ctx, s, req.Name, resourceName); err != nil {
+	if _, err := createBotUser(ctx, s, req.Name, resourceName); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
