@@ -275,7 +275,8 @@ func rdsFilters() []*rds.Filter {
 		Name: aws.String("engine"),
 		Values: aws.StringSlice([]string{
 			services.RDSEnginePostgres,
-			services.RDSEngineMySQL}),
+			services.RDSEngineMySQL,
+			services.RDSEngineMariaDB}),
 	}}
 }
 

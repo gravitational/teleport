@@ -290,7 +290,7 @@ func engineToProtocol(engine string) string {
 	switch engine {
 	case RDSEnginePostgres, RDSEngineAuroraPostgres:
 		return defaults.ProtocolPostgres
-	case RDSEngineMySQL, RDSEngineAurora, RDSEngineAuroraMySQL:
+	case RDSEngineMySQL, RDSEngineAurora, RDSEngineAuroraMySQL, RDSEngineMariaDB:
 		return defaults.ProtocolMySQL
 	}
 	return ""
@@ -536,6 +536,8 @@ const (
 	RDSEngineMySQL = "mysql"
 	// RDSEnginePostgres is RDS engine name for Postgres instances.
 	RDSEnginePostgres = "postgres"
+	// RDSEngineMariaDB is RDS engine name for MariaDB instances.
+	RDSEngineMariaDB = "mariadb"
 	// RDSEngineAurora is RDS engine name for Aurora MySQL 5.6 compatible clusters.
 	RDSEngineAurora = "aurora"
 	// RDSEngineAuroraMySQL is RDS engine name for Aurora MySQL 5.7 compatible clusters.
@@ -553,9 +555,9 @@ const (
 	// RDSEndpointTypeReader is the endpoint that load-balances connections across the Aurora Replicas that are
 	// available in a RDS cluster.
 	RDSEndpointTypeReader RDSEndpointType = "reader"
-	// RDSEndpointTypeCustom is the endpoint that specifieds one of the custom endpoints associated with the RDS cluster.
+	// RDSEndpointTypeCustom is the endpoint that specified one of the custom endpoints associated with the RDS cluster.
 	RDSEndpointTypeCustom RDSEndpointType = "custom"
-	// RDSEndpointTypeInstance is the endpoint of a RDS DB instance.
+	// RDSEndpointTypeInstance is the endpoint of an RDS DB instance.
 	RDSEndpointTypeInstance RDSEndpointType = "instance"
 )
 
