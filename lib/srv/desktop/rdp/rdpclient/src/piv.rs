@@ -142,10 +142,7 @@ impl<const S: usize> Card<S> {
             Ok(Response::new(Status::Success))
         } else {
             warn!("PIN mismatch, want {}, got {:?}", self.pin, cmd.data());
-            Err(rdp::model::error::Error::RdpError(RdpError::new(
-                RdpErrorKind::Unknown,
-                "Invalid PIN",
-            )))
+            Ok(Response::new(Status::VerificationFailed))
         };
     }
 
