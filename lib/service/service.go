@@ -513,6 +513,7 @@ func Run(ctx context.Context, cfg Config, newTeleport NewProcess) error {
 	// Wait and reload until called exit.
 	for {
 		srv, err = waitAndReload(ctx, cfg, srv, newTeleport)
+		fmt.Printf("--> waitAndReload: %v.\n", err)
 		if err != nil {
 			// This error means that was a clean shutdown
 			// and no reload is necessary.
@@ -526,6 +527,7 @@ func Run(ctx context.Context, cfg Config, newTeleport NewProcess) error {
 
 func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport NewProcess) (Process, error) {
 	err := srv.WaitForSignals(ctx)
+	fmt.Printf("--> waitAndReload: WaitForSignals: %v.\n", err)
 	if err == nil {
 		return nil, ErrTeleportExited
 	}
@@ -542,6 +544,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 	newCfg.FileDescriptors = fileDescriptors
 	newSrv, err := newTeleport(&newCfg)
 	if err != nil {
+		fmt.Printf("--> waitAndReload: newTeleport: %v.\n", err)
 		warnOnErr(srv.Close(), cfg.Log)
 		return nil, trace.Wrap(err, "failed to create a new service")
 	}
@@ -692,6 +695,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	supervisor := NewSupervisor(processID, cfg.Log)
 	storage, err := auth.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
+		fmt.Printf("--> 0\n")
 		return nil, trace.Wrap(err)
 	}
 
@@ -775,6 +779,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	if cfg.Auth.Enabled {
 		if err := process.initAuthService(); err != nil {
+			fmt.Printf("--> 1\n")
 			return nil, trace.Wrap(err)
 		}
 		serviceStarted = true
@@ -784,6 +789,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	if cfg.SSH.Enabled {
 		if err := process.initSSH(); err != nil {
+			fmt.Printf("--> 2\n")
 			return nil, err
 		}
 		serviceStarted = true
@@ -793,6 +799,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	if cfg.Proxy.Enabled {
 		if err := process.initProxy(); err != nil {
+			fmt.Printf("--> 3\n")
 			return nil, err
 		}
 		serviceStarted = true
@@ -1105,6 +1112,7 @@ func (process *TeleportProcess) initAuthService() error {
 	// Initialize the storage back-ends for keys, events and records
 	b, err := process.initAuthStorage()
 	if err != nil {
+		fmt.Printf("--> TeleportProcess.ias: 0\n")
 		return trace.Wrap(err)
 	}
 	process.backend = b
@@ -1141,6 +1149,7 @@ func (process *TeleportProcess) initAuthService() error {
 			process.ExitContext(), auditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
 		if err != nil {
 			if !trace.IsNotFound(err) {
+				fmt.Printf("--> TeleportProcess.ias: 1\n")
 				return trace.Wrap(err)
 			}
 		}
@@ -1148,6 +1157,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Uploader: uploadHandler,
 		})
 		if err != nil {
+			fmt.Printf("--> TeleportProcess.ias: 2\n")
 			return trace.Wrap(err)
 		}
 		// initialize external loggers.  may return (nil, nil) if no
@@ -1155,6 +1165,7 @@ func (process *TeleportProcess) initAuthService() error {
 		externalLog, err := initExternalLog(process.ExitContext(), auditConfig, process.log, process.backend)
 		if err != nil {
 			if !trace.IsNotFound(err) {
+				fmt.Printf("--> TeleportProcess.ias: 3\n")
 				return trace.Wrap(err)
 			}
 		}
@@ -1169,16 +1180,19 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		auditServiceConfig.UID, auditServiceConfig.GID, err = adminCreds()
 		if err != nil {
+			fmt.Printf("--> TeleportProcess.ias: 4\n")
 			return trace.Wrap(err)
 		}
 		localLog, err := events.NewAuditLog(auditServiceConfig)
 		if err != nil {
+			fmt.Printf("--> TeleportProcess.ias: 5\n")
 			return trace.Wrap(err)
 		}
 		process.auditLog = localLog
 		if externalLog != nil {
 			externalEmitter, ok := externalLog.(apievents.Emitter)
 			if !ok {
+				fmt.Printf("--> TeleportProcess.ias: 6\n")
 				return trace.BadParameter("expected emitter, but %T does not emit", externalLog)
 			}
 			emitter = externalEmitter
@@ -1186,6 +1200,7 @@ func (process *TeleportProcess) initAuthService() error {
 			emitter = localLog
 		}
 	}
+	fmt.Printf("--> TeleportProcess.initAuthService(): 1\n")
 
 	// Upload completer is responsible for checking for initiated but abandoned
 	// session uploads and completing them
@@ -1197,6 +1212,7 @@ func (process *TeleportProcess) initAuthService() error {
 			AuditLog:  process.auditLog,
 		})
 		if err != nil {
+			fmt.Printf("--> TeleportProcess.ias: 7\n")
 			return trace.Wrap(err)
 		}
 	}
@@ -1207,6 +1223,7 @@ func (process *TeleportProcess) initAuthService() error {
 		ClusterName: cfg.Auth.ClusterName.GetClusterName(),
 	})
 	if err != nil {
+		fmt.Printf("--> TeleportProcess.ias: 8\n")
 		return trace.Wrap(err)
 	}
 
@@ -1216,6 +1233,7 @@ func (process *TeleportProcess) initAuthService() error {
 		ClusterName: cfg.Auth.ClusterName.GetClusterName(),
 	})
 	if err != nil {
+		fmt.Printf("--> TeleportProcess.ias: 9\n")
 		return trace.Wrap(err)
 	}
 
@@ -1253,6 +1271,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
 	})
 	if err != nil {
+		fmt.Printf("--> TeleportProcess.ias: 10: %v\n", err)
 		return trace.Wrap(err)
 	}
 
@@ -1268,6 +1287,7 @@ func (process *TeleportProcess) initAuthService() error {
 		},
 	})
 	if err != nil {
+		fmt.Printf("--> TeleportProcess.ias: 11\n")
 		return trace.Wrap(err)
 	}
 	authServer.SetLockWatcher(lockWatcher)
@@ -1276,6 +1296,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	connector, err := process.connectToAuthService(types.RoleAdmin)
 	if err != nil {
+		fmt.Printf("--> TeleportProcess.ias: 12\n")
 		return trace.Wrap(err)
 	}
 
@@ -1284,10 +1305,12 @@ func (process *TeleportProcess) initAuthService() error {
 	// client based on their certificate (user, server, admin, etc)
 	sessionService, err := session.New(b)
 	if err != nil {
+		fmt.Printf("--> TeleportProcess.ias: 13\n")
 		return trace.Wrap(err)
 	}
 	authorizer, err := auth.NewAuthorizer(cfg.Auth.ClusterName.GetClusterName(), authServer, lockWatcher)
 	if err != nil {
+		fmt.Printf("--> TeleportProcess.ias: 14\n")
 		return trace.Wrap(err)
 	}
 	apiConf := &auth.APIConfig{
@@ -1310,6 +1333,7 @@ func (process *TeleportProcess) initAuthService() error {
 			events:    true,
 		})
 		if err != nil {
+			fmt.Printf("--> TeleportProcess.ias: 15\n")
 			return trace.Wrap(err)
 		}
 		authCache = cache
@@ -1321,12 +1345,14 @@ func (process *TeleportProcess) initAuthService() error {
 	// Register TLS endpoint of the auth service
 	tlsConfig, err := connector.ServerIdentity.TLSConfig(cfg.CipherSuites)
 	if err != nil {
+		fmt.Printf("--> TeleportProcess.ias: 16\n")
 		return trace.Wrap(err)
 	}
 	// auth server listens on SSH and TLS, reusing the same socket
 	listener, err := process.importOrCreateListener(listenerAuthSSH, cfg.Auth.SSHAddr.Addr)
 	if err != nil {
 		log.Errorf("PID: %v Failed to bind to address %v: %v, exiting.", os.Getpid(), cfg.Auth.SSHAddr.Addr, err)
+		fmt.Printf("--> TeleportProcess.ias: 17\n")
 		return trace.Wrap(err)
 	}
 
@@ -1346,6 +1372,7 @@ func (process *TeleportProcess) initAuthService() error {
 	})
 	if err != nil {
 		listener.Close()
+		fmt.Printf("--> TeleportProcess.ias: 18\n")
 		return trace.Wrap(err)
 	}
 	go mux.Serve()
@@ -1359,8 +1386,10 @@ func (process *TeleportProcess) initAuthService() error {
 		Listener:      mux.TLS(),
 	})
 	if err != nil {
+		fmt.Printf("--> TeleportProcess.ias: 19\n")
 		return trace.Wrap(err)
 	}
+
 	process.RegisterCriticalFunc("auth.tls", func() error {
 		utils.Consolef(cfg.Console, log, teleport.ComponentAuth, "Auth service %s:%s is starting on %v.",
 			teleport.Version, teleport.Gitref, authAddr)
@@ -1391,12 +1420,14 @@ func (process *TeleportProcess) initAuthService() error {
 
 	host, port, err := net.SplitHostPort(authAddr)
 	if err != nil {
+		fmt.Printf("--> TeleportProcess.ias: 20\n")
 		return trace.Wrap(err)
 	}
 	// advertise-ip is explicitly set:
 	if process.Config.AdvertiseIP != "" {
 		ahost, aport, err := utils.ParseAdvertiseAddr(process.Config.AdvertiseIP)
 		if err != nil {
+			fmt.Printf("--> TeleportProcess.ias: 21\n")
 			return trace.Wrap(err)
 		}
 		// if port is not set in the advertise addr, use the default one
@@ -1441,6 +1472,7 @@ func (process *TeleportProcess) initAuthService() error {
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					log.Warningf("Failed to get rotation state: %v.", err)
+					fmt.Printf("--> TeleportProcess.ias: 22\n")
 					return nil, trace.Wrap(err)
 				}
 			} else {
@@ -1456,6 +1488,7 @@ func (process *TeleportProcess) initAuthService() error {
 		OnHeartbeat:     process.onHeartbeat(teleport.ComponentAuth),
 	})
 	if err != nil {
+		fmt.Printf("--> TeleportProcess.ias: 32\n")
 		return trace.Wrap(err)
 	}
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
@@ -1489,6 +1522,8 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		log.Info("Exited.")
 	})
+
+	fmt.Printf("--> TeleportProcess.ias: 33\n")
 	return nil
 }
 
@@ -1565,6 +1600,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 			Mirror:    true,
 		})
 		if err != nil {
+			fmt.Printf("--> TeleportProcess.newAccessCache: 1\n")
 			return nil, trace.Wrap(err)
 		}
 		cacheBackend = mem
@@ -1572,6 +1608,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		process.log.Debugf("Creating sqlite backend for %v.", cfg.cacheName)
 		path := filepath.Join(append([]string{process.Config.DataDir, "cache"}, cfg.cacheName...)...)
 		if err := os.MkdirAll(path, teleport.SharedDirMode); err != nil {
+			fmt.Printf("--> TeleportProcess.newAccessCache: 2\n")
 			return nil, trace.ConvertSystemError(err)
 		}
 		liteBackend, err := lite.NewWithConfig(process.ExitContext(),
@@ -1583,6 +1620,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 				PollStreamPeriod: 100 * time.Millisecond,
 			})
 		if err != nil {
+			fmt.Printf("--> TeleportProcess.newAccessCache: 3\n")
 			return nil, trace.Wrap(err)
 		}
 		cacheBackend = liteBackend
@@ -1592,6 +1630,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Backend:   cacheBackend,
 	})
 	if err != nil {
+		fmt.Printf("--> TeleportProcess.newAccessCache: 4\n")
 		return nil, trace.Wrap(err)
 	}
 
@@ -3755,6 +3794,7 @@ func warnOnErr(err error, log logrus.FieldLogger) {
 func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error) {
 	ctx := context.TODO()
 	bc := &process.Config.Auth.StorageConfig
+	bc.Params["clusterName"] = process.Config.Auth.ClusterName.GetClusterName()
 	process.log.Debugf("Using %v backend.", bc.Type)
 	switch bc.Type {
 	// SQLite backend (or alt name dir).
@@ -3773,9 +3813,11 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 		err = trace.BadParameter("unsupported secrets storage type: %q", bc.Type)
 	}
 	if err != nil {
+		fmt.Printf("---> TeleportProcess.initAuthStorage. 1.\n")
 		return nil, trace.Wrap(err)
 	}
 	if err := bk.Migrate(ctx); err != nil {
+		fmt.Printf("---> TeleportProcess.initAuthStorage. 2.\n")
 		return nil, trace.Wrap(err)
 	}
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
@@ -3783,6 +3825,7 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 		Backend:   backend.NewSanitizer(bk),
 	})
 	if err != nil {
+		fmt.Printf("---> TeleportProcess.initAuthStorage. 3.\n")
 		return nil, trace.Wrap(err)
 	}
 	process.setReporter(reporter)
@@ -3812,6 +3855,7 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 // completion, returns context that will be closed once the shutdown is done
 func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Context {
 	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
+	fmt.Printf("--> TeleportProcess.StartShutdown.\n")
 	localCtx, cancel := context.WithCancel(ctx)
 	go func() {
 		defer cancel()
@@ -3841,6 +3885,7 @@ func (process *TeleportProcess) Shutdown(ctx context.Context) {
 
 // Close broadcasts close signals and exits immediately
 func (process *TeleportProcess) Close() error {
+	fmt.Printf("--> TeleportProcess.Close().\n")
 	process.BroadcastEvent(Event{Name: TeleportExitEvent})
 
 	process.Config.Keygen.Close()

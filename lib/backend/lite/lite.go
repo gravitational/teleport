@@ -25,9 +25,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -89,7 +91,8 @@ type Config struct {
 	// Mirror turns on mirror mode for the backend,
 	// which will use record IDs for Put and PutRange passed from
 	// the resources, not generate a new one
-	Mirror bool `json:"mirror"`
+	Mirror      bool `json:"mirror"`
+	ClusterName string
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
@@ -126,6 +129,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	if err != nil {
 		return nil, trace.BadParameter("SQLite configuration is invalid: %v", err)
 	}
+	cfg.ClusterName = params.GetString("clusterName")
 	return NewWithConfig(ctx, *cfg)
 }
 
@@ -173,6 +177,8 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	if err := l.showPragmas(); err != nil {
 		l.Warningf("Failed to show pragma settings: %v.", err)
 	}
+	l.uuid = uuid.New().String()[:8]
+
 	go l.runPeriodicOperations()
 	return l, nil
 }
@@ -193,6 +199,8 @@ type Backend struct {
 
 	// closedFlag is set to indicate that the database is closed
 	closedFlag int32
+
+	uuid string
 }
 
 // showPragmas is used to debug SQLite database connection
@@ -272,6 +280,9 @@ func (l *Backend) Clock() clockwork.Clock {
 
 // Create creates item if it does not exist
 func (l *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, error) {
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [S] Create %v.\n", l.uuid, l.ClusterName, string(i.Key))
+	}
 	if len(i.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
 	}
@@ -302,12 +313,18 @@ func (l *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [E] Create %v.\n", l.uuid, l.ClusterName, string(i.Key))
+	}
 	return l.newLease(i), nil
 }
 
 // CompareAndSwap compares item with existing item
 // and replaces is with replaceWith item
 func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [S] CompareAndSwap %v.\n", l.uuid, l.ClusterName, string(expected.Key))
+	}
 	if len(expected.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
@@ -322,12 +339,14 @@ func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		q, err := tx.PrepareContext(ctx,
 			"SELECT value FROM kv WHERE key = ? AND (expires IS NULL OR expires > ?) LIMIT 1")
 		if err != nil {
+			fmt.Printf("--------> CompareAndSwap(%v): 1. %v.\n", expected.Key, err)
 			return trace.Wrap(err)
 		}
 		defer q.Close()
 		row := q.QueryRowContext(ctx, string(expected.Key), now)
 		var value []byte
 		if err := row.Scan(&value); err != nil {
+			fmt.Printf("--------> CompareAndSwap(%v): 2. %v.\n", expected.Key, err)
 			if err == sql.ErrNoRows {
 				return trace.CompareFailed("key %v is not found", string(expected.Key))
 			}
@@ -335,28 +354,33 @@ func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		}
 
 		if !bytes.Equal(value, expected.Value) {
+			fmt.Printf("--------> CompareAndSwap(%v): 3. %v.\n", expected.Key, err)
 			return trace.CompareFailed("current value does not match expected for %v", string(expected.Key))
 		}
 
 		created := l.clock.Now().UTC()
 		stmt, err := tx.PrepareContext(ctx, "UPDATE kv SET value = ?, expires = ?, modified = ? WHERE key = ?")
 		if err != nil {
+			fmt.Printf("--------> CompareAndSwap(%v): 4. %v.\n", expected.Key, err)
 			return trace.Wrap(err)
 		}
 		defer stmt.Close()
 
 		_, err = stmt.ExecContext(ctx, replaceWith.Value, expires(replaceWith.Expires), id(created), string(replaceWith.Key))
 		if err != nil {
+			fmt.Printf("--------> CompareAndSwap(%v): 5. %v.\n", string(expected.Key), err)
 			return trace.Wrap(err)
 		}
 		if !l.EventsOff {
 			stmt, err = tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value) values(?, ?, ?, ?, ?, ?)")
 			if err != nil {
+				fmt.Printf("--------> CompareAndSwap(%v): 6. %v.\n", expected.Key, err)
 				return trace.Wrap(err)
 			}
 			defer stmt.Close()
 
 			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(replaceWith.Key), id(created), expires(replaceWith.Expires), replaceWith.Value); err != nil {
+				fmt.Printf("--------> CompareAndSwap(%v): 7. %v.\n", expected.Key, err)
 				return trace.Wrap(err)
 			}
 		}
@@ -364,6 +388,9 @@ func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [E] CompareAndSwap %v.\n", l.uuid, l.ClusterName, string(expected.Key))
 	}
 	return l.newLease(replaceWith), nil
 }
@@ -376,6 +403,9 @@ func id(t time.Time) int64 {
 // Put puts value into backend (creates if it does not
 // exist, updates it otherwise)
 func (l *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [S] Put %v.\n", l.uuid, l.ClusterName, string(i.Key))
+	}
 	if i.Key == nil {
 		return nil, trace.BadParameter("missing parameter key")
 	}
@@ -410,6 +440,9 @@ func (l *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [E] Put %v.\n", l.uuid, l.ClusterName, string(i.Key))
+	}
 	return l.newLease(i), nil
 }
 
@@ -419,6 +452,9 @@ const (
 
 // Imported returns true if backend already imported data from another backend
 func (l *Backend) Imported(ctx context.Context) (imported bool, err error) {
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [S] Imported.\n", l.uuid, l.ClusterName)
+	}
 	err = l.inTransaction(ctx, func(tx *sql.Tx) error {
 		q, err := tx.PrepareContext(ctx,
 			"SELECT imported from meta LIMIT 1")
@@ -435,12 +471,18 @@ func (l *Backend) Imported(ctx context.Context) (imported bool, err error) {
 		}
 		return nil
 	})
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [E] Imported.\n", l.uuid, l.ClusterName)
+	}
 	return imported, err
 }
 
 // Import imports elements, makes sure elements are imported only once
 // returns trace.AlreadyExists if elements have been imported
 func (l *Backend) Import(ctx context.Context, items []backend.Item) error {
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [S] Import.\n", l.uuid, l.ClusterName)
+	}
 	for i := range items {
 		if items[i].Key == nil {
 			return trace.BadParameter("missing parameter key in item %v", i)
@@ -483,12 +525,18 @@ func (l *Backend) Import(ctx context.Context, items []backend.Item) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [E] Import.\n", l.uuid, l.ClusterName)
+	}
 	return nil
 }
 
 // PutRange puts range of items into backend (creates if items doe not
 // exists, updates it otherwise)
 func (l *Backend) PutRange(ctx context.Context, items []backend.Item) error {
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [S] PutRange.\n", l.uuid, l.ClusterName)
+	}
 	for i := range items {
 		if items[i].Key == nil {
 			return trace.BadParameter("missing parameter key in item %v", i)
@@ -499,6 +547,9 @@ func (l *Backend) PutRange(ctx context.Context, items []backend.Item) error {
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [E] PutRange %v.\n", l.uuid, l.ClusterName)
 	}
 	return nil
 }
@@ -539,6 +590,9 @@ func (l *Backend) putRangeInTransaction(ctx context.Context, tx *sql.Tx, items [
 
 // Update updates value in the backend
 func (l *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, error) {
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [S] Update %v.\n", l.uuid, l.ClusterName, string(i.Key))
+	}
 	if i.Key == nil {
 		return nil, trace.BadParameter("missing parameter key")
 	}
@@ -577,11 +631,17 @@ func (l *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [E] Update %v.\n", l.uuid, l.ClusterName, string(i.Key))
+	}
 	return l.newLease(i), nil
 }
 
 // Get returns a single item or not found error
 func (l *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [S] Get %v %v.\n", l.uuid, l.ClusterName, string(key), l.Path)
+	}
 	if len(key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
 	}
@@ -591,6 +651,9 @@ func (l *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [E] Get %v.\n", l.uuid, l.ClusterName, string(key))
 	}
 	return &item, nil
 }
@@ -625,6 +688,9 @@ func (l *Backend) getInTransaction(ctx context.Context, key []byte, tx *sql.Tx, 
 
 // GetRange returns query range
 func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*backend.GetResult, error) {
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [S] GetRange %v.\n", l.uuid, l.ClusterName, string(startKey))
+	}
 	if len(startKey) == 0 {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
@@ -674,16 +740,22 @@ func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	if len(result.Items) == backend.DefaultRangeLimit {
 		l.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
 	}
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [E] GetRange %v.\n", l.uuid, l.ClusterName, string(startKey))
+	}
 	return &result, nil
 }
 
 // KeepAlive updates TTL on the lease
 func (l *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [S] KeepAlive.\n", l.uuid, l.ClusterName)
+	}
 	if len(lease.Key) == 0 {
 		return trace.BadParameter("lease key is not specified")
 	}
 	now := l.clock.Now().UTC()
-	return l.inTransaction(ctx, func(tx *sql.Tx) error {
+	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
 		var item backend.Item
 		err := l.getInTransaction(ctx, lease.Key, tx, &item)
 		if err != nil {
@@ -720,9 +792,21 @@ func (l *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 		}
 		return nil
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [E] KeepAlive.\n", l.uuid, l.ClusterName)
+	}
+	return nil
 }
 
 func (l *Backend) deleteInTransaction(ctx context.Context, key []byte, tx *sql.Tx) error {
+	//if !strings.Contains(l.Config.Path, "cache") {
+	//	fmt.Printf("--------> deleteInTransaction(%v,%v): %v.\n", l.Config.Path, l.Config.MemoryName, string(key))
+	//	debug.PrintStack()
+	//}
+
 	stmt, err := tx.PrepareContext(ctx, "DELETE FROM kv WHERE key = ?")
 	if err != nil {
 		return trace.Wrap(err)
@@ -758,24 +842,37 @@ func (l *Backend) deleteInTransaction(ctx context.Context, key []byte, tx *sql.T
 // Delete deletes item by key, returns NotFound error
 // if item does not exist
 func (l *Backend) Delete(ctx context.Context, key []byte) error {
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [S] Delete %v.\n", l.uuid, l.ClusterName, string(key))
+	}
 	if len(key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
-	return l.inTransaction(ctx, func(tx *sql.Tx) error {
+	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
 		return l.deleteInTransaction(ctx, key, tx)
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [E] Delete %v.\n", l.uuid, l.ClusterName, string(key))
+	}
+	return nil
 }
 
 // DeleteRange deletes range of items with keys between startKey and endKey
 // Note that elements deleted by range do not produce any events
 func (l *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [S] DeleteRange %v.\n", l.uuid, l.ClusterName, string(startKey))
+	}
 	if len(startKey) == 0 {
 		return trace.BadParameter("missing parameter startKey")
 	}
 	if len(endKey) == 0 {
 		return trace.BadParameter("missing parameter endKey")
 	}
-	return l.inTransaction(ctx, func(tx *sql.Tx) error {
+	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
 		q, err := tx.PrepareContext(ctx,
 			"SELECT key FROM kv WHERE key >= ? and key <= ?")
 		if err != nil {
@@ -805,6 +902,13 @@ func (l *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) erro
 
 		return nil
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [E] DeleteRange %v.\n", l.uuid, l.ClusterName, string(startKey))
+	}
+	return nil
 }
 
 // NewWatcher returns a new event watcher
@@ -817,8 +921,15 @@ func (l *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.
 
 // Close closes all associated resources
 func (l *Backend) Close() error {
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [S] Close.\n", l.uuid, l.ClusterName)
+	}
 	l.cancel()
-	return l.closeDatabase()
+	err := l.closeDatabase()
+	if !strings.Contains(l.Path, "cache") && !strings.Contains(l.Path, "proc") {
+		fmt.Printf("--------> %v %v [E] Close.\n", l.uuid, l.ClusterName)
+	}
+	return err
 }
 
 // CloseWatchers closes all the watchers
@@ -851,7 +962,7 @@ func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (
 	}()
 	tx, err := l.db.BeginTx(ctx, nil)
 	if err != nil {
-		return trace.Wrap(convertError(err))
+		return trace.Wrap(l.convertError(err))
 	}
 	commit := func() error {
 		return tx.Commit()
@@ -877,6 +988,7 @@ func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (
 				return
 			}
 			if isLockedError(trace.Unwrap(err)) {
+				fmt.Printf("--------> Path: %v, MemoryName: %v. Error: %v.\n", l.Config.Path, l.Config.MemoryName, err)
 				err = trace.ConnectionProblem(err, "database is locked")
 			}
 			if isReadonlyError(trace.Unwrap(err)) {
@@ -907,9 +1019,10 @@ func expires(t time.Time) interface{} {
 	return t.UTC()
 }
 
-func convertError(err error) error {
+func (l *Backend) convertError(err error) error {
 	origError := trace.Unwrap(err)
 	if isClosedError(origError) {
+		fmt.Printf("--------> Path: %v, MemoryName: %v. Error: %v.\n", l.Config.Path, l.Config.MemoryName, err)
 		return trace.ConnectionProblem(err, "database is closed")
 	}
 	return err

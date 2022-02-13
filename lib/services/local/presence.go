@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"time"
 
@@ -703,10 +704,12 @@ func (s *PresenceService) CreateRemoteCluster(rc types.RemoteCluster) error {
 // other changed fields will be ignored by the method
 func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
 	if err := rc.CheckAndSetDefaults(); err != nil {
+		fmt.Printf("--> UpdateRemoteCluster. 0: %v.\n", err)
 		return trace.Wrap(err)
 	}
 	existingItem, update, err := s.getRemoteCluster(rc.GetName())
 	if err != nil {
+		fmt.Printf("--> UpdateRemoteCluster. 1: %v.\n", err)
 		return trace.Wrap(err)
 	}
 	update.SetExpiry(rc.Expiry())
@@ -717,6 +720,7 @@ func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.Remo
 
 	updateValue, err := services.MarshalRemoteCluster(update)
 	if err != nil {
+		fmt.Printf("--> UpdateRemoteCluster. 2: %v.\n", err)
 		return trace.Wrap(err)
 	}
 	updateItem := backend.Item{
@@ -727,6 +731,7 @@ func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.Remo
 
 	_, err = s.CompareAndSwap(ctx, *existingItem, updateItem)
 	if err != nil {
+		fmt.Printf("--> UpdateRemoteCluster (%v). 3: %v.\n", rc.GetName(), err)
 		if trace.IsCompareFailed(err) {
 			return trace.CompareFailed("remote cluster %v has been updated by another client, try again", rc.GetName())
 		}
@@ -765,11 +770,13 @@ func (s *PresenceService) getRemoteCluster(clusterName string) (*backend.Item, t
 		if trace.IsNotFound(err) {
 			return nil, nil, trace.NotFound("remote cluster %q is not found", clusterName)
 		}
+		fmt.Printf("--> getRemoteCluster: 1: %v.\n", err)
 		return nil, nil, trace.Wrap(err)
 	}
 	rc, err := services.UnmarshalRemoteCluster(item.Value,
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 	if err != nil {
+		fmt.Printf("--> getRemoteCluster: 2: %v.\n", err)
 		return nil, nil, trace.Wrap(err)
 	}
 	return item, rc, nil

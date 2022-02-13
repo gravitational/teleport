@@ -188,6 +188,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	domainName := cfg.ClusterName.GetClusterName()
 	lock, err := backend.AcquireLock(ctx, cfg.Backend, domainName, 30*time.Second)
 	if err != nil {
+		fmt.Printf("--> Init. 1.\n")
 		return nil, trace.Wrap(err)
 	}
 	defer lock.Release(ctx, cfg.Backend)
@@ -195,6 +196,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// check that user CA and host CA are present and set the certs if needed
 	asrv, err := NewServer(&cfg, opts...)
 	if err != nil {
+		fmt.Printf("--> Init. 2.\n")
 		return nil, trace.Wrap(err)
 	}
 
@@ -203,14 +205,17 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	if len(cfg.Resources) > 0 {
 		firstStart, err := isFirstStart(asrv, cfg)
 		if err != nil {
+			fmt.Printf("--> Init. 3.\n")
 			return nil, trace.Wrap(err)
 		}
 		if firstStart {
 			log.Infof("Applying %v bootstrap resources (first initialization)", len(cfg.Resources))
 			if err := checkResourceConsistency(asrv.keyStore, domainName, cfg.Resources...); err != nil {
+				fmt.Printf("--> Init. 4.\n")
 				return nil, trace.Wrap(err, "refusing to bootstrap backend")
 			}
 			if err := local.CreateResources(ctx, cfg.Backend, cfg.Resources...); err != nil {
+				fmt.Printf("--> Init. 5.\n")
 				return nil, trace.Wrap(err, "backend bootstrap failed")
 			}
 		} else {
@@ -226,6 +231,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// singletons). However, we need to keep them around while Telekube uses them.
 	for _, role := range cfg.Roles {
 		if err := asrv.UpsertRole(ctx, role); err != nil {
+			fmt.Printf("--> Init. 6.\n")
 			return nil, trace.Wrap(err)
 		}
 		log.Infof("Created role: %v.", role)
@@ -237,6 +243,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		// this part of code is only used in tests.
 		if err := asrv.Trust.CreateCertAuthority(ca); err != nil {
 			if !trace.IsAlreadyExists(err) {
+				fmt.Printf("--> Init. 7.\n")
 				return nil, trace.Wrap(err)
 			}
 		} else {
@@ -245,6 +252,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	for _, tunnel := range cfg.ReverseTunnels {
 		if err := asrv.UpsertReverseTunnel(tunnel); err != nil {
+			fmt.Printf("--> Init. 8.\n")
 			return nil, trace.Wrap(err)
 		}
 		log.Infof("Created reverse tunnel: %v.", tunnel)
@@ -252,21 +260,25 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 
 	err = asrv.SetClusterAuditConfig(ctx, cfg.ClusterAuditConfig)
 	if err != nil {
+		fmt.Printf("--> Init. 9.\n")
 		return nil, trace.Wrap(err)
 	}
 
 	err = initSetClusterNetworkingConfig(ctx, asrv, cfg.ClusterNetworkingConfig)
 	if err != nil {
+		fmt.Printf("--> Init. 10.\n")
 		return nil, trace.Wrap(err)
 	}
 
 	err = initSetSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig)
 	if err != nil {
+		fmt.Printf("--> Init. 11.\n")
 		return nil, trace.Wrap(err)
 	}
 
 	err = initSetAuthPreference(ctx, asrv, cfg.AuthPreference)
 	if err != nil {
+		fmt.Printf("--> Init. 12.\n")
 		return nil, trace.Wrap(err)
 	}
 
@@ -275,6 +287,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// a new name returns an AlreadyExists error.
 	err = asrv.SetClusterName(cfg.ClusterName)
 	if err != nil && !trace.IsAlreadyExists(err) {
+		fmt.Printf("--> Init. 13.\n")
 		return nil, trace.Wrap(err)
 	}
 	// If the cluster name has already been set, log a warning if the user
@@ -283,6 +296,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		// Get current name of cluster from the backend.
 		cn, err := asrv.ClusterConfiguration.GetClusterName()
 		if err != nil {
+			fmt.Printf("--> Init. 14.\n")
 			return nil, trace.Wrap(err)
 		}
 		if cn.GetClusterName() != cfg.ClusterName.GetClusterName() {
@@ -302,6 +316,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 
 	err = asrv.SetStaticTokens(cfg.StaticTokens)
 	if err != nil {
+		fmt.Printf("--> Init. 15.\n")
 		return nil, trace.Wrap(err)
 	}
 	log.Infof("Updating cluster configuration: %v.", cfg.StaticTokens)
@@ -309,6 +324,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// always create the default namespace
 	err = asrv.UpsertNamespace(types.DefaultNamespace())
 	if err != nil {
+		fmt.Printf("--> Init. 16.\n")
 		return nil, trace.Wrap(err)
 	}
 	log.Infof("Created namespace: %q.", apidefaults.Namespace)
@@ -319,10 +335,12 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		ca, err := asrv.GetCertAuthority(caID, true)
 		if err != nil {
 			if !trace.IsNotFound(err) {
+				fmt.Printf("--> Init. 17.\n")
 				return nil, trace.Wrap(err)
 			}
 			log.Infof("First start: generating %s certificate authority.", caID.Type)
 			if err := asrv.createSelfSignedCA(caID); err != nil {
+				fmt.Printf("--> Init. 18.\n")
 				return nil, trace.Wrap(err)
 			}
 		} else {
@@ -342,10 +360,12 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 					// any signing operations until a CA rotation. Only the Host
 					// CA is necessary to issue the Admin identity.
 					if err := asrv.ensureLocalAdditionalKeys(ca); err != nil {
+						fmt.Printf("--> Init. 19.\n")
 						return nil, trace.Wrap(err)
 					}
 					// reload updated CA for below checks
 					if ca, err = asrv.GetCertAuthority(caID, true); err != nil {
+						fmt.Printf("--> Init. 20.\n")
 						return nil, trace.Wrap(err)
 					}
 				}
@@ -366,6 +386,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// Delete any unused keys from the keyStore. This is to avoid exhausting
 	// (or wasting) HSM resources.
 	if err := asrv.deleteUnusedKeys(); err != nil {
+		fmt.Printf("--> Init. 21.\n")
 		return nil, trace.Wrap(err)
 	}
 
@@ -379,12 +400,14 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// Migrate any legacy resources to new format.
 	err = migrateLegacyResources(ctx, asrv)
 	if err != nil {
+		fmt.Printf("--> Init. 22.\n")
 		return nil, trace.Wrap(err)
 	}
 
 	// Create presets - convenience and example resources.
 	err = createPresets(asrv)
 	if err != nil {
+		fmt.Printf("--> Init. 23.\n")
 		return nil, trace.Wrap(err)
 	}
 
@@ -485,9 +508,11 @@ func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOri
 
 func migrateLegacyResources(ctx context.Context, asrv *Server) error {
 	if err := migrateRemoteClusters(ctx, asrv); err != nil {
+		fmt.Printf("--> migrateLegacyResources: 1.\n")
 		return trace.Wrap(err)
 	}
 	if err := migrateCertAuthorities(ctx, asrv); err != nil {
+		fmt.Printf("--> migrateLegacyResources: 2.\n")
 		return trace.Wrap(err, "fail to migrate certificate authorities to the v7 storage format: %v; please report this at https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md including the *redacted* output of 'tctl get cert_authority'", err)
 	}
 	return nil
@@ -944,10 +969,12 @@ func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
 func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	clusterName, err := asrv.GetClusterName()
 	if err != nil {
+		fmt.Printf("--> migrateRemoteClusters: 1.\n")
 		return trace.Wrap(err)
 	}
 	certAuthorities, err := asrv.GetCertAuthorities(types.HostCA, false)
 	if err != nil {
+		fmt.Printf("--> migrateRemoteClusters: 2.\n")
 		return trace.Wrap(err)
 	}
 	// loop over all roles and make sure any v3 roles have permit port
@@ -964,6 +991,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 			continue
 		}
 		if !trace.IsNotFound(err) {
+			fmt.Printf("--> migrateRemoteClusters: 3.\n")
 			return trace.Wrap(err)
 		}
 		// the cert authority is associated with trusted cluster
@@ -973,15 +1001,18 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 			continue
 		}
 		if !trace.IsNotFound(err) {
+			fmt.Printf("--> migrateRemoteClusters: 4.\n")
 			return trace.Wrap(err)
 		}
 		remoteCluster, err := types.NewRemoteCluster(certAuthority.GetName())
 		if err != nil {
+			fmt.Printf("--> migrateRemoteClusters: 5.\n")
 			return trace.Wrap(err)
 		}
 		err = asrv.CreateRemoteCluster(remoteCluster)
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
+				fmt.Printf("--> migrateRemoteClusters: 6.\n")
 				return trace.Wrap(err)
 			}
 		}
@@ -1015,6 +1046,7 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 		for _, err := range errors {
 			log.Errorf("    %v", err)
 		}
+		fmt.Printf("--> migrateCertAuthority: 1\n")
 		return trace.Errorf("fail to migrate certificate authorities to the v7 storage format")
 	}
 	return nil

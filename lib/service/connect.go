@@ -18,6 +18,7 @@ package service
 
 import (
 	"crypto/tls"
+	"fmt"
 	"math"
 	"path/filepath"
 
@@ -486,6 +487,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 
 	for {
 		err := process.syncRotationStateCycle()
+		fmt.Printf("--> syncRotationCycle: %v.\n", err)
 		if err == nil {
 			return nil
 		}

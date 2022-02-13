@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -363,9 +364,11 @@ func (a *Server) GetRemoteCluster(clusterName string) (types.RemoteCluster, erro
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
 	remoteCluster, err := a.Presence.GetRemoteCluster(clusterName)
 	if err != nil {
+		fmt.Printf("--> GetRemoteCluster: 1.\n")
 		return nil, trace.Wrap(err)
 	}
 	if err := a.updateRemoteClusterStatus(remoteCluster); err != nil {
+		fmt.Printf("--> GetRemoteCluster: 2.\n")
 		return nil, trace.Wrap(err)
 	}
 	return remoteCluster, nil
@@ -375,6 +378,7 @@ func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) er
 	ctx := context.TODO()
 	netConfig, err := a.GetClusterNetworkingConfig(ctx)
 	if err != nil {
+		fmt.Printf("--> updateRemoteClusterStatus: 1.\n")
 		return trace.Wrap(err)
 	}
 	keepAliveCountMax := netConfig.GetKeepAliveCountMax()
@@ -383,11 +387,13 @@ func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) er
 	// fetch tunnel connections for the cluster to update runtime status
 	connections, err := a.GetTunnelConnections(remoteCluster.GetName())
 	if err != nil {
+		fmt.Printf("--> updateRemoteClusterStatus: 2.\n")
 		return trace.Wrap(err)
 	}
 	lastConn, err := services.LatestTunnelConnection(connections)
 	if err != nil {
 		if !trace.IsNotFound(err) {
+			fmt.Printf("--> updateRemoteClusterStatus: 3.\n")
 			return trace.Wrap(err)
 		}
 		// No tunnel connections are known, mark the cluster offline (if it
@@ -401,6 +407,7 @@ func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) er
 				// case we should prioritize presenting our view in an internally-consistent
 				// manner rather than competing with another task.
 				if !trace.IsCompareFailed(err) {
+					fmt.Printf("--> updateRemoteClusterStatus: 4.\n")
 					return trace.Wrap(err)
 				}
 			}
@@ -428,6 +435,7 @@ func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) er
 			// case we should prioritize presenting our view in an internally-consistent
 			// manner rather than competing with another task.
 			if !trace.IsCompareFailed(err) {
+				fmt.Printf("--> updateRemoteClusterStatus (%v): 5.\n", remoteCluster.GetName())
 				return trace.Wrap(err)
 			}
 		}
