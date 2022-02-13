@@ -48,14 +48,14 @@ import (
 const (
 	// SessionLogsDir is a subdirectory inside the eventlog data dir
 	// where all session-specific logs and streams are stored, like
-	// in /var/lib/teleport/logs/sessions
+	// in /var/lib/teleport/log/sessions
 	SessionLogsDir = "sessions"
 
-	// StreamingLogsDir is a subdirectory of sessions /var/lib/teleport/logs/streaming
+	// StreamingLogsDir is a subdirectory of sessions /var/lib/teleport/log/streaming
 	// is used in new versions of the uploader
 	StreamingLogsDir = "streaming"
 
-	// RecordsDir is a subdirectory with default records /var/lib/teleport/logs/records
+	// RecordsDir is a subdirectory with default records /var/lib/teleport/log/records
 	// is used in new versions of the uploader
 	RecordsDir = "records"
 
@@ -504,7 +504,7 @@ func (idx *sessionIndex) chunksFile(offset int64) (string, int64, error) {
 			return idx.chunksFileName(i), entry.Offset, nil
 		}
 	}
-	return "", 0, trace.NotFound("%v not found", offset)
+	return "", 0, trace.NotFound("offset %v not found for session %v", offset, idx.sid)
 }
 
 func (idx *sessionIndex) chunksFileName(index int) string {
@@ -1054,7 +1054,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	tarballPath := filepath.Join(l.playbackDir, string(sessionID)+".stream.tar")
 	downloadCtx, cancel := l.createOrGetDownload(tarballPath)
 
-	// Wait until another in progress download finishes and use it's tarball.
+	// Wait until another in progress download finishes and use its tarball.
 	if cancel == nil {
 		l.log.Debugf("Another download is in progress for %v, waiting until it gets completed.", sessionID)
 		select {

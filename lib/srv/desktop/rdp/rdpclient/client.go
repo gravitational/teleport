@@ -254,7 +254,7 @@ func (c *Client) start() {
 	go func() {
 		defer c.wg.Done()
 		defer c.Close()
-		defer c.cfg.Log.Info("RDP input streaming finished")
+		defer c.cfg.Log.Info("TDP input streaming finished")
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
 		for {
