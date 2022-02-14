@@ -224,6 +224,7 @@ func (c *Client) connect(ctx context.Context) error {
 		// screen size.
 		C.uint16_t(c.clientWidth),
 		C.uint16_t(c.clientHeight),
+		C.bool(c.cfg.AllowClipboard),
 	)
 	if err := cgoError(res.err); err != nil {
 		return trace.Wrap(err)
