@@ -244,6 +244,9 @@ explicitly set.
 `v5` roles are also backwards compatible with `v4`. They add
 the `join_sessions` and `require_session_join` fields related to [Moderated Sessions](./guides/moderated-sessions.mdx).
 
+Upon upgrading to Telport 8.3.0 or later, new roles will be created with `version: v5` and old roles
+will be migrated as they are edited but not automatically.
+
 Label              | `v3` Default   | `v4` Default
 ------------------ | -------------- | ---------------
 `node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
