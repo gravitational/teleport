@@ -19,15 +19,17 @@ package config
 import (
 	"bytes"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // minimalConfigFile is a minimal subset of a teleport config file that can be
@@ -46,7 +48,7 @@ ssh_service:
 
 // cfgMap is a shorthand for a type that can hold the nested key-value
 // representation of a parsed YAML file.
-type cfgMap map[interface{}]interface{}
+type cfgMap map[string]interface{}
 
 // editConfig takes the minimal YAML configuration file, de-serialises it into a
 // nested key-value dictionary suitable for manipulation by a test case,
@@ -552,4 +554,32 @@ func TestX11Config(t *testing.T) {
 			require.Equal(t, tc.expectX11Config, serverCfg)
 		})
 	}
+}
+
+// TestStorageYamlv3 ensured the storage section of the YAML configuration
+// file supports nested keys. The yamlv2 library incorrectly decoded child
+// sections as map[interface{}]interface{}, which meant accessing child keys
+// resulted in an error. This test, when executed against yamlv2, produced
+// the following error when converting storage params to a struct:
+// failed to marshal map[aws:map[name:hello]], json: unsupported type: map[interface {}]interface {}
+func TestStorageYamlv3(t *testing.T) {
+	const yaml = `
+teleport:
+  nodename: test
+  storage:
+    type: dir
+    aws:
+      name: hello
+`
+	fileCfg, err := ReadConfig(strings.NewReader(yaml))
+	require.NoError(t, err)
+
+	var cfg struct {
+		Aws struct {
+			Name string `json:"name"`
+		} `json:"aws"`
+	}
+	err = utils.ObjectToStruct(fileCfg.Global.Storage.Params, &cfg)
+	require.NoError(t, err)
+	require.Equal(t, "hello", cfg.Aws.Name)
 }

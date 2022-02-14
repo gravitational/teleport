@@ -49,7 +49,7 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 var validCASigAlgos = []string{
@@ -117,7 +117,7 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	}
 	var fc FileConfig
 
-	if err := yaml.UnmarshalStrict(bytes, &fc); err != nil {
+	if err := yaml.Unmarshal(bytes, &fc); err != nil {
 		// Remove all newlines in the YAML error, to avoid escaping when printing.
 		return nil, trace.BadParameter("failed parsing the config file: %s", strings.Replace(err.Error(), "\n", "", -1))
 	}
