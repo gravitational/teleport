@@ -18,6 +18,7 @@ package main
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"os"
@@ -25,11 +26,13 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -231,6 +234,83 @@ func toALPNProtocol(dbProtocol string) (alpncommon.Protocol, error) {
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
+}
+
+func onProxyCommandAPP(cf *CLIConf) error {
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	appCerts, err := loadAppCertificate(tc, cf.AppName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	address, err := utils.ParseAddr(tc.WebProxyAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println(cf.InsecureSkipVerify)
+
+	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+		Listener:           listener,
+		RemoteProxyAddr:    tc.WebProxyAddr,
+		Protocol:           alpncommon.ProtocolHTTP,
+		InsecureSkipVerify: cf.InsecureSkipVerify,
+		ParentContext:      cf.Context,
+		SNI:                address.Host(),
+		AWSCredentials:     nil,
+		Certs:              []tls.Certificate{appCerts},
+	})
+	if err != nil {
+		if cerr := listener.Close(); cerr != nil {
+			return trace.NewAggregate(err, cerr)
+		}
+		return trace.Wrap(err)
+	}
+
+	fmt.Println(lp.GetAddr())
+
+	if err = lp.Start(cf.Context); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func loadAppCertificate(tc *client.TeleportClient, appName string) (tls.Certificate, error) {
+	key, err := tc.LocalAgent().GetKey(tc.SiteName, client.WithAppCerts{})
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	cc, ok := key.AppTLSCerts[appName]
+	if !ok {
+		return tls.Certificate{}, trace.NotFound("please login into the application first. 'tsh app login'")
+	}
+	cert, err := tls.X509KeyPair(cc, key.Priv)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	if len(cert.Certificate) < 1 {
+		return tls.Certificate{}, trace.NotFound("invalid certificate length")
+	}
+	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	if time.Until(x509cert.NotAfter) < 5*time.Second {
+		return tls.Certificate{}, trace.BadParameter(
+			"application %s certificate has expired, please re-login to the app using 'tsh app login'",
+			appName)
+	}
+	return cert, nil
 }
 
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.
