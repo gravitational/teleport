@@ -226,36 +226,38 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 }
 
 // serverResponseToValue takes server response and an error and return a message that should be propagated back
-// to connected client as the first argument and errors that should terminate the connection as the second one.
+// to connected client as the first value and errors that should terminate the connection as the second one.
 // Some examples:
-// * Server errors are returned as the first argument. They should be propagated back to the connected client
+// * Server errors are returned as the first value. They should be propagated back to the connected client
 //   instead of handled by Teleport.
-// * Go's context.DeadlineExceeded is returned as the first argument as "connection timeout", as returning
+// * Go's context.DeadlineExceeded is returned as the first value as "connection timeout", as returning
 //   context deadline exceeded to a user is confusing.
 // * Connection errors (EOF, closed network) are returned as an errors, as in this case we want to terminate the client connection.
 func serverResponseToValue(cmd *redis.Cmd, err error) (interface{}, error) {
 	var vals interface{}
-	if _, ok := err.(redis.Error); ok {
-		vals = err
-	} else if errors.Is(err, context.DeadlineExceeded) {
-		// Do not return Deadline Exceeded to the client as it's not very self-explanatory.
-		// Return "connection timeout" as this is what most likely happened.
-		vals = trace.ConnectionProblem(err, "connection timeout")
-	} else if err != nil {
-		// Terminate connection only on connection errors. Errors that comes from Redis
-		// should be propagated back to the client.
-		if utils.IsOKNetworkError(err) {
-			return nil, trace.Wrap(err)
-		}
 
-		vals = err
-	} else {
+	if err == nil {
 		vals, err = cmd.Result()
 		if err != nil {
 			// Propagate the server error to the client. In this case we don't want to return the error
-			// as a function error, as this would terminate the connection.
+			// as the second value from this function, as this would terminate the connection.
 			vals = err
 		}
+
+		return vals, nil
+	}
+
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		// Do not return Deadline Exceeded to the client as it's not very self-explanatory.
+		// Return "connection timeout" as this is what most likely happened.
+		vals = trace.ConnectionProblem(err, "connection timeout")
+	case utils.IsOKNetworkError(err):
+		// Terminate connection only on connection errors.
+		// Other errors should be propagated back to the client.
+		return nil, trace.Wrap(err)
+	default:
+		vals = err
 	}
 
 	return vals, nil
