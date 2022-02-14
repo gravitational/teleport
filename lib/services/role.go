@@ -670,6 +670,9 @@ type AccessChecker interface {
 	// clipboard for desktop sessions. Clipboard sharing is disabled if
 	// one or more of the roles in the set has disabled it.
 	DesktopClipboard() bool
+	// RecordDesktopSession returns true if a role in the role set has enabled
+	// desktop session recoring.
+	RecordDesktopSession() bool
 
 	// MaybeCanReviewRequests attempts to guess if this RoleSet belongs
 	// to a user who should be submitting access reviews. Because not all rolesets

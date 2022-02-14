@@ -501,7 +501,8 @@ type Auth struct {
 	// type, second factor type, specific connector information, etc.
 	Authentication *AuthenticationConfig `yaml:"authentication,omitempty"`
 
-	// SessionRecording determines where the session is recorded: node, proxy, or off.
+	// SessionRecording determines where the session is recorded:
+	// node, node-sync, proxy, proxy-sync, or off.
 	SessionRecording string `yaml:"session_recording,omitempty"`
 
 	// ProxyChecksHostKeys is used when the proxy is in recording mode and
