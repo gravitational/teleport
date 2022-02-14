@@ -23,18 +23,6 @@ import (
 	"cloud.google.com/go/storage"
 )
 
-// bucket presents a minimal interface to a storage bucket, allowing us to
-// mock out GCB for testing
-type objectHandle interface {
-	NewWriter(context.Context) io.WriteCloser
-}
-
-// bucket presents an interface to a storage bucket, allowing us to
-// mock out GCB for testing
-type bucketHandle interface {
-	Object(name string) objectHandle
-}
-
 // objectAdaptor wraps a live GCB storage handle in our minimal storage
 // interface
 type objectAdaptor struct{ *storage.ObjectHandle }

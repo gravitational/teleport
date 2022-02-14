@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
@@ -76,7 +77,9 @@ func innerMain() error {
 	// produced by the build
 	defer func() {
 		prefix := fmt.Sprintf("%s/artifacts", args.buildID)
-		artifacts.FindAndUpload(cancelCtx, args.bucket, prefix, args.artifactSearchPatterns)
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		artifacts.FindAndUpload(timeoutCtx, args.bucket, prefix, args.artifactSearchPatterns)
 	}()
 
 	log.Printf("Running root-only integration tests...")

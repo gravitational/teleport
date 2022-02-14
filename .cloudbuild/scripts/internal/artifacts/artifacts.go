@@ -100,7 +100,20 @@ func FindAndUpload(ctx context.Context, bucketName, objectPrefix string, artifac
 	return upload(ctx, bucketHandle, objectPrefix, artifacts)
 }
 
-//
+// bucket presents a minimal interface to a storage bucket, allowing us to
+// mock out GCB for testing
+type objectHandle interface {
+	NewWriter(context.Context) io.WriteCloser
+}
+
+// bucket presents an interface to a storage bucket, allowing us to
+// mock out GCB for testing
+type bucketHandle interface {
+	Object(name string) objectHandle
+}
+
+// find searches through the supplied glob patterns and collects the matching
+// file paths.
 func find(artifactPatterns []string) []string {
 	log.Printf("Scanning for artifacts...")
 	artifacts := []string{}

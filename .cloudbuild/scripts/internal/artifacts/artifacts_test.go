@@ -148,8 +148,8 @@ func TestUpload(t *testing.T) {
 	ctx := context.Background()
 	bucket := new(mockBucket)
 
-	mock := func(content []byte, path ...string) (string, *bytes.Buffer) {
-		// Create the source item that the upload() function should find
+	mockArtifact := func(content []byte, path ...string) (string, *bytes.Buffer) {
+		// Create the source file that the upload() function should find
 		// and upload
 		src := write(t, content, path...)
 
@@ -168,10 +168,10 @@ func TestUpload(t *testing.T) {
 
 	// Given a configured artefact list and a mocked-out upload receiver...
 	const alphaContent = "I am the very model of a modern major-general"
-	alphaSrc, alphaDst := mock([]byte(alphaContent), workspace, "nested", "alpha.txt")
+	alphaSrc, alphaDst := mockArtifact([]byte(alphaContent), workspace, "nested", "alpha.txt")
 
-	const betaContent = "I've information vegetable, animal, and mineral "
-	betaSrc, betaDst := mock([]byte(betaContent), workspace, "beta.txt")
+	const betaContent = "I've information vegetable, animal, and mineral"
+	betaSrc, betaDst := mockArtifact([]byte(betaContent), workspace, "beta.txt")
 
 	// When I upload artefact files...
 	files := []string{alphaSrc, betaSrc}
@@ -209,6 +209,7 @@ func TestFailedUpload(t *testing.T) {
 	}
 
 	mockHappyPath := func(content []byte, path ...string) (string, *bytes.Buffer) {
+		// Mock up an uploader that will just succeed
 		dst := &bytes.Buffer{}
 		src := mockArtifact(content, &closeWrapper{Writer: dst}, path...)
 		return src, dst
