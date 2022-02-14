@@ -37,7 +37,11 @@ import (
 func ValidatePatterns(workspace string, patterns []string) ([]string, error) {
 	result := make([]string, len(patterns))
 	for i, p := range patterns {
-		fullyQualifiedPattern, err := filepath.Abs(p)
+		if path.IsAbs(p) {
+			return nil, trace.BadParameter("Cannot use absolute path to artifact: %s", p)
+		}
+
+		fullyQualifiedPattern, err := filepath.Abs(filepath.Join(workspace, p))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

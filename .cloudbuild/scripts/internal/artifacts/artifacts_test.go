@@ -44,8 +44,58 @@ func touch(t *testing.T, path ...string) string {
 	return write(t, []byte{}, path...)
 }
 
+func TestValidatePatterns(t *testing.T) {
+	workspace := t.TempDir()
+
+	t.Run("Patterns are expanded", func(t *testing.T) {
+		patterns := []string{"alpha", "nested/beta", "*"}
+
+		expected := []string{
+			filepath.Join(workspace, "alpha"),
+			filepath.Join(workspace, "nested", "beta"),
+			filepath.Join(workspace, "*"),
+		}
+
+		actual, err := ValidatePatterns(workspace, patterns)
+		require.NoError(t, err)
+
+		require.ElementsMatch(t, actual, expected)
+	})
+
+	t.Run("Paths are canonicalised", func(t *testing.T) {
+		patterns := []string{
+			"nested/../alpha",
+			"./beta",
+		}
+
+		expected := []string{
+			filepath.Join(workspace, "alpha"),
+			filepath.Join(workspace, "beta"),
+		}
+
+		actual, err := ValidatePatterns(workspace, patterns)
+		require.NoError(t, err)
+
+		require.ElementsMatch(t, actual, expected)
+	})
+
+	t.Run("Paths outside workspace fail", func(t *testing.T) {
+		t.Run("fully-qualified path", func(t *testing.T) {
+			_, err := ValidatePatterns(workspace, []string{t.TempDir()})
+			require.Error(t, err)
+		})
+
+		t.Run("relative path", func(t *testing.T) {
+			target := "../../root/**/*"
+			_, err := ValidatePatterns(workspace, []string{target})
+			require.Error(t, err)
+		})
+	})
+}
+
 func TestFindArtifacts(t *testing.T) {
 	workspace := t.TempDir()
+
 	alpha := touch(t, workspace, "alpha.yaml")
 	beta := touch(t, workspace, "beta.yaml")
 	gamma := touch(t, workspace, "gamma.some-other-extension")
@@ -89,21 +139,6 @@ func TestFindArtifacts(t *testing.T) {
 		actual := find(patterns)
 		expected := []string{eta}
 		require.ElementsMatch(t, expected, actual)
-	})
-}
-
-func TestArtifactsOuitsideWorkspaceFails(t *testing.T) {
-	workspace := t.TempDir()
-
-	t.Run("fully-qualified path", func(t *testing.T) {
-		_, err := ValidatePatterns(workspace, []string{t.TempDir()})
-		require.Error(t, err)
-	})
-
-	t.Run("relative path", func(t *testing.T) {
-		target := filepath.Join(workspace, "../../root/**/*")
-		_, err := ValidatePatterns(workspace, []string{target})
-		require.Error(t, err)
 	})
 }
 
