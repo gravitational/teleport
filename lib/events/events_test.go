@@ -486,7 +486,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "desktop session start",
-			json: `{"uid":"cd06365f-3cef-4b21-809a-4af9502c11a1","user":"foo","impersonator":"bar","success":true,"proto":"tdp","sid":"test-session","addr.local":"192.168.1.100:39887","addr.remote":"[::1]:34902","with_mfa":"mfa-device","code":"TDP00I","event":"windows.desktop.session.start","time":"2020-04-23T18:22:35.35Z","ei":4,"cluster_name":"test-cluster","windows_user":"Administrator","windows_domain":"test.example.com","desktop_addr":"[::1]:34902","windows_desktop_service":"00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8","desktop_labels":{"env":"production"}}`,
+			json: `{"uid":"cd06365f-3cef-4b21-809a-4af9502c11a1","user":"foo","impersonator":"bar","login":"Administrator","success":true,"proto":"tdp","sid":"test-session","addr.local":"192.168.1.100:39887","addr.remote":"[::1]:34902","with_mfa":"mfa-device","code":"TDP00I","event":"windows.desktop.session.start","time":"2020-04-23T18:22:35.35Z","ei":4,"cluster_name":"test-cluster","windows_user":"Administrator","windows_domain":"test.example.com","desktop_addr":"[::1]:34902","windows_desktop_service":"00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8","desktop_labels":{"env":"production"}}`,
 			event: apievents.WindowsDesktopSessionStart{
 				Metadata: apievents.Metadata{
 					Index:       4,
@@ -499,6 +499,7 @@ func TestJSON(t *testing.T) {
 				UserMetadata: apievents.UserMetadata{
 					User:         "foo",
 					Impersonator: "bar",
+					Login:        "Administrator",
 				},
 				SessionMetadata: apievents.SessionMetadata{
 					WithMFA:   "mfa-device",
@@ -521,7 +522,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "desktop session end",
-			json: `{"uid":"cd06365f-3cef-4b21-809a-4af9502c11a1","user":"foo","impersonator":"bar","sid":"test-session","with_mfa":"mfa-device","code":"TDP01I","event":"windows.desktop.session.end","time":"2020-04-23T18:22:35.35Z","ei":4,"cluster_name":"test-cluster","windows_user":"Administrator","windows_domain":"test.example.com","desktop_addr":"[::1]:34902","windows_desktop_service":"00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8","desktop_labels":{"env":"production"}}`,
+			json: `{"uid":"cd06365f-3cef-4b21-809a-4af9502c11a1","user":"foo","impersonator":"bar","login":"Administrator","participants":["foo"],"recorded":false,"sid":"test-session","with_mfa":"mfa-device","code":"TDP01I","event":"windows.desktop.session.end","time":"2020-04-23T18:22:35.35Z","session_start":"2020-04-23T18:22:35.35Z","session_stop":"2020-04-23T18:26:35.35Z","ei":4,"cluster_name":"test-cluster","windows_user":"Administrator","windows_domain":"test.example.com","desktop_name":"desktop1","desktop_addr":"[::1]:34902","windows_desktop_service":"00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8","desktop_labels":{"env":"production"}}`,
 			event: apievents.WindowsDesktopSessionEnd{
 				Metadata: apievents.Metadata{
 					Index:       4,
@@ -532,6 +533,7 @@ func TestJSON(t *testing.T) {
 					ClusterName: "test-cluster",
 				},
 				UserMetadata: apievents.UserMetadata{
+					Login:        "Administrator",
 					User:         "foo",
 					Impersonator: "bar",
 				},
@@ -540,10 +542,14 @@ func TestJSON(t *testing.T) {
 					SessionID: "test-session",
 				},
 				WindowsDesktopService: "00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8",
+				DesktopName:           "desktop1",
 				DesktopAddr:           "[::1]:34902",
 				Domain:                "test.example.com",
 				WindowsUser:           "Administrator",
 				DesktopLabels:         map[string]string{"env": "production"},
+				Participants:          []string{"foo"},
+				StartTime:             time.Date(2020, 04, 23, 18, 22, 35, 350*int(time.Millisecond), time.UTC),
+				EndTime:               time.Date(2020, 04, 23, 18, 26, 35, 350*int(time.Millisecond), time.UTC),
 			},
 		},
 	}
