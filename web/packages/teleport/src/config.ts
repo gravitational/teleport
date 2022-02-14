@@ -22,6 +22,7 @@ import { RecordingType } from 'teleport/services/recordings';
 const cfg = {
   isEnterprise: false,
   isCloud: false,
+  tunnelPublicAddress: '',
 
   baseUrl: window.location.origin,
 
