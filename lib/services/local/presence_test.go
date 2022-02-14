@@ -671,9 +671,11 @@ func TestListResources(t *testing.T) {
 				require.NoError(t, err)
 
 				resultResourcesLen += len(resources)
+				if resultResourcesLen == totalResources {
+					require.Empty(t, nextKey)
+				}
 				return resultResourcesLen == totalResources
 			}, time.Second, 100*time.Millisecond)
-			require.Empty(t, nextKey)
 
 			// list resources only with matching labels
 			resultResourcesWithLabelsLen := 0
@@ -688,9 +690,11 @@ func TestListResources(t *testing.T) {
 				require.NoError(t, err)
 
 				resultResourcesWithLabelsLen += len(resources)
+				if resultResourcesWithLabelsLen == totalWithLabels {
+					require.Empty(t, nextKey)
+				}
 				return resultResourcesWithLabelsLen == totalWithLabels
 			}, time.Second, 100*time.Millisecond)
-			require.Empty(t, nextKey)
 
 			// list resources only with matching search keywords
 			resultResourcesWithSearchKeywordsLen := 0
@@ -705,9 +709,11 @@ func TestListResources(t *testing.T) {
 				require.NoError(t, err)
 
 				resultResourcesWithSearchKeywordsLen += len(resources)
+				if resultResourcesWithSearchKeywordsLen == totalWithLabels {
+					require.Empty(t, nextKey)
+				}
 				return resultResourcesWithSearchKeywordsLen == totalWithLabels
 			}, time.Second, 100*time.Millisecond)
-			require.Empty(t, nextKey)
 
 			// list resources only with matching expression
 			resultResourcesWithMatchExprsLen := 0
@@ -722,9 +728,11 @@ func TestListResources(t *testing.T) {
 				require.NoError(t, err)
 
 				resultResourcesWithMatchExprsLen += len(resources)
+				if resultResourcesWithMatchExprsLen == totalWithLabels {
+					require.Empty(t, nextKey)
+				}
 				return resultResourcesWithMatchExprsLen == totalWithLabels
 			}, time.Second, 100*time.Millisecond)
-			require.Empty(t, nextKey)
 
 			// Test sorting by metadata.name, since not all resources support sorting:
 			sortBy := types.SortBy{Field: types.ResourceMetadataName, IsDesc: true}
@@ -743,9 +751,11 @@ func TestListResources(t *testing.T) {
 					require.NoError(t, err)
 
 					sortedResources = append(sortedResources, resources...)
+					if len(sortedResources) == totalResources {
+						require.Empty(t, nextKey)
+					}
 					return len(sortedResources) == totalResources
 				}, time.Second, 100*time.Millisecond)
-				require.Empty(t, nextKey)
 			}
 
 			// Test sorted resources are in the correct direction.
@@ -787,96 +797,182 @@ func TestListResources(t *testing.T) {
 	}
 }
 
-func TestFakePaginate(t *testing.T) {
+func TestListResources_Helpers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
-
+	namespace := apidefaults.Namespace
 	bend, err := lite.NewWithConfig(ctx, lite.Config{
 		Path:  t.TempDir(),
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	presence := NewPresenceService(bend)
+
+	tests := []struct {
+		name  string
+		fetch func(proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error)
+	}{
+		{
+			name: "listResources",
+			fetch: func(req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+				return presence.listResources(ctx, req)
+			},
+		},
+		{
+			name: "listResourcesWithSort",
+			fetch: func(req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+				return presence.listResourcesWithSort(ctx, req)
+			},
+		},
+		{
+			name: "FakePaginate",
+			fetch: func(req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+				nodes, err := presence.GetNodes(ctx, namespace)
+				require.NoError(t, err)
+
+				return FakePaginate(types.Servers(nodes).AsResources(), req)
+			},
+		},
+	}
+
+	t.Run("test fetching when there is 0 upserted nodes", func(t *testing.T) {
+		req := proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    namespace,
+			Limit:        5,
+		}
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				page, nextKey, err := tc.fetch(req)
+				require.NoError(t, err)
+				require.Empty(t, nextKey)
+				require.Empty(t, page)
+			})
+		}
+	})
 
 	// Add some test servers.
-	namespace := apidefaults.Namespace
-	presence := NewPresenceService(bend)
 	for i := 0; i < 20; i++ {
 		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
 		_, err = presence.UpsertNode(ctx, server)
 		require.NoError(t, err)
 	}
 
-	// Retrieve upserted nodes.
+	// Test servers have been inserted.
 	nodes, err := presence.GetNodes(ctx, namespace)
 	require.NoError(t, err)
 	require.Len(t, nodes, 20)
 
-	// First fetch.
-	resources := types.Servers(nodes).AsResources()
-	page, nextKey, err := FakePaginate(resources, proto.ListResourcesRequest{
-		ResourceType: types.KindNode,
-		Namespace:    namespace,
-		StartKey:     "",
-		Limit:        10,
+	t.Run("test invalid limit value", func(t *testing.T) {
+		req := proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    namespace,
+		}
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				_, _, err := tc.fetch(req)
+				require.True(t, trace.IsBadParameter(err))
+			})
+		}
 	})
-	require.NoError(t, err)
-	require.Len(t, page, 10)
-	require.Equal(t, resources[:10], page)
-	// Get the next key of the 10th element in slice.
-	expectedNextKey := backend.NextPaginationKey(resources[9])
-	require.Equal(t, expectedNextKey, nextKey)
 
-	// Middle fetch.
-	page, nextKey, err = FakePaginate(resources, proto.ListResourcesRequest{
-		ResourceType: types.KindNode,
-		Namespace:    namespace,
-		StartKey:     nextKey,
-		Limit:        5,
-	})
-	require.NoError(t, err)
-	require.Len(t, page, 5)
-	require.Equal(t, resources[10:15], page)
-	// Get the next key of the 15th element in slice.
-	expectedNextKey = backend.NextPaginationKey(resources[14])
-	require.Equal(t, expectedNextKey, nextKey)
+	t.Run("test retrieving entire list upfront", func(t *testing.T) {
+		req := proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    namespace,
+			Limit:        int32(len(nodes)),
+		}
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				page, nextKey, err := tc.fetch(req)
+				require.NoError(t, err)
+				require.Empty(t, nextKey)
 
-	// Last fetch.
-	page, nextKey, err = FakePaginate(resources, proto.ListResourcesRequest{
-		ResourceType: types.KindNode,
-		Namespace:    namespace,
-		StartKey:     nextKey,
-		Limit:        5,
+				fetchedNodes, err := types.ResourcesWithLabels(page).AsServers()
+				require.NoError(t, err)
+				require.Equal(t, nodes, fetchedNodes)
+			})
+		}
 	})
-	require.NoError(t, err)
-	require.Len(t, page, 5)
-	require.Equal(t, resources[15:20], page)
-	// Get the next key of the 20th element in slice.
-	expectedNextKey = backend.NextPaginationKey(resources[len(resources)-1])
-	require.Equal(t, expectedNextKey, nextKey)
 
-	// Fetch with no more data to be expected.
-	page, nextKey, err = FakePaginate(resources, proto.ListResourcesRequest{
-		ResourceType: types.KindNode,
-		Namespace:    namespace,
-		StartKey:     nextKey,
-		Limit:        5,
-	})
-	require.NoError(t, err)
-	require.Len(t, page, 0)
-	require.Empty(t, nextKey)
+	t.Run("test first, middle, last fetching", func(t *testing.T) {
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				// First fetch.
+				page, nextKey, err := tc.fetch(proto.ListResourcesRequest{
+					ResourceType: types.KindNode,
+					Namespace:    namespace,
+					Limit:        10,
+				})
+				require.NoError(t, err)
+				require.Len(t, page, 10)
 
-	// Test a filter.
-	targetVal := resources[14].GetName()
-	page, nextKey, err = FakePaginate(resources, proto.ListResourcesRequest{
-		ResourceType:   types.KindNode,
-		Namespace:      namespace,
-		StartKey:       "",
-		Limit:          1,
-		SearchKeywords: []string{targetVal},
+				fetchedNodes, err := types.ResourcesWithLabels(page).AsServers()
+				require.NoError(t, err)
+				require.Equal(t, nodes[:10], fetchedNodes)
+				require.Equal(t, backend.GetPaginationKey(nodes[10]), nextKey) // 11th item
+
+				// Middle fetch.
+				page, nextKey, err = tc.fetch(proto.ListResourcesRequest{
+					ResourceType: types.KindNode,
+					Namespace:    namespace,
+					StartKey:     nextKey,
+					Limit:        5,
+				})
+				require.NoError(t, err)
+				require.Len(t, page, 5)
+
+				fetchedNodes, err = types.ResourcesWithLabels(page).AsServers()
+				require.NoError(t, err)
+				require.Equal(t, nodes[10:15], fetchedNodes)
+				require.Equal(t, backend.GetPaginationKey(nodes[15]), nextKey) // 16th item
+
+				// Last fetch.
+				page, nextKey, err = presence.listResources(ctx, proto.ListResourcesRequest{
+					ResourceType: types.KindNode,
+					Namespace:    namespace,
+					StartKey:     nextKey,
+					Limit:        5,
+				})
+				require.NoError(t, err)
+				require.Len(t, page, 5)
+
+				fetchedNodes, err = types.ResourcesWithLabels(page).AsServers()
+				require.NoError(t, err)
+				require.Equal(t, nodes[15:20], fetchedNodes)
+				require.Empty(t, nextKey)
+			})
+		}
 	})
-	require.NoError(t, err)
-	require.Len(t, page, 1)
-	require.Equal(t, targetVal, page[0].GetName())
-	require.NotEmpty(t, nextKey)
+
+	t.Run("test one result filter", func(t *testing.T) {
+		targetVal := nodes[14].GetName()
+		req := proto.ListResourcesRequest{
+			ResourceType:   types.KindNode,
+			Namespace:      namespace,
+			StartKey:       "",
+			Limit:          5,
+			SearchKeywords: []string{targetVal},
+		}
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				page, nextKey, err := tc.fetch(req)
+				require.NoError(t, err)
+				require.Len(t, page, 1)
+				require.Equal(t, targetVal, page[0].GetName())
+				require.Empty(t, nextKey)
+			})
+		}
+	})
 }

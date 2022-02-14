@@ -1531,8 +1531,8 @@ func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResou
 }
 
 func (s *PresenceService) listResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
-	limit := int(req.Limit)
-	if limit <= 0 {
+	reqLimit := int(req.Limit)
+	if reqLimit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive limit value")
 	}
 
@@ -1565,10 +1565,12 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		PredicateExpression: req.PredicateExpression,
 	}
 
+	// Get most limit+1 results to determine if there will be a next key.
+	maxLimit := reqLimit + 1
 	var resources []types.ResourceWithLabels
-	err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, limit, func(items []backend.Item) (stop bool, err error) {
+	if err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, maxLimit, func(items []backend.Item) (stop bool, err error) {
 		for _, item := range items {
-			if len(resources) == limit {
+			if len(resources) == maxLimit {
 				break
 			}
 
@@ -1585,15 +1587,16 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 			}
 		}
 
-		return len(resources) == limit, nil
-	})
-	if err != nil {
+		return len(resources) == maxLimit, nil
+	}); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	var nextKey string
-	if len(resources) == limit {
-		nextKey = backend.NextPaginationKey(resources[len(resources)-1])
+	if len(resources) > reqLimit {
+		nextKey = backend.GetPaginationKey(resources[len(resources)-1])
+		// Truncate the last item that was used to determine next row existence.
+		resources = resources[:reqLimit]
 	}
 
 	return resources, nextKey, nil
@@ -1658,24 +1661,17 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 	if req.StartKey != "" {
 		pageStart := 0
 		for i, resource := range resources {
-			cKey := backend.GetPaginationKey(resource)
-			sKey := req.StartKey
-			cLen := len(cKey) - 1
-			sLen := len(sKey) - 1
-
-			// All chars in both key's should match minus the last character.
-			// (The last char of key is what we increment when we call `backend.NextPaginationKey`)
-			// When keys match, we can assume this is the key where we left of.
-			// The last character of the currKey should be less than the startKey.
-			if (cKey[0:cLen] == sKey[0:sLen]) && (cKey[cLen:] < sKey[sLen:]) {
-				pageStart = i + 1
+			if backend.GetPaginationKey(resource) == req.StartKey {
+				pageStart = i
 				break
 			}
 		}
 		resources = resources[pageStart:]
 	}
 
-	// Iterate and filter resources, halting when we reach page limit.
+	// Iterate and filter resources, finding match up to limit+1 (+1 to determine next key),
+	// and halting when we reach page limit.
+	var nextKey string
 	var filtered []types.ResourceWithLabels
 	filter := services.MatchResourceFilter{
 		ResourceKind:        req.ResourceType,
@@ -1685,21 +1681,19 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 	}
 
 	for _, resource := range resources {
-		if len(filtered) == limit {
-			break
-		}
-
 		switch match, err := services.MatchResourceByFilters(resource, filter); {
 		case err != nil:
 			return nil, "", trace.Wrap(err)
-		case match:
-			filtered = append(filtered, resource)
+		case !match:
+			continue
 		}
-	}
 
-	var nextKey string
-	if len(filtered) == limit {
-		nextKey = backend.NextPaginationKey(filtered[len(filtered)-1])
+		if len(filtered) == limit {
+			nextKey = backend.GetPaginationKey(resource)
+			break
+		}
+
+		filtered = append(filtered, resource)
 	}
 
 	return filtered, nextKey, nil
