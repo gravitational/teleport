@@ -78,7 +78,7 @@ func isDocChange(path string) bool {
 	path = strings.ToLower(path)
 	return strings.HasPrefix(path, "docs/") ||
 		strings.HasSuffix(path, ".mdx") ||
-		strings.HasSuffix(path, ".md") || 
+		strings.HasSuffix(path, ".md") ||
 		strings.HasPrefix(path, "rfd/")
 }
 

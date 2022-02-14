@@ -248,21 +248,15 @@ created above, plus `rds-db:connect`.
   </TabItem>
 </Tabs>
 
-### Attach policy and boundary to IAM identity
-
-Attach created policy and permission boundary to the IAM identity your Teleport
-database agent will be using. For example, if the agent runs as an IAM user:
-
-<Figure align="left">
-![IAM user](../../../img/database-access/guides/rds/iam@2x.png)
-</Figure>
+### Attach the policy and boundary to an IAM identity
+(!docs/pages/includes/database-access/attach-iam-policies.mdx!)
 
 <Admonition type="note" title="Self-managed IAM">
   If you prefer to self-manage IAM for your RDS databases, take a look at
   [AWS reference](../reference/aws.mdx) for details.
 </Admonition>
 
-## Step 4/6. Start database agent
+## Step 4/6. Start the database agent
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -273,7 +267,9 @@ teleport:
   data_dir: /var/lib/teleport
   auth_token: /tmp/token
   auth_servers:
-  - teleport.example.com:3080 # Teleport proxy address to connect to
+  # Teleport proxy address to connect to.
+  # For Teleport Cloud users, this will resemble mytenant.teleport.sh
+  - teleport.example.com:3080
 auth_service:
   enabled: "no"
 proxy_service:
@@ -303,7 +299,7 @@ policies for the discovered databases. Keep in mind that AWS IAM changes may
 not propagate immediately and can take a few minutes to come into effect.
 
 <Admonition type="note" title="AWS credentials">
-  Teleport database agent uses the default credential provider chain to find AWS
+  The Teleport database agent uses the default credential provider chain to find AWS
   credentials. See [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials)
   for more information.
 </Admonition>

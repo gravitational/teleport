@@ -1085,10 +1085,40 @@ func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter types.Sema
 }
 
 // UpsertKubeService registers kubernetes service presence.
+// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2.
 func (s *PresenceService) UpsertKubeService(ctx context.Context, server types.Server) error {
 	// TODO(awly): verify that no other KubeService has the same kubernetes
 	// cluster names with different labels to avoid RBAC check confusion.
 	return s.upsertServer(ctx, kubeServicesPrefix, server)
+}
+
+// UpsertKubeServiceV2 registers kubernetes service presence.
+func (s *PresenceService) UpsertKubeServiceV2(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lease, err := s.Put(ctx, backend.Item{
+		Key: backend.Key(kubeServicesPrefix,
+			server.GetName()),
+		Value:   value,
+		Expires: server.Expiry(),
+		ID:      server.GetResourceID(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if server.Expiry().IsZero() {
+		return &types.KeepAlive{}, nil
+	}
+	return &types.KeepAlive{
+		Type:    types.KeepAlive_KUBERNETES,
+		LeaseID: lease.ID,
+		Name:    server.GetName(),
+	}, nil
 }
 
 // GetKubeServices returns a list of registered kubernetes services.
@@ -1406,6 +1436,8 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 		key = backend.Key(dbServersPrefix, h.Namespace, h.HostID, h.Name)
 	case constants.KeepAliveWindowsDesktopService:
 		key = backend.Key(windowsDesktopServicesPrefix, h.Name)
+	case constants.KeepAliveKube:
+		key = backend.Key(kubeServicesPrefix, h.Name)
 	default:
 		return trace.BadParameter("unknown keep-alive type %q", h.GetType())
 	}
@@ -1512,6 +1544,12 @@ func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResou
 
 	rangeStart := backend.Key(append(keyPrefix, req.StartKey)...)
 	rangeEnd := backend.RangeEnd(backend.Key(keyPrefix...))
+	filter := services.MatchResourceFilter{
+		ResourceKind:        req.ResourceType,
+		Labels:              req.Labels,
+		SearchKeywords:      req.SearchKeywords,
+		PredicateExpression: req.PredicateExpression,
+	}
 
 	var resources []types.ResourceWithLabels
 	err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, limit, func(items []backend.Item) (stop bool, err error) {
@@ -1525,7 +1563,10 @@ func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResou
 				return false, trace.Wrap(err)
 			}
 
-			if !types.MatchLabels(resource, req.Labels) {
+			switch match, err := services.MatchResourceByFilters(resource, filter); {
+			case err != nil:
+				return false, trace.Wrap(err)
+			case !match:
 				continue
 			}
 

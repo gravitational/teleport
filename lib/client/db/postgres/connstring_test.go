@@ -75,7 +75,7 @@ func TestConnString(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.out, GetConnString(profile.ConnectProfile{
+			require.Equal(t, test.out, GetConnString(&profile.ConnectProfile{
 				Host:       host,
 				Port:       port,
 				User:       test.user,

@@ -189,7 +189,7 @@ type Config struct {
 	ProxySettings proxySettingsGetter
 }
 
-type WebAPIHandler struct {
+type APIHandler struct {
 	handler *Handler
 
 	// appHandler is a http.Handler to forward requests to applications.
@@ -198,7 +198,7 @@ type WebAPIHandler struct {
 
 // Check if this request should be forwarded to an application handler to
 // be handled by the UI and handle the request appropriately.
-func (h *WebAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// If the request is either to the fragment authentication endpoint or if the
 	// request is already authenticated (has a session cookie), forward to
 	// application handlers. If the request is unauthenticated and requesting a
@@ -215,12 +215,12 @@ func (h *WebAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.handler.ServeHTTP(w, r)
 }
 
-func (h *WebAPIHandler) Close() error {
+func (h *APIHandler) Close() error {
 	return h.handler.Close()
 }
 
 // NewHandler returns a new instance of web proxy handler
-func NewHandler(cfg Config, opts ...HandlerOption) (*WebAPIHandler, error) {
+func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
 	h := &Handler{
 		cfg:             cfg,
@@ -410,8 +410,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*WebAPIHandler, error) {
 	// Desktop access endpoints.
 	h.GET("/webapi/sites/:site/desktops", h.WithClusterAuth(h.getDesktopsHandle))
 	h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
-	// GET //webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
+	// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
 	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.desktopConnectHandle))
+	// GET /webapi/sites/:site/desktopplayback/:sid?access_token=<bearer_token>
+	h.GET("/webapi/sites/:site/desktopplayback/:sid", h.WithAuth(h.desktopPlaybackHandle))
 
 	// if Web UI is enabled, check the assets dir:
 	var indexPage *template.Template
@@ -518,7 +520,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*WebAPIHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &WebAPIHandler{
+	return &APIHandler{
 		handler:    h,
 		appHandler: appHandler,
 	}, nil
@@ -2318,7 +2320,7 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	authClient := h.cfg.ProxyClient
-	certs, err := authClient.RegisterUsingToken(req)
+	certs, err := authClient.RegisterUsingToken(r.Context(), &req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2397,7 +2399,7 @@ func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
-	validateResponse, err := h.auth.ValidateTrustedCluster(validateRequest)
+	validateResponse, err := h.auth.ValidateTrustedCluster(r.Context(), validateRequest)
 	if err != nil {
 		h.log.WithError(err).Error("Failed validating trusted cluster")
 		if trace.IsAccessDenied(err) {
