@@ -20,6 +20,7 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -114,17 +115,21 @@ func (e *Engine) processPubSub(ctx context.Context, pubSub *redis.PubSub) error 
 	for {
 		msg, err := pubSub.Receive(ctx)
 		if err != nil {
-			return err
+			if errors.Is(err, redis.ErrClosed) {
+				// connection has been closed, return no error.
+				return nil
+			}
+			return trace.Wrap(err)
 		}
 
 		switch msg := msg.(type) {
 		case *redis.Subscription:
 			if err := e.sendToClient([]interface{}{msg.Kind, msg.Channel, msg.Count}); err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 		case *redis.Pong:
 			if err := e.sendToClient([]interface{}{msg.Payload}); err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 		case *redis.Message:
 			var payloadResp []interface{}
@@ -142,11 +147,10 @@ func (e *Engine) processPubSub(ctx context.Context, pubSub *redis.PubSub) error 
 			}
 
 			if err := e.sendToClient(payloadResp); err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 		default:
-			err := fmt.Errorf("redis: unknown message: %T", msg)
-			return err
+			return trace.BadParameter("redis: unknown message: %T", msg)
 		}
 	}
 }
