@@ -44,6 +44,7 @@ message KeepAlive {
         APP = 2;
         DATABASE = 3;
         WINDOWS_DESKTOP = 4;
+        KUBERNETES = 5;
     }
     KeepAliveType Type = 9 [ (gogoproto.jsontag) = "type" ];
     // HostID is an optional UUID of the host the resource belongs to.
@@ -1955,6 +1956,16 @@ message WebauthnDevice {
     // Actual counter values received from the authenticator are expected to be
     // higher than the previously-stored value.
     uint32 signature_counter = 5;
+    // Raw attestation object, as returned by the authentication during
+    // registration.
+    // Absent for legacy entries (Teleport 8.x).
+    bytes attestation_object = 6;
+    // True if a resident key was requested during registration.
+    // Marks passwordless-capable devices.
+    // (Note that resident_key=true represents the server-side / Relying Party
+    // view of the registration process; the authenticator alone can determine
+    // if a key is truly resident.)
+    bool resident_key = 7;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
@@ -2733,9 +2744,6 @@ message RegisterUsingTokenRequest {
     // EC2IdentityDocument is used for the EC2 join method to prove the identity
     // of a joining EC2 instance.
     bytes EC2IdentityDocument = 10 [ (gogoproto.jsontag) = "ec2_id" ];
-    // STSIdentityRequest is used for the IAM join method to prove the AWS
-    // identity of a joining node.
-    bytes STSIdentityRequest = 11 [ (gogoproto.jsontag) = "-" ];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain

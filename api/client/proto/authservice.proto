@@ -1,4 +1,4 @@
-// Copyright 2021 Gravitational, Inc
+// Copyright 2021-2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,9 @@ package proto;
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+
+import "certs.proto";
+
 import "github.com/gravitational/teleport/api/types/types.proto";
 import "github.com/gravitational/teleport/api/types/webauthn/webauthn.proto";
 import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
@@ -143,18 +146,6 @@ message WatchKind {
     map<string, string> Filter = 4 [ (gogoproto.jsontag) = "filter,omitempty" ];
     // SubKind is a resource subkind to watch
     string SubKind = 5 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
-}
-
-// Set of certificates corresponding to a single public key.
-message Certs {
-    // SSH X509 cert (PEM-encoded).
-    bytes SSH = 1 [ (gogoproto.jsontag) = "ssh,omitempty" ];
-    // TLS X509 cert (PEM-encoded).
-    bytes TLS = 2 [ (gogoproto.jsontag) = "tls,omitempty" ];
-    // TLSCACerts is a list of TLS certificate authorities.
-    repeated bytes TLSCACerts = 3 [ (gogoproto.jsontag) = "tls_ca_certs,omitempty" ];
-    // SSHCACerts is a list of SSH certificate authorities.
-    repeated bytes SSHCACerts = 4 [ (gogoproto.jsontag) = "ssh_ca_certs,omitempty" ];
 }
 
 // HostCertsRequest specifies certificate-generation parameters
@@ -1595,7 +1586,12 @@ service AuthService {
         option deprecated = true;
     };
     // UpsertKubeService adds or updates a kubernetes service.
-    rpc UpsertKubeService(UpsertKubeServiceRequest) returns (google.protobuf.Empty);
+    // DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
+    rpc UpsertKubeService(UpsertKubeServiceRequest) returns (google.protobuf.Empty) {
+        option deprecated = true;
+    };
+    // UpsertKubeServiceV2 adds or updates a kubernetes service.
+    rpc UpsertKubeServiceV2(UpsertKubeServiceRequest) returns (types.KeepAlive);
     // DeleteKubeService removes a kubernetes service.
     rpc DeleteKubeService(DeleteKubeServiceRequest) returns (google.protobuf.Empty);
     // DeleteAllKubeServices removes all kubernetes services.
