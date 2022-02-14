@@ -41,9 +41,15 @@ $ tctl get roles
 
 A role definition looks like this:
 
+<Details title="Details title" min="8.3" opened>
+  The role example below uses `version: v4` for compatability reasons. Note that
+  the `join_sessions` and `require_session_join` fields are only supported on `version: v5` roles
+  which are otherwise identical to `version: v4`.
+</Details>
+
 ```yaml
 kind: role
-version: v5
+version: v4
 metadata:
   name: example
 spec:
@@ -230,12 +236,12 @@ that are more appropriately scoped.
 
 ### Role versions
 
-There are currently two supported role versions: `v3` and `v5`. `v5` roles are
+There are currently two supported role versions: `v3` and `v4`. `v4` roles are
 completely backwards-compatible with `v3`, the only difference lies in the
 default allow labels which will be applied to the role if they are not
 explicitly set.
 
-Label              | `v3` Default   | `v5` Default
+Label              | `v3` Default   | `v4` Default
 ------------------ | -------------- | ---------------
 `node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
 `app_labels`        | `[{"*": "*"}]` | `[]`
@@ -263,7 +269,7 @@ Access to any other nodes will be denied:
 
 ```yaml
 kind: role
-version: v5
+version: v4
 metadata:
   name: example-role
 spec:
@@ -293,7 +299,7 @@ Below are a few examples for more complex filtering using various regexes.
 
 ```yaml
 kind: role
-version: v5
+version: v4
 metadata:
   name: example-role
 spec:
@@ -370,7 +376,7 @@ downgrade they will become invalid.
 Role for restricted access to session recordings:
 
 ```yaml
-version: v5
+version: v4
 kind: role
 metadata:
   name: only-own-sessions
@@ -387,7 +393,7 @@ spec:
 Role for restricted access to active sessions:
 
 ```yaml
-version: v5
+version: v4
 kind: role
 metadata:
   name: only-own-ssh-sessions
