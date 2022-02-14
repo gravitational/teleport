@@ -694,7 +694,7 @@ func webauthnLocalAuthKey(user string) []byte {
 }
 
 func webauthnUserKey(id []byte) []byte {
-	key := base64.RawStdEncoding.EncodeToString(id)
+	key := base64.RawURLEncoding.EncodeToString(id)
 	return backend.Key(webauthnPrefix, usersPrefix, key)
 }
 
