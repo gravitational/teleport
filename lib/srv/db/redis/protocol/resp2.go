@@ -27,9 +27,9 @@ import (
 )
 
 // WriteCmd writes Redis commands passed as vals to Redis wire form.
-// Most types is covered by go-redis implemented WriteArg() function. Types override by this function are:
+// Most types are covered by go-redis implemented WriteArg() function. Types override by this function are:
 // * Redis errors and Go error: go-redis returns a "human-readable" string instead of RESP compatible error message
-// * integers: go-redis converts them to string, which is not always what we want to.
+// * integers: go-redis converts them to string, which is not always what we want.
 // * slices: arrays are recursively converted to RESP responses.
 func WriteCmd(wr *redis.Writer, vals interface{}) error {
 	switch val := vals.(type) {
@@ -151,7 +151,7 @@ func writeSlice(wr *redis.Writer, vals []interface{}) error {
 	return nil
 }
 
-// writeStringSlice converts []string to Redis wire form.
+// writeStringSlice converts a string slice to Redis wire form.
 func writeStringSlice(wr *redis.Writer, vals []string) error {
 	if err := wr.WriteByte(redis.ArrayReply); err != nil {
 		return trace.Wrap(err)

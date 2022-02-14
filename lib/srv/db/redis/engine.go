@@ -62,8 +62,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 	e.clientReader = redis.NewReader(clientConn)
 	e.sessionCtx = sessionCtx
 
-	// Let client to not set the database user, as Redis uses default user "default" if a user
-	// is not provided.
+	// Use Redis default user named "default" if a user is not provided.
 	if e.sessionCtx.DatabaseUser == "" {
 		e.sessionCtx.DatabaseUser = defaults.DefaultRedisUsername
 	}
@@ -71,7 +70,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 	return nil
 }
 
-// authorizeConnection does authorization check for MongoDB connection about
+// authorizeConnection does authorization check for Redis connection about
 // to be established.
 func (e *Engine) authorizeConnection(ctx context.Context) error {
 	ap, err := e.Auth.GetAuthPreference(ctx)
@@ -128,7 +127,7 @@ func (e *Engine) sendToClient(vals interface{}) error {
 	return nil
 }
 
-// HandleConnection is responsible for connecting to a Redis instance/cluster and
+// HandleConnection is responsible for connecting to a Redis instance/cluster.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	// Check that the user has access to the database.
 	err := e.authorizeConnection(ctx)

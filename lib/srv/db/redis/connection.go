@@ -44,7 +44,7 @@ type ConnectionMode string
 const (
 	// Standalone mode should be used when connecting to a single Redis instance.
 	Standalone ConnectionMode = "standalone"
-	// Cluster mode should be used then connecting to a Redis Cluster.
+	// Cluster mode should be used when connecting to a Redis Cluster.
 	Cluster ConnectionMode = "cluster"
 )
 

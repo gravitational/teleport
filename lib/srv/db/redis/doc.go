@@ -19,7 +19,7 @@ limitations under the License.
 // Redis standalone or Redis clusters.
 //
 // After accepting a connection from a Redis client and authorizing it, the proxy dials to the database
-// service agent over reverse tunnel which dials to the target Redis instance.
+// service agent over a reverse tunnel which dials to the target Redis instance.
 // Unfortunately, Redis 6 (the latest at the moment of writing) only supports password authentication.
 // As Teleport doesn't support password authentication we only authenticate Redis user and leave password
 // authentication to the client.
