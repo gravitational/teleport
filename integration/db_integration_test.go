@@ -18,10 +18,17 @@ package integration
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"fmt"
 	"net"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -35,12 +42,14 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
 	"github.com/siddontang/go-mysql/client"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -208,6 +217,59 @@ func TestDatabaseAccessMongoRootCluster(t *testing.T) {
 	// Disconnect.
 	err = client.Disconnect(context.Background())
 	require.NoError(t, err)
+}
+
+func TestDatabaseAccessRedisRootCluster(t *testing.T) {
+	pack := setupDatabaseTest(t)
+
+	serverConfig := common.TestServerConfig{
+		AuthClient: pack.root.dbAuthClient,
+		Name:       pack.root.redisService.Name,
+		Address:    pack.root.redisAddr,
+	}
+
+	startRedis(t, serverConfig)
+
+	config := &common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.redisService.Name,
+			Protocol:    pack.root.redisService.Protocol,
+			Username:    "admin",
+		},
+	}
+
+	ctx := context.Background()
+
+	db, err := redis.MakeTestClient(ctx, *config)
+	require.NoError(t, err)
+
+	err = db.Ping(ctx).Err()
+	require.NoError(t, err)
+
+	t.Run("get/set", func(t *testing.T) {
+		err = db.Set(ctx, "testKey1", "abc", 0).Err()
+		require.NoError(t, err)
+
+		resp := db.Get(ctx, "testKey1")
+		require.NoError(t, resp.Err())
+		resVal, err := resp.Result()
+		require.NoError(t, err)
+		require.Equal(t, "abc", resVal)
+	})
+
+	t.Run("keys", func(t *testing.T) {
+		resp := db.Keys(ctx, "*")
+		require.NoError(t, resp.Err())
+		resVal, err := resp.Result()
+		require.NoError(t, err)
+		require.Len(t, resVal, 1)
+		require.Equal(t, "testKey1", resVal[0])
+	})
 }
 
 // TestDatabaseAccessMongoLeafCluster tests a scenario where a user connects
@@ -473,6 +535,9 @@ type databaseClusterPack struct {
 	mongoService    service.Database
 	mongoAddr       string
 	mongo           *mongodb.TestServer
+
+	redisService service.Database
+	redisAddr    string
 }
 
 type testOptions struct {
@@ -551,6 +616,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
 			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
 			mongoAddr:    net.JoinHostPort("localhost", ports.Pop()),
+			redisAddr:    net.JoinHostPort("localhost", ports.Pop()),
 		},
 		leaf: databaseClusterPack{
 			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
@@ -655,6 +721,11 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		Protocol: defaults.ProtocolMongoDB,
 		URI:      p.root.mongoAddr,
 	}
+	p.root.redisService = service.Database{
+		Name:     "root-redis",
+		Protocol: defaults.ProtocolRedis,
+		URI:      p.root.redisAddr,
+	}
 	rdConf := service.MakeDefaultConfig()
 	rdConf.DataDir = t.TempDir()
 	rdConf.Token = "static-token-value"
@@ -669,6 +740,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.root.postgresService,
 		p.root.mysqlService,
 		p.root.mongoService,
+		p.root.redisService,
 	}
 	rdConf.Clock = p.clock
 	p.root.dbProcess, p.root.dbAuthClient, err = p.root.cluster.StartDatabase(rdConf)
@@ -851,4 +923,110 @@ func containsDB(servers []types.DatabaseServer, name string) bool {
 		}
 	}
 	return false
+}
+
+// makeTestServerTLSConfig returns private key, client cert and CA as PEM files.
+func makeTestServerTLSConfig(config common.TestServerConfig) ([]byte, []byte, []byte, error) {
+	cn := config.CN
+	if cn == "" {
+		cn = "localhost"
+	}
+	privateKey, _, err := testauthority.New().GenerateKeyPair("")
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{
+		CommonName: cn,
+	}, privateKey)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+	resp, err := config.AuthClient.GenerateDatabaseCert(context.Background(),
+		&proto.DatabaseCertRequest{
+			CSR:        csr,
+			ServerName: cn,
+			TTL:        proto.Duration(time.Hour),
+		})
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+	cert, err := tls.X509KeyPair(resp.Cert, privateKey)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	cas := make([]byte, 0)
+	for _, ca := range resp.CACerts {
+		cas = append(cas, ca...)
+	}
+
+	certPem := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: cert.Certificate[0],
+		},
+	)
+
+	return privateKey, certPem, cas, nil
+}
+
+func startRedis(t *testing.T, config common.TestServerConfig) {
+	var err error
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err, "could not connect to docker")
+
+	certDir := t.TempDir()
+
+	privPem, cert, cas, err := makeTestServerTLSConfig(config)
+	require.NoError(t, err)
+
+	err = os.WriteFile(fmt.Sprintf("%s/server.key", certDir), privPem, 0600)
+	require.NoError(t, err)
+
+	err = os.WriteFile(fmt.Sprintf("%s/server.crt", certDir), cert, 0600)
+	require.NoError(t, err)
+
+	err = os.WriteFile(fmt.Sprintf("%s/server.cas", certDir), cas, 0600)
+	require.NoError(t, err)
+
+	_, port, err := net.SplitHostPort(config.Address)
+	require.NoError(t, err)
+
+	// Run docker with Redis.
+	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
+		Repository: "redis",
+		Tag:        "6.2",
+		// change user uid and gid. Redis runs as 999 user, and it will
+		// most likely refuse to load keys with different uid.
+		User: fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
+		Mounts: []string{
+			fmt.Sprintf("%s/server.crt:/certs/server.crt:ro", certDir),
+			fmt.Sprintf("%s/server.key:/certs/server.key:ro", certDir),
+			fmt.Sprintf("%s/server.cas:/certs/server.cas:ro", certDir),
+		},
+		Cmd: []string{
+			"--port", "0",
+			"--tls-port", "6379",
+			"--tls-cert-file", "/certs/server.crt",
+			"--tls-key-file", "/certs/server.key",
+			"--tls-ca-cert-file", "/certs/server.cas",
+		},
+		PortBindings: map[docker.Port][]docker.PortBinding{
+			"6379/tcp": {{HostPort: port}},
+		},
+	}, func(config *docker.HostConfig) {
+		// set AutoRemove to true so that stopped container goes away by itself
+		config.AutoRemove = true
+		config.RestartPolicy = docker.RestartPolicy{
+			Name: "no",
+		}
+	})
+	require.NoError(t, err, "could not start resource")
+
+	t.Cleanup(func() {
+		// When you're done, kill and remove the container
+		if err = pool.Purge(resource); err != nil {
+			t.Fatalf("Could not purge resource: %s", err)
+		}
+	})
 }
