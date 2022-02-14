@@ -21,12 +21,12 @@ import (
 	"github.com/gravitational/trace"
 )
 
-type WebSocketIO struct {
+type WebsocketIO struct {
 	Conn      *websocket.Conn
 	remaining []byte
 }
 
-func (ws *WebSocketIO) Write(p []byte) (int, error) {
+func (ws *WebsocketIO) Write(p []byte) (int, error) {
 	err := ws.Conn.WriteMessage(websocket.BinaryMessage, p)
 	if err != nil {
 		return 0, trace.Wrap(err)
@@ -35,7 +35,7 @@ func (ws *WebSocketIO) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func (ws *WebSocketIO) Read(p []byte) (int, error) {
+func (ws *WebsocketIO) Read(p []byte) (int, error) {
 	if len(ws.remaining) == 0 {
 		ty, data, err := ws.Conn.ReadMessage()
 		if err != nil {
@@ -53,6 +53,6 @@ func (ws *WebSocketIO) Read(p []byte) (int, error) {
 	return copied, nil
 }
 
-func (ws *WebSocketIO) Close() error {
+func (ws *WebsocketIO) Close() error {
 	return trace.Wrap(ws.Conn.Close())
 }

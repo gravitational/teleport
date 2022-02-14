@@ -157,7 +157,7 @@ func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
 	}
 
 	errs := make(chan error, 2)
-	stream := &WebSocketIO{Conn: ws}
+	stream := &WebsocketIO{Conn: ws}
 	go func() {
 		defer closeOnce.Do(close)
 

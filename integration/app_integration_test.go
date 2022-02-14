@@ -1372,7 +1372,7 @@ func (p *pack) makeWebsocketRequest(sessionCookie, endpoint string) (string, err
 	}
 	defer conn.Close()
 	defer resp.Body.Close()
-	stream := &web.WebSocketIO{Conn: conn}
+	stream := &web.WebsocketIO{Conn: conn}
 	data, err := io.ReadAll(stream)
 	if err != nil && websocket.IsUnexpectedCloseError(err, websocket.CloseAbnormalClosure) {
 		return "", err
