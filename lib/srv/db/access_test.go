@@ -883,59 +883,93 @@ func TestRedisGetSet(t *testing.T) {
 }
 
 func TestRedisPubSub(t *testing.T) {
-	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
-	go testCtx.startHandlingConnections()
+	tests := []struct {
+		name        string
+		subscribeFn func(ctx context.Context, client *redis.Client) *goredis.PubSub
+		verifyMsg   func(t *testing.T, msg *goredis.Message)
+	}{
+		{
+			name: "subscribe",
+			subscribeFn: func(ctx context.Context, client *redis.Client) *goredis.PubSub {
+				return client.Subscribe(ctx, "foo")
+			},
+			verifyMsg: func(t *testing.T, msg *goredis.Message) {
+				require.Equal(t, "foo", msg.Channel)
+				require.Equal(t, "bar", msg.Payload)
+			},
+		},
+		{
+			name: "psubscribe",
+			subscribeFn: func(ctx context.Context, client *redis.Client) *goredis.PubSub {
+				return client.PSubscribe(ctx, "fo?")
+			},
+			verifyMsg: func(t *testing.T, msg *goredis.Message) {
+				require.Equal(t, "foo", msg.Channel)
+				require.Equal(t, "fo?", msg.Pattern)
+				require.Equal(t, "bar", msg.Payload)
+			},
+		},
+	}
 
-	// Create user/role with the requested permissions.
-	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+	for _, tt := range tests {
+		tt := tt
 
-	// Try to connect to the database as this user.
-	redisClient, err := testCtx.redisClient(ctx, "alice", "redis", "admin")
-	require.NoError(t, err)
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
+			go testCtx.startHandlingConnections()
 
-	var fooSub *goredis.PubSub
-	// Create a synchronisation channel between publisher and subscriber
-	syncChan := make(chan bool)
+			// Create user/role with the requested permissions.
+			testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
 
-	go func() {
-		fooSub = redisClient.Subscribe(ctx, "foo")
-		// If one of the checks fails the syncChan will be closed. If the main goroutine is waiting for a response
-		// it will be unblocked, and it will fail the test.
-		defer func() {
-			fooSub.Close()
-			close(syncChan)
-		}()
+			// Try to connect to the database as this user.
+			redisClient, err := testCtx.redisClient(ctx, "alice", "redis", "admin")
+			require.NoError(t, err)
 
-		event, err := fooSub.Receive(ctx)
-		require.NoError(t, err)
-		require.IsType(t, &goredis.Subscription{}, event)
-		syncChan <- true
+			var fooSub *goredis.PubSub
+			// Create a synchronisation channel between publisher and subscriber
+			syncChan := make(chan bool)
 
-		event, err = fooSub.Receive(ctx)
-		require.NoError(t, err)
+			go func() {
+				fooSub = tt.subscribeFn(ctx, redisClient)
+				// If one of the checks fails the syncChan will be closed. If the main goroutine is waiting for a response
+				// it will be unblocked, and it will fail the test.
+				defer func() {
+					fooSub.Close()
+					close(syncChan)
+				}()
 
-		msg, ok := event.(*goredis.Message)
-		require.True(t, ok, "Redis message has a wrong type")
-		require.Equal(t, "bar", msg.Payload)
-		syncChan <- true
-	}()
+				event, err := fooSub.Receive(ctx)
+				require.NoError(t, err)
+				require.IsType(t, &goredis.Subscription{}, event)
+				syncChan <- true
 
-	// Wait for a subscription to be active.
-	require.True(t, <-syncChan)
-	err = redisClient.Publish(ctx, "foo", "bar").Err()
-	require.NoError(t, err)
-	// Wait for a message to be received in subscribed goroutine.
-	require.True(t, <-syncChan)
+				event, err = fooSub.Receive(ctx)
+				require.NoError(t, err)
 
-	// Check if the connection is still active
-	resp := redisClient.Echo(ctx, "ping")
-	require.NoError(t, resp.Err())
-	require.Equal(t, "ping", resp.Val())
+				msg, ok := event.(*goredis.Message)
+				require.True(t, ok, "Redis message has a wrong type")
+				tt.verifyMsg(t, msg)
+				syncChan <- true
+			}()
 
-	// Disconnect.
-	err = redisClient.Close()
-	require.NoError(t, err)
+			// Wait for a subscription to be active.
+			require.True(t, <-syncChan)
+			err = redisClient.Publish(ctx, "foo", "bar").Err()
+			require.NoError(t, err)
+			// Wait for a message to be received in subscribed goroutine.
+			require.True(t, <-syncChan)
+
+			// Check if the connection is still active
+			resp := redisClient.Echo(ctx, "ping")
+			require.NoError(t, resp.Err())
+			require.Equal(t, "ping", resp.Val())
+
+			// Disconnect.
+			err = redisClient.Close()
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestRedisPipeline(t *testing.T) {
