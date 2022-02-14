@@ -193,13 +193,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.GET("/:version/namespaces/:namespace", srv.withAuth(srv.getNamespace))
 	srv.DELETE("/:version/namespaces/:namespace", srv.withAuth(srv.deleteNamespace))
 
-	// Roles - Moved to grpc
-	// DELETE IN 7.0
-	srv.POST("/:version/roles", srv.withAuth(srv.upsertRole))
-	srv.GET("/:version/roles", srv.withAuth(srv.getRoles))
-	srv.GET("/:version/roles/:role", srv.withAuth(srv.getRole))
-	srv.DELETE("/:version/roles/:role", srv.withAuth(srv.deleteRole))
-
 	// cluster configuration
 	srv.GET("/:version/configuration/name", srv.withAuth(srv.getClusterName))
 	srv.POST("/:version/configuration/name", srv.withAuth(srv.setClusterName))
@@ -2219,77 +2212,6 @@ func (s *APIServer) deleteNamespace(auth ClientI, w http.ResponseWriter, r *http
 
 type upsertRoleRawReq struct {
 	Role json.RawMessage `json:"role"`
-}
-
-// DELETE IN 7.0
-func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertRoleRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	role, err := services.UnmarshalRole(req.Role)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = services.ValidateRole(role); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = auth.UpsertRole(r.Context(), role)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("'%v' role upserted", role.GetName())), nil
-}
-
-// DELETE IN 7.0
-func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	role, err := auth.GetRole(r.Context(), p.ByName("role"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roleV4, ok := role.(*types.RoleV4)
-	if !ok {
-		return nil, trace.BadParameter("unrecognized role version")
-	}
-	downgraded, err := downgradeRole(context.Background(), roleV4)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rawMessage(services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID()))
-}
-
-// DELETE IN 7.0
-func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	roles, err := auth.GetRoles(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out := make([]json.RawMessage, len(roles))
-	for i, role := range roles {
-		roleV4, ok := role.(*types.RoleV4)
-		if !ok {
-			return nil, trace.BadParameter("unrecognized role version")
-		}
-		downgraded, err := downgradeRole(r.Context(), roleV4)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		raw, err := services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out[i] = raw
-	}
-	return out, nil
-}
-
-// DELETE IN 7.0
-func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	role := p.ByName("role")
-	if err := auth.DeleteRole(r.Context(), role); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("role %q deleted", role)), nil
 }
 
 func (s *APIServer) getClusterName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

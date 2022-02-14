@@ -485,7 +485,7 @@ func (s *ServicesTestSuite) AppServerCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	server.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, out, []types.Server{server})
+	fixtures.DeepCompare(c, []types.Server{server}, out)
 
 	// Remove the application.
 	err = s.PresenceS.DeleteAppServer(ctx, server.Metadata.Namespace, server.GetName())
@@ -686,14 +686,14 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
-	role := types.RoleV4{
+	role := types.RoleV5{
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      "role1",
 			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
 				MaxSessionTTL:     types.Duration(time.Hour),
 				PortForwarding:    types.NewBoolOption(true),
@@ -1536,7 +1536,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Kind: types.KindRole,
 			},
 			crud: func(context.Context) types.Resource {
-				role, err := types.NewRole("role1", types.RoleSpecV4{
+				role, err := types.NewRole("role1", types.RoleSpecV5{
 					Options: types.RoleOptions{
 						MaxSessionTTL: types.Duration(time.Hour),
 					},
