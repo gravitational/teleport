@@ -172,7 +172,7 @@ KUBECONFIG ?=
 TEST_KUBE ?=
 export
 
-TEST_LOG_DIR = ${realpath ./test-logs}
+TEST_LOG_DIR = ${abspath ./test-logs}
 
 #
 # 'make all' builds all 3 executables and places them in the current directory.
@@ -445,7 +445,7 @@ docs-test-whitespace:
 #
 # Builds some tooling for filtering and displaying test progress/output/etc
 #
-RENDER_TESTS := ${realpath ./build.assets/tooling/bin/render-tests}
+RENDER_TESTS := ${abspath ./build.assets/tooling/bin/render-tests}
 $(RENDER_TESTS): $(wildcard ./build.assets/tooling/cmd/render-tests/*.go)
 	go build -o "$@" ./build.assets/tooling/cmd/render-tests
 
