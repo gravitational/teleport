@@ -94,12 +94,11 @@ type fakeStreamer struct {
 }
 
 func (f fakeStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	errors := make(chan error)
+	errors := make(chan error, 1)
 	events := make(chan apievents.AuditEvent)
 
 	go func() {
 		defer close(events)
-		defer close(errors)
 
 		for _, event := range f.events {
 			if f.interval != 0 {
