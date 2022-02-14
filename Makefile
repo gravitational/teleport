@@ -439,6 +439,9 @@ docs-test-whitespace:
 		exit 1; \
 	fi
 
+
+
+
 #
 # Builds some tooling for filtering and displaying test progress/output/etc
 #
@@ -450,7 +453,7 @@ $(RENDER_TESTS): $(wildcard ./build.assets/tooling/cmd/render-tests/*.go)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-sh test-api test-go test-rust
+test: test-sh test-ci test-api test-go test-rust
 
 # Runs bot Go tests.
 #
@@ -475,17 +478,17 @@ test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirna
 test-go: $(VERSRC) $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
-		| $(RENDER_TESTS)
+		| ${RENDER_TESTS}
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| tee $(TEST_LOG_DIR)/chaos.json \
-		| $(RENDER_TESTS)
+		| ${RENDER_TESTS}
 
 .PHONY: test-ci
 test-ci: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	(cd .cloudbuild/scripts && \
 		go test -cover -json ./... \
 		| tee $(TEST_LOG_DIR)/ci.json \
-		| $(RENDER_TESTS))
+		| ${RENDER_TESTS})
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
@@ -498,7 +501,7 @@ test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v integration
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 		| tee $(TEST_LOG_DIR)/unit-root.json \
-		| $(RENDER_TESTS)
+		| ${RENDER_TESTS}
 
 #
 # Runs Go tests on the api module. These have to be run separately as the package name is different.
@@ -510,7 +513,7 @@ test-api: PACKAGES = $(shell cd api && go list ./...)
 test-api: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/api.json \
-		| $(RENDER_TESTS)
+		| ${RENDER_TESTS}
 
 #
 # Runs cargo test on our Rust modules.

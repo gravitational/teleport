@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
@@ -42,12 +41,12 @@ func main() {
 }
 
 type commandlineArgs struct {
-	workspace    string
-	targetBranch string
-	commitSHA    string
-	buildID      string
-	artifacts    customflag.StringArray
-	bucket       string
+	workspace              string
+	targetBranch           string
+	commitSHA              string
+	buildID                string
+	artifactSearchPatterns customflag.StringArray
+	bucket                 string
 }
 
 func parseCommandLine() (commandlineArgs, error) {
@@ -58,7 +57,7 @@ func parseCommandLine() (commandlineArgs, error) {
 	flag.StringVar(&args.commitSHA, "commit", "HEAD", "The PR's latest commit SHA")
 	flag.StringVar(&args.buildID, "build", "", "The build ID")
 	flag.StringVar(&args.bucket, "bucket", "", "The artifact storage bucket.")
-	flag.Var(&args.artifacts, "a", "Path to artifacts. May be globbed, and have multiple entries.")
+	flag.Var(&args.artifactSearchPatterns, "a", "Path to artifacts. May be globbed, and have multiple entries.")
 
 	flag.Parse()
 
@@ -80,7 +79,7 @@ func parseCommandLine() (commandlineArgs, error) {
 		return args, trace.Errorf("commit must be set")
 	}
 
-	if len(args.artifacts) > 0 {
+	if len(args.artifactSearchPatterns) > 0 {
 		if args.buildID == "" {
 			return args, trace.Errorf("build ID required to upload artifacts")
 		}
@@ -89,9 +88,9 @@ func parseCommandLine() (commandlineArgs, error) {
 			return args, trace.Errorf("storage bucket required to upload artifacts")
 		}
 
-		// make sure the artifact patterns are rooted in the workspace
-		for i, pattern := range args.artifacts {
-			args.artifacts[i] = path.Join(args.workspace, pattern)
+		args.artifactSearchPatterns, err = artifacts.ValidatePatterns(args.workspace, args.artifactSearchPatterns)
+		if err != nil {
+			return args, trace.Wrap(err, "Bad artefact search path")
 		}
 	}
 
@@ -129,7 +128,7 @@ func run() error {
 	// produced by the build
 	defer func() {
 		prefix := fmt.Sprintf("%s/artifacts", args.buildID)
-		artifacts.FindAndUpload(cancelCtx, args.bucket, prefix, args.artifacts)
+		artifacts.FindAndUpload(cancelCtx, args.bucket, prefix, args.artifactSearchPatterns)
 	}()
 
 	log.Printf("Running unit tests...")
