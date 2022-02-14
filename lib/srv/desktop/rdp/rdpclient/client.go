@@ -246,6 +246,12 @@ func (c *Client) start() {
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
 		if err := cgoError(C.read_rdp_output(c.rustClient)); err != nil {
 			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
+
+			// close the TDP connection to the browser
+			// (without this the input streaming goroutine will hang
+			// waiting for user input)
+			c.cfg.Conn.SendError("There was an error reading data from the Windows Desktop")
+			c.cfg.Conn.Close()
 		}
 	}()
 
