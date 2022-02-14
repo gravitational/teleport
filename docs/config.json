@@ -238,7 +238,8 @@
             { "title": "Second Factor - WebAuthn", "slug": "/access-controls/guides/webauthn/" },
             { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },
             { "title": "Dual Authorization", "slug": "/access-controls/guides/dual-authz/" },
-            { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" }
+            { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" },
+            { "title": "Moderated Sessions", "slug": "/access-controls/guides/moderated-sessions/" }
           ]
         },
         { "title": "Reference", "slug": "/access-controls/reference/" },
@@ -318,6 +319,22 @@
         { "title": "Teleport Proxy", "slug": "/architecture/proxy/" },
         { "title": "Trusted Clusters", "slug": "/trustedclusters/" },
         { "title": "TLS Routing", "slug": "/architecture/tls-routing/" }
+      ]
+    },
+    {
+      "icon": "wrench",
+      "title": "Contribute",
+      "entries": [
+        {
+          "title": "Documentation",
+          "slug": "/contributing/documentation/",
+          "entries":[
+            { "title": "How to Contribute", "slug": "/contributing/documentation/how-to-contribute/" },
+            { "title": "Creating documentation issues", "slug": "/contributing/documentation/issues/"},
+            { "title": "Style Guide", "slug": "/contributing/documentation/style-guide/" },
+            { "title": "UI Reference", "slug": "/contributing/documentation/reference/" }
+          ]
+        }
       ]
     }
   ],
@@ -573,6 +590,16 @@
     {
       "source": "/database-access/guides/mysql-aws/",
       "destination": "/database-access/guides/rds/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/",
+      "destination": "/contributing/documentation/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/best-practices/",
+      "destination": "/contributing/documentation/",
       "permanent": true
     }
   ]

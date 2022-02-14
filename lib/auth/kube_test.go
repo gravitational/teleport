@@ -20,15 +20,18 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/rand"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
-func (s *AuthSuite) TestProcessKubeCSR(c *check.C) {
+func TestProcessKubeCSR(t *testing.T) {
+	t.Parallel()
+	s := newAuthSuite(t)
 	const (
 		username = "bob"
 		roleA    = "user:bob"
@@ -46,10 +49,10 @@ func (s *AuthSuite) TestProcessKubeCSR(c *check.C) {
 		TeleportCluster:  s.clusterName.GetClusterName(),
 	}
 	subj, err := userID.Subject()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	pemCSR, err := newTestCSR(subj)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	csr := KubeCSR{
 		Username:    username,
 		ClusterName: s.clusterName.GetClusterName(),
@@ -58,31 +61,31 @@ func (s *AuthSuite) TestProcessKubeCSR(c *check.C) {
 
 	// CSR with unknown roles.
 	_, err = s.a.ProcessKubeCSR(csr)
-	c.Assert(err, check.NotNil)
-	c.Assert(trace.IsNotFound(err), check.Equals, true)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
 
 	// Create the user and allow it to request the additional role.
 	_, err = CreateUserRoleAndRequestable(s.a, username, roleB)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// CSR with allowed, known roles.
 	resp, err := s.a.ProcessKubeCSR(csr)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	cert, err := tlsca.ParseCertificatePEM(resp.Cert)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	// Note: we could compare cert.Subject with subj here directly.
 	// However, because pkix.Name encoding/decoding isn't symmetric (ExtraNames
 	// before encoding becomes Names after decoding), they wouldn't match.
 	// Therefore, convert back to Identity, which handles this oddity and
 	// should match.
 	gotUserID, err := tlsca.FromSubject(cert.Subject, time.Time{})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	wantUserID := userID
 	// Auth server should overwrite the Usage field and enforce UsageKubeOnly.
 	wantUserID.Usage = []string{teleport.UsageKubeOnly}
-	c.Assert(*gotUserID, check.DeepEquals, wantUserID)
+	require.Equal(t, *gotUserID, wantUserID)
 }
 
 // newTestCSR creates and PEM-encodes an x509 CSR with given subject.
