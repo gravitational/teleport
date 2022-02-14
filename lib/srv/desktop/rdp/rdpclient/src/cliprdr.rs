@@ -102,8 +102,32 @@ impl Client {
     /// It updates the local clipboard cache and returns the encoded message
     /// that should be sent to the RDP server.
     pub fn update_clipboard(&mut self, data: Vec<u8>) -> RdpResult<Vec<u8>> {
+        const CR: u8 = 13;
+        const LF: u8 = 10;
+
+        // convert LF to CRLF, as required by CF_OEMTEXT
+        let len_orig = data.len();
+        let mut converted = Vec::with_capacity(len_orig);
+        for i in 0..len_orig {
+            match data[i] {
+                LF => {
+                    // convert LF to CRLF, so long as the previous character
+                    // wasn't CR (in which case there's no conversion necessary)
+                    if i == 0 || (data[i - 1] != CR) {
+                        converted.push(CR);
+                    }
+                    converted.push(LF);
+                }
+                _ => converted.push(data[i]),
+            }
+        }
+        // Windows requires a null terminator, so add one if necessary
+        if !converted.is_empty() && converted[converted.len() - 1] != 0x00 {
+            converted.push(0x00);
+        }
+
         self.clipboard
-            .insert(ClipboardFormat::CF_OEMTEXT as u32, data);
+            .insert(ClipboardFormat::CF_OEMTEXT as u32, converted);
 
         encode_message(
             ClipboardPDUType::CB_FORMAT_LIST,
@@ -248,14 +272,20 @@ impl Client {
         length: u32,
     ) -> RdpResult<Vec<Vec<u8>>> {
         let resp = FormatDataResponsePDU::decode(payload, length)?;
+        let data_len = resp.data.len();
         debug!(
-            "recieved {} bytes of copied data from Windows Desktop: {:?}",
-            resp.data.len(),
-            std::str::from_utf8(resp.data.as_ref()),
+            "recieved {} bytes of copied data from Windows Desktop",
+            data_len,
         );
 
-        (self.on_remote_copy)(resp.data);
+        // trim the null-terminator, if it exists
+        // (but don't worry about CRLF conversion, most non-Windows systems can handle CRLF well enough)
+        let mut data = resp.data;
+        if !data.is_empty() && data[data.len() - 1] == 0x00 {
+            data.truncate(data.len() - 1);
+        }
 
+        (self.on_remote_copy)(data);
         Ok(vec![])
     }
 }
@@ -954,7 +984,7 @@ mod tests {
         }));
 
         let data_resp = FormatDataResponsePDU {
-            data: String::from("abc").into_bytes(),
+            data: String::from("abc\0").into_bytes(),
         }
         .encode()
         .unwrap();
@@ -964,6 +994,7 @@ mod tests {
         c.handle_format_data_response(&mut Cursor::new(data_resp), len as u32)
             .unwrap();
 
+        // ensure that the null terminator was trimmed
         let received = recv.try_recv().unwrap();
         assert_eq!(received, String::from("abc").into_bytes());
     }
@@ -989,11 +1020,34 @@ mod tests {
         );
 
         // verify that the clipboard data is now cached
+        // (with a null-terminating character)
         assert_eq!(
-            String::from("abc").into_bytes(),
+            String::from("abc\0").into_bytes(),
             *c.clipboard
                 .get(&(ClipboardFormat::CF_OEMTEXT as u32))
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn update_clipboard_conversion() {
+        for (input, expected) in &[
+            ("abc\0", "abc\0"),       // already null-terminated, no conversion necessary
+            ("\n123", "\r\n123\0"),   // starts with LF
+            ("def\r\n", "def\r\n\0"), // already CRLF, no conversion necessary
+            ("gh\r\nij\nk", "gh\r\nij\r\nk\0"), // mixture of both
+        ] {
+            let mut c: Client = Default::default();
+            c.update_clipboard(String::from(*input).into_bytes())
+                .unwrap();
+            assert_eq!(
+                String::from(*expected).into_bytes(),
+                *c.clipboard
+                    .get(&(ClipboardFormat::CF_OEMTEXT as u32))
+                    .unwrap(),
+                "testing {}",
+                input
+            );
+        }
     }
 }

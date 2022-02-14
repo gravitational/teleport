@@ -52,7 +52,8 @@ const (
 	// CurrentVersion is a current API version
 	CurrentVersion = types.V2
 
-	// MissingNamespaceError is a _very_ common error this file generatets
+	// MissingNamespaceError indicates that the client failed to
+	// provide the namespace in the request.
 	MissingNamespaceError = "missing required parameter: namespace"
 )
 
