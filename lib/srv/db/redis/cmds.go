@@ -88,12 +88,16 @@ type redisSubscribeFn = func(ctx context.Context, channels ...string) *redis.Pub
 // from Redis and send them back to the client.
 func (e *Engine) subscribeCmd(ctx context.Context, subscribeFn redisSubscribeFn, cmd *redis.Cmd) error {
 	if len(cmd.Args()) < 2 {
-		return redis.RedisError("invalid command")
+		return trace.BadParameter("invalid command")
 	}
 
 	args := make([]string, 0, len(cmd.Args()))
-	for _, a := range cmd.Args()[1:] {
-		args = append(args, a.(string))
+	for _, arg := range cmd.Args()[1:] {
+		argStr, ok := arg.(string)
+		if !ok {
+			return trace.BadParameter("wrong argument %s type, expected string", cmd.Name())
+		}
+		args = append(args, argStr)
 	}
 	pubSub := subscribeFn(ctx, args...)
 	defer func() {

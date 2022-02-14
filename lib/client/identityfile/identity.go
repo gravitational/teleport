@@ -257,7 +257,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		}
 
 	default:
-		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q", cfg.Format, KnownFileFormats)
+		return nil, trace.BadParameter("unsupported identity format: %q, use one of %s", cfg.Format, KnownFileFormats)
 	}
 	return filesWritten, nil
 }

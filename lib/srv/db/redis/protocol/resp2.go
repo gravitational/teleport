@@ -187,7 +187,7 @@ func writeInteger(wr *redis.Writer, val int64) error {
 	return nil
 }
 
-// writeUinteger converts integer to Redis wire form.
+// writeUinteger converts unsigned integer to Redis wire form.
 func writeUinteger(wr *redis.Writer, val uint64) error {
 	if err := wr.WriteByte(redis.IntReply); err != nil {
 		return trace.Wrap(err)
