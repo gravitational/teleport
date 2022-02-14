@@ -583,13 +583,13 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 	user1Registration := &wantypes.SessionData{
 		Challenge:        []byte("challenge3"),
 		UserId:           []byte("user1-web-id"),
-		ResidentKey:			true,
+		ResidentKey:      true,
 		UserVerification: string(protocol.VerificationRequired),
 	}
 	user2Login := &wantypes.SessionData{
 		Challenge:        []byte("challenge4"),
 		UserId:           []byte("user2-web-id"),
-		ResidentKey:			true,
+		ResidentKey:      true,
 		UserVerification: string(protocol.VerificationRequired),
 	}
 
