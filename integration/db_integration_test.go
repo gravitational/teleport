@@ -971,15 +971,15 @@ func makeTestServerTLSConfig(config common.TestServerConfig) ([]byte, []byte, []
 }
 
 func startRedis(t *testing.T, config common.TestServerConfig) {
-	var err error
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err, "could not connect to docker")
-
-	certDir := t.TempDir()
 
 	privPem, cert, cas, err := makeTestServerTLSConfig(config)
 	require.NoError(t, err)
 
+	certDir := t.TempDir()
+
+	// save server keys, so we can mount them in a container.
 	err = os.WriteFile(fmt.Sprintf("%s/server.key", certDir), privPem, 0600)
 	require.NoError(t, err)
 
