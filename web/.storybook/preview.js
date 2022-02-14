@@ -17,15 +17,22 @@ limitations under the License.
 import React from 'react';
 import { addDecorator, addParameters } from '@storybook/react';
 import theme from './../packages/design/src/theme';
-import ThemeProvider from './../packages/design/src/ThemeProvider';
+import DefaultThemeProvider from './../packages/design/src/ThemeProvider';
 import Box from './../packages/design/src/Box';
+import TeletermThemeProvider from './../packages/teleterm/src/ui/ThemeProvider';
 
-// wrap each story with gravitational theme provider
-const ThemeDecorator = storyFn => (
-  <ThemeProvider theme={theme}>
-    <Box p={3}>{storyFn()}</Box>
-  </ThemeProvider>
-);
+// wrap each story with theme provider
+const ThemeDecorator = (storyFn, meta) => {
+  const ThemeProvider = meta.title.startsWith('Teleterm/')
+    ? TeletermThemeProvider
+    : DefaultThemeProvider;
+
+  return (
+    <ThemeProvider theme={theme}>
+      <Box p={3}>{storyFn()}</Box>
+    </ThemeProvider>
+  );
+};
 
 addDecorator(ThemeDecorator);
 addParameters({
@@ -35,7 +42,7 @@ addParameters({
     isToolshown: true,
     storySort: {
       method: 'alphabetical',
-      order: ['Teleport', 'TeleportE', 'Design', 'Shared'],
+      order: ['Teleport', 'TeleportE', 'Teleterm', 'Design', 'Shared'],
     },
   },
 });

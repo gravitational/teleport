@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Base64urlString } from 'shared/utils/base64url';
+export type Base64urlString = string;
 
 export type DeviceType = 'totp' | 'u2f' | 'webauthn';
 

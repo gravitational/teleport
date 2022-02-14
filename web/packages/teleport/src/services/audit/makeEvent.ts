@@ -526,6 +526,21 @@ export const formatters: Formatters = {
     format: ({ user }) =>
       `User [${user}] was denied x11 forwarding for a session`,
   },
+  [eventCodes.SESSION_CONNECT]: {
+    type: 'session.connect',
+    desc: 'Session Connected',
+    format: ({ server_addr }) => `Session connected to [${server_addr}]`,
+  },
+  [eventCodes.CERTIFICATE_CREATED]: {
+    type: "cert.create",
+    desc: "Certificate Issued",
+    format: ({ cert_type, identity: { user } }) => {
+      if (cert_type === 'user') {
+        return `User certificate issued for [${user}]`
+      }
+      return `Certificate of type [${cert_type}] issued for [${user}]`
+    }
+  }
 };
 
 const unknownFormatter = {

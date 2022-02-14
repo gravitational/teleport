@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Flex, Text, ButtonBorder } from 'design';
-import Table, { Cell, LabelCell } from 'design/DataTableNext';
+import Table, { Cell, LabelCell } from 'design/DataTable';
 import {
   pink,
   teal,

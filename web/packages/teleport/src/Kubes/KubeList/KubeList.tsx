@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { useState } from 'react';
-import Table, { Cell, LabelCell } from 'design/DataTableNext';
+import Table, { Cell, LabelCell } from 'design/DataTable';
 import { ButtonBorder } from 'design';
 import { Kube } from 'teleport/services/kube';
 import { AuthType } from 'teleport/services/user';

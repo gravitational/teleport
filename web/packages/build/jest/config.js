@@ -25,6 +25,7 @@ module.exports = {
     '^shared/(.*)$': '<rootDir>/packages/shared/$1',
     '^design($|/.*)': '<rootDir>/packages/design/src/$1',
     '^teleport($|/.*)': '<rootDir>/packages/teleport/src/$1',
+    '^teleterm($|/.*)': '<rootDir>/packages/teleterm/src/$1',
     '^e-teleport/(.*)$': '<rootDir>/packages/webapps.e/teleport/src/$1',
   },
 };

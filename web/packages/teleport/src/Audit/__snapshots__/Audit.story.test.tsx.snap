@@ -339,12 +339,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            62
+            64
           </strong>
            of
            
           <strong>
-            62
+            64
           </strong>
         </div>
         <button
@@ -403,7 +403,83 @@ exports[`list of all events 1`] = `
     </thead>
     <tbody>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-keypair c7 c12"
+              color="light"
+              font-size="3"
+            />
+            Certificate Issued
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User certificate issued for [alice]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-02-04 19:43:23
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-terminal c7 c12"
+              color="light"
+              font-size="3"
+            />
+            Session Connected
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          Session connected to [192.168.0.106:43858]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-02-04 18:15:28
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -438,7 +514,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -473,7 +551,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -508,7 +588,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -543,7 +625,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -578,7 +662,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -613,7 +699,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -648,7 +736,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -683,7 +773,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -718,7 +810,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -753,7 +847,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -788,7 +884,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -823,7 +921,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -858,7 +958,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -893,7 +995,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -928,7 +1032,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -963,7 +1069,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -998,7 +1106,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1033,7 +1143,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1068,7 +1180,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1103,7 +1217,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1138,7 +1254,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1173,7 +1291,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1208,7 +1328,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1243,7 +1365,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1278,7 +1402,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1313,7 +1439,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1355,7 +1483,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1390,7 +1520,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1425,7 +1557,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1460,7 +1594,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1495,7 +1631,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1530,7 +1668,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1565,7 +1705,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1600,7 +1742,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1635,7 +1779,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1670,7 +1816,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1705,7 +1853,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1740,7 +1890,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1775,7 +1927,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1810,7 +1964,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1845,7 +2001,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1880,7 +2038,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1915,7 +2075,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1950,7 +2112,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -1985,7 +2149,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2020,7 +2186,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2055,7 +2223,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2090,7 +2260,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2125,7 +2297,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2160,7 +2334,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2195,7 +2371,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2230,7 +2408,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2265,7 +2445,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2300,7 +2482,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2335,7 +2519,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2370,7 +2556,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2405,7 +2593,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2440,7 +2630,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2475,7 +2667,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2510,7 +2704,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -2545,7 +2741,9 @@ exports[`list of all events 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c11"
           >
@@ -3290,7 +3488,9 @@ exports[`loaded audit log screen 1`] = `
     </thead>
     <tbody>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c15"
           >
@@ -3325,7 +3525,9 @@ exports[`loaded audit log screen 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c15"
           >
@@ -3360,7 +3562,9 @@ exports[`loaded audit log screen 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c15"
           >
@@ -3395,7 +3599,9 @@ exports[`loaded audit log screen 1`] = `
         </td>
       </tr>
       <tr>
-        <td>
+        <td
+          style="vertical-align: inherit;"
+        >
           <div
             class="c15"
           >

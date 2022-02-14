@@ -106,6 +106,7 @@ export const eventCodes = {
   SESSION_REJECT: 'T1006W',
   SESSION_START: 'T2000I',
   SESSION_UPLOAD: 'T2005I',
+  SESSION_CONNECT: 'T2010I',
   SUBSYSTEM_FAILURE: 'T3001E',
   SUBSYSTEM: 'T3001I',
   TERMINAL_RESIZE: 'T2002I',
@@ -122,6 +123,7 @@ export const eventCodes = {
   USER_UPDATED: 'T1003I',
   X11_FORWARD: 'T3008I',
   X11_FORWARD_FAILURE: 'T3008W',
+  CERTIFICATE_CREATED: 'TC000I',
 } as const;
 
 /**
@@ -534,6 +536,17 @@ export type RawEvents = {
   [eventCodes.X11_FORWARD]: RawEvent<typeof eventCodes.X11_FORWARD>;
   [eventCodes.X11_FORWARD_FAILURE]: RawEvent<
     typeof eventCodes.X11_FORWARD_FAILURE
+  >;
+  [eventCodes.SESSION_CONNECT]: RawEvent<
+    typeof eventCodes.SESSION_CONNECT,
+    { server_addr: string }
+  >;
+  [eventCodes.CERTIFICATE_CREATED]: RawEvent<
+    typeof eventCodes.CERTIFICATE_CREATED,
+    {
+      cert_type: 'user';
+      identity: { user: string };
+    }
   >;
 };
 

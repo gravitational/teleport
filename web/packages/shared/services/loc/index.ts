@@ -14,5 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { displayDate, displayDateTime, displayUnixDate } from './loc';
-export { displayDate, displayDateTime, displayUnixDate };
+import {
+  displayDate,
+  displayDateTime,
+  displayUnixDate,
+  dateToUtc,
+} from './loc';
+export { displayDate, displayDateTime, displayUnixDate, dateToUtc };

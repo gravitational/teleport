@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import Table, { Cell, LabelCell } from 'design/DataTableNext';
+import Table, { Cell, LabelCell } from 'design/DataTable';
 import { Desktop } from 'teleport/services/desktops';
 import MenuSshLogin, { LoginItem } from 'shared/components/MenuSshLogin';
 

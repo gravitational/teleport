@@ -19,7 +19,7 @@ import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 import { Cluster } from 'teleport/services/clusters';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-import Table, { Cell } from 'design/DataTableNext';
+import Table, { Cell } from 'design/DataTable';
 import { Primary } from 'design/Label';
 import cfg from 'teleport/config';
 

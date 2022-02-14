@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { ButtonBorder } from 'design';
-import Table, { Cell, TextCell } from 'design/DataTableNext';
+import Table, { Cell, TextCell } from 'design/DataTable';
 import { displayDateTime } from 'shared/services/loc';
 import cfg from 'teleport/config';
 import { Recording, RecordingType } from 'teleport/services/recordings';
@@ -101,7 +101,7 @@ const renderIconCell = (type: RecordingType) => {
 };
 
 const renderPlayCell = (
-  { description, sid, recordingType, playable }: Recording,
+  { description, sid, recordingType, playable, duration }: Recording,
   clusterId: string
 ) => {
   if (!playable) {
@@ -112,7 +112,13 @@ const renderPlayCell = (
     );
   }
 
-  const url = cfg.getPlayerRoute({ clusterId, sid }, { recordingType });
+  const url = cfg.getPlayerRoute(
+    { clusterId, sid },
+    {
+      recordingType,
+      durationMs: recordingType === 'desktop' ? duration : undefined,
+    }
+  );
   return (
     <Cell align="right">
       <ButtonBorder

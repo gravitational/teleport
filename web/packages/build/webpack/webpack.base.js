@@ -14,13 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const fs = require('fs');
 const path = require('path');
 const HtmlWebPackPlugin = require('html-webpack-plugin');
 const ReactRefreshPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 
-const appDirectory = fs.realpathSync(process.cwd());
-const resolveApp = relativePath => path.resolve(appDirectory, relativePath);
+const resolvePath = require('./resolvepath');
 
 const configFactory = {
   createDefaultConfig,
@@ -122,7 +120,7 @@ function createDefaultConfig() {
       // used by loaders to generate various URLs within CSS, JS based off publicPath
       publicPath: '/web/app/',
 
-      path: resolveApp('dist/app'),
+      path: resolvePath('dist/app'),
 
       /*
        * format of the output file names. [name] stands for 'entry' keys
@@ -137,6 +135,7 @@ function createDefaultConfig() {
     resolve: {
       // some vendor libraries expect below globals to be defined
       alias: {
+        teleterm: path.join(__dirname, '/../../teleterm/src'),
         teleport: path.join(__dirname, '/../../teleport/src'),
         'e-teleport': path.join(__dirname, '/../../webapps.e/teleport/src'),
         design: path.join(__dirname, '/../../design/src'),

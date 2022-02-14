@@ -20,7 +20,7 @@ type callback = () => any;
 
 // Store is the base class for all stores.
 export default class Store<T> {
-  private _subs: callback[] = [];
+  protected _subs: callback[] = [];
 
   state: T;
 

@@ -8,6 +8,9 @@
     "test": "jest",
     "test-coverage": "jest --coverage && scripts/print-coverage-link.sh",
     "tdd": "jest --watch",
+    "package-term": "yarn workspace @gravitational/teleterm package",
+    "build-term": "yarn workspace @gravitational/teleterm build",
+    "start-term": "yarn workspace @gravitational/teleterm start",
     "start-teleport": "yarn workspace @gravitational/teleport start",
     "start-teleport-e": "yarn workspace @gravitational/teleport.e start",
     "build-teleport": "yarn build-teleport-oss && yarn build-teleport-e",
@@ -21,10 +24,17 @@
   },
   "private": true,
   "resolutions": {
-    "**/minimist": "^1.2.5"
+    "**/minimist": "^1.2.5",
+    "**/node-gyp": "8.4.1"
   },
-  "workspaces": [
-    "packages/*",
-    "packages/*/**"
-  ]
+  "workspaces": {
+    "packages": [
+      "packages/build/**",
+      "packages/design/**",
+      "packages/shared/**",
+      "packages/teleport",
+      "packages/webapps*/**",
+      "packages/teleterm"
+    ]
+  }
 }

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { base64ToArrayBuffer } from 'shared/utils/base64';
 import Client, { TdpClientEvent } from './client';
 
 enum Action {
@@ -21,9 +22,13 @@ enum Action {
 
 export enum PlayerClientEvent {
   TOGGLE_PLAY_PAUSE = 'play/pause',
+  UPDATE_CURRENT_TIME = 'time',
+  SESSION_END = 'end',
 }
 
 export class PlayerClient extends Client {
+  textDecoder = new TextDecoder();
+
   constructor(socketAddr: string) {
     super(socketAddr);
   }
@@ -34,6 +39,19 @@ export class PlayerClient extends Client {
     this.emit(PlayerClientEvent.TOGGLE_PLAY_PAUSE);
   }
 
+  // Overrides Client implementation.
+  processMessage(buffer: ArrayBuffer) {
+    const json = JSON.parse(this.textDecoder.decode(buffer));
+    if (json.message === 'end') {
+      this.emit(PlayerClientEvent.SESSION_END);
+      return;
+    }
+    const ms = json.ms;
+    super.processMessage(base64ToArrayBuffer(json.message));
+    this.emit(PlayerClientEvent.UPDATE_CURRENT_TIME, ms);
+  }
+
+  // Overrides Client implementation.
   handleClientScreenSpec(buffer: ArrayBuffer) {
     this.emit(
       TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,

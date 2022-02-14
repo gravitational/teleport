@@ -6,24 +6,14 @@
     "baseUrl": ".",
     // List of path mapping entries for module names to locations relative to the baseUrl.
     "paths": {
-      "shared/*": [
-        "packages/shared/*"
-      ],
-      "design/*": [
-        "packages/design/src/*"
-      ],
-      "design": [
-        "packages/design/src/"
-      ],
-      "teleport/*": [
-        "packages/teleport/src/*"
-      ],
-      "teleport": [
-        "packages/teleport/src/"
-      ],
-      "e-teleport/*": [
-        "packages/webapps.e/teleport/src/*"
-      ]
+      "grpc": ["node_modules/@grpc/grpc-js"], // generator still uses "grpc" package that has been deprecated in favor of "@grpc/grpc-js"
+      "shared/*": ["packages/shared/*"],
+      "design/*": ["packages/design/src/*"],
+      "design": ["packages/design/src/"],
+      "teleport/*": ["packages/teleport/src/*"],
+      "teleport": ["packages/teleport/src/"],
+      "teleterm/*": ["packages/teleterm/src/*"],
+      "e-teleport/*": ["packages/webapps.e/teleport/src/*"]
     },
     // Process & infer types from .js files.
     "allowJs": true,
@@ -42,8 +32,7 @@
   },
   "exclude": [
     "node_modules",
-    "dist",
     "**/node_modules/*",
-    "**/dist/*"
-  ]
+    "dist", "**/dist/*",
+    "**/build/app/**", "**/build/release/**"]
 }

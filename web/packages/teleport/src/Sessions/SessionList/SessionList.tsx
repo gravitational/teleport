@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import Table, { Cell } from 'design/DataTableNext';
+import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import cfg from 'teleport/config';
 import { Session } from 'teleport/services/ssh';
