@@ -4,6 +4,10 @@ description: Moderated Sessions
 h1: Moderated Sessions
 ---
 
+<Details title="Version Requirements" min="8.3" opened>
+  Moderated Sessions require `version: v5` roles, which are only available in Teleport 8.3.0 and above.
+</Details>
+
 ## Introduction
 
 Moderated Sessions allows Teleport administrators to
@@ -54,6 +58,7 @@ When a user with this require policy starts a session, it will be pending
 until the policy is fulfilled. 
 
 ```yaml
+version: v5
 kind: role
 metadata:
   name: prod-access
@@ -86,6 +91,7 @@ The following allow policy attaches to the role `auditor` and allows one to join
 SSH and Kubernetes sessions started by a user with the role `prod-access` as a moderator or observer.
 
 ```yaml
+version: v5
 kind: role
 metadata:
   name: auditor
