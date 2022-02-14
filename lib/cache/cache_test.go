@@ -362,6 +362,30 @@ func waitForRestart(c *check.C, eventsC <-chan Event) {
 	waitForEvent(c, eventsC, WatcherStarted, Reloading, WatcherFailed)
 }
 
+func drainEvents(eventsC <-chan Event) {
+	for {
+		select {
+		case <-eventsC:
+		default:
+			return
+		}
+	}
+}
+
+func expectEvent(t *testing.T, eventsC <-chan Event, expectedEvent string) {
+	timeC := time.After(5 * time.Second)
+	for {
+		select {
+		case event := <-eventsC:
+			if event.Type == expectedEvent {
+				return
+			}
+		case <-timeC:
+			t.Fatalf("Timeout waiting for expected event: %s", expectedEvent)
+		}
+	}
+}
+
 func waitForEvent(c *check.C, eventsC <-chan Event, expectedEvent string, skipEvents ...string) {
 	timeC := time.After(5 * time.Second)
 	for {
@@ -1788,6 +1812,72 @@ func TestDatabaseServers(t *testing.T) {
 	out, err = p.cache.GetDatabaseServers(context.Background(), defaults.Namespace)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
+}
+
+func TestRelativeExpiry(t *testing.T) {
+	const checkInterval = time.Second
+	const nodeCount = int64(100)
+
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
+	p := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = checkInterval
+		c.Clock = clock
+		return ForAuth(c)
+	})
+	t.Cleanup(p.Close)
+
+	// add servers that expire at a range of times
+	now := clock.Now()
+	for i := int64(0); i < nodeCount; i++ {
+		exp := now.Add(time.Minute * time.Duration(i))
+		server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+		server.SetExpiry(exp)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(t, err)
+		// Check that information has been replicated to the cache.
+		expectEvent(t, p.eventsC, EventProcessed)
+	}
+
+	nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, nodes, 100)
+
+	clock.Advance(time.Minute * 25)
+	// get rid of events that were emitted before clock advanced
+	drainEvents(p.eventsC)
+	// wait for next relative expiry check to run
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// verify that roughly expected proportion of nodes was removed.
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.True(t, len(nodes) < 100 && len(nodes) > 75, "node_count=%d", len(nodes))
+
+	clock.Advance(time.Minute * 25)
+	// get rid of events that were emitted before clock advanced
+	drainEvents(p.eventsC)
+	// wait for next relative expiry check to run
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// verify that roughly expected proportion of nodes was removed.
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.True(t, len(nodes) < 75 && len(nodes) > 50, "node_count=%d", len(nodes))
+
+	// finally, we check the "sliding window" by verifying that we don't remove all nodes
+	// even if we advance well past the latest expiry time.
+	clock.Advance(time.Hour * 24)
+	// get rid of events that were emitted before clock advanced
+	drainEvents(p.eventsC)
+	// wait for next relative expiry check to run
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// verify that sliding window has preserved most recent nodes
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.True(t, len(nodes) > 0, "node_count=%d", len(nodes))
 }
 
 func TestCache_Backoff(t *testing.T) {
