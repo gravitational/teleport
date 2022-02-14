@@ -45,6 +45,7 @@ import (
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -70,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/firestoreevents"
 	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
+	"github.com/gravitational/teleport/lib/joinserver"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -648,9 +650,9 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			cfg.Log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
 		} else {
 			switch cfg.JoinMethod {
-			case JoinMethodToken:
+			case types.JoinMethodToken, types.JoinMethodUnspecified, types.JoinMethodIAM:
 				cfg.HostUUID = uuid.New()
-			case JoinMethodEC2:
+			case types.JoinMethodEC2:
 				cfg.HostUUID, err = utils.GetEC2NodeID()
 				if err != nil {
 					return nil, trace.Wrap(err)
@@ -1956,6 +1958,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentNode)),
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 			regular.SetLockWatcher(lockWatcher),
+			regular.SetX11ForwardingConfig(cfg.SSH.X11),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2521,6 +2524,7 @@ type proxyListeners struct {
 	kube          net.Listener
 	db            dbListeners
 	alpn          net.Listener
+	grpc          net.Listener
 }
 
 // dbListeners groups database access listeners.
@@ -2575,6 +2579,9 @@ func (l *proxyListeners) Close() {
 	}
 	if !l.db.Empty() {
 		l.db.Close()
+	}
+	if l.grpc != nil {
+		l.grpc.Close()
 	}
 }
 
@@ -3201,6 +3208,26 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 	}
 
+	var grpcServer *grpc.Server
+	if alpnRouter != nil {
+		grpcServer := grpc.NewServer(
+			grpc.ChainUnaryInterceptor(
+				utils.ErrorConvertUnaryInterceptor,
+				proxyLimiter.UnaryServerInterceptor(),
+			),
+			grpc.ChainStreamInterceptor(
+				utils.ErrorConvertStreamInterceptor,
+				proxyLimiter.StreamServerInterceptor,
+			),
+		)
+		joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
+		proto.RegisterJoinServiceServer(grpcServer, joinServiceServer)
+		process.RegisterCriticalFunc("proxy.grpc", func() error {
+			log.Infof("Starting proxy gRPC server on %v.", listeners.grpc.Addr())
+			return trace.Wrap(grpcServer.Serve(listeners.grpc))
+		})
+	}
+
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
 		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, accessPoint)
@@ -3263,6 +3290,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if kubeServer != nil {
 				warnOnErr(kubeServer.Close(), log)
 			}
+			if grpcServer != nil {
+				grpcServer.Stop()
+			}
 			if alpnServer != nil {
 				warnOnErr(alpnServer.Close(), log)
 			}
@@ -3281,6 +3311,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 			if webHandler != nil {
 				warnOnErr(webHandler.Close(), log)
+			}
+			if grpcServer != nil {
+				grpcServer.GracefulStop()
 			}
 			if alpnServer != nil {
 				warnOnErr(alpnServer.Close(), log)
@@ -3421,6 +3454,13 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 		})
 		listeners.web = webWrapper
 	}
+
+	grpcListener := alpnproxy.NewMuxListenerWrapper(nil /* serviceListener */, listeners.web)
+	router.Add(alpnproxy.HandlerDecs{
+		MatchFunc: alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolProxyGRPC)),
+		Handler:   grpcListener.HandleConnection,
+	})
+	listeners.grpc = grpcListener
 
 	sshProxyListener := alpnproxy.NewMuxListenerWrapper(listeners.ssh, listeners.web)
 	router.Add(alpnproxy.HandlerDecs{

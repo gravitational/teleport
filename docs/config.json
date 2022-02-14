@@ -238,7 +238,8 @@
             { "title": "Second Factor - WebAuthn", "slug": "/access-controls/guides/webauthn/" },
             { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },
             { "title": "Dual Authorization", "slug": "/access-controls/guides/dual-authz/" },
-            { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" }
+            { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" },
+            { "title": "Moderated Sessions", "slug": "/access-controls/guides/moderated-sessions/" }
           ]
         },
         { "title": "Reference", "slug": "/access-controls/reference/" },
@@ -319,6 +320,22 @@
         { "title": "Trusted Clusters", "slug": "/trustedclusters/" },
         { "title": "TLS Routing", "slug": "/architecture/tls-routing/" }
       ]
+    },
+    {
+      "icon": "wrench",
+      "title": "Contribute",
+      "entries": [
+        {
+          "title": "Documentation",
+          "slug": "/contributing/documentation/",
+          "entries":[
+            { "title": "How to Contribute", "slug": "/contributing/documentation/how-to-contribute/" },
+            { "title": "Creating documentation issues", "slug": "/contributing/documentation/issues/"},
+            { "title": "Style Guide", "slug": "/contributing/documentation/style-guide/" },
+            { "title": "UI Reference", "slug": "/contributing/documentation/reference/" }
+          ]
+        }
+      ]
     }
   ],
   "variables": {
@@ -374,10 +391,10 @@
       "dbeaver_min_ver": "8.0.3"
     },
     "teleport": {
-      "version": "8.1.5",
+      "version": "8.2.0",
       "golang": "1.17",
       "plugin": {
-        "version": "8.1.5"
+        "version": "8.2.0"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
       "latest_oss_docker_image": "quay.io/gravitational/teleport:8",
@@ -573,6 +590,16 @@
     {
       "source": "/database-access/guides/mysql-aws/",
       "destination": "/database-access/guides/rds/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/",
+      "destination": "/contributing/documentation/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/best-practices/",
+      "destination": "/contributing/documentation/",
       "permanent": true
     }
   ]

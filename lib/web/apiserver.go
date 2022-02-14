@@ -2312,13 +2312,13 @@ func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 // hostCredentials sends a registration token and metadata to the Auth Server
 // and gets back SSH and TLS certificates.
 func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req auth.RegisterUsingTokenRequest
+	var req types.RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	authClient := h.cfg.ProxyClient
-	certs, err := authClient.RegisterUsingToken(req)
+	certs, err := authClient.RegisterUsingToken(r.Context(), &req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2397,7 +2397,7 @@ func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
-	validateResponse, err := h.auth.ValidateTrustedCluster(validateRequest)
+	validateResponse, err := h.auth.ValidateTrustedCluster(r.Context(), validateRequest)
 	if err != nil {
 		h.log.WithError(err).Error("Failed validating trusted cluster")
 		if trace.IsAccessDenied(err) {
