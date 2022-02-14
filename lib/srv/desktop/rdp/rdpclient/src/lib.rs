@@ -23,9 +23,10 @@ pub mod vchan;
 extern crate log;
 #[macro_use]
 extern crate num_derive;
-extern crate byteorder;
 
 use libc::{fd_set, select, FD_SET};
+use rand::Rng;
+use rand::SeedableRng;
 use rdp::core::event::*;
 use rdp::core::gcc::KeyboardLayout;
 use rdp::core::global;
@@ -200,17 +201,17 @@ fn connect_rdp_inner(
             cliprdr::CHANNEL_NAME.to_string(),
         ],
     )?;
-    // Password must be non-empty for autologin (sec::InfoFlag::InfoPasswordIsScPin) to trigger on
-    // a smartcard.
-    let password = "123".to_string();
+    // Generate a random 8-digit PIN for our smartcard.
+    let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
+    let pin = format!("{:08}", rng.gen_range(0..99999999));
     sec::connect(
         &mut mcs,
         &domain.to_string(),
         &username,
-        &password,
+        &pin,
         true,
-        // InfoPasswordIsScPin means that the user will not be prompted for the smartcard PIN code.
-        // The password we pass will be automatically used as PIN.
+        // InfoPasswordIsScPin means that the user will not be prompted for the smartcard PIN code,
+        // which is known only to Teleport and unique for each RDP session.
         Some(sec::InfoFlag::InfoPasswordIsScPin as u32 | sec::InfoFlag::InfoMouseHasWheel as u32),
     )?;
     // Client for the "global" channel - video output and user input.
@@ -223,7 +224,7 @@ fn connect_rdp_inner(
         "rdp-rs",
     );
     // Client for the "rdpdr" channel - smartcard emulation.
-    let rdpdr = rdpdr::Client::new(cert_der, key_der);
+    let rdpdr = rdpdr::Client::new(cert_der, key_der, pin);
 
     // Client for the "cliprdr" channel - clipboard sharing.
     let cliprdr: cliprdr::Client = cliprdr::Client::new(Box::new(move |v| unsafe {
