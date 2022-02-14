@@ -436,6 +436,14 @@ const (
 	// resets the data of a prepared statement using the parepared statement
 	// protocol.
 	DatabaseSessionMySQLStatementResetEvent = "db.session.mysql.stmt_reset"
+	// DatabaseSessionMySQLStatementFetchEvent is emitted when a MySQL client
+	// fetches rows from a prepared statement using the parepared statement
+	// protocol.
+	DatabaseSessionMySQLStatementFetchEvent = "db.session.mysql.stmt_fetch"
+	// DatabaseSessionMySQLStatementBulkExecuteEvent is emitted when a MySQL
+	// client executes a bulk insert of a prepared statement using the prepared
+	// statement protocol.
+	DatabaseSessionMySQLStatementBulkExecuteEvent = "db.session.mysql.stmt_bulk_execute"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.

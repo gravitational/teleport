@@ -333,6 +333,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_MySQLStatementReset{
 			MySQLStatementReset: e,
 		}
+	case *MySQLStatementFetch:
+		out.Event = &OneOf_MySQLStatementFetch{
+			MySQLStatementFetch: e,
+		}
+	case *MySQLStatementBulkExecute:
+		out.Event = &OneOf_MySQLStatementBulkExecute{
+			MySQLStatementBulkExecute: e,
+		}
 	default:
 		return nil, trace.BadParameter("event type %T is not supported", in)
 	}

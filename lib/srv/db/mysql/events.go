@@ -97,3 +97,34 @@ func makeStatementResetEvent(session *common.Session, packet *protocol.Statement
 		StatementID:      packet.StatementID(),
 	}
 }
+
+// makeStatementFetchEvent creates an audit event for MySQL statement fetch
+// command.
+func makeStatementFetchEvent(session *common.Session, packet *protocol.StatementFetchPacket) events.AuditEvent {
+	return &events.MySQLStatementFetch{
+		Metadata: common.MakeEventMetadata(session,
+			libevents.DatabaseSessionMySQLStatementFetchEvent,
+			libevents.MySQLStatementFetchCode),
+		UserMetadata:     common.MakeUserMetadata(session),
+		SessionMetadata:  common.MakeSessionMetadata(session),
+		DatabaseMetadata: common.MakeDatabaseMetadata(session),
+		StatementID:      packet.StatementID(),
+		RowsCount:        packet.RowsCount(),
+	}
+}
+
+// makeStatementBulkExecuteEvent creates an audit event for MySQL statement
+// bulk execute command.
+func makeStatementBulkExecuteEvent(session *common.Session, packet *protocol.StatementBulkExecutePacket, parameterDefinitions []mysql.Field) events.AuditEvent {
+	// TODO(greedy52) get parameters from packet and format them for audit.
+	return &events.MySQLStatementBulkExecute{
+		Metadata: common.MakeEventMetadata(session,
+			libevents.DatabaseSessionMySQLStatementBulkExecuteEvent,
+			libevents.MySQLStatementBulkExecuteCode),
+		UserMetadata:     common.MakeUserMetadata(session),
+		SessionMetadata:  common.MakeSessionMetadata(session),
+		DatabaseMetadata: common.MakeDatabaseMetadata(session),
+		StatementID:      packet.StatementID(),
+		Parameters:       nil,
+	}
+}

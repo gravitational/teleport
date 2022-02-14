@@ -1805,6 +1805,8 @@ message OneOf {
         events.MySQLStatementSendLongData MySQLStatementSendLongData = 72;
         events.MySQLStatementClose MySQLStatementClose = 73;
         events.MySQLStatementReset MySQLStatementReset = 74;
+        events.MySQLStatementFetch MySQLStatementFetch = 75;
+        events.MySQLStatementBulkExecute MySQLStatementBulkExecute = 76;
     }
 }
 
@@ -2028,4 +2030,46 @@ message MySQLStatementReset {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
     // StatementID is the identifier of the prepared statement.
     uint32 StatementID = 5 [ (gogoproto.jsontag) = "statement_id" ];
+}
+
+// MySQLStatementFetch is emitted when a MySQL client fetches rows from a
+// prepared statement using the parepared statement protocol.
+message MySQLStatementFetch {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // StatementID is the identifier of the prepared statement.
+    uint32 StatementID = 5 [ (gogoproto.jsontag) = "statement_id" ];
+    // RowsCount is the number of rows to fetch.
+    uint32 RowsCount = 6 [ (gogoproto.jsontag) = "rows_count" ];
+}
+
+// MySQLStatementBulkExecute is emitted when a MySQL client executes a bulk
+// insert of a prepared statement using the prepared statement protocol.
+message MySQLStatementBulkExecute {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // StatementID is the identifier of the prepared statement.
+    uint32 StatementID = 5 [ (gogoproto.jsontag) = "statement_id" ];
+    // Parameters are the parameters used to execute the prepared statement.
+    repeated string Parameters = 6 [ (gogoproto.jsontag) = "parameters" ];
 }

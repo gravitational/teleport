@@ -183,6 +183,46 @@ var (
 			statementID: 1,
 		},
 	}
+
+	sampleStatementFetchPacket = &StatementFetchPacket{
+		statementIDPacket: statementIDPacket{
+			packet: packet{
+				bytes: []byte{
+					0x09, 0x00, 0x00, 0x00, // header
+					0x1c,                   // type
+					0x01, 0x00, 0x00, 0x00, // statement ID
+					0x0a, 0x00, 0x00, 0x00, // num rows
+				},
+			},
+			statementID: 1,
+		},
+		rowsCount: 10,
+	}
+
+	sampleStatementBulkExecutePacket = &StatementBulkExecutePacket{
+		statementIDPacket: statementIDPacket{
+			packet: packet{
+				bytes: []byte{
+					0x15, 0x00, 0x00, 0x00, // header
+					0xfa,                   // type
+					0x01, 0x00, 0x00, 0x00, // statement ID
+					0x80, 0x00, // bulkFlag
+					0xfe, 0x00, // param 1 type - MYSQL_TYPE_STRING
+					0x08, 0x00, // param 2 type - MYSQL_TYPE_LONGLONG
+					0x01,                                                 // param 1 - null
+					0x00, 0xc8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // param 2 value - 200
+				},
+			},
+			statementID: 1,
+		},
+		bulkFlag: 128,
+		parameters: []byte{
+			0xfe, 0x00, // param 1 type - MYSQL_TYPE_STRING
+			0x08, 0x00, // param 2 type - MYSQL_TYPE_LONGLONG
+			0x01,                                                 // param 1 - null
+			0x00, 0xc8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // param 2 value - 200
+		},
+	}
 )
 
 func TestParsePacket(t *testing.T) {
@@ -251,6 +291,16 @@ func TestParsePacket(t *testing.T) {
 			name:           "COM_STMT_RESET",
 			input:          bytes.NewBuffer(sampleStatementResetPacket.Bytes()),
 			expectedPacket: sampleStatementResetPacket,
+		},
+		{
+			name:           "COM_STMT_FETCH",
+			input:          bytes.NewBuffer(sampleStatementFetchPacket.Bytes()),
+			expectedPacket: sampleStatementFetchPacket,
+		},
+		{
+			name:           "COM_STMT_BULK_EXECUTE",
+			input:          bytes.NewBuffer(sampleStatementBulkExecutePacket.Bytes()),
+			expectedPacket: sampleStatementBulkExecutePacket,
 		},
 	}
 

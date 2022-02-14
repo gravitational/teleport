@@ -380,6 +380,10 @@ const (
 	MySQLStatementCloseCode = "TMY03I"
 	// MySQLStatementResetCode is the db.session.mysql.stmt_reset event code.
 	MySQLStatementResetCode = "TMY04I"
+	// MySQLStatementFetchCode is the db.session.mysql.stmt_fetch event code.
+	MySQLStatementFetchCode = "TMY05I"
+	// MySQLStatementBulkExecuteCode is the db.session.mysql.stmt_bulk_execute event code.
+	MySQLStatementBulkExecuteCode = "TMY06I"
 
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"

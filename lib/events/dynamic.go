@@ -175,6 +175,10 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		e = &events.MySQLStatementClose{}
 	case DatabaseSessionMySQLStatementResetEvent:
 		e = &events.MySQLStatementReset{}
+	case DatabaseSessionMySQLStatementFetchEvent:
+		e = &events.MySQLStatementFetch{}
+	case DatabaseSessionMySQLStatementBulkExecuteEvent:
+		e = &events.MySQLStatementBulkExecute{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:

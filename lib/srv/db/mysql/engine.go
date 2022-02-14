@@ -302,7 +302,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		case *protocol.StatementPreparePacket:
 			e.Audit.EmitEvent(e.Context, makeStatementPrepareEvent(sessionCtx, pkt))
 		case *protocol.StatementExecutePacket:
-			// TODO(greedy52) number of parameters is required to parse
+			// TODO(greedy52) Number of parameters is required to parse
 			// paremeters out of the packet. Parameter definitions are required
 			// to properly format the parameters for including in the audit
 			// log. Both number of parameters and parameter definitions can be
@@ -314,6 +314,12 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 			e.Audit.EmitEvent(e.Context, makeStatementCloseEvent(sessionCtx, pkt))
 		case *protocol.StatementResetPacket:
 			e.Audit.EmitEvent(e.Context, makeStatementResetEvent(sessionCtx, pkt))
+		case *protocol.StatementFetchPacket:
+			e.Audit.EmitEvent(e.Context, makeStatementFetchEvent(sessionCtx, pkt))
+		case *protocol.StatementBulkExecutePacket:
+			// TODO(greedy52) Number of parameters and parameter definitions
+			// are required. See above comments for StatementExecutePacket.
+			e.Audit.EmitEvent(e.Context, makeStatementBulkExecuteEvent(sessionCtx, pkt, nil))
 		}
 		_, err = protocol.WritePacket(packet.Bytes(), serverConn)
 		if err != nil {

@@ -188,6 +188,20 @@ func ParsePacket(conn io.Reader) (Packet, error) {
 			return nil, trace.BadParameter("failed to parse COM_STMT_RESET packet: %v", packetBytes)
 		}
 		return packet, nil
+
+	case mysql.COM_STMT_FETCH:
+		packet, ok := parseStatementFetchPacket(packet)
+		if !ok {
+			return nil, trace.BadParameter("failed to parse COM_STMT_FETCH packet: %v", packetBytes)
+		}
+		return packet, nil
+
+	case packetTypeStatementBulkExecute:
+		packet, ok := parseStatementBulkExecutePacket(packet)
+		if !ok {
+			return nil, trace.BadParameter("failed to parse COM_STMT_BULK_EXECUTE packet: %v", packetBytes)
+		}
+		return packet, nil
 	}
 
 	return &Generic{packet: packet}, nil
@@ -258,4 +272,12 @@ const (
 	// packetHeaderAndTypeSize is the combined size of the packet header and
 	// type.
 	packetHeaderAndTypeSize = packetHeaderSize + packetTypeSize
+)
+
+const (
+	// packetTypeStatementBulkExecute is a MariaDB specific packet type for
+	// COM_STMT_BULK_EXECUTE packets.
+	//
+	// https://mariadb.com/kb/en/com_stmt_bulk_execute/
+	packetTypeStatementBulkExecute = 0xfa
 )
