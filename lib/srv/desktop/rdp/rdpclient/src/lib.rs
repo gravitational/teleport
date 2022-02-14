@@ -133,12 +133,14 @@ pub unsafe extern "C" fn connect_rdp(
     connect_rdp_inner(
         go_ref,
         &addr,
-        username,
-        cert_der,
-        key_der,
-        screen_width,
-        screen_height,
-        allow_clipboard,
+        ConnectParams {
+            username,
+            cert_der,
+            key_der,
+            screen_width,
+            screen_height,
+            allow_clipboard,
+        },
     )
     .into()
 }
@@ -164,15 +166,19 @@ impl From<RdpError> for ConnectError {
 
 const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
 
-fn connect_rdp_inner(
-    go_ref: usize,
-    addr: &str,
+struct ConnectParams {
     username: String,
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
     screen_width: u16,
     screen_height: u16,
     allow_clipboard: bool,
+}
+
+fn connect_rdp_inner(
+    go_ref: usize,
+    addr: &str,
+    params: ConnectParams,
 ) -> Result<Client, ConnectError> {
     // Connect and authenticate.
     let addr = addr
@@ -195,13 +201,13 @@ fn connect_rdp_inner(
     // rdpsnd: sound (for some reason we need to request this)
     // cliprdr: clipboard
     let mut static_channels = vec![rdpdr::CHANNEL_NAME.to_string(), "rdpsnd".to_string()];
-    if allow_clipboard {
+    if params.allow_clipboard {
         static_channels.push(cliprdr::CHANNEL_NAME.to_string())
     }
     mcs.connect(
         "rdp-rs".to_string(),
-        screen_width,
-        screen_height,
+        params.screen_width,
+        params.screen_height,
         KeyboardLayout::US,
         &static_channels,
     )?;
@@ -211,7 +217,7 @@ fn connect_rdp_inner(
     sec::connect(
         &mut mcs,
         &domain.to_string(),
-        &username,
+        &params.username,
         &pin,
         true,
         // InfoPasswordIsScPin means that the user will not be prompted for the smartcard PIN code,
@@ -222,16 +228,16 @@ fn connect_rdp_inner(
     let global = global::Client::new(
         mcs.get_user_id(),
         mcs.get_global_channel_id(),
-        screen_width,
-        screen_height,
+        params.screen_width,
+        params.screen_height,
         KeyboardLayout::US,
         "rdp-rs",
     );
     // Client for the "rdpdr" channel - smartcard emulation.
-    let rdpdr = rdpdr::Client::new(cert_der, key_der, pin);
+    let rdpdr = rdpdr::Client::new(params.cert_der, params.key_der, pin);
 
     // Client for the "cliprdr" channel - clipboard sharing.
-    let cliprdr = if allow_clipboard {
+    let cliprdr = if params.allow_clipboard {
         Some(cliprdr::Client::new(Box::new(move |v| unsafe {
             handle_remote_copy(go_ref, v.as_ptr() as _, v.len() as u32);
         })))
