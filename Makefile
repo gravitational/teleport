@@ -172,6 +172,8 @@ KUBECONFIG ?=
 TEST_KUBE ?=
 export
 
+TEST_LOG_DIR = ${realpath ./test-logs}
+
 #
 # 'make all' builds all 3 executables and places them in the current directory.
 #
@@ -440,7 +442,7 @@ docs-test-whitespace:
 #
 # Builds some tooling for filtering and displaying test progress/output/etc
 #
-RENDER_TESTS := ./build.assets/tooling/bin/render-tests
+RENDER_TESTS := ${realpath ./build.assets/tooling/bin/render-tests}
 $(RENDER_TESTS): $(wildcard ./build.assets/tooling/cmd/render-tests/*.go)
 	go build -o "$@" ./build.assets/tooling/cmd/render-tests
 
@@ -458,34 +460,44 @@ test-bot: FLAGS ?= '-race'
 test-bot:
 	cd .github/workflows/robot && go test $(FLAGS) ./...
 
+$(TEST_LOG_DIR):
+	mkdir $(TEST_LOG_DIR)
+
 #
 # Runs all Go tests except integration, called by CI/CD.
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 #
 .PHONY: test-go
-test-go: ensure-webassets bpf-bytecode roletester rdpclient $(RENDER_TESTS)
+test-go: ensure-webassets bpf-bytecode roletester rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
 test-go: FLAGS ?= '-race'
 test-go: PACKAGES = $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
-test-go: $(VERSRC)
+test-go: $(VERSRC) $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
-		| tee test-logs/unit.json \
+		| tee $(TEST_LOG_DIR)/unit.json \
 		| $(RENDER_TESTS)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
-		| tee test-logs/chaos.json \
+		| tee $(TEST_LOG_DIR)/chaos.json \
 		| $(RENDER_TESTS)
+
+.PHONY: test-ci
+test-ci: $(TEST_LOG_DIR) $(RENDER_TESTS)
+	(cd .cloudbuild/scripts && \
+		go test -cover -json ./... \
+		| tee $(TEST_LOG_DIR)/ci.json \
+		| $(RENDER_TESTS))
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
 #
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
-test-go-root: ensure-webassets bpf-bytecode roletester rdpclient
+test-go-root: ensure-webassets bpf-bytecode roletester rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
 test-go-root: FLAGS ?= '-race'
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
-		| tee test-logs/unit-root.json \
+		| tee $(TEST_LOG_DIR)/unit-root.json \
 		| $(RENDER_TESTS)
 
 #
@@ -495,9 +507,9 @@ test-go-root: $(VERSRC)
 test-api:
 test-api: FLAGS ?= '-race'
 test-api: PACKAGES = $(shell cd api && go list ./...)
-test-api: $(VERSRC) $(RENDER_TESTS)
+test-api: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
-		| tee test-logs/api.json \
+		| tee $(TEST_LOG_DIR)/api.json \
 		| $(RENDER_TESTS)
 
 #
@@ -536,10 +548,10 @@ run-etcd:
 .PHONY: integration
 integration: FLAGS ?= -v -race
 integration: PACKAGES = $(shell go list ./... | grep integration)
-integration: $(RENDER_TESTS)
+integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
-		| tee test-logs/integration.json \
+		| tee $(TEST_LOG_DIR)/integration.json \
 		| $(RENDER_TESTS) -report-by test
 
 #
@@ -550,9 +562,9 @@ INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
 integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES = $(shell go list ./... | grep integration)
-integration-root: $(RENDER_TESTS)
+integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
-		| tee test-logs/integration-root.json \
+		| tee $(TEST_LOG_DIR)/integration-root.json \
 		| $(RENDER_TESTS) -report-by test
 
 #

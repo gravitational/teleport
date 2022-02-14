@@ -18,18 +18,15 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"syscall"
 
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
-	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/customflag"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -47,65 +44,6 @@ func main() {
 	if err := innerMain(); err != nil {
 		log.Fatalf("FAILED: %s", err.Error())
 	}
-}
-
-type commandlineArgs struct {
-	workspace    string
-	targetBranch string
-	commitSHA    string
-	skipChown    bool
-	buildID      string
-	artifacts    customflag.StringArray
-	bucket       string
-}
-
-func parseCommandLine() (commandlineArgs, error) {
-	args := commandlineArgs{}
-
-	flag.StringVar(&args.workspace, "workspace", "/workspace", "Fully-qualified path to the build workspace")
-	flag.StringVar(&args.targetBranch, "target", "", "The PR's target branch")
-	flag.StringVar(&args.commitSHA, "commit", "HEAD", "The PR's latest commit SHA")
-	flag.BoolVar(&args.skipChown, "skip-chown", false, "Skip reconfiguring the workspace for a nonroot user.")
-	flag.StringVar(&args.buildID, "build", "", "The build ID")
-	flag.StringVar(&args.bucket, "bucket", "", "The artifact storage bucket.")
-	flag.Var(&args.artifacts, "a", "Path to artifacts. May be globbed, and have multiple entries.")
-
-	flag.Parse()
-
-	if args.workspace == "" {
-		return args, trace.Errorf("workspace path must be set")
-	}
-
-	var err error
-	args.workspace, err = filepath.Abs(args.workspace)
-	if err != nil {
-		return args, trace.Wrap(err, "Unable to resole absolute path to workspace")
-	}
-
-	if args.targetBranch == "" {
-		return args, trace.Errorf("target branch must be set")
-	}
-
-	if args.commitSHA == "" {
-		return args, trace.Errorf("commit must be set")
-	}
-
-	if len(args.artifacts) > 0 {
-		if args.buildID == "" {
-			return args, trace.Errorf("build ID required to upload artifacts")
-		}
-
-		if args.bucket == "" {
-			return args, trace.Errorf("storage bucket required to upload artifacts")
-		}
-
-		// make sure the artifact patterns are rooted in the workspace
-		for i, pattern := range args.artifacts {
-			args.artifacts[i] = path.Join(args.workspace, pattern)
-		}
-	}
-
-	return args, nil
 }
 
 // innerMain parses the command line, performs the highlevel docs change check
@@ -138,7 +76,7 @@ func innerMain() error {
 	// produced by the build
 	defer func() {
 		prefix := fmt.Sprintf("%s/artifacts", args.buildID)
-		artifacts.FindAndUpload(cancelCtx, args.bucket, prefix, args.artifacts)
+		artifacts.FindAndUpload(cancelCtx, args.bucket, prefix, args.artifactSearchPatterns)
 	}()
 
 	log.Printf("Running root-only integration tests...")

@@ -1,3 +1,19 @@
+/*
+Copyright 2022 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package artifacts
 
 import (
@@ -6,12 +22,35 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"cloud.google.com/go/storage"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 )
+
+// ValidatePatterns checks that the supplied patterns are rooted inside
+// the given workspace. Workspace is expected to be the fully-qualified
+// path to the workspace root. Returns a collection of patterns that
+// have been validated and canonicalised.
+func ValidatePatterns(workspace string, patterns []string) ([]string, error) {
+	result := make([]string, len(patterns))
+	for i, p := range patterns {
+		fullyQualifiedPattern, err := filepath.Abs(p)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if !strings.HasPrefix(fullyQualifiedPattern, workspace) {
+			return nil, trace.BadParameter("artifact patten points outside of workspace: %s", p)
+		}
+
+		result[i] = fullyQualifiedPattern
+	}
+
+	return result, nil
+}
 
 // FindAndUpload finds all of the files referenced by the supplied patterns
 // and uploads them to the supplied GCS bucket. The supplied patterns are
@@ -40,6 +79,25 @@ import (
 // - "build-unique-id/shaggy.yaml"
 //
 func FindAndUpload(ctx context.Context, bucketName, objectPrefix string, artifactPatterns []string) error {
+	artifacts := find(artifactPatterns)
+
+	if len(artifacts) == 0 {
+		return nil
+	}
+
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer client.Close()
+
+	bucketHandle := bucketAdaptor{client.Bucket(bucketName)}
+
+	return upload(ctx, bucketHandle, objectPrefix, artifacts)
+}
+
+//
+func find(artifactPatterns []string) []string {
 	log.Printf("Scanning for artifacts...")
 	artifacts := []string{}
 	for _, pattern := range artifactPatterns {
@@ -48,14 +106,22 @@ func FindAndUpload(ctx context.Context, bucketName, objectPrefix string, artifac
 			log.Printf("Failed scanning for artifacts matching %q: %s", pattern, err.Error())
 			continue
 		}
-		artifacts = append(artifacts, matches...)
-	}
 
-	if len(artifacts) == 0 {
-		return nil
-	}
+		for _, match := range matches {
+			info, err := os.Stat(match)
+			if err != nil {
+				log.Warnf("Failed stating %q: %s", pattern, err.Error())
+				continue
+			}
 
-	return upload(ctx, bucketName, objectPrefix, artifacts...)
+			if info.IsDir() {
+				continue
+			}
+
+			artifacts = append(artifacts, match)
+		}
+	}
+	return artifacts
 }
 
 // upload uploads a set of files to the indicated artefact bucket with the
@@ -66,22 +132,14 @@ func FindAndUpload(ctx context.Context, bucketName, objectPrefix string, artifac
 // disambiguate. Be wary of including multiple artifacts with the same name, as
 // later object may clobber earlier ones.
 //
-func upload(ctx context.Context, bucket string, prefix string, files ...string) error {
+func upload(ctx context.Context, bucket bucketHandle, prefix string, files []string) error {
 	var uploadErrors *multierror.Error
-
-	client, err := storage.NewClient(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer client.Close()
-
-	bucketHandle := client.Bucket(bucket)
 
 	for _, filename := range files {
 		objectName := path.Join(prefix, path.Base(filename))
 		log.Infof("Uploading artifact %q as %q", filename, objectName)
 
-		if err = uploadFile(ctx, bucketHandle, objectName, filename); err != nil {
+		if err := uploadFile(ctx, bucket, objectName, filename); err != nil {
 			log.WithError(err).Warnf("Artifact upload failed for %q", filename)
 			uploadErrors = multierror.Append(uploadErrors, err)
 			continue
@@ -92,7 +150,7 @@ func upload(ctx context.Context, bucket string, prefix string, files ...string) 
 }
 
 // uploadFile uploads an individual file to the supplied storage bucket.
-func uploadFile(ctx context.Context, bucket *storage.BucketHandle, objectName, filename string) error {
+func uploadFile(ctx context.Context, bucket bucketHandle, objectName, filename string) error {
 	obj := bucket.Object(objectName)
 
 	source, err := os.Open(filename)
