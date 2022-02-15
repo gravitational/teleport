@@ -112,6 +112,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	})
 	c.Assert(userContext.ACL.Billing, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Clipboard, check.Equals, true)
+	c.Assert(userContext.ACL.DesktopSessionRecording, check.Equals, true)
 
 	// test local auth type
 	c.Assert(userContext.AuthType, check.Equals, authLocal)
@@ -176,6 +177,7 @@ func (s *UserContextSuite) TestNewUserContextCloud(c *check.C) {
 		Prompt: "",
 	})
 	c.Assert(userContext.ACL.Clipboard, check.Equals, true)
+	c.Assert(userContext.ACL.DesktopSessionRecording, check.Equals, true)
 
 	// cloud-specific asserts
 	c.Assert(userContext.ACL.Billing, check.DeepEquals, allowed)

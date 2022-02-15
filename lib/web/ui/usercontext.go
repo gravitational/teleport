@@ -84,6 +84,8 @@ type userACL struct {
 	Billing access `json:"billing"`
 	// Clipboard defines whether the user can use a shared clipboard during windows desktop sessions.
 	Clipboard bool `json:"clipboard"`
+	// DesktopSessionRecording defines whether the user's desktop sessions are being recorded.
+	DesktopSessionRecording bool `json:"desktopSessionRecording"`
 }
 
 type authType string
@@ -223,25 +225,27 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	accessStrategy := getAccessStrategy(userRoles)
 	windowsLogins := getWindowsDesktopLogins(userRoles)
 	clipboard := userRoles.DesktopClipboard()
+	desktopSessionRecording := userRoles.RecordDesktopSession()
 
 	acl := userACL{
-		AccessRequests:  requestAccess,
-		AppServers:      appServerAccess,
-		DBServers:       dbServerAccess,
-		KubeServers:     kubeServerAccess,
-		Desktops:        desktopAccess,
-		AuthConnectors:  authConnectors,
-		TrustedClusters: trustedClusterAccess,
-		Sessions:        sessionAccess,
-		Roles:           roleAccess,
-		Events:          eventAccess,
-		SSHLogins:       logins,
-		WindowsLogins:   windowsLogins,
-		Users:           userAccess,
-		Tokens:          tokenAccess,
-		Nodes:           nodeAccess,
-		Billing:         billingAccess,
-		Clipboard:       clipboard,
+		AccessRequests:          requestAccess,
+		AppServers:              appServerAccess,
+		DBServers:               dbServerAccess,
+		KubeServers:             kubeServerAccess,
+		Desktops:                desktopAccess,
+		AuthConnectors:          authConnectors,
+		TrustedClusters:         trustedClusterAccess,
+		Sessions:                sessionAccess,
+		Roles:                   roleAccess,
+		Events:                  eventAccess,
+		SSHLogins:               logins,
+		WindowsLogins:           windowsLogins,
+		Users:                   userAccess,
+		Tokens:                  tokenAccess,
+		Nodes:                   nodeAccess,
+		Billing:                 billingAccess,
+		Clipboard:               clipboard,
+		DesktopSessionRecording: desktopSessionRecording,
 	}
 
 	// local user
