@@ -76,7 +76,7 @@ func Run(args []string) error {
 	startCmd.Flag("certificate-ttl", "TTL of generated certificates").Default("60m").DurationVar(&cf.CertificateTTL)
 	startCmd.Flag("renew-interval", "Interval at which certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewInterval)
 
-	configCmd := app.Command("config", "Parse and dump a config file")
+	configCmd := app.Command("config", "Parse and dump a config file").Hidden()
 
 	initCmd := app.Command("init", "Initialize a certificate destination directory.")
 
@@ -559,10 +559,18 @@ func generateImpersonatedIdentity(
 ) (*identity.Identity, error) {
 	// TODO: enforce expiration > renewal period (by what margin?)
 
+	// Generate a fresh keypair for the impersonated identity. We don't care to
+	// reuse keys here: impersonated certs might not be as well-protected so
+	// constantly rotating private keys
+	privateKey, publicKey, err := native.GenerateKeyPair("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// First, ask the auth server to generate a new set of certs with a new
 	// expiration date.
 	certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
-		PublicKey:    currentIdentity.SSHPublicKeyBytes,
+		PublicKey:    publicKey,
 		Username:     currentIdentity.XCert.Subject.CommonName,
 		Expires:      expires,
 		RoleRequests: roleRequests,
@@ -593,8 +601,8 @@ func generateImpersonatedIdentity(
 	}
 
 	newIdentity, err := identity.ReadIdentityFromKeyPair(
-		currentIdentity.KeyBytes,
-		currentIdentity.SSHPublicKeyBytes,
+		privateKey,
+		publicKey,
 		certs,
 	)
 	if err != nil {
