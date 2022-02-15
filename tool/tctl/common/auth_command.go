@@ -100,8 +100,8 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign = auth.Command("sign", "Create an identity file(s) for a given user")
 	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
 	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
-	a.authSign.Flag("out", "identity output").Short('o').Required().StringVar(&a.output)
-	a.authSign.Flag("format", fmt.Sprintf("identity format: %s. %q is the default.",
+	a.authSign.Flag("out", "Identity output").Short('o').Required().StringVar(&a.output)
+	a.authSign.Flag("format", fmt.Sprintf("Identity format: %s. %s is the default.",
 		identityfile.KnownFileFormats.String(), identityfile.DefaultFormat)).
 		Default(string(identityfile.DefaultFormat)).
 		StringVar((*string)(&a.outputFormat))

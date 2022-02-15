@@ -74,26 +74,21 @@ const (
 	DefaultFormat = FormatFile
 )
 
+// FormatList is a list of all possible FormatList.
 type FormatList []Format
 
 // KnownFileFormats is a list of all above formats.
 var KnownFileFormats = FormatList{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
 	FormatCockroach, FormatRedis}
 
+// String returns human-readable version of FormatList, ex:
+// file, openssh, tls, kubernetes
 func (f FormatList) String() string {
-	sb := strings.Builder{}
-
-	for i := 0; i < len(f)-1; i++ {
-		sb.WriteRune('"')
-		sb.WriteString(string(f[i]))
-		sb.WriteString("\", ")
+	elems := make([]string, len(f))
+	for i, format := range f {
+		elems[i] = string(format)
 	}
-
-	sb.WriteRune('"')
-	sb.WriteString(string(f[len(f)-1]))
-	sb.WriteRune('"')
-
-	return sb.String()
+	return strings.Join(elems, ", ")
 }
 
 // WriteConfig holds the necessary information to write an identity file.

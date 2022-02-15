@@ -768,7 +768,7 @@ func (d *Database) CheckAndSetDefaults() error {
 	} else if d.Protocol == defaults.ProtocolRedis {
 		_, err := redis.ParseRedisAddress(d.URI)
 		if err != nil {
-			return trace.BadParameter("failed to parse Redis URI %q, error: %v", d.URI, err)
+			return trace.BadParameter("invalid Redis database %q address: %q, error: %v", d.Name, d.URI, err)
 		}
 	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",

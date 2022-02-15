@@ -310,7 +310,8 @@ const (
 	// to be deemed acceptable for strict locking mode.
 	LockMaxStaleness = 5 * time.Minute
 
-	// DefaultRedisUsername is a default username used by Redis when not name is provided.
+	// DefaultRedisUsername is a default username used by Redis when
+	// no name is provided at connection time.
 	DefaultRedisUsername = "default"
 )
 

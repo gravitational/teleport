@@ -53,22 +53,13 @@ func (e *Engine) processCmd(ctx context.Context, redisClient redis.UniversalClie
 	case helloCmd:
 		return trace.NotImplemented("RESP3 is not supported")
 	case authCmd:
-		if err := e.processAuth(ctx, redisClient, cmd); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
+		return e.processAuth(ctx, redisClient, cmd)
 	case subscribeCmd:
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
-		if err := e.subscribeCmd(ctx, redisClient.Subscribe, cmd); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
+		return e.subscribeCmd(ctx, redisClient.Subscribe, cmd)
 	case psubscribeCmd:
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
-		if err := e.subscribeCmd(ctx, redisClient.PSubscribe, cmd); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
+		return e.subscribeCmd(ctx, redisClient.PSubscribe, cmd)
 	case punsubscribeCmd:
 		// TODO(jakub): go-redis doesn't expose any API for this command. Investigate alternative options.
 		return trace.NotImplemented("PUNSUBSCRIBE is not supported by Teleport")

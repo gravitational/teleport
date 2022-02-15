@@ -106,7 +106,7 @@ func (e *Engine) SendError(redisErr error) {
 	}
 
 	if err := e.sendToClient(redisErr); err != nil {
-		e.Log.Errorf("failed to send message to the client: %v", err)
+		e.Log.Errorf("Failed to send message to the client: %v.", err)
 		return
 	}
 }
@@ -170,7 +170,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	defer func() {
 		if err := redisConn.Close(); err != nil {
-			e.Log.Errorf("failed to close Redis connection: %v", err)
+			e.Log.Errorf("Failed to close Redis connection: %v.", err)
 		}
 	}()
 
@@ -252,6 +252,10 @@ func serverResponseToValue(cmd *redis.Cmd, err error) (interface{}, error) {
 		// Do not return Deadline Exceeded to the client as it's not very self-explanatory.
 		// Return "connection timeout" as this is what most likely happened.
 		vals = trace.ConnectionProblem(err, "connection timeout")
+	case utils.IsConnectionRefused(err):
+		// "connection refused" is returned when we fail to connect to the DB or a connection
+		// has been lost. Replace with more meaningful error.
+		vals = trace.ConnectionProblem(err, "failed to connect to the target database")
 	case utils.IsOKNetworkError(err):
 		// Terminate connection only on connection errors.
 		// Other errors should be propagated back to the client.
