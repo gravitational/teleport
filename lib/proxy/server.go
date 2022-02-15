@@ -98,6 +98,11 @@ func NewServer(config ServerConfig) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	metrics, err := newServerMetrics()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	service := &proxyService{
 		config.ClusterDialer,
 		config.Log,
