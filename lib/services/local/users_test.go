@@ -18,9 +18,11 @@ package local_test
 
 import (
 	"context"
+	"encoding/base64"
 	"testing"
 	"time"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
@@ -560,6 +562,83 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	params = params[1:] // Remove user1/register from params
 	for _, p := range params {
 		_, err := identity.GetWebauthnSessionData(ctx, p.user, p.session)
+		require.NoError(t, err) // Other keys preserved
+	}
+}
+
+func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
+	t.Parallel()
+	identity, _ := newIdentityService(t)
+
+	user1Login1 := &wantypes.SessionData{
+		Challenge:        []byte("challenge1"),
+		UserId:           []byte("user1-web-id"),
+		UserVerification: string(protocol.VerificationRequired),
+	}
+	user1Login2 := &wantypes.SessionData{
+		Challenge:        []byte("challenge2"),
+		UserId:           []byte("user1-web-id"),
+		UserVerification: string(protocol.VerificationRequired),
+	}
+	user1Registration := &wantypes.SessionData{
+		Challenge:        []byte("challenge3"),
+		UserId:           []byte("user1-web-id"),
+		ResidentKey:      true,
+		UserVerification: string(protocol.VerificationRequired),
+	}
+	user2Login := &wantypes.SessionData{
+		Challenge:        []byte("challenge4"),
+		UserId:           []byte("user2-web-id"),
+		ResidentKey:      true,
+		UserVerification: string(protocol.VerificationRequired),
+	}
+
+	const scopeLogin = "login"
+	// Registration doesn't typically use global session data, used here for
+	// testing purposes only.
+	const scopeRegister = "register"
+	params := []struct {
+		scope, id string
+		sd        *wantypes.SessionData
+	}{
+		{scope: scopeLogin, id: base64.RawURLEncoding.EncodeToString(user1Login1.Challenge), sd: user1Login1},
+		{scope: scopeLogin, id: base64.RawURLEncoding.EncodeToString(user1Login2.Challenge), sd: user1Login2},
+		{scope: scopeRegister, id: base64.RawURLEncoding.EncodeToString(user1Registration.Challenge), sd: user1Registration},
+		{scope: scopeLogin, id: base64.RawURLEncoding.EncodeToString(user2Login.Challenge), sd: user2Login},
+	}
+
+	// Verify create.
+	ctx := context.Background()
+	for _, p := range params {
+		require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, p.scope, p.id, p.sd))
+	}
+
+	// Verify read.
+	for _, p := range params {
+		got, err := identity.GetGlobalWebauthnSessionData(ctx, p.scope, p.id)
+		require.NoError(t, err)
+		if diff := cmp.Diff(p.sd, got); diff != "" {
+			t.Errorf("GetGlobalWebauthnSessionData() mismatch (-want +got):\n%s", diff)
+		}
+	}
+
+	// Verify update.
+	p0 := &params[0]
+	p0.sd.UserVerification = ""
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, p0.scope, p0.id, p0.sd))
+	got, err := identity.GetGlobalWebauthnSessionData(ctx, p0.scope, p0.id)
+	require.NoError(t, err)
+	if diff := cmp.Diff(p0.sd, got); diff != "" {
+		t.Errorf("GetGlobalWebauthnSessionData() mismatch (-want +got):\n%s", diff)
+	}
+
+	// Verify deletion.
+	require.NoError(t, identity.DeleteGlobalWebauthnSessionData(ctx, p0.scope, p0.id))
+	_, err = identity.GetGlobalWebauthnSessionData(ctx, p0.scope, p0.id)
+	require.True(t, trace.IsNotFound(err))
+	params = params[1:] // Remove p0 from params
+	for _, p := range params {
+		_, err := identity.GetGlobalWebauthnSessionData(ctx, p.scope, p.id)
 		require.NoError(t, err) // Other keys preserved
 	}
 }

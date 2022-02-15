@@ -578,6 +578,11 @@ const (
 	// WebauthnChallengeTimeout is the timeout for ongoing Webauthn authentication
 	// or registration challenges.
 	WebauthnChallengeTimeout = 5 * time.Minute
+	// WebauthnGlobalChallengeTimeout is the timeout for global authentication
+	// challenges.
+	// Stricter than WebauthnChallengeTimeout because global challenges are
+	// anonymous.
+	WebauthnGlobalChallengeTimeout = 1 * time.Minute
 )
 
 const (

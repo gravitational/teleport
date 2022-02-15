@@ -18,7 +18,6 @@ package etcd
 
 import (
 	"context"
-	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -26,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // Start starts the etcd server using the Makefile `run-etcd` task and waits for it to start.
@@ -47,7 +47,7 @@ func Start(ctx context.Context, workspace string, uid, gid int, env ...string) e
 		},
 	}
 
-	log.Printf("Launching etcd")
+	log.Printf("Launching etcd with %v in %q", cmd.Args, cmd.Dir)
 	go cmd.Run()
 
 	log.Printf("Waiting for etcd to start...")
@@ -69,9 +69,7 @@ func Start(ctx context.Context, workspace string, uid, gid int, env ...string) e
 			}
 
 		case <-timeoutCtx.Done():
-			return trace.Errorf("Timed out waiting for etcd to start")
+			return trace.Errorf("timed out waiting for etcd to start")
 		}
 	}
-
-	return nil
 }

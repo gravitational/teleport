@@ -37,7 +37,7 @@ func TestFileLogPagination(t *testing.T) {
 		RotationPeriod: time.Hour * 24,
 		Clock:          clock,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	err = log.EmitAuditEvent(context.TODO(), &events.SessionJoin{
 		Metadata: events.Metadata{
@@ -49,7 +49,7 @@ func TestFileLogPagination(t *testing.T) {
 			User: "bob",
 		},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	err = log.EmitAuditEvent(context.TODO(), &events.SessionJoin{
 		Metadata: events.Metadata{
@@ -61,7 +61,7 @@ func TestFileLogPagination(t *testing.T) {
 			User: "alice",
 		},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	err = log.EmitAuditEvent(context.TODO(), &events.SessionJoin{
 		Metadata: events.Metadata{
@@ -73,17 +73,94 @@ func TestFileLogPagination(t *testing.T) {
 			User: "dave",
 		},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	from := clock.Now().Add(-time.Hour).UTC()
 	to := clock.Now().Add(time.Hour).UTC()
 	eventArr, checkpoint, err := log.SearchEvents(from, to, apidefaults.Namespace, nil, 2, types.EventOrderAscending, "")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Len(t, eventArr, 2)
-	require.NotEqual(t, checkpoint, "")
+	require.NotEmpty(t, checkpoint)
 
 	eventArr, checkpoint, err = log.SearchEvents(from, to, apidefaults.Namespace, nil, 2, types.EventOrderAscending, checkpoint)
 	require.Nil(t, err)
 	require.Len(t, eventArr, 1)
-	require.Equal(t, checkpoint, "")
+	require.Empty(t, checkpoint)
+}
+
+func TestSearchSessionEvents(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	start := clock.Now()
+
+	log, err := NewFileLog(FileLogConfig{
+		Dir:            t.TempDir(),
+		RotationPeriod: time.Hour * 24,
+		Clock:          clock,
+	})
+	require.Nil(t, err)
+	clock.Advance(1 * time.Minute)
+
+	require.NoError(t, log.EmitAuditEvent(context.Background(), &events.SessionEnd{
+		Metadata: events.Metadata{
+			ID:   "a",
+			Type: SessionEndEvent,
+			Time: clock.Now(),
+		},
+	}))
+	clock.Advance(1 * time.Minute)
+
+	result, _, err := log.SearchSessionEvents(start, clock.Now(),
+		10, // limit
+		types.EventOrderAscending,
+		"",  // startKey
+		nil, // cond
+	)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	require.Equal(t, result[0].GetType(), SessionEndEvent)
+	require.Equal(t, result[0].GetID(), "a")
+
+	// emit a non-session event, it should not show up in the next query
+	require.NoError(t, log.EmitAuditEvent(context.Background(), &events.SessionJoin{
+		Metadata: events.Metadata{
+			ID:   "b",
+			Type: SessionJoinEvent,
+			Time: clock.Now(),
+		},
+	}))
+	clock.Advance(1 * time.Minute)
+
+	result, _, err = log.SearchSessionEvents(start, clock.Now(),
+		10, // limit
+		types.EventOrderAscending,
+		"",  // startKey
+		nil, // cond
+	)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	require.Equal(t, result[0].GetType(), SessionEndEvent)
+	require.Equal(t, result[0].GetID(), "a")
+
+	// emit a desktop session event, it should show up in the next query
+	require.NoError(t, log.EmitAuditEvent(context.Background(), &events.WindowsDesktopSessionEnd{
+		Metadata: events.Metadata{
+			ID:   "c",
+			Type: WindowsDesktopSessionEndEvent,
+			Time: clock.Now(),
+		},
+	}))
+	clock.Advance(1 * time.Minute)
+
+	result, _, err = log.SearchSessionEvents(start, clock.Now(),
+		10, // limit
+		types.EventOrderAscending,
+		"",  // startKey
+		nil, // cond
+	)
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+	require.Equal(t, result[0].GetType(), SessionEndEvent)
+	require.Equal(t, result[0].GetID(), "a")
+	require.Equal(t, result[1].GetType(), WindowsDesktopSessionEndEvent)
+	require.Equal(t, result[1].GetID(), "c")
 }
