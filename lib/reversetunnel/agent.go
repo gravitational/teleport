@@ -278,7 +278,10 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 		a.reverseTunnelDetails = a.getReverseTunnelDetails()
 	}
 
-	var opts []proxy.DialerOptionFunc
+	opts := []proxy.DialerOptionFunc{
+		proxy.WithInsecureSkipTLSVerify(lib.IsInsecureDevMode()),
+	}
+
 	if a.reverseTunnelDetails != nil && a.reverseTunnelDetails.TLSRoutingEnabled {
 		opts = append(opts, proxy.WithALPNDialer())
 	}
