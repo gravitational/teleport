@@ -26,10 +26,16 @@ import (
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
 
-// scopeLogin identifies SessionData stored for login.
+// scopeLogin identifies session data stored for login.
 // It is used as the scope for global session data and as the sessionID for
 // per-user session data.
+// Only one in-flight login is supported for MFA / per-user session data.
 const scopeLogin = "login"
+
+// scopeSession is used as the per-user sessionID for registrations.
+// Only one in-flight registration is supported per-user, baring registrations
+// that use in-memory storage.
+const scopeSession = "registration"
 
 func sessionToPB(sd *wan.SessionData) (*wantypes.SessionData, error) {
 	rawChallenge, err := base64.RawURLEncoding.DecodeString(sd.Challenge)

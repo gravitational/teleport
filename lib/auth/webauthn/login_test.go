@@ -93,7 +93,7 @@ func TestWebauthnGlobalDisable(t *testing.T) {
 		{
 			name: "RegistrationFlow.Begin",
 			fn: func() error {
-				_, err := registrationFlow.Begin(ctx, user)
+				_, err := registrationFlow.Begin(ctx, user, false /* passwordless */)
 				return err
 			},
 		},
@@ -143,7 +143,7 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 		Webauthn: webConfig,
 		Identity: identity,
 	}
-	cc, err := webRegistration.Begin(ctx, user)
+	cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
 	require.NoError(t, err)
 	ccr, err := webKey.SignCredentialCreation(webOrigin, cc)
 	require.NoError(t, err)
@@ -298,7 +298,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 	key, err := mocku2f.Create()
 	require.NoError(t, err)
 	key.PreferRPID = true
-	cc, err := webRegistration.Begin(ctx, user)
+	cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
 	require.NoError(t, err)
 	ccr, err := key.SignCredentialCreation(webOrigin, cc)
 	require.NoError(t, err)
@@ -415,11 +415,12 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 	require.NoError(t, err)
 	webKey.IgnoreAllowedCredentials = true // Allowed credentials will be empty
 	webKey.SetUV = true                    // Required for passwordless
+	webKey.AllowResidentKey = true         // Required for passwordless
 	webRegistration := &wanlib.RegistrationFlow{
 		Webauthn: webConfig,
 		Identity: identity,
 	}
-	cc, err := webRegistration.Begin(ctx, user)
+	cc, err := webRegistration.Begin(ctx, user, true /* passwordless */)
 	require.NoError(t, err)
 	ccr, err := webKey.SignCredentialCreation(webOrigin, cc)
 	require.NoError(t, err)

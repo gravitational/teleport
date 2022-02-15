@@ -32,12 +32,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// registrationSessionID is used as the per-user session identifier for
-// registrations.
-// A fixed identifier means that only one concurrent registration is allowed
-// (excluding registrations using in-memory SessionData storage).
-const registrationSessionID = "registration"
-
 // RegistrationIdentity represents the subset of Identity methods used by
 // RegistrationFlow.
 type RegistrationIdentity interface {
@@ -125,9 +119,11 @@ type RegistrationFlow struct {
 // Begin is the first step of the registration ceremony.
 // The CredentialCreation created is relayed back to the client, who in turn
 // performs a user presence check and signs the challenge contained within it.
+// If passwordless is set, then registration asks the authenticator for a
+// resident key.
 // As a side effect Begin may assign (and record in storage) a WebAuthn ID for
 // the user.
-func (f *RegistrationFlow) Begin(ctx context.Context, user string) (*CredentialCreation, error) {
+func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless bool) (*CredentialCreation, error) {
 	switch {
 	case f.Webauthn.Disabled:
 		return nil, trace.BadParameter("webauthn disabled")
@@ -152,6 +148,8 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string) (*CredentialC
 		})
 	}
 
+	// TODO(codingllama): This is the place to fix the webauthn/users/ index, if
+	//  that's what I'm going for.
 	webID, err := getOrCreateUserWebauthnID(ctx, user, f.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -159,8 +157,10 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string) (*CredentialC
 	u := newWebUser(user, webID, true /* credentialIDOnly */, nil /* devices */)
 
 	web, err := newWebAuthn(webAuthnParams{
-		cfg:                f.Webauthn,
-		rpID:               f.Webauthn.RPID,
+		cfg:                     f.Webauthn,
+		rpID:                    f.Webauthn.RPID,
+		requireResidentKey:      passwordless,
+		requireUserVerification: passwordless,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -170,8 +170,9 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string) (*CredentialC
 		return nil, trace.Wrap(err)
 	}
 
-	// Copy AuthenticatorSelection settings manually, the framework doesn't do it.
+	// Copy settings manually, the framework doesn't do it.
 	credentialCreation.Response.AuthenticatorSelection = web.Config.AuthenticatorSelection
+	sessionData.UserVerification = web.Config.AuthenticatorSelection.UserVerification
 
 	// TODO(codingllama): Send U2F App ID back in creation requests too. Useful to
 	//  detect duplicate devices.
@@ -180,7 +181,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string) (*CredentialC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := f.Identity.UpsertWebauthnSessionData(ctx, user, registrationSessionID, sessionDataPB); err != nil {
+	if err := f.Identity.UpsertWebauthnSessionData(ctx, user, scopeSession, sessionDataPB); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -222,16 +223,22 @@ func (f *RegistrationFlow) Finish(ctx context.Context, user, deviceName string, 
 	}
 	u := newWebUser(user, wla.UserID, true /* credentialIDOnly */, nil /* devices */)
 
-	sessionDataPB, err := f.Identity.GetWebauthnSessionData(ctx, user, registrationSessionID)
+	sessionDataPB, err := f.Identity.GetWebauthnSessionData(ctx, user, scopeSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sessionData := sessionFromPB(sessionDataPB)
 
+	// Activate passwordless switches (resident key, user verification) if we
+	// required verification in the begin step.
+	passwordless := sessionData.UserVerification == protocol.VerificationRequired
+
 	web, err := newWebAuthn(webAuthnParams{
-		cfg:    f.Webauthn,
-		rpID:   f.Webauthn.RPID,
-		origin: origin,
+		cfg:                     f.Webauthn,
+		rpID:                    f.Webauthn.RPID,
+		origin:                  origin,
+		requireResidentKey:      passwordless,
+		requireUserVerification: passwordless,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -251,11 +258,13 @@ func (f *RegistrationFlow) Finish(ctx context.Context, user, deviceName string, 
 	newDevice := types.NewMFADevice(deviceName, uuid.NewString() /* id */, time.Now() /* addedAt */)
 	newDevice.Device = &types.MFADevice_Webauthn{
 		Webauthn: &types.WebauthnDevice{
-			CredentialId:     credential.ID,
-			PublicKeyCbor:    credential.PublicKey,
-			AttestationType:  credential.AttestationType,
-			Aaguid:           credential.Authenticator.AAGUID,
-			SignatureCounter: credential.Authenticator.SignCount,
+			CredentialId:      credential.ID,
+			PublicKeyCbor:     credential.PublicKey,
+			AttestationType:   credential.AttestationType,
+			Aaguid:            credential.Authenticator.AAGUID,
+			SignatureCounter:  credential.Authenticator.SignCount,
+			AttestationObject: resp.AttestationResponse.AttestationObject,
+			ResidentKey:       passwordless,
 		},
 	}
 	// We delegate a few checks to identity, including:
@@ -267,7 +276,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, user, deviceName string, 
 	}
 
 	// Registration complete, remove the registration challenge we just used.
-	if err := f.Identity.DeleteWebauthnSessionData(ctx, user, registrationSessionID); err != nil {
+	if err := f.Identity.DeleteWebauthnSessionData(ctx, user, scopeSession); err != nil {
 		log.Warnf("WebAuthn: failed to delete registration SessionData for user %v", user)
 	}
 

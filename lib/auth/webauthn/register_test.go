@@ -42,49 +42,82 @@ func TestRegistrationFlow_BeginFinish(t *testing.T) {
 	}
 
 	ctx := context.Background()
-
-	// Begin is the first step in registration.
-	credentialCreation, err := webRegistration.Begin(ctx, user)
-	require.NoError(t, err)
-	// Assert some parts of the credentialCreation (it's framework-created, no
-	// need to go too deep).
-	require.NotNil(t, credentialCreation)
-	require.NotEmpty(t, credentialCreation.Response.Challenge)
-	require.Equal(t, webRegistration.Webauthn.RPID, credentialCreation.Response.RelyingParty.ID)
-	// Are we using the correct authenticator selection settings?
-	require.Equal(t, false, *credentialCreation.Response.AuthenticatorSelection.RequireResidentKey)
-	require.Equal(t, protocol.VerificationDiscouraged, credentialCreation.Response.AuthenticatorSelection.UserVerification)
-	// Did we record the SessionData in storage?
-	require.NotEmpty(t, identity.SessionData)
-
-	// Sign CredentialCreation, typically requires user interaction.
-	dev, err := mocku2f.Create()
-	require.NoError(t, err)
-	ccr, err := dev.SignCredentialCreation(origin, credentialCreation)
-	require.NoError(t, err)
-
-	// Finish is the final step in registration.
-	newDevice, err := webRegistration.Finish(ctx, user, "webauthn1", ccr)
-	require.NoError(t, err)
-	// Did we get a proper WebauthnDevice?
-	gotDevice := newDevice.GetWebauthn()
-	require.NotNil(t, gotDevice)
-	require.NotEmpty(t, gotDevice.PublicKeyCbor) // validated indirectly via authentication
-	wantDevice := &types.WebauthnDevice{
-		CredentialId:     dev.KeyHandle,
-		PublicKeyCbor:    gotDevice.PublicKeyCbor,
-		AttestationType:  gotDevice.AttestationType,
-		Aaguid:           make([]byte, 16), // 16 zeroes
-		SignatureCounter: 0,
+	tests := []struct {
+		name                 string
+		user                 string
+		deviceName           string
+		passwordless         bool
+		wantUserVerification protocol.UserVerificationRequirement
+		wantResidentKey      bool
+	}{
+		{
+			name:                 "MFA",
+			user:                 user,
+			deviceName:           "webauthn1",
+			wantUserVerification: protocol.VerificationDiscouraged,
+		},
+		{
+			name:                 "passwordless",
+			user:                 user,
+			deviceName:           "webauthn2",
+			passwordless:         true,
+			wantUserVerification: protocol.VerificationRequired,
+			wantResidentKey:      true,
+		},
 	}
-	if diff := cmp.Diff(wantDevice, gotDevice); diff != "" {
-		t.Errorf("Finish() mismatch (-want +got):\n%s", diff)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			identity.UpdatedDevices = nil // Clear "stored" devices
+
+			// Begin is the first step in registration.
+			credentialCreation, err := webRegistration.Begin(ctx, user, test.passwordless)
+			require.NoError(t, err)
+			// Assert some parts of the credentialCreation (it's framework-created, no
+			// need to go too deep).
+			require.NotNil(t, credentialCreation)
+			require.NotEmpty(t, credentialCreation.Response.Challenge)
+			require.Equal(t, webRegistration.Webauthn.RPID, credentialCreation.Response.RelyingParty.ID)
+			// Are we using the correct authenticator selection settings?
+			require.Equal(t, test.wantResidentKey, *credentialCreation.Response.AuthenticatorSelection.RequireResidentKey)
+			require.Equal(t, test.wantUserVerification, credentialCreation.Response.AuthenticatorSelection.UserVerification)
+			// Did we record the SessionData in storage?
+			require.NotEmpty(t, identity.SessionData)
+
+			// Sign CredentialCreation, typically requires user interaction.
+			dev, err := mocku2f.Create()
+			require.NoError(t, err)
+			dev.SetUV = test.wantUserVerification == protocol.VerificationRequired
+			dev.AllowResidentKey = test.wantResidentKey
+			ccr, err := dev.SignCredentialCreation(origin, credentialCreation)
+			require.NoError(t, err)
+
+			// Finish is the final step in registration.
+			newDevice, err := webRegistration.Finish(ctx, user, test.deviceName, ccr)
+			require.NoError(t, err)
+			require.Equal(t, test.deviceName, newDevice.GetName())
+			// Did we get a proper WebauthnDevice?
+			gotDevice := newDevice.GetWebauthn()
+			require.NotNil(t, gotDevice)
+			require.NotEmpty(t, gotDevice.PublicKeyCbor) // validated indirectly via authentication
+			wantDevice := &types.WebauthnDevice{
+				CredentialId:      dev.KeyHandle,
+				PublicKeyCbor:     gotDevice.PublicKeyCbor,
+				AttestationType:   gotDevice.AttestationType,
+				Aaguid:            make([]byte, 16), // 16 zeroes
+				SignatureCounter:  0,
+				AttestationObject: ccr.AttestationResponse.AttestationObject,
+				ResidentKey:       test.wantResidentKey,
+			}
+			if diff := cmp.Diff(wantDevice, gotDevice); diff != "" {
+				t.Errorf("Finish() mismatch (-want +got):\n%s", diff)
+			}
+			// SessionData was cleared?
+			require.Empty(t, identity.SessionData)
+			// Device created in storage?
+			require.Len(t, identity.UpdatedDevices, 1)
+			require.Equal(t, newDevice, identity.UpdatedDevices[0])
+		})
 	}
-	// SessionData was cleared?
-	require.Empty(t, identity.SessionData)
-	// Device created in storage?
-	require.Len(t, identity.UpdatedDevices, 1)
-	require.Equal(t, newDevice, identity.UpdatedDevices[0])
 }
 
 func TestRegistrationFlow_Begin_errors(t *testing.T) {
@@ -97,7 +130,7 @@ func TestRegistrationFlow_Begin_errors(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := webRegistration.Begin(ctx, "" /* user */)
+	_, err := webRegistration.Begin(ctx, "" /* user */, false /* passwordless */)
 	require.True(t, trace.IsBadParameter(err)) // user required
 }
 
@@ -113,7 +146,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 
 	ctx := context.Background()
 
-	cc, err := webRegistration.Begin(ctx, user)
+	cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
 	require.NoError(t, err)
 	key, err := mocku2f.Create()
 	require.NoError(t, err)
@@ -163,7 +196,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 			user:       user,
 			deviceName: "webauthn2",
 			createResp: func() *wanlib.CredentialCreationResponse {
-				cc, err := webRegistration.Begin(ctx, user)
+				cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
 				require.NoError(t, err)
 				cc.Response.RelyingParty.ID = "badrpid.com"
 
@@ -178,7 +211,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 			user:       user,
 			deviceName: "webauthn2",
 			createResp: func() *wanlib.CredentialCreationResponse {
-				cc, err := webRegistration.Begin(ctx, user)
+				cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
 				require.NoError(t, err)
 				// Flip a challenge bit, this should be enough to consistently fail
 				// signature checking.
@@ -271,7 +304,7 @@ func TestRegistrationFlow_Finish_attestation(t *testing.T) {
 				Identity: newFakeIdentity(user),
 			}
 
-			cc, err := webRegistration.Begin(ctx, user)
+			cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
 			require.NoError(t, err)
 
 			dev := test.dev
