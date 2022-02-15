@@ -16,6 +16,7 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -31,6 +32,8 @@ func streamServerInterceptor(metrics *serverMetrics) grpc.StreamServerIntercepto
 		reporter := newServerReporter(info.FullMethod, metrics)
 		wrapper := newStreamServerWrapper(stream, reporter)
 		err := toGRPCError(handler(srv, wrapper))
+		// TODO Naji: check if io.EOF is returned here
+		fmt.Printf("------------------------------------ server interceptor error: %+v\n", err)
 		reporter.reportCall(err)
 		return err
 	}
@@ -63,6 +66,8 @@ func (s *streamServerWrapper) SendMsg(m interface{}) error {
 // RecvMsg wraps around ServerStream.RecvMsg and adds metrics reporting
 func (s *streamServerWrapper) RecvMsg(m interface{}) error {
 	err := toGRPCError(s.ServerStream.RecvMsg(m))
+	// TODO Naji: check if io.EOF is returned here
+	fmt.Printf("------------------------------------ server interceptor receive error: %+v\n", err)
 	s.reporter.reportMsgReceived(err)
 	return err
 }
@@ -107,7 +112,7 @@ func (s *streamClientWrapper) SendMsg(m interface{}) error {
 	return err
 }
 
-// SendMsg wraps around ClientStream.RecvMsg and adds metrics reporting
+// RecvMsg wraps around ClientStream.RecvMsg and adds metrics reporting
 func (s *streamClientWrapper) RecvMsg(m interface{}) error {
 	err := toGRPCError(s.ClientStream.RecvMsg(m))
 	s.reporter.reportMsgReceived(err)
