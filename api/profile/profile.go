@@ -173,6 +173,16 @@ func SetCurrentProfileName(dir string, name string) error {
 	return nil
 }
 
+// RemoveProfile removes cluster profile file
+func RemoveProfile(dir, name string) error {
+	profilePath := filepath.Join(dir, name+".yaml")
+	if err := os.Remove(profilePath); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	return nil
+}
+
 // GetCurrentProfileName attempts to load the current profile name.
 func GetCurrentProfileName(dir string) (name string, err error) {
 	if dir == "" {
