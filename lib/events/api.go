@@ -465,6 +465,12 @@ const (
 
 	// DesktopRecordingEvent is emitted as a desktop access session is recorded.
 	DesktopRecordingEvent = "desktop.recording"
+	// DesktopClipboardReceiveEvent is emitted when Teleport receives
+	// clipboard data from a remote desktop.
+	DesktopClipboardReceiveEvent = "desktop.clipboard.receive"
+	// DesktopClipboardSendEvent is emitted when local clipboard data
+	// is sent to Teleport.
+	DesktopClipboardSendEvent = "desktop.clipboard.send"
 )
 
 const (
