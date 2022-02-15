@@ -273,24 +273,27 @@ func TestLoginFlow_Begin_errors(t *testing.T) {
 
 	ctx := context.Background()
 	tests := []struct {
-		name    string
-		user    string
-		wantErr string
+		name          string
+		user          string
+		assertErrType func(error) bool
+		wantErr       string
 	}{
 		{
-			name:    "NOK empty user",
-			wantErr: "user required",
+			name:          "NOK empty user",
+			assertErrType: trace.IsBadParameter,
+			wantErr:       "user required",
 		},
 		{
-			name:    "NOK no registered devices",
-			user:    user,
-			wantErr: "no credentials",
+			name:          "NOK no registered devices",
+			user:          user,
+			assertErrType: trace.IsNotFound,
+			wantErr:       "no credentials",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := webLogin.Begin(ctx, test.user)
-			require.True(t, trace.IsBadParameter(err), "got err = %v, want BadParameter", err)
+			require.True(t, test.assertErrType(err), "got err = %v, want BadParameter", err)
 			require.Contains(t, err.Error(), test.wantErr)
 		})
 	}

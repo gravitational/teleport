@@ -89,7 +89,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 		// Let's make sure we have at least one registered credential here, since we
 		// have to allow zero credentials for passwordless below.
 		if len(u.credentials) == 0 {
-			return nil, trace.BadParameter("found no credentials for user")
+			return nil, trace.NotFound("found no credentials for user %q", user)
 		}
 	}
 
