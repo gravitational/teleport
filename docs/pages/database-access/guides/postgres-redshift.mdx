@@ -216,8 +216,9 @@ for more information.
 
 ## Connect
 
-Once the database service has joined the cluster, login to see the available
-databases:
+Once the database agent has started and joined the cluster, log in to see the
+registered databases. Replace `--proxy` with the address of your Teleport Proxy Service,
+e.g., `mytenant.teleport.sh` for Teleport Cloud users.
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -258,7 +259,7 @@ $ tsh db connect aurora
 ```
 
 <Admonition type="note" title="Note">
-  The `psql` command-line client should be available in PATH in order to be
+  The `psql` command-line client should be available in `PATH` in order to be
   able to connect.
 </Admonition>
 
