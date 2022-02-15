@@ -1005,13 +1005,11 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 	require.NoError(t, err)
 	privUser, _, err := keygen.GenerateKeyPair("")
 	require.NoError(t, err)
-	privDatabase, _, err := keygen.GenerateKeyPair("")
-	require.NoError(t, err)
 
 	hostCA := suite.NewTestCA(types.HostCA, "me.localhost", privHost)
 	userCA := suite.NewTestCA(types.UserCA, "me.localhost", privUser)
-	databaseCA := suite.NewTestCA(types.DatabaseCA, "me.localhost", privDatabase)
 	// Create duplicated CAs
+	databaseCA := suite.NewTestCA(types.DatabaseCA, "me.localhost", privHost)
 	databaseCA.Spec.ActiveKeys = hostCA.Spec.ActiveKeys.Clone()
 
 	conf.Authorities = []types.CertAuthority{hostCA, userCA, databaseCA}
@@ -1041,7 +1039,7 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 		DomainName: "me.localhost",
 	}, true)
 	require.NoError(t, err)
-	// UserCA should be untouched, as it was unique.
+	// UserCA should be untouched, as it was not the part of the rotate request, and it's unique.
 	require.Equal(t, userCA.Spec.ActiveKeys.TLS, newUserCA.GetActiveKeys().TLS)
 	require.Equal(t, userCA.Spec.ActiveKeys.SSH, newUserCA.GetActiveKeys().SSH)
 
@@ -1063,7 +1061,7 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 	require.NotEqual(t, databaseCA.Spec.ActiveKeys.TLS, newDatabaseCA.GetActiveKeys().TLS)
 	require.NotEqual(t, databaseCA.Spec.ActiveKeys.SSH, newDatabaseCA.GetActiveKeys().SSH)
 
-	// Sanity check, HostCA and DatabaseCA should be different now.
+	// HostCA and DatabaseCA should be different now.
 	require.NotEqual(t, newHostCA.GetActiveKeys().TLS, newDatabaseCA.GetActiveKeys().TLS)
 	require.NotEqual(t, newHostCA.GetActiveKeys().SSH, newDatabaseCA.GetActiveKeys().SSH)
 }

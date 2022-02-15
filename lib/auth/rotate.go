@@ -17,8 +17,8 @@ limitations under the License.
 package auth
 
 import (
-	"bytes"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509/pkix"
 	"time"
 
@@ -217,10 +217,7 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 		return trace.Wrap(err)
 	}
 
-	caTypes, err = a.findDuplicatedCertificates(caTypes, allCerts)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	caTypes = a.findDuplicatedCertificates(caTypes, allCerts)
 
 	for _, caType := range caTypes {
 		existing, found := allCerts[caType]
@@ -415,60 +412,57 @@ func (a *Server) getAllCertificates(clusterName string) (CertAuthorityMap, error
 
 // findDuplicatedCertificates checks if any CA provided as caTypes has a duplicate in allCerts. List of all duplicates
 // is returned as a result. If no duplicates are found, then caTypes is returned in unmodified form.
-// This
-func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAuthorityMap) ([]types.CertAuthType, error) {
-	// create a set for convenient lookup
+func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAuthorityMap) []types.CertAuthType {
+	if len(caTypes) == len(allCerts) {
+		// requested rotation of all certs, no point of looking for duplicates
+		return caTypes
+	}
+
+	// create a set to prevent duplicates
 	rotateMap := make(map[types.CertAuthType]struct{})
+	certsThumbs := make(map[[32]byte][]types.CertAuthType)
 
-	// Check all combinations for duplicates. This can be optimized, but currently we have only 4 certificates
-	// and current implementation is easier to read and understand.
-	for _, caType := range caTypes {
-		cert, found := allCerts[caType]
-		if !found {
-			return nil, trace.BadParameter("didn't find %q in all certs map", caType)
+	for certType, allCert := range allCerts {
+		for _, cert := range allCert.GetActiveKeys().TLS {
+			s := sha256.Sum256(cert.Key)
+			certsThumbs[s] = append(certsThumbs[s], certType)
 		}
+		for _, cert := range allCert.GetAdditionalTrustedKeys().TLS {
+			s := sha256.Sum256(cert.Key)
+			certsThumbs[s] = append(certsThumbs[s], certType)
+		}
+		for _, cert := range allCert.GetActiveKeys().SSH {
+			s := sha256.Sum256(cert.PrivateKey)
+			certsThumbs[s] = append(certsThumbs[s], certType)
+		}
+		for _, cert := range allCert.GetAdditionalTrustedKeys().SSH {
+			s := sha256.Sum256(cert.PrivateKey)
+			certsThumbs[s] = append(certsThumbs[s], certType)
+		}
+	}
 
-		// if CA has been already added to our set, skip it
-		_, found = rotateMap[caType]
-		if found {
+	for _, certsThumb := range certsThumbs {
+		if len(certsThumb) == 1 {
+			// key is unique
 			continue
 		}
 
-	nextCert:
-		for allCAType, allCert := range allCerts {
-			if caType == allCAType {
-				// Skip if the type is the same.
-				continue
-			}
-
-			activeKeys := cert.GetActiveKeys()
-			allActiveKeys := allCert.GetActiveKeys()
-
-			// Compare TLS keys
-			for _, ak := range activeKeys.TLS {
-				for _, aak := range allActiveKeys.TLS {
-					if bytes.Compare(ak.Key, aak.Key) == 0 {
-						rotateMap[allCAType] = struct{}{}
-						continue nextCert
-					}
-				}
-			}
-
-			// Compare SSH keys
-			for _, ak := range activeKeys.SSH {
-				for _, aak := range allActiveKeys.SSH {
-					if bytes.Compare(ak.PrivateKey, aak.PrivateKey) == 0 {
-						rotateMap[allCAType] = struct{}{}
-						continue nextCert
+		// key has duplicates, check if the rotation request contains that CA type.
+		for _, caType := range caTypes {
+			for _, certType := range certsThumb {
+				if caType == certType {
+					// copy original CA type and all duplicates as we need to rotate all of them.
+					for _, ct := range certsThumb {
+						rotateMap[ct] = struct{}{}
 					}
 				}
 			}
 		}
 	}
 
-	// add original content
-	for _, caType := range caTypes {
-		rotateMap[caType] = struct{}{}
+	if len(rotateMap) == 0 {
+		// no duplicates found
+		return caTypes
 	}
 
 	// copy all set elements to an array
@@ -478,7 +472,7 @@ func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCer
 		toRotate = append(toRotate, key)
 	}
 
-	return toRotate, nil
+	return toRotate
 }
 
 // processRotationRequest processes rotation request based on the target and
