@@ -64,7 +64,7 @@ Once you get the value for the external IP (it may take a few minutes for this f
 Now we create a Teleport user by executing the `tctl` command with `kubectl`.
 
 ```code
-$ kubectl --namespace teleport-cluster exec deploy/teleport-cluster -- tctl users add tadmin --roles=access,editor --logins=root,ubuntu
+$ kubectl --namespace teleport-cluster exec deploy/teleport-cluster -- tctl users add tadmin --roles=access,editor --logins=ubuntu  
 # User "tadmin" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
 # https://tele.example.com:443/web/invite/<invite-token>
 
