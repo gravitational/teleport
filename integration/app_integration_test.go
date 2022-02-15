@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -54,10 +55,10 @@ import (
 	"github.com/gravitational/teleport/lib/web/app"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/websocket"
 )
 
 // TestAppAccessForward tests that requests get forwarded to the target application
@@ -136,7 +137,7 @@ func TestAppAccessWebsockets(t *testing.T) {
 		{
 			desc:     "invalid application session cookie, websocket request fails to dial",
 			inCookie: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-			err:      &websocket.DialError{},
+			err:      errors.New(""),
 		},
 	}
 	for _, tt := range tests {
@@ -856,20 +857,33 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		flushAppClusterName: "example.com",
 	}
 
+	createHandler := func(handler func(conn *websocket.Conn)) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			upgrader := websocket.Upgrader{
+				ReadBufferSize:  1024,
+				WriteBufferSize: 1024,
+			}
+
+			conn, err := upgrader.Upgrade(w, r, nil)
+			require.NoError(t, err)
+			handler(conn)
+		}
+	}
+
 	// Start a few different HTTP server that will be acting like a proxied application.
 	rootServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, p.rootMessage)
 	}))
 	t.Cleanup(rootServer.Close)
 	// Websockets server in root cluster (ws://).
-	rootWSServer := httptest.NewServer(websocket.Handler(func(conn *websocket.Conn) {
-		conn.Write([]byte(p.rootWSMessage))
+	rootWSServer := httptest.NewServer(createHandler(func(conn *websocket.Conn) {
+		conn.WriteMessage(websocket.BinaryMessage, []byte(p.rootWSMessage))
 		conn.Close()
 	}))
 	t.Cleanup(rootWSServer.Close)
 	// Secure websockets server in root cluster (wss://).
-	rootWSSServer := httptest.NewTLSServer(websocket.Handler(func(conn *websocket.Conn) {
-		conn.Write([]byte(p.rootWSSMessage))
+	rootWSSServer := httptest.NewTLSServer(createHandler(func(conn *websocket.Conn) {
+		conn.WriteMessage(websocket.BinaryMessage, []byte(p.rootWSSMessage))
 		conn.Close()
 	}))
 	t.Cleanup(rootWSSServer.Close)
@@ -878,14 +892,14 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	}))
 	t.Cleanup(leafServer.Close)
 	// Websockets server in leaf cluster (ws://).
-	leafWSServer := httptest.NewServer(websocket.Handler(func(conn *websocket.Conn) {
-		conn.Write([]byte(p.leafWSMessage))
+	leafWSServer := httptest.NewServer(createHandler(func(conn *websocket.Conn) {
+		conn.WriteMessage(websocket.BinaryMessage, []byte(p.leafWSMessage))
 		conn.Close()
 	}))
 	t.Cleanup(leafWSServer.Close)
 	// Secure websockets server in leaf cluster (wss://).
-	leafWSSServer := httptest.NewTLSServer(websocket.Handler(func(conn *websocket.Conn) {
-		conn.Write([]byte(p.leafWSSMessage))
+	leafWSSServer := httptest.NewTLSServer(createHandler(func(conn *websocket.Conn) {
+		conn.WriteMessage(websocket.BinaryMessage, []byte(p.leafWSSMessage))
 		conn.Close()
 	}))
 	t.Cleanup(leafWSSServer.Close)
@@ -1340,29 +1354,28 @@ func (p *pack) makeRequestWithClientCert(tlsConfig *tls.Config, method, endpoint
 
 // makeWebsocketRequest makes a websocket request with the given session cookie.
 func (p *pack) makeWebsocketRequest(sessionCookie, endpoint string) (string, error) {
-	config, err := websocket.NewConfig(
-		fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()), endpoint),
-		"https://localhost")
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	header := http.Header{}
+	dialer := websocket.Dialer{}
+
 	if sessionCookie != "" {
-		config.Header.Set("Cookie", (&http.Cookie{
+		header.Set("Cookie", (&http.Cookie{
 			Name:  app.CookieName,
 			Value: sessionCookie,
 		}).String())
 	}
-	config.TlsConfig = &tls.Config{
+	dialer.TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	conn, err := websocket.DialConfig(config)
+	conn, resp, err := dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()), endpoint), header)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", err
 	}
 	defer conn.Close()
-	data, err := io.ReadAll(conn)
-	if err != nil {
-		return "", trace.Wrap(err)
+	defer resp.Body.Close()
+	stream := &web.WebsocketIO{Conn: conn}
+	data, err := io.ReadAll(stream)
+	if err != nil && websocket.IsUnexpectedCloseError(err, websocket.CloseAbnormalClosure) {
+		return "", err
 	}
 	return string(data), nil
 }
