@@ -245,8 +245,7 @@ func (a *Server) establishTrust(trustedCluster types.TrustedCluster) ([]types.Ce
 	}
 	for _, lca := range allLocalCAs {
 		if lca.GetClusterName() == domainName {
-			// ensure there's no labels, should already be the case
-			localCertAuthorities = append(localCertAuthorities, lca.WithTrustRelationship(types.TrustRelationshipLocal))
+			localCertAuthorities = append(localCertAuthorities, lca)
 		}
 	}
 
@@ -284,7 +283,6 @@ func (a *Server) establishTrust(trustedCluster types.TrustedCluster) ([]types.Ce
 		if ca.GetName() != remoteClusterName {
 			return nil, trace.BadParameter("received inconsistently named CAs from trusted cluster")
 		}
-		ca.SetTrustRelationship(types.TrustRelationshipTrusted)
 	}
 
 	return validateResponse.CAs, nil
@@ -296,7 +294,6 @@ func (a *Server) addTrustedCertAuthorities(trustedCluster types.TrustedCluster, 
 	for _, remoteCertAuthority := range remoteCAs {
 		// change the name of the remote ca to the name of the trusted cluster
 		remoteCertAuthority.SetName(trustedCluster.GetName())
-		remoteCertAuthority.SetTrustRelationship(types.TrustRelationshipTrusted)
 
 		// wipe out roles sent from the remote cluster and set roles from the trusted cluster
 		remoteCertAuthority.SetRoles(nil)
@@ -509,7 +506,6 @@ func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterR
 
 	// token has been validated, upsert the given certificate authority
 	for _, certAuthority := range validateRequest.CAs {
-		certAuthority.SetTrustRelationship(types.TrustRelationshipRemote)
 		err = a.UpsertCertAuthority(certAuthority)
 		if err != nil {
 			return nil, trace.Wrap(err)

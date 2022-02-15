@@ -492,8 +492,6 @@ func (s *remoteSite) watchCertAuthorities() error {
 						localCA.GetType() != types.UserCA) {
 					continue
 				}
-				// ensure that metadata labels are cleared
-				localCA = localCA.WithTrustRelationship(types.TrustRelationshipLocal)
 
 				if err := s.remoteClient.RotateExternalCertAuthority(localCA); err != nil {
 					s.WithError(err).Warn("Failed to rotate external ca")
@@ -506,7 +504,6 @@ func (s *remoteSite) watchCertAuthorities() error {
 					remoteCA.GetClusterName() != s.domainName {
 					continue
 				}
-				remoteCA = remoteCA.WithTrustRelationship(types.TrustRelationshipRemote)
 
 				oldRemoteCA, err := s.localClient.GetCertAuthority(types.CertAuthID{
 					Type:       types.HostCA,

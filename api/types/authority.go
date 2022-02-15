@@ -27,20 +27,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// TrustRelationship represents the trust of a CA relative to the local cluster.
-type TrustRelationship string
-
-const (
-	// TrustRelationshipLocal indicates that a CA is local to the cluster.
-	TrustRelationshipLocal TrustRelationship = "local"
-
-	// TrustRelationshipTrusted indicates that a CA is from a trusted cluster.
-	TrustRelationshipTrusted TrustRelationship = "trusted"
-
-	// TrustRelationshipRemote indicates that a CA is from a remote (leaf) cluster.
-	TrustRelationshipRemote TrustRelationship = "remote"
-)
-
 // CertAuthority is a host or user certificate authority that
 // can check and if it has private key stored as well, sign it too
 type CertAuthority interface {
@@ -93,13 +79,6 @@ type CertAuthority interface {
 	AllKeyTypesMatch() bool
 	// Clone returns a copy of the cert authority object.
 	Clone() CertAuthority
-
-	// GetTrustRelationship returns the trust relationship of this CA.
-	GetTrustRelationship() TrustRelationship
-	// SetTrustRelationship sets the trust relationship of this CA.
-	SetTrustRelationship(TrustRelationship)
-	// WithTrustRelationship returns a clone of the CA with the specified trust relationship.
-	WithTrustRelationship(TrustRelationship) CertAuthority
 }
 
 // NewCertAuthority returns new cert authority
@@ -209,7 +188,7 @@ func RemoveCASecrets(ca CertAuthority) {
 
 // String returns human readable version of the CertAuthorityV2.
 func (ca *CertAuthorityV2) String() string {
-	return fmt.Sprintf("CA(name=%v, type=%v, trust_rel=%v)", ca.GetClusterName(), ca.GetType(), ca.GetTrustRelationship())
+	return fmt.Sprintf("CA(name=%v, type=%v)", ca.GetClusterName(), ca.GetType())
 }
 
 // AddRole adds a role to ca role list
@@ -384,43 +363,6 @@ func (ca *CertAuthorityV2) GetTrustedJWTKeyPairs() []*JWTKeyPair {
 		kps = append(kps, k.Clone())
 	}
 	return kps
-}
-
-// labelTrustRelationship is the internal-use label to store a trust
-// relationship in a metadata label of a CertAuthorityV2. Of note is that we
-// represent "local" as no label, so any CA that's missing the trust
-// relationship will also be treated as "local".
-const labelTrustRelationship = "teleport.dev/trust_rel"
-
-func (ca *CertAuthorityV2) GetTrustRelationship() TrustRelationship {
-	rel := ca.Metadata.Labels[labelTrustRelationship]
-	if rel == "" {
-		return TrustRelationshipLocal
-	}
-
-	return TrustRelationship(rel)
-}
-
-func (ca *CertAuthorityV2) SetTrustRelationship(rel TrustRelationship) {
-	// older versions used to do compare-and-swap for CertAuthority resources by
-	// comparing the marshalled json of the "existing" against what's stored in
-	// the backend without sorting the keys for the Labels map; as maps have a
-	// random order, this means that we can't ever have more than one key in the
-	// map or the CAS will spuriously fail, so here we just clear it or replace
-	// it with a new one
-	if rel == TrustRelationshipLocal {
-		ca.Metadata.Labels = nil
-	} else {
-		ca.Metadata.Labels = map[string]string{
-			labelTrustRelationship: string(rel),
-		}
-	}
-}
-
-func (ca *CertAuthorityV2) WithTrustRelationship(rel TrustRelationship) CertAuthority {
-	newCA := ca.Clone()
-	newCA.SetTrustRelationship(rel)
-	return newCA
 }
 
 // setStaticFields sets static resource header and metadata fields.

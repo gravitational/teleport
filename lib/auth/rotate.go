@@ -233,7 +233,6 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		rotated.SetTrustRelationship(types.TrustRelationshipLocal)
 		if err := a.CompareAndSwapCertAuthority(rotated, existing); err != nil {
 			return trace.Wrap(err)
 		}
@@ -281,9 +280,6 @@ func (a *Server) RotateExternalCertAuthority(ca types.CertAuthority) error {
 	if err := updated.SetAdditionalTrustedKeys(ca.GetAdditionalTrustedKeys().Clone()); err != nil {
 		return trace.Wrap(err)
 	}
-
-	// this should only ever be needed for CAs stored before we started labeling the trust relationship
-	updated.SetTrustRelationship(types.TrustRelationshipTrusted)
 
 	// a rotation state of "" gets stored as "standby" after
 	// CheckAndSetDefaults, so if `ca` came in with a zeroed rotation we must do
@@ -396,7 +392,6 @@ func (a *Server) autoRotateLocalCertAuthority(ca types.CertAuthority) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	rotated.SetTrustRelationship(types.TrustRelationshipLocal)
 	if err := a.CompareAndSwapCertAuthority(rotated, ca); err != nil {
 		return trace.Wrap(err)
 	}
