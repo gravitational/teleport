@@ -93,14 +93,14 @@ func RoleNameForCertAuthority(name string) string {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
-	return &types.RoleV4{
+	return &types.RoleV5{
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      constants.DefaultImplicitRole,
 			Namespace: defaults.Namespace,
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.MaxDuration(),
 				// Explicitly disable options that default to true, otherwise the option
@@ -122,7 +122,7 @@ func NewImplicitRole() types.Role {
 //
 // Used in tests only.
 func RoleForUser(u types.User) types.Role {
-	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV4{
+	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV5{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
@@ -156,7 +156,7 @@ func RoleForUser(u types.User) types.Role {
 
 // RoleForCertAuthority creates role using types.CertAuthority.
 func RoleForCertAuthority(ca types.CertAuthority) types.Role {
-	role, _ := types.NewRole(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV4{
+	role, _ := types.NewRole(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV5{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
 		},
@@ -714,7 +714,7 @@ type AccessChecker interface {
 }
 
 // FromSpec returns new RoleSet created from spec
-func FromSpec(name string, spec types.RoleSpecV4) (RoleSet, error) {
+func FromSpec(name string, spec types.RoleSpecV5) (RoleSet, error) {
 	role, err := types.NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2245,11 +2245,13 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 	}
 
 	switch h.Version {
+	case types.V5:
+		fallthrough
 	case types.V4:
 		// V4 roles are identical to V3 except for their defaults
 		fallthrough
 	case types.V3:
-		var role types.RoleV4
+		var role types.RoleV5
 		if err := utils.FastUnmarshal(bytes, &role); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -2282,7 +2284,7 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	}
 
 	switch role := role.(type) {
-	case *types.RoleV4:
+	case *types.RoleV5:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -2296,36 +2298,18 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	}
 }
 
-// DowngradeToV3 converts a V4 role to V3 so that it will be compatible with
+// DowngradeToV4 converts a V5 role to V4 so that it will be compatible with
 // older instances. Makes a shallow copy if the conversion is necessary. The
 // passed in role will not be mutated.
-// DELETE IN 8.0.0
-func DowngradeRoleToV3(r *types.RoleV4) (*types.RoleV4, error) {
+// DELETE IN 10.0.0
+func DowngradeRoleToV4(r *types.RoleV5) (*types.RoleV5, error) {
 	switch r.Version {
-	case types.V3:
+	case types.V3, types.V4:
 		return r, nil
-	case types.V4:
-		var downgraded types.RoleV4
+	case types.V5:
+		var downgraded types.RoleV5
 		downgraded = *r
-		downgraded.Version = types.V3
-
-		// V3 roles will set the default labels to wildcard allow if they are
-		// empty. To prevent this for roles which are created as V4 and
-		// downgraded, set a placeholder label
-		const labelKey = "__teleport_no_labels"
-		labelVal := uuid.New().String()
-		if len(r.Spec.Allow.NodeLabels) == 0 {
-			downgraded.Spec.Allow.NodeLabels = types.Labels{labelKey: []string{labelVal}}
-		}
-		if len(r.Spec.Allow.AppLabels) == 0 {
-			downgraded.Spec.Allow.AppLabels = types.Labels{labelKey: []string{labelVal}}
-		}
-		if len(r.Spec.Allow.KubernetesLabels) == 0 {
-			downgraded.Spec.Allow.KubernetesLabels = types.Labels{labelKey: []string{labelVal}}
-		}
-		if len(r.Spec.Allow.DatabaseLabels) == 0 {
-			downgraded.Spec.Allow.DatabaseLabels = types.Labels{labelKey: []string{labelVal}}
-		}
+		downgraded.Version = types.V4
 		return &downgraded, nil
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", r.Version)

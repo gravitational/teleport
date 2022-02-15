@@ -176,7 +176,7 @@ func TestReviewThresholds(t *testing.T) {
 	roles := make(map[string]types.Role)
 
 	for name, conditions := range roleDesc {
-		role, err := types.NewRole(name, types.RoleSpecV4{
+		role, err := types.NewRole(name, types.RoleSpecV5{
 			Allow: conditions,
 		})
 		require.NoError(t, err)

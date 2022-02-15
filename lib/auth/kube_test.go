@@ -24,13 +24,21 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
 func TestProcessKubeCSR(t *testing.T) {
-	t.Parallel()
+	defaultModules := modules.GetModules()
+	t.Cleanup(func() { modules.SetModules(defaultModules) })
+	modules.SetModules(&testModules{
+		features: modules.Features{
+			Kubernetes: true, // test requires kube feature is enabled
+		},
+	})
+
 	s := newAuthSuite(t)
 	const (
 		username = "bob"
@@ -62,7 +70,7 @@ func TestProcessKubeCSR(t *testing.T) {
 	// CSR with unknown roles.
 	_, err = s.a.ProcessKubeCSR(csr)
 	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err))
+	require.True(t, trace.IsNotFound(err), "got: %v", err)
 
 	// Create the user and allow it to request the additional role.
 	_, err = CreateUserRoleAndRequestable(s.a, username, roleB)
