@@ -307,7 +307,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 			// to properly format the parameters for including in the audit
 			// log. Both number of parameters and parameter definitions can be
 			// obtained from the response of COM_STMT_PREPARE.
-			e.Audit.EmitEvent(e.Context, makeStatementExecuteEvent(sessionCtx, pkt, nil))
+			e.Audit.EmitEvent(e.Context, makeStatementExecuteEvent(sessionCtx, pkt))
 		case *protocol.StatementSendLongDataPacket:
 			e.Audit.EmitEvent(e.Context, makeStatementSendLongDataEvent(sessionCtx, pkt))
 		case *protocol.StatementClosePacket:
@@ -319,7 +319,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		case *protocol.StatementBulkExecutePacket:
 			// TODO(greedy52) Number of parameters and parameter definitions
 			// are required. See above comments for StatementExecutePacket.
-			e.Audit.EmitEvent(e.Context, makeStatementBulkExecuteEvent(sessionCtx, pkt, nil))
+			e.Audit.EmitEvent(e.Context, makeStatementBulkExecuteEvent(sessionCtx, pkt))
 		}
 		_, err = protocol.WritePacket(packet.Bytes(), serverConn)
 		if err != nil {
