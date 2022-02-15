@@ -35,6 +35,10 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
+const (
+	errorTunnelNotFound = "NOT_FOUND"
+)
+
 // ClientConfig configures a Client instance.
 type ClientConfig struct {
 	// AccessCache is the caching client connected to the proxy client.
@@ -78,8 +82,9 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 type Client struct {
 	sync.RWMutex
 
-	config ClientConfig
-	conns  map[string]*grpc.ClientConn
+	config  ClientConfig
+	conns   map[string]*grpc.ClientConn
+	metrics *clientMetrics
 }
 
 type connections struct{}
@@ -91,9 +96,15 @@ func NewClient(config ClientConfig) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	metrics, err := newClientMetrics()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Client{
-		config: config,
-		conns:  make(map[string]*grpc.ClientConn),
+		config:  config,
+		conns:   make(map[string]*grpc.ClientConn),
+		metrics: metrics,
 	}, nil
 }
 
@@ -186,12 +197,14 @@ func (c *Client) getConnection(proxyAddr string) (*grpc.ClientConn, error) {
 
 	conn, ok := c.conns[proxyAddr]
 	if !ok {
+		c.metrics.tunnelErrorCounter.WithLabelValues(errorTunnelNotFound).Inc()
 		return nil, trace.NotFound("no existing peer proxy connection to %+v", proxyAddr)
 	}
 
 	state := conn.GetState()
 	switch state {
 	case connectivity.TransientFailure, connectivity.Shutdown:
+		c.metrics.tunnelErrorCounter.WithLabelValues(state.String()).Inc()
 		return nil, trace.NotFound("found connection in %+v state", state.String())
 	}
 
@@ -208,13 +221,14 @@ func (c *Client) newConnection(ctx context.Context, proxyAddr string) (*grpc.Cli
 		ctx,
 		proxyAddr,
 		grpc.WithTransportCredentials(transportCreds),
-		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, streamClientInterceptor(metrics)),
+		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, streamClientInterceptor(c.metrics)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:    peerKeepAlive,
 			Timeout: peerTimeout,
 		}),
 	)
 	if err != nil {
+		c.metrics.dialErrorCounter.Inc()
 		return nil, trace.Wrap(err)
 	}
 

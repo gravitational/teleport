@@ -15,137 +15,181 @@
 package proxy
 
 import (
-	"strings"
-	"time"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/grpc/status"
 )
 
-// reporter is a grpc metrics reporting interface.
-type reporter interface {
-	// reportCall reports metrics related to a request.
-	reportCall(err error)
-
-	// reportMsgSent reports outbound metrics in regards to sending a message.
-	reportMsgSent(err error)
-
-	// reportMsgReceived reports inbound metrics in regards to receiving a message.
-	reportMsgReceived(err error)
+// serverMetrics represents a collection of metrics for a proxy peer server
+type serverMetrics struct {
+	requestCounter           *prometheus.CounterVec
+	handledCounter           *prometheus.CounterVec
+	streamMsgReceivedCounter *prometheus.CounterVec
+	streamMsgSentCounter     *prometheus.CounterVec
+	handledHistogram         *prometheus.HistogramVec
 }
 
-// clientReporter is an implementation of the reporter interface
-// used for reporting grpc client metrics.
-type clientReporter struct {
-	req          request
-	metrics      *clientMetrics
-	startTime    time.Time
-	sendTimer    *prometheus.Timer
-	receiveTimer *prometheus.Timer
-}
-
-// newClientReporter inits a new clientReporter. it also starts and reports
-// connectivity metrics
-func newClientReporter(req string, metrics *clientMetrics) reporter {
-	cr := &clientReporter{
-		req:       splitServiceMethod(req),
-		metrics:   metrics,
-		startTime: time.Now(),
+// newServerMetrics inits and registers client metrics prometheus collectors.
+func newServerMetrics() (*serverMetrics, error) {
+	sm := &serverMetrics{
+		requestCounter: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: teleport.MetricProxyPeerServerRequest,
+				Help: "Counts the number of server requests.",
+			},
+			[]string{"grpc_service", "grpc_method"},
+		),
+		handledCounter: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: teleport.MetricProxyPeerServerRequestHandled,
+				Help: "Counts the number of handled server requests.",
+			},
+			[]string{"grpc_service", "grpc_method", "grpc_code"},
+		),
+		streamMsgReceivedCounter: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: teleport.MetricProxyPeerServerStreamReceived,
+				Help: "Counts the number of received stream messages on the server.",
+			},
+			[]string{"grpc_service", "grpc_method"},
+		),
+		streamMsgSentCounter: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: teleport.MetricProxyPeerServerStreamSent,
+				Help: "Counts the number of sent stream messages on the server.",
+			},
+			[]string{"grpc_service", "grpc_method"},
+		),
+		handledHistogram: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name: teleport.MetricProxyPeerServerRequestLatency,
+				Help: "Measures the latency of handled grpc server requests.",
+				// lowest bucket start at upper bound 0.001 sec (1 ms) with factor 2
+				// highest bucket start at 0.001 sec * 2^15 == 32.768 sec
+				Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+			},
+			[]string{"grpc_service", "grpc_method"},
+		),
 	}
 
-	sendHist := cr.metrics.clientStreamSendHistogram.WithLabelValues(cr.req.service, cr.req.method)
-	cr.sendTimer = prometheus.NewTimer(sendHist)
-
-	receiveHist := cr.metrics.clientStreamRecvHistogram.WithLabelValues(cr.req.service, cr.req.method)
-	cr.receiveTimer = prometheus.NewTimer(receiveHist)
-
-	cr.metrics.clientStartedCounter.WithLabelValues(cr.req.service, cr.req.method).Inc()
-
-	return cr
-}
-
-// reportCall reports client request specific metrics
-func (c *clientReporter) reportCall(err error) {
-	c.metrics.clientHandledCounter.WithLabelValues(c.req.service, c.req.method, statusCode(err)).Inc()
-	c.metrics.clientHandledHistogram.WithLabelValues(c.req.service, c.req.method).Observe(time.Since(c.startTime).Milliseconds())
-}
-
-// reportMsgSent reports client message sent specific metrics
-func (c *clientReporter) reportMsgSent(err error) {
-	c.metrics.clientStreamMsgSent.WithLabelValues(c.req.service, c.req.method, statusCode(err)).Inc()
-	c.sendTimer.ObserveDuration()
-}
-
-// reportMsgReceived reports client message received specific metrics
-func (c *clientReporter) reportMsgReceived(err error) {
-	c.metrics.clientStreamMsgReceived.WithLabelValues(c.req.service, c.req.method, statusCode(err)).Inc()
-	c.metrics.ObserveDuration()
-}
-
-// serverReporter is an implementation of the reporter interface
-// used for reporting grpc server metrics
-type serverReporter struct {
-	req       request
-	metrics   *serverMetrics
-	startTime time.Time
-}
-
-// newServerReporter inits a new serverReporter. it also starts and reports
-// connectivity metrics
-func newServerReporter(req string, metrics *serverMetrics) reporter {
-	sr := &serverReporter{
-		req:       splitServiceMethod(req),
-		metrics:   metrics,
-		startTime: time.Now(),
+	if err := utils.RegisterPrometheusCollectors(
+		sm.requestCounter,
+		sm.handledCounter,
+		sm.streamMsgReceivedCounter,
+		sm.streamMsgSentCounter,
+		sm.handledHistogram,
+	); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	sr.metrics.serverStartedCounter.WithLabelValues(sr.req.service, sr.req.method).Inc()
-
-	return sr
+	return sm, nil
 }
 
-// reportCall reports server request specific metrics
-func (s *serverReporter) reportCall(err error) {
-	s.metrics.serverHandledCounter.WithLabelValues(s.req.service, s.req.method, statusCode(err)).Inc()
-	s.metrics.serverHandledHistogram.WithLabelValues(s.req.service, s.req.method).Observe(time.Since(s.startTime).Seconds())
+// clientMetrics represents a collection of metrics for a proxy peer client
+type clientMetrics struct {
+	dialErrorCounter   prometheus.Counter
+	tunnelErrorCounter *prometheus.CounterVec
+
+	requestCounter           *prometheus.CounterVec
+	handledCounter           *prometheus.CounterVec
+	streamMsgReceivedCounter *prometheus.CounterVec
+	streamMsgSentCounter     *prometheus.CounterVec
+	handledHistogram         *prometheus.HistogramVec
+	streamReceivedHistogram  *prometheus.HistogramVec
+	streamSentHistogram      *prometheus.HistogramVec
 }
 
-// reportMsgSent reports server message sent specific metrics
-func (s *serverReporter) reportMsgSent(err error) {
-	s.metrics.serverStreamMsgSent.WithLabelValues(s.req.service, s.req.method, statusCode(err)).Inc()
-}
-
-// reportMsgReceived reports server message received specific metrics
-func (s *serverReporter) reportMsgReceived(err error) {
-	s.metrics.serverStreamMsgReceived.WithLabelValues(s.req.service, s.req.method, statusCode(err)).Inc()
-}
-
-// request stores grpc request fields
-type request struct {
-	service string
-	method  string
-}
-
-// splitSericeMethod splits a grpc request path into service and method strings
-// request format /%s/%s
-func splitServiceMethod(req string) request {
-	splitter := func(c rune) bool {
-		return c == '/'
+// newClientMetrics inits and registers client metrics prometheus collectors.
+func newClientMetrics() (*clientMetrics, error) {
+	cm := &clientMetrics{
+		dialErrorCounter: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: teleport.MetricProxyPeerClientDialError,
+				Help: "Counts the number of failed dial attempts.",
+			},
+		),
+		tunnelErrorCounter: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: teleport.MetricProxyPeerClientTunnelError,
+				Help: "counts the number of errors encountered fetching existing grpc connections.",
+			},
+			[]string{"error_type"},
+		),
+		requestCounter: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: teleport.MetricProxyPeerClientRequest,
+				Help: "Counts the number of client requests.",
+			},
+			[]string{"grpc_service", "grpc_method"},
+		),
+		handledCounter: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: teleport.MetricProxyPeerClientRequestHandled,
+				Help: "Counts the number of handled client requests.",
+			},
+			[]string{"grpc_service", "grpc_method", "grpc_code"},
+		),
+		streamMsgReceivedCounter: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: teleport.MetricProxyPeerClientStreamReceived,
+				Help: "Counts the number of received stream messages on the client.",
+			},
+			[]string{"grpc_service", "grpc_method"},
+		),
+		streamMsgSentCounter: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: teleport.MetricProxyPeerClientStreamSent,
+				Help: "Counts the number of sent stream messages on the client.",
+			},
+			[]string{"grpc_service", "grpc_method"},
+		),
+		handledHistogram: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name: teleport.MetricProxyPeerClientRequestLatency,
+				Help: "Measures the latency of handled grpc client requests.",
+				// lowest bucket start at upper bound 0.001 sec (1 ms) with factor 2
+				// highest bucket start at 0.001 sec * 2^15 == 32.768 sec
+				Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+			},
+			[]string{"grpc_service", "grpc_method"},
+		),
+		streamReceivedHistogram: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name: teleport.MetricProxyPeerClientStreamReceivedLatency,
+				Help: "Measures the latency of received stream messages on the client.",
+				// lowest bucket start at upper bound 0.001 sec (1 ms) with factor 2
+				// highest bucket start at 0.001 sec * 2^15 == 32.768 sec
+				Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+			},
+			[]string{"grpc_service", "grpc_method"},
+		),
+		streamSentHistogram: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name: teleport.MetricProxyPeerClientStreamSentLatency,
+				Help: "Measures the latency of sent stream messages on the client.",
+				// lowest bucket start at upper bound 0.001 sec (1 ms) with factor 2
+				// highest bucket start at 0.001 sec * 2^15 == 32.768 sec
+				Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+			},
+			[]string{"grpc_service", "grpc_method"},
+		),
 	}
 
-	res := strings.FieldsFunc(req, splitter)
-	if len(res) == 2 {
-		return request{
-			service: res[0],
-			method:  res[1],
-		}
+	if err := utils.RegisterPrometheusCollectors(
+		cm.dialErrorCounter,
+		cm.tunnelErrorCounter,
+		cm.requestCounter,
+		cm.handledCounter,
+		cm.streamMsgReceivedCounter,
+		cm.streamMsgSentCounter,
+		cm.handledHistogram,
+		cm.streamReceivedHistogram,
+		cm.streamSentHistogram,
+	); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return request{}
-}
-
-// statusCode tries to extract a grpc request status code out of an error
-func statusCode(err error) string {
-	status, _ := status.FromError(err)
-	return status.Code().String()
+	return cm, nil
 }
