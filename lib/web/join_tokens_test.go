@@ -37,7 +37,7 @@ func TestCreateNodeJoinToken(t *testing.T) {
 	}
 
 	token, err := createScriptJoinToken(context.Background(), m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	require.Equal(t, defaults.NodeJoinTokenTTL, token.Expiry.Sub(time.Now().UTC()).Round(time.Second))
 	require.Equal(t, "some-token-id", token.ID)
@@ -85,7 +85,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 
 	// Test valid token format.
 	script, err = getJoinScript(validTokenLength, m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	require.Contains(t, script, testTokenID)
 	require.Contains(t, script, "test-host")
@@ -260,7 +260,7 @@ func TestGetAppJoinScript(t *testing.T) {
 				require.NotNil(t, err)
 				require.Equal(t, script, "")
 			} else {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				for _, output := range tc.outputs {
 					require.Contains(t, script, output)
 				}
