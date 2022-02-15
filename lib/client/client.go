@@ -70,6 +70,22 @@ type NodeClient struct {
 	Client    *ssh.Client
 	Proxy     *ProxyClient
 	TC        *TeleportClient
+	OnMFA     func()
+}
+
+// GetActiveSessions returns a list of active session trackers.
+func (proxy *ProxyClient) GetActiveSessions(ctx context.Context) ([]types.SessionTracker, error) {
+	auth, err := proxy.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer auth.Close()
+	sessions, err := auth.GetActiveSessionTrackers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sessions, nil
 }
 
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
@@ -1154,6 +1170,13 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 			}
 
 			switch r.Type {
+			case teleport.MFAPresenceRequest:
+				if c.OnMFA == nil {
+					log.Warn("Received MFA presence request, but no callback was provided.")
+					continue
+				}
+
+				c.OnMFA()
 			case teleport.SessionEvent:
 				// Parse event and create events.EventFields that can be consumed directly
 				// by caller.
@@ -1505,7 +1528,7 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 			RouteToCluster: nodeAddr.Cluster,
 		},
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return PromptMFAChallenge(ctx, proxyAddr, c, "")
+			return PromptMFAChallenge(ctx, proxyAddr, c, "", false)
 		},
 	)
 	if err != nil {

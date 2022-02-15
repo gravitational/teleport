@@ -405,7 +405,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 		challengePB.WebauthnChallenge = wanlib.CredentialAssertionToProto(challenge.WebauthnChallenge)
 	}
 
-	respPB, err := PromptMFAChallenge(ctx, login.ProxyAddr, challengePB, "")
+	respPB, err := PromptMFAChallenge(ctx, login.ProxyAddr, challengePB, "", false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

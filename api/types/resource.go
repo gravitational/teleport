@@ -261,6 +261,10 @@ func (m *Metadata) CheckAndSetDefaults() error {
 // MatchLabels takes a map of labels and returns `true` if the resource has ALL
 // of them.
 func MatchLabels(resource ResourceWithLabels, labels map[string]string) bool {
+	if len(labels) == 0 {
+		return true
+	}
+
 	resourceLabels := resource.GetAllLabels()
 	for name, value := range labels {
 		if resourceLabels[name] != value {
