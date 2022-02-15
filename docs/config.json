@@ -11,7 +11,18 @@
           "slug": "/getting-started/",
            "entries": [
             { "title": "Linux Server", "slug": "/getting-started/linux-server/" },
+            { "title": "Kubernetes", "slug": "/kubernetes-access/getting-started/cluster/" },
             { "title": "Docker Compose", "slug": "/getting-started/docker-compose/" }
+          ]
+        },
+        {
+          "title": "Connect your infrastructure",
+           "entries": [
+            { "title": "Applications", "slug": "/application-access/getting-started/" },
+            { "title": "Databases", "slug": "/database-access/guides/" },
+            { "title": "Desktops", "slug": "/desktop-access/getting-started/" },
+            { "title": "Kubernetes Clusters", "slug": "/kubernetes-access/getting-started/" },
+            { "title": "Servers", "slug": "/server-access/getting-started/" }
           ]
         },
         { "title": "Installation", "slug": "/installation/" },
