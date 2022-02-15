@@ -152,8 +152,7 @@ func (h *Handler) createDesktopConnection(w http.ResponseWriter, r *http.Request
 }
 
 func writeError(err error, ws *websocket.Conn, log *logrus.Entry) {
-	rdpConn := tdp.NewConn(ws)
-	oerr := rdpConn.OutputMessage(tdp.Error{Message: err.Error()})
+	oerr := tdp.NewConn(ws).SendError(err.Error())
 	log.Error(trace.NewAggregate(err, oerr))
 }
 
