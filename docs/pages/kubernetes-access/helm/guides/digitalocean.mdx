@@ -66,7 +66,7 @@ Now we create a Teleport user by executing the `tctl` command with `kubectl`.
 ```code
 $ kubectl --namespace teleport-cluster exec deploy/teleport-cluster -- tctl users add tadmin --roles=access,editor --logins=root,ubuntu
 # User "tadmin" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
-# https://tele.teleporters.dev:443/web/invite/<invite-token>
+# https://tele.example.com:443/web/invite/<invite-token>
 
 # NOTE: Make sure tele.teleporters.dev:443 points at a Teleport proxy which users can access.
 ```
