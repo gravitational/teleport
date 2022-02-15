@@ -232,6 +232,21 @@ message SessionPrint {
     int64 Offset = 6 [ (gogoproto.jsontag) = "offset" ];
 }
 
+// DesktopRecording happens when a Teleport Desktop Protocol message
+// is captured during a Desktop Access Session.
+message DesktopRecording {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // Message is the encoded TDP message.
+    bytes Message = 2 [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "message" ];
+
+    // DelayMilliseconds is the delay in milliseconds from the start of the session
+    int64 DelayMilliseconds = 3
+        [ (gogoproto.jsontag) = "ms" ]; // JSON tag intentionally matches SessionPrintEvent
+}
+
 // SessionReject event happens when a user hits a session control restriction.
 message SessionReject {
     // Metadata is a common event metadata
@@ -1678,6 +1693,25 @@ message WindowsDesktopSessionEnd {
     string WindowsUser = 7 [ (gogoproto.jsontag) = "windows_user" ];
     // DesktopLabels are the labels on the desktop resource.
     map<string, string> DesktopLabels = 8 [ (gogoproto.jsontag) = "desktop_labels" ];
+    // StartTime is the timestamp at which the session began.
+    google.protobuf.Timestamp StartTime = 9 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) =
+            "session_start,omitempty" // JSON tag intentionally matches SessionEnd event
+    ];
+    // EndTime is the timestamp at which the session ended.
+    google.protobuf.Timestamp EndTime = 10 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "session_stop,omitempty"
+    ];
+    // DesktopName is the name of the desktop resource.
+    string DesktopName = 11 [ (gogoproto.jsontag) = "desktop_name" ];
+    // Recorded is true if the session was recorded, false otherwise.
+    bool Recorded = 12 [ (gogoproto.jsontag) = "recorded" ];
+    // Participants is a list of participants in the session.
+    repeated string Participants = 13 [ (gogoproto.jsontag) = "participants" ];
 }
 
 // CertificateCreate is emitted when a certificate is issued.
@@ -1765,6 +1799,7 @@ message OneOf {
         events.AccessRequestDelete AccessRequestDelete = 66;
         events.SessionConnect SessionConnect = 67;
         events.CertificateCreate CertificateCreate = 68;
+        events.DesktopRecording DesktopRecording = 69;
     }
 }
 
