@@ -189,6 +189,8 @@ func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalCli
 			return trace.BadParameter("username has a wrong type, expected string")
 		}
 
+		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: fmt.Sprintf("AUTH %s ****", dbUser)})
+
 		if dbUser != e.sessionCtx.DatabaseUser {
 			return trace.AccessDenied("failed to authenticate as %s user. "+
 				"Please provide a correct db username when connecting to Redis", dbUser)
@@ -204,8 +206,6 @@ func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalCli
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: fmt.Sprintf("AUTH %s ****", dbUser)})
 
 		return redisClient.Process(ctx, cmd)
 	default:
