@@ -194,7 +194,7 @@ func upsertOrGetWebID(ctx context.Context, user string, identity RegistrationIde
 	case trace.IsNotFound(err): // first-time user, create a new ID
 		webID := []byte(uuid.New().String())
 		err := identity.UpsertWebauthnLocalAuth(ctx, user, &types.WebauthnLocalAuth{
-			UserID: webID[:],
+			UserID: webID,
 		})
 		return webID[:], trace.Wrap(err)
 	case err != nil:
