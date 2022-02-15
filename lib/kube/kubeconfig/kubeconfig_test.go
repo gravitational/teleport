@@ -312,7 +312,6 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 			Args: []string{"kube", "credentials",
 				fmt.Sprintf("--kube-cluster=%s", kubeCluster),
 				fmt.Sprintf("--teleport-cluster=%s", clusterName),
-				fmt.Sprintf("--proxy=%s", proxy),
 			},
 			Env:             []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
 			InteractiveMode: clientcmdapi.IfAvailableExecInteractiveMode,
