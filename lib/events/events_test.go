@@ -554,7 +554,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "MySQL statement prepare",
-			json: `{"cluster_name":"test-cluster","code":"TMY00I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.stmt_prepare","query":"select 1","sid":"test-session","time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			json: `{"cluster_name":"test-cluster","code":"TMY00I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.prepare","query":"select 1","sid":"test-session","time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
 			event: apievents.MySQLStatementPrepare{
 				Metadata: apievents.Metadata{
 					Index:       22,
@@ -582,7 +582,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "MySQL statement execute",
-			json: `{"cluster_name":"test-cluster","code":"TMY01I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.stmt_execute","parameters":null,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			json: `{"cluster_name":"test-cluster","code":"TMY01I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.execute","parameters":null,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
 			event: apievents.MySQLStatementExecute{
 				Metadata: apievents.Metadata{
 					Index:       22,
@@ -610,7 +610,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "MySQL statement send long data",
-			json: `{"cluster_name":"test-cluster","code":"TMY02I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","data_size":55,"db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.stmt_send_long_data","parameter_id":5,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			json: `{"cluster_name":"test-cluster","code":"TMY02I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","data_size":55,"db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.send_long_data","parameter_id":5,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
 			event: apievents.MySQLStatementSendLongData{
 				Metadata: apievents.Metadata{
 					Index:       22,
@@ -640,7 +640,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "MySQL statement close",
-			json: `{"cluster_name":"test-cluster","code":"TMY03I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.stmt_close","sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			json: `{"cluster_name":"test-cluster","code":"TMY03I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.close","sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
 			event: apievents.MySQLStatementClose{
 				Metadata: apievents.Metadata{
 					Index:       22,
@@ -668,7 +668,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "MySQL statement reset",
-			json: `{"cluster_name":"test-cluster","code":"TMY04I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.stmt_reset","sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			json: `{"cluster_name":"test-cluster","code":"TMY04I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.reset","sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
 			event: apievents.MySQLStatementReset{
 				Metadata: apievents.Metadata{
 					Index:       22,
@@ -696,7 +696,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "MySQL statement fetch",
-			json: `{"cluster_name":"test-cluster","code":"TMY05I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.stmt_fetch","rows_count": 5,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			json: `{"cluster_name":"test-cluster","code":"TMY05I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.fetch","rows_count": 5,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
 			event: apievents.MySQLStatementFetch{
 				Metadata: apievents.Metadata{
 					Index:       22,
@@ -725,7 +725,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "MySQL statement bulk execute",
-			json: `{"cluster_name":"test-cluster","code":"TMY06I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.stmt_bulk_execute","parameters":null,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			json: `{"cluster_name":"test-cluster","code":"TMY06I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.bulk_execute","parameters":null,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
 			event: apievents.MySQLStatementBulkExecute{
 				Metadata: apievents.Metadata{
 					Index:       22,
@@ -753,7 +753,10 @@ func TestJSON(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			outJSON, err := utils.FastMarshal(tc.event)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.json, string(outJSON))

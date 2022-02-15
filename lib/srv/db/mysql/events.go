@@ -21,7 +21,6 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
-	"github.com/siddontang/go-mysql/mysql"
 )
 
 // makeStatementPrepareEvent creates an audit event for MySQL statement prepare
@@ -40,7 +39,7 @@ func makeStatementPrepareEvent(session *common.Session, packet *protocol.Stateme
 
 // makeStatementExecuteEvent creates an audit event for MySQL statement execute
 // command.
-func makeStatementExecuteEvent(session *common.Session, packet *protocol.StatementExecutePacket, parameterDefinitions []mysql.Field) events.AuditEvent {
+func makeStatementExecuteEvent(session *common.Session, packet *protocol.StatementExecutePacket) events.AuditEvent {
 	// TODO(greedy52) get parameters from packet and format them for audit.
 	return &events.MySQLStatementExecute{
 		Metadata: common.MakeEventMetadata(session,
@@ -50,7 +49,6 @@ func makeStatementExecuteEvent(session *common.Session, packet *protocol.Stateme
 		SessionMetadata:  common.MakeSessionMetadata(session),
 		DatabaseMetadata: common.MakeDatabaseMetadata(session),
 		StatementID:      packet.StatementID(),
-		Parameters:       nil,
 	}
 }
 
@@ -115,7 +113,7 @@ func makeStatementFetchEvent(session *common.Session, packet *protocol.Statement
 
 // makeStatementBulkExecuteEvent creates an audit event for MySQL statement
 // bulk execute command.
-func makeStatementBulkExecuteEvent(session *common.Session, packet *protocol.StatementBulkExecutePacket, parameterDefinitions []mysql.Field) events.AuditEvent {
+func makeStatementBulkExecuteEvent(session *common.Session, packet *protocol.StatementBulkExecutePacket) events.AuditEvent {
 	// TODO(greedy52) get parameters from packet and format them for audit.
 	return &events.MySQLStatementBulkExecute{
 		Metadata: common.MakeEventMetadata(session,
@@ -125,6 +123,5 @@ func makeStatementBulkExecuteEvent(session *common.Session, packet *protocol.Sta
 		SessionMetadata:  common.MakeSessionMetadata(session),
 		DatabaseMetadata: common.MakeDatabaseMetadata(session),
 		StatementID:      packet.StatementID(),
-		Parameters:       nil,
 	}
 }

@@ -1932,7 +1932,7 @@ message RouteToDatabase {
 }
 
 // MySQLStatementPrepare is emitted when a MySQL client creates a prepared
-// statement using the parepared statement protocol.
+// statement using the prepared statement protocol.
 message MySQLStatementPrepare {
     // Metadata is a common event metadata.
     Metadata Metadata = 1
@@ -1951,7 +1951,7 @@ message MySQLStatementPrepare {
 }
 
 // MySQLStatementExecute is emitted when a MySQL client executes a prepared
-// statement using the parepared statement protocol.
+// statement using the prepared statement protocol.
 message MySQLStatementExecute {
     // Metadata is a common event metadata.
     Metadata Metadata = 1
@@ -1972,7 +1972,7 @@ message MySQLStatementExecute {
 }
 
 // MySQLStatementSendLongData is emitted when a MySQL client sends long bytes
-// stream using the parepared statement protocol.
+// stream using the prepared statement protocol.
 message MySQLStatementSendLongData {
     // Metadata is a common event metadata.
     Metadata Metadata = 1
@@ -1995,7 +1995,7 @@ message MySQLStatementSendLongData {
 }
 
 // MySQLStatementClose is emitted when a MySQL client deallocates a prepared
-// statement using the parepared statement protocol.
+// statement using the prepared statement protocol.
 message MySQLStatementClose {
     // Metadata is a common event metadata.
     Metadata Metadata = 1
@@ -2014,7 +2014,7 @@ message MySQLStatementClose {
 }
 
 // MySQLStatementReset is emitted when a MySQL client resets the data of a
-// prepared statement using the parepared statement protocol.
+// prepared statement using the prepared statement protocol.
 message MySQLStatementReset {
     // Metadata is a common event metadata.
     Metadata Metadata = 1
@@ -2033,7 +2033,7 @@ message MySQLStatementReset {
 }
 
 // MySQLStatementFetch is emitted when a MySQL client fetches rows from a
-// prepared statement using the parepared statement protocol.
+// prepared statement using the prepared statement protocol.
 message MySQLStatementFetch {
     // Metadata is a common event metadata.
     Metadata Metadata = 1

@@ -359,30 +359,30 @@ const (
 	// DatabaseSessionQueryFailedCode is the database query failure event code.
 	DatabaseSessionQueryFailedCode = "TDB02W"
 
-	// PostgresParseCode is the db.session.postgres.parse event code.
+	// PostgresParseCode is the db.session.postgres.statements.parse event code.
 	PostgresParseCode = "TPG00I"
-	// PostgresBindCode is the db.session.postgres.bind event code.
+	// PostgresBindCode is the db.session.postgres.statements.bind event code.
 	PostgresBindCode = "TPG01I"
-	// PostgresExecuteCode is the db.session.postgres.execute event code.
+	// PostgresExecuteCode is the db.session.postgres.statements.execute event code.
 	PostgresExecuteCode = "TPG02I"
-	// PostgresCloseCode is the db.session.postgres.close event code.
+	// PostgresCloseCode is the db.session.postgres.statements.close event code.
 	PostgresCloseCode = "TPG03I"
-	// PostgresFunctionCallCode is the db.session.postgres.function event code.
+	// PostgresFunctionCallCode is the db.session.postgres.statements.function event code.
 	PostgresFunctionCallCode = "TPG04I"
 
-	// MySQLStatementPrepareCode is the db.session.mysql.stmt_prepare event code.
+	// MySQLStatementPrepareCode is the db.session.mysql.statements.prepare event code.
 	MySQLStatementPrepareCode = "TMY00I"
-	// MySQLStatementExecuteCode is the db.session.mysql.stmt_execute event code.
+	// MySQLStatementExecuteCode is the db.session.mysql.statements.execute event code.
 	MySQLStatementExecuteCode = "TMY01I"
-	// MySQLStatementSendLongDataCode is the db.session.mysql.stmt_send_long_data event code.
+	// MySQLStatementSendLongDataCode is the db.session.mysql.statements.send_long_data event code.
 	MySQLStatementSendLongDataCode = "TMY02I"
-	// MySQLStatementCloseCode is the db.session.mysql.stmt_close event code.
+	// MySQLStatementCloseCode is the db.session.mysql.statements.close event code.
 	MySQLStatementCloseCode = "TMY03I"
-	// MySQLStatementResetCode is the db.session.mysql.stmt_reset event code.
+	// MySQLStatementResetCode is the db.session.mysql.statements.reset event code.
 	MySQLStatementResetCode = "TMY04I"
-	// MySQLStatementFetchCode is the db.session.mysql.stmt_fetch event code.
+	// MySQLStatementFetchCode is the db.session.mysql.statements.fetch event code.
 	MySQLStatementFetchCode = "TMY05I"
-	// MySQLStatementBulkExecuteCode is the db.session.mysql.stmt_bulk_execute event code.
+	// MySQLStatementBulkExecuteCode is the db.session.mysql.statements.bulk_execute event code.
 	MySQLStatementBulkExecuteCode = "TMY06I"
 
 	// DatabaseCreateCode is the db.create event code.

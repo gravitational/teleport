@@ -5563,7 +5563,7 @@ func (m *RouteToDatabase) XXX_DiscardUnknown() {
 var xxx_messageInfo_RouteToDatabase proto.InternalMessageInfo
 
 // MySQLStatementPrepare is emitted when a MySQL client creates a prepared
-// statement using the parepared statement protocol.
+// statement using the prepared statement protocol.
 type MySQLStatementPrepare struct {
 	// Metadata is a common event metadata.
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
@@ -5614,7 +5614,7 @@ func (m *MySQLStatementPrepare) XXX_DiscardUnknown() {
 var xxx_messageInfo_MySQLStatementPrepare proto.InternalMessageInfo
 
 // MySQLStatementExecute is emitted when a MySQL client executes a prepared
-// statement using the parepared statement protocol.
+// statement using the prepared statement protocol.
 type MySQLStatementExecute struct {
 	// Metadata is a common event metadata.
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
@@ -5667,7 +5667,7 @@ func (m *MySQLStatementExecute) XXX_DiscardUnknown() {
 var xxx_messageInfo_MySQLStatementExecute proto.InternalMessageInfo
 
 // MySQLStatementSendLongData is emitted when a MySQL client sends long bytes
-// stream using the parepared statement protocol.
+// stream using the prepared statement protocol.
 type MySQLStatementSendLongData struct {
 	// Metadata is a common event metadata.
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
@@ -5722,7 +5722,7 @@ func (m *MySQLStatementSendLongData) XXX_DiscardUnknown() {
 var xxx_messageInfo_MySQLStatementSendLongData proto.InternalMessageInfo
 
 // MySQLStatementClose is emitted when a MySQL client deallocates a prepared
-// statement using the parepared statement protocol.
+// statement using the prepared statement protocol.
 type MySQLStatementClose struct {
 	// Metadata is a common event metadata.
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
@@ -5773,7 +5773,7 @@ func (m *MySQLStatementClose) XXX_DiscardUnknown() {
 var xxx_messageInfo_MySQLStatementClose proto.InternalMessageInfo
 
 // MySQLStatementReset is emitted when a MySQL client resets the data of a
-// prepared statement using the parepared statement protocol.
+// prepared statement using the prepared statement protocol.
 type MySQLStatementReset struct {
 	// Metadata is a common event metadata.
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
@@ -5824,7 +5824,7 @@ func (m *MySQLStatementReset) XXX_DiscardUnknown() {
 var xxx_messageInfo_MySQLStatementReset proto.InternalMessageInfo
 
 // MySQLStatementFetch is emitted when a MySQL client fetches rows from a
-// prepared statement using the parepared statement protocol.
+// prepared statement using the prepared statement protocol.
 type MySQLStatementFetch struct {
 	// Metadata is a common event metadata.
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
