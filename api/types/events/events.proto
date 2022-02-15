@@ -1697,7 +1697,8 @@ message WindowsDesktopSessionEnd {
     google.protobuf.Timestamp StartTime = 9 [
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
-        (gogoproto.jsontag) = "session_start,omitempty"  // JSON tag intentionally matches SessionEnd event
+        (gogoproto.jsontag) =
+            "session_start,omitempty" // JSON tag intentionally matches SessionEnd event
     ];
     // EndTime is the timestamp at which the session ended.
     google.protobuf.Timestamp EndTime = 10 [
