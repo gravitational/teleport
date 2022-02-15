@@ -18,7 +18,6 @@ package modules_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -41,7 +40,12 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	setCloudFeatureFlag(t)
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
 	authPref := types.DefaultAuthPreference()
 	err = testServer.AuthServer.SetAuthPreference(ctx, authPref)
@@ -60,7 +64,12 @@ func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	setCloudFeatureFlag(t)
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
 	recConfig := types.DefaultSessionRecordingConfig()
 	err = testServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
@@ -69,28 +78,4 @@ func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {
 	recConfig.SetMode(types.RecordAtProxy)
 	err = testServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
 	require.EqualError(t, err, "cannot set proxy recording mode on Cloud")
-}
-
-func setCloudFeatureFlag(t *testing.T) {
-	oldModules := modules.GetModules()
-	t.Cleanup(func() { modules.SetModules(oldModules) })
-	modules.SetModules(&cloudModules{})
-}
-
-type cloudModules struct{}
-
-func (m cloudModules) Features() modules.Features {
-	return modules.Features{Cloud: true}
-}
-
-func (m *cloudModules) BuildType() string {
-	return modules.BuildEnterprise
-}
-
-func (m *cloudModules) PrintVersion() {
-	fmt.Println("Teleport Cloud")
-}
-
-func (m *cloudModules) IsBoringBinary() bool {
-	return false
 }
