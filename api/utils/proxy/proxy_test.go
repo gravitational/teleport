@@ -96,7 +96,7 @@ func TestGetProxyAddress(t *testing.T) {
 			for _, env := range tt.env {
 				t.Setenv(env.name, env.val)
 			}
-			p := getProxyAddress(tt.targetAddr)
+			p := GetProxyAddress(tt.targetAddr)
 			require.Equal(t, tt.proxyAddr, p)
 		})
 	}
