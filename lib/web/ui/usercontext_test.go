@@ -129,6 +129,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 
 	// test that desktopRecordingEnabled being false overrides the roleSet.RecordDesktopSession() returning true
 	userContext, err = NewUserContext(user, roleSet, proto.Features{}, false)
+	c.Assert(err, check.IsNil)
 	c.Assert(userContext.ACL.DesktopSessionRecording, check.Equals, false)
 }
 
