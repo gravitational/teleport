@@ -18,7 +18,6 @@ package types
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -783,12 +782,11 @@ func (k *JWTKeyPair) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CertAuthorityFilter defines a filter for a CA cache watcher that only lets
-// certain combinations of CA type and trust relationship through. An empty or
-// nil filter lets through every CA, whereas a nonempty filter will let through
-// only the CAs with a trust relationship listed in the filter under the CA's
-// type.
-type CertAuthorityFilter map[CertAuthType][]TrustRelationship
+type CertAuthorityFilter map[CertAuthType]string
+
+func (f CertAuthorityFilter) IsEmpty() bool {
+	return len(f) == 0
+}
 
 // Match checks if a given CA matches this filter.
 func (f CertAuthorityFilter) Match(ca CertAuthority) bool {
@@ -796,14 +794,7 @@ func (f CertAuthorityFilter) Match(ca CertAuthority) bool {
 		return true
 	}
 
-	trustRel := ca.GetTrustRelationship()
-	for _, t := range f[ca.GetType()] {
-		if trustRel == t {
-			return true
-		}
-	}
-
-	return false
+	return f[ca.GetType()] == "*" || f[ca.GetType()] == ca.GetClusterName()
 }
 
 // IntoMap makes this filter into a map for use as the Filter in a WatchKind.
@@ -813,32 +804,23 @@ func (f CertAuthorityFilter) IntoMap() map[string]string {
 	}
 
 	m := make(map[string]string, len(f))
-	for caType, trustRels := range f {
-		tr := make([]string, 0, len(trustRels))
-		for _, trustRel := range trustRels {
-			tr = append(tr, string(trustRel))
-		}
-		m[string(caType)] = strings.Join(tr, ",")
+	for caType, name := range f {
+		m[string(caType)] = name
 	}
 	return m
 }
 
 // FromMap converts the provided map into this filter.
-func (f *CertAuthorityFilter) FromMap(m map[string]string) error {
+func (f *CertAuthorityFilter) FromMap(m map[string]string) {
 	if len(m) == 0 {
 		*f = nil
-		return nil
+		return
 	}
 
 	*f = make(CertAuthorityFilter, len(m))
 	// there's not a lot of value in rejecting unknown values from the filter
 	for key, val := range m {
-		tr := strings.Split(val, ",")
-		trustRels := make([]TrustRelationship, 0, len(tr))
-		for _, t := range tr {
-			trustRels = append(trustRels, TrustRelationship(t))
-		}
-		(*f)[CertAuthType(key)] = trustRels
+		(*f)[CertAuthType(key)] = val
 	}
-	return nil
+
 }

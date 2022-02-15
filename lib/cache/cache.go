@@ -176,15 +176,19 @@ func ForOldRemoteProxy(cfg Config) Config {
 
 // ForNode sets up watch configuration for node
 func ForNode(cfg Config) Config {
+	var caFilter map[string]string
+	if cfg.ClusterConfig != nil {
+		clusterName, err := cfg.ClusterConfig.GetClusterName()
+		if err == nil {
+			caFilter = types.CertAuthorityFilter{
+				types.HostCA: clusterName.GetClusterName(),
+				types.UserCA: "*",
+			}.IntoMap()
+		}
+	}
 	cfg.target = "node"
 	cfg.Watches = []types.WatchKind{
-		{
-			Kind: types.KindCertAuthority,
-			Filter: types.CertAuthorityFilter{
-				types.HostCA: {types.TrustRelationshipLocal},
-				types.UserCA: {types.TrustRelationshipLocal, types.TrustRelationshipTrusted},
-			}.IntoMap(),
-		},
+		{Kind: types.KindCertAuthority, Filter: caFilter},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},

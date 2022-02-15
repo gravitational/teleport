@@ -154,9 +154,7 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 			return target.Match(res), nil
 		case CertAuthority:
 			var filter CertAuthorityFilter
-			if err := filter.FromMap(kind.Filter); err != nil {
-				return false, trace.Wrap(err)
-			}
+			filter.FromMap(kind.Filter)
 			return filter.Match(res), nil
 		default:
 			return false, trace.BadParameter("unfilterable resource type %T", e.Resource)

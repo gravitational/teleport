@@ -275,16 +275,13 @@ func TestWatchers(t *testing.T) {
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
-	// nonsensical combination to test filtering
-	caFilter := types.CertAuthorityFilter{
-		types.HostCA: {types.TrustRelationshipTrusted},
-		types.UserCA: {types.TrustRelationshipLocal, types.TrustRelationshipRemote},
-	}
-
 	w, err := p.cache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
 		{
-			Kind:   types.KindCertAuthority,
-			Filter: caFilter.IntoMap(),
+			Kind: types.KindCertAuthority,
+			Filter: types.CertAuthorityFilter{
+				types.HostCA: "example.com",
+				types.UserCA: "*",
+			}.IntoMap(),
 		},
 		{
 			Kind: types.KindAccessRequest,

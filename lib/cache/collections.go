@@ -52,9 +52,7 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter Trust")
 			}
 			var filter types.CertAuthorityFilter
-			if err := filter.FromMap(watch.Filter); err != nil {
-				return nil, trace.Wrap(err)
-			}
+			filter.FromMap(watch.Filter)
 			collections[resourceKind] = &certAuthority{Cache: c, watch: watch, filter: filter}
 		case types.KindStaticTokens:
 			if c.ClusterConfig == nil {
@@ -814,48 +812,41 @@ func (c *certAuthority) erase(ctx context.Context) error {
 }
 
 func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	applyHostCAs, err := c.fetchCertAuthorities(types.HostCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	applyFns := []func(ctx context.Context) error{}
 
-	applyUserCAs, err := c.fetchCertAuthorities(types.UserCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	applyJWTSigners, err := c.fetchCertAuthorities(types.JWTSigner)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	for _, caType := range types.CertAuthTypes {
+		var fn func(ctx context.Context) error
+		var err error
+		if c.filter.IsEmpty() || c.filter[caType] == "*" {
+			fn, err = c.fetchCertAuthorities(caType)
+		} else if c.filter[caType] != "" {
+			fn, err = c.fetchCertAuthority(types.CertAuthID{
+				Type:       caType,
+				DomainName: c.filter[caType],
+			})
+		} else {
+			fn = c.deleteAllCertAuthorities(caType)
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		applyFns = append(applyFns, fn)
 	}
 
 	return func(ctx context.Context) error {
-		if err := applyHostCAs(ctx); err != nil {
-			return trace.Wrap(err)
+		for _, fn := range applyFns {
+			if err := fn(ctx); err != nil {
+				return trace.Wrap(err)
+			}
 		}
-		if err := applyUserCAs(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(applyJWTSigners(ctx))
+		return nil
 	}, nil
 }
 
-func (c *certAuthority) fetchCertAuthorities(caType types.CertAuthType) (apply func(ctx context.Context) error, err error) {
+func (c *certAuthority) fetchCertAuthorities(caType types.CertAuthType) (func(ctx context.Context) error, error) {
 	authorities, err := c.Trust.GetCertAuthorities(caType, c.watch.LoadSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// this can be removed once we get the ability to fetch CAs with a filter,
-	// but it should be harmless, and it could be kept as additional safety
-	if len(c.filter) > 0 {
-		filteredCAs := make([]types.CertAuthority, 0, len(authorities))
-		for _, ca := range authorities {
-			if c.filter.Match(ca) {
-				filteredCAs = append(filteredCAs, ca)
-			}
-		}
-		authorities = filteredCAs
 	}
 
 	return func(ctx context.Context) error {
@@ -871,6 +862,41 @@ func (c *certAuthority) fetchCertAuthorities(caType types.CertAuthType) (apply f
 		}
 		return nil
 	}, nil
+}
+
+func (c *certAuthority) fetchCertAuthority(ca types.CertAuthID) (func(ctx context.Context) error, error) {
+	authority, err := c.Trust.GetCertAuthority(ca, c.watch.LoadSecrets)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return func(ctx context.Context) error {
+				return nil
+			}, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	return func(ctx context.Context) error {
+		if err := c.trustCache.DeleteAllCertAuthorities(ca.Type); err != nil {
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+		}
+		if err := c.trustCache.UpsertCertAuthority(authority); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}, nil
+}
+
+func (c *certAuthority) deleteAllCertAuthorities(caType types.CertAuthType) func(ctx context.Context) error {
+	return func(ctx context.Context) error {
+		if err := c.trustCache.DeleteAllCertAuthorities(caType); err != nil {
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}
 }
 
 func (c *certAuthority) processEvent(ctx context.Context, event types.Event) error {
@@ -893,6 +919,9 @@ func (c *certAuthority) processEvent(ctx context.Context, event types.Event) err
 		resource, ok := event.Resource.(types.CertAuthority)
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if !c.filter.Match(resource) {
+			return nil
 		}
 		if err := c.trustCache.UpsertCertAuthority(resource); err != nil {
 			return trace.Wrap(err)

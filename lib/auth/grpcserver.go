@@ -307,8 +307,10 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		servicesWatch.Kinds = append(servicesWatch.Kinds, proto.ToWatchKind(kind))
 	}
 
-	// we might want to enforce a filter for older clients in certain conditions
-	maybeFilterCertAuthorityWatches(stream.Context(), auth.Checker.RoleNames(), &servicesWatch)
+	if clusterName, err := auth.GetClusterName(); err == nil {
+		// we might want to enforce a filter for older clients in certain conditions
+		maybeFilterCertAuthorityWatches(stream.Context(), clusterName.GetClusterName(), auth.Checker.RoleNames(), &servicesWatch)
+	}
 
 	watcher, err := auth.NewWatcher(stream.Context(), servicesWatch)
 	if err != nil {
@@ -347,7 +349,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 // everything.
 //
 // DELETE IN 10.0, no supported clients should require this at that point
-func maybeFilterCertAuthorityWatches(ctx context.Context, roleNames []string, watch *types.Watch) {
+func maybeFilterCertAuthorityWatches(ctx context.Context, clusterName string, roleNames []string, watch *types.Watch) {
 	if len(roleNames) != 1 || roleNames[0] != string(types.RoleNode) {
 		return
 	}
@@ -378,8 +380,8 @@ func maybeFilterCertAuthorityWatches(ctx context.Context, roleNames []string, wa
 
 		log.Debugf("Injecting filter for CertAuthority watch for Node-only watcher with version %v", clientVersion)
 		watch.Kinds[i].Filter = types.CertAuthorityFilter{
-			types.HostCA: {types.TrustRelationshipLocal},
-			types.UserCA: {types.TrustRelationshipLocal, types.TrustRelationshipTrusted},
+			types.HostCA: clusterName,
+			types.UserCA: "*",
 		}.IntoMap()
 	}
 }
