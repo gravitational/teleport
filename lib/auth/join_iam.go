@@ -319,7 +319,8 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 	}
 
 	// perform common token checks
-	if err := a.checkTokenJoinRequestCommon(ctx, req.RegisterUsingTokenRequest); err != nil {
+	provisionToken, err := a.checkTokenJoinRequestCommon(ctx, req.RegisterUsingTokenRequest)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -328,25 +329,8 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 		return nil, trace.Wrap(err)
 	}
 
-	// generate and return host certificate and keys
-	certs, err := a.GenerateHostCerts(ctx,
-		&proto.HostCertsRequest{
-			HostID:               req.RegisterUsingTokenRequest.HostID,
-			NodeName:             req.RegisterUsingTokenRequest.NodeName,
-			Role:                 req.RegisterUsingTokenRequest.Role,
-			AdditionalPrincipals: req.RegisterUsingTokenRequest.AdditionalPrincipals,
-			PublicTLSKey:         req.RegisterUsingTokenRequest.PublicTLSKey,
-			PublicSSHKey:         req.RegisterUsingTokenRequest.PublicSSHKey,
-			RemoteAddr:           req.RegisterUsingTokenRequest.RemoteAddr,
-			DNSNames:             req.RegisterUsingTokenRequest.DNSNames,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	log.Infof("Node %q [%v] has joined the cluster.",
-		req.RegisterUsingTokenRequest.NodeName,
-		req.RegisterUsingTokenRequest.HostID)
-	return certs, nil
+	certs, err := a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest)
+	return certs, trace.Wrap(err)
 }
 
 // createSignedStsIdentityRequest is called on the client side and returns an

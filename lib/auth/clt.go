@@ -1602,6 +1602,7 @@ func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 	return c.APIClient.GetBotUsers(ctx)
 }
 
+// TODO: delete this, RegisterUsingToken used instead
 func (c *Client) GenerateInitialRenewableUserCerts(ctx context.Context, req proto.RenewableCertsRequest) (*proto.Certs, error) {
 	if len(req.Token) == 0 {
 		return nil, trace.BadParameter("missing token")

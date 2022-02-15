@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -145,7 +146,8 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		ttl = defaults.DefaultBotJoinTTL
 	}
 
-	token, err := s.CreateBotJoinToken(ctx, CreateUserTokenRequest{
+	// TODO: don't create user token, just use provision token
+	userToken, err := s.CreateBotJoinToken(ctx, CreateUserTokenRequest{
 		Name: resourceName,
 		TTL:  ttl,
 		Type: UserTokenTypeBot,
@@ -154,8 +156,13 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		return nil, trace.Wrap(err)
 	}
 
+	_, err = s.CreateBotProvisionToken(ctx, resourceName, ttl)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &proto.CreateBotResponse{
-		TokenID:  token.GetName(),
+		TokenID:  userToken.GetName(),
 		UserName: resourceName,
 		RoleName: resourceName,
 		TokenTTL: proto.Duration(ttl),
@@ -232,6 +239,33 @@ func (s *Server) getBotUsers(ctx context.Context) ([]types.User, error) {
 	return botUsers, nil
 }
 
+// CreateBotProvisionToken creates a new random dynamic provision token which
+// allows bots to join with the given botName
+func (s *Server) CreateBotProvisionToken(ctx context.Context, botName string, ttl time.Duration) (types.ProvisionToken, error) {
+	tokenName, err := utils.CryptoRandomHex(TokenLenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tokenSpec := types.ProvisionTokenSpecV2{
+		Roles:      []types.SystemRole{types.RoleBot},
+		JoinMethod: types.JoinMethodToken,
+		BotName:    botName,
+	}
+	token, err := types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(ttl), tokenSpec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.UpsertToken(ctx, token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: audit log event
+
+	return token, nil
+}
+
+// TODO: delete this, use CreateBotProvisionToken instead
 // CreateBotJoinToken creates a new joining token for bots.
 func (s *Server) CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
 	err := req.CheckAndSetDefaults()
@@ -255,7 +289,7 @@ func (s *Server) CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequ
 	}
 
 	// TODO: deleteUserTokens?
-	token, err = s.Identity.CreateUserToken(ctx, token)
+	userToken, err := s.Identity.CreateUserToken(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -280,5 +314,5 @@ func (s *Server) CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequ
 	// 	log.WithError(err).Warn("Failed to emit create reset password token event.")
 	// }
 
-	return token, nil
+	return userToken, nil
 }
