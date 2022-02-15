@@ -285,7 +285,6 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 		TeleportClusterName: clusterName,
 		ClusterAddr:         clusterAddr,
 		Credentials:         creds,
-		ProxyAddr:           proxy,
 		Exec: &ExecValues{
 			TshBinaryPath: tshPath,
 			KubeClusters:  []string{kubeCluster},
