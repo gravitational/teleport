@@ -39,7 +39,7 @@ func (dm *DestinationMixin) CheckAndSetDefaults(applyDefaults DestinationDefault
 			return trace.Wrap(err)
 		}
 
-		notNilCount += 1
+		notNilCount++
 	}
 
 	if dm.Memory != nil {
@@ -47,7 +47,7 @@ func (dm *DestinationMixin) CheckAndSetDefaults(applyDefaults DestinationDefault
 			return trace.Wrap(err)
 		}
 
-		notNilCount += 1
+		notNilCount++
 	}
 
 	if notNilCount == 0 {

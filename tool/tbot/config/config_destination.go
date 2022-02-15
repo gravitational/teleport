@@ -27,7 +27,7 @@ type DestinationConfig struct {
 
 	Roles   []string                `yaml:"roles,omitempty"`
 	Kinds   []identity.ArtifactKind `yaml:"kinds,omitempty"`
-	Configs []ConfigTemplateConfig  `yaml:"configs,omitempty"`
+	Configs []TemplateConfig        `yaml:"configs,omitempty"`
 }
 
 // destinationDefaults applies defaults for an output sink's destination. Since
@@ -47,8 +47,8 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 
 	if len(dc.Kinds) == 0 && len(dc.Configs) == 0 {
 		dc.Kinds = []identity.ArtifactKind{identity.KindSSH}
-		dc.Configs = []ConfigTemplateConfig{{
-			SSHClient: &ConfigTemplateSSHClient{},
+		dc.Configs = []TemplateConfig{{
+			SSHClient: &TemplateSSHClient{},
 		}}
 	}
 

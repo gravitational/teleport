@@ -32,8 +32,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
@@ -120,8 +120,8 @@ func onAWS(cf *CLIConf) error {
 // genAndSetAWSCredentials generates and returns fake AWS credential that are used
 // for signing an AWS request during aws CLI call and verified on local AWS proxy side.
 func genAndSetAWSCredentials() (*credentials.Credentials, error) {
-	id := uuid.NewUUID().String()
-	secret := uuid.NewUUID().String()
+	id := uuid.New().String()
+	secret := uuid.New().String()
 	if err := setFakeAWSEnvCredentials(id, secret); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -360,8 +360,8 @@ const (
 
 const (
 	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
-	BotLabel = "teleport.dev/bot"
+	BotLabel = "teleport.internal/bot"
 
 	// BotGenerationLabel is a label used to record the certificate generation counter.
-	BotGenerationLabel = "teleport.dev/bot-generation"
+	BotGenerationLabel = "teleport.internal/bot-generation"
 )

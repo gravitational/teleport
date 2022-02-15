@@ -84,7 +84,7 @@ func Run(args []string) error {
 	initCmd.Flag("clean", "If set, remove unexpected files and directories from the destination").BoolVar(&cf.Clean)
 	initCmd.Arg("bot-user", "Name of the bot Unix user which should have write access to the destination.").Required().StringVar(&cf.BotUser)
 
-	configCmd := app.Command("config", "Parse and dump a config file")
+	configCmd := app.Command("config", "Parse and dump a config file").Hidden()
 
 	watchCmd := app.Command("watch", "Watch a destination directory for changes.")
 
@@ -625,10 +625,18 @@ func generateImpersonatedIdentity(
 ) (*identity.Identity, error) {
 	// TODO: enforce expiration > renewal period (by what margin?)
 
+	// Generate a fresh keypair for the impersonated identity. We don't care to
+	// reuse keys here: impersonated certs might not be as well-protected so
+	// constantly rotating private keys
+	privateKey, publicKey, err := native.GenerateKeyPair("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// First, ask the auth server to generate a new set of certs with a new
 	// expiration date.
 	certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
-		PublicKey:    currentIdentity.PublicKeyBytes,
+		PublicKey:    publicKey,
 		Username:     currentIdentity.XCert.Subject.CommonName,
 		Expires:      expires,
 		RoleRequests: roleRequests,
@@ -658,8 +666,10 @@ func generateImpersonatedIdentity(
 		certs.TLSCACerts = append(certs.TLSCACerts, pemBytes)
 	}
 
-	params := currentIdentity.Params()
-	newIdentity, err := identity.ReadIdentityFromStore(params, certs, kinds...)
+	newIdentity, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
+		PrivateKeyBytes: privateKey,
+		PublicKeyBytes:  publicKey,
+	}, certs, kinds...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

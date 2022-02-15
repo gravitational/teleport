@@ -542,7 +542,7 @@ func (c *Client) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via GenerateToken.
-func (c *Client) RegisterUsingToken(req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1548,7 +1548,7 @@ func (c *Client) DeleteAllUsers() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+func (c *Client) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
 	validateRequestRaw, err := validateRequest.ToRaw()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1595,17 +1595,6 @@ func (c *Client) DeleteBot(ctx context.Context, botName string) error {
 // GetBotUsers fetches all bot users.
 func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 	return c.APIClient.GetBotUsers(ctx)
-}
-
-// CreateBotJoinToken creates a bot join token.
-func (c *Client) CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
-	// Note: we reuse CreateUserTokenRequest as we are still fundamentally
-	// creating a user token, however the function call we want is still
-	// different.
-	return c.APIClient.CreateBotJoinToken(ctx, &proto.CreateBotJoinTokenRequest{
-		Name: req.Name,
-		TTL:  proto.Duration(req.TTL),
-	})
 }
 
 func (c *Client) GenerateInitialRenewableUserCerts(ctx context.Context, req proto.RenewableCertsRequest) (*proto.Certs, error) {
@@ -1851,8 +1840,6 @@ type IdentityService interface {
 	DeleteBot(ctx context.Context, botName string) error
 	// GetBotUsers gets all bot users.
 	GetBotUsers(ctx context.Context) ([]types.User, error)
-	// CreateBotJoinToken creates a new bot join token.
-	CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
 	// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
 	// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
@@ -1923,7 +1910,7 @@ type ProvisioningService interface {
 
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
-	RegisterUsingToken(req types.RegisterUsingTokenRequest) (*proto.Certs, error)
+	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
 
 	// RegisterNewAuthServer is used to register new auth server with token
 	RegisterNewAuthServer(ctx context.Context, token string) error
@@ -1967,7 +1954,7 @@ type ClientI interface {
 	// ValidateTrustedCluster validates trusted cluster token with
 	// main cluster, in case if validation is successful, main cluster
 	// adds remote cluster
-	ValidateTrustedCluster(*ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
+	ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
 
 	// GetDomainName returns auth server cluster name
 	GetDomainName() (string, error)

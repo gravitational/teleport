@@ -1,5 +1,5 @@
 /*
-Copyright 2020-2021 Gravitational, Inc.
+Copyright 2020-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -71,6 +71,9 @@ type Client struct {
 	conn *grpc.ClientConn
 	// grpc is the gRPC client specification for the auth server.
 	grpc proto.AuthServiceClient
+	// JoinServiceClient is a client for the JoinService, which runs on both the
+	// auth and proxy.
+	*JoinServiceClient
 	// closedFlag is set to indicate that the connnection is closed.
 	// It's a pointer to allow the Client struct to be copied.
 	closedFlag *int32
@@ -369,6 +372,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		return trace.Wrap(err)
 	}
 	c.grpc = proto.NewAuthServiceClient(c.conn)
+	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
 	return nil
 }
@@ -719,16 +723,6 @@ func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 	return users, nil
 }
 
-// CreateBotJoinToken creates a bot token
-func (c *Client) CreateBotJoinToken(ctx context.Context, req *proto.CreateBotJoinTokenRequest) (types.UserToken, error) {
-	token, err := c.grpc.CreateBotJoinToken(ctx, req, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return token, nil
-}
-
 // GenerateInitialRenewableUserCerts exchanges a bot token for a set of
 // renewable user certificates.
 func (c *Client) GenerateInitialRenewableUserCerts(ctx context.Context, req *proto.RenewableCertsRequest) (*proto.Certs, error) {
@@ -875,18 +869,60 @@ func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
 	return trace.Wrap(err)
 }
 
+// UpsertKubeServiceV2 is used by kubernetes services to report their presence
+// to other auth servers in form of hearbeat expiring after ttl period.
+func (c *Client) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+	server, ok := s.(*types.ServerV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T, expected *types.ServerV2", server)
+	}
+	keepAlive, err := c.grpc.UpsertKubeServiceV2(ctx, &proto.UpsertKubeServiceRequest{Server: server}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return keepAlive, nil
+}
+
 // GetKubeServices returns the list of kubernetes services registered in the
 // cluster.
 func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
+	resources, err := c.GetResources(ctx, defaults.Namespace, types.KindKubeService)
+	if err != nil {
+		// DELETE IN 10.0
+		if trace.IsNotImplemented(err) {
+			return c.getKubeServicesFallback(ctx)
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	servers := make([]types.Server, len(resources))
+	for i, resource := range resources {
+		srv, ok := resource.(types.Server)
+		if !ok {
+			return nil, trace.BadParameter("expected Server resource, got %T", resource)
+		}
+
+		servers[i] = srv
+	}
+
+	return servers, nil
+}
+
+// getKubeServicesFallback previous implementation of `GetKubeServices` function
+// using `GetKubeServices` RPC call.
+// DELETE IN 10.0
+func (c *Client) getKubeServicesFallback(ctx context.Context) ([]types.Server, error) {
 	resp, err := c.grpc.GetKubeServices(ctx, &proto.GetKubeServicesRequest{}, c.callOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var servers []types.Server
-	for _, server := range resp.GetServers() {
-		servers = append(servers, server)
+	servers := make([]types.Server, len(resp.GetServers()))
+	for i, server := range resp.GetServers() {
+		servers[i] = server
 	}
+
 	return servers, nil
 }
 
@@ -1381,11 +1417,11 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
 func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OIDCConnector) error {
-	oidcConnectorV2, ok := oidcConnector.(*types.OIDCConnectorV2)
+	connector, ok := oidcConnector.(*types.OIDCConnectorV3)
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
-	_, err := c.grpc.UpsertOIDCConnector(ctx, oidcConnectorV2, c.callOpts...)
+	_, err := c.grpc.UpsertOIDCConnector(ctx, connector, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
@@ -1653,6 +1689,38 @@ func GetNodesWithLabels(ctx context.Context, clt NodeClient, namespace string, l
 // nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
 // ListNodes will return a trace.LimitExceeded error if the page of nodes retrieved exceeds 4MiB.
 func (c *Client) ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error) {
+	resources, nextKey, err := c.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    req.Namespace,
+		StartKey:     req.StartKey,
+		Limit:        req.Limit,
+		Labels:       req.Labels,
+	})
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return c.listNodesFallback(ctx, req)
+		}
+
+		return nil, "", trace.Wrap(err)
+	}
+
+	servers := make([]types.Server, len(resources))
+	for i, resource := range resources {
+		server, ok := resource.(*types.ServerV2)
+		if !ok {
+			return nil, "", trace.BadParameter("invalid node type %T", resource)
+		}
+
+		servers[i] = server
+	}
+
+	return servers, nextKey, nil
+}
+
+// listNodesFallback previous implementation of `ListNodes` function using
+// `ListNodes` RPC call.
+// DELETE IN 10.0
+func (c *Client) listNodesFallback(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error) {
 	if req.Namespace == "" {
 		return nil, "", trace.BadParameter("missing parameter namespace")
 	}
@@ -2325,7 +2393,7 @@ func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAu
 // `GetResources` function.
 // It will return a `trace.LimitExceeded` error if the page exceeds gRPC max
 // message size.
-func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.Resource, nextKey string, err error) {
+func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.ResourceWithLabels, nextKey string, err error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2335,13 +2403,17 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 		return nil, "", trail.FromGRPC(err)
 	}
 
-	resources = make([]types.Resource, len(resp.GetResources()))
+	resources = make([]types.ResourceWithLabels, len(resp.GetResources()))
 	for i, respResource := range resp.GetResources() {
 		switch req.ResourceType {
 		case types.KindDatabaseServer:
 			resources[i] = respResource.GetDatabaseServer()
 		case types.KindAppServer:
 			resources[i] = respResource.GetAppServer()
+		case types.KindNode:
+			resources[i] = respResource.GetNode()
+		case types.KindKubeService:
+			resources[i] = respResource.GetKubeService()
 		default:
 			return nil, "", trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -2352,9 +2424,9 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 
 // GetResources retrieves all pages from ListResourcesPage and return all
 // resources.
-func (c *Client) GetResources(ctx context.Context, namespace, resourceType string) ([]types.Resource, error) {
+func (c *Client) GetResources(ctx context.Context, namespace, resourceType string) ([]types.ResourceWithLabels, error) {
 	var (
-		resources []types.Resource
+		resources []types.ResourceWithLabels
 		startKey  string
 		chunkSize = int32(defaults.DefaultChunkSize)
 	)

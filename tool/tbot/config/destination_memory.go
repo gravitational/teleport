@@ -50,14 +50,14 @@ func (dm *DestinationMemory) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (d *DestinationMemory) Write(name string, data []byte, _ destination.ModeHint) error {
-	d.store[name] = data
+func (dm *DestinationMemory) Write(name string, data []byte, _ destination.ModeHint) error {
+	dm.store[name] = data
 
 	return nil
 }
 
-func (d *DestinationMemory) Read(name string) ([]byte, error) {
-	b, ok := d.store[name]
+func (dm *DestinationMemory) Read(name string) ([]byte, error) {
+	b, ok := dm.store[name]
 	if !ok {
 		return nil, trace.BadParameter("not found: %s", name)
 	}
@@ -65,6 +65,6 @@ func (d *DestinationMemory) Read(name string) ([]byte, error) {
 	return b, nil
 }
 
-func (d *DestinationMemory) String() string {
+func (dm *DestinationMemory) String() string {
 	return "[memory]"
 }

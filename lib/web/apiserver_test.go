@@ -83,9 +83,9 @@ import (
 	"github.com/beevik/etree"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	lemma_secret "github.com/mailgun/lemma/secret"
-	"github.com/pborman/uuid"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -1671,7 +1671,7 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 	wc := s.client()
 
 	// create two oidc connectors, one named "foo" and another named "bar"
-	oidcConnectorSpec := types.OIDCConnectorSpecV2{
+	oidcConnectorSpec := types.OIDCConnectorSpecV3{
 		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
 		ClientID:     "000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com",
 		ClientSecret: "AAAAAAAAAAAAAAAAAAAAAAAA",
@@ -2046,7 +2046,7 @@ func TestClusterKubesGet(t *testing.T) {
 	require.Len(t, kbs, 0)
 
 	// Register a kube service.
-	err = env.server.Auth().UpsertKubeService(context.Background(), &types.ServerV2{
+	_, err = env.server.Auth().UpsertKubeServiceV2(context.Background(), &types.ServerV2{
 		Metadata: types.Metadata{Name: "test-kube"},
 		Kind:     types.KindKubeService,
 		Version:  types.V2,
@@ -2098,7 +2098,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 		PublicAddr: "panel.example.com",
 	})
 	require.NoError(t, err)
-	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), server)
 	require.NoError(t, err)
@@ -2497,7 +2497,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		PublicAddr: "panel.example.com",
 	})
 	c.Assert(err, IsNil)
-	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 	c.Assert(err, IsNil)
 	_, err = s.server.Auth().UpsertApplicationServer(context.Background(), server)
 	c.Assert(err, IsNil)
@@ -3355,7 +3355,7 @@ type proxy struct {
 	revTun  reversetunnel.Server
 	node    *regular.Server
 	proxy   *regular.Server
-	handler *WebAPIHandler
+	handler *APIHandler
 	web     *httptest.Server
 	webURL  url.URL
 }

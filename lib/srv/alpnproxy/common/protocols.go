@@ -48,6 +48,10 @@ const (
 
 	// ProtocolAuth allows dialing local/remote auth service based on SNI cluster name value.
 	ProtocolAuth Protocol = "teleport-auth@"
+
+	// ProtocolProxyGRPC is TLS ALPN protocol value used to indicate gRPC
+	// traffic intended for the Teleport proxy.
+	ProtocolProxyGRPC Protocol = "teleport-proxy-grpc"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
