@@ -98,6 +98,19 @@ Fill out and run this command on a node to start proxying the database:
    --protocol={{.db_protocol}} \
    --uri={{.db_uri}}
 
+Or, generate the configuration and start a Teleport agent using it:
+
+> teleport db configure create \
+   --token={{.token}} \{{range .ca_pins}}
+   --ca-pin={{.}} \{{end}}
+   --auth-server={{.auth_server}} \
+   --name={{.db_name}} \
+   --protocol={{.db_protocol}} \
+   --uri={{.db_uri}} \
+   --output file:///etc/teleport.yaml
+
+> teleport start -c /etc/teleport.yaml
+
 Please note:
 
   - This invitation token will expire in {{.minutes}} minutes.
