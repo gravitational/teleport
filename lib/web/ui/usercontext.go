@@ -197,7 +197,7 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 }
 
 // NewUserContext returns user context
-func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features) (*UserContext, error) {
+func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features, desktopRecordingEnabled bool) (*UserContext, error) {
 	ctx := &services.Context{User: user}
 	sessionAccess := newAccess(userRoles, ctx, types.KindSession)
 	roleAccess := newAccess(userRoles, ctx, types.KindRole)
@@ -225,7 +225,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	accessStrategy := getAccessStrategy(userRoles)
 	windowsLogins := getWindowsDesktopLogins(userRoles)
 	clipboard := userRoles.DesktopClipboard()
-	desktopSessionRecording := userRoles.RecordDesktopSession()
+	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
