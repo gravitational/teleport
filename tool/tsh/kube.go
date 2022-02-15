@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 
-	dockerterm "github.com/moby/term"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -57,7 +56,6 @@ import (
 	"k8s.io/kubectl/pkg/cmd/util/podcmd"
 	"k8s.io/kubectl/pkg/polymorphichelpers"
 	"k8s.io/kubectl/pkg/scheme"
-	"k8s.io/kubectl/pkg/util/interrupt"
 	"k8s.io/kubectl/pkg/util/term"
 )
 
@@ -228,8 +226,6 @@ type StreamOptions struct {
 	TTY           bool
 	// minimize unnecessary output
 	Quiet bool
-	// InterruptParent, if set, is used to handle interrupts while attached
-	InterruptParent *interrupt.Handler
 
 	genericclioptions.IOStreams
 
@@ -239,8 +235,7 @@ type StreamOptions struct {
 
 func (o *StreamOptions) SetupTTY() term.TTY {
 	t := term.TTY{
-		Parent: o.InterruptParent,
-		Out:    o.Out,
+		Out: o.Out,
 	}
 
 	if !o.Stdin {
@@ -274,10 +269,6 @@ func (o *StreamOptions) SetupTTY() term.TTY {
 	// can safely set t.Raw to true
 	t.Raw = true
 
-	if o.overrideStreams == nil {
-		// use dockerterm.StdStreams() to get the right I/O handles on Windows
-		o.overrideStreams = dockerterm.StdStreams
-	}
 	stdin, stdout, _ := o.overrideStreams()
 	o.In = stdin
 	t.In = stdin
