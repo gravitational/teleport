@@ -32,7 +32,7 @@ $ helm repo add teleport https://charts.releases.teleport.dev
 
 Install Teleport in your Kubernetes cluster using the `teleport-cluster` Helm chart.
 ```code
-$ CLUSTERNAME=tele.teleporters.dev # replace with your preferred domain name
+$ CLUSTERNAME=tele.example.com # replace with your preferred domain name
 $ EMAIL_ADDR=dodemo@goteleport.com # replace with your email
 $ helm install teleport-cluster teleport/teleport-cluster --create-namespace --namespace=teleport-cluster \
   --set clusterName=$CLUSTERNAME \
