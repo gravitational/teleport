@@ -811,10 +811,11 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
 			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl)
 		},
-		CertTTL:     windowsDesktopCertTTL,
-		Addr:        desktop.GetAddr(),
-		Conn:        tdpConn,
-		AuthorizeFn: authorize,
+		CertTTL:        windowsDesktopCertTTL,
+		Addr:           desktop.GetAddr(),
+		Conn:           tdpConn,
+		AuthorizeFn:    authorize,
+		AllowClipboard: authCtx.Checker.DesktopClipboard(),
 	})
 	if err != nil {
 		s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)

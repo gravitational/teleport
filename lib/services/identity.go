@@ -145,6 +145,21 @@ type Identity interface {
 	// not expired.
 	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
 
+	// UpsertGlobalWebauthnSessionData creates or updates WebAuthn session data in
+	// storage, for the purpose of later verifying an authentication challenge.
+	// Session data is expected to expire according to backend settings.
+	// Used for passwordless challenges.
+	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error
+
+	// GetGlobalWebauthnSessionData retrieves previously-stored session data by ID,
+	// if it exists and has not expired.
+	// Used for passwordless challenges.
+	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error)
+
+	// DeleteGlobalWebauthnSessionData deletes session data by ID, if it exists
+	// and has not expired.
+	DeleteGlobalWebauthnSessionData(ctx context.Context, scope, id string) error
+
 	// UpsertMFADevice upserts an MFA device for the user.
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
 
