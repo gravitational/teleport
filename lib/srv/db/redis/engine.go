@@ -113,6 +113,10 @@ func (e *Engine) SendError(redisErr error) {
 
 // sendToClient sends a command to connected Redis client.
 func (e *Engine) sendToClient(vals interface{}) error {
+	if vals == nil {
+		return nil
+	}
+
 	buf := &bytes.Buffer{}
 	wr := redis.NewWriter(buf)
 
