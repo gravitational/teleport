@@ -76,7 +76,7 @@ func Run(args []string) error {
 	startCmd.Flag("certificate-ttl", "TTL of generated certificates").Default("60m").DurationVar(&cf.CertificateTTL)
 	startCmd.Flag("renew-interval", "Interval at which certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewInterval)
 
-	configCmd := app.Command("config", "Parse and dump a config file")
+	configCmd := app.Command("config", "Parse and dump a config file").Hidden()
 
 	initCmd := app.Command("init", "Initialize a certificate destination directory.")
 
