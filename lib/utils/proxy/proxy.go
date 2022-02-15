@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	apiproxy "github.com/gravitational/teleport/api/utils/proxy"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -149,7 +149,7 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 		defer cancel()
 		ctx = timeoutCtx
 	}
-	conn, err := apiproxy.DialProxy(ctx, d.proxyHost, address)
+	conn, err := apiclient.DialProxy(ctx, d.proxyHost, address, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -175,7 +175,7 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 // SSH connection.
 func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	// Build a proxy connection first.
-	pconn, err := apiproxy.DialProxy(context.Background(), d.proxyHost, addr)
+	pconn, err := apiclient.DialProxy(context.Background(), d.proxyHost, addr, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -237,7 +237,7 @@ func WithTLSConfig(tlsConfig *tls.Config) DialerOptionFunc {
 // server directly.
 func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	// Try and get proxy addr from the environment.
-	proxyAddr := apiproxy.GetProxyAddress(addr)
+	proxyAddr := apiclient.GetProxyAddress(addr)
 
 	var options dialerOptions
 	for _, opt := range opts {

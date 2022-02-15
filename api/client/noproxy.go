@@ -7,7 +7,7 @@
 // This is the low-level Transport implementation of RoundTripper.
 // The high-level interface is in client.go.
 
-package proxy
+package client
 
 import (
 	"os"

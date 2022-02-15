@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package proxy
+package client
 
 import (
 	"bufio"
@@ -30,9 +30,11 @@ import (
 	"github.com/siddontang/go/log"
 )
 
-func DialProxy(ctx context.Context, proxyAddr string, addr string) (net.Conn, error) {
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", proxyAddr)
+func DialProxy(ctx context.Context, proxyAddr, addr string, dialer ContextDialer) (net.Conn, error) {
+	if dialer == nil {
+		dialer = &net.Dialer{}
+	}
+	conn, err := dialer.DialContext(ctx, "tcp", proxyAddr)
 	if err != nil {
 		log.Warnf("Unable to dial to proxy: %v: %v.", proxyAddr, err)
 		return nil, trace.ConvertSystemError(err)
