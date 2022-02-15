@@ -17,8 +17,8 @@ limitations under the License.
 package utils
 
 import (
-	"strings"
 	"encoding/json"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
