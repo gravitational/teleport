@@ -1632,6 +1632,10 @@ func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 	return resp.CRL, nil
 }
 
+func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
@@ -1792,6 +1796,9 @@ type IdentityService interface {
 	// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
 	CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error)
 
+	// MaintainSessionPresence establishes a channel used to continuously verify the presence for a session.
+	MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error)
+
 	// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
 	// This token is used as part of a URL that will be emailed to the user (not done in this request).
 	// Represents step 1 of the account recovery process.
@@ -1864,6 +1871,7 @@ type ClientI interface {
 	WebService
 	session.Service
 	services.ClusterConfiguration
+	services.SessionTrackerService
 	types.Events
 
 	types.WebSessionsGetter

@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"strings"
 	"encoding/json"
 
 	"github.com/gravitational/trace"
@@ -97,4 +98,14 @@ func CopyStrings(in []string) []string {
 	copy(out, in)
 
 	return out
+}
+
+// ToLowerStrings lower cases each string in a slice.
+func ToLowerStrings(strs []string) []string {
+	lowerCasedStrs := make([]string, len(strs))
+	for i, s := range strs {
+		lowerCasedStrs[i] = strings.ToLower(s)
+	}
+
+	return lowerCasedStrs
 }

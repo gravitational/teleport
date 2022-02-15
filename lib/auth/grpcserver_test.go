@@ -1339,18 +1339,18 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 	require.False(t, resp.Required)
 }
 
-// TestRoleVersions tests that downgraded V3 roles are returned to older
-// clients, and V4 roles are returned to newer clients.
+// TestRoleVersions tests that downgraded V4 roles are returned to older
+// clients, and V5 roles are returned to newer clients.
 func TestRoleVersions(t *testing.T) {
 	srv := newTestTLSServer(t)
 
-	role := &types.RoleV4{
+	role := &types.RoleV5{
 		Kind:    types.KindRole,
-		Version: types.V4,
+		Version: types.V5,
 		Metadata: types.Metadata{
 			Name: "test_role",
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{
 					types.NewRule(types.KindRole, services.RO()),
@@ -1374,26 +1374,26 @@ func TestRoleVersions(t *testing.T) {
 	}{
 		{
 			desc:                "old",
-			clientVersion:       "6.2.1",
-			expectedRoleVersion: "v3",
-			assertErr:           require.NoError,
-		},
-		{
-			desc:                "new",
-			clientVersion:       "6.3.0",
+			clientVersion:       "7.1.1",
 			expectedRoleVersion: "v4",
 			assertErr:           require.NoError,
 		},
 		{
+			desc:                "new",
+			clientVersion:       "8.3.0",
+			expectedRoleVersion: "v5",
+			assertErr:           require.NoError,
+		},
+		{
 			desc:                "alpha",
-			clientVersion:       "6.2.4-alpha.0",
+			clientVersion:       "7.2.4-alpha.0",
 			expectedRoleVersion: "v4",
 			assertErr:           require.NoError,
 		},
 		{
 			desc:                "greater than 10",
 			clientVersion:       "10.0.0-beta",
-			expectedRoleVersion: "v4",
+			expectedRoleVersion: "v5",
 			assertErr:           require.NoError,
 		},
 		{
@@ -1409,7 +1409,7 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc:                "no version metadata",
 			disableMetadata:     true,
-			expectedRoleVersion: "v3",
+			expectedRoleVersion: "v4",
 			assertErr:           require.NoError,
 		},
 	}

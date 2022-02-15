@@ -1,7 +1,12 @@
 name: teleport-kube-agent
 apiVersion: v2
-version: "8.2.0"
-appVersion: "8.2.0"
+<<<<<<< HEAD
+version: "8.3.0-alpha1"
+appVersion: "8.3.0-alpha1"
+=======
+version: "8.3.0-alpha1"
+appVersion: "8.3.0-alpha1"
+>>>>>>> ea810d30d (Implement Moderated Sessions (#8563))
 description: Teleport provides a secure SSH and Kubernetes remote access solution that doesn't get in the way.
 icon: https://goteleport.com/images/logos/logo-teleport-square.svg
 keywords:

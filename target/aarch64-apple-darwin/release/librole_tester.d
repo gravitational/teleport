@@ -1,0 +1,1 @@
+/Users/joelwejdenstal/work/teleport/target/aarch64-apple-darwin/release/librole_tester.a: /Users/joelwejdenstal/work/teleport/lib/datalog/roletester/build.rs /Users/joelwejdenstal/work/teleport/lib/datalog/roletester/src/role_tester.rs /Users/joelwejdenstal/work/teleport/target/aarch64-apple-darwin/release/build/role_tester-49ef295f582011f3/out/datalog.rs
