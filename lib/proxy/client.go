@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	"net"
 	"sync"
+	"time"
 
 	clientapi "github.com/gravitational/teleport/api/client/proto"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -37,6 +39,8 @@ import (
 
 const (
 	errorTunnelNotFound = "NOT_FOUND"
+
+	defaultCleanupInterval = time.Minute * 1
 )
 
 // ClientConfig configures a Client instance.
@@ -47,12 +51,24 @@ type ClientConfig struct {
 	TLSConfig *tls.Config
 	// Log is the proxy client logger.
 	Log logrus.FieldLogger
+	// Clock is used to control connection cleanup ticker.
+	Clock clockwork.Clock
+	// CleanupInterval is used to call Clean at regular intervals.
+	CleanupInterval time.Duration
 }
 
 // checkAndSetDefaults checks and sets default values
 func (c *ClientConfig) checkAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = logrus.New()
+	}
+
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+
+	if c.CleanupInterval == 0 {
+		c.CleanupInterval = defaultCleanupInterval
 	}
 
 	c.Log = c.Log.WithField(
@@ -81,6 +97,7 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 // Client is a peer proxy service client using grpc and tls.
 type Client struct {
 	sync.RWMutex
+	done chan struct{}
 
 	config  ClientConfig
 	conns   map[string]*grpc.ClientConn
@@ -101,11 +118,26 @@ func NewClient(config ClientConfig) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Client{
+	c := &Client{
+		done:    make(chan struct{}),
 		config:  config,
 		conns:   make(map[string]*grpc.ClientConn),
 		metrics: metrics,
-	}, nil
+	}
+
+	cleanupTicker := config.Clock.NewTicker(config.CleanupInterval)
+	go func() {
+		for {
+			select {
+			case <-c.done:
+				return
+			case <-cleanupTicker.Chan():
+				c.Clean()
+			}
+		}
+	}()
+
+	return c, nil
 }
 
 // Dial dials a node through a peer proxy.
@@ -159,6 +191,8 @@ func (c *Client) Close() error {
 	c.Lock()
 	defer c.Unlock()
 
+	c.done <- struct{}{}
+
 	var errs []error
 	for _, conn := range c.conns {
 		if err := conn.Close(); err != nil {
@@ -166,6 +200,18 @@ func (c *Client) Close() error {
 		}
 	}
 	return trace.NewAggregate(errs...)
+}
+
+// Clean cleans failed client connections.
+func (c *Client) Clean() {
+	c.Lock()
+	defer c.Unlock()
+
+	for k, conn := range c.conns {
+		if failedState(conn.GetState()) {
+			delete(c.conns, k)
+		}
+	}
 }
 
 // dial returns an existing grpc.ClientConn or initializes a new connection to
@@ -202,8 +248,7 @@ func (c *Client) getConnection(proxyAddr string) (*grpc.ClientConn, error) {
 	}
 
 	state := conn.GetState()
-	switch state {
-	case connectivity.TransientFailure, connectivity.Shutdown:
+	if failedState(state) {
 		c.metrics.tunnelErrorCounter.WithLabelValues(state.String()).Inc()
 		return nil, trace.NotFound("found connection in %+v state", state.String())
 	}
@@ -234,4 +279,8 @@ func (c *Client) newConnection(ctx context.Context, proxyAddr string) (*grpc.Cli
 
 	c.conns[proxyAddr] = conn
 	return conn, nil
+}
+
+func failedState(state connectivity.State) bool {
+	return state == connectivity.TransientFailure || state == connectivity.Shutdown
 }
