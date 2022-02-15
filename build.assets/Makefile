@@ -32,7 +32,7 @@ RUNTIME_ARCH_arm64 := arm64
 RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
-PROTOC_VER ?= 3.6.1
+PROTOC_VER ?= 3.13.0
 GOGO_PROTO_TAG ?= v1.3.2
 
 BUILDBOX=quay.io/gravitational/teleport-buildbox:$(BUILDBOX_VERSION)
