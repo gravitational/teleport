@@ -288,8 +288,9 @@ function deserialize_teleport_terminal_v1_RemoveGatewayRequest(buffer_arg) {
 }
 
 
+// TerminalService desribes teleterm service
 var TerminalServiceService = exports.TerminalServiceService = {
-  // ListRootClusters
+  // ListRootClusters lists root clusters
 listRootClusters: {
     path: '/teleport.terminal.v1.TerminalService/ListRootClusters',
     requestStream: false,
@@ -301,7 +302,7 @@ listRootClusters: {
     responseSerialize: serialize_teleport_terminal_v1_ListClustersResponse,
     responseDeserialize: deserialize_teleport_terminal_v1_ListClustersResponse,
   },
-  // ListLeafClusters
+  // ListLeafClusters lists leaf clusters
 listLeafClusters: {
     path: '/teleport.terminal.v1.TerminalService/ListLeafClusters',
     requestStream: false,
@@ -313,7 +314,7 @@ listLeafClusters: {
     responseSerialize: serialize_teleport_terminal_v1_ListClustersResponse,
     responseDeserialize: deserialize_teleport_terminal_v1_ListClustersResponse,
   },
-  // ListDatabases
+  // ListDatabases lists databases
 listDatabases: {
     path: '/teleport.terminal.v1.TerminalService/ListDatabases',
     requestStream: false,
@@ -325,7 +326,7 @@ listDatabases: {
     responseSerialize: serialize_teleport_terminal_v1_ListDatabasesResponse,
     responseDeserialize: deserialize_teleport_terminal_v1_ListDatabasesResponse,
   },
-  // ListGateways
+  // ListGateways lists gateways
 listGateways: {
     path: '/teleport.terminal.v1.TerminalService/ListGateways',
     requestStream: false,
@@ -337,7 +338,7 @@ listGateways: {
     responseSerialize: serialize_teleport_terminal_v1_ListGatewaysResponse,
     responseDeserialize: deserialize_teleport_terminal_v1_ListGatewaysResponse,
   },
-  // ListServers
+  // ListServers lists servers
 listServers: {
     path: '/teleport.terminal.v1.TerminalService/ListServers',
     requestStream: false,
@@ -349,7 +350,7 @@ listServers: {
     responseSerialize: serialize_teleport_terminal_v1_ListServersResponse,
     responseDeserialize: deserialize_teleport_terminal_v1_ListServersResponse,
   },
-  // ListKubes
+  // ListKubes list kubes
 listKubes: {
     path: '/teleport.terminal.v1.TerminalService/ListKubes',
     requestStream: false,
@@ -361,7 +362,7 @@ listKubes: {
     responseSerialize: serialize_teleport_terminal_v1_ListKubesResponse,
     responseDeserialize: deserialize_teleport_terminal_v1_ListKubesResponse,
   },
-  // ListApps
+  // ListApps list apps
 listApps: {
     path: '/teleport.terminal.v1.TerminalService/ListApps',
     requestStream: false,
@@ -373,7 +374,7 @@ listApps: {
     responseSerialize: serialize_teleport_terminal_v1_ListAppsResponse,
     responseDeserialize: deserialize_teleport_terminal_v1_ListAppsResponse,
   },
-  // CreateGateway
+  // CreateGateway creates a gateway
 createGateway: {
     path: '/teleport.terminal.v1.TerminalService/CreateGateway',
     requestStream: false,
@@ -385,7 +386,7 @@ createGateway: {
     responseSerialize: serialize_teleport_terminal_v1_Gateway,
     responseDeserialize: deserialize_teleport_terminal_v1_Gateway,
   },
-  // AddCluster
+  // AddCluster adds a cluster to profile
 addCluster: {
     path: '/teleport.terminal.v1.TerminalService/AddCluster',
     requestStream: false,
@@ -397,7 +398,7 @@ addCluster: {
     responseSerialize: serialize_teleport_terminal_v1_Cluster,
     responseDeserialize: deserialize_teleport_terminal_v1_Cluster,
   },
-  // RemoveCluster
+  // RemoveCluster removes a cluster from profile
 removeCluster: {
     path: '/teleport.terminal.v1.TerminalService/RemoveCluster',
     requestStream: false,
@@ -409,7 +410,7 @@ removeCluster: {
     responseSerialize: serialize_teleport_terminal_v1_EmptyResponse,
     responseDeserialize: deserialize_teleport_terminal_v1_EmptyResponse,
   },
-  // RemoveGateway
+  // RemoveGateway removes a gateway
 removeGateway: {
     path: '/teleport.terminal.v1.TerminalService/RemoveGateway',
     requestStream: false,
@@ -421,7 +422,7 @@ removeGateway: {
     responseSerialize: serialize_teleport_terminal_v1_EmptyResponse,
     responseDeserialize: deserialize_teleport_terminal_v1_EmptyResponse,
   },
-  // GetAuthSettings
+  // GetAuthSettings returns cluster auth settigns
 getAuthSettings: {
     path: '/teleport.terminal.v1.TerminalService/GetAuthSettings',
     requestStream: false,
@@ -433,7 +434,7 @@ getAuthSettings: {
     responseSerialize: serialize_teleport_terminal_v1_AuthSettings,
     responseDeserialize: deserialize_teleport_terminal_v1_AuthSettings,
   },
-  // GetCluster
+  // GetCluster returns a cluster
 getCluster: {
     path: '/teleport.terminal.v1.TerminalService/GetCluster',
     requestStream: false,
@@ -445,7 +446,7 @@ getCluster: {
     responseSerialize: serialize_teleport_terminal_v1_Cluster,
     responseDeserialize: deserialize_teleport_terminal_v1_Cluster,
   },
-  // Login
+  // Login logs in a user to a cluster
 login: {
     path: '/teleport.terminal.v1.TerminalService/Login',
     requestStream: false,
@@ -457,7 +458,7 @@ login: {
     responseSerialize: serialize_teleport_terminal_v1_EmptyResponse,
     responseDeserialize: deserialize_teleport_terminal_v1_EmptyResponse,
   },
-  // ClusterLogin
+  // ClusterLogin logs out a user from cluster
 logout: {
     path: '/teleport.terminal.v1.TerminalService/Logout',
     requestStream: false,

@@ -27,6 +27,10 @@ export const SupportEnterprise = () => (
   <Support {...props} isEnterprise={true} />
 );
 
+export const SupportWithTunnelAddress = () => (
+  <Support {...props} tunnelPublicAddress="localhost:11005"></Support>
+);
+
 const props = {
   clusterId: 'test',
   authVersion: '4.4.0-dev',

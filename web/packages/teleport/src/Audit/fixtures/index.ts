@@ -872,6 +872,15 @@ export const events = [
     time: '2022-02-04T18:15:28.572Z',
     uid: 'f2a0f9-d78c-4c38-b3fa-ca63453b',
   },
+  {
+    cert_type: 'user',
+    code: 'TC000I',
+    event: 'cert.create',
+    identity: {
+      user: 'alice',
+    },
+    time: '2022-02-04T19:43:23.529Z',
+  },
 ].map(makeEvent);
 
 export const eventsSample = [

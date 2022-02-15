@@ -26,9 +26,6 @@ export class App extends jspb.Message {
     getFqdn(): string;
     setFqdn(value: string): App;
 
-    getClusterId(): string;
-    setClusterId(value: string): App;
-
     clearLabelsList(): void;
     getLabelsList(): Array<v1_label_pb.Label>;
     setLabelsList(value: Array<v1_label_pb.Label>): App;
@@ -61,7 +58,6 @@ export namespace App {
         appUri: string,
         publicAddr: string,
         fqdn: string,
-        clusterId: string,
         labelsList: Array<v1_label_pb.Label.AsObject>,
         awsConsole: boolean,
         awsRolesList: Array<App.AWSRole.AsObject>,

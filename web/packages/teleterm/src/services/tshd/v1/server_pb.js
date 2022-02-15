@@ -42,7 +42,7 @@ if (goog.DEBUG && !COMPILED) {
  * @private {!Array<number>}
  * @const
  */
-proto.teleport.terminal.v1.Server.repeatedFields_ = [7];
+proto.teleport.terminal.v1.Server.repeatedFields_ = [6];
 
 
 
@@ -78,9 +78,8 @@ proto.teleport.terminal.v1.Server.toObject = function(includeInstance, msg) {
     uri: jspb.Message.getFieldWithDefault(msg, 1, ""),
     tunnel: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
     name: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    clusterId: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    hostname: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    addr: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    hostname: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    addr: jspb.Message.getFieldWithDefault(msg, 5, ""),
     labelsList: jspb.Message.toObjectList(msg.getLabelsList(),
     v1_label_pb.Label.toObject, includeInstance)
   };
@@ -133,17 +132,13 @@ proto.teleport.terminal.v1.Server.deserializeBinaryFromReader = function(msg, re
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.setClusterId(value);
+      msg.setHostname(value);
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
-      msg.setHostname(value);
-      break;
-    case 6:
-      var value = /** @type {string} */ (reader.readString());
       msg.setAddr(value);
       break;
-    case 7:
+    case 6:
       var value = new v1_label_pb.Label;
       reader.readMessage(value,v1_label_pb.Label.deserializeBinaryFromReader);
       msg.addLabels(value);
@@ -198,31 +193,24 @@ proto.teleport.terminal.v1.Server.serializeBinaryToWriter = function(message, wr
       f
     );
   }
-  f = message.getClusterId();
+  f = message.getHostname();
   if (f.length > 0) {
     writer.writeString(
       4,
       f
     );
   }
-  f = message.getHostname();
+  f = message.getAddr();
   if (f.length > 0) {
     writer.writeString(
       5,
       f
     );
   }
-  f = message.getAddr();
-  if (f.length > 0) {
-    writer.writeString(
-      6,
-      f
-    );
-  }
   f = message.getLabelsList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      7,
+      6,
       f,
       v1_label_pb.Label.serializeBinaryToWriter
     );
@@ -285,10 +273,10 @@ proto.teleport.terminal.v1.Server.prototype.setName = function(value) {
 
 
 /**
- * optional string cluster_id = 4;
+ * optional string hostname = 4;
  * @return {string}
  */
-proto.teleport.terminal.v1.Server.prototype.getClusterId = function() {
+proto.teleport.terminal.v1.Server.prototype.getHostname = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
@@ -297,16 +285,16 @@ proto.teleport.terminal.v1.Server.prototype.getClusterId = function() {
  * @param {string} value
  * @return {!proto.teleport.terminal.v1.Server} returns this
  */
-proto.teleport.terminal.v1.Server.prototype.setClusterId = function(value) {
+proto.teleport.terminal.v1.Server.prototype.setHostname = function(value) {
   return jspb.Message.setProto3StringField(this, 4, value);
 };
 
 
 /**
- * optional string hostname = 5;
+ * optional string addr = 5;
  * @return {string}
  */
-proto.teleport.terminal.v1.Server.prototype.getHostname = function() {
+proto.teleport.terminal.v1.Server.prototype.getAddr = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
 };
 
@@ -315,36 +303,18 @@ proto.teleport.terminal.v1.Server.prototype.getHostname = function() {
  * @param {string} value
  * @return {!proto.teleport.terminal.v1.Server} returns this
  */
-proto.teleport.terminal.v1.Server.prototype.setHostname = function(value) {
+proto.teleport.terminal.v1.Server.prototype.setAddr = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
 };
 
 
 /**
- * optional string addr = 6;
- * @return {string}
- */
-proto.teleport.terminal.v1.Server.prototype.getAddr = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
-};
-
-
-/**
- * @param {string} value
- * @return {!proto.teleport.terminal.v1.Server} returns this
- */
-proto.teleport.terminal.v1.Server.prototype.setAddr = function(value) {
-  return jspb.Message.setProto3StringField(this, 6, value);
-};
-
-
-/**
- * repeated Label labels = 7;
+ * repeated Label labels = 6;
  * @return {!Array<!proto.teleport.terminal.v1.Label>}
  */
 proto.teleport.terminal.v1.Server.prototype.getLabelsList = function() {
   return /** @type{!Array<!proto.teleport.terminal.v1.Label>} */ (
-    jspb.Message.getRepeatedWrapperField(this, v1_label_pb.Label, 7));
+    jspb.Message.getRepeatedWrapperField(this, v1_label_pb.Label, 6));
 };
 
 
@@ -353,7 +323,7 @@ proto.teleport.terminal.v1.Server.prototype.getLabelsList = function() {
  * @return {!proto.teleport.terminal.v1.Server} returns this
 */
 proto.teleport.terminal.v1.Server.prototype.setLabelsList = function(value) {
-  return jspb.Message.setRepeatedWrapperField(this, 7, value);
+  return jspb.Message.setRepeatedWrapperField(this, 6, value);
 };
 
 
@@ -363,7 +333,7 @@ proto.teleport.terminal.v1.Server.prototype.setLabelsList = function(value) {
  * @return {!proto.teleport.terminal.v1.Label}
  */
 proto.teleport.terminal.v1.Server.prototype.addLabels = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 7, opt_value, proto.teleport.terminal.v1.Label, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 6, opt_value, proto.teleport.terminal.v1.Label, opt_index);
 };
 
 

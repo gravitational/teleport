@@ -22,6 +22,7 @@ import { RecordingType } from 'teleport/services/recordings';
 const cfg = {
   isEnterprise: false,
   isCloud: false,
+  tunnelPublicAddress: '',
 
   baseUrl: window.location.origin,
 
@@ -148,6 +149,16 @@ const cfg = {
 
   getClusterEventsUrl(clusterId: string, params: UrlClusterEventsParams) {
     return generatePath(cfg.api.clusterEventsPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getClusterEventsRecordingsUrl(
+    clusterId: string,
+    params: UrlSessionRecordingsParams
+  ) {
+    return generatePath(cfg.api.clusterEventsRecordingsPath, {
       clusterId,
       ...params,
     });
