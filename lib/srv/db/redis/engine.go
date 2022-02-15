@@ -188,11 +188,11 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	return nil
 }
 
-// process is the main processing function for Redis. It reads commands passed from client and passes them to
-// a Redis instance. It's also responsible for audit.
+// process is the main processing function for Redis. It reads commands from connected client and passes them to
+// a Redis instance. This function returns when a server closes a connection or in case of connection error.
 func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient) error {
 	for {
-		// Read commands from client.
+		// Read commands from connected client.
 		cmd, err := e.readClientCmd(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -200,15 +200,17 @@ func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient)
 
 		// send valid commands to Redis instance/cluster.
 		err = e.processCmd(ctx, redisClient, cmd)
-
-		// extract server response from
-		vals, err := serverResponseToValue(cmd, err)
+		// go-redis returns some errors as err and some as cmd.Err().
+		// Function below maps errors that should be returned to the
+		// client as value or return them as err if we should terminate
+		// the session.
+		value, err := processSeverResponse(cmd, err)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Send response back to the client.
-		if err := e.sendToClient(vals); err != nil {
+		if err := e.sendToClient(value); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -229,44 +231,46 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 	return redis.NewCmd(ctx, val...), nil
 }
 
-// serverResponseToValue takes server response and an error and return a message that should be propagated back
-// to connected client as the first value and errors that should terminate the connection as the second one.
-// Some examples:
-// * Server errors are returned as the first value. They should be propagated back to the connected client
-//   instead of handled by Teleport.
-// * Go's context.DeadlineExceeded is returned as the first value as "connection timeout", as returning
-//   context deadline exceeded to a user is confusing.
-// * Connection errors (EOF, closed network) are returned as an errors, as in this case we want to terminate the client connection.
-func serverResponseToValue(cmd *redis.Cmd, err error) (interface{}, error) {
-	var vals interface{}
-
+// processSeverResponse takes server response and an error returned from go-redis and returns
+// "terminal" errors as second value (connection should be terminated when this happens)
+// or returns error/value as the first value. Then value should be sent back to
+// the client without terminating the connection.
+func processSeverResponse(cmd *redis.Cmd, err error) (interface{}, error) {
+	value, cmdErr := cmd.Result()
 	if err == nil {
-		vals, err = cmd.Result()
-		if err != nil {
-			// Propagate the server error to the client. In this case we don't want to return the error
-			// as the second value from this function, as this would terminate the connection.
-			vals = err
-		}
-
-		return vals, nil
+		// If the server didn't return any error use cmd.Err() as server error.
+		err = cmdErr
 	}
 
 	switch {
+	case isRedisError(err):
+		// Redis errors should be returned to the client.
+		return err, nil
+	case isTeleportErr(err):
+		// Teleport errors should be returned to the client.
+		return err, nil
 	case errors.Is(err, context.DeadlineExceeded):
 		// Do not return Deadline Exceeded to the client as it's not very self-explanatory.
 		// Return "connection timeout" as this is what most likely happened.
-		vals = trace.ConnectionProblem(err, "connection timeout")
+		return nil, trace.ConnectionProblem(err, "connection timeout")
 	case utils.IsConnectionRefused(err):
 		// "connection refused" is returned when we fail to connect to the DB or a connection
 		// has been lost. Replace with more meaningful error.
-		vals = trace.ConnectionProblem(err, "failed to connect to the target database")
-	case utils.IsOKNetworkError(err):
-		// Terminate connection only on connection errors.
-		// Other errors should be propagated back to the client.
-		return nil, trace.Wrap(err)
+		return nil, trace.ConnectionProblem(err, "failed to connect to the target database")
 	default:
-		vals = err
+		// Return value and the error. If the error is not nil we will close the connection.
+		return value, err
 	}
+}
 
-	return vals, nil
+// isRedisError returns true is error comes from Redis, ex, nil, bad command, etc.
+func isRedisError(err error) bool {
+	_, ok := err.(redis.RedisError)
+	return ok
+}
+
+// isTeleportErr returns true if error comes from Teleport itself.
+func isTeleportErr(err error) bool {
+	_, ok := err.(trace.Error)
+	return ok
 }
