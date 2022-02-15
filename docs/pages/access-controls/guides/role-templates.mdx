@@ -36,7 +36,7 @@ We can create two roles, one for each user in file `roles.yaml`:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: alice
 spec:
@@ -49,7 +49,7 @@ spec:
       '*': '*'
 ---
 kind: role
-version: v4
+version: v5
 metadata:
   name: bob
 spec:
@@ -78,7 +78,7 @@ Let's create a role template `devs.yaml`:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: devs
 spec:
@@ -173,7 +173,7 @@ to be set by identity provider. Save this role as `sso-users.yaml`:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: sso-users
 spec:
@@ -255,7 +255,7 @@ Let's see how these variables are used with role template `interpolation`:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: interpolation
 spec:
@@ -264,7 +264,7 @@ spec:
     logins: ['{{external.logins}}', 'admin']
 
     # Roles support interpolation in string values.
-    kubernetes_users: ['IAM#{{external.foo}};']
+    kubernetes_users: ['IAM#{{external.email}};']
 
     # Lists get expanded into lists.
     kubernetes_groups: ['{{external.groups}}']
@@ -288,7 +288,7 @@ behave as the following role:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: interpolation
 spec:
@@ -352,7 +352,7 @@ spec:
           roles: ['$1-admin']     # generates a role name from the value capture
 ```
 
-If we grant Alice the `product-admin` role and add some entried to the `projects` trait:
+If we grant Alice the `product-admin` role and add some entries to the `projects` trait:
 
 ```yaml
 kind: user
