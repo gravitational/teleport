@@ -158,7 +158,10 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string) (*CredentialC
 	}
 	u := newWebUser(user, webID, true /* credentialIDOnly */, nil /* devices */)
 
-	web, err := newWebAuthn(f.Webauthn, f.Webauthn.RPID, "" /* origin */)
+	web, err := newWebAuthn(webAuthnParams{
+		cfg:                f.Webauthn,
+		rpID:               f.Webauthn.RPID,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -225,7 +228,11 @@ func (f *RegistrationFlow) Finish(ctx context.Context, user, deviceName string, 
 	}
 	sessionData := sessionFromPB(sessionDataPB)
 
-	web, err := newWebAuthn(f.Webauthn, f.Webauthn.RPID, origin)
+	web, err := newWebAuthn(webAuthnParams{
+		cfg:    f.Webauthn,
+		rpID:   f.Webauthn.RPID,
+		origin: origin,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

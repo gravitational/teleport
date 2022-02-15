@@ -19,11 +19,17 @@ package webauthn
 import (
 	"encoding/base64"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/trace"
 
 	wan "github.com/duo-labs/webauthn/webauthn"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
+
+// scopeLogin identifies SessionData stored for login.
+// It is used as the scope for global session data and as the sessionID for
+// per-user session data.
+const scopeLogin = "login"
 
 func sessionToPB(sd *wan.SessionData) (*wantypes.SessionData, error) {
 	rawChallenge, err := base64.RawURLEncoding.DecodeString(sd.Challenge)
@@ -34,6 +40,7 @@ func sessionToPB(sd *wan.SessionData) (*wantypes.SessionData, error) {
 		Challenge:        rawChallenge,
 		UserId:           sd.UserID,
 		AllowCredentials: sd.AllowedCredentialIDs,
+		UserVerification: string(sd.UserVerification),
 	}, nil
 }
 
@@ -42,5 +49,6 @@ func sessionFromPB(sd *wantypes.SessionData) *wan.SessionData {
 		Challenge:            base64.RawURLEncoding.EncodeToString(sd.Challenge),
 		UserID:               sd.UserId,
 		AllowedCredentialIDs: sd.AllowCredentials,
+		UserVerification:     protocol.UserVerificationRequirement(sd.UserVerification),
 	}
 }
