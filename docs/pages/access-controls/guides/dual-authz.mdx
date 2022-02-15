@@ -4,8 +4,6 @@ description: Dual Authorization for SSH and Kubernetes.
 videoBanner: b_iqJm_o15I
 ---
 
-# Dual Authorization
-
 You can set up Teleport to require require the approval of multiple team members to perform some critical actions.
 Here are the most common scenarios:
 
@@ -67,9 +65,11 @@ Add the "Post All" permission on the new account.
 Create the bot and save the access token.
 
 ### Set up RBAC for the plugin
+
 (!docs/pages/includes/plugins/rbac.mdx!)
 
 ### Export the access-plugin identity files
+
 (!docs/pages/includes/plugins/identity-export.mdx!)
 
 We'll reference the exported file(s) later when configuring the plugin.

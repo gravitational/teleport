@@ -4,8 +4,6 @@ description: How to configure SSH login approval using Jira Server and Teleport
 h1: SSH login approvals using Jira Server
 ---
 
-## Teleport Jira Server Plugin Setup
-
 This guide will talk through how to set up Teleport with Jira Server. Teleport's integration with Jira Server allows you to treat Teleport access and permission requests as Jira tasks.
 
 <Admonition type="note">
@@ -36,25 +34,27 @@ This guide will talk through how to set up Teleport with Jira Server. Teleport's
 
 Teleport Cloud requires that plugins connect through the Proxy Service (`mytenant.teleport.sh:443`). Open Source and Enterprise installations can connect to the Auth Service (`auth.example.com:3025`) directly.
 
-### Create User and Role for access
+### Create a user and role for access
+
 (!docs/pages/includes/plugins/rbac.mdx!)
 
-### Export access-plugin Certificate
+### Export access-plugin certificate
+
 (!docs/pages/includes/plugins/identity-export.mdx!)
 
 We'll reference these files later when [configuring the plugins](#configuration-file).
 
 ### Setting up your Jira Server instance
 
-#### Creating a Project
+#### Creating a project
 
 The Teleport Jira plugin relies on your Jira project having a board with at least three statuses (columns): Pending, Approved, and Denied. It's therefore the easiest scenario to create a new Jira project for Teleport to use.
 
-The specific type of project you choose when you create it doesn't matter, as long as you can setup a Kanban Board for it, but we recommend that you go with Kanban Software Development—this will reduce the amount of setup work you'll have to do and provide the board out of the box.
+The specific type of project you choose when you create it doesn't matter, as long as you can setup a Kanban Board for it, but we recommend that you go with Kanban Software Development. This will reduce the amount of setup work you'll have to do and provide the board out of the box.
 
 You'll need the project key for the Teleport plugin settings later on. It's usually a 3 character code for the project.
 
-#### Setting up Request ID field on Jira
+#### Setting up a request ID field on Jira
 
 Teleport stores the request metadata in a special Jira custom field that must be named `teleportAccessRequestId`. To create that field, go to Administration -> Issues -> Custom Fields -> Add Custom Field.
 
@@ -63,6 +63,7 @@ Name the field `teleportAccessRequestId`, and choose Text Field (single line) as
 Go to Project Settings -> Fields and make sure that the `teleportAccessRequestId` field shows up on the list of fields available in this project.
 
 #### Setting up the status board
+
 The default Jira Software workflow has a different board setup than what Teleport needs, so we'll set up another workflow and assign that workflow to the project board.
 
 Go to Administration -> Workflows. You can choose to add a new workflow (recommended), or edit the existing workflow. It will be called Software Simplified Workflow for Project NAME by default. It's only used in your single project, so it's safe to edit it.
@@ -123,7 +124,7 @@ $ sudo mv teleport-jira.toml /etc
 By default, the Jira Teleport plugin will use a config in `/etc/teleport-jira.toml`, and you can override it with `-c config/file/path.toml` flag.
 
 <Tabs>
-<TabItem label="Self Hosted" scope={["oss", "enterprise"]}>
+<TabItem label="Self-Hosted" scope={["oss", "enterprise"]}>
 ```toml
 (!examples/resources/plugins/teleport-jira-self-hosted.toml!)
 ```
@@ -175,10 +176,10 @@ $ tsh login --request-roles=admin
 
 That should create a new permission request on Teleport (you can test if it did with `tctl request ls` ), and you should see a new task on your Jira project board.
 
-### Setup with SystemD
+### Set up systemd
 
-In production, we recommend starting teleport plugin daemon via an init system like systemd .
-Here's the recommended Teleport Plugin service unit file for systemd:
+In production, we recommend starting the Teleport plugin daemon via an init system like systemd.
+Here's the recommended Teleport plugin service unit file for systemd:
 
 ```ini
 (!examples/systemd/plugins/teleport-jira.service!)
@@ -186,7 +187,7 @@ Here's the recommended Teleport Plugin service unit file for systemd:
 
 Save this as `teleport-jira.service`.
 
-## Audit Log
+## Audit log
 
 The plugin will let anyone with access to the Jira board approve or deny requests, so it's important to review Teleport's audit log.
 
