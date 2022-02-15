@@ -157,7 +157,7 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 			filter.FromMap(kind.Filter)
 			return filter.Match(res), nil
 		default:
-			return false, trace.BadParameter("unfilterable resource type %T", e.Resource)
+			// we don't know about this filter, let the event through
 		}
 	}
 	return true, nil
