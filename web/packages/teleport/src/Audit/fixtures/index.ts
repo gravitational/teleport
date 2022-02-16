@@ -746,7 +746,7 @@ export const events = [
     db_uri: 'localhost:5432',
     db_user: 'postgres',
     ei: 23,
-    event: 'db.session.postgres.statements.function',
+    event: 'db.session.postgres.function',
     sid: '5e0c50cc-4ee7-4110-8d6e-735bf1f06f1f',
     function_oid: '123',
     function_args: ['qweqweqwe'],

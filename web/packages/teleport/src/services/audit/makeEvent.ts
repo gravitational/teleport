@@ -422,7 +422,7 @@ export const formatters: Formatters = {
     },
   },
   [eventCodes.POSTGRES_FUNCTION_CALL]: {
-    type: 'db.session.postgres.statements.function',
+    type: 'db.session.postgres.function',
     desc: 'PostgreSQL Function Call',
     format: ({ user, db_service, function_oid }) =>
       `User [${user}] has executed function with OID [${function_oid}] on [${db_service}]`,
