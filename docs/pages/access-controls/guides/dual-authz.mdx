@@ -10,7 +10,7 @@ You can set up Teleport to require require the approval of multiple team members
 Here are the most common scenarios:
 
 - Improve security of your system and prevent one successful phishing attack from compromizing your system.
-- Satisfy FedRamp AC-3 Dual authorization control that requires approval of two authorized individuals.
+- Satisfy FedRAMP AC-3 Dual authorization control that requires approval of two authorized individuals.
 
 Let's set up Teleport's access requests to require approval of
 two team members for a privileged role `dbadmin`.
@@ -80,7 +80,7 @@ spec:
 version: v2
 ---
 kind: role
-version: v4
+version: v5
 metadata:
   name: access-plugin
 spec:
@@ -162,7 +162,7 @@ Create `dbadmin`, `reviewer` and `devops` roles:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: reviewer
 spec:
@@ -171,7 +171,7 @@ spec:
       roles: ['dbadmin']
 ---
 kind: role
-version: v4
+version: v5
 metadata:
   name: devops
 spec:
@@ -183,7 +183,7 @@ spec:
           deny: 1
 ---
 kind: role
-version: v4
+version: v5
 metadata:
   name: dbadmin
 spec:
@@ -234,7 +234,7 @@ Alice and Ivan can review and approve request using Web UI or CLI:
   <TabItem label="CLI">
     ```code
     $ tsh request list
-  
+
     # ID                                   User             Roles   Created (UTC)       Status
     # ------------------------------------ ---------------  ------- ------------------- -------
     # 9c721e54-b049-4ef8-a7f6-c777aa066764 bob@example.com  dbadmin 03 Apr 21 03:58 UTC PENDING

@@ -94,14 +94,26 @@ void init(void);
  * The caller mmust ensure that go_addr, go_username, cert_der, key_der point to valid buffers in respect
  * to their corresponding parameters.
  */
-struct ClientOrError connect_rdp(char *go_addr,
+struct ClientOrError connect_rdp(uintptr_t go_ref,
+                                 char *go_addr,
                                  char *go_username,
                                  uint32_t cert_der_len,
                                  uint8_t *cert_der,
                                  uint32_t key_der_len,
                                  uint8_t *key_der,
                                  uint16_t screen_width,
-                                 uint16_t screen_height);
+                                 uint16_t screen_height,
+                                 bool allow_clipboard);
+
+/**
+ * `update_clipboard` is called from Go, and caches data that was copied
+ * client-side while notifying the RDP server that new clipboard data is available.
+ *
+ * # Safety
+ *
+ * `client_ptr` must be a valid pointer to a Client.
+ */
+CGOError update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len);
 
 /**
  * `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
@@ -109,10 +121,10 @@ struct ClientOrError connect_rdp(char *go_addr,
  *
  * # Safety
  *
- * client_ptr must be a valid pointer to a Client.
- * handle_bitmap *must not* free the memory of CGOBitmap.
+ * `client_ptr` must be a valid pointer to a Client.
+ * `handle_bitmap` *must not* free the memory of CGOBitmap.
  */
-CGOError read_rdp_output(struct Client *client_ptr, uintptr_t client_ref);
+CGOError read_rdp_output(struct Client *client_ptr);
 
 /**
  * # Safety
@@ -154,3 +166,5 @@ void free_rust_string(char *s);
 extern void free_go_string(char *s);
 
 extern CGOError handle_bitmap(uintptr_t client_ref, struct CGOBitmap b);
+
+extern CGOError handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t len);

@@ -93,20 +93,22 @@ func RoleNameForCertAuthority(name string) string {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
-	return &types.RoleV4{
+	return &types.RoleV5{
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      constants.DefaultImplicitRole,
 			Namespace: defaults.Namespace,
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.MaxDuration(),
-				// PortForwarding has to be set to false in the default-implicit-role
-				// otherwise all roles will be allowed to forward ports (since we default
-				// to true in the check).
+				// Explicitly disable options that default to true, otherwise the option
+				// will always be enabled, as this implicit role is part of every role set.
 				PortForwarding: types.NewBoolOption(false),
+				RecordSession: &types.RecordSession{
+					Desktop: types.NewBoolOption(false),
+				},
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -120,7 +122,7 @@ func NewImplicitRole() types.Role {
 //
 // Used in tests only.
 func RoleForUser(u types.User) types.Role {
-	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV4{
+	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV5{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
@@ -154,7 +156,7 @@ func RoleForUser(u types.User) types.Role {
 
 // RoleForCertAuthority creates role using types.CertAuthority.
 func RoleForCertAuthority(ca types.CertAuthority) types.Role {
-	role, _ := types.NewRole(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV4{
+	role, _ := types.NewRole(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV5{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
 		},
@@ -664,6 +666,14 @@ type AccessChecker interface {
 	// CanPortForward returns true if this RoleSet can forward ports.
 	CanPortForward() bool
 
+	// DesktopClipboard returns true if the role set has enabled shared
+	// clipboard for desktop sessions. Clipboard sharing is disabled if
+	// one or more of the roles in the set has disabled it.
+	DesktopClipboard() bool
+	// RecordDesktopSession returns true if a role in the role set has enabled
+	// desktop session recoring.
+	RecordDesktopSession() bool
+
 	// MaybeCanReviewRequests attempts to guess if this RoleSet belongs
 	// to a user who should be submitting access reviews. Because not all rolesets
 	// are derived from statically assigned roles, this may return false positives.
@@ -704,7 +714,7 @@ type AccessChecker interface {
 }
 
 // FromSpec returns new RoleSet created from spec
-func FromSpec(name string, spec types.RoleSpecV4) (RoleSet, error) {
+func FromSpec(name string, spec types.RoleSpecV5) (RoleSet, error) {
 	role, err := types.NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1668,8 +1678,25 @@ func NewKubernetesClusterLabelMatcher(clustersLabels map[string]string) RoleMatc
 
 // Match matches a Kubernetes cluster labels against a role.
 func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
-	ok, _, err := MatchLabels(role.GetKubernetesLabels(typ), l.clusterLabels)
+	ok, _, err := MatchLabels(l.getKubeLabels(role, typ), l.clusterLabels)
 	return ok, trace.Wrap(err)
+}
+
+// getKubeLabels returns kubernetes_labels based on resource version and role type.
+func (l kubernetesClusterLabelMatcher) getKubeLabels(role types.Role, typ types.RoleConditionType) types.Labels {
+	labels := role.GetKubernetesLabels(typ)
+
+	// After the introduction of https://github.com/gravitational/teleport/pull/9759 the
+	// kubernetes_labels started to be respected. Former role behavior evaluated deny rules
+	// even if the kubernetes_labels was empty. To preserve this behavior after respecting kubernetes label the label
+	// logic needs to be aligned.
+	// Default wildcard rules should be added to  deny.kubernetes_labels if
+	// deny.kubernetes_labels is empty to ensure that deny rule will be evaluated
+	// even if kubernetes_labels are empty.
+	if len(labels) == 0 && typ == types.Deny {
+		return map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}}
+	}
+	return labels
 }
 
 // AccessCheckable is the subset of types.Resource required for the RBAC checks.
@@ -1836,6 +1863,34 @@ func (set RoleSet) CanPortForward() bool {
 		}
 	}
 	return false
+}
+
+// RecordDesktopSession returns true if the role set has enabled desktop
+// session recording. Recording is considered enabled if at least one
+// role in the set has enabled it.
+func (set RoleSet) RecordDesktopSession() bool {
+	for _, role := range set {
+		var bo *types.BoolOption
+		if role.GetOptions().RecordSession != nil {
+			bo = role.GetOptions().RecordSession.Desktop
+		}
+		if types.BoolDefaultTrue(bo) {
+			return true
+		}
+	}
+	return false
+}
+
+// DesktopClipboard returns true if the role set has enabled shared
+// clipboard for desktop sessions. Clipboard sharing is disabled if
+// one or more of the roles in the set has disabled it.
+func (set RoleSet) DesktopClipboard() bool {
+	for _, role := range set {
+		if !types.BoolDefaultTrue(role.GetOptions().DesktopClipboard) {
+			return false
+		}
+	}
+	return true
 }
 
 // MaybeCanReviewRequests attempts to guess if this RoleSet belongs
@@ -2190,11 +2245,13 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 	}
 
 	switch h.Version {
+	case types.V5:
+		fallthrough
 	case types.V4:
 		// V4 roles are identical to V3 except for their defaults
 		fallthrough
 	case types.V3:
-		var role types.RoleV4
+		var role types.RoleV5
 		if err := utils.FastUnmarshal(bytes, &role); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -2227,7 +2284,7 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	}
 
 	switch role := role.(type) {
-	case *types.RoleV4:
+	case *types.RoleV5:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -2241,36 +2298,18 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	}
 }
 
-// DowngradeToV3 converts a V4 role to V3 so that it will be compatible with
+// DowngradeToV4 converts a V5 role to V4 so that it will be compatible with
 // older instances. Makes a shallow copy if the conversion is necessary. The
 // passed in role will not be mutated.
-// DELETE IN 8.0.0
-func DowngradeRoleToV3(r *types.RoleV4) (*types.RoleV4, error) {
+// DELETE IN 10.0.0
+func DowngradeRoleToV4(r *types.RoleV5) (*types.RoleV5, error) {
 	switch r.Version {
-	case types.V3:
+	case types.V3, types.V4:
 		return r, nil
-	case types.V4:
-		var downgraded types.RoleV4
+	case types.V5:
+		var downgraded types.RoleV5
 		downgraded = *r
-		downgraded.Version = types.V3
-
-		// V3 roles will set the default labels to wildcard allow if they are
-		// empty. To prevent this for roles which are created as V4 and
-		// downgraded, set a placeholder label
-		const labelKey = "__teleport_no_labels"
-		labelVal := uuid.New().String()
-		if len(r.Spec.Allow.NodeLabels) == 0 {
-			downgraded.Spec.Allow.NodeLabels = types.Labels{labelKey: []string{labelVal}}
-		}
-		if len(r.Spec.Allow.AppLabels) == 0 {
-			downgraded.Spec.Allow.AppLabels = types.Labels{labelKey: []string{labelVal}}
-		}
-		if len(r.Spec.Allow.KubernetesLabels) == 0 {
-			downgraded.Spec.Allow.KubernetesLabels = types.Labels{labelKey: []string{labelVal}}
-		}
-		if len(r.Spec.Allow.DatabaseLabels) == 0 {
-			downgraded.Spec.Allow.DatabaseLabels = types.Labels{labelKey: []string{labelVal}}
-		}
+		downgraded.Version = types.V4
 		return &downgraded, nil
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", r.Version)

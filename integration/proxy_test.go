@@ -19,7 +19,6 @@ package integration
 import (
 	"bytes"
 	"context"
-	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -225,13 +224,13 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 		withRootAndLeafClusterRoles(createTestRole(username)),
 		withStandardRoleMapping(),
 	)
-	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-	utils.RetryStaticFor(time.Second*10, time.Millisecond*200, func() error {
-		for len(checkGetClusters(t, suite.root.Tunnel)) < 2 && len(checkGetClusters(t, suite.leaf.Tunnel)) < 2 {
-			return errors.New("two sites do not see each other: tunnels are not working")
-		}
-		return nil
-	})
+
+	// Wait for both cluster to see each other via reverse tunnels.
+	require.Eventually(t, waitForClusters(suite.root.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, waitForClusters(suite.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+
 	require.Greater(t, ps.Count(), 0, "proxy did not intercept any connection")
 }
 
@@ -248,7 +247,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvr.URL, localK8SNI))
 
 	username := mustGetCurrentUser(t).Username
-	kubeRoleSpec := types.RoleSpecV4{
+	kubeRoleSpec := types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: []string{testImpersonationGroup},
@@ -300,7 +299,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvr.URL, localK8SNI))
 
 	username := mustGetCurrentUser(t).Username
-	kubeRoleSpec := types.RoleSpecV4{
+	kubeRoleSpec := types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: []string{testImpersonationGroup},
@@ -546,7 +545,7 @@ func TestALPNProxyRootLeafAuthDial(t *testing.T) {
 		withTrustedCluster(),
 	)
 
-	client, err := suite.root.NewClient(t, ClientConfig{
+	client, err := suite.root.NewClient(ClientConfig{
 		Login:   username,
 		Cluster: suite.root.Hostname,
 	})
@@ -674,7 +673,7 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 	ctx := context.Background()
 	output := &bytes.Buffer{}
 	cmd := []string{"echo", "hello world"}
-	tc, err := rc.NewClient(t, cfg)
+	tc, err := rc.NewClient(cfg)
 	require.NoError(t, err)
 	tc.Stdout = output
 

@@ -38,11 +38,11 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/websocket"
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
@@ -84,6 +84,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/jonboulle/clockwork"
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/pquerna/otp/totp"
@@ -230,6 +231,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		nodeDataDir,
 		"",
 		utils.NetAddr{},
+		nil,
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
@@ -295,6 +297,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		c.MkDir(),
 		"",
 		utils.NetAddr{},
+		nil,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode(revTunServer, s.proxyClient),
 		regular.SetSessionServer(s.proxyClient),
@@ -510,7 +513,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	err = services.ValidateSAMLConnector(connector)
 	c.Assert(err, IsNil)
 
-	role, err := types.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV4{
+	role, err := types.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV5{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
 		},
@@ -981,8 +984,12 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 
 	// Look at the stream events for the second terminal. We don't expect to see
 	// any resize events yet. It will timeout.
-	err = s.waitForResizeEvent(ws2, 1*time.Second)
-	c.Assert(err, NotNil)
+	ws2Event := s.listenForResizeEvent(ws2)
+	select {
+	case <-ws2Event:
+		c.Fatal("unexpected resize event")
+	case <-time.After(time.Second):
+	}
 
 	// Resize the second terminal. This should be reflected on the first terminal
 	// because resize events are not sent back to the originator.
@@ -1002,7 +1009,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	}
 	envelopeBytes, err := proto.Marshal(envelope)
 	c.Assert(err, IsNil)
-	err = websocket.Message.Send(ws2, envelopeBytes)
+	err = ws2.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	c.Assert(err, IsNil)
 
 	// This time the first terminal will see the resize event.
@@ -1010,8 +1017,11 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	c.Assert(err, IsNil)
 
 	// The second terminal will not see any resize event. It will timeout.
-	err = s.waitForResizeEvent(ws2, 1*time.Second)
-	c.Assert(err, NotNil)
+	select {
+	case <-ws2Event:
+		c.Fatal("unexpected resize event")
+	case <-time.After(time.Second):
+	}
 }
 
 func (s *WebSuite) TestTerminal(c *C) {
@@ -1133,8 +1143,9 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 			ws := proxy.makeTerminal(t, pack, session.NewID())
 
 			// Wait for websocket authn challenge event.
-			var raw []byte
-			require.Nil(t, websocket.Message.Receive(ws, &raw))
+			ty, raw, err := ws.ReadMessage()
+			require.Nil(t, err)
+			require.Equal(t, websocket.BinaryMessage, ty)
 			var env Envelope
 			require.Nil(t, proto.Unmarshal(raw, &env))
 
@@ -1143,7 +1154,7 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 
 			// Send response over ws.
 			termHandler := newTerminalHandler()
-			_, err := termHandler.write(tc.getChallengeResponseBytes(chals, dev), ws)
+			_, err = termHandler.write(tc.getChallengeResponseBytes(chals, dev), ws)
 			require.Nil(t, err)
 
 			// Test we can write.
@@ -1155,48 +1166,6 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 			require.Nil(t, ws.Close())
 		})
 	}
-}
-
-func (s *WebSuite) TestWebsocketPingLoop(c *C) {
-	// Change cluster networking config for keep alive interval to be run faster.
-	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		KeepAliveInterval: types.NewDuration(250 * time.Millisecond),
-	})
-	c.Assert(err, IsNil)
-	err = s.server.Auth().SetClusterNetworkingConfig(s.ctx, netConfig)
-	c.Assert(err, IsNil)
-
-	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode:                types.RecordAtNode,
-		ProxyChecksHostKeys: types.NewBoolOption(true),
-	})
-	c.Assert(err, IsNil)
-	err = s.server.Auth().SetSessionRecordingConfig(s.ctx, recConfig)
-	c.Assert(err, IsNil)
-
-	ws, err := s.makeTerminal(s.authPack(c, "foo"))
-	c.Assert(err, IsNil)
-
-	var numPings int
-	start := time.Now()
-	for {
-		frame, err := ws.NewFrameReader()
-		c.Assert(err, IsNil)
-		// We should get a mix of output (binary) and ping frames. Count only
-		// the ping frames.
-		if int(frame.PayloadType()) == websocket.PingFrame {
-			numPings++
-		}
-		if numPings > 1 {
-			break
-		}
-		if deadline := 15 * time.Second; time.Since(start) > deadline {
-			c.Fatalf("Received %v ping frames within %v of opening a socket, expected at least 2", numPings, deadline)
-		}
-	}
-
-	err = ws.Close()
-	c.Assert(err, IsNil)
 }
 
 func (s *WebSuite) TestWebAgentForward(c *C) {
@@ -1974,16 +1943,6 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(nodes, HasLen, cluster.NodeCount)
 }
 
-type testModules struct {
-	modules.Modules
-}
-
-func (m *testModules) Features() modules.Features {
-	return modules.Features{
-		App: false, // Explicily turn off application access.
-	}
-}
-
 func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
@@ -2046,7 +2005,7 @@ func TestClusterKubesGet(t *testing.T) {
 	require.Len(t, kbs, 0)
 
 	// Register a kube service.
-	err = env.server.Auth().UpsertKubeService(context.Background(), &types.ServerV2{
+	_, err = env.server.Auth().UpsertKubeServiceV2(context.Background(), &types.ServerV2{
 		Metadata: types.Metadata{Name: "test-kube"},
 		Kind:     types.KindKubeService,
 		Version:  types.V2,
@@ -2081,9 +2040,11 @@ func TestClusterKubesGet(t *testing.T) {
 // TestApplicationAccessDisabled makes sure application access can be disabled
 // via modules.
 func TestApplicationAccessDisabled(t *testing.T) {
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			App: false,
+		},
+	})
 
 	env := newWebPack(t, 1)
 
@@ -2752,16 +2713,6 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 }
 
-type testCloudModules struct {
-	modules.Modules
-}
-
-func (m *testCloudModules) Features() modules.Features {
-	return modules.Features{
-		Cloud: true, // Explicily turn on cloud feature.
-	}
-}
-
 // TestChangeUserAuthentication_recoveryCodesReturnedForCloud tests for following:
 //  - Recovery codes are not returned for usernames that are not emails
 //  - Recovery codes are returned for usernames that are valid emails
@@ -2779,9 +2730,11 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	require.NoError(t, err)
 
 	// Enable cloud feature.
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testCloudModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
 	// Creaet a username that is not a valid email format for recovery.
 	teleUser, err := types.NewUser("invalid-name-for-recovery")
@@ -2887,23 +2840,23 @@ func (s *WebSuite) makeTerminal(pack *authPack, opts ...session.ID) (*websocket.
 	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
 	u.RawQuery = q.Encode()
 
-	wscfg, err := websocket.NewConfig(u.String(), "http://localhost")
-	wscfg.TlsConfig = &tls.Config{
+	dialer := websocket.Dialer{}
+	dialer.TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	if err != nil {
-		return nil, err
-	}
 
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
 	for _, cookie := range pack.cookies {
-		wscfg.Header.Add("Cookie", cookie.String())
+		header.Add("Cookie", cookie.String())
 	}
 
-	ws, err := websocket.DialConfig(wscfg)
+	ws, resp, err := dialer.Dial(u.String(), header)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	resp.Body.Close()
 	return ws, nil
 }
 
@@ -2936,10 +2889,14 @@ func (s *WebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration) er
 
 	go func() {
 		for {
-			var raw []byte
-			err := websocket.Message.Receive(ws, &raw)
+			ty, raw, err := ws.ReadMessage()
 			if err != nil {
 				done <- trace.Wrap(err)
+				return
+			}
+
+			if ty != websocket.BinaryMessage {
+				done <- trace.BadParameter("expected binary message, got %v", ty)
 				return
 			}
 
@@ -2975,10 +2932,14 @@ func (s *WebSuite) waitForResizeEvent(ws *websocket.Conn, timeout time.Duration)
 
 	go func() {
 		for {
-			var raw []byte
-			err := websocket.Message.Receive(ws, &raw)
+			ty, raw, err := ws.ReadMessage()
 			if err != nil {
 				done <- trace.Wrap(err)
+				return
+			}
+
+			if ty != websocket.BinaryMessage {
+				done <- trace.BadParameter("expected binary message, got %v", ty)
 				return
 			}
 
@@ -3015,6 +2976,50 @@ func (s *WebSuite) waitForResizeEvent(ws *websocket.Conn, timeout time.Duration)
 			return trace.Wrap(err)
 		}
 	}
+}
+
+func (s *WebSuite) listenForResizeEvent(ws *websocket.Conn) chan struct{} {
+	ch := make(chan struct{})
+
+	go func() {
+		for {
+			ty, raw, err := ws.ReadMessage()
+			if err != nil {
+				close(ch)
+				return
+			}
+
+			if ty != websocket.BinaryMessage {
+				close(ch)
+				return
+			}
+
+			var envelope Envelope
+			err = proto.Unmarshal(raw, &envelope)
+			if err != nil {
+				close(ch)
+				return
+			}
+
+			if envelope.GetType() != defaults.WebsocketAudit {
+				continue
+			}
+
+			var e events.EventFields
+			err = json.Unmarshal([]byte(envelope.GetPayload()), &e)
+			if err != nil {
+				close(ch)
+				return
+			}
+
+			if e.GetType() == events.ResizeEvent {
+				ch <- struct{}{}
+				return
+			}
+		}
+	}()
+
+	return ch
 }
 
 func (s *WebSuite) clientNoRedirects(opts ...roundtrip.ClientParam) *client.WebClient {
@@ -3085,6 +3090,7 @@ func newTerminalHandler() TerminalHandler {
 		log:     logrus.WithFields(logrus.Fields{}),
 		encoder: unicode.UTF8.NewEncoder(),
 		decoder: unicode.UTF8.NewDecoder(),
+		wsLock:  &sync.Mutex{},
 	}
 }
 
@@ -3184,6 +3190,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		nodeDataDir,
 		"",
 		utils.NetAddr{},
+		nil,
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
@@ -3278,6 +3285,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
+		nil,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode(revTunServer, client),
 		regular.SetSessionServer(client),
@@ -3355,7 +3363,7 @@ type proxy struct {
 	revTun  reversetunnel.Server
 	node    *regular.Server
 	proxy   *regular.Server
-	handler *WebAPIHandler
+	handler *APIHandler
 	web     *httptest.Server
 	webURL  url.URL
 }
@@ -3513,20 +3521,23 @@ func (r *proxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID)
 	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
 	u.RawQuery = q.Encode()
 
-	wscfg, err := websocket.NewConfig(u.String(), "http://localhost")
-	wscfg.TlsConfig = &tls.Config{
+	dialer := websocket.Dialer{}
+	dialer.TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	require.NoError(t, err)
 
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
 	for _, cookie := range pack.cookies {
-		wscfg.Header.Add("Cookie", cookie.String())
+		header.Add("Cookie", cookie.String())
 	}
 
-	ws, err := websocket.DialConfig(wscfg)
+	ws, resp, err := dialer.Dial(u.String(), header)
 	require.NoError(t, err)
-	t.Cleanup(func() { ws.Close() })
-
+	t.Cleanup(func() {
+		ws.Close()
+		resp.Body.Close()
+	})
 	return ws
 }
 

@@ -265,7 +265,10 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 // GetRoles returns a list of roles to initiate for this secret
 func (s *InstanceSecrets) GetRoles(t *testing.T) []types.Role {
 	var roles []types.Role
-	for _, ca := range s.GetCAs(t) {
+
+	cas, err := s.GetCAs()
+	require.NoError(t, err)
+	for _, ca := range cas {
 		if ca.GetType() != types.UserCA {
 			continue
 		}
@@ -279,7 +282,7 @@ func (s *InstanceSecrets) GetRoles(t *testing.T) []types.Role {
 // GetCAs return an array of CAs stored by the secrets object. In i
 // case we always return hard-coded userCA + hostCA (and they share keys
 // for simplicity)
-func (s *InstanceSecrets) GetCAs(t *testing.T) []types.CertAuthority {
+func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 	hostCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: s.SiteName,
@@ -298,7 +301,9 @@ func (s *InstanceSecrets) GetCAs(t *testing.T) []types.CertAuthority {
 		Roles:      []string{},
 		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.UserCA,
@@ -318,9 +323,14 @@ func (s *InstanceSecrets) GetCAs(t *testing.T) []types.CertAuthority {
 		Roles:      []string{services.RoleNameForCertAuthority(s.SiteName)},
 		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return []types.CertAuthority{hostCA, userCA}
+	return []types.CertAuthority{
+		hostCA,
+		userCA,
+	}, nil
 }
 
 func (s *InstanceSecrets) AllowedLogins() []string {
@@ -533,10 +543,22 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tconf.Auth.Authorities = append(tconf.Auth.Authorities, i.Secrets.GetCAs(t)...)
+
+	rootCAs, err := i.Secrets.GetCAs()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tconf.Auth.Authorities = append(tconf.Auth.Authorities, rootCAs...)
+
 	tconf.Identities = append(tconf.Identities, i.Secrets.GetIdentity())
+
 	for _, trusted := range trustedSecrets {
-		tconf.Auth.Authorities = append(tconf.Auth.Authorities, trusted.GetCAs(t)...)
+		leafCAs, err := trusted.GetCAs()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tconf.Auth.Authorities = append(tconf.Auth.Authorities, leafCAs...)
+
 		tconf.Auth.Roles = append(tconf.Auth.Roles, trusted.GetRoles(t)...)
 		tconf.Identities = append(tconf.Identities, trusted.GetIdentity())
 		if trusted.TunnelAddr != "" {
@@ -684,20 +706,6 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// if user keys are not present, auto-generate keys:
-		if user.Key == nil || len(user.Key.Pub) == 0 {
-			priv, pub, _ := tconf.Keygen.GenerateKeyPair("")
-			user.Key = &client.Key{
-				Priv: priv,
-				Pub:  pub,
-			}
-		}
-		// sign user's keys:
-		ttl := 24 * time.Hour
-		user.Key.Cert, user.Key.TLSCert, err = auth.GenerateUserTestCerts(user.Key.Pub, teleUser.GetName(), ttl, constants.CertificateFormatStandard, "")
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -830,6 +838,8 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
+	conf.Apps.Enabled = false
+	conf.SSH.Enabled = false
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -844,6 +854,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	expectedEvents := []string{
 		service.DatabasesIdentityEvent,
 		service.DatabasesReady,
+		service.TeleportReadyEvent,
 	}
 
 	// Start the process and block until the expected events have arrived.
@@ -952,6 +963,12 @@ type ProxyConfig struct {
 	WebPort int
 	// ReverseTunnelPort is a port for reverse tunnel addresses
 	ReverseTunnelPort int
+	// Disable the web service
+	DisableWebService bool
+	// Disable the web ui
+	DisableWebInterface bool
+	// Disable ALPN routing
+	DisableALPNSNIListener bool
 }
 
 // StartProxy starts another Proxy Server and connects it to the cluster.
@@ -993,7 +1010,9 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	tconf.Proxy.ReverseTunnelListenAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.ReverseTunnelPort))
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.WebPort))
 	tconf.Proxy.DisableReverseTunnel = false
-	tconf.Proxy.DisableWebService = true
+	tconf.Proxy.DisableWebService = cfg.DisableWebService
+	tconf.Proxy.DisableWebInterface = cfg.DisableWebInterface
+	tconf.Proxy.DisableALPNSNIListener = cfg.DisableALPNSNIListener
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -1101,6 +1120,9 @@ func (i *TeleInstance) Start() error {
 	}
 	if i.Config.Apps.Enabled {
 		expectedEvents = append(expectedEvents, service.AppsReady)
+	}
+	if i.Config.Databases.Enabled {
+		expectedEvents = append(expectedEvents, service.DatabasesReady)
 	}
 
 	// Start the process and block until the expected events have arrived.
@@ -1228,30 +1250,34 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 }
 
 // NewClient returns a fully configured and pre-authenticated client
-// (pre-authenticated with server CAs and signed session key)
-func (i *TeleInstance) NewClient(t *testing.T, cfg ClientConfig) (*client.TeleportClient, error) {
+// (pre-authenticated with server CAs and signed session key).
+func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, error) {
 	tc, err := i.NewUnauthenticatedClient(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// configures the client authenticate using the keys from 'secrets':
-	user, ok := i.Secrets.Users[cfg.Login]
-	if !ok {
-		return nil, trace.BadParameter("unknown login %q", cfg.Login)
-	}
-	if user.Key == nil {
-		return nil, trace.BadParameter("user %q has no key", cfg.Login)
-	}
-	_, err = tc.AddKey(user.Key)
+	// Generate certificates for the user simulating login.
+	creds, err := GenerateUserCreds(UserCredsRequest{
+		Process:  i.Process,
+		Username: cfg.Login,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// tell the client to trust given CAs (from secrets). this is the
-	// equivalent of 'known hosts' in openssh
-	cas := i.Secrets.GetCAs(t)
-	for i := range cas {
-		err = tc.AddTrustedCA(cas[i])
+
+	// Add key to client and update CAs that will be trusted (equivalent to
+	// updating "known hosts" with OpenSSH.
+	_, err = tc.AddKey(&creds.Key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cas, err := i.Secrets.GetCAs()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, ca := range cas {
+		err = tc.AddTrustedCA(ca)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1672,22 +1698,62 @@ func fatalIf(err error) {
 func enableKubernetesService(t *testing.T, config *service.Config) {
 	kubeConfigPath := filepath.Join(t.TempDir(), "kube_config")
 
-	err := kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
+	key, err := genUserKey()
+	require.NoError(t, err)
+
+	err = kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
 		TeleportClusterName: "teleport-cluster",
 		ClusterAddr:         net.JoinHostPort(Host, ports.Pop()),
-		Credentials: &client.Key{
-			Cert:    []byte("cert"),
-			TLSCert: []byte("tls-cert"),
-			Priv:    []byte("priv"),
-			Pub:     []byte("pub"),
-			TrustedCA: []auth.TrustedCerts{{
-				TLSCertificates: [][]byte{[]byte("ca-cert")},
-			}},
-		},
+		Credentials:         key,
 	})
 	require.NoError(t, err)
 
 	config.Kube.Enabled = true
 	config.Kube.KubeconfigPath = kubeConfigPath
 	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, ports.Pop()))
+}
+
+func genUserKey() (*client.Key, error) {
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName:   "localhost",
+		Organization: []string{"localhost"},
+	}, nil, defaults.CATTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := tlsca.FromKeys(caCert, caKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keygen := testauthority.New()
+	priv, pub, err := keygen.GenerateKeyPair("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cryptoPub, err := sshutils.CryptoPublicKey(pub)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clock := clockwork.NewRealClock()
+	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+		Clock:     clock,
+		PublicKey: cryptoPub,
+		Subject: pkix.Name{
+			CommonName: "teleport-user",
+		},
+		NotAfter: clock.Now().UTC().Add(time.Minute),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &client.Key{
+		Priv:    priv,
+		Pub:     pub,
+		TLSCert: tlsCert,
+		TrustedCA: []auth.TrustedCerts{{
+			TLSCertificates: [][]byte{caCert},
+		}},
+	}, nil
 }
