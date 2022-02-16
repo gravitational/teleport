@@ -340,9 +340,11 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 		Roles:      []string{},
 		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return []types.CertAuthority{hostCA, userCA, dbCA}
+	return []types.CertAuthority{hostCA, userCA, dbCA}, nil
 }
 
 func (s *InstanceSecrets) AllowedLogins() []string {
