@@ -201,6 +201,10 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		e = &events.WindowsDesktopSessionStart{}
 	case WindowsDesktopSessionEndEvent:
 		e = &events.WindowsDesktopSessionEnd{}
+	case DesktopClipboardSendEvent:
+		e = &events.DesktopClipboardSend{}
+	case DesktopClipboardReceiveEvent:
+		e = &events.DesktopClipboardReceive{}
 	case SessionConnectEvent:
 		e = &events.SessionConnect{}
 	case AccessRequestDeleteEvent:

@@ -580,21 +580,13 @@ func TestAccessMongoDB(t *testing.T) {
 	}
 }
 
-type testModules struct {
-	modules.Modules
-}
-
-func (m *testModules) Features() modules.Features {
-	return modules.Features{
-		DB: false, // Explicitly turn off database access.
-	}
-}
-
 // TestAccessDisabled makes sure database access can be disabled via modules.
 func TestAccessDisabled(t *testing.T) {
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			DB: false,
+		},
+	})
 
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))

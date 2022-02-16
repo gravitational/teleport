@@ -247,6 +247,48 @@ message DesktopRecording {
         [ (gogoproto.jsontag) = "ms" ]; // JSON tag intentionally matches SessionPrintEvent
 }
 
+// DesktopClipboardReceive is emitted when Teleport receives
+// clipboard data from a remote desktop.
+message DesktopClipboardReceive {
+    // Metadata is common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Session is common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Connection holds information about the connection.
+    ConnectionMetadata Connection = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // DesktopAddr is the address of the desktop being accessed.
+    string DesktopAddr = 5 [ (gogoproto.jsontag) = "desktop_addr" ];
+    // Length is the number of bytes of data received from the remote clipboard.
+    int32 Length = 6 [ (gogoproto.jsontag) = "length" ];
+}
+
+// DesktopClipboardSend is emitted when clipboard data is
+// sent from a user's workstation to Teleport.
+message DesktopClipboardSend {
+    // Metadata is common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Session is common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Connection holds information about the connection.
+    ConnectionMetadata Connection = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // DesktopAddr is the address of the desktop being accessed.
+    string DesktopAddr = 5 [ (gogoproto.jsontag) = "desktop_addr" ];
+    // Length is the number of bytes of data sent.
+    int32 Length = 6 [ (gogoproto.jsontag) = "length" ];
+}
+
 // SessionReject event happens when a user hits a session control restriction.
 message SessionReject {
     // Metadata is a common event metadata
@@ -1800,13 +1842,15 @@ message OneOf {
         events.SessionConnect SessionConnect = 67;
         events.CertificateCreate CertificateCreate = 68;
         events.DesktopRecording DesktopRecording = 69;
-        events.MySQLStatementPrepare MySQLStatementPrepare = 70;
-        events.MySQLStatementExecute MySQLStatementExecute = 71;
-        events.MySQLStatementSendLongData MySQLStatementSendLongData = 72;
-        events.MySQLStatementClose MySQLStatementClose = 73;
-        events.MySQLStatementReset MySQLStatementReset = 74;
-        events.MySQLStatementFetch MySQLStatementFetch = 75;
-        events.MySQLStatementBulkExecute MySQLStatementBulkExecute = 76;
+        events.DesktopClipboardSend DesktopClipboardSend = 70;
+        events.DesktopClipboardReceive DesktopClipboardReceive = 71;
+        events.MySQLStatementPrepare MySQLStatementPrepare = 72;
+        events.MySQLStatementExecute MySQLStatementExecute = 73;
+        events.MySQLStatementSendLongData MySQLStatementSendLongData = 74;
+        events.MySQLStatementClose MySQLStatementClose = 75;
+        events.MySQLStatementReset MySQLStatementReset = 76;
+        events.MySQLStatementFetch MySQLStatementFetch = 77;
+        events.MySQLStatementBulkExecute MySQLStatementBulkExecute = 78;
     }
 }
 

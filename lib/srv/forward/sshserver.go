@@ -297,7 +297,7 @@ func New(c ServerConfig) (*Server, error) {
 	s.kexAlgorithms = c.KEXAlgorithms
 	s.macAlgorithms = c.MACAlgorithms
 
-	s.sessionRegistry, err = srv.NewSessionRegistry(s)
+	s.sessionRegistry, err = srv.NewSessionRegistry(s, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -902,6 +902,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		return s.termHandlers.HandleShell(ch, req, scx)
 	case sshutils.WindowChangeRequest:
 		return s.termHandlers.HandleWinChange(ch, req, scx)
+	case teleport.ForceTerminateRequest:
+		return s.termHandlers.HandleForceTerminate(ch, req, scx)
 	case sshutils.EnvRequest:
 		return s.handleEnv(ch, req, scx)
 	case sshutils.SubsystemRequest:
