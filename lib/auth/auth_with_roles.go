@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1818,6 +1819,26 @@ func (a *ServerWithRoles) validateGenerationLabel(ctx context.Context, user type
 	// By now, we know a generation counter is in play _somewhere_. The current
 	// generations must match to continue:
 	if currentIdentityGeneration != currentUserGeneration {
+		// Lock the bot user indefinitely.
+		lock, err := types.NewLock(uuid.New().String(), types.LockSpecV2{
+			Target: types.LockTarget{
+				User: user.GetName(),
+			},
+			Message: fmt.Sprintf(
+				"The bot user %q has been locked due to a certificate generation mismatch, possibly indicating a stolen certificate.",
+				user.GetName(),
+			),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// The bot almost certainly lacks permission to create locks, so bypass
+		// RBAC.
+		if err := a.authServer.UpsertLock(context.Background(), lock); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Emit an audit event.
 		ident := a.context.Identity.GetIdentity()
 		eventIdent := ident.GetEventIdentity()
 		if a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &apievents.RenewableCertificateGenerationMismatch{
