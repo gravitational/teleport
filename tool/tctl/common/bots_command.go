@@ -114,10 +114,19 @@ func (c *BotsCommand) ListBots(client auth.ClientI) error {
 			fmt.Println("No users found")
 			return nil
 		}
-		t := asciitable.MakeTable([]string{"User", "Roles"})
+		t := asciitable.MakeTable([]string{"Bot", "User", "Roles"})
 		for _, u := range users {
+			var botName string
+			meta := u.GetMetadata()
+			if val, ok := meta.Labels[types.BotLabel]; ok {
+				botName = val
+			} else {
+				// Should not be possible, but not worth failing over.
+				botName = "-"
+			}
+
 			t.AddRow([]string{
-				u.GetName(), strings.Join(u.GetRoles(), ","),
+				botName, u.GetName(), strings.Join(u.GetRoles(), ","),
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
