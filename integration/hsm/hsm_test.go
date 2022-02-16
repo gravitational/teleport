@@ -815,9 +815,6 @@ func TestHSMMigrate(t *testing.T) {
 	auth1Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
 	auth1 = newTeleportService(auth1Config, "auth1")
 	require.NoError(t, auth1.waitForStart(ctx))
-	t.Cleanup(func() {
-		require.NoError(t, auth1.process.Close())
-	})
 
 	clt = getAdminClient()
 	require.NoError(t, testClient(clt))
@@ -885,9 +882,6 @@ func TestHSMMigrate(t *testing.T) {
 	auth2Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
 	auth2 = newTeleportService(auth2Config, "auth2")
 	require.NoError(t, auth2.waitForStart(ctx))
-	t.Cleanup(func() {
-		require.NoError(t, auth2.process.Close())
-	})
 
 	authServices = TeleportServices{auth1, auth2}
 	teleportServices = TeleportServices{auth1, auth2, proxy}
