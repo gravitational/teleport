@@ -59,7 +59,7 @@ func (c *TemplateSSHClient) Describe() []FileDescription {
 	}
 }
 
-func (c *TemplateSSHClient) Render(authClient *auth.Client, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (c *TemplateSSHClient) Render(authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	if !destination.ContainsKind(KindSSH) {
 		return trace.BadParameter("%s config template requires kind `ssh` to be enabled", TemplateSSHClientName)
 	}
@@ -186,7 +186,7 @@ Host *.{{ .ClusterName }} !{{ .ProxyHost }}
 # End generated Teleport configuration
 `))
 
-func fetchKnownHosts(client *auth.Client, clusterName, proxyHosts string) (string, error) {
+func fetchKnownHosts(client auth.ClientI, clusterName, proxyHosts string) (string, error) {
 	ca, err := client.GetCertAuthority(types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName,

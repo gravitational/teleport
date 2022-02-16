@@ -17,7 +17,6 @@ limitations under the License.
 package config
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/gravitational/teleport/lib/auth"
@@ -59,7 +58,7 @@ type Template interface {
 	Describe() []FileDescription
 
 	// Render writes the config template to the destination.
-	Render(authClient *auth.Client, currentIdentity *identity.Identity, destination *DestinationConfig) error
+	Render(authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error
 }
 
 // TemplateConfig contains all possible config template variants. Exactly one
@@ -74,7 +73,7 @@ func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
 		switch simpleTemplate {
 		case TemplateSSHClientName:
 			c.SSHClient = &TemplateSSHClient{}
-			fmt.Println("no params, using defaults")
+			log.Println("no params, using defaults")
 		default:
 			return trace.BadParameter(
 				"invalid config template '%s' on line %d, expected one of: %s",

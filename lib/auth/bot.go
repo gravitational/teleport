@@ -147,7 +147,7 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 	}
 
 	// TODO: don't create user token, just use provision token
-	userToken, err := s.CreateBotJoinToken(ctx, CreateUserTokenRequest{
+	_, err = s.CreateBotJoinToken(ctx, CreateUserTokenRequest{
 		Name: resourceName,
 		TTL:  ttl,
 		Type: UserTokenTypeBot,
@@ -156,13 +156,13 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.CreateBotProvisionToken(ctx, resourceName, ttl)
+	provisionToken, err := s.CreateBotProvisionToken(ctx, resourceName, ttl)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &proto.CreateBotResponse{
-		TokenID:  userToken.GetName(),
+		TokenID:  provisionToken.GetName(),
 		UserName: resourceName,
 		RoleName: resourceName,
 		TokenTTL: proto.Duration(ttl),
