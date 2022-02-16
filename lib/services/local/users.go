@@ -39,6 +39,19 @@ import (
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
 
+// GlobalSessionDataMaxEntries represents the maximum number of in-flight
+// global WebAuthn challenges for a given scope.
+// Attempting to write more instances than the max limit causes an error.
+var GlobalSessionDataMaxEntries = 10000 // see comment below
+
+// In regards to GlobalSessionDataMaxEntries:
+// A typical global SessionData instance contains a Challenge (32 bytes) and
+// UserVerification ("required", 8 bytes), plus some overhead (let's say 20
+// additional bytes).
+// We want to allow enough challenges to comfortably support a large cluster,
+// but not enough that hitting the limit takes significant storage.
+// 10000 entries * 60 bytes ~= 600kb, which seems reasonable in both accounts.
+
 // IdentityService is responsible for managing web users and currently
 // user accounts as well
 type IdentityService struct {
@@ -776,7 +789,16 @@ func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, s
 		return trace.BadParameter("missing parameter sd")
 	}
 
-	// TODO(codingllama): Limit number of in-flight challenges.
+	// TODO(codingllama): Reading every key is clearly not the best, use a saner
+	//  operation when we have it.
+	start := globalSessionDataPrefix(scope)
+	res, err := s.Backend.GetRange(ctx, start, backend.RangeEnd(start), GlobalSessionDataMaxEntries)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(res.Items) >= GlobalSessionDataMaxEntries {
+		return trace.LimitExceeded("too many in-flight challenges")
+	}
 
 	value, err := json.Marshal(sd)
 	if err != nil {
@@ -815,6 +837,10 @@ func (s *IdentityService) DeleteGlobalWebauthnSessionData(ctx context.Context, s
 	}
 
 	return trace.Wrap(s.Delete(ctx, globalSessionDataKey(scope, id)))
+}
+
+func globalSessionDataPrefix(scope string) []byte {
+	return backend.Key(webauthnPrefix, webauthnGlobalSessionData, scope)
 }
 
 func globalSessionDataKey(scope, id string) []byte {
