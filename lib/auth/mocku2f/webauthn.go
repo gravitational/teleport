@@ -125,7 +125,7 @@ func (muk *Key) SignCredentialCreation(origin string, cc *wanlib.CredentialCreat
 	if aa := cc.Response.AuthenticatorSelection.AuthenticatorAttachment; aa == protocol.Platform {
 		return nil, trace.BadParameter("platform attachment required by authenticator selection")
 	}
-	if rrk := cc.Response.AuthenticatorSelection.RequireResidentKey; rrk != nil && *rrk != muk.AllowResidentKey {
+	if rrk := cc.Response.AuthenticatorSelection.RequireResidentKey; rrk != nil && *rrk && !muk.AllowResidentKey {
 		return nil, trace.BadParameter("resident key required by authenticator selection")
 	}
 	if uv := cc.Response.AuthenticatorSelection.UserVerification; uv == protocol.VerificationRequired && !muk.SetUV {
