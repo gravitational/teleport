@@ -238,8 +238,7 @@
             { "title": "Second Factor - WebAuthn", "slug": "/access-controls/guides/webauthn/" },
             { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },
             { "title": "Dual Authorization", "slug": "/access-controls/guides/dual-authz/" },
-            { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" },
-            { "title": "Moderated Sessions", "slug": "/access-controls/guides/moderated-sessions/" }
+            { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" }
           ]
         },
         { "title": "Reference", "slug": "/access-controls/reference/" },
