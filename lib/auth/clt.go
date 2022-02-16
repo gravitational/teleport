@@ -552,6 +552,18 @@ func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		return nil, trace.Wrap(err)
 	}
 
+	var certs proto.Certs
+	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If we got certs, we're done, however, we may be talking to a Teleport 9 or earlier server,
+	// which still sends back the legacy JSON format.
+	if len(certs.SSH) > 0 && len(certs.TLS) > 0 {
+		return &certs, nil
+	}
+
+	// DELETE IN 10.0.0 (zmb3)
 	return UnmarshalLegacyCerts(out.Bytes())
 }
 
