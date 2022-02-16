@@ -177,7 +177,19 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
+		if C.UACC_PATH_ERR != nil {
+			if status != 0 {
+				return trace.Errorf("unknown error with code %d and data %v", status)
+			}
+		}
+
 		if status != 0 {
+			if C.UACC_PATH_ERR != nil {
+				data := C.GoString(C.UACC_PATH_ERR)
+				C.free(unsafe.Pointer(C.UACC_PATH_ERR))
+				return trace.Errorf("unknown error with code %d and data %v", data)
+			}
+
 			return trace.Errorf("unknown error with code %d", status)
 		}
 
