@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
@@ -35,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 
@@ -352,6 +353,9 @@ func TestHSMRotation(t *testing.T) {
 	log.Debug("TestHSMRotation: starting proxy")
 	proxy := newTeleportService(newProxyConfig(ctx, t, authConfig.Auth.SSHAddr, log), "proxy")
 	require.NoError(t, proxy.waitForStart(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, proxy.process.Close())
+	})
 	teleportServices = append(teleportServices, proxy)
 
 	log.Debug("TestHSMRotation: sending rotation request init")
@@ -456,6 +460,9 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	proxyConfig := newProxyConfig(ctx, t, *authAddr, log)
 	proxy := newTeleportService(proxyConfig, "proxy")
 	require.NoError(t, proxy.waitForStart(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, proxy.process.Close())
+	})
 	teleportServices = append(teleportServices, proxy)
 
 	// add a new auth server
@@ -808,6 +815,9 @@ func TestHSMMigrate(t *testing.T) {
 	auth1Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
 	auth1 = newTeleportService(auth1Config, "auth1")
 	require.NoError(t, auth1.waitForStart(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, auth1.process.Close())
+	})
 
 	clt = getAdminClient()
 	require.NoError(t, testClient(clt))
@@ -875,6 +885,9 @@ func TestHSMMigrate(t *testing.T) {
 	auth2Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
 	auth2 = newTeleportService(auth2Config, "auth2")
 	require.NoError(t, auth2.waitForStart(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, auth2.process.Close())
+	})
 
 	authServices = TeleportServices{auth1, auth2}
 	teleportServices = TeleportServices{auth1, auth2, proxy}
