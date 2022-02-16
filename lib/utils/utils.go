@@ -18,8 +18,10 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"net"
 	"net/url"
@@ -439,6 +441,10 @@ func ReadHostUUID(dataDir string) (string, error) {
 func WriteHostUUID(dataDir string, id string) error {
 	err := ioutil.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return err
+		}
 		return trace.ConvertSystemError(err)
 	}
 	return nil
