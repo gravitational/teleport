@@ -1818,6 +1818,18 @@ func (a *ServerWithRoles) validateGenerationLabel(ctx context.Context, user type
 	// By now, we know a generation counter is in play _somewhere_. The current
 	// generations must match to continue:
 	if currentIdentityGeneration != currentUserGeneration {
+		ident := a.context.Identity.GetIdentity()
+		eventIdent := ident.GetEventIdentity()
+		if a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &apievents.RenewableCertificateGenerationMismatch{
+			Metadata: apievents.Metadata{
+				Type: events.RenewableCertificateGenerationMismatchEvent,
+				Code: events.RenewableCertificateGenerationMismatchCode,
+			},
+			Identity: &eventIdent,
+		}); err != nil {
+			log.WithError(err).Warn("Failed to emit renewable cert generation mismatch event")
+		}
+
 		return trace.AccessDenied(
 			"renewable cert generation mismatch: stored=%v, presented=%v",
 			currentUserGeneration, currentIdentityGeneration,
