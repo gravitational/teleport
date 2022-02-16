@@ -1787,7 +1787,7 @@ func (a *ServerWithRoles) validateGenerationLabel(ctx context.Context, user type
 		// (bots should be deleted and recreated if their certs expire)
 		if currentUserGeneration > 0 {
 			return trace.BadParameter(
-				"user %q has already been issued a renewable certificate and cannot be issued another",
+				"user %q has already been issued a renewable certificate and cannot be issued another; consider deleting and recreating the bot",
 				user.GetName(),
 			)
 		}
@@ -1810,7 +1810,10 @@ func (a *ServerWithRoles) validateGenerationLabel(ctx context.Context, user type
 		// Note: we bypass the RBAC check on purpose as bot users should not
 		// have user update permissions.
 		if err := a.authServer.CompareAndSwapUser(ctx, newUser, user); err != nil {
-			return trace.Wrap(err)
+			// If this fails it's likely to be some miscellaneous competing
+			// write. The request should be tried again - if it's malicious,
+			// someone will get a generation mismatch and trigger a lock.
+			return trace.WrapWithMessage(err, "Database comparison failed, try the request again")
 		}
 
 		return nil
@@ -1870,7 +1873,10 @@ func (a *ServerWithRoles) validateGenerationLabel(ctx context.Context, user type
 	newUser.SetMetadata(metadata)
 
 	if err := a.authServer.CompareAndSwapUser(ctx, newUser, user); err != nil {
-		return trace.Wrap(err)
+		// If this fails it's likely to be some miscellaneous competing
+		// write. The request should be tried again - if it's malicious,
+		// someone will get a generation mismatch and trigger a lock.
+		return trace.WrapWithMessage(err, "Database comparison failed, try the request again")
 	}
 
 	// And lastly, set the generation on the cert request.
