@@ -103,7 +103,7 @@ func NewPresetAccessRole() types.Role {
 						Resources: []string{types.KindSession},
 						Verbs:     []string{types.VerbRead, types.VerbList},
 						Where:     "contains(session.participants, user.metadata.name)",
-					},					
+					},
 				},
 			},
 		},
