@@ -418,7 +418,7 @@ const (
 	DatabaseSessionPostgresCloseEvent = "db.session.postgres.statements.close"
 	// DatabaseSessionPostgresFunctionEvent is emitted when a Postgres client
 	// calls an internal function.
-	DatabaseSessionPostgresFunctionEvent = "db.session.postgres.statements.function"
+	DatabaseSessionPostgresFunctionEvent = "db.session.postgres.function"
 
 	// DatabaseSessionMySQLStatementPrepareEvent is emitted when a MySQL client
 	// creates a prepared statement using the prepared statement protocol.

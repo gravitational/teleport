@@ -367,7 +367,7 @@ const (
 	PostgresExecuteCode = "TPG02I"
 	// PostgresCloseCode is the db.session.postgres.statements.close event code.
 	PostgresCloseCode = "TPG03I"
-	// PostgresFunctionCallCode is the db.session.postgres.statements.function event code.
+	// PostgresFunctionCallCode is the db.session.postgres.function event code.
 	PostgresFunctionCallCode = "TPG04I"
 
 	// MySQLStatementPrepareCode is the db.session.mysql.statements.prepare event code.
