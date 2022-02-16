@@ -279,6 +279,9 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 	err = s.appServer.ForceHeartbeat()
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, s.appServer.Close())
+	})
 
 	return s
 }
