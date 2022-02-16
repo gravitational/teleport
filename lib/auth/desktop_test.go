@@ -26,15 +26,12 @@ import (
 // TestDesktopAccessDisabled makes sure desktop access can be disabled via modules.
 // Since desktop connections require a cert, this is mediated via the cert generating function.
 func TestDesktopAccessDisabled(t *testing.T) {
-	defaultModules := modules.GetModules()
-	t.Cleanup(func() { modules.SetModules(defaultModules) })
-	modules.SetModules(&testModules{
-		features: modules.Features{
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
 			Desktop: false, // Explicily turn off desktop access.
 		},
 	})
 
-	t.Parallel()
 	ctx := context.Background()
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
