@@ -2201,6 +2201,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 
 func makeProxySSHClient(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
 	var opts []proxy.DialerOptionFunc
+	addr := tc.Config.SSHProxyAddr
 	if tc.Config.TLSRoutingEnabled {
 		tlsConfig, err := tc.loadTLSConfig()
 		if err != nil {
@@ -2208,10 +2209,11 @@ func makeProxySSHClient(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.C
 		}
 		tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
 		tlsConfig.InsecureSkipVerify = tc.Config.InsecureSkipVerify
+		addr = tc.Config.WebProxyAddr
 		opts = append(opts, proxy.WithALPNDialer(), proxy.WithTLSConfig(tlsConfig))
 	}
-	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, opts...)
-	client, err := dialer.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
+	dialer := proxy.DialerFromEnvironment(addr, opts...)
+	client, err := dialer.Dial("tcp", addr, sshConfig)
 	return client, trace.Wrap(err, "failed to authenticate with proxy %v", tc.Config.SSHProxyAddr)
 }
 

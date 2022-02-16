@@ -52,7 +52,8 @@ func NewDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	}
 }
 
-// NewDialer makes a new dialer that connects to an Auth server either directly or via an HTTP proxy/
+// NewDialer makes a new dialer that connects to an Auth server either directly or via an HTTP proxy, depending
+// on the environment.
 func NewDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	dialer := NewDirectDialer(keepAlivePeriod, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
