@@ -976,11 +976,16 @@ func TestRedisPipeline(t *testing.T) {
 	redisClient, err := testCtx.redisClient(ctx, "alice", "redis", "admin")
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		err := redisClient.Close()
+		require.NoError(t, err)
+	})
+
 	pipeliner := redisClient.Pipeline()
-	defer func() {
+	t.Cleanup(func() {
 		err = pipeliner.Close()
 		require.NoError(t, err)
-	}()
+	})
 
 	// Set multiple keys using pipelining.
 	for i := 0; i < 10; i++ {
@@ -1020,6 +1025,11 @@ func TestRedisTransaction(t *testing.T) {
 	// Try to connect to the database as this user.
 	redisClient, err := testCtx.redisClient(ctx, "alice", "redis", "admin")
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err := redisClient.Close()
+		require.NoError(t, err)
+	})
 
 	// Test below has been taken from go-redis documentation and modify: https://pkg.go.dev/github.com/go-redis/redis/v8#Client.Watch
 	const maxRetries = 100
