@@ -1732,6 +1732,9 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		return nil
 	}
 
+	// By now, we know a generation counter is in play _somewhere_ and this is a
+	// bot certs. Bot certs should include the host CA so that they can make
+	// Teleport API calls.
 	certReq.includeHostCA = true
 
 	// If the certReq already has generation set, it was explicitly requested
@@ -1771,8 +1774,7 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		return nil
 	}
 
-	// By now, we know a generation counter is in play _somewhere_. The current
-	// generations must match to continue:
+	// The current generations must match to continue:
 	if currentIdentityGeneration != currentUserGeneration {
 		return trace.AccessDenied(
 			"renewable cert generation mismatch: stored=%v, presented=%v",

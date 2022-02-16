@@ -275,7 +275,7 @@ func renewIdentityViaAuth(
 ) (*identity.Identity, error) {
 	// TODO: enforce expiration > renewal period (by what margin?)
 
-	// First, ask the auth server to generate a new set of certs with a new
+	// Ask the auth server to generate a new set of certs with a new
 	// expiration date.
 	certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
 		PublicKey: currentIdentity.SSHPublicKeyBytes,
@@ -284,28 +284,6 @@ func renewIdentityViaAuth(
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// The root CA included with the returned user certs will only contain the
-	// Teleport User CA. We'll also need the host CA for future API calls.
-	localCA, err := client.GetClusterCACert()
-	if err != nil {
-		log.WithError(err).Warn("failed to get cluster ca cert")
-		return nil, trace.Wrap(err)
-	}
-
-	caCerts, err := tlsca.ParseCertificatePEMs(localCA.TLSCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Append the host CAs from the auth server.
-	for _, cert := range caCerts {
-		pemBytes, err := tlsca.MarshalCertificatePEM(cert)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		certs.TLSCACerts = append(certs.TLSCACerts, pemBytes)
 	}
 
 	newIdentity, err := identity.ReadIdentityFromKeyPair(
