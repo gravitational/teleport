@@ -94,7 +94,7 @@ func ReadFromFile(filePath string) (*FileConfig, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
-			return nil, trace.Wrap(err, fmt.Sprintf("failed to open file for Teleport configuration: %v. Ensure that you are running as a user with appropriate permissions.", filePath))
+			return nil, trace.Wrap(err, "failed to open file for Teleport configuration: %v. Ensure that you are running as a user with appropriate permissions.", filePath)
 		}
 		return nil, trace.Wrap(err, fmt.Sprintf("failed to open file for Teleport configuration: %v.", filePath))
 	}
