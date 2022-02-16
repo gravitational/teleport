@@ -29,9 +29,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// botResourceName returns the default name for resources associated with the
+// BotResourceName returns the default name for resources associated with the
 // given named bot.
-func botResourceName(botName string) string {
+func BotResourceName(botName string) string {
 	return "bot-" + strings.ReplaceAll(botName, " ", "-")
 }
 
@@ -112,7 +112,7 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		return nil, trace.BadParameter("bot name must not be empty")
 	}
 
-	resourceName := botResourceName(req.Name)
+	resourceName := BotResourceName(req.Name)
 
 	// Ensure existing resources don't already exist.
 	_, err := s.GetRole(ctx, resourceName)
@@ -206,7 +206,7 @@ func (s *Server) deleteBot(ctx context.Context, botName string) error {
 	// TODO:
 	// remove any locks for the bot's impersonator role?
 	// remove the bot's user
-	resourceName := botResourceName(botName)
+	resourceName := BotResourceName(botName)
 
 	userErr := s.deleteBotUser(ctx, botName, resourceName)
 	roleErr := s.deleteBotRole(ctx, botName, resourceName)
