@@ -509,15 +509,15 @@ func (s Servers) SortByCustom(sortBy SortBy) error {
 	switch sortBy.Field {
 	case ResourceMetadataName:
 		sort.SliceStable(s, func(i, j int) bool {
-			return compareStrByDir(s[i].GetName(), s[j].GetName(), isDesc)
+			return stringCompare(s[i].GetName(), s[j].GetName(), isDesc)
 		})
 	case ResourceSpecHostname:
 		sort.SliceStable(s, func(i, j int) bool {
-			return compareStrByDir(s[i].GetHostname(), s[j].GetHostname(), isDesc)
+			return stringCompare(s[i].GetHostname(), s[j].GetHostname(), isDesc)
 		})
 	case ResourceSpecAddr:
 		sort.SliceStable(s, func(i, j int) bool {
-			return compareStrByDir(s[i].GetAddr(), s[j].GetAddr(), isDesc)
+			return stringCompare(s[i].GetAddr(), s[j].GetAddr(), isDesc)
 		})
 	default:
 		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindNode)

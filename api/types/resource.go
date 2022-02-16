@@ -354,7 +354,7 @@ Outer:
 	return true
 }
 
-func compareStrByDir(a string, b string, isDesc bool) bool {
+func stringCompare(a string, b string, isDesc bool) bool {
 	if isDesc {
 		return a > b
 	}

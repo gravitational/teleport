@@ -309,15 +309,15 @@ func (s DatabaseServers) SortByCustom(sortBy SortBy) error {
 	switch sortBy.Field {
 	case ResourceMetadataName:
 		sort.SliceStable(s, func(i, j int) bool {
-			return compareStrByDir(s[i].GetDatabase().GetName(), s[j].GetDatabase().GetName(), isDesc)
+			return stringCompare(s[i].GetDatabase().GetName(), s[j].GetDatabase().GetName(), isDesc)
 		})
 	case ResourceSpecDescription:
 		sort.SliceStable(s, func(i, j int) bool {
-			return compareStrByDir(s[i].GetDatabase().GetDescription(), s[j].GetDatabase().GetDescription(), isDesc)
+			return stringCompare(s[i].GetDatabase().GetDescription(), s[j].GetDatabase().GetDescription(), isDesc)
 		})
 	case ResourceSpecType:
 		sort.SliceStable(s, func(i, j int) bool {
-			return compareStrByDir(s[i].GetDatabase().GetType(), s[j].GetDatabase().GetType(), isDesc)
+			return stringCompare(s[i].GetDatabase().GetType(), s[j].GetDatabase().GetType(), isDesc)
 		})
 	default:
 		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindDatabaseServer)
