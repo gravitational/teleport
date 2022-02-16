@@ -384,6 +384,10 @@ const (
 	DesktopSessionStartFailureCode = "TDP00W"
 	// DesktopSessionEndCode is the desktop session end event code.
 	DesktopSessionEndCode = "TDP01I"
+	// DesktopClipboardSendCode is the desktop clipboard send code.
+	DesktopClipboardSendCode = "TDP02I"
+	// DesktopClipboardReceiveCode is the desktop clipboard receive code.
+	DesktopClipboardReceiveCode = "TDP03I"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"

@@ -313,6 +313,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_DesktopRecording{
 			DesktopRecording: e,
 		}
+	case *DesktopClipboardReceive:
+		out.Event = &OneOf_DesktopClipboardReceive{
+			DesktopClipboardReceive: e,
+		}
+	case *DesktopClipboardSend:
+		out.Event = &OneOf_DesktopClipboardSend{
+			DesktopClipboardSend: e,
+		}
 	default:
 		return nil, trace.BadParameter("event type %T is not supported", in)
 	}
