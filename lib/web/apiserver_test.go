@@ -1334,48 +1334,6 @@ func handleMFAU2FCChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevi
 	require.NoError(t, err)
 }
 
-//func (s *WebSuite) TestWebsocketPingLoop(c *C) {
-//	// Change cluster networking config for keep alive interval to be run faster.
-//	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-//		KeepAliveInterval: types.NewDuration(250 * time.Millisecond),
-//	})
-//	c.Assert(err, IsNil)
-//	err = s.server.Auth().SetClusterNetworkingConfig(s.ctx, netConfig)
-//	c.Assert(err, IsNil)
-//
-//	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-//		Mode:                types.RecordAtNode,
-//		ProxyChecksHostKeys: types.NewBoolOption(true),
-//	})
-//	c.Assert(err, IsNil)
-//	err = s.server.Auth().SetSessionRecordingConfig(s.ctx, recConfig)
-//	c.Assert(err, IsNil)
-//
-//	ws, err := s.makeTerminal(s.authPack(c, "foo"))
-//	c.Assert(err, IsNil)
-//
-//	var numPings int
-//	start := time.Now()
-//	for {
-//		frame, err := ws.NewFrameReader()
-//		c.Assert(err, IsNil)
-//		// We should get a mix of output (binary) and ping frames. Count only
-//		// the ping frames.
-//		if int(frame.PayloadType()) == websocket.PingFrame {
-//			numPings++
-//		}
-//		if numPings > 1 {
-//			break
-//		}
-//		if deadline := 15 * time.Second; time.Since(start) > deadline {
-//			c.Fatalf("Received %v ping frames within %v of opening a socket, expected at least 2", numPings, deadline)
-//		}
-//	}
-//
-//	err = ws.Close()
-//	c.Assert(err, IsNil)
-//}
-
 func (s *WebSuite) TestWebAgentForward(c *C) {
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
 	c.Assert(err, IsNil)
