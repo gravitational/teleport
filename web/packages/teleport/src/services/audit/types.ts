@@ -70,6 +70,8 @@ export const eventCodes = {
   MYSQL_STATEMENT_SEND_LONG_DATA: 'TMY02I',
   MYSQL_STATEMENT_CLOSE: 'TMY03I',
   MYSQL_STATEMENT_RESET: 'TMY04I',
+  MYSQL_STATEMENT_FETCH: 'TMY05I',
+  MYSQL_STATEMENT_BULK_EXECUTE: 'TMY06I',
   DESKTOP_SESSION_STARTED: 'TDP00I',
   DESKTOP_SESSION_STARTED_FAILED: 'TDP00W',
   DESKTOP_SESSION_ENDED: 'TDP01I',
@@ -478,7 +480,6 @@ export type RawEvents = {
   [eventCodes.MYSQL_STATEMENT_PREPARE]: RawEvent<
     typeof eventCodes.MYSQL_STATEMENT_PREPARE,
     {
-      name: string;
       db_service: string;
       db_name: string;
       query: string;
@@ -487,7 +488,6 @@ export type RawEvents = {
   [eventCodes.MYSQL_STATEMENT_EXECUTE]: RawEvent<
     typeof eventCodes.MYSQL_STATEMENT_EXECUTE,
     {
-      name: string;
       db_service: string;
       db_name: string;
       statement_id: number;
@@ -496,7 +496,6 @@ export type RawEvents = {
   [eventCodes.MYSQL_STATEMENT_SEND_LONG_DATA]: RawEvent<
     typeof eventCodes.MYSQL_STATEMENT_SEND_LONG_DATA,
     {
-      name: string;
       db_service: string;
       db_name: string;
       statement_id: number;
@@ -507,7 +506,6 @@ export type RawEvents = {
   [eventCodes.MYSQL_STATEMENT_CLOSE]: RawEvent<
     typeof eventCodes.MYSQL_STATEMENT_CLOSE,
     {
-      name: string;
       db_service: string;
       db_name: string;
       statement_id: number;
@@ -516,7 +514,23 @@ export type RawEvents = {
   [eventCodes.MYSQL_STATEMENT_RESET]: RawEvent<
     typeof eventCodes.MYSQL_STATEMENT_RESET,
     {
-      name: string;
+      db_service: string;
+      db_name: string;
+      statement_id: number;
+    }
+  >;
+  [eventCodes.MYSQL_STATEMENT_FETCH]: RawEvent<
+    typeof eventCodes.MYSQL_STATEMENT_FETCH,
+    {
+      db_service: string;
+      db_name: string;
+      rows_count: number;
+      statement_id: number;
+    }
+  >;
+  [eventCodes.MYSQL_STATEMENT_BULK_EXECUTE]: RawEvent<
+    typeof eventCodes.MYSQL_STATEMENT_BULK_EXECUTE,
+    {
       db_service: string;
       db_name: string;
       statement_id: number;

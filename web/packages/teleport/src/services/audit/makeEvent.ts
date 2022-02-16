@@ -391,7 +391,7 @@ export const formatters: Formatters = {
     format: ({ user, name }) => `User [${user}] deleted database [${name}]`,
   },
   [eventCodes.POSTGRES_PARSE]: {
-    type: 'db.session.postgres.parse',
+    type: 'db.session.postgres.statements.parse',
     desc: 'PostgreSQL Statement Parse',
     format: ({ user, db_service, statement_name, query }) =>
       `User [${user}] has prepared [${truncateStr(
@@ -400,19 +400,19 @@ export const formatters: Formatters = {
       )}] as statement [${statement_name}] on [${db_service}]`,
   },
   [eventCodes.POSTGRES_BIND]: {
-    type: 'db.session.postgres.bind',
+    type: 'db.session.postgres.statements.bind',
     desc: 'PostgreSQL Statement Bind',
     format: ({ user, db_service, statement_name, portal_name }) =>
       `User [${user}] has readied statement [${statement_name}] for execution as portal [${portal_name}] on [${db_service}]`,
   },
   [eventCodes.POSTGRES_EXECUTE]: {
-    type: 'db.session.postgres.execute',
+    type: 'db.session.postgres.statements.execute',
     desc: 'PostgreSQL Statement Execute',
     format: ({ user, db_service, portal_name }) =>
       `User [${user}] has executed portal [${portal_name}] on [${db_service}]`,
   },
   [eventCodes.POSTGRES_CLOSE]: {
-    type: 'db.session.postgres.close',
+    type: 'db.session.postgres.statements.close',
     desc: 'PostgreSQL Statement Close',
     format: e => {
       if (e.portal_name) {
@@ -422,13 +422,13 @@ export const formatters: Formatters = {
     },
   },
   [eventCodes.POSTGRES_FUNCTION_CALL]: {
-    type: 'db.session.postgres.function',
+    type: 'db.session.postgres.statements.function',
     desc: 'PostgreSQL Function Call',
     format: ({ user, db_service, function_oid }) =>
       `User [${user}] has executed function with OID [${function_oid}] on [${db_service}]`,
   },
   [eventCodes.MYSQL_STATEMENT_PREPARE]: {
-    type: 'db.session.mysql.stmt_prepare',
+    type: 'db.session.mysql.statements.prepare',
     desc: 'MySQL Statement Prepare',
     format: ({ user, db_service, db_name, query }) =>
       `User [${user}] has prepared [${truncateStr(
@@ -437,28 +437,40 @@ export const formatters: Formatters = {
       )}] in database [${db_name}] on [${db_service}]`,
   },
   [eventCodes.MYSQL_STATEMENT_EXECUTE]: {
-    type: 'db.session.mysql.stmt_execute',
+    type: 'db.session.mysql.statements.execute',
     desc: 'MySQL Statement Execute',
     format: ({ user, db_service, db_name, statement_id }) =>
       `User [${user}] has executed statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
   },
   [eventCodes.MYSQL_STATEMENT_SEND_LONG_DATA]: {
-    type: 'db.session.mysql.stmt_send_long_data',
+    type: 'db.session.mysql.statements.send_long_data',
     desc: 'MySQL Statement Send Long Data',
     format: ({ user, db_service, db_name, statement_id, parameter_id, data_size }) =>
       `User [${user}] has sent ${data_size} bytes of data to parameter [${parameter_id}] of statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
   },
   [eventCodes.MYSQL_STATEMENT_CLOSE]: {
-    type: 'db.session.mysql.stmt_close',
+    type: 'db.session.mysql.statements.close',
     desc: 'MySQL Statement Close',
     format: ({ user, db_service, db_name, statement_id}) =>
       `User [${user}] has closed statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
   },
   [eventCodes.MYSQL_STATEMENT_RESET]: {
-    type: 'db.session.mysql.stmt_reset',
+    type: 'db.session.mysql.statements.reset',
     desc: 'MySQL Statement Reset',
     format: ({ user, db_service, db_name, statement_id}) =>
       `User [${user}] has reset statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
+  },
+  [eventCodes.MYSQL_STATEMENT_FETCH]: {
+    type: 'db.session.mysql.statements.fetch',
+    desc: 'MySQL Statement Fetch',
+    format: ({ user, db_service, db_name, rows_count, statement_id}) =>
+      `User [${user}] has fetched ${rows_count} rows of statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
+  },
+  [eventCodes.MYSQL_STATEMENT_BULK_EXECUTE]: {
+    type: 'db.session.mysql.statements.bulk_execute',
+    desc: 'MySQL Statement Bulk Execute',
+    format: ({ user, db_service, db_name, statement_id }) =>
+      `User [${user}] has executed statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
   },
   [eventCodes.MFA_DEVICE_ADD]: {
     type: 'mfa.add',

@@ -88,6 +88,8 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.MYSQL_STATEMENT_SEND_LONG_DATA]: Icons.Database,
   [eventCodes.MYSQL_STATEMENT_CLOSE]: Icons.Database,
   [eventCodes.MYSQL_STATEMENT_RESET]: Icons.Database,
+  [eventCodes.MYSQL_STATEMENT_FETCH]: Icons.Database,
+  [eventCodes.MYSQL_STATEMENT_BULK_EXECUTE]: Icons.Database,
   [eventCodes.DESKTOP_SESSION_STARTED]: Icons.Desktop,
   [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: Icons.Desktop,
   [eventCodes.DESKTOP_SESSION_ENDED]: Icons.Desktop,
