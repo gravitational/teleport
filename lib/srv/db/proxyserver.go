@@ -34,6 +34,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -208,8 +209,14 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 
 // ServeMongo starts accepting Mongo client connections.
 func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) error {
-	s.log.Debug("Started Mongo proxy.")
-	defer s.log.Debug("Mongo proxy exited.")
+	return s.serveGenericTLS(listener, tlsConfig, defaults.ProtocolMongoDB)
+}
+
+// serveGenericTLS starts accepting a plain TLS database client connection.
+// dbName is used only for logging purposes.
+func (s *ProxyServer) serveGenericTLS(listener net.Listener, tlsConfig *tls.Config, dbName string) error {
+	s.log.Debugf("Started %s proxy.", dbName)
+	defer s.log.Debugf("%s proxy exited.", dbName)
 	for {
 		clientConn, err := listener.Accept()
 		if err != nil {
@@ -218,16 +225,17 @@ func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) e
 			}
 			return trace.Wrap(err)
 		}
+
 		go func() {
 			defer clientConn.Close()
 			tlsConn := tls.Server(clientConn, tlsConfig)
 			if err := tlsConn.Handshake(); err != nil {
-				s.log.WithError(err).Error("Mongo TLS handshake failed.")
+				s.log.WithError(err).Errorf("%s TLS handshake failed.", dbName)
 				return
 			}
 			err := s.handleConnection(tlsConn)
 			if err != nil {
-				s.log.WithError(err).Error("Failed to handle Mongo client connection.")
+				s.log.WithError(err).Errorf("Failed to handle %s client connection.", dbName)
 			}
 		}()
 	}
