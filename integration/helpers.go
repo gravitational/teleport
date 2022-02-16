@@ -960,6 +960,12 @@ type ProxyConfig struct {
 	WebPort int
 	// ReverseTunnelPort is a port for reverse tunnel addresses
 	ReverseTunnelPort int
+	// Disable the web service
+	DisableWebService bool
+	// Disable the web ui
+	DisableWebInterface bool
+	// Disable ALPN routing
+	DisableALPNSNIListener bool
 }
 
 // StartProxy starts another Proxy Server and connects it to the cluster.
@@ -1001,7 +1007,9 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	tconf.Proxy.ReverseTunnelListenAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.ReverseTunnelPort))
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.WebPort))
 	tconf.Proxy.DisableReverseTunnel = false
-	tconf.Proxy.DisableWebService = true
+	tconf.Proxy.DisableWebService = cfg.DisableWebService
+	tconf.Proxy.DisableWebInterface = cfg.DisableWebInterface
+	tconf.Proxy.DisableALPNSNIListener = cfg.DisableALPNSNIListener
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
