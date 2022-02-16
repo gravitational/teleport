@@ -37,32 +37,39 @@ func botResourceName(botName string) string {
 
 // createBotRole creates a role from a bot template with the given parameters.
 func createBotRole(ctx context.Context, s *Server, botName string, resourceName string, roleRequests []string) error {
-	return s.UpsertRole(ctx, &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V4,
-		Metadata: types.Metadata{
-			Name:        resourceName,
-			Description: fmt.Sprintf("Automatically generated role for bot %s", botName),
-			Labels: map[string]string{
-				types.BotLabel: botName,
-			},
+	role, err := types.NewRole(resourceName, types.RoleSpecV4{
+		Options: types.RoleOptions{
+			// TODO: inherit TTLs from cert length?
+			MaxSessionTTL: types.Duration(12 * time.Hour),
 		},
-		Spec: types.RoleSpecV4{
-			Options: types.RoleOptions{
-				// TODO: inherit TTLs from cert length?
-				MaxSessionTTL: types.Duration(12 * time.Hour),
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				// Bots read certificate authorities to watch for CA rotations
+				types.NewRule(types.KindCertAuthority, []string{types.VerbReadNoSecrets}),
 			},
-			Allow: types.RoleConditions{
-				Rules: []types.Rule{
-					// Bots read certificate authorities to watch for CA rotations
-					types.NewRule(types.KindCertAuthority, []string{types.VerbReadNoSecrets}),
-				},
-				Impersonate: &types.ImpersonateConditions{
-					Roles: roleRequests,
-				},
+			Impersonate: &types.ImpersonateConditions{
+				Roles: roleRequests,
 			},
 		},
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	meta := role.GetMetadata()
+	meta.Description = fmt.Sprintf("Automatically generated role for bot %s", botName)
+	if meta.Labels == nil {
+		meta.Labels = map[string]string{}
+	}
+	meta.Labels[types.BotLabel] = botName
+
+	rolev4, ok := role.(*types.RoleV4)
+	if !ok {
+		return trace.BadParameter("unsupported role version %v", role)
+	}
+	rolev4.Metadata = meta
+
+	return s.UpsertRole(ctx, role)
 }
 
 // createBotUser creates a new backing User for bot use. A role with a
