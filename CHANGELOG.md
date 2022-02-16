@@ -1,5 +1,16 @@
 # Changelog
 
+This release of Teleport contains new features, improvements, and fixes.
+
+* Added IAM support for [Joining Nodes and Proxies in AWS](https://goteleport.com/docs/setup/guides/joining-nodes-aws/). [#8690](https://github.com/gravitational/teleport/pull/8690) [#10085](https://github.com/gravitational/teleport/pull/10085) [#10087](https://github.com/gravitational/teleport/pull/10087)
+* Added GitHub team information to claims for [GitHub SSO](https://goteleport.com/docs/setup/admin/github-sso/). [#9604](https://github.com/gravitational/teleport/pull/9604)
+* Added the `cert.create` event. [#9822](https://github.com/gravitational/teleport/pull/9822)
+* Updated `tsh ls` output to truncate labels. [#9589](https://github.com/gravitational/teleport/pull/9589)
+* Updated smart card PIN generation to generate a random PIN for each desktop session, preventing the smart card from being used after the initial login. [#9919](https://github.com/gravitational/teleport/pull/9919)
+* Fixed an issue that could cause the audit logger to crash. [#10254](https://github.com/gravitational/teleport/pull/10254)
+* Fixed an issue with `tctl --insecure` and TLS routing. [#10297](https://github.com/gravitational/teleport/pull/10297)
+* Fixed an issue where reverse tunnels would not properly reconnect. [#10368](https://github.com/gravitational/teleport/pull/10368)
+
 ## 8.2.0
 
 This release of Teleport contains a new feature.
