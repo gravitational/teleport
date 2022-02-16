@@ -103,7 +103,7 @@ In order to expose WEB, Kubernetes proxy services in one teleport proxy port, th
 
 #### Setting SNI value for kubectl CLI:
 
-`tsh kube login` command generates a local kubeconfig.yaml file used during accessing teleport proxy by kubectl CLI. Additional to the current configuration the  tls-server-name  field will be added with appropriate SNI value:
+`tsh kube login` command generates a local kubeconfig.yaml file used during accessing teleport proxy by kubectl CLI. Additional to the current configuration the `tls-server-name` field will be added with appropriate SNI value:
 
 ```yaml
 apiVersion: v1
