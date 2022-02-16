@@ -1,0 +1,161 @@
+---
+title: Desktop Access Audit Events Reference
+description: Audit events reference for Teleport Desktop Access.
+---
+
+# Desktop Access Audit Events Reference
+
+## windows.desktop.session.start (TDP00I/W)
+
+Emitted when a client successfully connects to a desktop, or when a connection
+attempt fails due to access denied.
+
+Successful connection event:
+
+```json
+{
+  "addr.remote": "192.168.1.206:3389",
+  "cluster_name": "root",
+  "code": "TDP00I",
+  "desktop_addr": "192.168.1.206:3389",
+  "desktop_labels": {
+    "teleport.dev/computer_name": "WIN-I44F9TN11M3",
+    "teleport.dev/dns_host_name": "WIN-I44F9TN11M3.teleport.example.com",
+    "teleport.dev/is_domain_controller": "true",
+    "teleport.dev/origin": "dynamic",
+    "teleport.dev/os": "Windows Server 2012 R2 Standard Evaluation",
+    "teleport.dev/os_version": "6.3 (9600)",
+    "teleport.dev/windows_domain": "teleport.example.com"
+  },
+  "ei": 0,
+  "event": "windows.desktop.session.start",
+  "login": "administrator",
+  "proto": "tdp",
+  "sid": "4a0ed655-1e0b-412b-b14a-348e840e7fa2",
+  "success": true,
+  "time": "2022-02-16T16:43:30.459Z",
+  "uid": "1605346b-d90b-4df7-8148-67a3e2d85673",
+  "user": "alice",
+  "windows_desktop_service": "316a3ffa-23e6-4d85-92a1-5e44754f8189",
+  "windows_domain": "teleport.example.com",
+  "windows_user": "administrator"
+}
+```
+
+Access denied event:
+
+```json
+{
+  "addr.remote": "192.168.1.206:3389",
+  "cluster_name": "root",
+  "code": "TDP00W",
+  "desktop_addr": "192.168.1.206:3389",
+  "desktop_labels": {
+    "teleport.dev/computer_name": "WIN-I44F9TN11M3",
+    "teleport.dev/dns_host_name": "WIN-I44F9TN11M3.teleport.example.com",
+    "teleport.dev/is_domain_controller": "true",
+    "teleport.dev/origin": "dynamic",
+    "teleport.dev/os": "Windows Server 2012 R2 Standard Evaluation",
+    "teleport.dev/os_version": "6.3 (9600)",
+    "teleport.dev/windows_domain": "teleport.example.com"
+  },
+  "ei": 0,
+  "error": "access to desktop denied", // Connection error
+  "event": "windows.desktop.session.start",
+  "message": "access to desktop denied", // Detailed error message.
+  "login": "administrator",
+  "proto": "tdp",
+  "sid": "4a0ed655-1e0b-412b-b14a-348e840e7fa2",
+  "success": false, // Indicates unsuccessful connection
+  "time": "2022-02-16T16:43:30.459Z",
+  "uid": "1605346b-d90b-4df7-8148-67a3e2d85673",
+  "user": "alice",
+  "windows_desktop_service": "316a3ffa-23e6-4d85-92a1-5e44754f8189",
+  "windows_domain": "teleport.example.com",
+  "windows_user": "administrator"
+}
+```
+
+## windows.desktop.session.end (TDP01I)
+
+Emitted when a client disconnects from the desktop.
+
+```json
+{
+  "cluster_name": "root",
+  "code": "TDP01I",
+  "desktop_addr": "192.168.1.206:3389",
+  "desktop_labels": {
+    "teleport.dev/computer_name": "WIN-I44F9TN11M3",
+    "teleport.dev/dns_host_name": "WIN-I44F9TN11M3.teleport.example.com",
+    "teleport.dev/is_domain_controller": "true",
+    "teleport.dev/origin": "dynamic",
+    "teleport.dev/os": "Windows Server 2012 R2 Standard Evaluation",
+    "teleport.dev/os_version": "6.3 (9600)",
+    "teleport.dev/windows_domain": "teleport.example.com"
+  },
+  "desktop_name": "WIN-I44F9TN11M3-teleport-example-com",
+  "ei": 0,
+  "event": "windows.desktop.session.end",
+  "login": "administrator",
+  "participants": [
+    "alice"
+  ],
+  "recorded": true,
+  "session_start": "2022-02-16T16:43:30.459Z",
+  "session_stop": "2022-02-16T16:46:50.894Z",
+  "sid": "4a0ed655-1e0b-412b-b14a-348e840e7fa2",
+  "time": "2022-02-16T16:46:50.895Z",
+  "uid": "c7956a81-597f-4452-90d7-800506f7a05b",
+  "user": "alice",
+  "windows_desktop_service": "316a3ffa-23e6-4d85-92a1-5e44754f8189",
+  "windows_domain": "teleport.example.com",
+  "windows_user": "administrator"
+}
+```
+
+## desktop.clipboard.send (TDP02I)
+
+Emitted when clipboard data is sent from a user's workstation to Teleport. In
+order to avoid capturing sensitive data, the event only records the number of
+bytes that were sent.
+
+```json
+{
+  "addr.remote": "192.168.1.206:3389",
+  "cluster_name": "root",
+  "code": "TDP02I",
+  "desktop_addr": "192.168.1.206:3389",
+  "ei": 0,
+  "event": "desktop.clipboard.send",
+  "length": 4, // number of bytes sent
+  "proto": "tdp",
+  "sid": "4a0ed655-1e0b-412b-b14a-348e840e7fa2",
+  "time": "2022-02-16T16:43:40.010217Z",
+  "uid": "e45d9890-38a9-4580-8572-35fa0192b123",
+  "user": "alice"
+}
+```
+
+## desktop.clipboard.receive (TDP03I)
+
+Emitted when Teleport receives clipboard data from a remote desktop. In order to
+avoid capturing sensitive data, the event only records the number of bytes that
+were recieved.
+
+```json
+{
+  "addr.remote": "192.168.1.206:3389",
+  "cluster_name": "root",
+  "code": "TDP03I",
+  "desktop_addr": "192.168.1.206:3389",
+  "ei": 0,
+  "event": "desktop.clipboard.receive",
+  "length": 4, // number of bytes received
+  "proto": "tdp",
+  "sid": "4a0ed655-1e0b-412b-b14a-348e840e7fa2",
+  "time": "2022-02-16T16:43:40.010217Z",
+  "uid": "e45d9890-38a9-4580-8572-35fa0192b123",
+  "user": "alice"
+}
+```
