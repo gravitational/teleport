@@ -92,6 +92,11 @@ func NewPresetAccessRole() Role {
 				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
 				Rules: []Rule{
 					NewRule(KindEvent, RO()),
+					{
+						Resources: []string{types.KindSession},
+						Verbs:     []string{types.VerbRead, types.VerbList},
+						Where:     "contains(session.participants, user.metadata.name)",
+					},					
 				},
 			},
 		},
