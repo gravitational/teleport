@@ -21,7 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -141,6 +141,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		s.tlsServer.Close()
+	})
+
 	// Create user and role.
 	s.user, s.role, err = auth.CreateUserAndRole(s.tlsServer.Auth(), "foo", []string{"foo-login"})
 	require.NoError(t, err)
@@ -199,6 +203,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(types.RoleApp, s.hostUUID))
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		s.authClient.Close()
+	})
+
 	serverIdentity, err := auth.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, types.RoleApp)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
@@ -251,6 +259,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient, lockWatcher)
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		lockWatcher.Close()
+	})
+
 	apps := types.Apps{appFoo, appAWS}
 	if len(config.Apps) > 0 {
 		apps = config.Apps
@@ -279,6 +291,9 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 	err = s.appServer.ForceHeartbeat()
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		s.appServer.Close()
+	})
 
 	return s
 }
@@ -361,7 +376,7 @@ func TestHandleConnection(t *testing.T) {
 	s := SetUpSuite(t)
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
 		require.Equal(t, resp.StatusCode, http.StatusOK)
-		buf, err := ioutil.ReadAll(resp.Body)
+		buf, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, strings.TrimSpace(string(buf)), s.message)
 	})
@@ -389,7 +404,7 @@ func TestAuthorizeWithLocks(t *testing.T) {
 
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
 		require.Equal(t, resp.StatusCode, http.StatusForbidden)
-		buf, err := ioutil.ReadAll(resp.Body)
+		buf, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, strings.TrimSpace(string(buf)), "Forbidden")
 	})

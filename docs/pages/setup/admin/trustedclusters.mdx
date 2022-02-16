@@ -238,7 +238,7 @@ First, we need to create a special role for root users on "leaf":
 # Save this into root-user-role.yaml on the leaf cluster and execute:
 # tctl create root-user-role.yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: local-admin
 spec:
@@ -250,7 +250,7 @@ spec:
     # the cluster labels check is not applied. Otherwise, cluster labels are always enforced.
     # This makes the feature backward-compatible.
     cluster_labels:
-      'env': 'staging'
+      'env': '*'
   deny:
     # Cluster labels control what clusters user can connect to. The wildcard ('*') means
     # any cluster. By default none is set in deny rules to preserve backward compatibility

@@ -80,7 +80,7 @@ spec:
 version: v2
 ---
 kind: role
-version: v4
+version: v5
 metadata:
   name: access-plugin
 spec:
@@ -162,7 +162,7 @@ Create `dbadmin`, `reviewer` and `devops` roles:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: reviewer
 spec:
@@ -171,7 +171,7 @@ spec:
       roles: ['dbadmin']
 ---
 kind: role
-version: v4
+version: v5
 metadata:
   name: devops
 spec:
@@ -183,7 +183,7 @@ spec:
           deny: 1
 ---
 kind: role
-version: v4
+version: v5
 metadata:
   name: dbadmin
 spec:
