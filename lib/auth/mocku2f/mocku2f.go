@@ -37,20 +37,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/trace"
 	"github.com/tstranex/u2f"
 )
 
-// Reference https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data.
-const (
-	upBit = 0b1       // bit 0: user presence
-	uvBit = 0b100     // bit 2: user verification
-	atBit = 0b1000000 // bit 6: attested credential data included
-
-	// u2fRegistrationFlags is fixed by the U2F standard.
-	// https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-raw-message-formats-v1.2-ps-20170411.html#registration-response-message-success
-	u2fRegistrationFlags = 0x05
-)
+// u2fRegistrationFlags is fixed by the U2F standard.
+// https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-raw-message-formats-v1.2-ps-20170411.html#registration-response-message-success
+const u2fRegistrationFlags = 0x05
 
 type Key struct {
 	KeyHandle  []byte
@@ -210,7 +204,7 @@ func (muk *Key) signRegister(appIDHash, clientDataHash []byte) (*signRegisterRes
 	var flags = uint8(u2fRegistrationFlags)
 	if muk.SetUV {
 		// Mimic WebAuthn flags if SetUV is true.
-		flags = uint8(upBit | uvBit | atBit)
+		flags = uint8(protocol.FlagUserPresent | protocol.FlagUserVerified | protocol.FlagAttestedCredentialData)
 	}
 
 	var regData []byte
@@ -287,9 +281,9 @@ func (muk *Key) signAuthn(appIDHash, clientDataHash []byte) (*signAuthnResult, e
 	binary.BigEndian.PutUint32(counterBytes, muk.counter)
 	muk.counter++
 
-	flags := uint8(upBit)
+	flags := uint8(protocol.FlagUserPresent)
 	if muk.SetUV {
-		flags |= uvBit
+		flags |= uint8(protocol.FlagUserVerified)
 	}
 
 	var authData []byte
