@@ -28,6 +28,11 @@ type DestinationMemory struct {
 }
 
 func (dm *DestinationMemory) UnmarshalYAML(node *yaml.Node) error {
+	// Accept either a bool or a raw (in this case empty) struct
+	//   memory: {}
+	// or:
+	//   memory: true
+
 	var boolVal bool
 	if err := node.Decode(&boolVal); err == nil {
 		if !boolVal {
@@ -37,11 +42,7 @@ func (dm *DestinationMemory) UnmarshalYAML(node *yaml.Node) error {
 	}
 
 	type rawMemory DestinationMemory
-	if err := node.Decode((*rawMemory)(dm)); err != nil {
-		return err
-	}
-
-	return nil
+	return trace.Wrap(node.Decode((*rawMemory)(dm)))
 }
 
 func (dm *DestinationMemory) CheckAndSetDefaults() error {
