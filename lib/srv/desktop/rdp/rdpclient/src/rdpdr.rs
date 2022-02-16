@@ -36,9 +36,9 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>) -> Self {
+    pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>, pin: String) -> Self {
         Client {
-            scard: scard::Client::new(cert_der, key_der),
+            scard: scard::Client::new(cert_der, key_der, pin),
         }
     }
     pub fn read<S: Read + Write>(

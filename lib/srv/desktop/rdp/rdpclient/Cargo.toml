@@ -29,5 +29,7 @@ num-traits = "0.2.14"
 # RustCrypto doesn't expose the low-level primitives we need for the smartcard
 # challenge signing (see src/piv.rs for details).
 openssl = { version = "0.10.38", features = ["vendored"] }
+rand = { version = "0.8.4", features = ["getrandom"] }
+rand_chacha = "0.3.1"
 rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "cb61119d2803f647b60e6c9b2ef05ab587cc1966" }
 uuid = { version = "0.8.2", features = ["v4"] }

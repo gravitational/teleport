@@ -40,15 +40,17 @@ pub struct Client {
     uuid: Uuid,
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
+    pin: String,
 }
 
 impl Client {
-    pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>) -> Self {
+    pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>, pin: String) -> Self {
         Self {
             contexts: Contexts::new(),
             uuid: Uuid::new_v4(),
             cert_der,
             key_der,
+            pin,
         }
     }
 
@@ -177,7 +179,13 @@ impl Client {
             .contexts
             .get(req.common.context.value)
             .ok_or_else(|| invalid_data_error("unknown context ID"))?;
-        let handle = ctx.connect(req.common.context, self.uuid, &self.cert_der, &self.key_der)?;
+        let handle = ctx.connect(
+            req.common.context,
+            self.uuid,
+            &self.cert_der,
+            &self.key_der,
+            self.pin.clone(),
+        )?;
 
         let resp = Connect_Return::new(ReturnCode::SCARD_S_SUCCESS, handle);
         debug!("sending {:?}", resp);
@@ -1798,8 +1806,9 @@ impl ContextInternal {
         uuid: Uuid,
         cert_der: &[u8],
         key_der: &[u8],
+        pin: String,
     ) -> RdpResult<Handle> {
-        let card = piv::Card::new(uuid, cert_der, key_der)?;
+        let card = piv::Card::new(uuid, cert_der, key_der, pin)?;
         let id = self.next_id;
         self.next_id += 1;
         let handle = Handle::new(ctx, id);
