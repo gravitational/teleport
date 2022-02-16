@@ -28,6 +28,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -36,11 +37,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-)
-
-const (
-	// KubeSNIPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
-	KubeSNIPrefix = "kube"
 )
 
 // ProxyConfig  is the configuration for an ALPN proxy server.
@@ -440,7 +436,7 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 
 func isDBTLSProtocol(protocol common.Protocol) bool {
 	switch protocol {
-	case common.ProtocolMongoDB:
+	case common.ProtocolMongoDB, common.ProtocolRedisDB:
 		return true
 	default:
 		return false
@@ -487,7 +483,12 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 }
 
 func shouldRouteToKubeService(sni string) bool {
-	return strings.HasPrefix(sni, KubeSNIPrefix)
+	// DELETE IN 11.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
+	if strings.HasPrefix(sni, constants.KubeSNIPrefix) {
+		return true
+	}
+
+	return strings.HasPrefix(sni, constants.KubeTeleportProxyALPNPrefix)
 }
 
 // Close the Proxy server.

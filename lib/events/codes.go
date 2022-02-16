@@ -345,6 +345,9 @@ const (
 	// AppSessionRequestCode is the application request/response code.
 	AppSessionRequestCode = "T2009I"
 
+	// SessionConnectCode is the session connect event code.
+	SessionConnectCode = "T2010I"
+
 	// DatabaseSessionStartCode is the database session start event code.
 	DatabaseSessionStartCode = "TDB00I"
 	// DatabaseSessionStartFailureCode is the database session start failure event code.
@@ -355,6 +358,32 @@ const (
 	DatabaseSessionQueryCode = "TDB02I"
 	// DatabaseSessionQueryFailedCode is the database query failure event code.
 	DatabaseSessionQueryFailedCode = "TDB02W"
+
+	// PostgresParseCode is the db.session.postgres.statements.parse event code.
+	PostgresParseCode = "TPG00I"
+	// PostgresBindCode is the db.session.postgres.statements.bind event code.
+	PostgresBindCode = "TPG01I"
+	// PostgresExecuteCode is the db.session.postgres.statements.execute event code.
+	PostgresExecuteCode = "TPG02I"
+	// PostgresCloseCode is the db.session.postgres.statements.close event code.
+	PostgresCloseCode = "TPG03I"
+	// PostgresFunctionCallCode is the db.session.postgres.function event code.
+	PostgresFunctionCallCode = "TPG04I"
+
+	// MySQLStatementPrepareCode is the db.session.mysql.statements.prepare event code.
+	MySQLStatementPrepareCode = "TMY00I"
+	// MySQLStatementExecuteCode is the db.session.mysql.statements.execute event code.
+	MySQLStatementExecuteCode = "TMY01I"
+	// MySQLStatementSendLongDataCode is the db.session.mysql.statements.send_long_data event code.
+	MySQLStatementSendLongDataCode = "TMY02I"
+	// MySQLStatementCloseCode is the db.session.mysql.statements.close event code.
+	MySQLStatementCloseCode = "TMY03I"
+	// MySQLStatementResetCode is the db.session.mysql.statements.reset event code.
+	MySQLStatementResetCode = "TMY04I"
+	// MySQLStatementFetchCode is the db.session.mysql.statements.fetch event code.
+	MySQLStatementFetchCode = "TMY05I"
+	// MySQLStatementBulkExecuteCode is the db.session.mysql.statements.bulk_execute event code.
+	MySQLStatementBulkExecuteCode = "TMY06I"
 
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
@@ -370,6 +399,10 @@ const (
 	DesktopSessionStartFailureCode = "TDP00W"
 	// DesktopSessionEndCode is the desktop session end event code.
 	DesktopSessionEndCode = "TDP01I"
+	// DesktopClipboardSendCode is the desktop clipboard send code.
+	DesktopClipboardSendCode = "TDP02I"
+	// DesktopClipboardReceiveCode is the desktop clipboard receive code.
+	DesktopClipboardReceiveCode = "TDP03I"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
@@ -418,6 +451,8 @@ const (
 	AccessRequestUpdateCode = "T5001I"
 	// AccessRequestReviewCode is the access review application code.
 	AccessRequestReviewCode = "T5002I"
+	// AccessRequestDeleteCode is the access request deleted code.
+	AccessRequestDeleteCode = "T5003I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
@@ -458,4 +493,7 @@ const (
 	LockCreatedCode = "TLK00I"
 	// LockDeletedCode is the lock deleted event code.
 	LockDeletedCode = "TLK01I"
+
+	// CertificateCreateCode is the certificate issuance event code.
+	CertificateCreateCode = "TC000I"
 )

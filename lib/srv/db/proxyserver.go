@@ -34,9 +34,12 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -73,6 +76,8 @@ type ProxyServerConfig struct {
 	Tunnel reversetunnel.Server
 	// TLSConfig is the proxy server TLS configuration.
 	TLSConfig *tls.Config
+	// Limiter is the connection/rate limiter.
+	Limiter *limiter.Limiter
 	// Emitter is used to emit audit events.
 	Emitter events.Emitter
 	// Clock to override clock in tests.
@@ -119,6 +124,15 @@ func (c *ProxyServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.LockWatcher == nil {
 		return trace.BadParameter("missing LockWatcher")
+	}
+	if c.Limiter == nil {
+		// Empty config means no connection limit.
+		connLimiter, err := limiter.NewLimiter(limiter.Config{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		c.Limiter = connLimiter
 	}
 	return nil
 }
@@ -195,8 +209,14 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 
 // ServeMongo starts accepting Mongo client connections.
 func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) error {
-	s.log.Debug("Started Mongo proxy.")
-	defer s.log.Debug("Mongo proxy exited.")
+	return s.serveGenericTLS(listener, tlsConfig, defaults.ProtocolMongoDB)
+}
+
+// serveGenericTLS starts accepting a plain TLS database client connection.
+// dbName is used only for logging purposes.
+func (s *ProxyServer) serveGenericTLS(listener net.Listener, tlsConfig *tls.Config, dbName string) error {
+	s.log.Debugf("Started %s proxy.", dbName)
+	defer s.log.Debugf("%s proxy exited.", dbName)
 	for {
 		clientConn, err := listener.Accept()
 		if err != nil {
@@ -205,16 +225,17 @@ func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) e
 			}
 			return trace.Wrap(err)
 		}
+
 		go func() {
 			defer clientConn.Close()
 			tlsConn := tls.Server(clientConn, tlsConfig)
 			if err := tlsConn.Handshake(); err != nil {
-				s.log.WithError(err).Error("Mongo TLS handshake failed.")
+				s.log.WithError(err).Errorf("%s TLS handshake failed.", dbName)
 				return
 			}
 			err := s.handleConnection(tlsConn)
 			if err != nil {
-				s.log.WithError(err).Error("Failed to handle Mongo client connection.")
+				s.log.WithError(err).Errorf("Failed to handle %s client connection.", dbName)
 			}
 		}()
 	}
@@ -252,7 +273,22 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serviceConn, authContext, err := s.Connect(ctx, "", "")
+
+	clientIP, err := utils.ClientIPFromConn(conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Apply connection and rate limiting.
+	release, err := s.cfg.Limiter.RegisterRequestAndConnection(clientIP)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer release()
+
+	serviceConn, authContext, err := s.Connect(ctx, common.ConnectParams{
+		ClientIP: clientIP,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -270,6 +306,7 @@ func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 		TLSConfig:  s.cfg.TLSConfig,
 		Middleware: s.middleware,
 		Service:    s,
+		Limiter:    s.cfg.Limiter,
 		Log:        s.log,
 	}
 }
@@ -280,6 +317,7 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 		TLSConfig:  s.cfg.TLSConfig,
 		Middleware: s.middleware,
 		Service:    s,
+		Limiter:    s.cfg.Limiter,
 		Log:        s.log,
 	}
 }
@@ -292,8 +330,8 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 // decoded from the client certificate by auth.Middleware.
 //
 // Implements common.Service.
-func (s *ProxyServer) Connect(ctx context.Context, user, database string) (net.Conn, *auth.Context, error) {
-	proxyContext, err := s.authorize(ctx, user, database)
+func (s *ProxyServer) Connect(ctx context.Context, params common.ConnectParams) (net.Conn, *auth.Context, error) {
+	proxyContext, err := s.authorize(ctx, params)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -465,17 +503,20 @@ type proxyContext struct {
 	authContext *auth.Context
 }
 
-func (s *ProxyServer) authorize(ctx context.Context, user, database string) (*proxyContext, error) {
+func (s *ProxyServer) authorize(ctx context.Context, params common.ConnectParams) (*proxyContext, error) {
 	authContext, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
-	if user != "" {
-		identity.RouteToDatabase.Username = user
+	if params.User != "" {
+		identity.RouteToDatabase.Username = params.User
 	}
-	if database != "" {
-		identity.RouteToDatabase.Database = database
+	if params.Database != "" {
+		identity.RouteToDatabase.Database = params.Database
+	}
+	if params.ClientIP != "" {
+		identity.ClientIP = params.ClientIP
 	}
 	cluster, servers, err := s.getDatabaseServers(ctx, identity)
 	if err != nil {

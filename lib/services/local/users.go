@@ -25,6 +25,7 @@ import (
 
 	"github.com/gokyle/hotp"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -32,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -468,7 +468,7 @@ func (s *IdentityService) AddUserLoginAttempt(user string, attempt services.Logi
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, attemptsPrefix, uuid.New()),
+		Key:     backend.Key(webPrefix, usersPrefix, user, attemptsPrefix, uuid.New().String()),
 		Value:   value,
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
@@ -657,6 +657,61 @@ func (s *IdentityService) DeleteWebauthnSessionData(ctx context.Context, user, s
 
 func sessionDataKey(user, sessionID string) []byte {
 	return backend.Key(webPrefix, usersPrefix, user, webauthnSessionData, sessionID)
+}
+
+func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error {
+	switch {
+	case scope == "":
+		return trace.BadParameter("missing parameter scope")
+	case id == "":
+		return trace.BadParameter("missing parameter id")
+	case sd == nil:
+		return trace.BadParameter("missing parameter sd")
+	}
+
+	// TODO(codingllama): Limit number of in-flight challenges.
+
+	value, err := json.Marshal(sd)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.Put(ctx, backend.Item{
+		Key:     globalSessionDataKey(scope, id),
+		Value:   value,
+		Expires: s.Clock().Now().UTC().Add(defaults.WebauthnGlobalChallengeTimeout),
+	})
+	return trace.Wrap(err)
+}
+
+func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error) {
+	switch {
+	case scope == "":
+		return nil, trace.BadParameter("missing parameter scope")
+	case id == "":
+		return nil, trace.BadParameter("missing parameter id")
+	}
+
+	item, err := s.Get(ctx, globalSessionDataKey(scope, id))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sd := &wantypes.SessionData{}
+	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
+}
+
+func (s *IdentityService) DeleteGlobalWebauthnSessionData(ctx context.Context, scope, id string) error {
+	switch {
+	case scope == "":
+		return trace.BadParameter("missing parameter scope")
+	case id == "":
+		return trace.BadParameter("missing parameter id")
+	}
+
+	return trace.Wrap(s.Delete(ctx, globalSessionDataKey(scope, id)))
+}
+
+func globalSessionDataKey(scope, id string) []byte {
+	return backend.Key(webauthnPrefix, webauthnGlobalSessionData, scope, id)
 }
 
 func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
@@ -1257,7 +1312,7 @@ func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user st
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix, uuid.New()),
+		Key:     backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix, uuid.New().String()),
 		Value:   value,
 		Expires: attempt.Expires,
 	}
@@ -1319,24 +1374,26 @@ func (s recoveryAttemptsChronologically) Swap(i, j int) {
 }
 
 const (
-	webPrefix               = "web"
-	usersPrefix             = "users"
-	sessionsPrefix          = "sessions"
-	attemptsPrefix          = "attempts"
-	pwdPrefix               = "pwd"
-	hotpPrefix              = "hotp"
-	connectorsPrefix        = "connectors"
-	oidcPrefix              = "oidc"
-	samlPrefix              = "saml"
-	githubPrefix            = "github"
-	requestsPrefix          = "requests"
-	u2fRegChalPrefix        = "adduseru2fchallenges"
-	usedTOTPPrefix          = "used_totp"
-	usedTOTPTTL             = 30 * time.Second
-	mfaDevicePrefix         = "mfa"
-	u2fSignChallengePrefix  = "u2fsignchallenge"
-	webauthnLocalAuthPrefix = "webauthnlocalauth"
-	webauthnSessionData     = "webauthnsessiondata"
-	recoveryCodesPrefix     = "recoverycodes"
-	recoveryAttemptsPrefix  = "recoveryattempts"
+	webPrefix                 = "web"
+	usersPrefix               = "users"
+	sessionsPrefix            = "sessions"
+	attemptsPrefix            = "attempts"
+	pwdPrefix                 = "pwd"
+	hotpPrefix                = "hotp"
+	connectorsPrefix          = "connectors"
+	oidcPrefix                = "oidc"
+	samlPrefix                = "saml"
+	githubPrefix              = "github"
+	requestsPrefix            = "requests"
+	u2fRegChalPrefix          = "adduseru2fchallenges"
+	usedTOTPPrefix            = "used_totp"
+	usedTOTPTTL               = 30 * time.Second
+	mfaDevicePrefix           = "mfa"
+	u2fSignChallengePrefix    = "u2fsignchallenge"
+	webauthnPrefix            = "webauthn"
+	webauthnGlobalSessionData = "sessionData"
+	webauthnLocalAuthPrefix   = "webauthnlocalauth"
+	webauthnSessionData       = "webauthnsessiondata"
+	recoveryCodesPrefix       = "recoverycodes"
+	recoveryAttemptsPrefix    = "recoveryattempts"
 )

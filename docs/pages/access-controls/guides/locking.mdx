@@ -32,6 +32,7 @@ A lock can target the following objects or attributes:
 - a Teleport node by the node's UUID (effectively unregistering it from the
   cluster)
 - a Windows desktop by the desktop's name
+- an [access request](../../enterprise/workflow/index.mdx) by UUID
 
 ## Prerequisites
 
@@ -80,6 +81,13 @@ with one of the following options:
   # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
   ```
   </TabItem>
+  <TabItem label="Access request">
+  All connections using elevated privileges from the matching access request will be locked.
+  ```code
+  $ tctl lock --access-request=261e80c5-357b-4c43-9b67-40a6bc4c6e4d --ttl=24h
+  # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
 </Tabs>
 
 <Details
@@ -98,7 +106,7 @@ Create a role `locksmith`:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: locksmith
 spec:
@@ -224,7 +232,7 @@ It is also possible to configure the locking mode for a particular role:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
     name: example-role-with-strict-locking
 spec:

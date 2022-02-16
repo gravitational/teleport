@@ -443,6 +443,9 @@ const (
 	// CertExtensionImpersonator is set when one user has requested certificates
 	// for another user
 	CertExtensionImpersonator = "impersonator"
+	// CertExtensionDisallowReissue is set when a certificate should not be allowed
+	// to request future certificates.
+	CertExtensionDisallowReissue = "disallow-reissue"
 )
 
 const (
@@ -522,6 +525,10 @@ const (
 	// allowed database users.
 	TraitDBUsers = "db_users"
 
+	// TraitTeams is the name of the role variable use to store team
+	// membership information
+	TraitTeams = "github_teams"
+
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
 	TraitInternalLoginsVariable = "{{internal.logins}}"
@@ -545,17 +552,6 @@ const (
 	// TraitInternalDBUsersVariable is the variable used to store allowed
 	// database users for local accounts.
 	TraitInternalDBUsersVariable = "{{internal.db_users}}"
-)
-
-const (
-	// GSuiteIssuerURL is issuer URL used for GSuite provider
-	GSuiteIssuerURL = "https://accounts.google.com"
-	// GSuiteGroupsEndpoint is gsuite API endpoint
-	GSuiteGroupsEndpoint = "https://www.googleapis.com/admin/directory/v1/groups"
-	// GSuiteGroupsScope is a scope to get access to admin groups API
-	GSuiteGroupsScope = "https://www.googleapis.com/auth/admin.directory.group.readonly"
-	// GSuiteDomainClaim is the domain name claim for GSuite
-	GSuiteDomainClaim = "hd"
 )
 
 // SCP is Secure Copy.
@@ -620,6 +616,21 @@ const (
 	// VersionRequest is sent by clients to server requesting the Teleport
 	// version they are running.
 	VersionRequest = "x-teleport-version"
+
+	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
+	ForceTerminateRequest = "x-teleport-force-terminate"
+
+	// MFAPresenceRequest is an SSH request to notify clients that MFA presence is required for a session.
+	MFAPresenceRequest = "x-teleport-mfa-presence"
+
+	// EnvSSHJoinMode is the SSH environment variable that contains the requested participant mode.
+	EnvSSHJoinMode = "TELEPORT_SSH_JOIN_MODE"
+
+	// EnvSSHSessionReason is a reason attached to started sessions meant to describe their intent.
+	EnvSSHSessionReason = "TELEPORT_SESSION_REASON"
+
+	// EnvSSHSessionInvited is an environment variable listning people invited to a session.
+	EnvSSHSessionInvited = "TELEPORT_SESSION_JOIN_MODE"
 )
 
 const (

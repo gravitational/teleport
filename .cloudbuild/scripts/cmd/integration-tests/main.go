@@ -18,19 +18,19 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"syscall"
+	"time"
 
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -47,44 +47,6 @@ func main() {
 	}
 }
 
-type commandlineArgs struct {
-	workspace    string
-	targetBranch string
-	commitSHA    string
-	skipChown    bool
-}
-
-func parseCommandLine() (commandlineArgs, error) {
-	args := commandlineArgs{}
-
-	flag.StringVar(&args.workspace, "w", "", "Fully-qualified path to the build workspace")
-	flag.StringVar(&args.targetBranch, "t", "", "The PR's target branch")
-	flag.StringVar(&args.commitSHA, "c", "", "The PR's latest commit SHA")
-	flag.BoolVar(&args.skipChown, "skip-chown", false, "Skip reconfiguring the workspace for a nonroot user.")
-
-	flag.Parse()
-
-	if args.workspace == "" {
-		return args, trace.Errorf("workspace path must be set")
-	}
-
-	var err error
-	args.workspace, err = filepath.Abs(args.workspace)
-	if err != nil {
-		return args, trace.Wrap(err, "Unable to resole absolute path to workspace")
-	}
-
-	if args.targetBranch == "" {
-		return args, trace.Errorf("target branch must be set")
-	}
-
-	if args.commitSHA == "" {
-		return args, trace.Errorf("commit must be set")
-	}
-
-	return args, nil
-}
-
 // innerMain parses the command line, performs the highlevel docs change check
 // and creates the marker file if necessary
 func innerMain() error {
@@ -93,7 +55,8 @@ func innerMain() error {
 		return trace.Wrap(err)
 	}
 
-	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(args.workspace, gomodcacheDir))
+	moduleCacheDir := filepath.Join(os.TempDir(), gomodcacheDir)
+	gomodcache := fmt.Sprintf("GOMODCACHE=%s", moduleCacheDir)
 
 	log.Println("Analysing code changes")
 	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
@@ -103,30 +66,54 @@ func innerMain() error {
 
 	hasOnlyDocChanges := ch.Docs && (!ch.Code)
 	if hasOnlyDocChanges {
-		log.Println("No non-docs changes detected. Skipping tests.")
+		log.Println("No code changes detected. Skipping tests.")
 		return nil
 	}
+
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// From this point on, whatever happens we want to upload any artifacts
+	// produced by the build
+	defer func() {
+		prefix := fmt.Sprintf("%s/artifacts", args.buildID)
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		artifacts.FindAndUpload(timeoutCtx, args.bucket, prefix, args.artifactSearchPatterns)
+	}()
 
 	log.Printf("Running root-only integration tests...")
 	err = runRootIntegrationTests(args.workspace, gomodcache)
 	if err != nil {
 		return trace.Wrap(err, "Root-only integration tests failed")
 	}
+	log.Println("Root-only integration tests passed.")
 
 	if !args.skipChown {
 		// We run some build steps as root and others as a non user, and we
 		// want the nonroot user to be able to manipulate the artifacts
-		// created by root, so we `chown -R` the whole workspace to allow it.
+		// created by root, so we `chown -R` the whole workspace & module
+		// cache to allow it.
+
 		log.Printf("Reconfiguring workspace for nonroot user")
 		err = chownR(args.workspace, nonrootUID, nonrootGID)
 		if err != nil {
 			return trace.Wrap(err, "failed reconfiguring workspace")
 		}
+
+		log.Printf("Reconfiguring module cache for nonroot user")
+		err = chownR(moduleCacheDir, nonrootUID, nonrootGID)
+		if err != nil {
+			return trace.Wrap(err, "failed reconfiguring module cache")
+		}
 	}
 
+	// Note that we run `etcd` as nonroot here. The files created by etcd live
+	// inside the directory searched by `go list ./...` when generating the list
+	// of packages to test, and so making them owned by root produces a heap of
+	// diagnostic warnings that would pollute the build log and just confuse
+	// people when they are trying to work out why their build failed.
 	log.Printf("Starting etcd...")
-	cancelCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID, gomodcache)
 	if err != nil {
 		return trace.Wrap(err, "failed starting etcd")
@@ -138,7 +125,7 @@ func innerMain() error {
 		return trace.Wrap(err, "Nonroot integration tests failed")
 	}
 
-	log.Printf("PASS")
+	log.Printf("Non-root integration tests passed.")
 
 	return nil
 }

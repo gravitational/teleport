@@ -66,6 +66,9 @@ const (
 	// MongoListenPort is the default listen port for Mongo proxy.
 	MongoListenPort = 27017
 
+	// RedisListenPort is the default listen port for Redis proxy.
+	RedisListenPort = 6379
+
 	// MetricsListenPort is the default listen port for the metrics service.
 	MetricsListenPort = 3081
 
@@ -306,6 +309,10 @@ const (
 	// LockMaxStaleness is the maximum staleness for cached lock resources
 	// to be deemed acceptable for strict locking mode.
 	LockMaxStaleness = 5 * time.Minute
+
+	// DefaultRedisUsername is a default username used by Redis when
+	// no name is provided at connection time.
+	DefaultRedisUsername = "default"
 )
 
 var (
@@ -432,6 +439,9 @@ var (
 	// MaxWatcherBackoff is the maximum retry time a watcher should use in
 	// the event of connection issues
 	MaxWatcherBackoff = time.Minute
+
+	// PrometheusScrapeInterval is the default time interval for prometheus scrapes. Used for metric update periods.
+	PrometheusScrapeInterval = 15 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
@@ -493,13 +503,15 @@ const (
 const (
 	// ProtocolPostgres is the PostgreSQL database protocol.
 	ProtocolPostgres = "postgres"
-	// ProtocolMySQL is the MySQL database protocol.
+	// ProtocolMySQL is the MySQL/MariaDB database protocol.
 	ProtocolMySQL = "mysql"
 	// ProtocolMongoDB is the MongoDB database protocol.
 	ProtocolMongoDB = "mongodb"
+	// ProtocolRedis is the Redis database protocol.
+	ProtocolRedis = "redis"
 	// ProtocolCockroachDB is the CockroachDB database protocol.
 	//
-	// Technically it's the same as the Postgres protocol but it's used to
+	// Technically it's the same as the Postgres protocol, but it's used to
 	// differentiate between Cockroach and Postgres databases e.g. when
 	// selecting a CLI client to use.
 	ProtocolCockroachDB = "cockroachdb"
@@ -511,6 +523,7 @@ var DatabaseProtocols = []string{
 	ProtocolMySQL,
 	ProtocolMongoDB,
 	ProtocolCockroachDB,
+	ProtocolRedis,
 }
 
 const (
@@ -575,6 +588,11 @@ const (
 	// WebauthnChallengeTimeout is the timeout for ongoing Webauthn authentication
 	// or registration challenges.
 	WebauthnChallengeTimeout = 5 * time.Minute
+	// WebauthnGlobalChallengeTimeout is the timeout for global authentication
+	// challenges.
+	// Stricter than WebauthnChallengeTimeout because global challenges are
+	// anonymous.
+	WebauthnGlobalChallengeTimeout = 1 * time.Minute
 )
 
 const (

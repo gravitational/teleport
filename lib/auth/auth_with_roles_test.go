@@ -18,22 +18,26 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,6 +68,301 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 		Expires:   time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
+}
+
+func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	accessFooRole, err := CreateRole(ctx, srv.Auth(), "test-access-foo", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{"foo"},
+		},
+	})
+	require.NoError(t, err)
+
+	accessBarRole, err := CreateRole(ctx, srv.Auth(), "test-access-bar", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{"bar"},
+		},
+	})
+	require.NoError(t, err)
+
+	impersonatorRole, err := CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Impersonate: &types.ImpersonateConditions{
+				Roles: []string{accessFooRole.GetName(), accessBarRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	denyBarRole, err := CreateRole(ctx, srv.Auth(), "test-deny", types.RoleSpecV5{
+		Deny: types.RoleConditions{
+			Impersonate: &types.ImpersonateConditions{
+				Roles: []string{accessBarRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	dummyUserRole, err := types.NewRole("dummy-user-role", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	dummyUser, err := CreateUser(srv.Auth(), "dummy-user", dummyUserRole)
+	require.NoError(t, err)
+
+	dummyUserImpersonatorRole, err := CreateRole(ctx, srv.Auth(), "dummy-user-impersonator", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Impersonate: &types.ImpersonateConditions{
+				Users: []string{dummyUser.GetName()},
+				Roles: []string{dummyUserRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc             string
+		username         string
+		roles            []string
+		roleRequests     []string
+		expectPrincipals []string
+		expectRoles      []string
+		expectError      func(error) bool
+	}{
+		{
+			desc:             "requesting all allowed roles",
+			username:         "alice",
+			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName()},
+			roleRequests:     []string{accessFooRole.GetName(), accessBarRole.GetName()},
+			expectPrincipals: []string{"foo", "bar"},
+		},
+		{
+			desc:             "requesting a subset of allowed roles",
+			username:         "bob",
+			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName()},
+			roleRequests:     []string{accessFooRole.GetName()},
+			expectPrincipals: []string{"foo"},
+		},
+		{
+			// users not using role requests should keep their own roles
+			desc:         "requesting no roles",
+			username:     "charlie",
+			roles:        []string{emptyRole.GetName()},
+			roleRequests: []string{},
+			expectRoles:  []string{emptyRole.GetName()},
+		},
+		{
+			desc:         "requesting a disallowed role",
+			username:     "dave",
+			roles:        []string{emptyRole.GetName()},
+			roleRequests: []string{accessFooRole.GetName()},
+			expectError: func(err error) bool {
+				return err != nil && trace.IsAccessDenied(err)
+			},
+		},
+		{
+			desc:         "requesting a nonexistent role",
+			username:     "erin",
+			roles:        []string{emptyRole.GetName()},
+			roleRequests: []string{"doesnotexist"},
+			expectError: func(err error) bool {
+				return err != nil && trace.IsNotFound(err)
+			},
+		},
+		{
+			desc:             "requesting an allowed role with a separate deny role",
+			username:         "frank",
+			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName(), denyBarRole.GetName()},
+			roleRequests:     []string{accessFooRole.GetName()},
+			expectPrincipals: []string{"foo"},
+		},
+		{
+			desc:         "requesting a denied role",
+			username:     "geoff",
+			roles:        []string{emptyRole.GetName(), impersonatorRole.GetName(), denyBarRole.GetName()},
+			roleRequests: []string{accessBarRole.GetName()},
+			expectError: func(err error) bool {
+				return err != nil && trace.IsAccessDenied(err)
+			},
+		},
+		{
+			desc:         "misusing a role intended for user impersonation",
+			username:     "helen",
+			roles:        []string{emptyRole.GetName(), dummyUserImpersonatorRole.GetName()},
+			roleRequests: []string{dummyUserRole.GetName()},
+			expectError: func(err error) bool {
+				return err != nil && trace.IsAccessDenied(err)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			user, err := CreateUser(srv.Auth(), tt.username)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, srv.Auth().DeleteUser(ctx, tt.username), "failed cleaning up testing user: %s", tt.username)
+			})
+			for _, role := range tt.roles {
+				user.AddRole(role)
+			}
+			err = srv.Auth().UpsertUser(user)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			_, pub, err := srv.Auth().GenerateKeyPair("")
+			require.NoError(t, err)
+
+			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+				PublicKey:    pub,
+				Username:     user.GetName(),
+				Expires:      time.Now().Add(time.Hour),
+				RoleRequests: tt.roleRequests,
+			})
+			if tt.expectError != nil {
+				require.True(t, tt.expectError(err), "error: %+v: %s", err, trace.DebugReport(err))
+				return
+			}
+			require.NoError(t, err)
+
+			// Parse the Identity
+			impersonatedTLSCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+			require.NoError(t, err)
+			impersonatedIdent, err := tlsca.FromSubject(impersonatedTLSCert.Subject, impersonatedTLSCert.NotAfter)
+			require.NoError(t, err)
+
+			userCert, err := sshutils.ParseCertificate(certs.SSH)
+			require.NoError(t, err)
+
+			roles, ok := userCert.Extensions[teleport.CertExtensionTeleportRoles]
+			require.True(t, ok)
+
+			parsedRoles, err := services.UnmarshalCertRoles(roles)
+			require.NoError(t, err)
+
+			if len(tt.expectPrincipals) > 0 {
+				require.ElementsMatch(t, tt.expectPrincipals, userCert.ValidPrincipals, "principals must match")
+			}
+
+			if tt.expectRoles != nil {
+				require.ElementsMatch(t, tt.expectRoles, parsedRoles, "granted roles must match expected values")
+			} else {
+				require.ElementsMatch(t, tt.roleRequests, parsedRoles, "granted roles must match requests")
+			}
+
+			_, disallowReissue := userCert.Extensions[teleport.CertExtensionDisallowReissue]
+			if len(tt.roleRequests) > 0 {
+				impersonator, ok := userCert.Extensions[teleport.CertExtensionImpersonator]
+				require.True(t, ok, "impersonator must be set if any role requests exist")
+				require.Equal(t, tt.username, impersonator, "certificate must show self-impersonation")
+
+				require.True(t, disallowReissue)
+				require.True(t, impersonatedIdent.DisallowReissue)
+			} else {
+				require.False(t, disallowReissue)
+				require.False(t, impersonatedIdent.DisallowReissue)
+			}
+		})
+	}
+}
+
+// TestRoleRequestDenyReimpersonation make sure role requests can't be used to
+// re-escalate privileges using a (perhaps compromised) set of role
+// impersonated certs.
+func TestRoleRequestDenyReimpersonation(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	accessFooRole, err := CreateRole(ctx, srv.Auth(), "test-access-foo", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{"foo"},
+		},
+	})
+	require.NoError(t, err)
+
+	accessBarRole, err := CreateRole(ctx, srv.Auth(), "test-access-bar", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{"bar"},
+		},
+	})
+	require.NoError(t, err)
+
+	impersonatorRole, err := CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Impersonate: &types.ImpersonateConditions{
+				Roles: []string{accessFooRole.GetName(), accessBarRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a testing user.
+	user, err := CreateUser(srv.Auth(), "alice")
+	require.NoError(t, err)
+	user.AddRole(impersonatorRole.GetName())
+	err = srv.Auth().UpsertUser(user)
+	require.NoError(t, err)
+
+	// Generate cert with a role request.
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+	priv, pub, err := srv.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	// Request certs for only the `foo` role.
+	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey:    pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RoleRequests: []string{accessFooRole.GetName()},
+	})
+	require.NoError(t, err)
+
+	// Make an impersonated client.
+	impersonatedTLSCert, err := tls.X509KeyPair(certs.TLS, priv)
+	require.NoError(t, err)
+	impersonatedClient := srv.NewClientWithCert(impersonatedTLSCert)
+
+	// Attempt a request.
+	_, err = impersonatedClient.GetClusterName()
+	require.NoError(t, err)
+
+	// Attempt to generate new certs for a different (allowed) role.
+	_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey:    pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RoleRequests: []string{accessBarRole.GetName()},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Attempt to generate new certs for the same role.
+	_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey:    pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RoleRequests: []string{accessFooRole.GetName()},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Attempt to generate new certs with no role requests
+	// (If allowed, this might issue certs for the original user without role
+	// requests.)
+	_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey: pub,
+		Username:  user.GetName(),
+		Expires:   time.Now().Add(time.Hour),
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
 }
 
 // TestGenerateDatabaseCert makes sure users and services with appropriate
@@ -293,7 +592,7 @@ func TestListNodes(t *testing.T) {
 
 	// Create test nodes.
 	for i := 0; i < 10; i++ {
-		name := uuid.New()
+		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
 			types.KindNode,
@@ -344,6 +643,107 @@ func TestListNodes(t *testing.T) {
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
 	require.Empty(t, cmp.Diff(expectedNodes, nodes))
+}
+
+// TestGetAndList_Nodes users can retrieve nodes with various filters
+// and with the appropriate permissions.
+func TestGetAndList_Nodes(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test nodes.
+	for i := 0; i < 10; i++ {
+		name := uuid.New().String()
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// permit user to list all nodes
+	role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// Convert nodes retrieved earlier as types.ResourcesWithLabels
+	testResources := make([]types.ResourceWithLabels, len(testNodes))
+	for i, node := range testNodes {
+		testResources[i] = node
+	}
+
+	// listing nodes 0-4 should list first 5 nodes
+	nodes, _, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    defaults.Namespace,
+		Limit:        5,
+	})
+	require.NoError(t, err)
+	require.Len(t, nodes, 5)
+	expectedNodes := testResources[:5]
+	require.Empty(t, cmp.Diff(expectedNodes, nodes))
+
+	// remove permission for third node
+	role.SetNodeLabels(types.Deny, types.Labels{"name": {testResources[3].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// listing nodes 0-4 should skip the third node and add the fifth to the end.
+	nodes, _, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    defaults.Namespace,
+		Limit:        5,
+	})
+	require.NoError(t, err)
+	require.Len(t, nodes, 5)
+	expectedNodes = append(testResources[:3], testResources[4:6]...)
+	require.Empty(t, cmp.Diff(expectedNodes, nodes))
+
+	// Test various filtering.
+	baseRequest := proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    defaults.Namespace,
+		Limit:        int32(len(testResources) + 1),
+	}
+
+	// Test label match.
+	withLabels := baseRequest
+	withLabels.Labels = map[string]string{"name": testResources[0].GetName()}
+	nodes, _, err = clt.ListResources(ctx, withLabels)
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], nodes))
+
+	// Test search keywords match.
+	withSearchKeywords := baseRequest
+	withSearchKeywords.SearchKeywords = []string{"name", testResources[0].GetName()}
+	nodes, _, err = clt.ListResources(ctx, withSearchKeywords)
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], nodes))
+
+	// Test expression match.
+	withExpression := baseRequest
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testResources[0].GetName())
+	nodes, _, err = clt.ListResources(ctx, withExpression)
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], nodes))
 }
 
 // TestAPILockedOut tests Auth API when there are locks involved.
@@ -545,14 +945,14 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 	require.Len(t, dbs, 0)
 }
 
-func TestGetDatabaseServers(t *testing.T) {
+func TestGetAndList_DatabaseServers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
 	// Create test databases.
 	for i := 0; i < 5; i++ {
-		name := uuid.New()
+		name := uuid.New().String()
 		db, err := types.NewDatabaseServerV3(types.Metadata{
 			Name:   name,
 			Labels: map[string]string{"name": name},
@@ -571,7 +971,7 @@ func TestGetDatabaseServers(t *testing.T) {
 	testServers, err := srv.Auth().GetDatabaseServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
 
-	testResources := make([]types.Resource, len(testServers))
+	testResources := make([]types.ResourceWithLabels, len(testServers))
 	for i, server := range testServers {
 		testResources[i] = server
 	}
@@ -615,6 +1015,37 @@ func TestGetDatabaseServers(t *testing.T) {
 	require.Len(t, resources, len(testResources))
 	require.Empty(t, cmp.Diff(testResources, resources))
 
+	// Test various filtering.
+	baseRequest := proto.ListResourcesRequest{
+		Namespace:    defaults.Namespace,
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindDatabaseServer,
+	}
+
+	// list only database with label
+	withLabels := baseRequest
+	withLabels.Labels = map[string]string{"name": testServers[0].GetName()}
+	resources, _, err = clt.ListResources(ctx, withLabels)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// Test search keywords match.
+	withSearchKeywords := baseRequest
+	withSearchKeywords.SearchKeywords = []string{"name", testServers[0].GetName()}
+	resources, _, err = clt.ListResources(ctx, withSearchKeywords)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// Test expression match.
+	withExpression := baseRequest
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testServers[0].GetName())
+	resources, _, err = clt.ListResources(ctx, withExpression)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
 	// deny user to get the first database
 	role.SetDatabaseLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
@@ -637,11 +1068,11 @@ func TestGetDatabaseServers(t *testing.T) {
 	resources, _, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
 	require.Len(t, resources, 0)
-	require.Empty(t, cmp.Diff([]types.Resource{}, resources))
+	require.Empty(t, cmp.Diff([]types.ResourceWithLabels{}, resources))
 }
 
-// TestGetApplicationServers verifies RBAC is applied when fetching app servers.
-func TestGetApplicationServers(t *testing.T) {
+// TestGetAndList_ApplicationServers verifies RBAC and filtering is applied when fetching app servers.
+func TestGetAndList_ApplicationServers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -665,7 +1096,7 @@ func TestGetApplicationServers(t *testing.T) {
 	testServers, err := srv.Auth().GetApplicationServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
 
-	testResources := make([]types.Resource, len(testServers))
+	testResources := make([]types.ResourceWithLabels, len(testServers))
 	for i, server := range testServers {
 		testResources[i] = server
 	}
@@ -709,6 +1140,37 @@ func TestGetApplicationServers(t *testing.T) {
 	require.Len(t, resources, len(testResources))
 	require.Empty(t, cmp.Diff(testResources, resources))
 
+	// Test various filtering.
+	baseRequest := proto.ListResourcesRequest{
+		Namespace:    defaults.Namespace,
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindAppServer,
+	}
+
+	// list only application with label
+	withLabels := baseRequest
+	withLabels.Labels = map[string]string{"name": testServers[0].GetName()}
+	resources, _, err = clt.ListResources(ctx, withLabels)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// Test search keywords match.
+	withSearchKeywords := baseRequest
+	withSearchKeywords.SearchKeywords = []string{"name", testServers[0].GetName()}
+	resources, _, err = clt.ListResources(ctx, withSearchKeywords)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// Test expression match.
+	withExpression := baseRequest
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testServers[0].GetName())
+	resources, _, err = clt.ListResources(ctx, withExpression)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
 	// deny user to get the first app
 	role.SetAppLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
@@ -730,7 +1192,7 @@ func TestGetApplicationServers(t *testing.T) {
 	resources, _, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
 	require.Len(t, resources, 0)
-	require.Empty(t, cmp.Diff([]types.Resource{}, resources))
+	require.Empty(t, cmp.Diff([]types.ResourceWithLabels{}, resources))
 }
 
 func TestGetAppServers(t *testing.T) {
@@ -740,7 +1202,7 @@ func TestGetAppServers(t *testing.T) {
 
 	// Create test apps.
 	for i := 0; i < 5; i++ {
-		name := uuid.New()
+		name := uuid.New().String()
 		app, err := types.NewServerWithLabels(
 			name,
 			types.KindAppServer,
@@ -1218,7 +1680,7 @@ func TestKindClusterConfig(t *testing.T) {
 	})
 
 	t.Run("with KindClusterConfig privilege", func(t *testing.T) {
-		role, err := types.NewRole("test-role", types.RoleSpecV4{
+		role, err := types.NewRole("test-role", types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{
 					types.NewRule(types.KindClusterConfig, []string{types.VerbRead}),
@@ -1232,4 +1694,206 @@ func TestKindClusterConfig(t *testing.T) {
 			require.NoError(t, err)
 		}
 	})
+}
+
+func TestNoElevatedAccessRequestDeletion(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { srv.Close() })
+
+	deleterRole, err := types.NewRole("deleter", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{{
+				Resources: []string{"access_request"},
+				Verbs:     []string{"delete"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	deleterUser, err := CreateUser(srv.AuthServer, "deletey", deleterRole)
+	require.NoError(t, err)
+
+	requesterRole, err := types.NewRole("requester", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{deleterRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+	requesterUser, err := CreateUser(srv.AuthServer, "requesty", requesterRole)
+	require.NoError(t, err)
+
+	request, err := services.NewAccessRequest(requesterUser.GetName(), deleterRole.GetName())
+	require.NoError(t, err)
+	// the request must be for an allowed user/role combination or it will get rejected
+	err = srv.AuthServer.CreateAccessRequest(ctx, request)
+	require.NoError(t, err)
+
+	// requesty has used some other unspecified access request to get the
+	// deleter role in this identity
+	requesterAuthContext, err := srv.Authorizer.Authorize(context.WithValue(ctx,
+		ContextUser,
+		LocalUser{
+			Username: requesterUser.GetName(),
+			Identity: tlsca.Identity{
+				Username: requesterUser.GetName(),
+				Groups:   []string{requesterRole.GetName(), deleterRole.GetName()},
+				// a tlsca.Identity must have a nonempty Traits field or the
+				// roles will be reloaded from the backend during Authorize
+				Traits: map[string][]string{"nonempty": {}},
+			},
+		},
+	))
+	require.NoError(t, err)
+	requesterAuth := &ServerWithRoles{
+		authServer: srv.AuthServer,
+		sessions:   srv.SessionServer,
+		alog:       srv.AuditLog,
+		context:    *requesterAuthContext,
+	}
+
+	err = requesterAuth.DeleteAccessRequest(ctx, request.GetName())
+	require.True(t, trace.IsAccessDenied(err))
+	// matches the message in lib/auth/auth_with_roles.go:(*ServerWithRoles).DeleteAccessRequest()
+	require.Contains(t, err.Error(), "deletion through elevated roles")
+
+	deleterAuthContext, err := srv.Authorizer.Authorize(context.WithValue(ctx,
+		ContextUser,
+		LocalUser{
+			Username: deleterUser.GetName(),
+			Identity: tlsca.Identity{
+				Username: deleterUser.GetName(),
+				Groups:   []string{deleterRole.GetName()},
+				Traits:   map[string][]string{"nonempty": {}},
+			},
+		},
+	))
+	require.NoError(t, err)
+	deleterAuth := &ServerWithRoles{
+		authServer: srv.AuthServer,
+		sessions:   srv.SessionServer,
+		alog:       srv.AuditLog,
+		context:    *deleterAuthContext,
+	}
+
+	err = deleterAuth.DeleteAccessRequest(ctx, request.GetName())
+	require.NoError(t, err)
+}
+
+func TestGetAndList_KubeServices(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test kube services.
+	for i := 0; i < 5; i++ {
+		name := uuid.NewString()
+		s, err := types.NewServerWithLabels(name, types.KindKubeService, types.ServerSpecV2{
+			KubernetesClusters: []*types.KubernetesCluster{
+				{Name: name, StaticLabels: map[string]string{"name": name}},
+			},
+		}, map[string]string{"name": name})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertKubeServiceV2(ctx, s)
+		require.NoError(t, err)
+	}
+
+	testServers, err := srv.Auth().GetKubeServices(ctx)
+	require.NoError(t, err)
+
+	testResources := make([]types.ResourceWithLabels, len(testServers))
+	for i, server := range testServers {
+		testResources[i] = server
+	}
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	listRequest := proto.ListResourcesRequest{
+		Namespace: defaults.Namespace,
+		// Guarantee that the list will all the servers.
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindKubeService,
+	}
+
+	// permit user to get all kubernetes service
+	role.SetKubernetesLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err := clt.GetKubeServices(ctx)
+	require.NoError(t, err)
+	require.Len(t, testServers, len(testServers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+	resources, _, err := clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resources))
+
+	// Test various filtering.
+	baseRequest := proto.ListResourcesRequest{
+		Namespace:    defaults.Namespace,
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindKubeService,
+	}
+
+	// Test label match.
+	withLabels := baseRequest
+	withLabels.Labels = map[string]string{"name": testServers[0].GetName()}
+	resources, _, err = clt.ListResources(ctx, withLabels)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// Test search keywords match.
+	withSearchKeywords := baseRequest
+	withSearchKeywords.SearchKeywords = []string{"name", testServers[0].GetName()}
+	resources, _, err = clt.ListResources(ctx, withSearchKeywords)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// Test expression match.
+	withExpression := baseRequest
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testServers[0].GetName())
+	resources, _, err = clt.ListResources(ctx, withExpression)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resources))
+
+	// deny user to get the first kubernetes service
+	role.SetKubernetesLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
+	testServers[0].SetKubernetesClusters(nil)
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetKubeServices(ctx)
+	require.NoError(t, err)
+	require.Len(t, testServers, len(testServers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resources))
+
+	// deny user to get all databases
+	role.SetKubernetesLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	for _, testServer := range testServers {
+		testServer.SetKubernetesClusters(nil)
+	}
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetKubeServices(ctx)
+	require.NoError(t, err)
+	require.Len(t, testServers, len(testServers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+	resources, _, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resources))
 }

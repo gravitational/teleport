@@ -20,41 +20,45 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
+	"time"
 
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/customflag"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
 	"github.com/gravitational/trace"
-)
-
-const (
-	gomodcacheDir = ".gomodcache-ci"
+	log "github.com/sirupsen/logrus"
 )
 
 // main is just a stub that prints out an error message and sets a nonzero exit
 // code on failure. All of the work happens in `innerMain()`.
 func main() {
-	if err := innerMain(); err != nil {
+	if err := run(); err != nil {
 		log.Fatalf("FAILED: %s", err.Error())
 	}
 }
 
 type commandlineArgs struct {
-	workspace    string
-	targetBranch string
-	commitSHA    string
+	workspace              string
+	targetBranch           string
+	commitSHA              string
+	buildID                string
+	artifactSearchPatterns customflag.StringArray
+	bucket                 string
 }
 
 func parseCommandLine() (commandlineArgs, error) {
 	args := commandlineArgs{}
 
-	flag.StringVar(&args.workspace, "w", "", "Fully-qualified path to the build workspace")
-	flag.StringVar(&args.targetBranch, "t", "", "The PR's target branch")
-	flag.StringVar(&args.commitSHA, "c", "", "The PR's latest commit SHA")
+	flag.StringVar(&args.workspace, "workspace", "/workspace", "Fully-qualified path to the build workspace")
+	flag.StringVar(&args.targetBranch, "target", "", "The PR's target branch")
+	flag.StringVar(&args.commitSHA, "commit", "HEAD", "The PR's latest commit SHA")
+	flag.StringVar(&args.buildID, "build", "", "The build ID")
+	flag.StringVar(&args.bucket, "bucket", "", "The artifact storage bucket.")
+	flag.Var(&args.artifactSearchPatterns, "a", "Path to artifacts. May be globbed, and have multiple entries.")
 
 	flag.Parse()
 
@@ -65,7 +69,7 @@ func parseCommandLine() (commandlineArgs, error) {
 	var err error
 	args.workspace, err = filepath.Abs(args.workspace)
 	if err != nil {
-		return args, trace.Wrap(err, "Unable to resole absolute path to workspace")
+		return args, trace.Wrap(err, "Unable to resolve absolute path to workspace")
 	}
 
 	if args.targetBranch == "" {
@@ -76,12 +80,27 @@ func parseCommandLine() (commandlineArgs, error) {
 		return args, trace.Errorf("commit must be set")
 	}
 
+	if len(args.artifactSearchPatterns) > 0 {
+		if args.buildID == "" {
+			return args, trace.Errorf("build ID required to upload artifacts")
+		}
+
+		if args.bucket == "" {
+			return args, trace.Errorf("storage bucket required to upload artifacts")
+		}
+
+		args.artifactSearchPatterns, err = artifacts.ValidatePatterns(args.workspace, args.artifactSearchPatterns)
+		if err != nil {
+			return args, trace.Wrap(err, "Bad artefact search path")
+		}
+	}
+
 	return args, nil
 }
 
-// innerMain parses the command line, performs the highlevel docs change check
+// run parses the command line, performs the highlevel docs change check
 // and creates the marker file if necessary
-func innerMain() error {
+func run() error {
 	args, err := parseCommandLine()
 	if err != nil {
 		return trace.Wrap(err)
@@ -95,17 +114,26 @@ func innerMain() error {
 
 	hasOnlyDocChanges := ch.Docs && (!ch.Code)
 	if hasOnlyDocChanges {
-		log.Println("No non-docs changes detected. Skipping tests.")
+		log.Println("No code changes detected. Skipping tests.")
 		return nil
 	}
 
 	log.Printf("Starting etcd...")
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	err = etcd.Start(cancelCtx, args.workspace, 0, 0)
-	if err != nil {
+	if err := etcd.Start(cancelCtx, args.workspace, 0, 0); err != nil {
 		return trace.Wrap(err, "failed starting etcd")
 	}
+
+	// From this point on, whatever happens we want to upload any artifacts
+	// produced by the build
+	defer func() {
+		prefix := fmt.Sprintf("%s/artifacts", args.buildID)
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+
+		artifacts.FindAndUpload(timeoutCtx, args.bucket, prefix, args.artifactSearchPatterns)
+	}()
 
 	log.Printf("Running unit tests...")
 	err = runUnitTests(args.workspace)
@@ -119,11 +147,10 @@ func innerMain() error {
 }
 
 func runUnitTests(workspace string) error {
-	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(workspace, gomodcacheDir))
-
 	cmd := exec.Command("make", "test")
 	cmd.Dir = workspace
-	cmd.Env = append(os.Environ(), gomodcache, "TELEPORT_ETCD_TEST=yes")
+	cmd.Env = append(os.Environ(), "TELEPORT_ETCD_TEST=yes")
+	cmd.Env = append(os.Environ(), "TELEPORT_XAUTH_TEST=yes")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

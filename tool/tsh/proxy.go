@@ -147,6 +147,10 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	rootCluster, err := client.RootClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	addr := "localhost:0"
 	if cf.LocalProxyPort != "" {
@@ -178,7 +182,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	err = dbProxyTpl.Execute(os.Stdout, map[string]string{
 		"database": database.ServiceName,
 		"address":  listener.Addr().String(),
-		"ca":       profile.CACertPath(),
+		"ca":       profile.CACertPathForCluster(rootCluster),
 		"cert":     profile.DatabaseCertPathForCluster(cf.SiteName, database.ServiceName),
 		"key":      profile.KeyPath(),
 	})
@@ -224,6 +228,8 @@ func toALPNProtocol(dbProtocol string) (alpncommon.Protocol, error) {
 		return alpncommon.ProtocolPostgres, nil
 	case defaults.ProtocolMongoDB:
 		return alpncommon.ProtocolMongoDB, nil
+	case defaults.ProtocolRedis:
+		return alpncommon.ProtocolRedisDB, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
