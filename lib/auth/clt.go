@@ -1602,19 +1602,6 @@ func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 	return c.APIClient.GetBotUsers(ctx)
 }
 
-// TODO: delete this, RegisterUsingToken used instead
-func (c *Client) GenerateInitialRenewableUserCerts(ctx context.Context, req proto.RenewableCertsRequest) (*proto.Certs, error) {
-	if len(req.Token) == 0 {
-		return nil, trace.BadParameter("missing token")
-	}
-
-	if len(req.PublicKey) == 0 {
-		return nil, trace.BadParameter("missing public key")
-	}
-
-	return c.APIClient.GenerateInitialRenewableUserCerts(ctx, &req)
-}
-
 // GetAppServers gets all application servers.
 func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	return c.APIClient.GetAppServers(ctx, namespace)
@@ -1824,10 +1811,6 @@ type IdentityService interface {
 	// text format, signs it using User Certificate Authority signing key and
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
-
-	// GenerateInitialRenewableUserCerts generates renewable certs for a non-interactive user
-	// using a previously issued single-use token.
-	GenerateInitialRenewableUserCerts(ctx context.Context, req proto.RenewableCertsRequest) (*proto.Certs, error)
 
 	// GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
 	// certificate for a single session

@@ -1587,46 +1587,6 @@ func (a *ServerWithRoles) NewKeepAliver(ctx context.Context) (types.KeepAliver, 
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-// TODO(nic): Delete this, auth.RegisterUsing(Token|IAMMethod) is used instead
-// GenerateInitialRenewableUserCerts generates renewable certs for a non-interactive user
-// using a previously issued single-use token.
-//
-// The token's TTL is enforced, and if the operation is successful the token is destroyed.
-func (a *ServerWithRoles) GenerateInitialRenewableUserCerts(ctx context.Context, req proto.RenewableCertsRequest) (*proto.Certs, error) {
-	if len(req.Token) == 0 {
-		return nil, trace.BadParameter("missing token")
-	}
-	if len(req.PublicKey) == 0 {
-		return nil, trace.BadParameter("missing public key")
-	}
-
-	token, err := a.authServer.GetUserToken(ctx, req.Token)
-	if err != nil {
-		log.Debugf("Could not fetch bot token: %+v", err)
-		return nil, trace.AccessDenied("the token is not valid")
-	}
-
-	if err := a.authServer.verifyUserToken(token, UserTokenTypeBot); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// TODO: consider allowing scoping to a specific SSH node with NodeName and Usage
-	expires := a.authServer.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
-
-	// Generate the initial set of user certificates.
-	certs, err := a.authServer.generateInitialRenewableUserCerts(ctx, token.GetUser(), req.PublicKey, expires)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := a.authServer.DeleteUserToken(ctx, req.Token); err != nil {
-		log.Warnf("could not delete user token %v after generating certs: %v",
-			backend.MaskKeyName(req.Token), err)
-	}
-
-	return certs, nil
-}
-
 // TODO(nic): move this to lib/auth/bot.go, leaving it here to keep a minimal diff
 // generateInitialRenewableUserCerts is used to generate renewable bot certs
 // and overlaps significantly with `generateUserCerts()`. However, it omits a
