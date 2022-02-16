@@ -22,35 +22,58 @@ $ tctl get nodes
 
 ## Certificate Authority Rotation
 
-Take a look at the [Certificates chapter](../../architecture/authentication.mdx#authentication-in-teleport) in the
-architecture document to learn how the certificate authority rotation works.
-
 This section will show you how to implement certificate rotation in practice.
 
-During manual and semi-automatic certificate authority rotation, Teleport generates a new certificate
-authority and issues certificates for auth servers, proxies, nodes and users.
+<Admonition
+  type="warning"
+  title="CA Pinning Warning"
+>
+If you are using [CA Pinning](../admin/adding-nodes.mdx#untrusted-auth-servers)
+when adding new nodes, the CA pin will change after the rotation. Make sure you
+use the *new* CA pin when adding nodes after rotation.
+</Admonition>
 
-Rotation consists of several phases:
+The rotation consists of several phases:
 
-- `standby` All operations have completed or haven't started yet.
-- `init` - All components are notified of the rotation. A new certificate authority is issued, but not used.
-  It is necessary for remote trusted clusters to fetch the new certificate authority, otherwise the new clients
-  will reject it.
-- `update_clients` - internal clients certs are updated and reloaded.
-  Servers will use and respond with old credentials because clients have no idea about new certificates at first.
-- `update_servers` Servers will reload and would start serving
-TLS and SSH certificates signed by the new certificate authority, but will still accept certificates
-issued by old certificate authority.
-- `rollback` rotation is rolling back to the old certificate authority.
+- `standby`: All operations have completed or haven't started yet.
+- `init`: All components are notified of the rotation. A new certificate
+  authority is issued, but not used. It is necessary for remote trusted clusters
+  to fetch the new certificate authority, otherwise the new clients will reject
+  it.
+- `update_clients`: Internal clients certs are updated and reloaded. Servers
+  will use and respond with old credentials because clients have no idea about
+  new certificates at first.
+- `update_servers`: Servers will reload and would start serving TLS and SSH
+  certificates signed by the new certificate authority, but will still accept
+  certificates issued by old certificate authority.
+- `rollback`: The rotation was aborted and is rolling back to the old
+  certificate authority.
 
-Both in manual and semi-automatic rotation, cluster goes through the states above in sequence:
+There are two kinds of certificate rotations:
+
+- **Manual:** it is the cluster administrator's reponsibility to transition
+  between each phase of the rotation, while monitoring the state of the cluster.
+  Manual rotations provide the greatest level of control, and are performed by
+  providing the desired phase using the `--phase` flag with the
+  `tctl auth rotate` command.
+- **Semi-automatic:** Teleport automatically transitions between phases of the
+  rotation after some amount of time (known as a _grace period_) elapses.
+
+For both types of rotations, the cluster goes through the phases in the
+following order:
 
 - `standby` -> `init` -> `update_clients` -> `update_servers` -> `standby`
 
-Administrators can rollback all the changes before rotation is completed by entering `standby`.
+Administrators can abort the rotation and revert all changes any time before
+the rotation is completed by entering the `rollback` phase.
 
-For example, if admin has detected that some nodes failed to upgrade during `update_servers`,
-they can rollback to the previous certificate authority:
+```sh
+$ tctl auth rotate --phase=rollback --manual
+```
+
+For example, if an admin has detected that some nodes failed to upgrade during
+`update_servers`, they can rollback to the previous certificate authority, and
+the phase transitions look like this:
 
 - `update_servers` -> `rollback` -> `standby`.
 
@@ -61,7 +84,8 @@ and gotchas before going with semi-automatic version.
 
 ## Manual rotation
 
-In manual mode, we would transition between phases while monitoring the state of the cluster.
+In manual mode, we manually transition between phases while monitoring the state
+of the cluster.
 
 **Start the rotation**
 
@@ -72,7 +96,7 @@ $ tctl auth rotate --phase=init --manual --type=host
 Updated rotation phase to "init". To check status use 'tctl status'
 ```
 
-Cluster status will reflect active rotation in progress:
+Use `tctl` to confirm that there is an active rotation in progress:
 
 ```code
 $ tctl status
@@ -96,23 +120,23 @@ $ tctl get nodes --format=json | jq '.[] | {hostname: .spec.hostname, rotation: 
 }
 ```
 
-Host `terminal` has updated it status to phase `init`. It has downloaded a new CA public key and is ready
-for state transitions.
+In this example, the node named `terminal` has updated its status to phase
+`init`.This means it has downloaded a new CA public key and is ready for state
+transitions.
 
-<Admonition type="warning" title="Rotation warning"
->
+<Admonition type="warning" title="Rotation warning">
 If some nodes are offline during rotation or have failed to update the status,
-you will lose connectivity after the transition `update_servers` -> `standby`. Make sure that all
-nodes are up to date with the transitions.
+you will lose connectivity after the transition `update_servers` -> `standby`.
+Make sure that all nodes are up to date with the transitions before proceeding.
 </Admonition>
 
 **Update clients**
 
-Execute transition `init` -> `update_clients`:
+Execute the transition from `init` to `update_clients`:
 
 ```code
 $ tctl auth rotate --phase=update_clients --manual
-# Updated rotation phase to "init". To check status use 'tctl status'
+# Updated rotation phase to "update_clients". To check status use 'tctl status'
 $ tctl status
 # Cluster  acme.cluster
 # Version  (=teleport.version=)
@@ -120,7 +144,7 @@ $ tctl status
 ```
 
 <Admonition type="note">
-Clients will temporarily lose connectivity during proxy and auth servers restarts.
+Clients will temporarily lose connectivity during proxy and auth server restarts.
 </Admonition>
 
 Verify that nodes have caught up and now see the current cluster state:
@@ -136,11 +160,12 @@ $ tctl get nodes --format=json | jq '.[] | {hostname: .spec.hostname, rotation: 
 
 **Update servers**
 
-All nodes have caught up. Execute the transition `update_clients` -> `update_servers`:
+Now that all nodes have caught up, execute the transition from `update_clients`
+to `update_servers`:
 
 ```code
 $ tctl auth rotate --phase=update_servers --manual
-# Updated rotation phase to "init". To check status use 'tctl status'
+# Updated rotation phase to "update_servers". To check status use 'tctl status'
 
 $ tctl status
 # Cluster  acme.cluster
@@ -149,8 +174,8 @@ $ tctl status
 ```
 
 <Admonition type="note">
-Usually if things go wrong, they go wrong at this transition. If you have lost connectivity to nodes,
-[rollback](#rollback) to the old certificate authority.
+Usually if things go wrong, they go wrong at this transition. If you have lost
+connectivity to nodes, [rollback](#rollback) to the old certificate authority.
 </Admonition>
 
 Verify that nodes have caught up:
@@ -169,25 +194,20 @@ $ tctl get nodes --format=json | jq '.[] | {hostname: .spec.hostname, rotation: 
 Before wrapping up, verify that you have not lost any nodes and can connect to them, for example:
 
 ```code
-$ tsh ssh hello@terminal hostname
+$ tsh ssh hello@terminal
 ```
 
 <Admonition type="warning">
-This is the last stage when you can rollback. If you have lost connectivity to nodes,
-[rollback](#rollback) to the old certificate authority.
+This is the last stage where you have the opportunity to rollback. If you have
+lost connectivity to nodes, [rollback](#rollback) to the old certificate
+authority.
 </Admonition>
 
 ```code
 $ tctl auth rotate --phase=standby --manual
-# Updated rotation phase to "init". To check status use 'tctl status'
-
-$ tctl status
-# Cluster  acme.cluster
-# Version  (=teleport.version=)
-# Host CA  rotating servers (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 07:44:36 UTC)
 ```
 
-Cluster status should indicate succesffully completed rotation.
+Verify that the rotation has completed with `tctl`:
 
 ```code
 tctl status
@@ -210,31 +230,26 @@ $ tctl get nodes --format=json | jq '.[] | {hostname: .spec.hostname, rotation: 
 }
 ```
 
-<Admonition
-  type="warning"
-  title="CA Pinning Warning"
->
-If you are using [CA Pinning](../admin/adding-nodes.mdx#untrusted-auth-servers) when adding new nodes, the CA pin will change after the rotation.
-Make sure you use the *new* CA pin when adding nodes after rotation.
-</Admonition>
-
 ## Semi-Automatic rotation
 
 <Admonition type="warning">
-Semi-automatic rotation executes the same steps as the manual rotation, but with a grace period between them.
-It currently does not track the states of the nodes and you can lose connectivity if things go wrong.
+Semi-automatic rotation executes the same steps as the manual rotation, but with
+a grace period between them. It currently does not track the states of the nodes
+and you can lose connectivity if things go wrong.
 </Admonition>
 
-You can trigger semi-automatic rotation:
+You can trigger semi-automatic rotation by omitting the `--manual` and `--phase`
+flags.
 
 ```code
 $ tctl auth rotate
 ```
 
-This will trigger a rotation process for both hosts and users with a *grace period* of 48 hours.
-During the grace period, certificates issued both by old and new certificate authority work.
+This will trigger a rotation process for both hosts and users with a default
+*grace period* of 48 hours. During the grace period, certificates issued both by
+old and new certificate authority work.
 
-You can customize grace period:
+You can customize grace period and CA with additional flags:
 
 ```code
 # Rotate only user certificates with a grace period of 200 hours:
@@ -248,17 +263,21 @@ The rotation takes time, especially for hosts, because each node in a cluster
 needs to be notified that a rotation is taking place and request a new
 certificate for itself before the grace period ends.
 
-<Admonition
-  type="warning"
-  title="Warning"
->
-  Be careful when choosing a grace period when rotating host certificates. The grace period needs to be long enough for all nodes in a cluster to request a new certificate. If some nodes go offline during the
-  rotation and come back only after the grace period has ended, they will be
-  forced to leave the cluster, i.e. users will no longer be allowed to SSH
-  into them.
-</Admonition>
+During semi-automatic rotations, Teleport will attempt to divide the grace
+period so that it spends an equal amount of time in each phase before
+transitioning to the next phase. This means that using a shorter grace period
+will result in faster state transitions.
 
-Check the cluster status of rotation:
+<Notice type="warning">
+Be careful when choosing a grace period when rotating host certificates.
+</Notice>
+
+The grace period needs to be long enough for all nodes in a cluster to request a
+new certificate. If some nodes go offline during the rotation and come back only
+after the grace period has ended, they will be forced to leave the cluster, i.e.
+users will no longer be allowed to SSH into them.
+
+Check the cluster status:
 
 ```code
 tctl status
@@ -266,14 +285,6 @@ Cluster  acme.cluster
 Version  (=teleport.version=)
 Host CA  initialized (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 07:44:36 UTC)
 ```
-
-<Admonition
-  type="warning"
-  title="CA Pinning Warning"
->
-  If you are using [CA Pinning](../admin/adding-nodes.mdx#untrusted-auth-servers) when adding new nodes, the CA pin will change after the rotation. Make sure you use the
-  *new* CA pin when adding nodes after rotation.
-</Admonition>
 
 Check the status of individual nodes:
 
@@ -287,21 +298,22 @@ $ tctl get nodes --format=json | jq '.[] | {hostname: .spec.hostname, rotation: 
 }
 ```
 
-Host `terminal` has updated it status to phase `init`. It has downloaded a new CA public key and is ready
-for state transitions.
+The node named `terminal` has updated its status to phase `init`. This means it
+has downloaded a new CA public key and is ready for state transitions.
 
 ## Rollback
 
-Rollback is only possible before rotation enters `standby` state.
+Rollback must be performed before the rotation enters `standby` state.
 
-First, override the rotation to the manual rollback:
+First, enter the rollback phase with a manual phase transition:
 
 ```code
 $ tctl auth rotate --phase=rollback --manual
 # Updated rotation phase to "rollback". To check status use 'tctl status'
 ```
 
-Make sure that nodes that have updated have caught up:
+Make sure that any nodes which have already updated have caught up and entered
+the `rollback` phase.
 
 ```code
 # Check rotation status of the nodes
@@ -313,5 +325,13 @@ $ tctl get nodes --format=json | jq '.[] | {hostname: .spec.hostname, rotation: 
 }
 ```
 
-If any of the nodes were lost and using the old cert authority, they should reconnect
-once you switch the control plane to the old cert authority.
+If connectivity to any of the nodes was lost during the rotation, this is likely
+because they were still and using the old cert authority. Connectivity to these
+nodes should be restored when the rollback completes and the old certificate
+authority is made active.
+
+## Further reading
+
+- How the
+  [Teleport Certificate Authority](../../architecture/authentication.mdx#authentication-in-teleport)
+  works
