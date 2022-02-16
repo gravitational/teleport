@@ -64,7 +64,7 @@ type Redirector struct {
 	// that redirectURL will be set later
 	shortPath string
 	// responseC is a channel to receive responses
-	responseC chan *auth.SSHLoginResponse
+	responseC chan *auth.SSOLoginResult
 	// errorC will contain errors
 	errorC chan error
 	// proxyClient is HTTP client to the Teleport Proxy
@@ -75,10 +75,14 @@ type Redirector struct {
 	context context.Context
 	// cancel broadcasts cancel
 	cancel context.CancelFunc
+	// issueSSOLoginConsoleRequest if not nil will be used as custom implementation of IssueSSOLoginConsoleRequest function.
+	issueSSOLoginConsoleRequest IssueSSOLoginConsoleRequest
 }
 
+type IssueSSOLoginConsoleRequest func(req SSOLoginConsoleReq) (*SSOLoginConsoleResponse, error)
+
 // NewRedirector returns new local web server redirector
-func NewRedirector(ctx context.Context, login SSHLoginSSO) (*Redirector, error) {
+func NewRedirector(ctx context.Context, login SSHLoginSSO, issueLogin IssueSSOLoginConsoleRequest) (*Redirector, error) {
 	clt, proxyURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -93,16 +97,17 @@ func NewRedirector(ctx context.Context, login SSHLoginSSO) (*Redirector, error) 
 
 	context, cancel := context.WithCancel(ctx)
 	rd := &Redirector{
-		context:     context,
-		cancel:      cancel,
-		proxyClient: clt,
-		proxyURL:    proxyURL,
-		SSHLoginSSO: login,
-		mux:         http.NewServeMux(),
-		key:         key,
-		shortPath:   "/" + uuid.New().String(),
-		responseC:   make(chan *auth.SSHLoginResponse, 1),
-		errorC:      make(chan error, 1),
+		context:                     context,
+		cancel:                      cancel,
+		proxyClient:                 clt,
+		proxyURL:                    proxyURL,
+		SSHLoginSSO:                 login,
+		mux:                         http.NewServeMux(),
+		key:                         key,
+		shortPath:                   "/" + uuid.New(),
+		responseC:                   make(chan *auth.SSOLoginResult, 1),
+		errorC:                      make(chan error, 1),
+		issueSSOLoginConsoleRequest: issueLogin,
 	}
 
 	// callback is a callback URL communicated to the Teleport proxy,
@@ -145,7 +150,7 @@ func (rd *Redirector) Start() error {
 	query.Set("secret_key", rd.key.String())
 	u.RawQuery = query.Encode()
 
-	out, err := rd.proxyClient.PostJSON(rd.context, rd.proxyClient.Endpoint("webapi", rd.Protocol, "login", "console"), SSOLoginConsoleReq{
+	req := SSOLoginConsoleReq{
 		RedirectURL:       u.String(),
 		PublicKey:         rd.PubKey,
 		CertTTL:           rd.TTL,
@@ -153,22 +158,38 @@ func (rd *Redirector) Start() error {
 		Compatibility:     rd.Compatibility,
 		RouteToCluster:    rd.RouteToCluster,
 		KubernetesCluster: rd.KubernetesCluster,
-	})
+	}
+
+	response, err := rd.IssueSSOLoginConsoleRequest(req)
 	if err != nil {
-		return trace.Wrap(err)
+		return err
+	}
+
+	// notice late binding of the redirect URL here, it is referenced
+	// in the callback handler, but is known only after the request
+	// is sent to the Teleport Proxy, that's why
+	// redirectURL is a SyncString
+	rd.redirectURL.Set(response.RedirectURL)
+	return nil
+}
+
+func (rd *Redirector) IssueSSOLoginConsoleRequest(req SSOLoginConsoleReq) (*SSOLoginConsoleResponse, error) {
+	if rd.issueSSOLoginConsoleRequest != nil {
+		return rd.issueSSOLoginConsoleRequest(req)
+	}
+
+	out, err := rd.proxyClient.PostJSON(rd.context, rd.proxyClient.Endpoint("webapi", rd.Protocol, "login", "console"), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	var re *SSOLoginConsoleResponse
 	err = json.Unmarshal(out.Bytes(), &re)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	// notice late binding of the redirect URL here, it is referenced
-	// in the callback handler, but is known only after the request
-	// is sent to the Teleport Proxy, that's why
-	// redirectURL is a SyncString
-	rd.redirectURL.Set(re.RedirectURL)
-	return nil
+
+	return re, nil
 }
 
 // Done is called when redirector is closed
@@ -186,7 +207,7 @@ func (rd *Redirector) ClickableURL() string {
 }
 
 // ResponseC returns a channel with response
-func (rd *Redirector) ResponseC() <-chan *auth.SSHLoginResponse {
+func (rd *Redirector) ResponseC() <-chan *auth.SSOLoginResult {
 	return rd.responseC
 }
 
@@ -197,7 +218,7 @@ func (rd *Redirector) ErrorC() <-chan error {
 
 // callback is used by Teleport proxy to send back credentials
 // issued by Teleport proxy
-func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*auth.SSHLoginResponse, error) {
+func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*auth.SSOLoginResult, error) {
 	if r.URL.Path != "/callback" {
 		return nil, trace.NotFound("path not found")
 	}
@@ -208,13 +229,26 @@ func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*auth.SS
 		return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
 	}
 
-	var re *auth.SSHLoginResponse
-	err = json.Unmarshal(plaintext, &re)
-	if err != nil {
-		return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
+	var loginResult *auth.SSOLoginResult
+	var loginResponse *auth.SSHLoginResponse
+
+	// legacy Teleport may send auth.SSHLoginResponse. try to unmarshal and check for non-empty username.
+	err = json.Unmarshal(plaintext, &loginResponse)
+	if err == nil && loginResponse.Username != "" {
+		loginResult = &auth.SSOLoginResult{
+			LoginResponse:  loginResponse,
+			Success:        true,
+			DiagnosticInfo: nil,
+			FinalURL:       LoginSuccessRedirectURL,
+		}
+	} else {
+		err = json.Unmarshal(plaintext, &loginResult)
+		if err != nil {
+			return nil, trace.BadParameter("failed to unmarshal response: in %v, err: %v", r.URL.String(), err)
+		}
 	}
 
-	return re, nil
+	return loginResult, nil
 }
 
 // Close closes redirector and releases all resources
@@ -228,15 +262,19 @@ func (rd *Redirector) Close() error {
 
 // wrapCallback is a helper wrapper method that wraps callback HTTP handler
 // and sends a result to the channel and redirect users to error page
-func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (*auth.SSHLoginResponse, error)) http.Handler {
+func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (*auth.SSOLoginResult, error)) http.Handler {
 	clone := *rd.proxyURL
 	clone.Path = LoginFailedRedirectURL
 	errorURL := clone.String()
-	clone.Path = LoginSuccessRedirectURL
-	successURL := clone.String()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response, err := fn(w, r)
+		finalURL := errorURL
+		if response != nil && response.FinalURL != "" {
+			clone.Path = response.FinalURL
+			finalURL = clone.String()
+		}
+
 		if err != nil {
 			if trace.IsNotFound(err) {
 				http.NotFound(w, r)
@@ -245,18 +283,19 @@ func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (
 			select {
 			case rd.errorC <- err:
 			case <-rd.context.Done():
-				http.Redirect(w, r, errorURL, http.StatusFound)
+				http.Redirect(w, r, finalURL, http.StatusFound)
 				return
 			}
-			http.Redirect(w, r, errorURL, http.StatusFound)
+			http.Redirect(w, r, finalURL, http.StatusFound)
 			return
 		}
 		select {
 		case rd.responseC <- response:
 		case <-rd.context.Done():
-			http.Redirect(w, r, errorURL, http.StatusFound)
+			http.Redirect(w, r, finalURL, http.StatusFound)
 			return
 		}
-		http.Redirect(w, r, successURL, http.StatusFound)
+
+		http.Redirect(w, r, finalURL, http.StatusFound)
 	})
 }

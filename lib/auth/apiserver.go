@@ -1586,6 +1586,8 @@ type samlAuthRawResponse struct {
 	HostSigners []json.RawMessage `json:"host_signers"`
 	// TLSCert is TLS certificate authority certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
+	// DiagInfo contains SSO Diagnostic Info
+	DiagInfo *SsoDiagnosticInfo `json:"diagInfo,omitempty"`
 }
 
 func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -1593,9 +1595,12 @@ func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r 
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := auth.ValidateSAMLResponse(req.Response)
+
+	// we attach the diagnostic information either to the error or response.
+	// this is an unfortunate redundancy caused by limitation of our HTTP API
+	response, di, err := auth.ValidateSAMLResponse(req.Response)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err).AddField("sso-diag-info", di)
 	}
 	raw := samlAuthRawResponse{
 		Username: response.Username,
@@ -1603,6 +1608,7 @@ func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r 
 		Cert:     response.Cert,
 		Req:      response.Req,
 		TLSCert:  response.TLSCert,
+		DiagInfo: di,
 	}
 	if response.Session != nil {
 		rawSession, err := services.MarshalWebSession(response.Session, services.WithVersion(version))

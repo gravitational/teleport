@@ -48,7 +48,7 @@ type SAMLConnector interface {
 	GetIssuer() string
 	// GetSigningKeyPair returns signing key pair
 	GetSigningKeyPair() *AsymmetricKeyPair
-	// GetSigningKeyPair sets signing key pair
+	// SetSigningKeyPair sets signing key pair
 	SetSigningKeyPair(k *AsymmetricKeyPair)
 	// GetSSO returns SSO service
 	GetSSO() string

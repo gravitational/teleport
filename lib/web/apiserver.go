@@ -1231,20 +1231,35 @@ type AuthParams struct {
 	FIPS bool
 }
 
-// ConstructSSHResponse creates a special SSH response for SSH login method
-// that encodes everything using the client's secret key
-func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
-	u, err := url.Parse(response.ClientRedirectURL)
+func EncodeSSOLoginResult(clientRedirectURL string, result auth.SSOLoginResult) (*url.URL, error) {
+	out, err := json.Marshal(result)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	return encryptJson(clientRedirectURL, out, false)
+}
+
+// ConstructSSHResponse creates a special SSH response for SSH login method
+// that encodes everything using the client's secret key
+func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 	consoleResponse := auth.SSHLoginResponse{
 		Username:    response.Username,
 		Cert:        response.Cert,
 		TLSCert:     response.TLSCert,
 		HostSigners: auth.AuthoritiesToTrustedCerts(response.HostSigners),
 	}
+
 	out, err := json.Marshal(consoleResponse)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return encryptJson(response.ClientRedirectURL, out, response.FIPS)
+}
+
+func encryptJson(clientRedirectURL string, jsonResponse []byte, FIPS bool) (*url.URL, error) {
+	u, err := url.Parse(clientRedirectURL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1268,14 +1283,14 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		ciphertext, err = key.Seal(out)
+		ciphertext, err = key.Seal(jsonResponse)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	// NaCl based symmetric cipher (legacy).
 	case secretV1 != "":
 		// If FIPS mode was requested, make sure older clients that use NaCl get rejected.
-		if response.FIPS {
+		if FIPS {
 			return nil, trace.BadParameter("non-FIPS compliant encryption: NaCl, check " +
 				"that tsh release was downloaded from https://dashboard.gravitational.com")
 		}
@@ -1288,7 +1303,7 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		sealedBytes, err := encryptor.Seal(out)
+		sealedBytes, err := encryptor.Seal(jsonResponse)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

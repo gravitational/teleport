@@ -19,6 +19,7 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -96,9 +97,52 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		return client.LoginFailedRedirectURL
 	}
 
-	response, err := h.cfg.ProxyClient.ValidateSAMLResponse(samlResponse)
+	response, di, err := h.cfg.ProxyClient.ValidateSAMLResponse(samlResponse)
+
+	if di != nil && di.SSOTestFlow {
+		clientRedirectUrl, err2 := di.GetClientRedirectUrl()
+		if err2 != nil {
+			logger.WithError(err2).Error("Error parsing response.")
+			return client.LoginFailedRedirectURL
+		}
+
+		result := auth.SSOLoginResult{
+			Success:        di.Success,
+			DiagnosticInfo: map[string]interface{}{},
+		}
+
+		if di.Success {
+			result.FinalURL = client.LoginSuccessRedirectURL
+		} else {
+			result.FinalURL = client.LoginFailedRedirectURL
+		}
+
+		if err == nil {
+			consoleResponse := auth.SSHLoginResponse{
+				Username:    response.Username,
+				Cert:        response.Cert,
+				TLSCert:     response.TLSCert,
+				HostSigners: auth.AuthoritiesToTrustedCerts(response.HostSigners),
+			}
+			result.LoginResponse = &consoleResponse
+		}
+
+		for key, value := range di.DiagMap {
+			result.DiagnosticInfo[key] = value
+		}
+
+		redirectURL, err := EncodeSSOLoginResult(clientRedirectUrl, result)
+		if err != nil {
+			logger.WithError(err).Error("Error constructing ssh response.")
+			return client.LoginFailedRedirectURL
+		}
+
+		return redirectURL.String()
+	}
+
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
+		// TODO(Tener): if we can find the original auth request, we should be able to call the callback with information about failure. This is done for SSO test flow above.
 		return client.LoginFailedBadCallbackRedirectURL
 	}
 

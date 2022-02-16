@@ -2928,8 +2928,24 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 		Protocol:    protocol,
 		BindAddr:    tc.BindAddr,
 		Browser:     tc.Browser,
-	})
-	return response, trace.Wrap(err)
+	}, nil)
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if response.Success {
+		return response.LoginResponse, nil
+	} else {
+		return nil, trace.Wrap(errFromDiagnosticInfo(response))
+	}
+}
+
+func errFromDiagnosticInfo(response *auth.SSOLoginResult) error {
+	if response.Success {
+		return nil
+	}
+	return fmt.Errorf("SSO login failed. Debug info: %v", response.DiagnosticInfo)
 }
 
 // mfaLocalLogin asks for a password and performs the challenge-response authentication

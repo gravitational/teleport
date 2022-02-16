@@ -329,6 +329,14 @@ type SSHLoginResponse struct {
 	HostSigners []TrustedCerts `json:"host_signers"`
 }
 
+// SSOLoginResult is returned from SSO login flow. If successful, it contains SSHLoginResponse.
+type SSOLoginResult struct {
+	LoginResponse  *SSHLoginResponse      `json:"login_response"`
+	Success        bool                   `json:"success"`
+	DiagnosticInfo map[string]interface{} `json:"diagnostic_info"`
+	FinalURL       string                 `json:"final_url"`
+}
+
 // TrustedCerts contains host certificates, it preserves backwards compatibility
 // on the wire, which is the primary reason for non-matching json tags
 type TrustedCerts struct {

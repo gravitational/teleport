@@ -1171,17 +1171,29 @@ func (c *Client) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.
 }
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
-func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
+func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, *SsoDiagnosticInfo, error) {
 	out, err := c.PostJSON(c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
 		Response: re,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	// try to recover diagnostic info from proxy error
+	var di *SsoDiagnosticInfo
+	di = nil
+
+	var ssoDi SsoDiagnosticInfo
+	if trace.UnwrapProxyField(err, "sso-diag-info", &ssoDi) {
+		di = &ssoDi
 	}
+
+	if err != nil {
+		return nil, di, trace.Wrap(err)
+	}
+
 	var rawResponse *samlAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, di, trace.Wrap(err)
 	}
+
 	response := SAMLAuthResponse{
 		Username: rawResponse.Username,
 		Identity: rawResponse.Identity,
@@ -1192,7 +1204,7 @@ func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, di, trace.Wrap(err)
 		}
 		response.Session = session
 	}
@@ -1200,11 +1212,11 @@ func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
 	for i, raw := range rawResponse.HostSigners {
 		ca, err := services.UnmarshalCertAuthority(raw)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, di, trace.Wrap(err)
 		}
 		response.HostSigners[i] = ca
 	}
-	return &response, nil
+	return &response, di, nil
 }
 
 // CreateGithubConnector creates a new Github connector
@@ -1739,7 +1751,7 @@ type IdentityService interface {
 	CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error)
 
 	// ValidateSAMLResponse validates SAML auth response
-	ValidateSAMLResponse(re string) (*SAMLAuthResponse, error)
+	ValidateSAMLResponse(re string) (*SAMLAuthResponse, *SsoDiagnosticInfo, error)
 
 	// CreateGithubConnector creates a new Github connector
 	CreateGithubConnector(connector types.GithubConnector) error

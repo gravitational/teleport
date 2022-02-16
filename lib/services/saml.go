@@ -69,7 +69,7 @@ func ValidateSAMLConnector(sc types.SAMLConnector) error {
 		}
 
 		sc.SetIssuer(metadata.EntityID)
-		if len(metadata.IDPSSODescriptor.SingleSignOnServices) > 0 {
+		if metadata.IDPSSODescriptor != nil && len(metadata.IDPSSODescriptor.SingleSignOnServices) > 0 {
 			sc.SetSSO(metadata.IDPSSODescriptor.SingleSignOnServices[0].Location)
 		}
 	}
@@ -93,6 +93,10 @@ func ValidateSAMLConnector(sc types.SAMLConnector) error {
 			PrivateKey: string(keyPEM),
 			Cert:       string(certPEM),
 		})
+	}
+
+	if len(sc.GetAttributesToRoles()) == 0 {
+		return trace.BadParameter("attributes_to_roles is empty, authorization with connector would never give any roles.")
 	}
 
 	log.Debugf("[SAML] SSO: %v", sc.GetSSO())

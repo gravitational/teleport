@@ -205,7 +205,7 @@ type Identity interface {
 	// CreateSAMLAuthRequest creates new auth request
 	CreateSAMLAuthRequest(req SAMLAuthRequest, ttl time.Duration) error
 
-	// GetSAMLAuthRequest returns OSAML auth request if found
+	// GetSAMLAuthRequest returns SAML auth request if found
 	GetSAMLAuthRequest(id string) (*SAMLAuthRequest, error)
 
 	// CreateGithubConnector creates a new Github connector
@@ -476,6 +476,12 @@ type SAMLAuthRequest struct {
 
 	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
 	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
+
+	// SSOTestFlow indicates if the request is part of the test flow.
+	SSOTestFlow bool `json:"sso_test_flow"`
+
+	// ConnectorSpec is embedded connector spec for use in test flow.
+	ConnectorSpec *types.SAMLConnectorSpecV2 `json:"connector_spec,omitempty"`
 }
 
 // Check returns nil if all parameters are great, err otherwise
@@ -491,6 +497,9 @@ func (i *SAMLAuthRequest) Check() error {
 		if (i.CertTTL > apidefaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
 			return trace.BadParameter("CertTTL: wrong certificate TTL")
 		}
+	}
+	if i.SSOTestFlow && i.ConnectorSpec == nil {
+		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
 	}
 
 	return nil
