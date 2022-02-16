@@ -26,7 +26,13 @@ export default function Container() {
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
 
-  return <Support {...cluster} isEnterprise={cfg.isEnterprise} />;
+  return (
+    <Support
+      {...cluster}
+      isEnterprise={cfg.isEnterprise}
+      tunnelPublicAddress={cfg.tunnelPublicAddress}
+    />
+  );
 }
 
 export const Support = ({
@@ -34,6 +40,7 @@ export const Support = ({
   authVersion,
   publicURL,
   isEnterprise,
+  tunnelPublicAddress,
 }: Props) => {
   const docs = getDocUrls(authVersion, isEnterprise);
 
@@ -120,6 +127,9 @@ export const Support = ({
         <ClusterData title="Cluster Name" data={clusterId} />
         <ClusterData title="Teleport Version" data={authVersion} />
         <ClusterData title="Public Address" data={publicURL} />
+        {tunnelPublicAddress && (
+          <ClusterData title="Public SSH Tunnel" data={tunnelPublicAddress} />
+        )}
       </Box>
     </FeatureBox>
   );
@@ -209,4 +219,5 @@ type Props = {
   authVersion: string;
   publicURL: string;
   isEnterprise: boolean;
+  tunnelPublicAddress?: string;
 };

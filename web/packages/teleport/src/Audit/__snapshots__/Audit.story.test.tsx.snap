@@ -339,12 +339,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            71
+            73
           </strong>
            of
            
           <strong>
-            71
+            73
           </strong>
         </div>
         <button
@@ -1018,6 +1018,80 @@ exports[`list of all events 1`] = `
           style="min-width: 120px;"
         >
           2021-11-01 22:24:47
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-clipboard-text c7 c12"
+              color="light"
+              font-size="3"
+            />
+            Clipboard Data Received
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [joe] received 512 bytes of clipboard data from desktop [100.104.52.89:3389]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2021-10-18 23:39:13
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-clipboard-text c7 c12"
+              color="light"
+              font-size="3"
+            />
+            Clipboard Data Sent
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [joe] sent 512 bytes of clipboard data to desktop [100.104.52.89:3389]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2021-10-18 23:39:13
         </td>
         <td
           align="right"

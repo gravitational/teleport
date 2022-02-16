@@ -559,6 +559,18 @@ export const formatters: Formatters = {
     format: ({ user, windows_domain, desktop_addr, windows_user }) =>
       `Session for Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}] has ended for user [${user}]`,
   },
+  [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: {
+    type: 'desktop.clipboard.receive',
+    desc: 'Clipboard Data Received',
+    format: ({ user, desktop_addr, length }) =>
+      `User [${user}] received ${length} bytes of clipboard data from desktop [${desktop_addr}]`,
+  },
+  [eventCodes.DESKTOP_CLIPBOARD_SEND]: {
+    type: 'desktop.clipboard.send',
+    desc: 'Clipboard Data Sent',
+    format: ({ user, desktop_addr, length }) =>
+      `User [${user}] sent ${length} bytes of clipboard data to desktop [${desktop_addr}]`,
+  },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
     desc: 'X11 Forwarding Requested',
