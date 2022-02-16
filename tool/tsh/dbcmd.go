@@ -47,6 +47,8 @@ const (
 	mongoshBin = "mongosh"
 	// mongoBin is the Mongo client binary name.
 	mongoBin = "mongo"
+	// redisBin is the Redis client binary name.
+	redisBin = "redis-cli"
 )
 
 // execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -125,6 +127,9 @@ func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolMongoDB:
 		return c.getMongoCommand(), nil
+
+	case defaults.ProtocolRedis:
+		return c.getRedisCommand(), nil
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -314,4 +319,31 @@ func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
 
 	// fall back to `mongo` if `mongosh` isn't found
 	return exec.Command(mongoBin, args...)
+}
+
+// getRedisCommand returns redis-cli commands used by 'tsh db connect' when connecting to a Redis instance.
+func (c *cliCommandBuilder) getRedisCommand() *exec.Cmd {
+	// TODO(jakub): Add "-3" when Teleport adds support for Redis RESP3 protocol.
+	args := []string{
+		"--tls",
+		"-h", c.host,
+		"-p", strconv.Itoa(c.port),
+		"--key", c.profile.KeyPath(),
+		"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+	}
+
+	if c.tc.InsecureSkipVerify {
+		args = append(args, "--insecure")
+	}
+
+	if c.options.caPath != "" {
+		args = append(args, []string{"--cacert", c.options.caPath}...)
+	}
+
+	// append database number if provided
+	if c.db.Database != "" {
+		args = append(args, []string{"-n", c.db.Database}...)
+	}
+
+	return exec.Command(redisBin, args...)
 }
