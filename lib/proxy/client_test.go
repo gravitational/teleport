@@ -75,7 +75,7 @@ func TestClientConn(t *testing.T) {
 	// close second server
 	// and attempt to redial it
 	server2.Close()
-	_, cached, err = client.dial(context.TODO(), server2.config.Listener.Addr().String())
+	_, _, err = client.dial(context.TODO(), server2.config.Listener.Addr().String())
 	require.Error(t, err)
 	require.Equal(t, len(client.conns), 1)
 }
