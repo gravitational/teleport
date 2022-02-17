@@ -73,7 +73,6 @@ func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
 		switch simpleTemplate {
 		case TemplateSSHClientName:
 			c.SSHClient = &TemplateSSHClient{}
-			log.Println("no params, using defaults")
 		default:
 			return trace.BadParameter(
 				"invalid config template '%s' on line %d, expected one of: %s",
