@@ -83,7 +83,7 @@ export default class CustomRange extends React.Component {
         <DayPicker
           className="Selectable"
           numberOfMonths={2}
-          month={subMonths(to, 1)}
+          month={subMonths(to || new Date(), 1)}
           disabledDays={{
             after: new Date(),
           }}
