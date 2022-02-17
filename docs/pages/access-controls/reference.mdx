@@ -41,12 +41,6 @@ $ tctl get roles
 
 A role definition looks like this:
 
-<Details title="Role Versioning" min="8.3" opened>
-  The role example below uses `version: v4` for compatability reasons. Note that
-  the `join_sessions` and `require_session_join` fields are only supported on `version: v5` roles,
-  which are otherwise identical to `version: v4`.
-</Details>
-
 ```yaml
 kind: role
 version: v4
@@ -136,35 +130,6 @@ spec:
     - resources: [token]
       verbs: [list,create,read,update,delete]
 
-    # Moderated Sessions policy that dictates requirements for starting a session.
-    require_session_join:
-      # Defines the name of the policy. The name serves only as an
-      # identifier in logs and for organisation/categorisation.
-      - name: Auditor oversight
-        # Specifies an RBAC predicate that is used to define
-        # which users count against the required user count of the policy.
-        filter: 'contains(user.roles, "auditor")'
-        # The different session kinds this policy applies to.
-        kinds: ['k8s', 'ssh']
-        # A list of session participant modes that a participant must have
-        # one of in order to count against the policy.
-        modes: ['moderator']
-        # The minimum amount of users that need to match the filter expression
-        # in order to satisfy the policy.
-        count: 1
-     
-    # Moderated Sessions policy that dictates the ability to join sessions
-    join_sessions:
-      # Defines the name of the policy. The name serves only as an
-      # identifier in logs and for organisation/categorisation.
-      - name: Auditor oversight
-        # Allows one to join sessions created by other users with these roles
-        roles : ['prod-access']
-        # The different session kinds this policy applies to.
-        kinds: ['k8s', 'ssh']
-        # The list of session participant modes the role may join the session as.
-        modes: ['moderator', 'observer']
-
   # The deny section uses the identical format as the 'allow' section.
   # The deny rules always override allow rules.
   deny: {}
@@ -236,16 +201,10 @@ that are more appropriately scoped.
 
 ### Role versions
 
-There are currently three supported role versions: `v3`, `v4` and `v5`. `v4` roles are
-completely backwards-compatible with `v3`. The only difference lies in the
-default allow labels, which will be applied to the role if they are not
+There are currently two supported role versions: `v3` and `v4`. `v4` roles are
+completely backwards-compatible with `v3`, the only difference lies in the
+default allow labels which will be applied to the role if they are not
 explicitly set.
-
-`v5` roles are also backwards compatible with `v4`. They add
-the `join_sessions` and `require_session_join` fields related to [Moderated Sessions](./guides/moderated-sessions.mdx).
-
-Upon upgrading to Telport 8.3.0 or later, new roles will be created with `version: v5` and old roles
-will be migrated as they are edited but not automatically.
 
 Label              | `v3` Default   | `v4` Default
 ------------------ | -------------- | ---------------
