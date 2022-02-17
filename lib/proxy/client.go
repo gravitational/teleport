@@ -39,6 +39,7 @@ import (
 
 const (
 	errorTunnelNotFound = "NOT_FOUND"
+	errorTunnelInvalid  = "INVALID_STATE"
 
 	defaultCleanupInterval = time.Minute * 1
 )
@@ -63,6 +64,11 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 		c.Log = logrus.New()
 	}
 
+	c.Log = c.Log.WithField(
+		trace.Component,
+		teleport.Component(teleport.ComponentProxyPeer),
+	)
+
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
@@ -70,11 +76,6 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 	if c.CleanupInterval == 0 {
 		c.CleanupInterval = defaultCleanupInterval
 	}
-
-	c.Log = c.Log.WithField(
-		trace.Component,
-		teleport.Component(teleport.ComponentProxyPeer),
-	)
 
 	if c.AccessCache == nil {
 		return trace.BadParameter("missing access cache")
@@ -87,9 +88,6 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 	if len(c.TLSConfig.Certificates) == 0 {
 		return trace.BadParameter("missing tls certificate")
 	}
-
-	c.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
-	c.TLSConfig.GetConfigForClient = getConfigForClient(c.TLSConfig, c.AccessCache, c.Log)
 
 	return nil
 }
@@ -149,13 +147,7 @@ func (c *Client) Dial(
 	nodeID string,
 	tunnelType types.TunnelType,
 ) (net.Conn, error) {
-	grpcConn, err := c.dial(ctx, proxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	client := clientapi.NewProxyServiceClient(grpcConn)
-	stream, err := client.DialNode(ctx)
+	stream, _, err := c.dial(ctx, proxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -216,50 +208,61 @@ func (c *Client) Clean() {
 
 // dial returns an existing grpc.ClientConn or initializes a new connection to
 // proxyAddr otherwise.
-func (c *Client) dial(ctx context.Context, proxyAddr string) (*grpc.ClientConn, error) {
-	conn, err := c.getConnection(proxyAddr)
+// The boolean returned in the second argument is intended for testing purposes,
+// to indicates whether the connection was cached or newly established
+func (c *Client) dial(ctx context.Context, proxyAddr string) (clientapi.ProxyService_DialNodeClient, bool, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	stream, err := c.getExistingConnection(ctx, proxyAddr)
 	if err == nil {
 		c.config.Log.Debugf("found existing connection to proxy %+v", proxyAddr)
-		return conn, nil
+		return stream, true, nil
 	} else if !trace.IsNotFound(err) {
 		c.config.Log.Debugf("error checking for existing connections to proxy %+v", proxyAddr)
-		return nil, trace.Wrap(err)
+		return nil, false, trace.Wrap(err)
 	}
 
-	c.config.Log.Debugf("establishing new connection to proxy %+v", proxyAddr)
+	c.config.Log.Debugf("establishing new connection to proxy %+v. err: %+v", proxyAddr, err)
 
-	conn, err = c.newConnection(ctx, proxyAddr)
+	stream, err = c.newConnection(ctx, proxyAddr)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, false, trace.Wrap(err)
 	}
-	return conn, nil
+	return stream, false, nil
 }
 
-// getConnection checks and returns an existing grpc.ClientConn to
+// getExistingConnection checks and returns an existing grpc.ClientConn to
 // proxyAddr from memory.
-func (c *Client) getConnection(proxyAddr string) (*grpc.ClientConn, error) {
-	c.RLock()
-	defer c.RUnlock()
-
+func (c *Client) getExistingConnection(ctx context.Context, proxyAddr string) (clientapi.ProxyService_DialNodeClient, error) {
 	conn, ok := c.conns[proxyAddr]
 	if !ok {
-		c.metrics.tunnelErrorCounter.WithLabelValues(errorTunnelNotFound).Inc()
+		c.metrics.reportTunnelError(errorTunnelNotFound)
 		return nil, trace.NotFound("no existing peer proxy connection to %+v", proxyAddr)
+	}
+
+	client := clientapi.NewProxyServiceClient(conn)
+	stream, err := client.DialNode(ctx)
+	if err == nil {
+		return stream, nil
 	}
 
 	state := conn.GetState()
 	if failedState(state) {
-		c.metrics.tunnelErrorCounter.WithLabelValues(state.String()).Inc()
+		c.metrics.reportTunnelError(state.String())
 		return nil, trace.NotFound("found connection in %+v state", state.String())
 	}
 
-	return conn, nil
+	c.metrics.reportTunnelError(errorTunnelInvalid)
+	return nil, trace.Wrap(err)
 }
 
 // newConnection dials a new connection to proxyAddr.
-func (c *Client) newConnection(ctx context.Context, proxyAddr string) (*grpc.ClientConn, error) {
-	c.Lock()
-	defer c.Unlock()
+func (c *Client) newConnection(ctx context.Context, proxyAddr string) (clientapi.ProxyService_DialNodeClient, error) {
+	if conn, ok := c.conns[proxyAddr]; ok {
+		conn.Close()
+		delete(c.conns, proxyAddr)
+	}
 
 	transportCreds := newProxyCredentials(credentials.NewTLS(c.config.TLSConfig))
 	conn, err := grpc.DialContext(
@@ -268,17 +271,25 @@ func (c *Client) newConnection(ctx context.Context, proxyAddr string) (*grpc.Cli
 		grpc.WithTransportCredentials(transportCreds),
 		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, streamClientInterceptor(c.metrics)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:    peerKeepAlive,
-			Timeout: peerTimeout,
+			Time:                peerKeepAlive,
+			Timeout:             peerTimeout,
+			PermitWithoutStream: true,
 		}),
 	)
 	if err != nil {
-		c.metrics.dialErrorCounter.Inc()
+		c.metrics.reportDialError()
+		return nil, trace.Wrap(err)
+	}
+
+	client := clientapi.NewProxyServiceClient(conn)
+	stream, err := client.DialNode(ctx)
+	if err != nil {
+		c.metrics.reportDialError()
 		return nil, trace.Wrap(err)
 	}
 
 	c.conns[proxyAddr] = conn
-	return conn, nil
+	return stream, nil
 }
 
 func failedState(state connectivity.State) bool {

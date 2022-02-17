@@ -271,4 +271,10 @@ const (
 
 	// MetricProxyPeerServerRequestLatency measures the latency of grpc server requests.
 	MetricProxyPeerServerRequestLatency = "proxy_peer_server_request_latency"
+
+	// MetricProxyPeerServerStreamReceivedLatency measures the latency of received stream messages on the server.
+	MetricProxyPeerServerStreamReceivedLatency = "proxy_peer_server_stream_received_latency"
+
+	// MetricProxyPeerServerStreamSentLatency measures the latency of sent stream messages on the server.
+	MetricProxyPeerServerStreamSentLatency = "proxy_peer_server_stream_sent_latency"
 )
