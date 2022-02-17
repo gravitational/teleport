@@ -18,6 +18,7 @@ package desktop
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -26,14 +27,18 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity, windowsUser, sessionID string, desktop types.WindowsDesktop, err error) {
+func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity, startTime time.Time, windowsUser, sessionID string, desktop types.WindowsDesktop, err error) {
+	userMetadata := id.GetUserMetadata()
+	userMetadata.Login = windowsUser
+
 	event := &events.WindowsDesktopSessionStart{
 		Metadata: events.Metadata{
 			Type:        libevents.WindowsDesktopSessionStartEvent,
 			Code:        libevents.DesktopSessionStartCode,
 			ClusterName: s.clusterName,
+			Time:        startTime,
 		},
-		UserMetadata: id.GetUserMetadata(),
+		UserMetadata: userMetadata,
 		SessionMetadata: events.SessionMetadata{
 			SessionID: sessionID,
 			WithMFA:   id.MFAVerified,
@@ -60,14 +65,17 @@ func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity,
 	s.emit(ctx, event)
 }
 
-func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, windowsUser, sessionID string, desktop types.WindowsDesktop) {
+func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, startedAt time.Time, recorded bool, windowsUser, sessionID string, desktop types.WindowsDesktop) {
+	userMetadata := id.GetUserMetadata()
+	userMetadata.Login = windowsUser
+
 	event := &events.WindowsDesktopSessionEnd{
 		Metadata: events.Metadata{
 			Type:        libevents.WindowsDesktopSessionEndEvent,
 			Code:        libevents.DesktopSessionEndCode,
 			ClusterName: s.clusterName,
 		},
-		UserMetadata: id.GetUserMetadata(),
+		UserMetadata: userMetadata,
 		SessionMetadata: events.SessionMetadata{
 			SessionID: sessionID,
 			WithMFA:   id.MFAVerified,
@@ -77,6 +85,61 @@ func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, w
 		Domain:                desktop.GetDomain(),
 		WindowsUser:           windowsUser,
 		DesktopLabels:         desktop.GetAllLabels(),
+		StartTime:             startedAt,
+		EndTime:               s.cfg.Clock.Now().UTC().Round(time.Millisecond),
+		DesktopName:           desktop.GetName(),
+		Recorded:              recorded,
+
+		// There can only be 1 participant, desktop sessions are not join-able.
+		Participants: []string{userMetadata.User},
+	}
+	s.emit(ctx, event)
+}
+
+func (s *WindowsService) onClipboardSend(ctx context.Context, id *tlsca.Identity, sessionID string, desktopAddr string, length int32) {
+	event := &events.DesktopClipboardSend{
+		Metadata: events.Metadata{
+			Type:        libevents.DesktopClipboardSendEvent,
+			Code:        libevents.DesktopClipboardSendCode,
+			ClusterName: s.clusterName,
+			Time:        s.cfg.Clock.Now().UTC(),
+		},
+		UserMetadata: id.GetUserMetadata(),
+		SessionMetadata: events.SessionMetadata{
+			SessionID: sessionID,
+			WithMFA:   id.MFAVerified,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			LocalAddr:  id.ClientIP,
+			RemoteAddr: desktopAddr,
+			Protocol:   libevents.EventProtocolTDP,
+		},
+		DesktopAddr: desktopAddr,
+		Length:      length,
+	}
+	s.emit(ctx, event)
+}
+
+func (s *WindowsService) onClipboardReceive(ctx context.Context, id *tlsca.Identity, sessionID string, desktopAddr string, length int32) {
+	event := &events.DesktopClipboardReceive{
+		Metadata: events.Metadata{
+			Type:        libevents.DesktopClipboardReceiveEvent,
+			Code:        libevents.DesktopClipboardReceiveCode,
+			ClusterName: s.clusterName,
+			Time:        s.cfg.Clock.Now().UTC(),
+		},
+		UserMetadata: id.GetUserMetadata(),
+		SessionMetadata: events.SessionMetadata{
+			SessionID: sessionID,
+			WithMFA:   id.MFAVerified,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			LocalAddr:  id.ClientIP,
+			RemoteAddr: desktopAddr,
+			Protocol:   libevents.EventProtocolTDP,
+		},
+		DesktopAddr: desktopAddr,
+		Length:      length,
 	}
 	s.emit(ctx, event)
 }

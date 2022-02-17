@@ -77,6 +77,14 @@ var (
 			Buckets: prometheus.LinearBuckets(0, 100, 20),
 		},
 	)
+	connectedResources = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricConnectedResources,
+			Help:      "Tracks the number and type of resources connected via keepalives",
+		},
+		[]string{teleport.TagType},
+	)
 )
 
 // GRPCServer is GPRC Auth Server API
@@ -126,11 +134,6 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if firstIteration {
-			g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
-			heartbeatConnectionsReceived.Inc()
-			firstIteration = false
-		}
 		keepAlive, err := stream.Recv()
 		if err == io.EOF {
 			g.Debugf("Connection closed.")
@@ -143,6 +146,13 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 		err = auth.KeepAliveServer(stream.Context(), *keepAlive)
 		if err != nil {
 			return trace.Wrap(err)
+		}
+		if firstIteration {
+			g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
+			heartbeatConnectionsReceived.Inc()
+			connectedResources.WithLabelValues(keepAlive.GetType()).Inc()
+			defer connectedResources.WithLabelValues(keepAlive.GetType()).Dec()
+			firstIteration = false
 		}
 	}
 }
@@ -386,7 +396,7 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_User{
 			User: r,
 		}
-	case *types.RoleV4:
+	case *types.RoleV5:
 		downgraded, err := downgradeRole(ctx, r)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1567,11 +1577,11 @@ func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.Delet
 
 // downgradeRole tests the client version passed through the GRPC metadata, and
 // if the client version is unknown or less than the minimum supported version
-// for V4 roles returns a shallow copy of the given role downgraded to V3. If
-// the passed in role is already V3, it is returned unmodified.
-func downgradeRole(ctx context.Context, role *types.RoleV4) (*types.RoleV4, error) {
-	if role.Version == types.V3 {
-		// role is already V3, no need to downgrade
+// for V5 roles returns a shallow copy of the given role downgraded to V4, If
+// the passed in role is already V4, it is returned unmodified.
+func downgradeRole(ctx context.Context, role *types.RoleV5) (*types.RoleV5, error) {
+	if role.Version == types.V4 {
+		// role is already V4, no need to downgrade
 		return role, nil
 	}
 
@@ -1585,10 +1595,10 @@ func downgradeRole(ctx context.Context, role *types.RoleV4) (*types.RoleV4, erro
 		}
 	}
 
-	minSupportedVersionForV4Roles := semver.New(utils.VersionBeforeAlpha("6.2.4"))
-	if clientVersion == nil || clientVersion.LessThan(*minSupportedVersionForV4Roles) {
-		log.Debugf(`Client version "%s" is unknown or less than 6.2.4, converting role to v3`, clientVersionString)
-		downgraded, err := services.DowngradeRoleToV3(role)
+	minSupportedVersionForV5Roles := semver.New(utils.VersionBeforeAlpha("9.0.0"))
+	if clientVersion == nil || clientVersion.LessThan(*minSupportedVersionForV5Roles) {
+		log.Debugf(`Client version "%s" is unknown or less than 9.0.0, converting role to v4`, clientVersionString)
+		downgraded, err := services.DowngradeRoleToV4(role)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1598,7 +1608,7 @@ func downgradeRole(ctx context.Context, role *types.RoleV4) (*types.RoleV4, erro
 }
 
 // GetRole retrieves a role by name.
-func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV4, error) {
+func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV5, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1607,11 +1617,11 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleV4, ok := role.(*types.RoleV4)
+	roleV5, ok := role.(*types.RoleV5)
 	if !ok {
 		return nil, trace.Errorf("encountered unexpected role type")
 	}
-	downgraded, err := downgradeRole(ctx, roleV4)
+	downgraded, err := downgradeRole(ctx, roleV5)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1628,9 +1638,9 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rolesV4 []*types.RoleV4
+	var rolesV5 []*types.RoleV5
 	for _, r := range roles {
-		role, ok := r.(*types.RoleV4)
+		role, ok := r.(*types.RoleV5)
 		if !ok {
 			return nil, trace.BadParameter("unexpected type %T", r)
 		}
@@ -1638,15 +1648,15 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRo
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		rolesV4 = append(rolesV4, downgraded)
+		rolesV5 = append(rolesV5, downgraded)
 	}
 	return &proto.GetRolesResponse{
-		Roles: rolesV4,
+		Roles: rolesV5,
 	}, nil
 }
 
 // UpsertRole upserts a role.
-func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV4) (*empty.Empty, error) {
+func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV5) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1677,6 +1687,87 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *proto.DeleteRoleReques
 	g.Debugf("%q role deleted", req.GetName())
 
 	return &empty.Empty{}, nil
+}
+
+// doMFAPresenceChallenge conducts an MFA presence challenge over a stream
+// and updates the users presence for a given session.
+//
+// This function bypasses the `ServerWithRoles` RBAC layer. This is not
+// usually how the GRPC layer accesses the underlying auth server API's but it's done
+// here to avoid bloating the ClientI interface with special logic that isn't designed to be touched
+// by anyone external to this process. This is not the norm and caution should be taken
+// when looking at or modifying this function. This is the same approach taken by other MFA
+// related GRPC API endpoints.
+func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream proto.AuthService_MaintainSessionPresenceServer, challengeReq *proto.PresenceMFAChallengeRequest) error {
+	user := actx.User.GetName()
+	u2fStorage, err := u2f.InMemoryAuthenticationStorage(actx.authServer.Identity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, u2fStorage)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(authChallenge.U2F) == 0 && authChallenge.WebauthnChallenge == nil {
+		return trace.BadParameter("no U2F or WebAuthn devices registered for %q", user)
+	}
+
+	if err := stream.Send(authChallenge); err != nil {
+		return trace.Wrap(err)
+	}
+
+	resp, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	challengeResp := resp.GetChallengeResponse()
+	if challengeResp == nil {
+		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", challengeResp)
+	}
+
+	if _, err := actx.authServer.validateMFAAuthResponse(ctx, user, challengeResp, u2fStorage); err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// MaintainSessionPresence establishes a channel used to continuously verify the presence for a session.
+func (g *GRPCServer) MaintainSessionPresence(stream proto.AuthService_MaintainSessionPresenceServer) error {
+	ctx := stream.Context()
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		challengeReq := req.GetChallengeRequest()
+		if challengeReq == nil {
+			return trace.BadParameter("expected PresenceMFAChallengeRequest, got %T", req)
+		}
+
+		err = doMFAPresenceChallenge(ctx, actx, stream, challengeReq)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 }
 
 func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) error {
@@ -2737,7 +2828,7 @@ func (g *GRPCServer) ResetAuthPreference(ctx context.Context, _ *empty.Empty) (*
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (g *GRPCServer) StreamSessionEvents(req *proto.StreamSessionEventsRequest, stream proto.AuthService_StreamSessionEventsServer) error {
 	auth, err := g.authenticate(stream.Context())
@@ -3550,6 +3641,97 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 	return resp, nil
 }
 
+// CreateSessionTracker creates a tracker resource for an active session.
+func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (*types.SessionTrackerV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	session, err := auth.ServerWithRoles.CreateSessionTracker(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defined, ok := session.(*types.SessionTrackerV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected session type %T", session)
+	}
+
+	return defined, nil
+}
+
+// GetSessionTracker returns the current state of a session tracker for an active session.
+func (g *GRPCServer) GetSessionTracker(ctx context.Context, req *proto.GetSessionTrackerRequest) (*types.SessionTrackerV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	session, err := auth.ServerWithRoles.GetSessionTracker(ctx, req.SessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defined, ok := session.(*types.SessionTrackerV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected session type %T", session)
+	}
+
+	return defined, nil
+}
+
+// GetActiveSessionTrackers returns a list of active session trackers.
+func (g *GRPCServer) GetActiveSessionTrackers(_ *empty.Empty, stream proto.AuthService_GetActiveSessionTrackersServer) error {
+	ctx := stream.Context()
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sessions, err := auth.ServerWithRoles.GetActiveSessionTrackers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, session := range sessions {
+		defined, ok := session.(*types.SessionTrackerV1)
+		if !ok {
+			return trace.BadParameter("unexpected session type %T", session)
+		}
+
+		err := stream.Send(defined)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// RemoveSessionTracker removes a tracker resource for an active session.
+func (g *GRPCServer) RemoveSessionTracker(ctx context.Context, req *proto.RemoveSessionTrackerRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.ServerWithRoles.RemoveSessionTracker(ctx, req.SessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// UpdateSessionTracker updates a tracker resource for an active session.
+func (g *GRPCServer) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.ServerWithRoles.UpdateSessionTracker(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
@@ -3580,7 +3762,7 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 
 // NewGRPCServer returns a new instance of GRPC server
 func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
-	err := utils.RegisterPrometheusCollectors(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes)
+	err := utils.RegisterPrometheusCollectors(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes, connectedResources)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

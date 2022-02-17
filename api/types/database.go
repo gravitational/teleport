@@ -68,6 +68,8 @@ type Database interface {
 	GetGCP() GCPCloudSQL
 	// GetAzure returns Azure database server metadata.
 	GetAzure() Azure
+	// GetAD returns Active Directory database configuration.
+	GetAD() AD
 	// GetType returns the database authentication type: self-hosted, RDS, Redshift or Cloud SQL.
 	GetType() string
 	// GetIAMPolicy returns AWS IAM policy for the database.
@@ -274,6 +276,11 @@ func (d *DatabaseV3) GetGCP() GCPCloudSQL {
 // GetAzure returns Azure database server metadata.
 func (d *DatabaseV3) GetAzure() Azure {
 	return d.Spec.Azure
+}
+
+// GetAD returns Active Directory database configuration.
+func (d *DatabaseV3) GetAD() AD {
+	return d.Spec.AD
 }
 
 // IsRDS returns true if this is an AWS RDS/Aurora instance.
