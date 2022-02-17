@@ -44,6 +44,7 @@ message KeepAlive {
         APP = 2;
         DATABASE = 3;
         WINDOWS_DESKTOP = 4;
+        KUBERNETES = 5;
     }
     KeepAliveType Type = 9 [ (gogoproto.jsontag) = "type" ];
     // HostID is an optional UUID of the host the resource belongs to.
@@ -703,10 +704,20 @@ message ProvisionTokenV2List {
     repeated ProvisionTokenV2 ProvisionTokens = 1;
 }
 
+// TokenRule is a rule that a joining node must match in order to use the
+// associated token.
 message TokenRule {
+    // AWSAccount is the AWS account ID.
     string AWSAccount = 1 [ (gogoproto.jsontag) = "aws_account,omitempty" ];
+    // AWSRegions is used for the EC2 join method and is a list of AWS regions a
+    // node is allowed to join from.
     repeated string AWSRegions = 2 [ (gogoproto.jsontag) = "aws_regions,omitempty" ];
+    // AWSRole is used for the EC2 join method and is the the ARN of the AWS
+    // role that the auth server will assume in order to call the ec2 API.
     string AWSRole = 3 [ (gogoproto.jsontag) = "aws_role,omitempty" ];
+    // AWSARN is used for the IAM join method, the AWS identity of joining nodes
+    // must match this ARN. Supports wildcards "*" and "?".
+    string AWSARN = 4 [ (gogoproto.jsontag) = "aws_arn,omitempty" ];
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
@@ -716,9 +727,17 @@ message ProvisionTokenSpecV2 {
     // certificates issued to the user of the token
     repeated string Roles = 1
         [ (gogoproto.jsontag) = "roles", (gogoproto.casttype) = "SystemRole" ];
-    repeated TokenRule allow = 2 [ (gogoproto.jsontag) = "allow,omitempty" ];
+    // Allow is a list of TokenRules, nodes using this token must match one
+    // allow rule to use this token.
+    repeated TokenRule Allow = 2 [ (gogoproto.jsontag) = "allow,omitempty" ];
+    // AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used
+    // to join the cluster with this token.
     int64 AWSIIDTTL = 3
         [ (gogoproto.jsontag) = "aws_iid_ttl,omitempty", (gogoproto.casttype) = "Duration" ];
+    // JoinMethod is the joining method required in order to use this token.
+    // Supported joining methods include "token", "ec2", and "iam".
+    string JoinMethod = 4
+        [ (gogoproto.jsontag) = "join_method", (gogoproto.casttype) = "JoinMethod" ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -1527,6 +1546,29 @@ message RoleOptions {
         (gogoproto.jsontag) = "lock,omitempty",
         (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
     ];
+
+    // RecordDesktopSession indicates whether desktop access sessions should be recorded.
+    // It defaults to true unless explicitly set to false.
+    RecordSession RecordSession = 15 [ (gogoproto.jsontag) = "record_session" ];
+
+    // DesktopClipboard indicates whether clipboard sharing is allowed between the user's
+    // workstation and the remote desktop. It defaults to true unless explicitly set to
+    // false.
+    BoolValue DesktopClipboard = 16 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "desktop_clipboard",
+        (gogoproto.customtype) = "BoolOption"
+    ];
+}
+
+message RecordSession {
+    // Desktop indicates whether desktop sessions should be recorded.
+    // It defaults to true unless explicitly set to false.
+    BoolValue Desktop = 1 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "desktop",
+        (gogoproto.customtype) = "BoolOption"
+    ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
@@ -1914,6 +1956,16 @@ message WebauthnDevice {
     // Actual counter values received from the authenticator are expected to be
     // higher than the previously-stored value.
     uint32 signature_counter = 5;
+    // Raw attestation object, as returned by the authentication during
+    // registration.
+    // Absent for legacy entries (Teleport 8.x).
+    bytes attestation_object = 6;
+    // True if a resident key was requested during registration.
+    // Marks passwordless-capable devices.
+    // (Note that resident_key=true represents the server-side / Relying Party
+    // view of the registration process; the authenticator alone can determine
+    // if a key is truly resident.)
+    bool resident_key = 7;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
@@ -2689,8 +2741,8 @@ message RegisterUsingTokenRequest {
     // RemoteAddr is the remote address of the host requesting a host certificate.
     // It is used to replace 0.0.0.0 in the list of additional principals.
     string RemoteAddr = 9 [ (gogoproto.jsontag) = "remote_addr" ];
-    // EC2IdentityDocument is used for Simplified Node Joining to prove the
-    // identity of a joining EC2 instance.
+    // EC2IdentityDocument is used for the EC2 join method to prove the identity
+    // of a joining EC2 instance.
     bytes EC2IdentityDocument = 10 [ (gogoproto.jsontag) = "ec2_id" ];
 }
 

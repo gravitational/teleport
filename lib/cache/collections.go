@@ -1784,7 +1784,7 @@ func (c *kubeService) fetch(ctx context.Context) (apply func(ctx context.Context
 		}
 
 		for _, resource := range resources {
-			if err := c.presenceCache.UpsertKubeService(ctx, resource); err != nil {
+			if _, err := c.presenceCache.UpsertKubeServiceV2(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -1807,7 +1807,7 @@ func (c *kubeService) processEvent(ctx context.Context, event types.Event) error
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		if err := c.presenceCache.UpsertKubeService(ctx, resource); err != nil {
+		if _, err := c.presenceCache.UpsertKubeServiceV2(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
