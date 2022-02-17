@@ -1368,17 +1368,19 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 	}
 
 	regChal, err := a.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
-		username:   token.GetUser(),
-		token:      token,
-		deviceType: req.GetDeviceType(),
+		username:    token.GetUser(),
+		token:       token,
+		deviceType:  req.GetDeviceType(),
+		deviceUsage: req.GetDeviceUsage(),
 	})
 
 	return regChal, trace.Wrap(err)
 }
 
 type newRegisterChallengeRequest struct {
-	username   string
-	deviceType proto.DeviceType
+	username    string
+	deviceType  proto.DeviceType
+	deviceUsage proto.DeviceUsage
 
 	// token is a user token resource.
 	// It is used as following:
@@ -1447,7 +1449,8 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 			Identity: identity,
 		}
 
-		credentialCreation, err := webRegistration.Begin(ctx, req.username, false /* passwordless */)
+		passwordless := req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
+		credentialCreation, err := webRegistration.Begin(ctx, req.username, passwordless)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

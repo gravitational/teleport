@@ -88,6 +88,8 @@ func TestMFADeviceManagement(t *testing.T) {
 	require.NoError(t, err)
 	webKey2.PreferRPID = true
 	const webDev2Name = "webauthn2"
+	const pwdlessDevName = "pwdless"
+
 	addTests := []struct {
 		desc string
 		opts mfaAddTestOpts
@@ -229,6 +231,43 @@ func TestMFADeviceManagement(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "add passwordless device",
+			opts: mfaAddTestOpts{
+				initReq: &proto.AddMFADeviceRequestInit{
+					DeviceName:  pwdlessDevName,
+					DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+				},
+				authHandler:  devs.webAuthHandler,
+				checkAuthErr: require.NoError,
+				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
+					require.NotNil(t, challenge.GetWebauthn(), "WebAuthn challenge cannot be nil")
+
+					key, err := mocku2f.Create()
+					require.NoError(t, err)
+					key.PreferRPID = true
+					key.AllowResidentKey = true // passwordless settings
+					key.IgnoreAllowedCredentials = true
+					key.SetUV = true
+
+					ccr, err := key.SignCredentialCreation(webOrigin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					require.NoError(t, err)
+
+					return &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_Webauthn{
+							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+						},
+					}
+				},
+				checkRegisterErr: require.NoError,
+				assertRegisteredDev: func(t *testing.T, dev *types.MFADevice) {
+					// Do a few simple device checks - lib/auth/webauthn goes in depth.
+					require.NotNil(t, dev.GetWebauthn(), "WebAuthnDevice cannot be nil")
+					require.True(t, true, dev.GetWebauthn().ResidentKey, "ResidentKey should be set to true")
+				},
+			},
+		},
 	}
 	for _, tt := range addTests {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -246,7 +285,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		deviceIDs[dev.GetName()] = dev.Id
 	}
 	sort.Strings(deviceNames)
-	require.Equal(t, deviceNames, []string{devs.TOTPName, devs.WebName, webDev2Name})
+	require.Equal(t, deviceNames, []string{pwdlessDevName, devs.TOTPName, devs.WebName, webDev2Name})
 
 	// Delete several of the MFA devices.
 	deleteTests := []struct {
@@ -318,6 +357,16 @@ func TestMFADeviceManagement(t *testing.T) {
 					DeviceName: devs.TOTPName,
 				},
 				authHandler: devs.totpAuthHandler,
+				checkErr:    require.NoError,
+			},
+		},
+		{
+			desc: "delete pwdless device by name",
+			opts: mfaDeleteTestOpts{
+				initReq: &proto.DeleteMFADeviceRequestInit{
+					DeviceName: pwdlessDevName,
+				},
+				authHandler: devs.webAuthHandler,
 				checkErr:    require.NoError,
 			},
 		},

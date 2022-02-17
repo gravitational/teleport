@@ -2006,6 +2006,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	res, err := auth.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
 		username:            user,
 		deviceType:          initReq.DeviceType,
+		deviceUsage:         initReq.DeviceUsage,
 		webIdentityOverride: webIdentity,
 	})
 	if err != nil {
