@@ -641,6 +641,8 @@ type Database struct {
 	AWS DatabaseAWS
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP
+	// AD contains Active Directory configuration for database.
+	AD DatabaseAD
 }
 
 // TLSMode defines all possible database verification modes.
@@ -728,6 +730,35 @@ type DatabaseGCP struct {
 	InstanceID string
 }
 
+// DatabaseAD contains database Active Directory configuration.
+type DatabaseAD struct {
+	// KeytabFile is the path to the Kerberos keytab file.
+	KeytabFile string
+	// Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
+	Krb5File string
+	// Domain is the Active Directory domain the database resides in.
+	Domain string
+	// SPN is the service principal name for the database.
+	SPN string
+}
+
+// CheckAndSetDefaults validates database Active Directory configuration.
+func (d *DatabaseAD) CheckAndSetDefaults(name string) error {
+	if d.KeytabFile == "" {
+		return trace.BadParameter("missing keytab file path for database %q", name)
+	}
+	if d.Krb5File == "" {
+		d.Krb5File = defaults.Krb5FilePath
+	}
+	if d.Domain == "" {
+		return trace.BadParameter("missing Active Directory domain for database %q", name)
+	}
+	if d.SPN == "" {
+		return trace.BadParameter("missing service principal name for database %q", name)
+	}
+	return nil
+}
+
 // CheckAndSetDefaults validates the database proxy configuration.
 func (d *Database) CheckAndSetDefaults() error {
 	if d.Name == "" {
@@ -791,6 +822,14 @@ func (d *Database) CheckAndSetDefaults() error {
 	case d.GCP.ProjectID == "" && d.GCP.InstanceID != "":
 		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
 	}
+
+	// For SQL Server we only support Kerberos auth with Active Directory at the moment.
+	if d.Protocol == defaults.ProtocolSQLServer {
+		if err := d.AD.CheckAndSetDefaults(d.Name); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
