@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/roundtrip"
@@ -106,7 +107,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		// to be equal to the name of the remote cluster it is connecting to.
 		trustedCluster.SetName(remoteCAs[0].GetClusterName())
 
-		if err := a.addTrustedCertAuthorities(trustedCluster, remoteCAs); err != nil {
+		if err := a.addCertAuthorities(trustedCluster, remoteCAs); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -129,7 +130,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		// Force name to the name of the trusted cluster.
 		trustedCluster.SetName(remoteCAs[0].GetClusterName())
 
-		if err := a.addTrustedCertAuthorities(trustedCluster, remoteCAs); err != nil {
+		if err := a.addCertAuthorities(trustedCluster, remoteCAs); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -268,27 +269,32 @@ func (a *Server) establishTrust(trustedCluster types.TrustedCluster) ([]types.Ce
 		return nil, trace.Wrap(err)
 	}
 
-	if len(validateResponse.CAs) == 0 {
-		return nil, trace.BadParameter("received no CAs from trusted cluster")
-	}
-
 	// log the remote certificate authorities we are adding
 	log.Debugf("Received validate response; CAs=%v", validateResponse.CAs)
 
-	remoteClusterName := validateResponse.CAs[0].GetName()
-	if remoteClusterName == domainName {
-		return nil, trace.BadParameter("trusted cluster name can not be the same as local cluster name")
-	}
 	for _, ca := range validateResponse.CAs {
-		if ca.GetName() != remoteClusterName {
-			return nil, trace.BadParameter("received inconsistently named CAs from trusted cluster")
+		for _, keyPair := range ca.GetActiveKeys().TLS {
+			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			remoteClusterName, err := tlsca.ClusterName(cert.Subject)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if remoteClusterName == domainName {
+				return nil, trace.BadParameter("remote cluster name can not be the same as local cluster name")
+			}
+			// TODO(klizhentas) in 2.5.0 prohibit adding trusted cluster resource name
+			// different from cluster name (we had no way of checking this before x509,
+			// because SSH CA was a public key, not a cert with metadata)
 		}
 	}
 
 	return validateResponse.CAs, nil
 }
 
-func (a *Server) addTrustedCertAuthorities(trustedCluster types.TrustedCluster, remoteCAs []types.CertAuthority) error {
+func (a *Server) addCertAuthorities(trustedCluster types.TrustedCluster, remoteCAs []types.CertAuthority) error {
 	// the remote auth server has verified our token. add the
 	// remote certificate authority to our backend
 	for _, remoteCertAuthority := range remoteCAs {
@@ -455,7 +461,7 @@ func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterR
 
 	log.Debugf("Received validate request: token=%s, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
 
-	localClusterName, err := a.GetDomainName()
+	domainName, err := a.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -466,27 +472,15 @@ func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterR
 		return nil, trace.Wrap(err)
 	}
 
-	if len(validateRequest.CAs) == 0 {
-		return nil, trace.BadParameter("missing CAs")
-	}
-	remoteClusterName := validateRequest.CAs[0].GetName()
-	if remoteClusterName == "" {
-		return nil, trace.BadParameter("missing CA name")
-	}
-
-	// don't add a ca with the same as as local cluster name
-	if remoteClusterName == localClusterName {
-		return nil, trace.AccessDenied("remote certificate authority has same name as cluster certificate authority: %q", localClusterName)
-	}
-
-	for _, certAuthority := range validateRequest.CAs {
-		// enforce that all CAs are consistently named
-		if certAuthority.GetName() != remoteClusterName {
-			return nil, trace.BadParameter("inconsistently named %v, expected %q", certAuthority, remoteClusterName)
-		}
-	}
-
 	// add remote cluster resource to keep track of the remote cluster
+	var remoteClusterName string
+	for _, certAuthority := range validateRequest.CAs {
+		// don't add a ca with the same as as local cluster name
+		if certAuthority.GetName() == domainName {
+			return nil, trace.AccessDenied("remote certificate authority has same name as cluster certificate authority: %v", domainName)
+		}
+		remoteClusterName = certAuthority.GetName()
+	}
 	remoteCluster, err := types.NewRemoteCluster(remoteClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -518,7 +512,7 @@ func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterR
 	}
 	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA} {
 		certAuthority, err := a.GetCertAuthority(
-			types.CertAuthID{Type: caType, DomainName: localClusterName},
+			types.CertAuthID{Type: caType, DomainName: domainName},
 			false)
 		if err != nil {
 			return nil, trace.Wrap(err)
