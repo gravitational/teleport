@@ -406,19 +406,44 @@ const (
 
 	// DatabaseSessionPostgresParseEvent is emitted when a Postgres client
 	// creates a prepared statement using extended query protocol.
-	DatabaseSessionPostgresParseEvent = "db.session.postgres.parse"
+	DatabaseSessionPostgresParseEvent = "db.session.postgres.statements.parse"
 	// DatabaseSessionPostgresBindEvent is emitted when a Postgres client
 	// readies a prepared statement for execution and binds it to parameters.
-	DatabaseSessionPostgresBindEvent = "db.session.postgres.bind"
+	DatabaseSessionPostgresBindEvent = "db.session.postgres.statements.bind"
 	// DatabaseSessionPostgresExecuteEvent is emitted when a Postgres client
 	// executes a previously bound prepared statement.
-	DatabaseSessionPostgresExecuteEvent = "db.session.postgres.execute"
+	DatabaseSessionPostgresExecuteEvent = "db.session.postgres.statements.execute"
 	// DatabaseSessionPostgresCloseEvent is emitted when a Postgres client
 	// closes an existing prepared statement.
-	DatabaseSessionPostgresCloseEvent = "db.session.postgres.close"
+	DatabaseSessionPostgresCloseEvent = "db.session.postgres.statements.close"
 	// DatabaseSessionPostgresFunctionEvent is emitted when a Postgres client
 	// calls an internal function.
 	DatabaseSessionPostgresFunctionEvent = "db.session.postgres.function"
+
+	// DatabaseSessionMySQLStatementPrepareEvent is emitted when a MySQL client
+	// creates a prepared statement using the prepared statement protocol.
+	DatabaseSessionMySQLStatementPrepareEvent = "db.session.mysql.statements.prepare"
+	// DatabaseSessionMySQLStatementExecuteEvent is emitted when a MySQL client
+	// executes a prepared statement using the prepared statement protocol.
+	DatabaseSessionMySQLStatementExecuteEvent = "db.session.mysql.statements.execute"
+	// DatabaseSessionMySQLStatementSendLongDataEvent is emitted when a MySQL
+	// client sends long bytes stream using the prepared statement protocol.
+	DatabaseSessionMySQLStatementSendLongDataEvent = "db.session.mysql.statements.send_long_data"
+	// DatabaseSessionMySQLStatementCloseEvent is emitted when a MySQL client
+	// deallocates a prepared statement using the prepared statement protocol.
+	DatabaseSessionMySQLStatementCloseEvent = "db.session.mysql.statements.close"
+	// DatabaseSessionMySQLStatementResetEvent is emitted when a MySQL client
+	// resets the data of a prepared statement using the prepared statement
+	// protocol.
+	DatabaseSessionMySQLStatementResetEvent = "db.session.mysql.statements.reset"
+	// DatabaseSessionMySQLStatementFetchEvent is emitted when a MySQL client
+	// fetches rows from a prepared statement using the prepared statement
+	// protocol.
+	DatabaseSessionMySQLStatementFetchEvent = "db.session.mysql.statements.fetch"
+	// DatabaseSessionMySQLStatementBulkExecuteEvent is emitted when a MySQL
+	// client executes a bulk insert of a prepared statement using the prepared
+	// statement protocol.
+	DatabaseSessionMySQLStatementBulkExecuteEvent = "db.session.mysql.statements.bulk_execute"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.

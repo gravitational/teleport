@@ -552,9 +552,211 @@ func TestJSON(t *testing.T) {
 				EndTime:               time.Date(2020, 04, 23, 18, 26, 35, 350*int(time.Millisecond), time.UTC),
 			},
 		},
+		{
+			name: "MySQL statement prepare",
+			json: `{"cluster_name":"test-cluster","code":"TMY00I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.prepare","query":"select 1","sid":"test-session","time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			event: apievents.MySQLStatementPrepare{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        DatabaseSessionMySQLStatementPrepareEvent,
+					Code:        MySQLStatementPrepareCode,
+					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: "test-session",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "test-mysql",
+					DatabaseProtocol: "mysql",
+					DatabaseURI:      "localhost:3306",
+					DatabaseName:     "test",
+					DatabaseUser:     "alice",
+				},
+				Query: "select 1",
+			},
+		},
+		{
+			name: "MySQL statement execute",
+			json: `{"cluster_name":"test-cluster","code":"TMY01I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.execute","parameters":null,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			event: apievents.MySQLStatementExecute{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        DatabaseSessionMySQLStatementExecuteEvent,
+					Code:        MySQLStatementExecuteCode,
+					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: "test-session",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "test-mysql",
+					DatabaseProtocol: "mysql",
+					DatabaseURI:      "localhost:3306",
+					DatabaseName:     "test",
+					DatabaseUser:     "alice",
+				},
+				StatementID: 222,
+			},
+		},
+		{
+			name: "MySQL statement send long data",
+			json: `{"cluster_name":"test-cluster","code":"TMY02I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","data_size":55,"db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.send_long_data","parameter_id":5,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			event: apievents.MySQLStatementSendLongData{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        DatabaseSessionMySQLStatementSendLongDataEvent,
+					Code:        MySQLStatementSendLongDataCode,
+					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: "test-session",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "test-mysql",
+					DatabaseProtocol: "mysql",
+					DatabaseURI:      "localhost:3306",
+					DatabaseName:     "test",
+					DatabaseUser:     "alice",
+				},
+				ParameterID: 5,
+				StatementID: 222,
+				DataSize:    55,
+			},
+		},
+		{
+			name: "MySQL statement close",
+			json: `{"cluster_name":"test-cluster","code":"TMY03I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.close","sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			event: apievents.MySQLStatementClose{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        DatabaseSessionMySQLStatementCloseEvent,
+					Code:        MySQLStatementCloseCode,
+					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: "test-session",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "test-mysql",
+					DatabaseProtocol: "mysql",
+					DatabaseURI:      "localhost:3306",
+					DatabaseName:     "test",
+					DatabaseUser:     "alice",
+				},
+				StatementID: 222,
+			},
+		},
+		{
+			name: "MySQL statement reset",
+			json: `{"cluster_name":"test-cluster","code":"TMY04I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.reset","sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			event: apievents.MySQLStatementReset{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        DatabaseSessionMySQLStatementResetEvent,
+					Code:        MySQLStatementResetCode,
+					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: "test-session",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "test-mysql",
+					DatabaseProtocol: "mysql",
+					DatabaseURI:      "localhost:3306",
+					DatabaseName:     "test",
+					DatabaseUser:     "alice",
+				},
+				StatementID: 222,
+			},
+		},
+		{
+			name: "MySQL statement fetch",
+			json: `{"cluster_name":"test-cluster","code":"TMY05I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.fetch","rows_count": 5,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			event: apievents.MySQLStatementFetch{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        DatabaseSessionMySQLStatementFetchEvent,
+					Code:        MySQLStatementFetchCode,
+					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: "test-session",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "test-mysql",
+					DatabaseProtocol: "mysql",
+					DatabaseURI:      "localhost:3306",
+					DatabaseName:     "test",
+					DatabaseUser:     "alice",
+				},
+				StatementID: 222,
+				RowsCount:   5,
+			},
+		},
+		{
+			name: "MySQL statement bulk execute",
+			json: `{"cluster_name":"test-cluster","code":"TMY06I","db_name":"test","db_protocol":"mysql","db_service":"test-mysql","db_uri":"localhost:3306","db_user":"alice","ei":22,"event":"db.session.mysql.statements.bulk_execute","parameters":null,"sid":"test-session","statement_id":222,"time":"2022-02-22T22:22:22.222Z","uid":"test-id","user":"alice@example.com"}`,
+			event: apievents.MySQLStatementBulkExecute{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        DatabaseSessionMySQLStatementBulkExecuteEvent,
+					Code:        MySQLStatementBulkExecuteCode,
+					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: "test-session",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "test-mysql",
+					DatabaseProtocol: "mysql",
+					DatabaseURI:      "localhost:3306",
+					DatabaseName:     "test",
+					DatabaseUser:     "alice",
+				},
+				StatementID: 222,
+			},
+		},
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			outJSON, err := utils.FastMarshal(tc.event)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.json, string(outJSON))

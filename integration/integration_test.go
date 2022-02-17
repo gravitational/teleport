@@ -624,7 +624,7 @@ func TestMain(m *testing.M) {
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 &&
-		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
+		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand || os.Args[1] == teleport.CheckHomeDirSubCommand) {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
@@ -4300,7 +4300,7 @@ func (s *integrationTestSuite) rotationConfig(disableWebService bool) *service.C
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebService = disableWebService
 	tconf.Proxy.DisableWebInterface = true
-	tconf.PollingPeriod = 500 * time.Millisecond
+	tconf.PollingPeriod = time.Second
 	tconf.ClientTimeout = time.Second
 	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
 	tconf.MaxRetryPeriod = time.Second
