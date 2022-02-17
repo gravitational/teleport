@@ -17,6 +17,7 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 
 	"github.com/gravitational/teleport/api/types"
@@ -100,6 +101,7 @@ func checkProxyRole(authInfo credentials.AuthInfo) error {
 
 func getConfigForClient(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+		fmt.Println("-------------------------------------- get config for client called")
 		clusterName, err := ap.GetClusterName()
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve cluster name.")

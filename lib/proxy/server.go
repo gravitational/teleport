@@ -87,8 +87,9 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 
 // Server is a proxy service server using grpc and tls.
 type Server struct {
-	server *grpc.Server
-	config ServerConfig
+	config  ServerConfig
+	server  *grpc.Server
+	metrics *serverMetrics
 }
 
 // NewServer creates a new proxy server instance.
@@ -124,15 +125,18 @@ func NewServer(config ServerConfig) (*Server, error) {
 	proto.RegisterProxyServiceServer(server, service)
 
 	return &Server{
-		server: server,
-		config: config,
+		config:  config,
+		server:  server,
+		metrics: metrics,
 	}, nil
 }
 
 // Serve starts the proxy server.
 func (s *Server) Serve() error {
-	err := s.server.Serve(s.config.Listener)
-	return trace.Wrap(err)
+	if err := s.server.Serve(s.config.Listener); err != nil && err != grpc.ErrServerStopped {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // Close closes the proxy server immediately.

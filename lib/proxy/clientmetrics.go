@@ -22,71 +22,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// serverMetrics represents a collection of metrics for a proxy peer server
-type serverMetrics struct {
-	requestCounter           *prometheus.CounterVec
-	handledCounter           *prometheus.CounterVec
-	streamMsgReceivedCounter *prometheus.CounterVec
-	streamMsgSentCounter     *prometheus.CounterVec
-	handledHistogram         *prometheus.HistogramVec
-}
-
-// newServerMetrics inits and registers client metrics prometheus collectors.
-func newServerMetrics() (*serverMetrics, error) {
-	sm := &serverMetrics{
-		requestCounter: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: teleport.MetricProxyPeerServerRequest,
-				Help: "Counts the number of server requests.",
-			},
-			[]string{"grpc_service", "grpc_method"},
-		),
-		handledCounter: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: teleport.MetricProxyPeerServerRequestHandled,
-				Help: "Counts the number of handled server requests.",
-			},
-			[]string{"grpc_service", "grpc_method", "grpc_code"},
-		),
-		streamMsgReceivedCounter: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: teleport.MetricProxyPeerServerStreamReceived,
-				Help: "Counts the number of received stream messages on the server.",
-			},
-			[]string{"grpc_service", "grpc_method"},
-		),
-		streamMsgSentCounter: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: teleport.MetricProxyPeerServerStreamSent,
-				Help: "Counts the number of sent stream messages on the server.",
-			},
-			[]string{"grpc_service", "grpc_method"},
-		),
-		handledHistogram: prometheus.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Name: teleport.MetricProxyPeerServerRequestLatency,
-				Help: "Measures the latency of handled grpc server requests.",
-				// lowest bucket start at upper bound 0.001 sec (1 ms) with factor 2
-				// highest bucket start at 0.001 sec * 2^15 == 32.768 sec
-				Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
-			},
-			[]string{"grpc_service", "grpc_method"},
-		),
-	}
-
-	if err := utils.RegisterPrometheusCollectors(
-		sm.requestCounter,
-		sm.handledCounter,
-		sm.streamMsgReceivedCounter,
-		sm.streamMsgSentCounter,
-		sm.handledHistogram,
-	); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sm, nil
-}
-
 // clientMetrics represents a collection of metrics for a proxy peer client
 type clientMetrics struct {
 	dialErrorCounter   prometheus.Counter
@@ -122,28 +57,28 @@ func newClientMetrics() (*clientMetrics, error) {
 				Name: teleport.MetricProxyPeerClientRequest,
 				Help: "Counts the number of client requests.",
 			},
-			[]string{"grpc_service", "grpc_method"},
+			[]string{"service", "method"},
 		),
 		handledCounter: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: teleport.MetricProxyPeerClientRequestHandled,
 				Help: "Counts the number of handled client requests.",
 			},
-			[]string{"grpc_service", "grpc_method", "grpc_code"},
+			[]string{"service", "method", "code"},
 		),
 		streamMsgReceivedCounter: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: teleport.MetricProxyPeerClientStreamReceived,
 				Help: "Counts the number of received stream messages on the client.",
 			},
-			[]string{"grpc_service", "grpc_method"},
+			[]string{"service", "method", "code", "size"},
 		),
 		streamMsgSentCounter: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: teleport.MetricProxyPeerClientStreamSent,
 				Help: "Counts the number of sent stream messages on the client.",
 			},
-			[]string{"grpc_service", "grpc_method"},
+			[]string{"service", "method", "code", "size"},
 		),
 		handledHistogram: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
@@ -153,7 +88,7 @@ func newClientMetrics() (*clientMetrics, error) {
 				// highest bucket start at 0.001 sec * 2^15 == 32.768 sec
 				Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 			},
-			[]string{"grpc_service", "grpc_method"},
+			[]string{"service", "method"},
 		),
 		streamReceivedHistogram: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
@@ -163,7 +98,7 @@ func newClientMetrics() (*clientMetrics, error) {
 				// highest bucket start at 0.001 sec * 2^15 == 32.768 sec
 				Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 			},
-			[]string{"grpc_service", "grpc_method"},
+			[]string{"service", "method"},
 		),
 		streamSentHistogram: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
@@ -173,7 +108,7 @@ func newClientMetrics() (*clientMetrics, error) {
 				// highest bucket start at 0.001 sec * 2^15 == 32.768 sec
 				Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 			},
-			[]string{"grpc_service", "grpc_method"},
+			[]string{"service", "method"},
 		),
 	}
 
@@ -192,4 +127,49 @@ func newClientMetrics() (*clientMetrics, error) {
 	}
 
 	return cm, nil
+}
+
+// reportDialError reports errors encountered dialing a new peer tunnel.
+func (c *clientMetrics) reportDialError() {
+	c.dialErrorCounter.Inc()
+}
+
+// reportTunnelError reports errors encountered dialing an existing peer tunnel.
+func (c *clientMetrics) reportTunnelError(status string) {
+	c.tunnelErrorCounter.WithLabelValues(status).Inc()
+}
+
+// getRequestCounter is a getter for the requestCounter collector.
+func (c *clientMetrics) getRequestCounter() *prometheus.CounterVec {
+	return c.requestCounter
+}
+
+// getHandledCounter is a getter for the handledCounter collector.
+func (c *clientMetrics) getHandledCounter() *prometheus.CounterVec {
+	return c.handledCounter
+}
+
+// getStreamMsgReceivedCounter is a getter for the streamMsgReceivedCounter collector.
+func (c *clientMetrics) getStreamMsgReceivedCounter() *prometheus.CounterVec {
+	return c.streamMsgReceivedCounter
+}
+
+// getStreamMsgSentCounter is a getter for the streamMsgSentCounter collector.
+func (c *clientMetrics) getStreamMsgSentCounter() *prometheus.CounterVec {
+	return c.streamMsgSentCounter
+}
+
+// getHandledHistogram is a getter for the handledHistogram collector.
+func (c *clientMetrics) getHandledHistogram() *prometheus.HistogramVec {
+	return c.handledHistogram
+}
+
+// getStreamReceivedHistogram is a getter for the streamReceivedHistogram collector.
+func (c *clientMetrics) getStreamReceivedHistogram() *prometheus.HistogramVec {
+	return c.streamReceivedHistogram
+}
+
+// getStreamSentHistogram is a getter for the streamSentHistogram collector.
+func (c *clientMetrics) getStreamSentHistogram() *prometheus.HistogramVec {
+	return c.streamSentHistogram
 }
