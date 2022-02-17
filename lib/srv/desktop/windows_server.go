@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -665,22 +666,24 @@ func (s *WindowsService) ldapReady() bool {
 // It authenticates and authorizes the connection, and then begins
 // translating the TDP messages from the proxy into native RDP.
 func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
-	defer proxyConn.Close()
 	log := s.cfg.Log
+
 	tdpConn := tdp.NewConn(proxyConn)
+	defer tdpConn.Close()
 
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTDPError := func(message string) {
-		if err := tdpConn.OutputMessage(tdp.Error{Message: message}); err != nil {
-			log.Errorf("Failed to send TDP error message %v: %v", tdp.Error{Message: message}, err)
+		if err := tdpConn.SendError(message); err != nil {
+			s.cfg.Log.Errorf("Failed to send TDP error message %v", err)
 		}
 	}
 
 	// don't handle connections until the LDAP initialization retry loop has succeeded
 	// (it would fail anyway, but this presents a better error to the user)
 	if !s.ldapReady() {
-		// TODO(zmb3): send TDP error message
-		log.Error("This service cannot accept connections until LDAP initialization has completed.")
+		const msg = "This service cannot accept connections until LDAP initialization has completed."
+		log.Error(msg)
+		sendTDPError(msg)
 		return
 	}
 
@@ -730,14 +733,14 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log.Debug("Connecting to Windows desktop")
 	defer log.Debug("Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, log, proxyConn, desktop, authContext); err != nil {
+	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext); err != nil {
 		log.Errorf("RDP connection failed: %v", err)
 		sendTDPError("RDP connection failed.")
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, proxyConn *tls.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
@@ -800,9 +803,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	defer cancel()
 
 	delay := timer()
-	tdpConn := tdp.NewConn(proxyConn)
-	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay)
-	tdpConn.OnRecv = s.makeTDPRecieveHandler(ctx, sw, delay)
+	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
+	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
 
 	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
@@ -810,10 +812,11 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
 			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl)
 		},
-		CertTTL:     windowsDesktopCertTTL,
-		Addr:        desktop.GetAddr(),
-		Conn:        tdpConn,
-		AuthorizeFn: authorize,
+		CertTTL:        windowsDesktopCertTTL,
+		Addr:           desktop.GetAddr(),
+		Conn:           tdpConn,
+		AuthorizeFn:    authorize,
+		AllowClipboard: authCtx.Checker.DesktopClipboard(),
 	})
 	if err != nil {
 		s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
@@ -822,7 +825,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 
 	monitorCfg := srv.MonitorConfig{
 		Context:           ctx,
-		Conn:              proxyConn,
+		Conn:              tdpConn,
 		Clock:             s.cfg.Clock,
 		ClientIdleTimeout: authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		Entry:             log,
@@ -855,10 +858,10 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	return trace.Wrap(err)
 }
 
-func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.Emitter, delay func() int64) func(m tdp.Message, b []byte) {
+func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
+	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		// TODO(zmb3): record audit events for clipboard usage
 		case byte(tdp.TypePNGFrame):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
@@ -878,14 +881,21 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 			} else if err := emitter.EmitAuditEvent(ctx, e); err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
+		case byte(tdp.TypeClipboardData):
+			if clip, ok := m.(tdp.ClipboardData); ok {
+				// the TDP send handler emits a clipboard receive event, because we
+				// received clipboard data from the remote desktop and are sending
+				// it on the TDP connection
+				s.onClipboardReceive(ctx, id, sessionID, desktopAddr, int32(len(clip)))
+			}
 		}
 	}
 }
 
-func (s *WindowsService) makeTDPRecieveHandler(ctx context.Context, emitter events.Emitter, delay func() int64) func(m tdp.Message) {
+func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
+	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message) {
 	return func(m tdp.Message) {
-		switch m.(type) {
-		// TODO(zmb3): record audit events for clipboard usage
+		switch msg := m.(type) {
 		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
 			b, err := m.Encode()
 			if err != nil {
@@ -906,6 +916,11 @@ func (s *WindowsService) makeTDPRecieveHandler(ctx context.Context, emitter even
 			} else if err := emitter.EmitAuditEvent(ctx, e); err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
+		case tdp.ClipboardData:
+			// the TDP receive handler emits a clipboard send event, because we
+			// received clipboard data from the user (over TDP) and are sending
+			// it to the remote desktop
+			s.onClipboardSend(ctx, id, sessionID, desktopAddr, int32(len(msg)))
 		}
 	}
 }
