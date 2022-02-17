@@ -21,6 +21,7 @@ package redis
 
 import (
 	"context"
+	"crypto/tls"
 	"strings"
 	"sync"
 
@@ -30,6 +31,28 @@ import (
 
 type clusterClient struct {
 	redis.ClusterClient
+}
+
+func newClient(mode ConnectionMode, addr string, tlsConfig *tls.Config) (redis.UniversalClient, error) {
+	// TODO(jakub): Use system CA bundle if connecting to AWS.
+	// TODO(jakub): Investigate Redis Sentinel.
+	switch mode {
+	case Standalone:
+		return redis.NewClient(&redis.Options{
+			Addr:      addr,
+			TLSConfig: tlsConfig,
+		}), nil
+	case Cluster:
+		return &clusterClient{
+			ClusterClient: *redis.NewClusterClient(&redis.ClusterOptions{
+				Addrs:     []string{addr},
+				TLSConfig: tlsConfig,
+			}),
+		}, nil
+	default:
+		// We've checked that while validating the config, but checking again can help with regression.
+		return nil, trace.BadParameter("incorrect connection mode %s", mode)
+	}
 }
 
 func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
@@ -104,7 +127,6 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 		cmd.SetVal(resultsKeys)
 
 		return nil
-		// TODO(jakub) mset may work, but without consistency guaranty
 	case "mget":
 		if len(cmd.Args()) == 1 {
 			return trace.BadParameter("wrong number of arguments for 'script' command")

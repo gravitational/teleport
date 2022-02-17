@@ -149,29 +149,10 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
 	}
 
-	var (
-		redisConn      redis.UniversalClient
-		connectionAddr = fmt.Sprintf("%s:%s", connectionOptions.address, connectionOptions.port)
-	)
-
-	// TODO(jakub): Use system CA bundle if connecting to AWS.
-	// TODO(jakub): Investigate Redis Sentinel.
-	switch connectionOptions.mode {
-	case Standalone:
-		redisConn = redis.NewClient(&redis.Options{
-			Addr:      connectionAddr,
-			TLSConfig: tlsConfig,
-		})
-	case Cluster:
-		redisConn = &clusterClient{
-			ClusterClient: *redis.NewClusterClient(&redis.ClusterOptions{
-				Addrs:     []string{connectionAddr},
-				TLSConfig: tlsConfig,
-			}),
-		}
-	default:
-		// We've checked that while validating the config, but checking again can help with regression.
-		return trace.BadParameter("incorrect connection mode %s", connectionOptions.mode)
+	connectionAddr := fmt.Sprintf("%s:%s", connectionOptions.address, connectionOptions.port)
+	redisConn, err := newClient(connectionOptions.mode, connectionAddr, tlsConfig)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	defer func() {
