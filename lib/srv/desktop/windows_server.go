@@ -732,6 +732,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	if len(desktops) == 0 {
 		log.Error("no windows desktops with HostID %s and Name %s", s.cfg.Heartbeat.HostUUID,
 			desktopName)
+		sendTDPError(fmt.Sprintf("Could not find desktop %v.", desktopName))
 		return
 	}
 	desktop := desktops[0]
