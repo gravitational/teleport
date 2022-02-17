@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -149,12 +150,29 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 		if roles.Include(types.RoleTrustedCluster) {
 			fmt.Printf(trustedClusterMessage, token, int(c.ttl.Minutes()))
 		} else {
+			authServer := authServers[0].GetAddr()
+
+			pingResponse, err := client.Ping(context.TODO())
+			if err != nil {
+				log.Debugf("unnable to ping auth client: %s.", err.Error())
+			}
+
+			if err == nil && pingResponse.GetServerFeatures().Cloud {
+				proxies, err := client.GetProxies()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				if len(proxies) != 0 {
+					authServer = proxies[0].GetPublicAddr()
+				}
+			}
 			return nodeMessageTemplate.Execute(os.Stdout, map[string]interface{}{
 				"token":       token,
 				"minutes":     int(c.ttl.Minutes()),
 				"roles":       strings.ToLower(roles.String()),
 				"ca_pins":     caPins,
-				"auth_server": authServers[0].GetAddr(),
+				"auth_server": authServer,
 			})
 		}
 	} else {
