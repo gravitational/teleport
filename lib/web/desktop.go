@@ -164,7 +164,7 @@ type connector struct {
 
 // connectToWindowsService tries to make a connection to a Windows Desktop Service
 // by trying each of the services provided. It returns an error if it could not connect
-// to any of the services or if it encounteres an error that is not a connection problem.
+// to any of the services or if it encounters an error that is not a connection problem.
 func (c *connector) connectToWindowsService(clusterName string, desktopServiceIDs []string) (net.Conn, error) {
 	for _, id := range desktopServiceIDs {
 		conn, err := c.tryConnect(clusterName, id)
