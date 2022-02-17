@@ -172,6 +172,8 @@ type InitConfig struct {
 
 	// WindowsServices is a service that manages Windows desktop resources.
 	WindowsDesktops services.WindowsDesktops
+
+	SessionTrackerService services.SessionTrackerService
 }
 
 // Init instantiates and configures an instance of AuthServer

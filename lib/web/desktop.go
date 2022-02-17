@@ -27,10 +27,10 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/websocket"
 
 	"github.com/gravitational/trace"
 
@@ -69,7 +69,15 @@ func (h *Handler) desktopConnectHandle(
 	return nil, nil
 }
 
-func (h *Handler) createDesktopConnection(w http.ResponseWriter, r *http.Request, desktopName string, log *logrus.Entry, ctx *SessionContext, site reversetunnel.RemoteSite) error {
+func (h *Handler) createDesktopConnection(
+	w http.ResponseWriter,
+	r *http.Request,
+	desktopName string,
+	log *logrus.Entry,
+	ctx *SessionContext,
+	site reversetunnel.RemoteSite,
+) error {
+
 	q := r.URL.Query()
 	username := q.Get("username")
 	if username == "" {
@@ -117,46 +125,45 @@ func (h *Handler) createDesktopConnection(w http.ResponseWriter, r *http.Request
 	}
 	defer serviceCon.Close()
 
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+	}
+
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	pc, err := proxyClient(r.Context(), ctx, h.ProxyHostPort())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer pc.Close()
+	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, ctx, desktopName, username, site.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	serviceConTLS := tls.Client(serviceCon, tlsConfig)
 
-	websocket.Handler(func(conn *websocket.Conn) {
-		tlsConfig, err := desktopTLSConfig(r.Context(), conn, pc, ctx, desktopName, username, site.GetName())
-		if err != nil {
-			writeError(err, conn, log)
-			return
-		}
-		serviceConTLS := tls.Client(serviceCon, tlsConfig)
+	if err := serviceConTLS.Handshake(); err != nil {
+		return trace.Wrap(err)
+	}
+	log.Debug("Connected to windows_desktop_service")
 
-		if err := serviceConTLS.Handshake(); err != nil {
-			writeError(err, conn, log)
-			return
-		}
-		log.Debug("Connected to windows_desktop_service")
-		tdpConn := tdp.NewConn(serviceConTLS)
-		err = tdpConn.OutputMessage(tdp.ClientUsername{Username: username})
-		if err != nil {
-			writeError(err, conn, log)
-			return
-		}
-		err = tdpConn.OutputMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
-		if err != nil {
-			writeError(err, conn, log)
-			return
-		}
-		if err := proxyWebsocketConn(conn, serviceConTLS); err != nil {
-			log.WithError(err).Warningf("Error proxying a desktop protocol websocket to windows_desktop_service")
-		}
-	}).ServeHTTP(w, r)
+	tdpConn := tdp.NewConn(serviceConTLS)
+	err = tdpConn.OutputMessage(tdp.ClientUsername{Username: username})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = tdpConn.OutputMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := proxyWebsocketConn(ws, serviceConTLS); err != nil {
+		log.WithError(err).Warningf("Error proxying a desktop protocol websocket to windows_desktop_service")
+	}
 	return nil
-}
-
-func writeError(err error, ws *websocket.Conn, log *logrus.Entry) {
-	oerr := tdp.NewConn(ws).SendError(err.Error())
-	log.Error(trace.NewAggregate(err, oerr))
 }
 
 func proxyClient(ctx context.Context, sessCtx *SessionContext, addr string) (*client.ProxyClient, error) {
@@ -210,6 +217,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		return mfaJson.MFAAuthenticateResponse, nil
 	}
 
+	var wsLock sync.Mutex
 	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
 			WindowsDesktop: desktopName,
@@ -223,7 +231,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 			TLSCert:             sessCtx.session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),
 		},
-	}, promptMFAChallenge(ws, mfaEncode, mfaDecode))
+	}, promptMFAChallenge(ws, &wsLock, mfaEncode, mfaDecode))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -246,9 +254,6 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 }
 
 func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
-	// Ensure we send binary frames to the browser.
-	ws.PayloadType = websocket.BinaryFrame
-
 	var closeOnce sync.Once
 	close := func() {
 		ws.Close()
@@ -256,10 +261,11 @@ func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
 	}
 
 	errs := make(chan error, 2)
+	stream := &WebsocketIO{Conn: ws}
 	go func() {
 		defer closeOnce.Do(close)
 
-		_, err := io.Copy(ws, con)
+		_, err := io.Copy(stream, con)
 		if utils.IsOKNetworkError(err) {
 			err = nil
 		}
@@ -268,7 +274,7 @@ func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
 	go func() {
 		defer closeOnce.Do(close)
 
-		_, err := io.Copy(con, ws)
+		_, err := io.Copy(con, stream)
 		if utils.IsOKNetworkError(err) {
 			err = nil
 		}

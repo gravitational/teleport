@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -904,7 +903,7 @@ type clt interface {
 }
 
 // CreateRole creates a role without assigning any users. Used in tests.
-func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV4) (types.Role, error) {
+func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV5) (types.Role, error) {
 	role, err := types.NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1050,13 +1049,4 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	}
 
 	return user, role, nil
-}
-
-type testModules struct {
-	modules.Modules
-	features modules.Features
-}
-
-func (m *testModules) Features() modules.Features {
-	return m.features
 }
