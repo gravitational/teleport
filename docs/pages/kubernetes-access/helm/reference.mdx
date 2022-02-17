@@ -1483,13 +1483,19 @@ You can specify multiple apps by adding additional list elements.
 ## `awsDatabases`
 
 <Admonition type="tip" title="Database auto-discovery">
-  This section configures database auto-discovery, which is only currently supported on AWS. You can configure databases for other platforms using the `databases` section below this.
+  This section configures database auto-discovery, which is only currently supported on AWS. You can configure databases for other platforms using the [`databases`](#databases) section below this.
 </Admonition>
 
 <Admonition type="note" title="IAM roles">
-  For AWS database auto-discovery to work, your agent pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx).
+  For AWS database auto-discovery to work, your agent pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx#step-36-configure-iam).
 
-  After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions.
+  After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
+
+  ```
+  annotations:
+    serviceAccount:
+      eks.amazonaws.com/role-arn: arn:aws:iam::1234567890:role/my-rds-autodiscovery-role
+  ```
 </Admonition>
 
 | Type | Default value | Required? |
@@ -1499,6 +1505,10 @@ You can specify multiple apps by adding additional list elements.
 `awsDatabases` is a YAML list object detailing the filters for the AWS databases that should be discovered and proxied by Teleport Database access.
 
 You can specify multiple database filters by adding additional list elements.
+
+- `types` is a list containing the types of AWS databases that should be discovered.
+- `regions` is a list of AWS regions which should be scanned for databases.
+- `tags` can be used to set AWS tags that must be matched for databases to be discovered.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1543,10 +1553,6 @@ You can specify multiple database filters by adding additional list elements.
 
   </TabItem>
 </Tabs>
-
-<Admonition type="tip" title="Supported values">
-  You can see a list of all the supported [values which can be used in a Teleport database service configuration here](../../database-access/reference/configuration.mdx).
-</Admonition>
 
 ## `databases`
 
