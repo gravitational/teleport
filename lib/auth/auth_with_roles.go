@@ -883,16 +883,19 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	}
 
 	limit := int(req.Limit)
+	actionVerbs := []string{types.VerbList, types.VerbRead}
+
 	switch req.ResourceType {
-	case types.KindDatabaseServer,
-		types.KindAppServer,
-		types.KindNode,
-		types.KindKubeService:
+	case types.KindNode:
+		actionVerbs = []string{types.VerbList}
+
+	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService:
+
 	default:
 		return nil, "", trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 	}
 
-	if err := a.action(req.Namespace, req.ResourceType, types.VerbList); err != nil {
+	if err := a.action(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
