@@ -1380,7 +1380,7 @@ func TestRoleVersions(t *testing.T) {
 		},
 		{
 			desc:                "new",
-			clientVersion:       "8.3.0",
+			clientVersion:       "9.0.0",
 			expectedRoleVersion: "v5",
 			assertErr:           require.NoError,
 		},
