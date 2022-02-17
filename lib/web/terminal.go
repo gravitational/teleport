@@ -382,7 +382,7 @@ func promptMFAChallenge(
 		}
 
 		// Send the challenge over the socket.
-		msg, err := encode(chal, envelopeType)
+		msg, err := codec.encode(chal, envelopeType)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -404,7 +404,7 @@ func promptMFAChallenge(
 			return nil, trace.BadParameter("expected websocket.BinaryMessage, got %v", ty)
 		}
 
-		return decode(bytes, envelopeType)
+		return codec.decode(bytes, envelopeType)
 	}
 }
 
