@@ -65,6 +65,13 @@ export const eventCodes = {
   POSTGRES_EXECUTE: 'TPG02I',
   POSTGRES_CLOSE: 'TPG03I',
   POSTGRES_FUNCTION_CALL: 'TPG04I',
+  MYSQL_STATEMENT_PREPARE: 'TMY00I',
+  MYSQL_STATEMENT_EXECUTE: 'TMY01I',
+  MYSQL_STATEMENT_SEND_LONG_DATA: 'TMY02I',
+  MYSQL_STATEMENT_CLOSE: 'TMY03I',
+  MYSQL_STATEMENT_RESET: 'TMY04I',
+  MYSQL_STATEMENT_FETCH: 'TMY05I',
+  MYSQL_STATEMENT_BULK_EXECUTE: 'TMY06I',
   DESKTOP_SESSION_STARTED: 'TDP00I',
   DESKTOP_SESSION_STARTED_FAILED: 'TDP00W',
   DESKTOP_SESSION_ENDED: 'TDP01I',
@@ -470,6 +477,65 @@ export type RawEvents = {
       name: string;
       db_service: string;
       function_oid: string;
+    }
+  >;
+  [eventCodes.MYSQL_STATEMENT_PREPARE]: RawEvent<
+    typeof eventCodes.MYSQL_STATEMENT_PREPARE,
+    {
+      db_service: string;
+      db_name: string;
+      query: string;
+    }
+  >;
+  [eventCodes.MYSQL_STATEMENT_EXECUTE]: RawEvent<
+    typeof eventCodes.MYSQL_STATEMENT_EXECUTE,
+    {
+      db_service: string;
+      db_name: string;
+      statement_id: number;
+    }
+  >;
+  [eventCodes.MYSQL_STATEMENT_SEND_LONG_DATA]: RawEvent<
+    typeof eventCodes.MYSQL_STATEMENT_SEND_LONG_DATA,
+    {
+      db_service: string;
+      db_name: string;
+      statement_id: number;
+      parameter_id: number;
+      data_size: number;
+    }
+  >;
+  [eventCodes.MYSQL_STATEMENT_CLOSE]: RawEvent<
+    typeof eventCodes.MYSQL_STATEMENT_CLOSE,
+    {
+      db_service: string;
+      db_name: string;
+      statement_id: number;
+    }
+  >;
+  [eventCodes.MYSQL_STATEMENT_RESET]: RawEvent<
+    typeof eventCodes.MYSQL_STATEMENT_RESET,
+    {
+      db_service: string;
+      db_name: string;
+      statement_id: number;
+    }
+  >;
+  [eventCodes.MYSQL_STATEMENT_FETCH]: RawEvent<
+    typeof eventCodes.MYSQL_STATEMENT_FETCH,
+    {
+      db_service: string;
+      db_name: string;
+      rows_count: number;
+      statement_id: number;
+    }
+  >;
+  [eventCodes.MYSQL_STATEMENT_BULK_EXECUTE]: RawEvent<
+    typeof eventCodes.MYSQL_STATEMENT_BULK_EXECUTE,
+    {
+      db_service: string;
+      db_name: string;
+      statement_id: number;
     }
   >;
   [eventCodes.MFA_DEVICE_ADD]: RawEvent<

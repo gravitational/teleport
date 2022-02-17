@@ -331,12 +331,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            66
+            73
           </strong>
            of
            
           <strong>
-            66
+            73
           </strong>
         </div>
         <button
@@ -403,6 +403,265 @@ exports[`list of all events 1`] = `
       </tr>
     </thead>
     <tbody>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-database c7 c12"
+              color="light"
+              font-size="3"
+            />
+            MySQL Statement Close
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice@example.com] has closed statement [1] in database [test] on [self-hosted-mysql]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-02-10 20:57:56
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-database c7 c12"
+              color="light"
+              font-size="3"
+            />
+            MySQL Statement Fetch
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice@example.com] has fetched 5 rows of statement [1] in database [test] on [self-hosted-mysql]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-02-10 20:57:55
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-database c7 c12"
+              color="light"
+              font-size="3"
+            />
+            MySQL Statement Execute
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice@example.com] has executed statement [1] in database [test] on [self-hosted-mysql]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-02-10 20:57:54
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-database c7 c12"
+              color="light"
+              font-size="3"
+            />
+            MySQL Statement Bulk Execute
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice@example.com] has executed statement [1] in database [test] on [self-hosted-mysql]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-02-10 20:57:53
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-database c7 c12"
+              color="light"
+              font-size="3"
+            />
+            MySQL Statement Reset
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice@example.com] has reset statement [1] in database [test] on [self-hosted-mysql]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-02-10 20:57:52
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-database c7 c12"
+              color="light"
+              font-size="3"
+            />
+            MySQL Statement Send Long Data
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice@example.com] has sent 32 bytes of data to parameter [2] of statement [1] in database [test] on [self-hosted-mysql]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-02-10 20:57:51
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c11"
+          >
+            <span
+              class="c7 c12 icon icon-database c7 c12"
+              color="light"
+              font-size="3"
+            />
+            MySQL Statement Prepare
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice@example.com] has prepared [UPDATE \`test\`.\`user\` SET \`age\` = '7' WHERE (\`name\` = 'alice')] in database [test] on [self-hosted-mysql]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-02-10 20:57:50
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
       <tr>
         <td
           style="vertical-align: inherit;"
