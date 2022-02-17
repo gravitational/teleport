@@ -53,6 +53,7 @@ import (
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -76,7 +77,7 @@ type Rate struct {
 type Config struct {
 	// Teleport configuration version.
 	Version string
-	// DataDir provides directory where teleport stores it's permanent state
+	// DataDir is the directory where teleport stores its permanent state
 	// (in case of auth server backed by BoltDB) or local state, e.g. keys
 	DataDir string
 
@@ -87,7 +88,7 @@ type Config struct {
 	Token string
 
 	// JoinMethod is the method the instance will use to join the auth server
-	JoinMethod JoinMethod
+	JoinMethod types.JoinMethod
 
 	// AuthServers is a list of auth servers, proxies and peer auth servers to
 	// connect to. Yes, this is not just auth servers, the field name is
@@ -374,12 +375,12 @@ type ProxyConfig struct {
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
-	// for the HTTP endpoint. The hosts in in PublicAddr are included in the
+	// for the HTTP endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
 	PublicAddrs []utils.NetAddr
 
 	// SSHPublicAddrs is a list of the public addresses the proxy advertises
-	// for the SSH endpoint. The hosts in in PublicAddr are included in the
+	// for the SSH endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
 	SSHPublicAddrs []utils.NetAddr
 
@@ -764,6 +765,11 @@ func (d *Database) CheckAndSetDefaults() error {
 					d.Name, connString.ReadPreference)
 			}
 		}
+	} else if d.Protocol == defaults.ProtocolRedis {
+		_, err := redis.ParseRedisAddress(d.URI)
+		if err != nil {
+			return trace.BadParameter("invalid Redis database %q address: %q, error: %v", d.Name, d.URI, err)
+		}
 	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",
 			d.Name, d.URI, err)
@@ -1145,14 +1151,3 @@ func ApplyFIPSDefaults(cfg *Config) {
 	// entire cluster is FedRAMP/FIPS 140-2 compliant.
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 }
-
-// JoinMethod is the method the instance will use to join the auth server.
-type JoinMethod int
-
-const (
-	// JoinMethodToken means the instance will use a basic token.
-	JoinMethodToken JoinMethod = iota
-	// JoinMethodEC2 means the instance will use Simplified Node Joining and send an
-	// EC2 Instance Identity Document.
-	JoinMethodEC2
-)

@@ -637,42 +637,42 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 	if fc.Proxy.ListenAddress != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, int(defaults.SSHProxyListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, defaults.SSHProxyListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.SSHAddr = *addr
 	}
 	if fc.Proxy.WebAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.WebAddr, int(defaults.HTTPListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.WebAddr, defaults.HTTPListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.WebAddr = *addr
 	}
 	if fc.Proxy.TunAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.TunAddr, int(defaults.SSHProxyTunnelListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.TunAddr, defaults.SSHProxyTunnelListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
 	if fc.Proxy.MySQLAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.MySQLAddr, int(defaults.MySQLListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MySQLAddr, defaults.MySQLListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.MySQLAddr = *addr
 	}
 	if fc.Proxy.PostgresAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.PostgresAddr, int(defaults.PostgresListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.PostgresAddr, defaults.PostgresListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.PostgresAddr = *addr
 	}
 	if fc.Proxy.MongoAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.MongoAddr, int(defaults.MongoListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MongoAddr, defaults.MongoListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1960,7 +1960,7 @@ func splitRoles(roles string) []string {
 // applyTokenConfig applies the auth_token and join_params to the config
 func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.AuthToken != "" {
-		cfg.JoinMethod = service.JoinMethodToken
+		cfg.JoinMethod = types.JoinMethodToken
 		_, err := cfg.ApplyToken(fc.AuthToken)
 		return trace.Wrap(err)
 	}
@@ -1969,10 +1969,12 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
 		cfg.Token = fc.JoinParams.TokenName
-		if fc.JoinParams.Method != "ec2" {
-			return trace.BadParameter(`unknown value for join_params.method: %q, expected "ec2"`, fc.JoinParams.Method)
+		switch fc.JoinParams.Method {
+		case types.JoinMethodEC2, types.JoinMethodIAM:
+			cfg.JoinMethod = fc.JoinParams.Method
+		default:
+			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM})
 		}
-		cfg.JoinMethod = service.JoinMethodEC2
 	}
 	return nil
 }

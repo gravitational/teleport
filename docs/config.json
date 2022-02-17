@@ -11,7 +11,8 @@
           "slug": "/getting-started/",
            "entries": [
             { "title": "Linux Server", "slug": "/getting-started/linux-server/" },
-            { "title": "Docker Compose", "slug": "/getting-started/docker-compose/" }
+            { "title": "Docker Compose", "slug": "/getting-started/docker-compose/" },
+            { "title": "DigitalOcean", "slug": "/getting-started/digitalocean/" }
           ]
         },
         { "title": "Installation", "slug": "/installation/" },
@@ -28,10 +29,10 @@
           "slug": "/setup/admin/",
           "entries": [
             { "title": "Github SSO", "slug": "/setup/admin/github-sso/" },
-            { "title": "Adding nodes", "slug": "/setup/admin/adding-nodes/" },
+            { "title": "Adding Nodes", "slug": "/setup/admin/adding-nodes/" },
             { "title": "Trusted Clusters", "slug": "/setup/admin/trustedclusters/" },
             { "title": "Labels", "slug": "/setup/admin/labels/" },
-            { "title": "Local users", "slug": "/setup/admin/users/" },
+            { "title": "Local Users", "slug": "/setup/admin/users/" },
             { "title": "Troubleshooting", "slug": "/setup/admin/troubleshooting/" },
             { "title": "Graceful Restarts", "slug": "/setup/admin/graceful-restarts/" },
             { "title": "Daemon", "slug": "/setup/admin/daemon/" }
@@ -71,7 +72,7 @@
             { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
             { "title": "Docker", "slug": "/setup/guides/docker/" },
             { "title": "Fluentd", "slug": "/setup/guides/fluentd/" },
-            { "title": "EC2 tags", "slug": "/setup/guides/ec2-tags/" },
+            { "title": "EC2 Tags", "slug": "/setup/guides/ec2-tags/" },
             { "title": "Joining Nodes in AWS", "slug": "/setup/guides/joining-nodes-aws/" }
           ]
         },
@@ -165,6 +166,7 @@
           "entries": [
             { "title": "AWS EKS Cluster", "slug": "/kubernetes-access/helm/guides/aws/" },
             { "title": "Google Cloud GKE Cluster", "slug": "/kubernetes-access/helm/guides/gcp/" },
+            { "title": "DigitalOcean Kubernetes Cluster", "slug": "/kubernetes-access/helm/guides/digitalocean/" },
             { "title": "Customize Deployment Config", "slug": "/kubernetes-access/helm/guides/custom/" },
             { "title": "Migrating From Older Charts", "slug": "/kubernetes-access/helm/guides/migration/" }
           ]
@@ -238,7 +240,8 @@
             { "title": "Second Factor - WebAuthn", "slug": "/access-controls/guides/webauthn/" },
             { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },
             { "title": "Dual Authorization", "slug": "/access-controls/guides/dual-authz/" },
-            { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" }
+            { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" },
+            { "title": "Moderated Sessions", "slug": "/access-controls/guides/moderated-sessions/" }
           ]
         },
         { "title": "Reference", "slug": "/access-controls/reference/" },
@@ -318,6 +321,22 @@
         { "title": "Teleport Proxy", "slug": "/architecture/proxy/" },
         { "title": "Trusted Clusters", "slug": "/trustedclusters/" },
         { "title": "TLS Routing", "slug": "/architecture/tls-routing/" }
+      ]
+    },
+    {
+      "icon": "wrench",
+      "title": "Contribute",
+      "entries": [
+        {
+          "title": "Documentation",
+          "slug": "/contributing/documentation/",
+          "entries":[
+            { "title": "How to Contribute", "slug": "/contributing/documentation/how-to-contribute/" },
+            { "title": "Creating Documentation Issues", "slug": "/contributing/documentation/issues/"},
+            { "title": "Style Guide", "slug": "/contributing/documentation/style-guide/" },
+            { "title": "UI Reference", "slug": "/contributing/documentation/reference/" }
+          ]
+        }
       ]
     }
   ],
@@ -573,6 +592,16 @@
     {
       "source": "/database-access/guides/mysql-aws/",
       "destination": "/database-access/guides/rds/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/",
+      "destination": "/contributing/documentation/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/best-practices/",
+      "destination": "/contributing/documentation/",
       "permanent": true
     }
   ]

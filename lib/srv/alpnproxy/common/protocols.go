@@ -31,6 +31,9 @@ const (
 	// ProtocolMongoDB is TLS ALPN protocol value used to indicate Mongo protocol.
 	ProtocolMongoDB Protocol = "teleport-mongodb"
 
+	// ProtocolRedisDB is TLS ALPN protocol value used to indicate Redis protocol.
+	ProtocolRedisDB Protocol = "teleport-redis"
+
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
 
@@ -48,6 +51,10 @@ const (
 
 	// ProtocolAuth allows dialing local/remote auth service based on SNI cluster name value.
 	ProtocolAuth Protocol = "teleport-auth@"
+
+	// ProtocolProxyGRPC is TLS ALPN protocol value used to indicate gRPC
+	// traffic intended for the Teleport proxy.
+	ProtocolProxyGRPC Protocol = "teleport-proxy-grpc"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
@@ -56,6 +63,7 @@ var SupportedProtocols = []Protocol{
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
+	ProtocolRedisDB,
 	ProtocolProxySSH,
 	ProtocolReverseTunnel,
 	ProtocolHTTP,

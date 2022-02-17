@@ -38,7 +38,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	}
 
 	// set some rules
-	role1 := &types.RoleV4{}
+	role1 := &types.RoleV5{}
 	role1.SetNamespaces(types.Allow, []string{apidefaults.Namespace})
 	role1.SetRules(types.Allow, []types.Rule{
 		{
@@ -59,7 +59,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 		},
 	})
 
-	role2 := &types.RoleV4{}
+	role2 := &types.RoleV5{}
 	role2.SetNamespaces(types.Allow, []string{apidefaults.Namespace})
 	role2.SetRules(types.Allow, []types.Rule{
 		{
@@ -111,6 +111,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 		Prompt: "",
 	})
 	c.Assert(userContext.ACL.Billing, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.Clipboard, check.Equals, true)
 
 	// test local auth type
 	c.Assert(userContext.AuthType, check.Equals, authLocal)
@@ -133,7 +134,7 @@ func (s *UserContextSuite) TestNewUserContextCloud(c *check.C) {
 		},
 	}
 
-	role := &types.RoleV4{}
+	role := &types.RoleV5{}
 	role.SetNamespaces(types.Allow, []string{"*"})
 	role.SetRules(types.Allow, []types.Rule{
 		{
@@ -174,6 +175,7 @@ func (s *UserContextSuite) TestNewUserContextCloud(c *check.C) {
 		Type:   types.RequestStrategyOptional,
 		Prompt: "",
 	})
+	c.Assert(userContext.ACL.Clipboard, check.Equals, true)
 
 	// cloud-specific asserts
 	c.Assert(userContext.ACL.Billing, check.DeepEquals, allowed)
