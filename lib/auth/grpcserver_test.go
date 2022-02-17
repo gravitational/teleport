@@ -1583,7 +1583,9 @@ func TestNodesCRUD(t *testing.T) {
 	t.Run("NodeGetters", func(t *testing.T) {
 		t.Run("List Nodes", func(t *testing.T) {
 			t.Parallel()
-			// list nodes one at a time, last page should be empty
+			// List nodes one at a time, last page should be empty.
+
+			// First node.
 			nodes, nextKey, err := clt.ListNodes(ctx, proto.ListNodesRequest{
 				Namespace: apidefaults.Namespace,
 				Limit:     1,
@@ -1594,6 +1596,7 @@ func TestNodesCRUD(t *testing.T) {
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 			require.Equal(t, backend.NextPaginationKey(node1), nextKey)
 
+			// Second node (last).
 			nodes, nextKey, err = clt.ListNodes(ctx, proto.ListNodesRequest{
 				Namespace: apidefaults.Namespace,
 				Limit:     1,
@@ -1603,16 +1606,7 @@ func TestNodesCRUD(t *testing.T) {
 			require.Len(t, nodes, 1)
 			require.Empty(t, cmp.Diff([]types.Server{node2}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-			require.Equal(t, backend.NextPaginationKey(node2), nextKey)
-
-			nodes, nextKey, err = clt.ListNodes(ctx, proto.ListNodesRequest{
-				Namespace: apidefaults.Namespace,
-				Limit:     1,
-				StartKey:  nextKey,
-			})
-			require.NoError(t, err)
-			require.Empty(t, nodes)
-			require.Equal(t, "", nextKey)
+			require.Empty(t, nextKey)
 
 			// ListNodes should fail if namespace isn't provided
 			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{

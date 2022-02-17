@@ -1,4 +1,4 @@
-timeout: 20m
+timeout: 25m
 
 options:
   machineType: 'E2_HIGHCPU_32'
@@ -25,4 +25,4 @@ steps:
           -bucket test-logs     \
           -build $BUILD_ID      \
           -a "test-logs/*.json"
-    timeout: 15m
+    timeout: 20m
