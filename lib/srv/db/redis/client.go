@@ -153,7 +153,7 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 		return nil
 	case mgetCmd:
 		if len(cmd.Args()) == 1 {
-			return trace.BadParameter("wrong number of arguments for 'script' command")
+			return trace.BadParameter("wrong number of arguments for 'mget' command")
 		}
 
 		var resultsKeys []interface{}
