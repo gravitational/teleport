@@ -182,7 +182,7 @@ func ForNode(cfg Config) Config {
 		if err == nil {
 			caFilter = types.CertAuthorityFilter{
 				types.HostCA: clusterName.GetClusterName(),
-				types.UserCA: "*",
+				types.UserCA: types.Wildcard,
 			}.IntoMap()
 		}
 	}

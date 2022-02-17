@@ -736,7 +736,7 @@ func (f CertAuthorityFilter) Match(ca CertAuthority) bool {
 		return true
 	}
 
-	return f[ca.GetType()] == "*" || f[ca.GetType()] == ca.GetClusterName()
+	return f[ca.GetType()] == Wildcard || f[ca.GetType()] == ca.GetClusterName()
 }
 
 // IntoMap makes this filter into a map for use as the Filter in a WatchKind.

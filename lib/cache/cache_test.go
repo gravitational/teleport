@@ -280,7 +280,7 @@ func TestWatchers(t *testing.T) {
 			Kind: types.KindCertAuthority,
 			Filter: types.CertAuthorityFilter{
 				types.HostCA: "example.com",
-				types.UserCA: "*",
+				types.UserCA: types.Wildcard,
 			}.IntoMap(),
 		},
 		{
