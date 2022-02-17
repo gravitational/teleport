@@ -117,11 +117,7 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
-		if status != 0 {
-			return trace.Errorf("unknown error with errno %d", C.get_errno())
-		}
-
-		return nil
+		return decodeUnknownError(int(status))
 	}
 }
 
@@ -177,11 +173,7 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
-		if status != 0 {
-			return trace.Errorf("unknown error with code %d", status)
-		}
-
-		return nil
+		return decodeUnknownError(int(status))
 	}
 }
 
@@ -215,10 +207,20 @@ func UserWithPtyInDatabase(utmpPath string, username string) error {
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
-		if status != 0 {
-			return trace.Errorf("unknown error with code %d", status)
+		return decodeUnknownError(int(status))
+	}
+}
+
+func decodeUnknownError(status int) error {
+	if status != 0 {
+		if C.UACC_PATH_ERR != nil {
+			data := C.GoString(C.UACC_PATH_ERR)
+			C.free(unsafe.Pointer(C.UACC_PATH_ERR))
+			return trace.Errorf("unknown error with code %d and data %v", status, data)
 		}
 
-		return nil
+		return trace.Errorf("unknown error with code %d", status)
 	}
+
+	return nil
 }

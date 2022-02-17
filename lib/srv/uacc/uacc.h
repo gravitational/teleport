@@ -26,6 +26,9 @@ limitations under the License.
 #include <stdlib.h>
 #include <limits.h>
 
+#define UACC_UTMP_PATH "/var/run/utmp"
+#define UACC_WTMP_PATH "/var/run/wtmp"
+
 int UACC_UTMP_MISSING_PERMISSIONS = 1;
 int UACC_UTMP_WRITE_ERROR = 2;
 int UACC_UTMP_READ_ERROR = 3;
@@ -34,6 +37,7 @@ int UACC_UTMP_ENTRY_DOES_NOT_EXIST = 5;
 int UACC_UTMP_FAILED_TO_SELECT_FILE = 6;
 int UACC_UTMP_OTHER_ERROR = 7;
 int UACC_UTMP_PATH_DOES_NOT_EXIST = 8;
+char* UACC_PATH_ERR;
 
 // I initially attempted to use the login/logout BSD functions but ran into a string of unexpected behaviours such as
 // errno being set to undocument values along with wierd return values in certain cases. They also modify the utmp database
@@ -78,6 +82,8 @@ static int check_abs_path_err(const char* buffer) {
 
     // check for GNU extension errors
     if (errno == EACCES || errno == ENOENT) {
+        UACC_PATH_ERR = (char*)malloc(PATH_MAX);
+        strcpy(UACC_PATH_ERR, buffer);
         return UACC_UTMP_OTHER_ERROR;
     }
 
@@ -98,8 +104,9 @@ static int max_len_tty_name() {
 // Low level C function to add a new USER_PROCESS entry to the database.
 // This function does not perform any argument validation.
 static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, const char *username, const char *hostname, const int32_t remote_addr_v6[4], const char *tty_name, const char *id, int32_t tv_sec, int32_t tv_usec) {
+    UACC_PATH_ERR = NULL;
     char resolved_utmp_buffer[PATH_MAX];
-    const char* file = get_absolute_path_with_fallback(&resolved_utmp_buffer[0], utmp_path, _PATH_UTMP);
+    const char* file = get_absolute_path_with_fallback(&resolved_utmp_buffer[0], utmp_path, UACC_UTMP_PATH);
     int status = check_abs_path_err(file);
     if (status != 0) {
         return status;
@@ -121,6 +128,7 @@ static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, con
     errno = 0;
     setutent();
     if (errno > 0) {
+        endutent();
         return UACC_UTMP_FAILED_OPEN;
     }
     if (pututline(&entry) == NULL) {
@@ -129,7 +137,7 @@ static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, con
     }
     endutent();
     char resolved_wtmp_buffer[PATH_MAX];
-    const char* wtmp_file = get_absolute_path_with_fallback(&resolved_wtmp_buffer[0], wtmp_path, _PATH_WTMP);
+    const char* wtmp_file = get_absolute_path_with_fallback(&resolved_wtmp_buffer[0], wtmp_path, UACC_WTMP_PATH);
     status = check_abs_path_err(wtmp_file);
     if (status != 0) {
         return status;
@@ -141,8 +149,9 @@ static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, con
 // Low level C function to mark a database entry as DEAD_PROCESS.
 // This function does not perform string argument validation.
 static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_path, const char *tty_name, int32_t tv_sec, int32_t tv_usec) {
+    UACC_PATH_ERR = NULL;
     char resolved_utmp_buffer[PATH_MAX];
-    const char* file = get_absolute_path_with_fallback(&resolved_utmp_buffer[0], utmp_path, _PATH_UTMP);
+    const char* file = get_absolute_path_with_fallback(&resolved_utmp_buffer[0], utmp_path, UACC_UTMP_PATH);
     int status = check_abs_path_err(file);
     if (status != 0) {
         return status;
@@ -174,6 +183,7 @@ static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_pat
     errno = 0;
     setutent();
     if (errno != 0) {
+        endutent();
         return UACC_UTMP_FAILED_OPEN;
     }
     if (pututline(&entry) == NULL) {
@@ -182,7 +192,7 @@ static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_pat
     }
     endutent();
     char resolved_wtmp_buffer[PATH_MAX];
-    const char* wtmp_file = get_absolute_path_with_fallback(&resolved_wtmp_buffer[0], wtmp_path, _PATH_WTMP);
+    const char* wtmp_file = get_absolute_path_with_fallback(&resolved_wtmp_buffer[0], wtmp_path, UACC_WTMP_PATH);
     status = check_abs_path_err(wtmp_file);
     if (status != 0) {
         return status;
@@ -194,8 +204,9 @@ static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_pat
 // Low level C function to check the database for an entry for a given user.
 // This function does not perform string argument validation.
 static int uacc_has_entry_with_user(const char *utmp_path, const char *user) {
+    UACC_PATH_ERR = NULL;
     char resolved_utmp_buffer[PATH_MAX];
-    const char* file = get_absolute_path_with_fallback(&resolved_utmp_buffer[0], utmp_path, _PATH_UTMP);
+    const char* file = get_absolute_path_with_fallback(&resolved_utmp_buffer[0], utmp_path, UACC_UTMP_PATH);
     int status = check_abs_path_err(file);
     if (status != 0) {
         return status;
@@ -206,6 +217,7 @@ static int uacc_has_entry_with_user(const char *utmp_path, const char *user) {
     errno = 0;
     setutent();
     if (errno != 0) {
+        endutent();
         return UACC_UTMP_FAILED_OPEN;
     }
     struct utmp *entry = getutent();
