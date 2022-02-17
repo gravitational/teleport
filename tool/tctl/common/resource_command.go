@@ -422,6 +422,14 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 		fmt.Printf("user %q has been updated\n", userName)
 
 	} else {
+		if user.GetTraits() == nil {
+			// Traits should be non nil so that the list of traits, empty or not,
+			// will be included in the user's ssh certificates. This is important
+			// to prevent RBAC escalation attacks where the user's traits are
+			// updated on the backend without a new certificate being signed.
+			user.SetTraits(map[string][]string{})
+		}
+
 		if err := client.CreateUser(context.TODO(), user); err != nil {
 			return trace.Wrap(err)
 		}

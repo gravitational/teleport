@@ -826,7 +826,7 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 // missingIdentity returns true if the identity is missing or the identity
 // has no roles or traits.
 func missingIdentity(identity tlsca.Identity) bool {
-	if len(identity.Groups) == 0 || len(identity.Traits) == 0 {
+	if identity.Groups == nil || identity.Traits == nil {
 		return true
 	}
 	return false
