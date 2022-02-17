@@ -21,10 +21,12 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -34,10 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
 )
 
 // reconnectToAuthService continuously attempts to reconnect to the auth
@@ -876,9 +874,10 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 	}
 
 	dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
-		Resolver:     resolver,
-		ClientConfig: sshConfig,
-		Log:          process.log,
+		Resolver:              resolver,
+		ClientConfig:          sshConfig,
+		Log:                   process.log,
+		InsecureSkipTLSVerify: lib.IsInsecureDevMode(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

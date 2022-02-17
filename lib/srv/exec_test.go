@@ -76,8 +76,8 @@ func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
-	if len(os.Args) == 2 && os.Args[1] == teleport.ExecSubCommand {
-		RunAndExit(teleport.ExecSubCommand)
+	if IsReexec() {
+		RunAndExit(os.Args[1])
 		return
 	}
 
@@ -210,10 +210,11 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(cmd.Args, check.DeepEquals, []string{"/bin/sh", "-c", "top"})
 	c.Assert(cmd.SysProcAttr.Pdeathsig, check.Equals, syscall.SIGKILL)
 
-	// Missing home directory
+	// Missing home directory - HOME should still be set to the given
+	// home dir, but the command should set it's CWD to root instead.
 	s.usr.HomeDir = "/wrong/place"
 	root := string(os.PathSeparator)
-	expectedEnv[2] = fmt.Sprintf("HOME=%s", root)
+	expectedEnv[2] = "HOME=/wrong/place"
 	cmd, err = buildCommand(execCmd, s.usr, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd.Dir, check.Equals, root)

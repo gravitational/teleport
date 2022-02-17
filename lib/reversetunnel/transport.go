@@ -31,7 +31,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -59,6 +58,8 @@ type TunnelAuthDialerConfig struct {
 	ClientConfig *ssh.ClientConfig
 	// Log is used for logging.
 	Log logrus.FieldLogger
+	// InsecureSkipTLSVerify is whether to skip certificate validation.
+	InsecureSkipTLSVerify bool
 }
 
 func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
@@ -77,7 +78,9 @@ type TunnelAuthDialer struct {
 // DialContext dials auth server via SSH tunnel
 func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
 	// Connect to the reverse tunnel server.
-	var opts []proxy.DialerOptionFunc
+	opts := []proxy.DialerOptionFunc{
+		proxy.WithInsecureSkipTLSVerify(t.InsecureSkipTLSVerify),
+	}
 
 	addr, err := t.Resolver()
 	if err != nil {
@@ -86,7 +89,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 	}
 
 	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
-	resp, err := webclient.Find(ctx, addr.Addr, lib.IsInsecureDevMode(), nil)
+	resp, err := webclient.Find(ctx, addr.Addr, t.InsecureSkipTLSVerify, nil)
 	if err != nil {
 		// If TLS Routing is disabled the address is the proxy reverse tunnel
 		// address thus the ping call will always fail.

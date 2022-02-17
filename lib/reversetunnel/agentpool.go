@@ -202,6 +202,7 @@ func (m *AgentPool) processSeekEvents() {
 				// Note that ownership of the lease is transferred to agent
 				// pool for the lifetime of the connection
 				if err := m.addAgent(lease); err != nil {
+					lease.Release()
 					m.log.WithError(err).Errorf("Failed to add agent.")
 				}
 			})
@@ -302,7 +303,6 @@ func (m *AgentPool) addAgent(lease track.Lease) error {
 	})
 	if err != nil {
 		// ensure that lease has been released; OK to call multiple times.
-		lease.Release()
 		return trace.Wrap(err)
 	}
 	m.log.Debugf("Adding %v.", agent)

@@ -748,6 +748,8 @@ dependencies = [
  "num-derive",
  "num-traits",
  "openssl",
+ "rand 0.8.4",
+ "rand_chacha 0.3.1",
  "rdp-rs",
  "uuid",
 ]

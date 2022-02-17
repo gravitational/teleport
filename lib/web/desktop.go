@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
@@ -144,19 +145,29 @@ func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
 	// Ensure we send binary frames to the browser.
 	ws.PayloadType = websocket.BinaryFrame
 
+	var closeOnce sync.Once
+	close := func() {
+		ws.Close()
+		con.Close()
+	}
+
 	errs := make(chan error, 2)
 	go func() {
-		defer ws.Close()
-		defer con.Close()
+		defer closeOnce.Do(close)
 
 		_, err := io.Copy(ws, con)
+		if utils.IsOKNetworkError(err) {
+			err = nil
+		}
 		errs <- err
 	}()
 	go func() {
-		defer ws.Close()
-		defer con.Close()
+		defer closeOnce.Do(close)
 
 		_, err := io.Copy(con, ws)
+		if utils.IsOKNetworkError(err) {
+			err = nil
+		}
 		errs <- err
 	}()
 
