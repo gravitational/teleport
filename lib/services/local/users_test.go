@@ -683,8 +683,18 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 	// Don't t.Parallel()!
 
 	sdMax := local.GlobalSessionDataMaxEntries
+	sdClock := local.SessionDataLimiter.Clock
+	sdReset := local.SessionDataLimiter.ResetPeriod
+	defer func() {
+		local.GlobalSessionDataMaxEntries = sdMax
+		local.SessionDataLimiter.Clock = sdClock
+		local.SessionDataLimiter.ResetPeriod = sdReset
+	}()
+	fakeClock := clockwork.NewFakeClock()
+	period := 1 * time.Minute // arbitrary, applied to fakeClock
 	local.GlobalSessionDataMaxEntries = 2
-	defer func() { local.GlobalSessionDataMaxEntries = sdMax }()
+	local.SessionDataLimiter.Clock = fakeClock
+	local.SessionDataLimiter.ResetPeriod = period
 
 	const scopeLogin = "login"
 	const scopeOther = "other"
@@ -717,4 +727,12 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 	// OK: keys removed.
 	require.NoError(t, identity.DeleteGlobalWebauthnSessionData(ctx, scopeLogin, id1))
 	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id4, sd))
+
+	// NOK: reach and double-check limits.
+	require.Error(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id3, sd))
+	require.Error(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id3, sd))
+	// OK: passage of time resets limits.
+	fakeClock.Advance(period)
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id3, sd))
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id3, sd))
 }
