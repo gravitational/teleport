@@ -227,7 +227,7 @@ exports[`loaded state 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  margin-right: 8px;
+  margin-right: 4px;
   color: #FFFFFF;
 }
 
@@ -242,13 +242,12 @@ exports[`loaded state 1`] = `
 
 .c2 {
   box-sizing: border-box;
-  width: 100%;
   display: flex;
-  justify-content: end;
 }
 
 .c3 {
   box-sizing: border-box;
+  margin-right: 8px;
   display: flex;
   align-items: center;
 }
@@ -420,7 +419,6 @@ exports[`loaded state 1`] = `
     />
     <div
       class="c2"
-      width="100%"
     >
       <div
         class="c3"
@@ -443,6 +441,10 @@ exports[`loaded state 1`] = `
             4
           </strong>
         </div>
+      </div>
+      <div
+        class="c2"
+      >
         <button
           class="c5"
           disabled=""
