@@ -27,6 +27,12 @@ import (
 // Team specific reviews require an approval from both sets of reviews.
 // External reviews require approval from admins.
 func (b *Bot) Check(ctx context.Context) error {
+	if b.c.Environment.UnsafeBranch == "branch/v6.2" ||
+		b.c.Environment.UnsafeBranch == "branch/v7" ||
+		b.c.Environment.UnsafeBranch == "branch/v8" {
+		return trace.BadParameter("%v is frozen", b.c.Environment.UnsafeBranch)
+	}
+
 	reviews, err := b.c.GitHub.ListReviews(ctx,
 		b.c.Environment.Organization,
 		b.c.Environment.Repository,
