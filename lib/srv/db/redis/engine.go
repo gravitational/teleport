@@ -150,7 +150,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 
 	connectionAddr := fmt.Sprintf("%s:%s", connectionOptions.address, connectionOptions.port)
-	redisConn, err := newClient(connectionOptions.mode, connectionAddr, tlsConfig)
+	redisConn, err := newClient(ctx, connectionOptions.mode, connectionAddr, tlsConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
