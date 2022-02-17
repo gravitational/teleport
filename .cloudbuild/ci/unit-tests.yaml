@@ -1,7 +1,7 @@
 timeout: 25m
 
 options:
-  machineType: 'E2_HIGHCPU_8'
+  machineType: 'E2_HIGHCPU_32'
   
 steps:
   # GCB does a shallow checkout for a build, but if we want to check our changes
