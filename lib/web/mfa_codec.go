@@ -23,10 +23,9 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/u2f"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/web/mfajson"
 	"github.com/gravitational/trace"
 )
 
@@ -67,37 +66,7 @@ func (protobufMFACodec) decode(bytes []byte, envelopeType string) (*authproto.MF
 		return nil, trace.Wrap(err)
 	}
 
-	var mfaResponse *authproto.MFAAuthenticateResponse
-
-	switch envelopeType {
-	case defaults.WebsocketWebauthnChallenge:
-		var webauthnResponse wanlib.CredentialAssertionResponse
-		if err := json.Unmarshal([]byte(envelope.Payload), &webauthnResponse); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		mfaResponse = &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wanlib.CredentialAssertionResponseToProto(&webauthnResponse),
-			},
-		}
-
-	default:
-		var u2fResponse u2f.AuthenticateChallengeResponse
-		if err := json.Unmarshal([]byte(envelope.Payload), &u2fResponse); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		mfaResponse = &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_U2F{
-				U2F: &authproto.U2FResponse{
-					KeyHandle:  u2fResponse.KeyHandle,
-					ClientData: u2fResponse.ClientData,
-					Signature:  u2fResponse.SignatureData,
-				},
-			},
-		}
-	}
-
-	return mfaResponse, nil
+	return mfajson.Decode([]byte(envelope.Payload), envelopeType)
 }
 
 // tdpMFACodec converts MFA challenges and responses to Teleport Desktop
@@ -105,19 +74,15 @@ func (protobufMFACodec) decode(bytes []byte, envelopeType string) (*authproto.MF
 type tdpMFACodec struct{}
 
 func (tdpMFACodec) encode(chal *auth.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
-	var mfaType byte
 	switch envelopeType {
-	case defaults.WebsocketWebauthnChallenge:
-		mfaType = tdp.WebsocketWebauthnChallengeByte
-	case defaults.WebsocketU2FChallenge:
-		mfaType = tdp.WebsocketU2FChallengeByte
+	case defaults.WebsocketWebauthnChallenge, defaults.WebsocketU2FChallenge:
 	default:
 		return nil, trace.BadParameter("received envelope type %v, expected either %v (WebAuthn) or %v (U2F)",
 			envelopeType, defaults.WebsocketWebauthnChallenge, defaults.WebsocketU2FChallenge)
 	}
 
 	mfaChal := tdp.MFAJson{
-		MfaType:                  mfaType,
+		MfaType:                  envelopeType[0],
 		MFAAuthenticateChallenge: chal,
 	}
 	return mfaChal.Encode()

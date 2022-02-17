@@ -32,8 +32,8 @@ import (
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/u2f"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/web/mfajson"
 	"github.com/gravitational/trace"
 )
 
@@ -53,11 +53,6 @@ const (
 	TypeMouseWheel       = MessageType(8)
 	TypeError            = MessageType(9)
 	TypeMFAJson          = MessageType(10)
-)
-
-const (
-	WebsocketU2FChallengeByte      = 'u'
-	WebsocketWebauthnChallengeByte = 'n'
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -485,8 +480,6 @@ func (m MFAJson) Encode() ([]byte, error) {
 }
 
 func DecodeMFAJson(in peekReader) (*MFAJson, error) {
-	mfaJson := &MFAJson{}
-
 	t, err := in.ReadByte()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -499,10 +492,13 @@ func DecodeMFAJson(in peekReader) (*MFAJson, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if mt != WebsocketWebauthnChallengeByte && mt != WebsocketU2FChallengeByte {
-		return nil, trace.BadParameter("got mfa type %v, expected %v (WebAuthn) or %v (U2F)", mt, WebsocketWebauthnChallengeByte, WebsocketU2FChallengeByte)
+	s := string(mt)
+	switch s {
+	case defaults.WebsocketWebauthnChallenge, defaults.WebsocketU2FChallenge:
+	default:
+		return nil, trace.BadParameter("got mfa type %v, expected %v (WebAuthn) or %v (U2F)",
+			mt, defaults.WebsocketWebauthnChallenge, defaults.WebsocketU2FChallenge)
 	}
-	mfaJson.MfaType = mt
 
 	var length uint32
 	if err := binary.Read(in, binary.BigEndian, &length); err != nil {
@@ -518,40 +514,15 @@ func DecodeMFAJson(in peekReader) (*MFAJson, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var mfaResponse *authproto.MFAAuthenticateResponse
-
-	// Convert from JSON to proto.
-	switch mfaJson.MfaType {
-	case WebsocketWebauthnChallengeByte:
-		var webauthnResponse wanlib.CredentialAssertionResponse
-		if err := json.Unmarshal(b, &webauthnResponse); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		mfaResponse = &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wanlib.CredentialAssertionResponseToProto(&webauthnResponse),
-			},
-		}
-
-	default:
-		var u2fResponse u2f.AuthenticateChallengeResponse
-		if err := json.Unmarshal(b, &u2fResponse); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		mfaResponse = &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_U2F{
-				U2F: &authproto.U2FResponse{
-					KeyHandle:  u2fResponse.KeyHandle,
-					ClientData: u2fResponse.ClientData,
-					Signature:  u2fResponse.SignatureData,
-				},
-			},
-		}
+	mfaResp, err := mfajson.Decode(b, s)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	mfaJson.MFAAuthenticateResponse = mfaResponse
-
-	return mfaJson, nil
+	return &MFAJson{
+		MfaType:                 mt,
+		MFAAuthenticateResponse: mfaResp,
+	}, nil
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with
