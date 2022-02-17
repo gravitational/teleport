@@ -1172,7 +1172,6 @@ message DeleteWindowsDesktopRequest {
     // Name is the name of the Windows desktop host.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
     // HostID is the ID of the Windows Desktop Service reporting the desktop.
-    // If not specified, all desktops matching Name will be deleted.
     string HostID = 2 [ (gogoproto.jsontag) = "host_id" ];
 }
 
@@ -1951,6 +1950,8 @@ service AuthService {
     // UpsertWindowsDesktop updates a Windows desktop host, creating it if it doesn't exist.
     rpc UpsertWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
     // DeleteWindowsDesktop removes the specified Windows desktop host.
+    // Unlike GetWindowsDesktops, this call will delete at-most 1 desktop.
+    // To delete all desktops, use DeleteAllWindowsDesktops.
     rpc DeleteWindowsDesktop(DeleteWindowsDesktopRequest) returns (google.protobuf.Empty);
     // DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
     rpc DeleteAllWindowsDesktops(google.protobuf.Empty) returns (google.protobuf.Empty);

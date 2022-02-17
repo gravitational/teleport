@@ -7740,7 +7740,6 @@ type DeleteWindowsDesktopRequest struct {
 	// Name is the name of the Windows desktop host.
 	Name string `protobuf:"bytes,1,opt,name=Name,proto3" json:"name"`
 	// HostID is the ID of the Windows Desktop Service reporting the desktop.
-	// If not specified, all desktops matching Name will be deleted.
 	HostID               string   `protobuf:"bytes,2,opt,name=HostID,proto3" json:"host_id"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -10962,6 +10961,8 @@ type AuthServiceClient interface {
 	// UpsertWindowsDesktop updates a Windows desktop host, creating it if it doesn't exist.
 	UpsertWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteWindowsDesktop removes the specified Windows desktop host.
+	// Unlike GetWindowsDesktops, this call will delete at-most 1 desktop.
+	// To delete all desktops, use DeleteAllWindowsDesktops.
 	DeleteWindowsDesktop(ctx context.Context, in *DeleteWindowsDesktopRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
 	DeleteAllWindowsDesktops(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
@@ -13080,6 +13081,8 @@ type AuthServiceServer interface {
 	// UpsertWindowsDesktop updates a Windows desktop host, creating it if it doesn't exist.
 	UpsertWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*empty.Empty, error)
 	// DeleteWindowsDesktop removes the specified Windows desktop host.
+	// Unlike GetWindowsDesktops, this call will delete at-most 1 desktop.
+	// To delete all desktops, use DeleteAllWindowsDesktops.
 	DeleteWindowsDesktop(context.Context, *DeleteWindowsDesktopRequest) (*empty.Empty, error)
 	// DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
 	DeleteAllWindowsDesktops(context.Context, *empty.Empty) (*empty.Empty, error)

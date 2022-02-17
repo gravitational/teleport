@@ -2299,11 +2299,10 @@ func (c *windowsDesktops) fetch(ctx context.Context) (apply func(ctx context.Con
 func (c *windowsDesktops) processEvent(ctx context.Context, event types.Event) error {
 	switch event.Type {
 	case types.OpDelete:
-		resource, ok := event.Resource.(types.WindowsDesktop)
-		if !ok {
-			return trace.BadParameter("unexpected type %T", event.Resource)
-		}
-		err := c.windowsDesktopsCache.DeleteWindowsDesktop(ctx, resource.GetHostID(), resource.GetName())
+		err := c.windowsDesktopsCache.DeleteWindowsDesktop(ctx,
+			event.Resource.GetMetadata().Description, // Cache passes host ID via description field.
+			event.Resource.GetName(),
+		)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				c.Warningf("Failed to delete resource %v.", err)
