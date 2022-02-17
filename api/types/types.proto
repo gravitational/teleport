@@ -2957,3 +2957,11 @@ enum SessionState {
     // Terminated variant represents a session that is no longer running and due for removal.
     SessionStateTerminated = 2;
 }
+
+// SortBy defines a sort criteria.
+message SortBy {
+    // IsDesc is a sort direction flag where if true the direction is descending, else ascending.
+    bool IsDesc = 1 [ (gogoproto.jsontag) = "is_desc" ];
+    // Field is the name of an objects field to sort by.
+    string Field = 2 [ (gogoproto.jsontag) = "field" ];
+}
