@@ -1,5 +1,14 @@
 # Changelog
 
+## 8.3.1
+
+This release of Teleport contains an improvement and fix.
+
+* Added additional Prometheus metrics for cache and event monitoring. [#9826](https://github.com/gravitational/teleport/pull/9826)
+* Fixed an issue with user home directory checking. [#10321](https://github.com/gravitational/teleport/pull/10321)
+
+## 8.3.0
+
 This release of Teleport contains new features, improvements, and fixes.
 
 * Added IAM support for [Joining Nodes and Proxies in AWS](https://goteleport.com/docs/setup/guides/joining-nodes-aws/). [#8690](https://github.com/gravitational/teleport/pull/8690) [#10085](https://github.com/gravitational/teleport/pull/10085) [#10087](https://github.com/gravitational/teleport/pull/10087)
