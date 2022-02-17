@@ -1195,7 +1195,7 @@ func (p *windowsDesktopsParser) parse(event backend.Event) (types.Resource, erro
 			Kind:    types.KindWindowsDesktop,
 			Version: types.V3,
 			Metadata: types.Metadata{
-				Name:        string(name),
+				Name:        name,
 				Namespace:   apidefaults.Namespace,
 				Description: hostID, // pass ID via description field for the cache
 			},
