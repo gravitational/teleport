@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"strings"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -812,41 +813,54 @@ func (c *certAuthority) erase(ctx context.Context) error {
 }
 
 func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	applyFns := []func(ctx context.Context) error{}
+	applyHostCAs, err := c.fetchCertAuthorities(types.HostCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	for _, caType := range types.CertAuthTypes {
-		var fn func(ctx context.Context) error
-		var err error
-		if c.filter.IsEmpty() || c.filter[caType] == "*" {
-			fn, err = c.fetchCertAuthorities(caType)
-		} else if c.filter[caType] != "" {
-			fn, err = c.fetchCertAuthority(types.CertAuthID{
-				Type:       caType,
-				DomainName: c.filter[caType],
-			})
-		} else {
-			fn = c.deleteAllCertAuthorities(caType)
-		}
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		applyFns = append(applyFns, fn)
+	applyUserCAs, err := c.fetchCertAuthorities(types.UserCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	applyJWTSigners, err := c.fetchCertAuthorities(types.JWTSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return func(ctx context.Context) error {
-		for _, fn := range applyFns {
-			if err := fn(ctx); err != nil {
-				return trace.Wrap(err)
-			}
+		if err := applyHostCAs(ctx); err != nil {
+			return trace.Wrap(err)
 		}
-		return nil
+		if err := applyUserCAs(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(applyJWTSigners(ctx))
 	}, nil
 }
 
-func (c *certAuthority) fetchCertAuthorities(caType types.CertAuthType) (func(ctx context.Context) error, error) {
+func (c *certAuthority) fetchCertAuthorities(caType types.CertAuthType) (apply func(ctx context.Context) error, err error) {
 	authorities, err := c.Trust.GetCertAuthorities(caType, c.watch.LoadSecrets)
 	if err != nil {
+		// DELETE IN: 5.1
+		//
+		// All clusters will support JWT signers in 5.1.
+		if strings.Contains(err.Error(), "authority type is not supported") {
+			return func(ctx context.Context) error { return nil }, nil
+		}
 		return nil, trace.Wrap(err)
+	}
+
+	// this can be removed once we get the ability to fetch CAs with a filter,
+	// but it should be harmless, and it could be kept as additional safety
+	if !c.filter.IsEmpty() {
+		filteredCAs := make([]types.CertAuthority, 0, len(authorities))
+		for _, ca := range authorities {
+			if c.filter.Match(ca) {
+				filteredCAs = append(filteredCAs, ca)
+			}
+		}
+		authorities = filteredCAs
 	}
 
 	return func(ctx context.Context) error {
@@ -862,41 +876,6 @@ func (c *certAuthority) fetchCertAuthorities(caType types.CertAuthType) (func(ct
 		}
 		return nil
 	}, nil
-}
-
-func (c *certAuthority) fetchCertAuthority(ca types.CertAuthID) (func(ctx context.Context) error, error) {
-	authority, err := c.Trust.GetCertAuthority(ca, c.watch.LoadSecrets)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return func(ctx context.Context) error {
-				return nil
-			}, nil
-		}
-		return nil, trace.Wrap(err)
-	}
-
-	return func(ctx context.Context) error {
-		if err := c.trustCache.DeleteAllCertAuthorities(ca.Type); err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		}
-		if err := c.trustCache.UpsertCertAuthority(authority); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
-	}, nil
-}
-
-func (c *certAuthority) deleteAllCertAuthorities(caType types.CertAuthType) func(ctx context.Context) error {
-	return func(ctx context.Context) error {
-		if err := c.trustCache.DeleteAllCertAuthorities(caType); err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		}
-		return nil
-	}
 }
 
 func (c *certAuthority) processEvent(ctx context.Context, event types.Event) error {
