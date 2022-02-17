@@ -2288,7 +2288,7 @@ func (c *windowsDesktops) fetch(ctx context.Context) (apply func(ctx context.Con
 		}
 
 		for _, resource := range resources {
-			if err := c.windowsDesktopsCache.CreateWindowsDesktop(ctx, resource); err != nil {
+			if err := c.windowsDesktopsCache.UpsertWindowsDesktop(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -2315,14 +2315,7 @@ func (c *windowsDesktops) processEvent(ctx context.Context, event types.Event) e
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		err := c.windowsDesktopsCache.DeleteWindowsDesktop(ctx, resource.GetHostID(), resource.GetName())
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				c.WithError(err).Warningf("Failed to delete Windows desktop %v.", event.Resource.GetName())
-				return trace.Wrap(err)
-			}
-		}
-		if err := c.windowsDesktopsCache.CreateWindowsDesktop(ctx, resource); err != nil {
+		if err := c.windowsDesktopsCache.UpsertWindowsDesktop(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:

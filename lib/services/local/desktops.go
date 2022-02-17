@@ -136,28 +136,21 @@ func (s *WindowsDesktopService) DeleteWindowsDesktop(ctx context.Context, hostID
 		return trace.Errorf("name must not be empty")
 	}
 
-	doSingleDelete := func(hostID, name string) error {
-		err := s.Delete(ctx, backend.Key(windowsDesktopsPrefix, hostID, name))
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return trace.NotFound("windows desktop \"%s/%s\" doesn't exist", hostID, name)
-			}
-			return trace.Wrap(err)
-		}
-		return nil
+	key := backend.Key(windowsDesktopsPrefix, hostID, name)
+	// legacy behavior, we didn't have host IDs
+	// DELETE IN 10.0 (zmb3, lxea)
+	if hostID == "" {
+		key = backend.Key(windowsDesktopsPrefix, name)
 	}
 
-	if hostID == "" {
-		err := s.Delete(ctx, backend.Key(windowsDesktopsPrefix, name))
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return trace.NotFound("windows desktop \"%s/%s\" doesn't exist", hostID, name)
-			}
-			return trace.Wrap(err)
+	err := s.Delete(ctx, key)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("windows desktop \"%s/%s\" doesn't exist", hostID, name)
 		}
-		return nil
+		return trace.Wrap(err)
 	}
-	return doSingleDelete(hostID, name)
+	return nil
 }
 
 // DeleteAllWindowsDesktops removes all windows desktop resources.
