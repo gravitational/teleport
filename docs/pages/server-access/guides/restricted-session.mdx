@@ -9,9 +9,14 @@ With a Restricted Session, Teleport allows the administrator to specify a policy
 apply to SSH sessions. This policy can restrict access to certain resources. Currently
 Teleport supports network restrictions with more types coming in the future.
 
+<Admonition type="tip" title="Compatibility Note">
+This guide applies to Teleport Nodes. You can set up a Restricted Session while running the Open Source, Enterprise, or Cloud versions of the Teleport Auth Service and Proxy Service.
+</Admonition>
+
 ## Prerequisites
 
 Teleport 7.0+ with Restricted Sessions requires Linux kernel 5.8 (or above).
+
 
 You can check your kernel version using the `uname` command. The output should look
 something like the following.
@@ -47,8 +52,7 @@ Network restrictions work similar to a firewall but with several differences:
 
 ## Step 1/4. Install and configure Teleport node
 
-Follow our [installation instructions](../../installation.mdx) to install Teleport Auth, Proxy
-and Nodes.
+Follow our [installation instructions](../../installation.mdx) to install Teleport Auth Service, Proxy Service, and Nodes. For Teleport's managed deployments of the Auth Service and Proxy Service, sign up for a [free trial](https://goteleport.com/signup/) of Teleport Cloud.
 
 Set up the Teleport node with this `/etc/teleport.yaml`. See our [configuration file setup](../../setup/reference/config.mdx) for more instructions.
 
