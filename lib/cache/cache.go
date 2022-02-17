@@ -1495,6 +1495,8 @@ func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespac
 }
 
 // ListNodes is a part of auth.Cache implementation
+//
+// DELETE IN 10.0.0 in favor of ListResources.
 func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1515,6 +1517,8 @@ func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]ty
 // of TTL-based caching rather than caching individual page calls (very messy).
 // It relies on caching the result of the `GetNodes` endpoint and then "faking"
 // pagination.
+//
+// DELETE IN 10.0.0 in favor of ListResources.
 func (c *Cache) listNodesFromTTLCache(ctx context.Context, rg readGuard, namespace, startKey string, labels map[string]string, limit int) ([]types.Server, string, error) {
 	if limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive limit value")
@@ -1929,18 +1933,48 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 	// Cache is not healthy, but right now, only `Node` kind has an
 	// implementation that falls back to TTL cache.
 	if !rg.IsCacheRead() && req.ResourceType == types.KindNode {
-		nodes, nextKey, err := c.listNodesFromTTLCache(ctx, rg, req.Namespace, req.StartKey, req.Labels, int(req.Limit))
+		return c.listResourcesFromTTLCache(ctx, rg, req)
+	}
+
+	return rg.presence.ListResources(ctx, req)
+}
+
+// listResourcesFromTTLCache used when the cache is not healthy. It takes advantage
+// of TTL-based caching rather than caching individual page calls (very messy).
+// It relies on caching the result of the `GetXXXs` endpoint and then "faking"
+// pagination.
+//
+// Since TTLCaching falls back to retrieving all resources upfront, we also support
+// sorting.
+//
+// NOTE: currently only types.KindNode supports TTL caching.
+func (c *Cache) listResourcesFromTTLCache(ctx context.Context, rg readGuard, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+	var resources []types.ResourceWithLabels
+	switch req.ResourceType {
+	case types.KindNode:
+		// Retrieve all nodes.
+		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, req.Namespace)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
-		resources := make([]types.ResourceWithLabels, len(nodes))
-		for i, node := range nodes {
-			resources[i] = node
+		// Nodes returned from the TTL caching layer
+		// must be cloned to avoid concurrent modification.
+		clonedNodes := make([]types.Server, 0, len(cachedNodes))
+		for _, node := range cachedNodes {
+			clonedNodes = append(clonedNodes, node.DeepCopy())
 		}
 
-		return resources, nextKey, nil
+		servers := types.Servers(clonedNodes)
+		if err := servers.SortByCustom(req.SortBy); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		resources = servers.AsResources()
+
+	default:
+		return nil, "", trace.NotImplemented("resource type %q does not support TTL caching", req.ResourceType)
 	}
 
-	return rg.presence.ListResources(ctx, req)
+	return local.FakePaginate(resources, req)
 }

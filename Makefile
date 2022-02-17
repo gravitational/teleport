@@ -450,10 +450,10 @@ docs-test-whitespace:
 #
 # Builds some tooling for filtering and displaying test progress/output/etc
 #
-RENDER_TESTS := ${abspath ./build.assets/tooling/bin/render-tests}
-$(RENDER_TESTS): $(wildcard ./build.assets/tooling/cmd/render-tests/*.go)
-	go build -o "$@" ./build.assets/tooling/cmd/render-tests
-
+TOOLINGDIR := ${abspath ./build.assets/tooling}
+RENDER_TESTS := $(TOOLINGDIR)/bin/render-tests
+$(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
+	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/render-tests
 #
 # Runs all Go/shell tests, called by CI/CD.
 #
@@ -587,7 +587,7 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools
 
 .PHONY: lint-tools
-lint-tools: lint-version-check lint-bot lint-ci-scripts lint-backport
+lint-tools: lint-build-tooling lint-bot lint-ci-scripts lint-backport
 
 #
 # Runs the clippy linter on our rust modules
@@ -610,10 +610,10 @@ lint-go: GO_LINT_FLAGS ?=
 lint-go:
 	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
 
-.PHONY: lint-version-check
-lint-version-check: GO_LINT_FLAGS ?=
-lint-version-check:
-	cd build.assets/version-check && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
+.PHONY: lint-build-tooling
+lint-build-tooling: GO_LINT_FLAGS ?=
+lint-build-tooling:
+	cd build.assets/tooling && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
 
 .PHONY: lint-backport
 lint-backport: GO_LINT_FLAGS ?=
