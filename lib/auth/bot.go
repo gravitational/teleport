@@ -37,7 +37,7 @@ func botResourceName(botName string) string {
 
 // createBotRole creates a role from a bot template with the given parameters.
 func createBotRole(ctx context.Context, s *Server, botName string, resourceName string, roleRequests []string) error {
-	role, err := types.NewRole(resourceName, types.RoleSpecV4{
+	role, err := types.NewRole(resourceName, types.RoleSpecV5{
 		Options: types.RoleOptions{
 			// TODO: inherit TTLs from cert length?
 			MaxSessionTTL: types.Duration(12 * time.Hour),
@@ -63,7 +63,7 @@ func createBotRole(ctx context.Context, s *Server, botName string, resourceName 
 	}
 	meta.Labels[types.BotLabel] = botName
 
-	rolev4, ok := role.(*types.RoleV4)
+	rolev4, ok := role.(*types.RoleV5)
 	if !ok {
 		return trace.BadParameter("unsupported role version %v", role)
 	}
