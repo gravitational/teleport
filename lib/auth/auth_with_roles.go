@@ -3924,7 +3924,10 @@ func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.Wind
 	return a.authServer.UpsertWindowsDesktop(ctx, s)
 }
 
-// DeleteWindowsDesktop removes the specified windows desktop host.
+// DeleteWindowsDesktop removes the specified Windows desktop host.
+// Note: unlike GetWindowsDesktops, this will delete at-most one desktop.
+// Passing an empty host ID will not trigger "delete all" behavior. To delete
+// all desktops, use DeleteAllWindowsDesktops.
 func (a *ServerWithRoles) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbDelete); err != nil {
 		return trace.Wrap(err)

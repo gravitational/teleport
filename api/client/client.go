@@ -2240,6 +2240,9 @@ func (c *Client) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 }
 
 // DeleteWindowsDesktop removes the specified windows desktop host.
+// Note: unlike GetWindowsDesktops, this will delete at-most one desktop.
+// Passing an empty host ID will not trigger "delete all" behavior. To delete
+// all desktops, use DeleteAllWindowsDesktops.
 func (c *Client) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
 	_, err := c.grpc.DeleteWindowsDesktop(ctx, &proto.DeleteWindowsDesktopRequest{
 		Name:   name,
