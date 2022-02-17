@@ -93,19 +93,18 @@ exports[`render clusters 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  margin-right: 8px;
+  margin-right: 4px;
   color: #FFFFFF;
 }
 
 .c5 {
   box-sizing: border-box;
-  width: 100%;
   display: flex;
-  justify-content: end;
 }
 
 .c6 {
   box-sizing: border-box;
+  margin-right: 8px;
   display: flex;
   align-items: center;
 }
@@ -328,7 +327,6 @@ exports[`render clusters 1`] = `
     />
     <div
       class="c5"
-      width="100%"
     >
       <div
         class="c6"
@@ -351,6 +349,10 @@ exports[`render clusters 1`] = `
             37
           </strong>
         </div>
+      </div>
+      <div
+        class="c5"
+      >
         <button
           class="c8"
           disabled=""

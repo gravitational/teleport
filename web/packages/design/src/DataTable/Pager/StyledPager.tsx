@@ -37,7 +37,6 @@ export const StyledFetchMoreBtn = styled.button`
   font-weight: bold;
   line-height: 0;
   font-size: 12px;
-  margin-left: 8px;
 
   &:hover,
   &:focus {

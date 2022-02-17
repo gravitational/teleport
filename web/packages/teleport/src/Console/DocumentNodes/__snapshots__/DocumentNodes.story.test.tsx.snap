@@ -112,7 +112,7 @@ exports[`render DocumentNodes 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  margin-right: 8px;
+  margin-right: 4px;
   color: #FFFFFF;
 }
 
@@ -141,13 +141,12 @@ exports[`render DocumentNodes 1`] = `
 
 .c13 {
   box-sizing: border-box;
-  width: 100%;
   display: flex;
-  justify-content: end;
 }
 
 .c14 {
   box-sizing: border-box;
+  margin-right: 8px;
   display: flex;
   align-items: center;
 }
@@ -758,7 +757,6 @@ exports[`render DocumentNodes 1`] = `
         />
         <div
           class="c13"
-          width="100%"
         >
           <div
             class="c14"
@@ -781,6 +779,10 @@ exports[`render DocumentNodes 1`] = `
                 5
               </strong>
             </div>
+          </div>
+          <div
+            class="c13"
+          >
             <button
               class="c16"
               disabled=""

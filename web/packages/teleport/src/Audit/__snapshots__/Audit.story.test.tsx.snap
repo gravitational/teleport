@@ -72,26 +72,25 @@ exports[`list of all events 1`] = `
   font-size: 16px;
 }
 
-.c5 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  margin-right: 8px;
+  margin-right: 4px;
   color: #FFFFFF;
 }
 
 .c2 {
   box-sizing: border-box;
-  width: 100%;
   display: flex;
-  justify-content: space-between;
 }
 
-.c4 {
+.c3 {
   box-sizing: border-box;
+  margin-right: 8px;
   display: flex;
   align-items: center;
 }
@@ -220,7 +219,7 @@ exports[`list of all events 1`] = `
   opacity: 0.1;
 }
 
-.c3 {
+.c5 {
   color: #03a9f4;
   background: none;
   text-decoration: underline;
@@ -230,15 +229,14 @@ exports[`list of all events 1`] = `
   font-weight: bold;
   line-height: 0;
   font-size: 12px;
-  margin-left: 8px;
 }
 
-.c3:hover,
-.c3:focus {
+.c5:hover,
+.c5:focus {
   cursor: pointer;
 }
 
-.c3:disabled {
+.c5:disabled {
   color: rgba(255,255,255,0.3);
   cursor: wait;
 }
@@ -319,18 +317,12 @@ exports[`list of all events 1`] = `
     />
     <div
       class="c2"
-      width="100%"
     >
-      <button
+      <div
         class="c3"
       >
-        Fetch More
-      </button>
-      <div
-        class="c4"
-      >
         <div
-          class="c5"
+          class="c4"
           color="primary.contrastText"
         >
           SHOWING 
@@ -347,6 +339,15 @@ exports[`list of all events 1`] = `
             73
           </strong>
         </div>
+        <button
+          class="c5"
+        >
+          Fetch More
+        </button>
+      </div>
+      <div
+        class="c2"
+      >
         <button
           class="c6"
           disabled=""
@@ -3194,19 +3195,18 @@ exports[`loaded audit log screen 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  margin-right: 8px;
+  margin-right: 4px;
   color: #FFFFFF;
 }
 
 .c7 {
   box-sizing: border-box;
-  width: 100%;
   display: flex;
-  justify-content: end;
 }
 
 .c8 {
   box-sizing: border-box;
+  margin-right: 8px;
   display: flex;
   align-items: center;
 }
@@ -3742,7 +3742,6 @@ exports[`loaded audit log screen 1`] = `
     />
     <div
       class="c7"
-      width="100%"
     >
       <div
         class="c8"
@@ -3765,6 +3764,10 @@ exports[`loaded audit log screen 1`] = `
             4
           </strong>
         </div>
+      </div>
+      <div
+        class="c7"
+      >
         <button
           class="c10"
           disabled=""
