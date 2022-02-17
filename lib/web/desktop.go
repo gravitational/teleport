@@ -26,9 +26,9 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/net/websocket"
 
 	"github.com/gravitational/trace"
 
@@ -147,19 +147,11 @@ func createDesktopConnection(
 		return trace.Wrap(err)
 	}
 
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-	}
-
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := proxyWebsocketConn(ws, serviceConnTLS); err != nil {
-		log.WithError(err).Warningf("Error proxying a desktop protocol websocket to windows_desktop_service")
-	}
+	websocket.Handler(func(conn *websocket.Conn) {
+		if err := proxyWebsocketConn(conn, serviceConnTLS); err != nil {
+			log.WithError(err).Warningf("Error proxying a desktop protocol websocket to windows_desktop_service")
+		}
+	}).ServeHTTP(w, r)
 	return nil
 }
 
@@ -208,6 +200,9 @@ func (c *connector) tryConnect(clusterName, desktopServiceID string) (net.Conn, 
 }
 
 func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
+	// Ensure we send binary frames to the browser.
+	ws.PayloadType = websocket.BinaryFrame
+
 	var closeOnce sync.Once
 	close := func() {
 		ws.Close()
@@ -215,20 +210,23 @@ func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
 	}
 
 	errs := make(chan error, 2)
-	stream := &WebsocketIO{Conn: ws}
 	go func() {
+		defer ws.Close()
+		defer con.Close()
 		defer closeOnce.Do(close)
 
-		_, err := io.Copy(stream, con)
+		_, err := io.Copy(ws, con)
 		if utils.IsOKNetworkError(err) {
 			err = nil
 		}
 		errs <- err
 	}()
 	go func() {
+		defer ws.Close()
+		defer con.Close()
 		defer closeOnce.Do(close)
 
-		_, err := io.Copy(con, stream)
+		_, err := io.Copy(con, ws)
 		if utils.IsOKNetworkError(err) {
 			err = nil
 		}
