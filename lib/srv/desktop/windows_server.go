@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -802,8 +803,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	defer cancel()
 
 	delay := timer()
-	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay)
-	tdpConn.OnRecv = s.makeTDPRecieveHandler(ctx, sw, delay)
+	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
+	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
 
 	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
@@ -811,10 +812,11 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
 			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl)
 		},
-		CertTTL:     windowsDesktopCertTTL,
-		Addr:        desktop.GetAddr(),
-		Conn:        tdpConn,
-		AuthorizeFn: authorize,
+		CertTTL:        windowsDesktopCertTTL,
+		Addr:           desktop.GetAddr(),
+		Conn:           tdpConn,
+		AuthorizeFn:    authorize,
+		AllowClipboard: authCtx.Checker.DesktopClipboard(),
 	})
 	if err != nil {
 		s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
@@ -856,10 +858,10 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	return trace.Wrap(err)
 }
 
-func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.Emitter, delay func() int64) func(m tdp.Message, b []byte) {
+func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
+	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		// TODO(zmb3): record audit events for clipboard usage
 		case byte(tdp.TypePNGFrame):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
@@ -879,14 +881,21 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 			} else if err := emitter.EmitAuditEvent(ctx, e); err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
+		case byte(tdp.TypeClipboardData):
+			if clip, ok := m.(tdp.ClipboardData); ok {
+				// the TDP send handler emits a clipboard receive event, because we
+				// received clipboard data from the remote desktop and are sending
+				// it on the TDP connection
+				s.onClipboardReceive(ctx, id, sessionID, desktopAddr, int32(len(clip)))
+			}
 		}
 	}
 }
 
-func (s *WindowsService) makeTDPRecieveHandler(ctx context.Context, emitter events.Emitter, delay func() int64) func(m tdp.Message) {
+func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
+	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message) {
 	return func(m tdp.Message) {
-		switch m.(type) {
-		// TODO(zmb3): record audit events for clipboard usage
+		switch msg := m.(type) {
 		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
 			b, err := m.Encode()
 			if err != nil {
@@ -907,6 +916,11 @@ func (s *WindowsService) makeTDPRecieveHandler(ctx context.Context, emitter even
 			} else if err := emitter.EmitAuditEvent(ctx, e); err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
+		case tdp.ClipboardData:
+			// the TDP receive handler emits a clipboard send event, because we
+			// received clipboard data from the user (over TDP) and are sending
+			// it to the remote desktop
+			s.onClipboardSend(ctx, id, sessionID, desktopAddr, int32(len(msg)))
 		}
 	}
 }
