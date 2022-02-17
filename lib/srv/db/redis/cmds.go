@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// List of all commands that Teleport handles in a special way.
+// List of commands that Teleport handles in a special way by Redis standalone and cluster.
 const (
 	helloCmd        = "hello"
 	authCmd         = "auth"

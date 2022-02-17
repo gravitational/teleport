@@ -29,11 +29,27 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// Commands with additional processing in Teleport when using cluster mode.
+const (
+	mulitCmd    = "multi"
+	execCmd     = "exec"
+	watchCmd    = "watch"
+	dbsizeCmd   = "dbsize"
+	scanCmd     = "scan"
+	keysCmd     = "keys"
+	mgetCmd     = "mget"
+	flushallCmd = "flushall"
+	flushdbCmd  = "flushdb"
+)
+
+// clusterClient is a wrapper around redis.ClusterClient
 type clusterClient struct {
 	redis.ClusterClient
 }
 
-func newClient(mode ConnectionMode, addr string, tlsConfig *tls.Config) (redis.UniversalClient, error) {
+// newClient creates a new Redis client base on given ConnectionMode. If connection mode is not supported
+// an error is returned.
+func newClient(ctx context.Context, mode ConnectionMode, addr string, tlsConfig *tls.Config) (redis.UniversalClient, error) {
 	// TODO(jakub): Use system CA bundle if connecting to AWS.
 	// TODO(jakub): Investigate Redis Sentinel.
 	switch mode {
@@ -43,18 +59,23 @@ func newClient(mode ConnectionMode, addr string, tlsConfig *tls.Config) (redis.U
 			TLSConfig: tlsConfig,
 		}), nil
 	case Cluster:
-		return &clusterClient{
+		client := &clusterClient{
 			ClusterClient: *redis.NewClusterClient(&redis.ClusterOptions{
 				Addrs:     []string{addr},
 				TLSConfig: tlsConfig,
 			}),
-		}, nil
+		}
+		// Load cluster information.
+		client.ReloadState(ctx)
+
+		return client, nil
 	default:
 		// We've checked that while validating the config, but checking again can help with regression.
 		return nil, trace.BadParameter("incorrect connection mode %s", mode)
 	}
 }
 
+// Process add supports for additional cluster commands.
 func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 	cmd, ok := inCmd.(*redis.Cmd)
 	if !ok {
@@ -62,15 +83,18 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 	}
 
 	switch cmdName := strings.ToLower(cmd.Name()); cmdName {
-	case "multi", "exec", "watch":
+	case mulitCmd, execCmd, watchCmd:
+		// do not allow transaction commands as they always fail on exec.
 		return trace.NotImplemented("%s is not supported in the cluster mode", cmdName)
-	case "dbsize":
+	case dbsizeCmd:
+		// use go-redis dbsize implementation. It returns size of all keys in the whole cluster instead of
+		// just currently connected instance.
 		res := c.DBSize(ctx)
 		cmd.SetVal(res.Val())
 		cmd.SetErr(res.Err())
 
 		return nil
-	case "scan":
+	case scanCmd:
 		var resultsKeys []string
 		var mtx sync.Mutex
 
@@ -99,7 +123,7 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 		cmd.SetVal(resultsKeys)
 
 		return nil
-	case "keys":
+	case keysCmd:
 		var resultsKeys []string
 		var mtx sync.Mutex
 
@@ -127,7 +151,7 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 		cmd.SetVal(resultsKeys)
 
 		return nil
-	case "mget":
+	case mgetCmd:
 		if len(cmd.Args()) == 1 {
 			return trace.BadParameter("wrong number of arguments for 'script' command")
 		}
@@ -158,7 +182,7 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 		cmd.SetVal(resultsKeys)
 
 		return nil
-	case "flushall", "flushdb":
+	case flushallCmd, flushdbCmd:
 		if err := c.ForEachMaster(ctx, func(ctx context.Context, client *redis.Client) error {
 			singleCmd := redis.NewCmd(ctx, cmd.Args()...)
 			err := client.Process(ctx, singleCmd)
