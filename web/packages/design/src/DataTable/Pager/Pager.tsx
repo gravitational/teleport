@@ -22,28 +22,27 @@ export function Pager({
 }: State) {
   const isFetchingEnabled = onFetchMore && fetchStatus !== 'disabled';
   return (
-    <Flex
-      justifyContent={isFetchingEnabled ? 'space-between' : 'end'}
-      width="100%"
-    >
-      {isFetchingEnabled && (
-        <StyledFetchMoreBtn
-          disabled={fetchStatus === 'loading'}
-          onClick={onFetchMore}
-        >
-          Fetch More
-        </StyledFetchMoreBtn>
-      )}
-      <Flex alignItems="center">
-        <Text typography="body2" color="primary.contrastText" mr={2}>
+    <Flex>
+      <Flex alignItems="center" mr={2}>
+        <Text typography="body2" color="primary.contrastText" mr={1}>
           SHOWING <strong>{from + 1}</strong> - <strong>{to + 1}</strong> of{' '}
           <strong>{count}</strong>
         </Text>
+        {isFetchingEnabled && (
+          <StyledFetchMoreBtn
+            disabled={fetchStatus === 'loading'}
+            onClick={onFetchMore}
+          >
+            Fetch More
+          </StyledFetchMoreBtn>
+        )}
+      </Flex>
+      <Flex>
         <StyledArrowBtn
           onClick={prevPage}
           title="Previous page"
           disabled={isPrevDisabled}
-          mr={0}
+          mx={0}
         >
           <CircleArrowLeft fontSize="3" />
         </StyledArrowBtn>

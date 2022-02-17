@@ -142,19 +142,18 @@ exports[`success state 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  margin-right: 8px;
+  margin-right: 4px;
   color: #FFFFFF;
 }
 
 .c6 {
   box-sizing: border-box;
-  width: 100%;
   display: flex;
-  justify-content: end;
 }
 
 .c7 {
   box-sizing: border-box;
+  margin-right: 8px;
   display: flex;
   align-items: center;
 }
@@ -381,7 +380,6 @@ exports[`success state 1`] = `
       />
       <div
         class="c6"
-        width="100%"
       >
         <div
           class="c7"
@@ -404,6 +402,10 @@ exports[`success state 1`] = `
               6
             </strong>
           </div>
+        </div>
+        <div
+          class="c6"
+        >
           <button
             class="c9"
             disabled=""
