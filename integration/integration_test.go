@@ -3445,9 +3445,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	// audit log should have the fact that the session occurred recorded in it
-	sessions, err = site.GetSessions(apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, sessions, 1)
+	// but the session could have been garbage collected at this point.
 
 	// however, attempts to read the actual sessions should fail because it was
 	// not actually recorded
