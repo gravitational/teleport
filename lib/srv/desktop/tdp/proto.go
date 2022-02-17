@@ -25,10 +25,15 @@ package tdp
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"image"
 	"image/png"
 	"io"
 
+	authproto "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/trace"
 )
 
@@ -47,6 +52,12 @@ const (
 	TypeClientUsername   = MessageType(7)
 	TypeMouseWheel       = MessageType(8)
 	TypeError            = MessageType(9)
+	TypeMFAJson          = MessageType(10)
+)
+
+const (
+	WebsocketU2FChallengeByte      = 'u'
+	WebsocketWebauthnChallengeByte = 'n'
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -97,6 +108,8 @@ func decode(in peekReader) (Message, error) {
 		return decodeClipboardData(in, maxClipboardDataLength)
 	case TypeError:
 		return decodeError(in)
+	case TypeMFAJson:
+		return DecodeMFAJson(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", t)
 	}
@@ -441,6 +454,104 @@ func decodeClipboardData(in peekReader, maxLen uint32) (ClipboardData, error) {
 	}
 
 	return ClipboardData(b), nil
+}
+
+const maxMFADataLength = 1024 * 1024
+
+type MFAJson struct {
+	// MfaType should be one of WebsocketU2FChallengeByte or WebsocketWebauthnChallengeByte.
+	MfaType byte
+	// MFAAuthenticateChallenge is the struct we send to the client (as a json, see Encode())
+	*auth.MFAAuthenticateChallenge
+	// MFAAuthenticateResponse is the struct we expect to receive in response to the challenge
+	// (as a json, see DecodeMFAJson())
+	*authproto.MFAAuthenticateResponse
+}
+
+func (m MFAJson) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeMFAJson))
+	buf.WriteByte(byte(m.MfaType))
+	chalEnc, err := json.Marshal(m.MFAAuthenticateChallenge)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(chalEnc) > maxMFADataLength {
+		return nil, trace.BadParameter("mfa challenge data exceeds maximum length")
+	}
+	binary.Write(buf, binary.BigEndian, uint32(len(chalEnc)))
+	buf.Write(chalEnc)
+	return buf.Bytes(), nil
+}
+
+func DecodeMFAJson(in peekReader) (*MFAJson, error) {
+	mfaJson := &MFAJson{}
+
+	t, err := in.ReadByte()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if t != byte(TypeMFAJson) {
+		return nil, trace.BadParameter("got message type %v, expected TypeMFAJson(%v)", t, TypeMFAJson)
+	}
+
+	mt, err := in.ReadByte()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if mt != WebsocketWebauthnChallengeByte && mt != WebsocketU2FChallengeByte {
+		return nil, trace.BadParameter("got mfa type %v, expected %v (WebAuthn) or %v (U2F)", mt, WebsocketWebauthnChallengeByte, WebsocketU2FChallengeByte)
+	}
+	mfaJson.MfaType = mt
+
+	var length uint32
+	if err := binary.Read(in, binary.BigEndian, &length); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if length > maxMFADataLength {
+		return nil, trace.BadParameter("mfa challenge data exceeds maximum length")
+	}
+
+	b := make([]byte, int(length))
+	if _, err := io.ReadFull(in, b); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var mfaResponse *authproto.MFAAuthenticateResponse
+
+	// Convert from JSON to proto.
+	switch mfaJson.MfaType {
+	case WebsocketWebauthnChallengeByte:
+		var webauthnResponse wanlib.CredentialAssertionResponse
+		if err := json.Unmarshal(b, &webauthnResponse); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		mfaResponse = &authproto.MFAAuthenticateResponse{
+			Response: &authproto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wanlib.CredentialAssertionResponseToProto(&webauthnResponse),
+			},
+		}
+
+	default:
+		var u2fResponse u2f.AuthenticateChallengeResponse
+		if err := json.Unmarshal(b, &u2fResponse); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		mfaResponse = &authproto.MFAAuthenticateResponse{
+			Response: &authproto.MFAAuthenticateResponse_U2F{
+				U2F: &authproto.U2FResponse{
+					KeyHandle:  u2fResponse.KeyHandle,
+					ClientData: u2fResponse.ClientData,
+					Signature:  u2fResponse.SignatureData,
+				},
+			},
+		}
+	}
+
+	mfaJson.MFAAuthenticateResponse = mfaResponse
+
+	return mfaJson, nil
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with
