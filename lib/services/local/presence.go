@@ -1621,6 +1621,10 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 // listResourcesWithSort supports sorting by falling back to retrieving all resources
 // with GetXXXs, filter, and then fake pagination.
 func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
 	var resources []types.ResourceWithLabels
 	switch req.ResourceType {
 	case types.KindNode:

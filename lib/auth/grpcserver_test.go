@@ -1608,11 +1608,11 @@ func TestNodesCRUD(t *testing.T) {
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 			require.Empty(t, nextKey)
 
-			// ListNodes should fail if namespace isn't provided
+			// ListNodes should not fail if namespace is empty
 			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
 				Limit: 1,
 			})
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+			require.NoError(t, err)
 
 			// ListNodes should fail if limit is nonpositive
 			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
@@ -1635,9 +1635,9 @@ func TestNodesCRUD(t *testing.T) {
 			require.Empty(t, cmp.Diff([]types.Server{node1, node2}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
-			// GetNodes should fail if namespace isn't provided
+			// GetNodes should not fail if namespace is empty
 			_, err = clt.GetNodes(ctx, "")
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+			require.NoError(t, err)
 		})
 		t.Run("GetNode", func(t *testing.T) {
 			t.Parallel()
