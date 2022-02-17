@@ -317,63 +317,6 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 		return trace.Wrap(err)
 	}
 
-	mfaEncode := func(chal *auth.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
-		chalEnc, err := json.Marshal(chal)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		envelope := &Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    envelopeType,
-			Payload: string(chalEnc),
-		}
-		envelopeBytes, err := proto.Marshal(envelope)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return envelopeBytes, nil
-	}
-
-	mfaDecode := func(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateResponse, error) {
-		envelope := &Envelope{}
-		if err = proto.Unmarshal(bytes, envelope); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		var mfaResponse *authproto.MFAAuthenticateResponse
-
-		// Convert from JSON to proto.
-		switch envelopeType {
-		case defaults.WebsocketWebauthnChallenge:
-			var webauthnResponse wanlib.CredentialAssertionResponse
-			if err := json.Unmarshal([]byte(envelope.Payload), &webauthnResponse); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			mfaResponse = &authproto.MFAAuthenticateResponse{
-				Response: &authproto.MFAAuthenticateResponse_Webauthn{
-					Webauthn: wanlib.CredentialAssertionResponseToProto(&webauthnResponse),
-				},
-			}
-
-		default:
-			var u2fResponse u2f.AuthenticateChallengeResponse
-			if err := json.Unmarshal([]byte(envelope.Payload), &u2fResponse); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			mfaResponse = &authproto.MFAAuthenticateResponse{
-				Response: &authproto.MFAAuthenticateResponse_U2F{
-					U2F: &authproto.U2FResponse{
-						KeyHandle:  u2fResponse.KeyHandle,
-						ClientData: u2fResponse.ClientData,
-						Signature:  u2fResponse.SignatureData,
-					},
-				},
-			}
-		}
-
-		return mfaResponse, nil
-	}
-
 	key, err := pc.IssueUserCertsWithMFA(t.terminalContext, client.ReissueParams{
 		RouteToCluster: t.params.Cluster,
 		NodeName:       t.params.Server,
@@ -383,7 +326,7 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 			Cert:    t.ctx.session.GetPub(),
 			TLSCert: t.ctx.session.GetTLSCert(),
 		},
-	}, promptMFAChallenge(ws, t.wsLock, mfaEncode, mfaDecode))
+	}, promptMFAChallenge(ws, t.wsLock, protobufMFACodec{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -399,8 +342,7 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 func promptMFAChallenge(
 	ws *websocket.Conn,
 	wsLock *sync.Mutex,
-	encode func(chal *auth.MFAAuthenticateChallenge, envelopeType string) ([]byte, error),
-	decode func(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateResponse, error),
+	codec mfaCodec,
 ) client.PromptMFAChallengeHandler {
 	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 		var chal *auth.MFAAuthenticateChallenge

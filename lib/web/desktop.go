@@ -17,7 +17,6 @@ limitations under the License.
 package web
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"io"
@@ -36,9 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
@@ -191,32 +188,6 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		return nil, trace.Wrap(err)
 	}
 
-	mfaEncode := func(chal *auth.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
-		var mfaType byte
-		if envelopeType == defaults.WebsocketWebauthnChallenge {
-			mfaType = tdp.WebsocketWebauthnChallengeByte
-		} else if envelopeType == defaults.WebsocketU2FChallenge {
-			mfaType = tdp.WebsocketU2FChallengeByte
-		} else {
-			return nil, trace.BadParameter("received envelope type %v, expected either %v (WebAuthn) or %v (U2F)", envelopeType, defaults.WebsocketWebauthnChallenge, defaults.WebsocketU2FChallenge)
-		}
-
-		mfaChal := tdp.MFAJson{
-			MfaType:                  mfaType,
-			MFAAuthenticateChallenge: chal,
-		}
-
-		return mfaChal.Encode()
-	}
-
-	mfaDecode := func(buf []byte, _ string) (*proto.MFAAuthenticateResponse, error) {
-		mfaJson, err := tdp.DecodeMFAJson(bytes.NewReader(buf))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return mfaJson.MFAAuthenticateResponse, nil
-	}
-
 	var wsLock sync.Mutex
 	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
@@ -231,7 +202,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 			TLSCert:             sessCtx.session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),
 		},
-	}, promptMFAChallenge(ws, &wsLock, mfaEncode, mfaDecode))
+	}, promptMFAChallenge(ws, &wsLock, tdpMFACodec{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
