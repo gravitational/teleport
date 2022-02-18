@@ -138,9 +138,12 @@ CA pin   sha256:58b1c5cb8885d84ce08f3e3a47acb33d49841f12dd7648c0c1dd31bd501628
 
 Save the following configuration file as `/etc/teleport.yaml` on the *node.example.com*:
 
-!!! note "Note"
-
-Make sure to replace the ca_pin with the above `tctl status` output and the right auth server address.
+<Admonition
+  type="note"
+  title="Note"
+>
+  Make sure to replace the ca_pin with the above `tctl status` output and the right auth server address.
+</Admonition>
 
 ```yaml
 teleport:
