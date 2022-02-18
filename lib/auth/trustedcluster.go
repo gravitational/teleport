@@ -527,7 +527,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 }
 
 func (a *Server) validateTrustedClusterToken(ctx context.Context, tokenName string) (map[string]string, error) {
-	provisionToken, err := a.ValidateToken(context.TODO(), tokenName)
+	provisionToken, err := a.ValidateToken(ctx, tokenName)
 	if err != nil {
 		return nil, trace.AccessDenied("the remote server denied access: invalid cluster token")
 	}
