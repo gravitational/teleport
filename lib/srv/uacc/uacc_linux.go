@@ -101,8 +101,8 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	microsFraction := (C.int32_t)((timestamp.UnixNano() % int64(time.Second)) / int64(time.Microsecond))
 
 	accountDb.Lock()
+	defer accountDb.Unlock()
 	status := C.uacc_add_utmp_entry(cUtmpPath, cWtmpPath, cUsername, cHostname, &cIP[0], cTtyName, cIDName, secondsElapsed, microsFraction)
-	accountDb.Unlock()
 
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
@@ -155,8 +155,8 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	microsFraction := (C.int32_t)((timestamp.UnixNano() % int64(time.Second)) / int64(time.Microsecond))
 
 	accountDb.Lock()
+	defer accountDb.Unlock()
 	status := C.uacc_mark_utmp_entry_dead(cUtmpPath, cWtmpPath, cTtyName, secondsElapsed, microsFraction)
-	accountDb.Unlock()
 
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
@@ -193,8 +193,8 @@ func UserWithPtyInDatabase(utmpPath string, username string) error {
 	defer C.free(unsafe.Pointer(cUsername))
 
 	accountDb.Lock()
+	defer accountDb.Unlock()
 	status := C.uacc_has_entry_with_user(cUtmpPath, cUsername)
-	accountDb.Unlock()
 
 	switch status {
 	case C.UACC_UTMP_FAILED_OPEN:
