@@ -69,12 +69,7 @@ func createBotRole(ctx context.Context, s *Server, botName string, resourceName 
 		meta.Labels = map[string]string{}
 	}
 	meta.Labels[types.BotLabel] = botName
-
-	rolev5, ok := role.(*types.RoleV5)
-	if !ok {
-		return nil, trace.BadParameter("unsupported role version %v", role)
-	}
-	rolev5.Metadata = meta
+	role.SetMetadata(meta)
 
 	err = s.UpsertRole(ctx, role)
 	if err != nil {
@@ -177,16 +172,16 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 func (s *Server) deleteBotUser(ctx context.Context, botName, resourceName string) error {
 	user, err := s.GetUser(resourceName, false)
 	if err != nil {
-		err = trace.WrapWithMessage(err, "could not fetch expected bot user %s", resourceName)
+		return trace.Wrap(err, "could not fetch expected bot user %s", resourceName)
+	}
+
+	label, ok := user.GetMetadata().Labels[types.BotLabel]
+	if !ok {
+		err = trace.Errorf("will not delete user %s that is missing label %s; delete the user manually if desired", resourceName, types.BotLabel)
+	} else if label != botName {
+		err = trace.Errorf("will not delete user %s with mismatched label %s = %s", resourceName, types.BotLabel, label)
 	} else {
-		label, ok := user.GetMetadata().Labels[types.BotLabel]
-		if !ok {
-			err = trace.Errorf("will not delete user %s that is missing label %s", resourceName, types.BotLabel)
-		} else if label != botName {
-			err = trace.Errorf("will not delete user %s with mismatched label %s = %s", resourceName, types.BotLabel, label)
-		} else {
-			err = s.DeleteUser(ctx, resourceName)
-		}
+		err = s.DeleteUser(ctx, resourceName)
 	}
 
 	return err
@@ -197,16 +192,16 @@ func (s *Server) deleteBotUser(ctx context.Context, botName, resourceName string
 func (s *Server) deleteBotRole(ctx context.Context, botName, resourceName string) error {
 	role, err := s.GetRole(ctx, resourceName)
 	if err != nil {
-		err = trace.WrapWithMessage(err, "could not fetch expected bot role %s", resourceName)
+		return trace.Wrap(err, "could not fetch expected bot role %s", resourceName)
+	}
+
+	label, ok := role.GetMetadata().Labels[types.BotLabel]
+	if !ok {
+		err = trace.Errorf("will not delete role %s that is missing label %s; delete the role manually if desired", resourceName, types.BotLabel)
+	} else if label != botName {
+		err = trace.Errorf("will not delete role %s with mismatched label %s = %s", resourceName, types.BotLabel, label)
 	} else {
-		label, ok := role.GetMetadata().Labels[types.BotLabel]
-		if !ok {
-			err = trace.Errorf("will not delete role %s that is missing label %s", resourceName, types.BotLabel)
-		} else if label != botName {
-			err = trace.Errorf("will not delete role %s with mismatched label %s = %s", resourceName, types.BotLabel, label)
-		} else {
-			err = s.DeleteRole(ctx, resourceName)
-		}
+		err = s.DeleteRole(ctx, resourceName)
 	}
 
 	return err

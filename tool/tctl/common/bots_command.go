@@ -51,7 +51,6 @@ type BotsCommand struct {
 	botsAdd    *kingpin.CmdClause
 	botsRemove *kingpin.CmdClause
 	botsLock   *kingpin.CmdClause
-	botsUnlock *kingpin.CmdClause
 }
 
 // Initialize sets up the "tctl bots" command.
@@ -80,8 +79,6 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *service.Confi
 
 // TryRun attempts to run subcommands.
 func (c *BotsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
-	// TODO: create a smaller interface - we don't need all of ClientI
-
 	switch cmd {
 	case c.botsList.FullCommand():
 		err = c.ListBots(client)
@@ -97,9 +94,6 @@ func (c *BotsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 
 	return true, trace.Wrap(err)
 }
-
-// TODO: define a smaller interface than auth.ClientI for the CLI commands
-// (we only use a small subset of the giant ClientI interface)
 
 // ListBots writes a listing of the cluster's certificate renewal bots
 // to standard out.
@@ -211,7 +205,6 @@ func (c *BotsCommand) RemoveBot(client auth.ClientI) error {
 }
 
 func (c *BotsCommand) LockBot(client auth.ClientI) error {
-	// TODO: this is entirely untested.
 	lockExpiry, err := computeLockExpiry(c.lockExpires, c.lockTTL)
 	if err != nil {
 		return trace.Wrap(err)
@@ -225,7 +218,7 @@ func (c *BotsCommand) LockBot(client auth.ClientI) error {
 	meta := user.GetMetadata()
 	botName, ok := meta.Labels[types.BotLabel]
 	if !ok {
-		return trace.BadParameter("User %q is not a bot user; use `tctl lock` directly to lock this user", user.GetName(), c.botName)
+		return trace.BadParameter("User %q is not a bot user; use `tctl lock` directly to lock this user", user.GetName())
 	}
 
 	if botName != c.botName {

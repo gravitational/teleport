@@ -46,6 +46,9 @@ type Role interface {
 	// Resource provides common resource methods.
 	Resource
 
+	// SetMetadata sets role metadata
+	SetMetadata(meta Metadata)
+
 	// GetOptions gets role options.
 	GetOptions() RoleOptions
 	// SetOptions sets role options
@@ -251,6 +254,11 @@ func (r *RoleV5) GetName() string {
 // GetMetadata returns role metadata.
 func (r *RoleV5) GetMetadata() Metadata {
 	return r.Metadata
+}
+
+// SetMetadata sets role metadata
+func (r *RoleV5) SetMetadata(meta Metadata) {
+	r.Metadata = meta
 }
 
 // GetOptions gets role options.

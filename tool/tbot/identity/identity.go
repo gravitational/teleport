@@ -326,30 +326,6 @@ func ReadSSHIdentityFromKeyPair(keyBytes, publicKeyBytes, certBytes []byte) (*Id
 		}
 	}
 
-	// check permissions on certificate
-	// TODO: do we care to even verify this at all?
-	// if len(cert.Permissions.Extensions) == 0 {
-	// 	return nil, trace.BadParameter("extensions: misssing needed extensions for host roles")
-	// }
-
-	// roleString := cert.Permissions.Extensions[utils.CertExtensionRole]
-	// if roleString == "" {
-	// 	return nil, trace.BadParameter("misssing cert extension %v", utils.CertExtensionRole)
-	// }
-	// roles, err := types.ParseTeleportRoles(roleString)
-	// if err != nil {
-	// 	return nil, trace.Wrap(err)
-	// }
-	// foundRoles := len(roles)
-	// if foundRoles != 1 {
-	// 	return nil, trace.Errorf("expected one role per certificate. found %d: '%s'",
-	// 		foundRoles, roles.String())
-	// }
-
-	// TODO: host certs use CertExtensionAuthority, client certs use CertExtensionTeleportRouteToCluster
-	// (or at least, teleport-route-to-cluster _appears_ to be a sane cluster name, but I have no idea
-	// how it is actually set.)
-	//clusterName := cert.Permissions.Extensions[utils.CertExtensionAuthority]
 	clusterName := cert.Permissions.Extensions[teleport.CertExtensionTeleportRouteToCluster]
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cert extension %v", utils.CertExtensionAuthority)

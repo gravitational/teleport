@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -82,13 +83,13 @@ func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI,
 
 	proxyHost, _, err := utils.SplitHostPort(ping.ProxyPublicAddr)
 	if err != nil {
-		return trace.BadParameter("proxy %+v has no usable public address", ping.ProxyPublicAddr)
+		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.ProxyPublicAddr, err)
 	}
 
 	// TODO: ideally it'd be nice to fetch this dynamically
 	// TODO: eventually we could consider including `tsh proxy`
 	// functionality and sidestep this entirely.
-	proxyPort := fmt.Sprint(c.ProxyPort)
+	proxyPort := strconv.Itoa(int(c.ProxyPort))
 
 	// Backend note: Prefer to use absolute paths for filesystem backends.
 	// If the backend is something else, use "". ssh_config will generate with

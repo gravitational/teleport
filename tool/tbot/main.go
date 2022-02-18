@@ -272,6 +272,7 @@ func watchCARotations(watcher types.Watcher) {
 }
 
 func renewIdentityViaAuth(
+	ctx context.Context,
 	client auth.ClientI,
 	currentIdentity *identity.Identity,
 	certTTL time.Duration,
@@ -280,7 +281,7 @@ func renewIdentityViaAuth(
 
 	// Ask the auth server to generate a new set of certs with a new
 	// expiration date.
-	certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
+	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		PublicKey: currentIdentity.SSHPublicKeyBytes,
 		Username:  currentIdentity.XCert.Subject.CommonName,
 		Expires:   time.Now().Add(certTTL),
@@ -370,7 +371,7 @@ func renewLoop(ctx context.Context, cfg *config.BotConfig, client auth.ClientI, 
 	defer ticker.Stop()
 	for {
 		log.Debug("Attempting to renew bot certificates...")
-		newIdentity, err := renewIdentityViaAuth(client, ident, cfg.CertificateTTL)
+		newIdentity, err := renewIdentityViaAuth(ctx, client, ident, cfg.CertificateTTL)
 		if err != nil {
 			return trace.Wrap(err)
 		}
