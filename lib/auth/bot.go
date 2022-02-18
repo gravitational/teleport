@@ -116,7 +116,7 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 
 	resourceName := botResourceName(req.Name)
 
-	// Ensure existing resources don't already exist.
+	// Ensure conflicting resources don't already exist.
 	_, err := s.GetRole(ctx, resourceName)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
