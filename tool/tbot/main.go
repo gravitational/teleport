@@ -186,7 +186,7 @@ func onStart(botConfig *config.BotConfig) error {
 			return trace.WrapWithMessage(err, "unable to generate new keypairs")
 		}
 
-		log.Info("attempting to generate new identity from token")
+		log.Info("Attempting to generate new identity from token")
 		params := auth.RegisterParams{
 			Token: onboarding.Token,
 			ID: auth.IdentityID{

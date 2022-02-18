@@ -1938,6 +1938,9 @@ func (a *ServerWithRoles) CreateBot(ctx context.Context, req *proto.CreateBotReq
 	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbRead, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return a.authServer.createBot(ctx, req)
 }

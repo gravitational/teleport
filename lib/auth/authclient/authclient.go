@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package authclient contains common code for creating an auth server client
-// which may use SSH tunnelling through a proxy.
+// which may use SSH tunneling through a proxy.
 package authclient
 
 import (
@@ -47,7 +47,7 @@ type Config struct {
 // Connect creates a valid client connection to the auth service.  It may
 // connect directly to the auth server, or tunnel through the proxy.
 func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
-	cfg.Log.Debugf("Connecting to auth servers: %v.", cfg.AuthServers)
+	cfg.Log.Debugf("Connecting to: %v.", cfg.AuthServers)
 
 	// Try connecting to the auth server directly over TLS.
 	client, err := auth.NewClient(apiclient.Config{

@@ -23,54 +23,65 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
-// botResourceName returns the default name for resources associated with the
+// BotResourceName returns the default name for resources associated with the
 // given named bot.
-func botResourceName(botName string) string {
+func BotResourceName(botName string) string {
 	return "bot-" + strings.ReplaceAll(botName, " ", "-")
 }
 
 // createBotRole creates a role from a bot template with the given parameters.
-func createBotRole(ctx context.Context, s *Server, botName string, resourceName string, roleRequests []string) (*types.RoleV4, error) {
-	role := types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V4,
-		Metadata: types.Metadata{
-			Name:        resourceName,
-			Description: fmt.Sprintf("Automatically generated role for bot %s", botName),
-			Labels: map[string]string{
-				types.BotLabel: botName,
+func createBotRole(ctx context.Context, s *Server, botName string, resourceName string, roleRequests []string) (types.Role, error) {
+	role, err := types.NewRole(resourceName, types.RoleSpecV4{
+		Options: types.RoleOptions{
+			// TODO: inherit TTLs from cert length?
+			MaxSessionTTL: types.Duration(12 * time.Hour),
+		},
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				// Bots read certificate authorities to watch for CA rotations
+				types.NewRule(types.KindCertAuthority, []string{types.VerbReadNoSecrets}),
+			},
+			Impersonate: &types.ImpersonateConditions{
+				Roles: roleRequests,
 			},
 		},
-		Spec: types.RoleSpecV4{
-			Options: types.RoleOptions{
-				// TODO: inherit TTLs from cert length?
-				MaxSessionTTL: types.Duration(12 * time.Hour),
-			},
-			Allow: types.RoleConditions{
-				Rules: []types.Rule{
-					// Bots read certificate authorities to watch for CA rotations
-					types.NewRule(types.KindCertAuthority, []string{types.VerbReadNoSecrets}),
-				},
-				Impersonate: &types.ImpersonateConditions{
-					Roles: roleRequests,
-				},
-			},
-		},
-	}
-	if err := s.UpsertRole(ctx, &role); err != nil {
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &role, nil
+	meta := role.GetMetadata()
+	meta.Description = fmt.Sprintf("Automatically generated role for bot %s", botName)
+	if meta.Labels == nil {
+		meta.Labels = map[string]string{}
+	}
+	meta.Labels[types.BotLabel] = botName
+
+	rolev4, ok := role.(*types.RoleV4)
+	if !ok {
+		return nil, trace.BadParameter("unsupported role version %v", role)
+	}
+	rolev4.Metadata = meta
+
+	err = s.UpsertRole(ctx, role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return role, nil
 }
 
 // createBotUser creates a new backing User for bot use. A role with a
@@ -115,7 +126,7 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		return nil, trace.BadParameter("bot name must not be empty")
 	}
 
-	resourceName := botResourceName(req.Name)
+	resourceName := BotResourceName(req.Name)
 
 	// Ensure existing resources don't already exist.
 	_, err := s.GetRole(ctx, resourceName)
@@ -205,7 +216,7 @@ func (s *Server) deleteBot(ctx context.Context, botName string) error {
 	// TODO:
 	// remove any locks for the bot's impersonator role?
 	// remove the bot's user
-	resourceName := botResourceName(botName)
+	resourceName := BotResourceName(botName)
 
 	userErr := s.deleteBotUser(ctx, botName, resourceName)
 	roleErr := s.deleteBotRole(ctx, botName, resourceName)
@@ -294,7 +305,7 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		// (bots should be deleted and recreated if their certs expire)
 		if currentUserGeneration > 0 {
 			return trace.BadParameter(
-				"user %q has already been issued a renewable certificate and cannot be issued another",
+				"user %q has already been issued a renewable certificate and cannot be issued another; consider deleting and recreating the bot",
 				user.GetName(),
 			)
 		}
@@ -317,7 +328,10 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		// Note: we bypass the RBAC check on purpose as bot users should not
 		// have user update permissions.
 		if err := a.CompareAndSwapUser(ctx, newUser, user); err != nil {
-			return trace.Wrap(err)
+			// If this fails it's likely to be some miscellaneous competing
+			// write. The request should be tried again - if it's malicious,
+			// someone will get a generation mismatch and trigger a lock.
+			return trace.WrapWithMessage(err, "Database comparison failed, try the request again")
 		}
 
 		return nil
@@ -325,6 +339,35 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 
 	// The current generations must match to continue:
 	if currentIdentityGeneration != currentUserGeneration {
+		// Lock the bot user indefinitely.
+		lock, err := types.NewLock(uuid.New().String(), types.LockSpecV2{
+			Target: types.LockTarget{
+				User: user.GetName(),
+			},
+			Message: fmt.Sprintf(
+				"The bot user %q has been locked due to a certificate generation mismatch, possibly indicating a stolen certificate.",
+				user.GetName(),
+			),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := a.UpsertLock(context.Background(), lock); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Emit an audit event.
+		userMetadata := ClientUserMetadata(ctx)
+		if a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RenewableCertificateGenerationMismatch{
+			Metadata: apievents.Metadata{
+				Type: events.RenewableCertificateGenerationMismatchEvent,
+				Code: events.RenewableCertificateGenerationMismatchCode,
+			},
+			UserMetadata: userMetadata,
+		}); err != nil {
+			log.WithError(err).Warn("Failed to emit renewable cert generation mismatch event")
+		}
+
 		return trace.AccessDenied(
 			"renewable cert generation mismatch: stored=%v, presented=%v",
 			currentUserGeneration, currentIdentityGeneration,
@@ -344,7 +387,10 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 	newUser.SetMetadata(metadata)
 
 	if err := a.CompareAndSwapUser(ctx, newUser, user); err != nil {
-		return trace.Wrap(err)
+		// If this fails it's likely to be some miscellaneous competing
+		// write. The request should be tried again - if it's malicious,
+		// someone will get a generation mismatch and trigger a lock.
+		return trace.WrapWithMessage(err, "Database comparison failed, try the request again")
 	}
 
 	// And lastly, set the generation on the cert request.

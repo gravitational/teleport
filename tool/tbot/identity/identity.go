@@ -201,7 +201,7 @@ func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
 	return checkers, nil
 }
 
-// SSHClientConfig returns a ssh.ClientConfig used by nodes to connect to
+// SSHClientConfig returns a ssh.ClientConfig used by the bot to connect to
 // the reverse tunnel server.
 func (i *Identity) SSHClientConfig() (*ssh.ClientConfig, error) {
 	callback, err := apisshutils.NewHostKeyCallback(

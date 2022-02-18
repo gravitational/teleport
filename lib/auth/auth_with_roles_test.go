@@ -245,6 +245,13 @@ func TestBotCertificateGenerationStolen(t *testing.T) {
 	_, _, _, err = renewBotCerts(srv, tlsCert, bot.UserName, publicKey, privateKey)
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
+
+	// The user should now be locked.
+	locks, err := srv.Auth().GetLocks(context.Background(), true, types.LockTarget{
+		User: "bot-test",
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, locks)
 }
 
 // TestSSOUserCanReissueCert makes sure that SSO user can reissue certificate

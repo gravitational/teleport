@@ -207,7 +207,7 @@ func (s *IdentityService) UpsertUser(user types.User) error {
 
 // CompareAndSwapUser updates a user, but fails if the value (as exists in the
 // backend) differs from the provided `existing` value. If the existing value
-// matches, returns no error, otherwise returns `trace.ComapreFailed`.
+// matches, returns no error, otherwise returns `trace.CompareFailed`.
 func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
 	if err := services.ValidateUser(new); err != nil {
 		return trace.Wrap(err)

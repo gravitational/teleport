@@ -193,6 +193,8 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		e = &events.AccessRequestDelete{}
 	case CertificateCreateEvent:
 		e = &events.CertificateCreate{}
+	case RenewableCertificateGenerationMismatchEvent:
+		e = &events.RenewableCertificateGenerationMismatch{}
 	default:
 		return nil, trace.BadParameter("unknown event type: %q", eventType)
 	}
