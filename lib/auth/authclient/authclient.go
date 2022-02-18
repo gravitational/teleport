@@ -86,9 +86,10 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
 		// within an SSH tunnel.
 		dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
-			Resolver:     resolver,
-			ClientConfig: cfg.SSH,
-			Log:          cfg.Log,
+			Resolver:              resolver,
+			ClientConfig:          cfg.SSH,
+			Log:                   cfg.Log,
+			InsecureSkipTLSVerify: cfg.TLS.InsecureSkipVerify,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
