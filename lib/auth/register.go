@@ -525,7 +525,7 @@ type LegacyCerts struct {
 }
 
 // LegacyCertsFromProto converts proto.Certs to LegacyCerts.
-// DELETE in 9.0.0 (Joerger/zmb3)
+// DELETE in 10.0.0 (Joerger/zmb3)
 func LegacyCertsFromProto(c *proto.Certs) *LegacyCerts {
 	return &LegacyCerts{
 		SSHCert:    c.SSH,
@@ -536,7 +536,7 @@ func LegacyCertsFromProto(c *proto.Certs) *LegacyCerts {
 }
 
 // UnmarshalLegacyCerts unmarshals the a legacy certs response as proto.Certs.
-// DELETE in 9.0.0 (Joerger/zmb3)
+// DELETE in 10.0.0 (Joerger/zmb3)
 func UnmarshalLegacyCerts(bytes []byte) (*proto.Certs, error) {
 	var lc LegacyCerts
 	if err := json.Unmarshal(bytes, &lc); err != nil {

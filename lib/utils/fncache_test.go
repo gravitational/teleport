@@ -68,13 +68,15 @@ func TestFnCacheSanity(t *testing.T) {
 	}
 
 	for _, tt := range tts {
-		testFnCacheSimple(t, tt.ttl, tt.delay, "ttl=%s, delay=%s, desc=%q", tt.ttl, tt.delay, tt.desc)
+		t.Run(tt.desc, func(t *testing.T) {
+			testFnCacheSimple(t, tt.ttl, tt.delay)
+		})
 	}
 }
 
 // testFnCacheSimple runs a basic test case which spams concurrent request against a cache
 // and verifies that the resulting hit/miss numbers roughly match our expectation.
-func testFnCacheSimple(t *testing.T, ttl time.Duration, delay time.Duration, msg ...interface{}) {
+func testFnCacheSimple(t *testing.T, ttl time.Duration, delay time.Duration) {
 	const rate = int64(20)     // get attempts per worker per ttl period
 	const workers = int64(100) // number of concurrent workers
 	const rounds = int64(10)   // number of full ttl cycles to go through
@@ -123,8 +125,8 @@ func testFnCacheSimple(t *testing.T, ttl time.Duration, delay time.Duration, msg
 					val := readCounter.Inc()
 					return val, nil
 				})
-				require.NoError(t, err, msg...)
-				require.GreaterOrEqual(t, vi.(int64), lastValue, msg...)
+				require.NoError(t, err)
+				require.GreaterOrEqual(t, vi.(int64), lastValue)
 				lastValue = vi.(int64)
 				getCounter.Inc()
 			}
@@ -141,8 +143,8 @@ func testFnCacheSimple(t *testing.T, ttl time.Duration, delay time.Duration, msg
 	// approxReads is the approximate expected number of reads
 	approxReads := float64(elapsed) / float64(ttl+delay)
 
-	// verify that number of actual reads is within +/- 1 of the number of expected reads.
-	require.InDelta(t, approxReads, readCounter.Load(), 1, msg...)
+	// verify that number of actual reads is within +/- 2 of the number of expected reads.
+	require.InDelta(t, approxReads, readCounter.Load(), 2)
 }
 
 // TestFnCacheCancellation verifies expected cancellation behavior.  Specifically, we expect that

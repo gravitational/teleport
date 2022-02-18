@@ -23,9 +23,10 @@ pub mod vchan;
 extern crate log;
 #[macro_use]
 extern crate num_derive;
-extern crate byteorder;
 
 use libc::{fd_set, select, FD_SET};
+use rand::Rng;
+use rand::SeedableRng;
 use rdp::core::event::*;
 use rdp::core::gcc::KeyboardLayout;
 use rdp::core::global;
@@ -121,6 +122,7 @@ pub unsafe extern "C" fn connect_rdp(
     key_der: *mut u8,
     screen_width: u16,
     screen_height: u16,
+    allow_clipboard: bool,
 ) -> ClientOrError {
     // Convert from C to Rust types.
     let addr = from_go_string(go_addr);
@@ -131,11 +133,14 @@ pub unsafe extern "C" fn connect_rdp(
     connect_rdp_inner(
         go_ref,
         &addr,
-        username,
-        cert_der,
-        key_der,
-        screen_width,
-        screen_height,
+        ConnectParams {
+            username,
+            cert_der,
+            key_der,
+            screen_width,
+            screen_height,
+            allow_clipboard,
+        },
     )
     .into()
 }
@@ -161,14 +166,19 @@ impl From<RdpError> for ConnectError {
 
 const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
 
-fn connect_rdp_inner(
-    go_ref: usize,
-    addr: &str,
+struct ConnectParams {
     username: String,
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
     screen_width: u16,
     screen_height: u16,
+    allow_clipboard: bool,
+}
+
+fn connect_rdp_inner(
+    go_ref: usize,
+    addr: &str,
+    params: ConnectParams,
 ) -> Result<Client, ConnectError> {
     // Connect and authenticate.
     let addr = addr
@@ -185,50 +195,55 @@ fn connect_rdp_inner(
     let protocols = x224::Protocols::ProtocolSSL as u32 | x224::Protocols::ProtocolRDP as u32;
     let x224 = x224::Client::connect(tpkt::Client::new(tcp), protocols, false, None, false, false)?;
     let mut mcs = mcs::Client::new(x224);
+
+    // request the static channels we'll need:
+    // rdpdr: derive redirection (smart cards)
+    // rdpsnd: sound (for some reason we need to request this)
+    // cliprdr: clipboard
+    let mut static_channels = vec![rdpdr::CHANNEL_NAME.to_string(), "rdpsnd".to_string()];
+    if params.allow_clipboard {
+        static_channels.push(cliprdr::CHANNEL_NAME.to_string())
+    }
     mcs.connect(
         "rdp-rs".to_string(),
-        screen_width,
-        screen_height,
+        params.screen_width,
+        params.screen_height,
         KeyboardLayout::US,
-        // request the static channels we'll need:
-        // rdpdr: derive redirection (smart cards)
-        // rdpsnd: sound (for some reason we need to request this)
-        // cliprdr: clipboard
-        &[
-            rdpdr::CHANNEL_NAME.to_string(),
-            "rdpsnd".to_string(),
-            cliprdr::CHANNEL_NAME.to_string(),
-        ],
+        &static_channels,
     )?;
-    // Password must be non-empty for autologin (sec::InfoFlag::InfoPasswordIsScPin) to trigger on
-    // a smartcard.
-    let password = "123".to_string();
+    // Generate a random 8-digit PIN for our smartcard.
+    let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
+    let pin = format!("{:08}", rng.gen_range(0..99999999));
     sec::connect(
         &mut mcs,
         &domain.to_string(),
-        &username,
-        &password,
+        &params.username,
+        &pin,
         true,
-        // InfoPasswordIsScPin means that the user will not be prompted for the smartcard PIN code.
-        // The password we pass will be automatically used as PIN.
+        // InfoPasswordIsScPin means that the user will not be prompted for the smartcard PIN code,
+        // which is known only to Teleport and unique for each RDP session.
         Some(sec::InfoFlag::InfoPasswordIsScPin as u32 | sec::InfoFlag::InfoMouseHasWheel as u32),
     )?;
     // Client for the "global" channel - video output and user input.
     let global = global::Client::new(
         mcs.get_user_id(),
         mcs.get_global_channel_id(),
-        screen_width,
-        screen_height,
+        params.screen_width,
+        params.screen_height,
         KeyboardLayout::US,
         "rdp-rs",
     );
     // Client for the "rdpdr" channel - smartcard emulation.
-    let rdpdr = rdpdr::Client::new(cert_der, key_der);
+    let rdpdr = rdpdr::Client::new(params.cert_der, params.key_der, pin);
 
     // Client for the "cliprdr" channel - clipboard sharing.
-    let cliprdr: cliprdr::Client = cliprdr::Client::new(Box::new(move |v| unsafe {
-        handle_remote_copy(go_ref, v.as_ptr() as _, v.len() as u32);
-    }));
+    let cliprdr = if params.allow_clipboard {
+        Some(cliprdr::Client::new(Box::new(move |v| unsafe {
+            handle_remote_copy(go_ref, v.as_ptr() as _, v.len() as u32);
+        })))
+    } else {
+        None
+    };
 
     let rdp_client = RdpClient {
         mcs,
@@ -248,7 +263,8 @@ struct RdpClient<S> {
     mcs: mcs::Client<S>,
     global: global::Client,
     rdpdr: rdpdr::Client,
-    cliprdr: cliprdr::Client,
+
+    cliprdr: Option<cliprdr::Client>,
 }
 
 impl<S: Read + Write> RdpClient<S> {
@@ -262,7 +278,10 @@ impl<S: Read + Write> RdpClient<S> {
         match channel_name.as_str() {
             "global" => self.global.read(message, &mut self.mcs, callback),
             rdpdr::CHANNEL_NAME => self.rdpdr.read(message, &mut self.mcs),
-            cliprdr::CHANNEL_NAME => self.cliprdr.read(message, &mut self.mcs),
+            cliprdr::CHANNEL_NAME => match self.cliprdr {
+                Some(ref mut clip) => clip.read(message, &mut self.mcs),
+                None => Ok(()),
+            },
             _ => Err(RdpError::RdpError(RdpProtocolError::new(
                 RdpErrorKind::UnexpectedType,
                 &format!("Invalid channel name {:?}", channel_name),
@@ -382,12 +401,16 @@ pub unsafe extern "C" fn update_clipboard(
     };
     let data = from_go_array(len, data);
     let mut lock = client.rdp_client.lock().unwrap();
-    match lock.cliprdr.update_clipboard(data) {
-        Ok(message) => match lock.mcs.write(&cliprdr::CHANNEL_NAME.to_string(), message) {
-            Ok(()) => CGO_OK,
-            Err(e) => to_cgo_error(format!("failed writing cliprdr format list: {:?}", e)),
+
+    match lock.cliprdr {
+        Some(ref mut clip) => match clip.update_clipboard(data) {
+            Ok(message) => match lock.mcs.write(&cliprdr::CHANNEL_NAME.to_string(), message) {
+                Ok(()) => CGO_OK,
+                Err(e) => to_cgo_error(format!("failed writing cliprdr format list: {:?}", e)),
+            },
+            Err(e) => to_cgo_error(format!("failed updating clipboard: {:?}", e)),
         },
-        Err(e) => to_cgo_error(format!("failed updating clipboard: {:?}", e)),
+        None => CGO_OK,
     }
 }
 
