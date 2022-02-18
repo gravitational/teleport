@@ -118,6 +118,9 @@ const (
 
 	// RSAKeySize is the size of the RSA key.
 	RSAKeySize = 2048
+
+	// NoLoginPrefix is the prefix used for nologin certificate principals.
+	NoLoginPrefix = "-teleport-nologin-"
 )
 
 // SecondFactorType is the type of 2FA authentication.

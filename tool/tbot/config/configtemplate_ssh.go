@@ -60,14 +60,14 @@ func (c *TemplateSSHClient) Describe() []FileDescription {
 	}
 }
 
-func (c *TemplateSSHClient) Render(authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	if !destination.ContainsKind(KindSSH) {
 		return trace.BadParameter("%s config template requires kind `ssh` to be enabled", TemplateSSHClientName)
 	}
 
 	dest, err := destination.GetDestination()
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	clusterName, err := authClient.GetClusterName()
@@ -75,7 +75,7 @@ func (c *TemplateSSHClient) Render(authClient auth.ClientI, currentIdentity *ide
 		return trace.Wrap(err)
 	}
 
-	ping, err := authClient.Ping(context.Background())
+	ping, err := authClient.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

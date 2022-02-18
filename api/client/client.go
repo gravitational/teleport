@@ -709,7 +709,7 @@ func (c *Client) DeleteBot(ctx context.Context, botName string) error {
 
 // GetBotUsers fetches all bot users.
 func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
-	stream, err := c.grpc.GetBotUsers(context.TODO(), &proto.GetBotUsersRequest{}, c.callOpts...)
+	stream, err := c.grpc.GetBotUsers(ctx, &proto.GetBotUsersRequest{}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}

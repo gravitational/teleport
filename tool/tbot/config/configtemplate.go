@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"context"
 	"strings"
 
 	"github.com/gravitational/teleport/lib/auth"
@@ -58,7 +59,7 @@ type Template interface {
 	Describe() []FileDescription
 
 	// Render writes the config template to the destination.
-	Render(authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error
+	Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error
 }
 
 // TemplateConfig contains all possible config template variants. Exactly one

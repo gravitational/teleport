@@ -143,7 +143,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		config, err = ReadConfigFromFile(cf.ConfigPath)
 
 		if err != nil {
-			return nil, trace.WrapWithMessage(err, "loading bot config from path %s", cf.ConfigPath)
+			return nil, trace.Wrap(err, "loading bot config from path %s", cf.ConfigPath)
 		}
 	} else {
 		config = &BotConfig{}
@@ -224,7 +224,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	}
 
 	if err := config.CheckAndSetDefaults(); err != nil {
-		return nil, trace.WrapWithMessage(err, "validing merged bot config")
+		return nil, trace.Wrap(err, "validing merged bot config")
 	}
 
 	return config, nil
