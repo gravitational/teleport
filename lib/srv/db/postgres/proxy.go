@@ -63,10 +63,6 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 			}
 		}
 	}()
-	ctx, err = p.Middleware.WrapContextWithUser(ctx, tlsConn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	clientIP, err := utils.ClientIPFromConn(clientConn)
 	if err != nil {
@@ -80,9 +76,14 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	}
 	defer releaseConn()
 
-	serviceConn, authContext, err := p.Service.Connect(ctx, common.ConnectParams{
+	proxyCtx, err := p.Service.Authorize(ctx, tlsConn, common.ConnectParams{
 		ClientIP: clientIP,
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	serviceConn, err := p.Service.Connect(ctx, proxyCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -94,7 +95,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = p.Service.Proxy(ctx, authContext, tlsConn, serviceConn)
+	err = p.Service.Proxy(ctx, proxyCtx, tlsConn, serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

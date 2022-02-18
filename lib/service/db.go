@@ -114,6 +114,12 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					InstanceID: db.GCP.InstanceID,
 				},
 				DynamicLabels: types.LabelsToV2(db.DynamicLabels),
+				AD: types.AD{
+					KeytabFile: db.AD.KeytabFile,
+					Krb5File:   db.AD.Krb5File,
+					Domain:     db.AD.Domain,
+					SPN:        db.AD.SPN,
+				},
 			})
 		if err != nil {
 			return trace.Wrap(err)

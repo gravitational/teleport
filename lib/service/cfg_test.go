@@ -290,6 +290,59 @@ func TestCheckDatabase(t *testing.T) {
 			},
 			outErr: false,
 		},
+		{
+			desc: "SQL Server correct configuration",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					KeytabFile: "/etc/keytab",
+					Domain:     "test-domain",
+					SPN:        "test-spn",
+				},
+			},
+			outErr: false,
+		},
+		{
+			desc: "SQL Server missing keytab",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					Domain: "test-domain",
+					SPN:    "test-spn",
+				},
+			},
+			outErr: true,
+		},
+		{
+			desc: "SQL Server missing AD domain",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					KeytabFile: "/etc/keytab",
+					SPN:        "test-spn",
+				},
+			},
+			outErr: true,
+		},
+		{
+			desc: "SQL Server missing SPN",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					KeytabFile: "/etc/keytab",
+					Domain:     "test-domain",
+				},
+			},
+			outErr: true,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {

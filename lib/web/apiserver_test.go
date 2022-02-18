@@ -126,8 +126,7 @@ func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
-	if len(os.Args) == 2 &&
-		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
+	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
@@ -1943,16 +1942,6 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(nodes, HasLen, cluster.NodeCount)
 }
 
-type testModules struct {
-	modules.Modules
-}
-
-func (m *testModules) Features() modules.Features {
-	return modules.Features{
-		App: false, // Explicily turn off application access.
-	}
-}
-
 func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
@@ -2050,9 +2039,11 @@ func TestClusterKubesGet(t *testing.T) {
 // TestApplicationAccessDisabled makes sure application access can be disabled
 // via modules.
 func TestApplicationAccessDisabled(t *testing.T) {
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			App: false,
+		},
+	})
 
 	env := newWebPack(t, 1)
 
@@ -2721,16 +2712,6 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 }
 
-type testCloudModules struct {
-	modules.Modules
-}
-
-func (m *testCloudModules) Features() modules.Features {
-	return modules.Features{
-		Cloud: true, // Explicily turn on cloud feature.
-	}
-}
-
 // TestChangeUserAuthentication_recoveryCodesReturnedForCloud tests for following:
 //  - Recovery codes are not returned for usernames that are not emails
 //  - Recovery codes are returned for usernames that are valid emails
@@ -2748,9 +2729,11 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	require.NoError(t, err)
 
 	// Enable cloud feature.
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testCloudModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
 	// Creaet a username that is not a valid email format for recovery.
 	teleUser, err := types.NewUser("invalid-name-for-recovery")
