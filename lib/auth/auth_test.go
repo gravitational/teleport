@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -1010,49 +1009,6 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	err = s.a.DeleteSAMLConnector(ctx, "test")
 	require.NoError(t, err)
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorDeletedEvent)
-}
-
-func TestU2FSignChallengeCompat(t *testing.T) {
-	// Test that the new U2F challenge encoding format is backwards-compatible
-	// with older clients and servers.
-	//
-	// New format is U2FAuthenticateChallenge as JSON.
-	// Old format was u2f.AuthenticateChallenge as JSON.
-	t.Run("old client, new server", func(t *testing.T) {
-		t.Parallel()
-		newChallenge := &MFAAuthenticateChallenge{
-			AuthenticateChallenge: &u2f.AuthenticateChallenge{
-				Challenge: "c1",
-			},
-			U2FChallenges: []u2f.AuthenticateChallenge{
-				{Challenge: "c1"},
-				{Challenge: "c2"},
-				{Challenge: "c3"},
-			},
-		}
-		wire, err := json.Marshal(newChallenge)
-		require.NoError(t, err)
-
-		var oldChallenge u2f.AuthenticateChallenge
-		err = json.Unmarshal(wire, &oldChallenge)
-		require.NoError(t, err)
-
-		require.Empty(t, cmp.Diff(oldChallenge, *newChallenge.AuthenticateChallenge))
-	})
-	t.Run("new client, old server", func(t *testing.T) {
-		t.Parallel()
-		oldChallenge := &u2f.AuthenticateChallenge{
-			Challenge: "c1",
-		}
-		wire, err := json.Marshal(oldChallenge)
-		require.NoError(t, err)
-
-		var newChallenge MFAAuthenticateChallenge
-		err = json.Unmarshal(wire, &newChallenge)
-		require.NoError(t, err)
-
-		require.Empty(t, cmp.Diff(newChallenge, MFAAuthenticateChallenge{AuthenticateChallenge: oldChallenge}))
-	})
 }
 
 func TestEmitSSOLoginFailureEvent(t *testing.T) {

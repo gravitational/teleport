@@ -26,7 +26,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -129,7 +129,7 @@ func (s *server) login1(w http.ResponseWriter, r *http.Request) {
 		log.Printf("INFO /mfa/login/begin: %#v", resp)
 		http.Error(w, "Unexpected status from /mfa/login/begin", http.StatusBadRequest)
 	}
-	var challenge auth.MFAAuthenticateChallenge
+	var challenge client.MFAAuthenticateChallenge
 	if err := json.NewDecoder(resp.Body).Decode(&challenge); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

@@ -261,7 +261,7 @@ func TestCreateAuthenticateChallenge_WithAuth(t *testing.T) {
 	// TODO(codingllama): Use a public endpoint to verify?
 	mfaResp, err := u.webDev.SolveAuthn(res)
 	require.NoError(t, err)
-	_, err = srv.Auth().validateMFAAuthResponse(ctx, u.username, mfaResp, nil /* u2fStorage */)
+	_, err = srv.Auth().validateMFAAuthResponse(ctx, u.username, mfaResp)
 	require.NoError(t, err)
 }
 

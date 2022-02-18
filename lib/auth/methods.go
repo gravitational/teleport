@@ -136,7 +136,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 					Webauthn: wanlib.CredentialAssertionResponseToProto(req.Webauthn),
 				},
 			}
-			return s.validateMFAAuthResponse(ctx, user, mfaResponse, s.Identity /* u2fStorage */)
+			return s.validateMFAAuthResponse(ctx, user, mfaResponse)
 		}
 		failMsg = "invalid Webauthn response"
 	case req.U2F != nil:
@@ -150,7 +150,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 					},
 				},
 			}
-			return s.validateMFAAuthResponse(ctx, user, mfaResponse, s.Identity /* u2fStorage */)
+			return s.validateMFAAuthResponse(ctx, user, mfaResponse)
 		}
 		failMsg = "invalid U2F response"
 	case req.OTP != nil:

@@ -33,8 +33,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/u2f"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -224,11 +222,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/github/connectors/:id", srv.withAuth(srv.deleteGithubConnector))
 	srv.POST("/:version/github/requests/create", srv.withAuth(srv.createGithubAuthRequest))
 	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
-
-	// Generic MFA and WebAuthn
-	srv.POST("/:version/mfa/users/:user/login/begin", srv.withAuth(srv.mfaLoginBegin))
-	// The last step of MFA login is performed by either /ssh/authenticate or
-	// /web/authenticate endpoints.
 
 	// Provisioning tokens- Moved to grpc
 	// DELETE IN 8.0
@@ -728,47 +721,6 @@ func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *htt
 
 type signInReq struct {
 	Password string `json:"password"`
-}
-
-// DELETE IN 9.0.0 in favor of grpc CreateAuthenticateChallenge.
-func (s *APIServer) mfaLoginBegin(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *signInReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user := p.ByName("user")
-	pass := []byte(req.Password)
-	protoChal, err := auth.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
-			Username: user,
-			Password: pass,
-		}},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Convert from proto to JSON format.
-	chal := &MFAAuthenticateChallenge{
-		TOTPChallenge: protoChal.TOTP != nil,
-	}
-	for _, u2fChal := range protoChal.U2F {
-		ch := u2f.AuthenticateChallenge{
-			Version:   u2fChal.Version,
-			Challenge: u2fChal.Challenge,
-			KeyHandle: u2fChal.KeyHandle,
-			AppID:     u2fChal.AppID,
-		}
-		if chal.AuthenticateChallenge == nil {
-			chal.AuthenticateChallenge = &ch
-		}
-		chal.U2FChallenges = append(chal.U2FChallenges, ch)
-	}
-	if protoChal.WebauthnChallenge != nil {
-		chal.WebauthnChallenge = wanlib.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
-	}
-
-	return chal, nil
 }
 
 type WebSessionReq struct {
