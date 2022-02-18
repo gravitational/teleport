@@ -326,7 +326,7 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 			Cert:    t.ctx.session.GetPub(),
 			TLSCert: t.ctx.session.GetTLSCert(),
 		},
-	}, t.promptMFAChallenge(ws))
+	}, promptMFAChallenge(ws, t.wsLock, protobufMFACodec{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -339,7 +339,11 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 	return nil
 }
 
-func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMFAChallengeHandler {
+func promptMFAChallenge(
+	ws *websocket.Conn,
+	wsLock *sync.Mutex,
+	codec mfaCodec,
+) client.PromptMFAChallengeHandler {
 	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 		var chal *auth.MFAAuthenticateChallenge
 		var envelopeType string
@@ -378,22 +382,14 @@ func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMF
 		}
 
 		// Send the challenge over the socket.
-		chalEnc, err := json.Marshal(chal)
+		msg, err := codec.encode(chal, envelopeType)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		envelope := &Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    envelopeType,
-			Payload: string(chalEnc),
-		}
-		envelopeBytes, err := proto.Marshal(envelope)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		t.wsLock.Lock()
-		err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
-		t.wsLock.Unlock()
+
+		wsLock.Lock()
+		err = ws.WriteMessage(websocket.BinaryMessage, msg)
+		wsLock.Unlock()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -408,44 +404,7 @@ func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMF
 			return nil, trace.BadParameter("expected websocket.BinaryMessage, got %v", ty)
 		}
 
-		// Reset envelope to zero value.
-		envelope = &Envelope{}
-		if err = proto.Unmarshal(bytes, envelope); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		var mfaResponse *authproto.MFAAuthenticateResponse
-
-		// Convert from JSON to proto.
-		switch envelopeType {
-		case defaults.WebsocketWebauthnChallenge:
-			var webauthnResponse wanlib.CredentialAssertionResponse
-			if err := json.Unmarshal([]byte(envelope.Payload), &webauthnResponse); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			mfaResponse = &authproto.MFAAuthenticateResponse{
-				Response: &authproto.MFAAuthenticateResponse_Webauthn{
-					Webauthn: wanlib.CredentialAssertionResponseToProto(&webauthnResponse),
-				},
-			}
-
-		default:
-			var u2fResponse u2f.AuthenticateChallengeResponse
-			if err := json.Unmarshal([]byte(envelope.Payload), &u2fResponse); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			mfaResponse = &authproto.MFAAuthenticateResponse{
-				Response: &authproto.MFAAuthenticateResponse_U2F{
-					U2F: &authproto.U2FResponse{
-						KeyHandle:  u2fResponse.KeyHandle,
-						ClientData: u2fResponse.ClientData,
-						Signature:  u2fResponse.SignatureData,
-					},
-				},
-			}
-		}
-
-		return mfaResponse, nil
+		return codec.decode(bytes, envelopeType)
 	}
 }
 
