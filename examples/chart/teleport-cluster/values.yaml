@@ -27,6 +27,16 @@ authenticationType: local
 # Possible values are 'multiplex'
 proxyListenerMode: ""
 
+# Optional setting for configuring session recording. Possible values are:
+#    "node"  : sessions will be recorded on the node level  (the default)
+#    "node-sync" : session recordings will be streamed from node -> auth -> storage service without being stored on disk at all.
+#    "proxy" : recording on the proxy level, see "Recording Proxy Mode"
+#              (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
+#    "proxy-sync : session recordings will be streamed from proxy -> auth -> storage service without being stored on disk at all.
+#    "off"   : session recording is turned off
+#
+sessionRecording: ""
+
 # ACME is a protocol for getting Web X.509 certificates
 # Note: ACME can only be used for single-instance clusters. It is not suitable for use in HA configurations.
 # Setting acme to 'true' enables the ACME protocol and will attempt to get a free TLS certificate from Let's Encrypt.

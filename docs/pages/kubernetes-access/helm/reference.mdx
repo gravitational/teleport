@@ -75,6 +75,14 @@ This reference details available values for the `teleport-cluster` chart.
 
 `proxyListenerMode` controls proxy TLS routing used by Teleport. Possible values are `multiplex`.
 
+## `sessionRecording`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `node` | no | `auth_service.session_recording` | ❌ |
+
+`sessionRecording` controls session recording mode. Possible values are `node`, `node-sync`, `proxy`, `proxy-sync`, `off`.
+
 ## `enterprise`
 
 | Type | Default value | Can be used in `custom` mode? |

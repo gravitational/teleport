@@ -58,6 +58,9 @@ data:
   {{- if eq .Values.proxyListenerMode "multiplex" }}
       proxy_listener_mode: multiplex
   {{- end }}
+  {{- if .Values.sessionRecording }}
+      session_recording: {{ .Values.sessionRecording }}
+  {{- end }}
     kubernetes_service:
       enabled: true
   {{- if not .Values.proxyListenerMode }}

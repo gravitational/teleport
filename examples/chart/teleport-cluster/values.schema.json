@@ -37,6 +37,18 @@
             "type": "string",
             "default": ""
         },
+        "sessionRecording": {
+            "$id": "#/properties/sessionRecording",
+            "type": "string",
+            "enum": [
+                "node",
+                "node-sync",
+                "proxy",
+                "proxy-sync",
+                "off"
+            ],
+            "default": "node"
+        },
         "teleportVersionOverride": {
             "$id": "#/properties/teleportVersionOverride",
             "type": "string",
