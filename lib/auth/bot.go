@@ -112,11 +112,6 @@ func createBotUser(ctx context.Context, s *Server, botName string, resourceName 
 
 // createBot creates a new certificate renewal bot from a bot request.
 func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
-	if req.TokenID != "" {
-		// TODO: IAM joining for bots
-		return nil, trace.NotImplemented("IAM join for bots is not yet supported")
-	}
-
 	if req.Name == "" {
 		return nil, trace.BadParameter("bot name must not be empty")
 	}
@@ -148,6 +143,11 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		}
 	}
 
+	provisionToken, err := s.checkOrCreateBotToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create the resources.
 	if _, err := createBotRole(ctx, s, req.Name, resourceName, req.Roles); err != nil {
 		return nil, trace.Wrap(err)
@@ -157,21 +157,12 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		return nil, trace.Wrap(err)
 	}
 
-	ttl := time.Duration(req.TTL)
-	if ttl == 0 {
-		ttl = defaults.DefaultBotJoinTTL
-	}
-
-	provisionToken, err := s.CreateBotProvisionToken(ctx, resourceName, ttl)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &proto.CreateBotResponse{
-		TokenID:  provisionToken.GetName(),
-		UserName: resourceName,
-		RoleName: resourceName,
-		TokenTTL: proto.Duration(ttl),
+		TokenID:    provisionToken.GetName(),
+		UserName:   resourceName,
+		RoleName:   resourceName,
+		TokenTTL:   proto.Duration(provisionToken.GetMetadata().Expires.Sub(time.Now())),
+		JoinMethod: provisionToken.GetJoinMethod(),
 	}, nil
 }
 
@@ -247,17 +238,49 @@ func (s *Server) getBotUsers(ctx context.Context) ([]types.User, error) {
 	return botUsers, nil
 }
 
-// CreateBotProvisionToken creates a new random dynamic provision token which
-// allows bots to join with the given botName
-func (s *Server) CreateBotProvisionToken(ctx context.Context, botName string, ttl time.Duration) (types.ProvisionToken, error) {
+// checkOrCreateBotToken checks the existing token if given, or creates a new
+// random dynamic provision token which allows bots to join with the given
+// botName. Returns the token name.
+func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBotRequest) (types.ProvisionToken, error) {
+	resourceName := BotResourceName(req.Name)
+
+	// if the request includes a TokenID it should already exist
+	if req.TokenID != "" {
+		provisionToken, err := s.GetToken(ctx, req.TokenID)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return nil, trace.NotFound("token with name %q not found, create the token or do not set TokenName: %v",
+					req.TokenID, err)
+			} else {
+				return nil, trace.Wrap(err)
+			}
+		}
+		if !provisionToken.GetRoles().Include(types.RoleBot) {
+			return nil, trace.BadParameter("token %q is not valid for role %q",
+				req.TokenID, types.RoleBot)
+		}
+		if provisionToken.GetBotName() != resourceName {
+			return nil, trace.BadParameter("token %q is valid for bot with name %q, not %q",
+				req.TokenID, provisionToken.GetBotName(), resourceName)
+		}
+		return provisionToken, nil
+	}
+
+	// create a new random dynamic token
 	tokenName, err := utils.CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	ttl := time.Duration(req.TTL)
+	if ttl == 0 {
+		ttl = defaults.DefaultBotJoinTTL
+	}
+
 	tokenSpec := types.ProvisionTokenSpecV2{
 		Roles:      []types.SystemRole{types.RoleBot},
 		JoinMethod: types.JoinMethodToken,
-		BotName:    botName,
+		BotName:    resourceName,
 	}
 	token, err := types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(ttl), tokenSpec)
 	if err != nil {
@@ -302,17 +325,34 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 	// Teleport API calls.
 	certReq.includeHostCA = true
 
-	// If the certReq already has generation set, it was explicitly requested
-	// (presumably this is the initial set of renewable certs). We'll want to
-	// commit that value to the User object.
+	// The requested generation should only be explicitly set when a token
+	// is being exchanged for an initial set of user certs, otherwise the
+	// requested generation will be automatically set to
+	// (currentIdentityGeneration + 1) below.
 	if certReq.generation > 0 {
-		// ...however, if the user already has a stored generation, bail.
-		// (bots should be deleted and recreated if their certs expire)
-		if currentUserGeneration > 0 {
+		// If the user already has a generation set, it would indicate that the
+		// token is being reused.
+		//
+		// Regular/secret tokens will be deleted before returning signed user
+		// certs and cannot be reused, but bot tokens which make use of the EC2
+		// or IAM join methods are expected to be used repeatedly to fetch certs
+		// with generation 1, rather than renewing the original certs in a
+		// chain of increasing generations.
+		//
+		// Sanity check that the requested generation is equal to 1 and the
+		// current user generation is 0 (unset) or 1 (if an EC2 or IAM token is
+		// being reused).
+		if certReq.generation != 1 || currentUserGeneration > 1 {
 			return trace.BadParameter(
 				"user %q has already been issued a renewable certificate and cannot be issued another; consider deleting and recreating the bot",
 				user.GetName(),
 			)
+		}
+
+		if currentUserGeneration == 1 {
+			// This is the case where an EC2 or IAM join token is being reused
+			// and the user already has the correct generation set.
+			return nil
 		}
 
 		// Fetch a fresh copy of the user we can mutate safely. We can't
