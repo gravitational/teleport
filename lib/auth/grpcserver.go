@@ -388,7 +388,7 @@ func maybeFilterCertAuthorityWatches(ctx context.Context, clusterName string, ro
 
 // certAuthorityFilterVersionCutoff is the version starting from which we stop
 // injecting filters for CertAuthority watches in maybeFilterCertAuthorityWatches.
-var certAuthorityFilterVersionCutoff = *semver.New("8.1.3")
+var certAuthorityFilterVersionCutoff = *semver.New("9.0.0")
 
 // resourceLabel returns the label for the provided types.Event
 func resourceLabel(event types.Event) string {
