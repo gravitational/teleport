@@ -28,10 +28,12 @@ import (
 	"testing"
 	"time"
 
+	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -39,12 +41,15 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
+	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -53,7 +58,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
-	"github.com/siddontang/go-mysql/client"
+	mysqlclient "github.com/siddontang/go-mysql/client"
 	mysqllib "github.com/siddontang/go-mysql/mysql"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
@@ -552,6 +557,88 @@ func TestGCPRequireSSL(t *testing.T) {
 	// Disconnect.
 	err = mysqlConn.Close()
 	require.NoError(t, err)
+}
+
+func init() {
+	// Override SQL Server engine that is used normally with the test one
+	// that mocks connection dial and Kerberos auth.
+	common.RegisterEngine(newTestSQLServerEngine, defaults.ProtocolSQLServer)
+}
+
+func newTestSQLServerEngine(ec common.EngineConfig) common.Engine {
+	return &sqlserver.Engine{
+		EngineConfig: ec,
+		Connector:    &sqlserver.TestConnector{},
+	}
+}
+
+// TestAccessSQLServer verifies access scenarios to a SQL Server database.
+func TestAccessSQLServer(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSQLServer("sqlserver"))
+	go testCtx.startHandlingConnections()
+
+	tests := []struct {
+		desc         string
+		teleportUser string
+		teleportRole string
+		allowDbUsers []string
+		dbUser       string
+		err          string
+	}{
+		{
+			desc:         "has access to all database users",
+			teleportUser: "alice",
+			teleportRole: "admin",
+			allowDbUsers: []string{types.Wildcard},
+			dbUser:       "root",
+		},
+		{
+			desc:         "has access to nothing",
+			teleportUser: "alice",
+			teleportRole: "admin",
+			allowDbUsers: []string{},
+			dbUser:       "root",
+			err:          "access to db denied",
+		},
+		{
+			desc:         "access allowed to specific user",
+			teleportUser: "alice",
+			teleportRole: "admin",
+			allowDbUsers: []string{"alice"},
+			dbUser:       "alice",
+		},
+		{
+			desc:         "access denied to specific user",
+			teleportUser: "alice",
+			teleportRole: "admin",
+			allowDbUsers: []string{"alice"},
+			dbUser:       "root",
+			err:          "access to db denied",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			// Create user/role with the requested permissions.
+			testCtx.createUserAndRole(ctx, t, test.teleportUser, test.teleportRole, test.allowDbUsers, []string{types.Wildcard})
+
+			// Try to connect to the database as this user.
+			conn, proxy, err := testCtx.sqlServerClient(ctx, test.teleportUser, "sqlserver", test.dbUser, "master")
+			if test.err != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), test.err)
+				return
+			}
+			require.NoError(t, err)
+
+			// Close connection and proxy.
+			t.Cleanup(func() {
+				require.NoError(t, conn.Close())
+				require.NoError(t, proxy.Close())
+			})
+		})
+	}
 }
 
 // TestAccessMongoDB verifies access scenarios to a MongoDB database based
@@ -1073,17 +1160,19 @@ func TestRedisTransaction(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
+	// use just 2 concurrent connections as we want to test our proxy/protocol behaviour not Redis concurrency.
+	const concurrentConnections = 2
 
 	// Create a channel for potential transaction errors, as testify require package cannot be used from a goroutine.
-	asyncErrors := make(chan error, 10)
+	asyncErrors := make(chan error, concurrentConnections)
 	defer close(asyncErrors)
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < concurrentConnections; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			if err := increment("counter3"); err != nil {
+			if err := increment("counter"); err != nil {
 				asyncErrors <- err
 			}
 		}()
@@ -1096,10 +1185,10 @@ func TestRedisTransaction(t *testing.T) {
 	default:
 	}
 
-	n, err := redisClient.Get(ctx, "counter3").Int()
+	n, err := redisClient.Get(ctx, "counter").Int()
 
 	require.NoError(t, err)
-	require.Equal(t, 10, n)
+	require.Equal(t, concurrentConnections, n)
 }
 
 func TestRedisNil(t *testing.T) {
@@ -1146,6 +1235,8 @@ type testContext struct {
 	mongo map[string]testMongoDB
 	// redis is a collection of Redis databases the test uses.
 	redis map[string]testRedis
+	// sqlServer is a collection of SQL Server databases the test uses.
+	sqlServer map[string]testSQLServer
 	// clock to override clock in tests.
 	clock clockwork.FakeClock
 }
@@ -1179,6 +1270,12 @@ type testRedis struct {
 	// db is the test Redis database server.
 	db *redis.TestServer
 	// resource is the resource representing this Redis database.
+	resource types.Database
+}
+
+// testSQLServer represents a single proxied SQL Server database.
+type testSQLServer struct {
+	// resource is the resource representing this SQL Server database
 	resource types.Database
 }
 
@@ -1233,12 +1330,12 @@ func (c *testContext) postgresClientWithAddr(ctx context.Context, address, telep
 
 // mysqlClient connects to test MySQL through database access as a specified
 // Teleport user and database account.
-func (c *testContext) mysqlClient(teleportUser, dbService, dbUser string) (*client.Conn, error) {
+func (c *testContext) mysqlClient(teleportUser, dbService, dbUser string) (*mysqlclient.Conn, error) {
 	return c.mysqlClientWithAddr(c.mysqlListener.Addr().String(), teleportUser, dbService, dbUser)
 }
 
 // mysqlClientWithAddr is like mysqlClient but allows to override connection address.
-func (c *testContext) mysqlClientWithAddr(address, teleportUser, dbService, dbUser string) (*client.Conn, error) {
+func (c *testContext) mysqlClientWithAddr(address, teleportUser, dbService, dbUser string) (*mysqlclient.Conn, error) {
 	return mysql.MakeTestClient(common.TestClientConfig{
 		AuthClient: c.authClient,
 		AuthServer: c.authServer,
@@ -1296,6 +1393,87 @@ func (c *testContext) redisClientWithAddr(ctx context.Context, proxyAddress, tel
 	}, opts...)
 }
 
+// sqlServerClient connects to the specified SQL Server address.
+func (c *testContext) sqlServerClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*mssql.Conn, *alpnproxy.LocalProxy, error) {
+	route := tlsca.RouteToDatabase{
+		ServiceName: dbService,
+		Protocol:    defaults.ProtocolSQLServer,
+		Username:    dbUser,
+		Database:    dbName,
+	}
+
+	// SQL Server clients always connect via the local proxy so start it first.
+	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Client connects to the local proxy.
+	client, err := sqlserver.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient:      c.authClient,
+		AuthServer:      c.authServer,
+		Address:         proxy.GetAddr(),
+		Cluster:         c.clusterName,
+		Username:        teleportUser,
+		RouteToDatabase: route,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return client, proxy, nil
+}
+
+// startLocalALPNProxy starts local ALPN proxy for the specified database.
+func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, teleportUser string, route tlsca.RouteToDatabase) (*alpnproxy.LocalProxy, error) {
+	key, err := client.NewKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clientCert, err := c.authServer.GenerateDatabaseTestCert(
+		auth.DatabaseTestCertRequest{
+			PublicKey:       key.Pub,
+			Cluster:         c.clusterName,
+			Username:        teleportUser,
+			RouteToDatabase: route,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsCert, err := tls.X509KeyPair(clientCert, key.Priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proto, err := alpncommon.ToALPNProtocol(route.Protocol)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxy, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+		RemoteProxyAddr:    proxyAddr,
+		Protocol:           proto,
+		InsecureSkipVerify: true,
+		Listener:           listener,
+		ParentContext:      ctx,
+		Certs:              []tls.Certificate{tlsCert},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	go proxy.Start(ctx)
+
+	return proxy, nil
+}
+
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
 func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userName, roleName string, dbUsers, dbNames []string) (types.User, types.Role) {
@@ -1348,6 +1526,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		mysql:       make(map[string]testMySQL),
 		mongo:       make(map[string]testMongoDB),
 		redis:       make(map[string]testRedis),
+		sqlServer:   make(map[string]testSQLServer),
 		clock:       clockwork.NewFakeClockAt(time.Now()),
 	}
 	t.Cleanup(func() { testCtx.Close() })
@@ -1950,6 +2129,22 @@ func withSelfHostedRedis(name string, opts ...redis.TestServerOption) withDataba
 		require.NoError(t, err)
 		testCtx.redis[name] = testRedis{
 			db:       redisServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withSQLServer(name string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolSQLServer,
+			URI:      "localhost:1433", // URI doesn't matter as tests aren't actually going to dial it.
+		})
+		require.NoError(t, err)
+		testCtx.sqlServer[name] = testSQLServer{
 			resource: database,
 		}
 		return database

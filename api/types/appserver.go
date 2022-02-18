@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/gravitational/teleport/api"
@@ -308,3 +309,64 @@ func (s AppServers) Less(i, j int) bool {
 
 // Swap swaps two app servers.
 func (s AppServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (s AppServers) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	// We assume sorting by type AppServer, we are really
+	// wanting to sort its contained resource Application.
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetApp().GetName(), s[j].GetApp().GetName(), isDesc)
+		})
+	case ResourceSpecDescription:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetApp().GetDescription(), s[j].GetApp().GetDescription(), isDesc)
+		})
+	case ResourceSpecPublicAddr:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetApp().GetPublicAddr(), s[j].GetApp().GetPublicAddr(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindAppServer)
+	}
+
+	return nil
+}
+
+// AsResources returns app servers as type resources with labels.
+func (s AppServers) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (s AppServers) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, 0, len(s))
+	switch field {
+	case ResourceMetadataName:
+		for _, server := range s {
+			vals = append(vals, server.GetApp().GetName())
+		}
+	case ResourceSpecDescription:
+		for _, server := range s {
+			vals = append(vals, server.GetApp().GetDescription())
+		}
+	case ResourceSpecPublicAddr:
+		for _, server := range s {
+			vals = append(vals, server.GetApp().GetPublicAddr())
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindAppServer)
+	}
+
+	return vals, nil
+}

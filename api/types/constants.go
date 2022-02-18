@@ -368,6 +368,26 @@ const (
 )
 
 const (
+	// ResourceMetadataName refers to a resource metadata field named "name".
+	ResourceMetadataName = "name"
+
+	// ResourceSpecDescription refers to a resource spec field named "description".
+	ResourceSpecDescription = "description"
+
+	// ResourceSpecHostname refers to a resource spec field named "hostname".
+	ResourceSpecHostname = "hostname"
+
+	// ResourceSpecAddr refers to a resource spec field named "address".
+	ResourceSpecAddr = "address"
+
+	// ResourceSpecPublicAddr refers to a resource field named "address".
+	ResourceSpecPublicAddr = "publicAddress"
+
+	// ResourceSpecType refers to a resource field named "type".
+	ResourceSpecType = "type"
+)
+
+const (
 	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
 	BotLabel = "teleport.internal/bot"
 
