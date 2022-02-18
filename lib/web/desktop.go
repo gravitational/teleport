@@ -27,14 +27,14 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/desktop"
@@ -91,36 +91,47 @@ func (h *Handler) createDesktopConnection(
 
 	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
 
-	winServices, err := ctx.unsafeCachedAuthClient.GetWindowsDesktopServices(r.Context())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// TODO(awly): trusted cluster support - if this request is for a different
 	// cluster, dial their proxy and forward the websocket request as is.
 
-	if len(winServices) == 0 {
-		return trace.NotFound("No windows_desktop_services are registered in this cluster")
-	}
 	// Pick a random Windows desktop service as our gateway.
 	// When agent mode is implemented in the service, we'll have to filter out
 	// the services in agent mode.
 	//
 	// In the future, we may want to do something smarter like latency-based
 	// routing.
-	service := winServices[rand.Intn(len(winServices))]
-	log = log.WithField("windows-service-uuid", service.GetName())
-	log = log.WithField("windows-service-addr", service.GetAddr())
-	serviceCon, err := site.DialTCP(reversetunnel.DialParams{
-		From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: r.RemoteAddr},
-		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
-		ConnType: types.WindowsDesktopTunnel,
-		ServerID: service.GetName() + "." + ctx.parent.clusterName,
-	})
+	winDesktops, err := ctx.unsafeCachedAuthClient.GetWindowsDesktops(r.Context(),
+		types.WindowsDesktopFilter{Name: desktopName})
 	if err != nil {
-		return trace.WrapWithMessage(err, "failed to connect to windows_desktop_service at %q: %v", service.GetAddr(), err)
+		return trace.Wrap(err)
 	}
-	defer serviceCon.Close()
+	if len(winDesktops) == 0 {
+		return trace.NotFound("no windows_desktops were found")
+	}
+	var validServiceIDs []string
+	for _, desktop := range winDesktops {
+		if desktop.GetHostID() == "" {
+			// desktops with empty host ids are invalid and should
+			// only occur when migrating from an old version of teleport
+			continue
+		}
+		validServiceIDs = append(validServiceIDs, desktop.GetHostID())
+	}
+	rand.Shuffle(len(validServiceIDs), func(i, j int) {
+		validServiceIDs[i], validServiceIDs[j] = validServiceIDs[j], validServiceIDs[i]
+	})
+
+	c := &connector{
+		log:      log,
+		clt:      ctx.clt,
+		site:     site,
+		userAddr: r.RemoteAddr,
+	}
+	serviceConn, err := c.connectToWindowsService(ctx.parent.clusterName, validServiceIDs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer serviceConn.Close()
 
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -140,14 +151,14 @@ func (h *Handler) createDesktopConnection(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serviceConTLS := tls.Client(serviceCon, tlsConfig)
+	serviceConnTLS := tls.Client(serviceConn, tlsConfig)
 
-	if err := serviceConTLS.Handshake(); err != nil {
+	if err := serviceConnTLS.Handshake(); err != nil {
 		return trace.Wrap(err)
 	}
 	log.Debug("Connected to windows_desktop_service")
 
-	tdpConn := tdp.NewConn(serviceConTLS)
+	tdpConn := tdp.NewConn(serviceConnTLS)
 	err = tdpConn.OutputMessage(tdp.ClientUsername{Username: username})
 	if err != nil {
 		return trace.Wrap(err)
@@ -157,7 +168,7 @@ func (h *Handler) createDesktopConnection(
 		return trace.Wrap(err)
 	}
 
-	if err := proxyWebsocketConn(ws, serviceConTLS); err != nil {
+	if err := proxyWebsocketConn(ws, serviceConnTLS); err != nil {
 		log.WithError(err).Warningf("Error proxying a desktop protocol websocket to windows_desktop_service")
 	}
 	return nil
@@ -222,6 +233,50 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 	// Pass target desktop name via SNI.
 	tlsConfig.ServerName = desktopName + desktop.SNISuffix
 	return tlsConfig, nil
+}
+
+type connector struct {
+	log      *logrus.Entry
+	clt      *auth.Client
+	site     reversetunnel.RemoteSite
+	userAddr string
+}
+
+// connectToWindowsService tries to make a connection to a Windows Desktop Service
+// by trying each of the services provided. It returns an error if it could not connect
+// to any of the services or if it encounters an error that is not a connection problem.
+func (c *connector) connectToWindowsService(clusterName string, desktopServiceIDs []string) (net.Conn, error) {
+	for _, id := range desktopServiceIDs {
+		conn, err := c.tryConnect(clusterName, id)
+		if err != nil && !trace.IsConnectionProblem(err) {
+			return nil, trace.WrapWithMessage(err,
+				"error connecting to windows_desktop_service %q", id)
+		}
+		if trace.IsConnectionProblem(err) {
+			continue
+		}
+		if err == nil {
+			return conn, err
+		}
+	}
+	return nil, trace.Errorf("failed to connect to any windows_desktop_service")
+}
+
+func (c *connector) tryConnect(clusterName, desktopServiceID string) (net.Conn, error) {
+	service, err := c.clt.GetWindowsDesktopService(context.Background(), desktopServiceID)
+	if err != nil {
+		log.Errorf("Error finding service with id %s", desktopServiceID)
+		return nil, trace.NotFound("could not find windows desktop service %s: %v", desktopServiceID, err)
+	}
+
+	*c.log = *c.log.WithField("windows-service-uuid", service.GetName())
+	*c.log = *c.log.WithField("windows-service-addr", service.GetAddr())
+	return c.site.DialTCP(reversetunnel.DialParams{
+		From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: c.userAddr},
+		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
+		ConnType: types.WindowsDesktopTunnel,
+		ServerID: service.GetName() + "." + clusterName,
+	})
 }
 
 func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {

@@ -17,6 +17,7 @@ limitations under the License.
 package web
 
 import (
+	"bufio"
 	"bytes"
 	"compress/flate"
 	"context"
@@ -48,6 +49,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiProto "github.com/gravitational/teleport/api/client/proto"
+	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -130,8 +132,7 @@ func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
-	if len(os.Args) == 2 &&
-		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
+	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
@@ -1253,8 +1254,18 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "llama")
 
+	wdID := uuid.New().String()
 	wdMock := mustStartWindowsDesktopMock(t, env.server.Auth())
-	wds, err := types.NewWindowsDesktopServiceV3("desktop-service", types.WindowsDesktopServiceSpecV3{
+	wd, err := types.NewWindowsDesktopV3("desktop1", nil, types.WindowsDesktopSpecV3{
+		Addr:   wdMock.listener.Addr().String(),
+		Domain: "CORP",
+		HostID: wdID,
+	})
+	require.NoError(t, err)
+
+	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), wd)
+	require.NoError(t, err)
+	wds, err := types.NewWindowsDesktopServiceV3(wdID, types.WindowsDesktopServiceSpecV3{
 		Addr:            wdMock.listener.Addr().String(),
 		TeleportVersion: teleport.Version,
 	})
@@ -1283,13 +1294,40 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 	require.NoError(t, err)
 
 	ws := proxy.makeDesktopSession(t, pack, session.NewID(), env.server.TLS.Listener.Addr())
-	handleMFAU2FCChallenge(t, ws, dev)
+	handleMFAU2FCChallengeRDS(t, ws, dev)
 
 	tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws})
 
 	msg, err := tdpClient.InputMessage()
 	require.NoError(t, err)
 	require.IsType(t, tdp.PNGFrame{}, msg)
+}
+
+func handleMFAU2FCChallengeRDS(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
+	mfaChallange, err := tdp.DecodeMFAChalange(bufio.NewReader(&WebsocketIO{Conn: ws}))
+	require.NoError(t, err)
+	res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
+		U2F: []*apiProto.U2FChallenge{{
+			KeyHandle: mfaChallange.U2FChallenges[0].KeyHandle,
+			Challenge: mfaChallange.U2FChallenges[0].Challenge,
+			AppID:     mfaChallange.U2FChallenges[0].AppID,
+			Version:   mfaChallange.U2FChallenges[0].Version,
+		}},
+	})
+	require.NoError(t, err)
+	err = tdp.NewConn(&WebsocketIO{Conn: ws}).OutputMessage(tdp.MFA{
+		Type: defaults.WebsocketU2FChallenge[0],
+		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
+			Response: &authproto.MFAAuthenticateResponse_U2F{
+				U2F: &authproto.U2FResponse{
+					KeyHandle:  res.GetU2F().KeyHandle,
+					ClientData: res.GetU2F().ClientData,
+					Signature:  res.GetU2F().Signature,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
 }
 
 func handleMFAU2FCChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {

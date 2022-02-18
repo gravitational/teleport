@@ -169,7 +169,11 @@ func (s *WindowsService) upsertDesktop(ctx context.Context, r types.ResourceWith
 }
 
 func (s *WindowsService) deleteDesktop(ctx context.Context, r types.ResourceWithLabels) error {
-	return s.cfg.AuthClient.DeleteWindowsDesktop(ctx, r.GetName())
+	d, ok := r.(types.WindowsDesktop)
+	if !ok {
+		return trace.Errorf("delete: expected a WindowsDesktop, got %T", r)
+	}
+	return s.cfg.AuthClient.DeleteWindowsDesktop(ctx, d.GetHostID(), d.GetName())
 }
 
 func applyLabelsFromLDAP(entry *ldap.Entry, labels map[string]string) {
@@ -211,6 +215,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 		types.WindowsDesktopSpecV3{
 			Addr:   addr.String(),
 			Domain: s.cfg.Domain,
+			HostID: s.cfg.Heartbeat.HostUUID,
 		},
 	)
 	if err != nil {

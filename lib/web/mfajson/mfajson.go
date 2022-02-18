@@ -19,11 +19,11 @@ package mfajson
 import (
 	"encoding/json"
 
+	"github.com/gravitational/trace"
+
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/trace"
 )
 
 // Decode parses a JSON-encoded MFA authentication response.
@@ -42,21 +42,18 @@ func Decode(b []byte, typ string) (*authproto.MFAAuthenticateResponse, error) {
 				Webauthn: wanlib.CredentialAssertionResponseToProto(&webauthnResponse),
 			},
 		}
-
-	default:
-		var u2fResponse u2f.AuthenticateChallengeResponse
+	case defaults.WebsocketU2FChallenge:
+		var u2fResponse authproto.U2FResponse
 		if err := json.Unmarshal(b, &u2fResponse); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		resp = &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_U2F{
-				U2F: &authproto.U2FResponse{
-					KeyHandle:  u2fResponse.KeyHandle,
-					ClientData: u2fResponse.ClientData,
-					Signature:  u2fResponse.SignatureData,
-				},
+				U2F: &u2fResponse,
 			},
 		}
+	default:
+		return nil, trace.BadParameter("unsupported change type %q", typ)
 	}
 
 	return resp, nil

@@ -3,11 +3,13 @@ title: Kubernetes Access Multiple Clusters
 description: Connecting a Kubernetes cluster to Teleport.
 ---
 
+This guide will show you how to use Teleport as an access plane for multiple Kubernetes clusters.
+
 ## Prerequisites
 
 - [Kubernetes](https://kubernetes.io) >= v(=kubernetes.major_version=).(=kubernetes.minor_version=).0
 - [Helm](https://helm.sh) >= (=helm.version=)
-- Installed and running Teleport Cluster
+- Installed and running Teleport cluster (Open Source, Enterprise, or Teleport Cloud)
 
 (!docs/pages/includes/helm.mdx!)
 
@@ -17,11 +19,12 @@ Teleport can act as an access plane for multiple Kubernetes clusters.
 We have set up the Teleport cluster `tele.example.com` in [SSO and Kubernetes](../getting-started.mdx).
 
 Let's start a lightweight agent in another Kubernetes cluster `cookie` and connect it to `tele.example.com`.
-We would need a join token from `tele.example.com`:
+
+We will need a join token from `tele.example.com`:
 
 ```code
 # A trick to save the pod ID in tele.example.com
-$ POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
+$ POD=$(kubectl get pod -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
 # Create a join token for the cluster cookie to authenticate
 $ TOKEN=$(kubectl exec -ti "${POD?}" -- tctl nodes add --roles=kube --ttl=10000h --format=json | jq -r '.[0]')
 $ echo $TOKEN
@@ -33,8 +36,9 @@ Switch `kubectl` to the Kubernetes cluster `cookie` and run:
 # Add teleport chart repository
 $ helm repo add teleport https://charts.releases.teleport.dev
 
-# Install Kubernetes agent. It dials back to the Teleport cluster tele.example.com.
+# Deploy a Kubernetes agent. It dials back to the Teleport cluster tele.example.com.
 $ CLUSTER='cookie'
+# For Cloud users this will be similar to mytenant.teleport.sh
 $ PROXY='tele.example.com:443'
 $ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
   --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent

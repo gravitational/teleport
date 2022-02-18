@@ -4,16 +4,17 @@ description: How to configure Hardware Security Modules to manage your Teleport 
 h1: Teleport HSM Support
 ---
 
-This section will cover:
-
-- Setting up a Teleport auth server to use an HSM to store and handle private
-  keys.
+This guide will show you how to set up the Teleport Auth Server to use a hardware security module (HSM) to store and handle private keys.
 
 ## Prerequisites
 
-- Teleport v(=teleport.version=) Enterprise self-hosted.
+- Teleport v(=teleport.version=) Enterprise (self-hosted).
 - An HSM reachable from your Teleport auth server.
 - The PKCS#11 module for your HSM.
+
+<Details scope={["cloud", "oss"]} opened={true} scopeOnly={true} title="Compabitility Warning">
+Teleport Cloud and Teleport Open Source do not currently support HSM.
+</Details>
 
 While most PKCS#11 HSMs should be supported, the Teleport team tests with AWS
 CloudHSM, YubiHSM2, and SoftHSM2.
@@ -21,21 +22,21 @@ CloudHSM, YubiHSM2, and SoftHSM2.
 ## Step 1/5. Set up your HSM
 
 You will need to set up your HSM and make sure that it is accessible from your
-Teleport auth server. You should create a unique HSM user or token for Teleport
+Teleport Auth Server. You should create a unique HSM user or token for Teleport
 to use.
 
 <Tabs>
   <TabItem label="AWS CloudHSM">
-Before getting started you should create and activate a CloudHSM cluster in
-the VPC where you will run your Teleport auth server. Create a Crypto User (CU)
+Before getting started, you should create and activate a CloudHSM cluster in
+the VPC where you will run your Teleport Auth Server. Create a Crypto User (CU)
 to be used by Teleport. See the AWS CloudHSM
 [User Guide](https://docs.aws.amazon.com/cloudhsm/latest/userguide/getting-started.html)
 for help.
 
-On the EC2 instance where you will run your Teleport auth server:
+On the EC2 instance where you will run your Teleport Auth Server:
 
 1. Add the security group with the same name as your CloudHSM cluster to your
-   EC2 instance, to allow incoming traffic from CloudHSM on ports 2223-2225.
+   EC2 instance to allow incoming traffic from CloudHSM on ports 2223–2225.
 
 2. Install and configure the CloudHSM client by following
    https://docs.aws.amazon.com/cloudhsm/latest/userguide/install-and-configure-client-linux.html.
@@ -63,9 +64,9 @@ On the EC2 instance where you will run your Teleport auth server:
    Teleport with the below capabilities.
    <Admonition type="note">
    YubiHSM2 comes with a default authentication key at slot 1 with password
-   `password`, you should replace and delete it as recommended by Yubico.
+   `password`. You should replace and delete it as recommended by Yubico.
 
-   When creating the authentication key to be used by teleport, the password
+   When creating the authentication key to be used by Teleport, the password
    must have at least 8 characters. The example `hunter22` is used here.
    </Admonition>
 
@@ -77,8 +78,7 @@ On the EC2 instance where you will run your Teleport auth server:
    Stored Authentication key 0x53bf
    ```
 
-   Take note of the hex slot number output above, it will be used in the pin
-   when configuring Teleport.
+   Take note of the hex slot number output above. It will be used when configuring Teleport.
 
 4. Create a `yubihsm_pkcs11.conf` file pointing to your connector
 
