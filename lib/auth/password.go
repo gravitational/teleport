@@ -117,10 +117,8 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 			Password: req.OldPassword,
 		}
 	}
-	if req.U2FSignResponse != nil {
-		authReq.U2F = &U2FSignResponseCreds{
-			SignResponse: *req.U2FSignResponse,
-		}
+	if req.WebauthnResponse != nil {
+		authReq.Webauthn = req.WebauthnResponse
 	}
 	if req.SecondFactorToken != "" {
 		authReq.OTP = &OTPCreds{
@@ -394,8 +392,6 @@ func (s *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUs
 	switch {
 	case req.GetNewMFARegisterResponse().GetTOTP() != nil:
 		deviceName = "otp"
-	case req.GetNewMFARegisterResponse().GetU2F() != nil:
-		deviceName = "u2f"
 	case req.GetNewMFARegisterResponse().GetWebauthn() != nil:
 		deviceName = "webauthn"
 	default:

@@ -1174,9 +1174,8 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
-		U2F: &types.U2F{
-			AppID:  "https://localhost",
-			Facets: []string{"https://localhost"},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)
@@ -1240,7 +1239,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	// Check it's been deleted.
 	devs, err := srv.Auth().Identity.GetMFADevices(ctx, username, false)
 	require.NoError(t, err)
-	compareDevices(t, devs, webDev2.MFA, totpDev2.MFA)
+	compareDevices(t, false /* ignoreUpdateAndCounter */, devs, webDev2.MFA, totpDev2.MFA)
 
 	// Test last events emitted.
 	event := mockEmitter.LastEvent()
@@ -1261,9 +1260,8 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "https://localhost",
-			Facets: []string{"https://localhost"},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)
@@ -1333,16 +1331,15 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 	}
 }
 
-// TestDeleteMFADeviceSync_LastDevice tests for preventing deletion of last device
-// when second factor is required.
-func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
+// TestDeleteMFADeviceSync_lastDevice tests for preventing deletion of last
+// device when second factor is required.
+func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
-	u2fAuthSetting := &types.U2F{
-		AppID:  "https://localhost",
-		Facets: []string{"https://localhost"},
+	webConfig := &types.Webauthn{
+		RPID: "localhost",
 	}
 
 	newTOTPForUser := func(user string) *types.MFADevice {
@@ -1365,7 +1362,7 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOptional,
-					U2F:          u2fAuthSetting,
+					Webauthn:     webConfig,
 				})
 				require.NoError(t, err)
 				err = srv.Auth().SetAuthPreference(ctx, authPreference)
@@ -1394,9 +1391,7 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorWebauthn,
-					Webauthn: &types.Webauthn{
-						RPID: "localhost",
-					},
+					Webauthn:     webConfig,
 				})
 				require.NoError(t, err)
 				err = srv.Auth().SetAuthPreference(ctx, authPreference)
@@ -1417,7 +1412,7 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOn,
-					U2F:          u2fAuthSetting,
+					Webauthn:     webConfig,
 				})
 				require.NoError(t, err)
 				err = srv.Auth().SetAuthPreference(ctx, authPreference)
@@ -1481,9 +1476,8 @@ func TestAddMFADeviceSync(t *testing.T) {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
-		U2F: &types.U2F{
-			AppID:  "https://localhost",
-			Facets: []string{"https://localhost"},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)
@@ -1607,9 +1601,8 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "https://localhost",
-			Facets: []string{"https://localhost"},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)
@@ -1654,7 +1647,6 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 			},
 		},
 	}
-
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -1679,7 +1671,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 				require.True(t, trace.IsAccessDenied(err))
 			default:
 				require.NoError(t, err)
-				compareDevices(t, res.GetDevices(), webDev.MFA, totpDev.MFA)
+				compareDevices(t, true /* ignoreUpdateAndCounter */, res.GetDevices(), webDev.MFA, totpDev.MFA)
 			}
 		})
 	}
@@ -1693,9 +1685,8 @@ func TestGetMFADevices_WithAuth(t *testing.T) {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "https://localhost",
-			Facets: []string{"https://localhost"},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)
@@ -1715,7 +1706,7 @@ func TestGetMFADevices_WithAuth(t *testing.T) {
 
 	res, err := clt.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
-	compareDevices(t, res.GetDevices(), webDev.MFA, totpDev.MFA)
+	compareDevices(t, true /* ignoreUpdateAndCounter */, res.GetDevices(), webDev.MFA, totpDev.MFA)
 }
 
 func newTestServices(t *testing.T) Services {
@@ -1738,7 +1729,7 @@ func newTestServices(t *testing.T) Services {
 	}
 }
 
-func compareDevices(t *testing.T, got []*types.MFADevice, want ...*types.MFADevice) {
+func compareDevices(t *testing.T, ignoreUpdateAndCounter bool, got []*types.MFADevice, want ...*types.MFADevice) {
 	sort.Slice(got, func(i, j int) bool { return got[i].GetName() < got[j].GetName() })
 	sort.Slice(want, func(i, j int) bool { return want[i].GetName() < want[j].GetName() })
 
@@ -1759,7 +1750,16 @@ func compareDevices(t *testing.T, got []*types.MFADevice, want ...*types.MFADevi
 		totp.Key = ""
 	}
 
-	if diff := cmp.Diff(want, got); diff != "" {
+	// Ignore LastUsed and SignatureCounter?
+	var opts []cmp.Option
+	if ignoreUpdateAndCounter {
+		opts = append(opts, cmp.FilterPath(func(path cmp.Path) bool {
+			p := path.String()
+			return p == "LastUsed" || p == "Device.Webauthn.SignatureCounter"
+		}, cmp.Ignore()))
+	}
+
+	if diff := cmp.Diff(want, got, opts...); diff != "" {
 		t.Errorf("compareDevices mismatch (-want +got):\n%s", diff)
 	}
 }

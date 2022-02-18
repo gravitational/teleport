@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -39,12 +38,9 @@ type AuthenticateUserRequest struct {
 	Username string `json:"username"`
 	// Pass is a password used in local authentication schemes
 	Pass *PassCreds `json:"pass,omitempty"`
-	// U2F is a sign response credentials used to authenticate via U2F
-	U2F *U2FSignResponseCreds `json:"u2f,omitempty"`
-	// Webauthn is a signed credential assertion used to authenticate via WebAuthn
-	// or U2F devices.
+	// Webauthn is a signed credential assertion, used in MFA authentication
 	Webauthn *wanlib.CredentialAssertionResponse `json:"webauthn,omitempty"`
-	// OTP is a password and second factor, used in two factor authentication
+	// OTP is a password and second factor, used for MFA authentication
 	OTP *OTPCreds `json:"otp,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
 	Session *SessionCreds `json:"session,omitempty"`
@@ -55,7 +51,7 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 	if a.Username == "" {
 		return trace.BadParameter("missing parameter 'username'")
 	}
-	if a.Pass == nil && a.U2F == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil {
+	if a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil {
 		return trace.BadParameter("at least one authentication method is required")
 	}
 	return nil
@@ -65,12 +61,6 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 type PassCreds struct {
 	// Password is a user password
 	Password []byte `json:"password"`
-}
-
-// U2FSignResponseCreds is a U2F signature sent by U2F device
-type U2FSignResponseCreds struct {
-	// SignResponse is a U2F sign resposne
-	SignResponse u2f.AuthenticateChallengeResponse `json:"sign_response"`
 }
 
 // OTPCreds is a two factor authencication credentials
@@ -139,20 +129,6 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			return s.validateMFAAuthResponse(ctx, user, mfaResponse)
 		}
 		failMsg = "invalid Webauthn response"
-	case req.U2F != nil:
-		authenticateFn = func() (*types.MFADevice, error) {
-			mfaResponse := &proto.MFAAuthenticateResponse{
-				Response: &proto.MFAAuthenticateResponse_U2F{
-					U2F: &proto.U2FResponse{
-						KeyHandle:  req.U2F.SignResponse.KeyHandle,
-						ClientData: req.U2F.SignResponse.ClientData,
-						Signature:  req.U2F.SignResponse.SignatureData,
-					},
-				},
-			}
-			return s.validateMFAAuthResponse(ctx, user, mfaResponse)
-		}
-		failMsg = "invalid U2F response"
 	case req.OTP != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
 			// OTP cannot be validated by validateMFAAuthResponse because we need to
@@ -182,8 +158,8 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			return nil, trace.AccessDenied(failMsg)
 		case dev == nil:
 			log.Debugf(
-				"MFA authentication returned nil device (Webauthn = %v, U2F = %v, TOTP = %v): %v.",
-				req.Webauthn != nil, req.U2F != nil, req.OTP != nil, err)
+				"MFA authentication returned nil device (Webauthn = %v, TOTP = %v): %v.",
+				req.Webauthn != nil, req.OTP != nil, err)
 			return nil, trace.AccessDenied(failMsg)
 		default:
 			return dev, nil
