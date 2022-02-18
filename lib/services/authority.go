@@ -259,6 +259,10 @@ type UserCertParams struct {
 	// DisallowReissue flags that any attempt to request new certificates while
 	// authenticated with this cert should be denied.
 	DisallowReissue bool
+	// Renewable indicates this certificate is renewable
+	Renewable bool
+	// Generation counts the number of times a certificate has been renewed.
+	Generation uint64
 }
 
 // CheckAndSetDefaults checks the user certificate parameters

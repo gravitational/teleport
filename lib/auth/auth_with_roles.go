@@ -1646,117 +1646,6 @@ func (a *ServerWithRoles) NewKeepAliver(ctx context.Context) (types.KeepAliver, 
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-// GenerateInitialRenewableUserCerts generates renewable certs for a non-interactive user
-// using a previously issued single-use token.
-//
-// The token's TTL is enforced, and if the operation is successful the token is destroyed.
-func (a *ServerWithRoles) GenerateInitialRenewableUserCerts(ctx context.Context, req proto.RenewableCertsRequest) (*proto.Certs, error) {
-	if len(req.Token) == 0 {
-		return nil, trace.BadParameter("missing token")
-	}
-	if len(req.PublicKey) == 0 {
-		return nil, trace.BadParameter("missing public key")
-	}
-
-	token, err := a.authServer.GetUserToken(ctx, req.Token)
-	if err != nil {
-		log.Debugf("Could not fetch bot token: %+v", err)
-		return nil, trace.AccessDenied("the token is not valid")
-	}
-
-	if err := a.authServer.verifyUserToken(token, UserTokenTypeBot); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// TODO: consider allowing scoping to a specific SSH node with NodeName and Usage
-	expires := a.authServer.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
-
-	// Generate the initial set of user certificates.
-	certs, err := a.generateInitialRenewableUserCerts(ctx, token.GetUser(), req.PublicKey, expires)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := a.authServer.DeleteUserToken(ctx, req.Token); err != nil {
-		log.Warnf("could not delete user token %v after generating certs: %v",
-			backend.MaskKeyName(req.Token), err)
-	}
-
-	return certs, nil
-}
-
-// generateInitialRenewableUserCerts is used to generate renewable bot certs
-// and overlaps significantly with `generateUserCerts()`. However, it omits a
-// number of options (impersonation, access requests, role requests, actual
-// cert renewal, and most UserCertsRequest options that don't relate to bots)
-// and does not care if the current identity is Nop.
-// This function does not validate the current identity at all; the caller is
-// expected to validate that the client is allowed to issue the renewable
-// certificates.
-func (a *ServerWithRoles) generateInitialRenewableUserCerts(ctx context.Context, username string, pubKey []byte, expires time.Time) (*proto.Certs, error) {
-	var err error
-
-	// On the off chance there is currently an identity and it has the
-	// disallow-reissue flag set, honor it. This could only ever be a bug at
-	// best.
-	if a.context.Identity.GetIdentity().DisallowReissue {
-		return nil, trace.AccessDenied("access denied: identity is not allowed to issue certificates")
-	}
-
-	// Extract the user and role set for whom the certificate will be generated.
-	// This should be safe since this is typically done against a local user.
-	//
-	// This call bypasses RBAC check for users read on purpose.
-	// Users who are allowed to impersonate other users might not have
-	// permissions to read user data.
-	user, err := a.authServer.GetUser(username, false)
-	if err != nil {
-		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", username)
-		return nil, trace.AccessDenied("access denied")
-	}
-
-	// Do not allow SSO users to be impersonated.
-	if user.GetCreatedBy().Connector != nil {
-		log.Warningf("User %v tried to issue a cert for externally managed user %v, this is not supported.", a.context.User.GetName(), username)
-		return nil, trace.AccessDenied("access denied")
-	}
-
-	// Cap the cert TTL to the MaxRenewableCertTTL.
-	if max := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); expires.After(max) {
-		expires = max
-	}
-
-	// Inherit the user's roles and traits verbatim.
-	roles := user.GetRoles()
-	traits := user.GetTraits()
-
-	parsedRoles, err := services.FetchRoleList(roles, a.authServer, traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// add implicit roles to the set and build a checker
-	checker := services.NewRoleSet(parsedRoles...)
-
-	// Generate certificate, note that the roles TTL will be ignored because
-	// the request is coming from "tctl auth sign" itself.
-	certReq := certRequest{
-		user:            user,
-		ttl:             expires.Sub(a.authServer.GetClock().Now()),
-		publicKey:       pubKey,
-		overrideRoleTTL: a.hasBuiltinRole(string(types.RoleAdmin)),
-		checker:         checker,
-		traits:          user.GetTraits(),
-		renewable:       true,
-	}
-
-	certs, err := a.authServer.generateUserCert(certReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return certs, nil
-}
-
 // determineDesiredRolesAndTraits inspects the current request to determine
 // which roles and traits the requesting user wants to be present on the
 // resulting certificate. This does not attempt to determine if the
@@ -1860,6 +1749,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", req.Username)
 		return nil, trace.AccessDenied("access denied")
 	}
+
 	// Do not allow SSO users to be impersonated.
 	if req.Username != a.context.User.GetName() && user.GetCreatedBy().Connector != nil {
 		log.Warningf("User %v tried to issue a cert for externally managed user %v, this is not supported.", a.context.User.GetName(), req.Username)
@@ -2081,6 +1971,14 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		certReq.renewable = true
 	}
 
+	// If the cert is renewable, process any certificate generation counter.
+	if certReq.renewable {
+		currentIdentityGeneration := a.context.Identity.GetIdentity().Generation
+		if err := a.authServer.validateGenerationLabel(ctx, user, &certReq, currentIdentityGeneration); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	certs, err := a.authServer.generateUserCert(certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2099,6 +1997,9 @@ func (a *ServerWithRoles) CreateBot(ctx context.Context, req *proto.CreateBotReq
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbRead, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2182,6 +2083,17 @@ func (a *ServerWithRoles) UpsertUser(u types.User) error {
 		})
 	}
 	return a.authServer.UpsertUser(u)
+}
+
+// CompareAndSwapUser updates an existing user in a backend, but fails if the
+// backend's value does not match the expected value.
+// Captures the auth user who modified the user record.
+func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
+	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.CompareAndSwapUser(ctx, new, existing)
 }
 
 // UpsertOIDCConnector creates or updates an OIDC connector.

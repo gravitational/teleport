@@ -449,6 +449,12 @@ const (
 	// CertExtensionDisallowReissue is set when a certificate should not be allowed
 	// to request future certificates.
 	CertExtensionDisallowReissue = "disallow-reissue"
+	// CertExtensionRenewable is a flag to indicate the certificate may be
+	// renewed.
+	CertExtensionRenewable = "renewable"
+	// CertExtensionGeneration counts the number of times a certificate has
+	// been renewed.
+	CertExtensionGeneration = "generation"
 )
 
 const (

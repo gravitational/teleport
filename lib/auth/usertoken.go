@@ -62,9 +62,6 @@ const (
 	// second factor re-authentication which in other cases would be required eg:
 	// allowing user to add a mfa device if they don't have any registered.
 	UserTokenTypePrivilegeException = "privilege_exception"
-	// UserTokenTypeBot is a token type used for certificate renewal bots to join the cluster
-	// and request renewable certificates.
-	UserTokenTypeBot = "bot"
 )
 
 // CreateUserTokenRequest is a request to create a new user token.
@@ -112,19 +109,6 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 			return trace.BadParameter(
 				"failed to create user token for reset password: maximum token TTL is %v hours",
 				defaults.MaxChangePasswordTokenTTL)
-		}
-
-	case UserTokenTypeBot:
-		// bot tokens are like user invite tokens, but don't require you to set
-		// a password since the user will be a non-interactive one
-		// (for these reasons, we use the same defaults and maximum TTLs)
-		if r.TTL == 0 {
-			r.TTL = defaults.SignupTokenTTL
-		}
-		if r.TTL > defaults.MaxSignupTokenTTL {
-			return trace.BadParameter(
-				"failed to create user token for bot: maximum token TTL is %v hours",
-				defaults.MaxSignupTokenTTL)
 		}
 
 	case UserTokenTypeRecoveryStart:
@@ -375,10 +359,6 @@ func (s *Server) newUserToken(req CreateUserTokenRequest) (types.UserToken, erro
 	token.SetCreated(s.clock.Now().UTC())
 	token.SetURL(url)
 
-	if req.Type == UserTokenTypeBot {
-		token.SetUsage(types.UserTokenUsage_USER_TOKEN_RENEWAL_BOT)
-	}
-
 	return token, nil
 }
 
@@ -400,7 +380,6 @@ func formatUserTokenURL(proxyHost string, tokenID string, reqType string) (strin
 		u.Path = fmt.Sprintf("/web/recovery/steps/%v/verify", tokenID)
 	}
 
-	// TODO: case for UserTokenTypeBot?
 	return u.String(), nil
 }
 

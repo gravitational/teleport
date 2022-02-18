@@ -206,6 +206,13 @@ type IdentityContext struct {
 	// DisallowReissue is a flag that, if set, instructs the auth server to
 	// deny any requests from this identity to generate new certificates.
 	DisallowReissue bool
+
+	// Renewable indicates this certificate is renewable.
+	Renewable bool
+
+	// Generation counts the number of times this identity's certificate has
+	// been renewed.
+	Generation uint64
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,

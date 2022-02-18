@@ -1668,9 +1668,6 @@ service AuthService {
     rpc DeleteBot(DeleteBotRequest) returns (google.protobuf.Empty);
     // GetBotUsers gets all users with bot labels.
     rpc GetBotUsers(GetBotUsersRequest) returns (stream types.UserV2);
-    // GenerateInitialRenewableUserCerts generates an initial set of renewable
-    // certificates using a bot token.
-    rpc GenerateInitialRenewableUserCerts(RenewableCertsRequest) returns (Certs);
 
     // GetUser gets a user resource by name.
     rpc GetUser(GetUserRequest) returns (types.UserV2);

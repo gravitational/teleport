@@ -958,6 +958,11 @@ func (c *Client) UpsertUser(user types.User) error {
 	return trace.Wrap(err)
 }
 
+// CompareAndSwapUser not implemented: can only be called locally
+func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.User) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // ChangePassword updates users password based on the old password.
 func (c *Client) ChangePassword(req services.ChangePasswordReq) error {
 	_, err := c.PutJSON(c.Endpoint("users", req.User, "web", "password"), req)
@@ -1610,18 +1615,6 @@ func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 	return c.APIClient.GetBotUsers(ctx)
 }
 
-func (c *Client) GenerateInitialRenewableUserCerts(ctx context.Context, req proto.RenewableCertsRequest) (*proto.Certs, error) {
-	if len(req.Token) == 0 {
-		return nil, trace.BadParameter("missing token")
-	}
-
-	if len(req.PublicKey) == 0 {
-		return nil, trace.BadParameter("missing public key")
-	}
-
-	return c.APIClient.GenerateInitialRenewableUserCerts(ctx, &req)
-}
-
 // GetAppServers gets all application servers.
 func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	return c.APIClient.GetAppServers(ctx, namespace)
@@ -1795,6 +1788,10 @@ type IdentityService interface {
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user types.User) error
 
+	// CompareAndSwapUser updates an existing user in a backend, but fails if
+	// the user in the backend does not match the expected value.
+	CompareAndSwapUser(ctx context.Context, new, expected types.User) error
+
 	// DeleteUser deletes an existng user in a backend by username.
 	DeleteUser(ctx context.Context, user string) error
 
@@ -1831,10 +1828,6 @@ type IdentityService interface {
 	// text format, signs it using User Certificate Authority signing key and
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
-
-	// GenerateInitialRenewableUserCerts generates renewable certs for a non-interactive user
-	// using a previously issued single-use token.
-	GenerateInitialRenewableUserCerts(ctx context.Context, req proto.RenewableCertsRequest) (*proto.Certs, error)
 
 	// GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
 	// certificate for a single session
