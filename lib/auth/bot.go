@@ -208,9 +208,11 @@ func (s *Server) deleteBotRole(ctx context.Context, botName, resourceName string
 }
 
 func (s *Server) deleteBot(ctx context.Context, botName string) error {
-	// TODO:
-	// remove any locks for the bot's impersonator role?
-	// remove the bot's user
+	// Note: this does not remove any locks for the bot's user / role. That
+	// might be convenient in case of accidental bot locking but there doesn't
+	// seem to be any automatic deletion of locks in teleport today (other
+	// than expiration). Consistency around security controls seems important
+	// but we can revisit this if desired.
 	resourceName := BotResourceName(botName)
 
 	userErr := s.deleteBotUser(ctx, botName, resourceName)
