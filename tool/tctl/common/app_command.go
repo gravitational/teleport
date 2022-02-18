@@ -45,6 +45,9 @@ type AppsCommand struct {
 	predicateExpr  string
 	labels         string
 
+	// verbose sets whether full table output should be shown for labels
+	verbose bool
+
 	// appsList implements the "tctl apps ls" subcommand.
 	appsList *kingpin.CmdClause
 }
@@ -59,6 +62,7 @@ func (c *AppsCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.appsList.Arg("labels", labelHelp).StringVar(&c.labels)
 	c.appsList.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.appsList.Flag("query", queryHelp).StringVar(&c.predicateExpr)
+	c.appsList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
 }
 
 // TryRun attempts to run subcommands like "apps ls".
@@ -112,7 +116,7 @@ func (c *AppsCommand) ListApps(clt auth.ClientI) error {
 
 	switch c.format {
 	case teleport.Text:
-		err = coll.writeText(os.Stdout)
+		err = coll.writeText(c.verbose, os.Stdout)
 	case teleport.JSON:
 		err = coll.writeJSON(os.Stdout)
 	case teleport.YAML:

@@ -45,6 +45,9 @@ type DBCommand struct {
 	predicateExpr  string
 	labels         string
 
+	// verbose sets whether full table output should be shown for labels
+	verbose bool
+
 	// dbList implements the "tctl db ls" subcommand.
 	dbList *kingpin.CmdClause
 }
@@ -59,6 +62,7 @@ func (c *DBCommand) Initialize(app *kingpin.Application, config *service.Config)
 	c.dbList.Arg("labels", labelHelp).StringVar(&c.labels)
 	c.dbList.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.dbList.Flag("query", queryHelp).StringVar(&c.predicateExpr)
+	c.dbList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
 }
 
 // TryRun attempts to run subcommands like "db ls".
@@ -111,7 +115,7 @@ func (c *DBCommand) ListDatabases(clt auth.ClientI) error {
 	coll := &databaseServerCollection{servers: servers}
 	switch c.format {
 	case teleport.Text:
-		err = coll.writeText(os.Stdout)
+		err = coll.writeText(c.verbose, os.Stdout)
 	case teleport.JSON:
 		err = coll.writeJSON(os.Stdout)
 	case teleport.YAML:

@@ -68,6 +68,8 @@ type ResourceCommand struct {
 	createCmd *kingpin.CmdClause
 	updateCmd *kingpin.CmdClause
 
+	verbose bool
+
 	CreateHandlers map[ResourceKind]ResourceCreateHandler
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
@@ -192,7 +194,7 @@ func (rc *ResourceCommand) Get(client auth.ClientI) error {
 	// is experimental.
 	switch rc.format {
 	case teleport.Text:
-		return collection.writeText(rc.stdout)
+		return collection.writeText(rc.verbose, rc.stdout)
 	case teleport.YAML:
 		return writeYAML(collection, rc.stdout)
 	case teleport.JSON:

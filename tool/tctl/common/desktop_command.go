@@ -36,6 +36,9 @@ type DesktopCommand struct {
 	// format is the output format (text or yaml)
 	format string
 
+	// verbose sets whether full table output should be shown for labels
+	verbose bool
+
 	// desktopList implements the "tctl desktop ls" subcommand.
 	desktopList *kingpin.CmdClause
 }
@@ -44,9 +47,10 @@ type DesktopCommand struct {
 func (c *DesktopCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	c.config = config
 
-	desktop := app.Command("desktop", "Operate on registered desktops.")
+	desktop := app.Command("desktops", "Operate on registered desktops.")
 	c.desktopList = desktop.Command("ls", "List all desktops registered with the cluster.")
 	c.desktopList.Flag("format", "Output format, 'text', or 'yaml'").Default("text").StringVar(&c.format)
+	c.desktopList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
 }
 
 // TryRun attempts to run subcommands like "desktop ls".
@@ -79,7 +83,7 @@ func (c *DesktopCommand) ListDesktop(client auth.ClientI) error {
 	}
 	switch c.format {
 	case teleport.Text:
-		err = coll.writeText(os.Stdout)
+		err = coll.writeText(c.verbose, os.Stdout)
 	case teleport.YAML:
 		desktopColl := windowsDesktopCollection{desktops: desktops}
 		err = desktopColl.writeYaml(os.Stdout)
