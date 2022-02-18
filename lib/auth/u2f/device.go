@@ -55,7 +55,7 @@ func NewDevice(name string, reg *Registration, addedAt time.Time) (*types.MFADev
 	return d, nil
 }
 
-// ValidateMFADevice validates a U2F MFA device.
+// ValidateDevice validates a U2F MFA device.
 //
 // This function is not in lib/services due to an import cycle (lib/services
 // depends on lib/auth/u2f).
