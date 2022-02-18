@@ -35,6 +35,9 @@ type KubeCommand struct {
 	// format is the output format (text or yaml)
 	format string
 
+	// verbose sets whether full table output should be shown for labels
+	verbose bool
+
 	// kubeList implements the "tctl kube ls" subcommand.
 	kubeList *kingpin.CmdClause
 }
@@ -46,6 +49,7 @@ func (c *KubeCommand) Initialize(app *kingpin.Application, config *service.Confi
 	kube := app.Command("kube", "Operate on registered kubernetes clusters.")
 	c.kubeList = kube.Command("ls", "List all kubernetes clusters registered with the cluster.")
 	c.kubeList.Flag("format", "Output format, 'text', or 'yaml'").Default("text").StringVar(&c.format)
+	c.kubeList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
 }
 
 // TryRun attempts to run subcommands like "kube ls".
@@ -69,7 +73,7 @@ func (c *KubeCommand) ListKube(client auth.ClientI) error {
 	coll := &kubeServerCollection{servers: kubes}
 	switch c.format {
 	case teleport.Text:
-		err = coll.writeText(os.Stdout)
+		err = coll.writeText(c.verbose, os.Stdout)
 	case teleport.YAML:
 		err = coll.writeYAML(os.Stdout)
 	default:

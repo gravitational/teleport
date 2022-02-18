@@ -63,6 +63,14 @@ func MakeTable(headers []string) Table {
 	return t
 }
 
+func MakeTableWithRows(headers []string, rows [][]string) Table {
+	t := MakeTable(headers)
+	for _, row := range rows {
+		t.AddRow(row)
+	}
+	return t
+}
+
 func MakeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncatedColumn string) Table {
 	width, _, err := term.GetSize(int(os.Stdin.Fd()))
 	if err != nil {
