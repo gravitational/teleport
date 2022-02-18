@@ -1370,7 +1370,6 @@ func handleMFAU2FCChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevi
 		}},
 	})
 	require.NoError(t, err)
-	t.Log("MYDEBUG Signarue: ", res.GetU2F().Signature)
 	err = tdp.NewConn(&WebsocketIO{Conn: ws}).OutputMessage(tdp.MFA{
 		Type: defaults.WebsocketU2FChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
