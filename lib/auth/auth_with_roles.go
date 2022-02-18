@@ -883,16 +883,24 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	}
 
 	limit := int(req.Limit)
+	actionVerbs := []string{types.VerbList, types.VerbRead}
+
 	switch req.ResourceType {
-	case types.KindDatabaseServer,
-		types.KindAppServer,
-		types.KindNode,
-		types.KindKubeService:
+	case types.KindNode:
+		// We are checking list only for Nodes to keep backwards compatibility.
+		// The read verb got added to GetNodes initially in:
+		//   https://github.com/gravitational/teleport/pull/1209
+		// but got removed shortly afterwards in:
+		//   https://github.com/gravitational/teleport/pull/1224
+		actionVerbs = []string{types.VerbList}
+
+	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService:
+
 	default:
 		return nil, "", trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 	}
 
-	if err := a.action(req.Namespace, req.ResourceType, types.VerbList); err != nil {
+	if err := a.action(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
