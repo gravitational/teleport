@@ -558,7 +558,9 @@ func DecodeMFA(in peekReader) (*MFA, error) {
 	}, nil
 }
 
-func DecodeMFAChalange(in peekReader) (*MFA, error) {
+// DecodeMFAChallenge is a helper function used in test purpose to decode MFA challenge payload because in
+// real flow this logic is invoked by a fronted client.
+func DecodeMFAChallenge(in peekReader) (*MFA, error) {
 	t, err := in.ReadByte()
 	if err != nil {
 		return nil, trace.Wrap(err)

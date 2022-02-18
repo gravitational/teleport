@@ -150,7 +150,7 @@ func TestMFA(t *testing.T) {
 	}
 	err := c.OutputMessage(mfaWant)
 	require.NoError(t, err)
-	mfaGot, err := DecodeMFAChalange(bufio.NewReader(&buff))
+	mfaGot, err := DecodeMFAChallenge(bufio.NewReader(&buff))
 	require.NoError(t, err)
 	require.Equal(t, mfaWant, mfaGot)
 
