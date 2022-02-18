@@ -12,173 +12,40 @@ videoBanner: UFhT52d5bYg
 - AWS account with a Redshift cluster and permissions to create and attach IAM
   policies.
 
-## Step 1/5. Install Teleport
+## Step 1/6. Install Teleport
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
-## Step 2/5. Create Teleport user
+## Step 2/6. Create Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/5. Configure IAM
+## Step 3/6. Create database agent configuration
 
-### Create an IAM policy for Teleport
+(!docs/pages/includes/database-access/token.mdx!)
+
+Create the database agent configuration using the database configurator:
+
+```code
+$ teleport db configure create -o file --proxy=teleport.example.com:3080 --token=/tmp/token --redshift-discovery=us-west-1
+```
+
+The command will generate a database agent configuration with Redshift
+databases auto-discovery enabled on the `us-west-1` region and place it at the
+`/etc/teleport.yaml` location.
+
+## Step 4/6. Configure IAM
+
+### Create IAM policy for Teleport
 
 Teleport needs AWS IAM permissions to be able to:
 
 - Discover and register Redshift databases.
 - Manage IAM user or IAM role policies.
 
-Go to the [Policies](https://console.aws.amazon.com/iamv2/home#/policies) page
-in the AWS Management Console and create a managed IAM policy for the database
-agent.
+(!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
-The exact set of required permissions depends on the IAM identity your Teleport
-database agent will be using (IAM user or IAM role).
-
-<Tabs>
-  <TabItem label="IAM user">
-  Use this policy if your Teleport database agent runs as an IAM user (for
-  example, uses AWS credentials file).
-  ```json
-  {
-      "Version": "2012-10-17",
-      "Statement": [
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "redshift:DescribeClusters",
-                  "iam:GetUserPolicy",
-                  "iam:PutUserPolicy",
-                  "iam:DeleteUserPolicy"
-              ],
-              "Resource": "*"
-          }
-      ]
-  }
-  ```
-  </TabItem>
-  <TabItem label="IAM role">
-  Use this policy if your Teleport database agent runs as an IAM role (for
-  example, on an EC2 instance with attached IAM role).
-  ```json
-  {
-      "Version": "2012-10-17",
-      "Statement": [
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "redshift:DescribeClusters",
-                  "iam:GetRolePolicy",
-                  "iam:PutRolePolicy",
-                  "iam:DeleteRolePolicy"
-              ],
-              "Resource": "*"
-          }
-      ]
-  }
-  ```
-  </TabItem>
-</Tabs>
-
-### Create an IAM permission boundary for Teleport
-Since Teleport will be managing its own IAM policies for access to Redshift
-databases, you need to create a permission boundary to limit its effective
-range of permissions.
-
-Create another managed policy that will serve as a permission boundary on the
-same [Policies](https://console.aws.amazon.com/iamv2/home#/policies) page of
-the AWS Management Console.
-
-In addition to the set of permissions you created above, the boundary should
-also include `redshift:GetClusterCredentials`, which will grant your Teleport
-agent the permission to generate temporary credentials to authenticate with
-Redshift databases.
-
-Similar to the permission polices you created above, the exact set of required
-permissions for the permission boundary depends on the IAM identity your
-Teleport database agent will be using (IAM user or IAM role).
-
-<Tabs>
-  <TabItem label="IAM user">
-  Use this permission boundary if your Teleport database agent runs as an IAM
-  user (for example, uses AWS credentials file).
-  ```json
-  {
-      "Version": "2012-10-17",
-      "Statement": [
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "redshift:DescribeClusters",
-                  "redshift:GetClusterCredentials",
-                  "iam:GetUserPolicy",
-                  "iam:PutUserPolicy",
-                  "iam:DeleteUserPolicy"
-              ],
-              "Resource": "*"
-          }
-      ]
-  }
-  ```
-  </TabItem>
-  <TabItem label="IAM role">
-  Use this permission boundary if your Teleport database agent runs as an IAM
-  role (for example, on an EC2 instance with attached IAM role).
-  ```json
-  {
-      "Version": "2012-10-17",
-      "Statement": [
-          {
-              "Effect": "Allow",
-              "Action": [
-                  "redshift:DescribeClusters",
-                  "redshift:GetClusterCredentials",
-                  "iam:GetRolePolicy",
-                  "iam:PutRolePolicy",
-                  "iam:DeleteRolePolicy"
-              ],
-              "Resource": "*"
-          }
-      ]
-  }
-  ```
-  </TabItem>
-</Tabs>
-
-### Attach the policy and boundary to an IAM identity
-(!docs/pages/includes/database-access/attach-iam-policies.mdx!)
-
-<Admonition type="note" title="Self-managed IAM">
-  If you prefer to self-manage IAM for your Redshift databases, see [AWS
-  reference](../reference/aws.mdx) for details.
-</Admonition>
-
-## Step 4/5. Start the database agent
-(!docs/pages/includes/database-access/token.mdx!)
-
-Create the database agent configuration e.g. in `/etc/teleport.yaml`:
-
-```yaml
-teleport:
-  data_dir: /var/lib/teleport
-  auth_token: /tmp/token
-  auth_servers:
-  - teleport.example.com:443 # Teleport proxy address to connect to
-auth_service:
-  enabled: "no"
-proxy_service:
-  enabled: "no"
-db_service:
-  enabled: "yes"
-  aws: # Matchers for registering AWS-hosted databases.
-  - types: ["redshift"]
-    regions: ["us-west-1"] # AWS regions to fetch databases from
-    tags: # AWS database resource tags to match
-      "*": "*"
-```
-
-Start the database agent:
+## Step 5/6. Start the database agent
 
 ```code
 $ teleport start --config=/etc/teleport.yaml
@@ -195,7 +62,7 @@ may not propagate immediately and can take a few minutes to come into effect.
   for more information.
 </Admonition>
 
-## Step 5/5. Connect
+## Step 6/6. Connect
 
 Once the database agent has started and joined the cluster, log in to see the
 registered databases. Replace `--proxy` with the address of your Teleport Proxy Service,

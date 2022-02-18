@@ -1,0 +1,54 @@
+The exact set of required permissions depends on whether you're connecting to
+different AWS-hosted databases, as well as the IAM identity your Teleport
+database agent will be using (user or role). The database bootstrap command
+generates custom AWS policies based on your configuration. Bootstrap can be
+performed in two modes:
+- Automatic: Generates and creates IAM policy and policy boundary and attaches
+  to provided target (user or role). In this command, the command requires AWS
+  credentials set to identity with enough permissions;
+- Manual: Generates IAM policy and boundary and prints to STDOUT. You then can
+  add them to your AWS account manually (for instance, using the AWS management
+  console);
+
+<Admonition type="note" title="AWS credentials">
+  AWS Credentials are only required if you’re running the command in "automatic"
+  mode. The command uses the default credential provider chain to find AWS
+  credentials. See [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials) for more information.
+</Admonition>
+
+<Tabs>
+  <TabItem label="Automatic / IAM User">
+  Use this command if you’re bootstrapping the permissions automatically and
+  your Teleport database agent runs as an IAM user (for example, uses AWS
+  credentials file).
+
+  ```code
+  $ teleport db configure bootstrap -c /etc/teleport.yaml --attach-to-user TeleportUser
+  ```
+  </TabItem>
+
+  <TabItem label="Automatic / IAM Role">
+  Use this command if you’re bootstrapping the permissions automatically and
+  your Teleport database agent runs as an IAM role (for example, on an EC2
+  instance with attached IAM role).
+
+  ```code
+  $ teleport db configure bootstrap -c /etc/teleport.yaml --attach-to-role TeleportRole
+  ```
+  </TabItem>
+
+  <TabItem label="Manual">
+  Use this command if you’re bootstrapping the permissions manually, and attach
+  the generated permissions to your target (user or role).
+
+  ```code
+  $ teleport db configure bootstrap -c /etc/teleport.yaml --manual
+  ```
+  </TabItem>
+</Tabs>
+
+<Admonition type="tip" title="Tip">
+  The bootstrap command support other customizations, such as changing the IAM
+  policy name (`--policy-name`). For more options, check out the [command
+  reference page.](../../database-access/reference/cli.mdx#teleport-db-configure-bootstrap)
+</Admonition>
