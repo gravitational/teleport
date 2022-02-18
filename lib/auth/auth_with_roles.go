@@ -887,6 +887,11 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 
 	switch req.ResourceType {
 	case types.KindNode:
+		// We are checking list only for Nodes to keep backwards compatibility.
+		// The read verb got added to GetNodes initially in:
+		//   https://github.com/gravitational/teleport/pull/1209
+		// but got removed shortly afterwards in:
+		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
 	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService:
