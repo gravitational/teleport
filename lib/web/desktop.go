@@ -138,34 +138,44 @@ func (h *Handler) createDesktopConnection(
 		WriteBufferSize: 1024,
 	}
 
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	pc, err := proxyClient(r.Context(), ctx, h.ProxyHostPort())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, ctx, desktopName, username, site.GetName())
+
+	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	defer ws.Close()
+
+	sendTDPError := func(ws *websocket.Conn, err error) error {
+		tdpErr := tdp.NewConn(&WebsocketIO{Conn: ws}).SendError(err.Error())
+		if err != nil {
+			return trace.Wrap(tdpErr)
+		}
+		return nil
+	}
+
+	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, ctx, desktopName, username, site.GetName())
+	if err != nil {
+		return trace.NewAggregate(err, sendTDPError(ws, err))
 	}
 	serviceConnTLS := tls.Client(serviceConn, tlsConfig)
 
 	if err := serviceConnTLS.Handshake(); err != nil {
-		return trace.Wrap(err)
+		return trace.NewAggregate(err, sendTDPError(ws, err))
 	}
 	log.Debug("Connected to windows_desktop_service")
 
 	tdpConn := tdp.NewConn(serviceConnTLS)
 	err = tdpConn.OutputMessage(tdp.ClientUsername{Username: username})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.NewAggregate(err, sendTDPError(ws, err))
 	}
 	err = tdpConn.OutputMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.NewAggregate(err, sendTDPError(ws, err))
 	}
 
 	if err := proxyWebsocketConn(ws, serviceConnTLS); err != nil {
