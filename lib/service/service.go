@@ -732,6 +732,9 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	if cfg.Apps.Enabled {
 		eventMapping.In = append(eventMapping.In, AppsReady)
 	}
+	if cfg.Databases.Enabled {
+		eventMapping.In = append(eventMapping.In, DatabasesReady)
+	}
 	process.RegisterEventMapping(eventMapping)
 
 	if cfg.Auth.Enabled {
