@@ -33,6 +33,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -133,6 +135,25 @@ func loadBitmaps(b *testing.B) []PNGFrame {
 func TestMFA(t *testing.T) {
 	var buff bytes.Buffer
 	c := NewConn(&buff)
+	mfaWant := &MFA{
+		Type: defaults.WebsocketU2FChallenge[0],
+		MFAAuthenticateChallenge: &auth.MFAAuthenticateChallenge{
+			U2FChallenges: []u2f.AuthenticateChallenge{
+				{
+					Version:   "version",
+					Challenge: "challenge",
+					KeyHandle: "key_handle",
+					AppID:     "app_id",
+				},
+			},
+		},
+	}
+	err := c.OutputMessage(mfaWant)
+	require.NoError(t, err)
+	mfaGot, err := DecodeMFAChalange(bufio.NewReader(&buff))
+	require.NoError(t, err)
+	require.Equal(t, mfaWant, mfaGot)
+
 	respWant := &MFA{
 		Type: defaults.WebsocketU2FChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
@@ -145,7 +166,7 @@ func TestMFA(t *testing.T) {
 			},
 		},
 	}
-	err := c.OutputMessage(respWant)
+	err = c.OutputMessage(respWant)
 	require.NoError(t, err)
 	respGot, err := c.InputMessage()
 	require.NoError(t, err)

@@ -520,7 +520,7 @@ func DecodeMFA(in peekReader) (*MFA, error) {
 		return nil, trace.Wrap(err)
 	}
 	if t != byte(TypeMFA) {
-		return nil, trace.BadParameter("got message type %v, expected TypeMFAJson(%v)", t, TypeMFA)
+		return nil, trace.BadParameter("got message type %v, expected TypeMFA(%v)", t, TypeMFA)
 	}
 
 	mt, err := in.ReadByte()
