@@ -29,15 +29,10 @@ func buildboxPipelineSteps() []step {
 		waitForDockerStep(),
 	}
 
-	for _, name := range []string{"buildbox", "buildbox-centos6", "buildbox-arm"} {
+	for _, name := range []string{"buildbox", "buildbox-arm"} {
 		for _, fips := range []bool{false, true} {
 			// FIPS is unsupported on ARM/ARM64
 			if name == "buildbox-arm" && fips {
-				continue
-			}
-			// FIPS is unsupported on CentOS 6 as of Teleport 7.0
-			// https://github.com/gravitational/teleport/issues/7207
-			if name == "buildbox-centos6" && fips {
 				continue
 			}
 			steps = append(steps, buildboxPipelineStep(name, fips))
