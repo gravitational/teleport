@@ -958,7 +958,6 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 }
 
 func (s *WebSuite) TestResizeTerminal(c *C) {
-	c.Skip("norun")
 	sid := session.NewID()
 
 	// Create a new user "foo", open a terminal to a new session, and wait for
@@ -1031,7 +1030,6 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 }
 
 func (s *WebSuite) TestTerminal(c *C) {
-	c.Skip("norun")
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
 	c.Assert(err, IsNil)
 	defer ws.Close()

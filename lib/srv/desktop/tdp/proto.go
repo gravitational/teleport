@@ -31,7 +31,6 @@ import (
 	"io"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
@@ -468,7 +467,6 @@ type MFA struct {
 	// MFAAuthenticateResponse is the response to the MFA challenge,
 	// sent from the browser to Teleport.
 	*authproto.MFAAuthenticateResponse
-	u2f.AuthenticateChallengeResponse
 }
 
 func (m MFA) Encode() ([]byte, error) {
@@ -478,7 +476,6 @@ func (m MFA) Encode() ([]byte, error) {
 	var buff []byte
 	var err error
 
-	log.Debug("MYDEBUG  ->>>> send buff 111 ")
 	if m.MFAAuthenticateChallenge != nil {
 		buff, err = json.Marshal(m.MFAAuthenticateChallenge)
 		if err != nil {
@@ -513,7 +510,6 @@ func (m MFA) Encode() ([]byte, error) {
 		return nil, trace.BadParameter("mfa challenge data exceeds maximum length")
 	}
 	binary.Write(buf, binary.BigEndian, uint32(len(buff)))
-	log.Debug("MYDEBUG  ->>>> send buff ", string(buff))
 	buf.Write(buff)
 	return buf.Bytes(), nil
 }
