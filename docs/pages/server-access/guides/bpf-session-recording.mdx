@@ -26,7 +26,8 @@ Teleport Enhanced Session Recording mitigates all three concerns by providing ad
 
 ## Prerequisites
 
-Teleport 7.0+ with Enhanced Session Recording requires Linux kernel 5.8 (or above).
+- Teleport 7.0+ (Open Source, Enterprise, or Cloud) with at least one Teleport node. 
+- The node must run Linux kernel 5.8 (or above).
 
 <Admonition type="tip">
   Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../../architecture/authentication.mdx#audit-log) for more details.
@@ -56,8 +57,7 @@ $ uname -r
 
 ## Step 1/3. Install and configure Teleport node
 
-Follow our [installation instructions](../../installation.mdx) to install Teleport Auth, Proxy
-and Nodes.
+Follow our [installation instructions](../../installation.mdx) to install the Teleport Auth Service, Proxy Service, and Nodes. To get started with Teleport Cloud, sign up for a [free trial](https://goteleport.com/signup/). 
 
 Set up the Teleport node with this `etc/teleport.yaml`. See our [configuration file setup](../../setup/reference/config.mdx) for more instructions.
 
