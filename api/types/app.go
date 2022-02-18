@@ -65,6 +65,8 @@ type Application interface {
 	GetAWSAccountID() string
 	// Copy returns a copy of this app resource.
 	Copy() *AppV3
+	// GetTeleportVersion returns the version of the teleport
+	GetTeleportVersion() string
 }
 
 // NewAppV3 creates a new app resource.
@@ -237,6 +239,10 @@ func (a *AppV3) IsAWSConsole() bool {
 // GetAWSAccountID returns value of label containing AWS account ID on this app.
 func (a *AppV3) GetAWSAccountID() string {
 	return a.Metadata.Labels[constants.AWSAccountIDLabel]
+}
+
+func (a *AppV3) GetTeleportVersion() string {
+	return a.Version
 }
 
 // String returns the app string representation.
