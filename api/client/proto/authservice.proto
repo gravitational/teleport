@@ -1125,8 +1125,20 @@ message ReplaceRemoteLocksRequest {
 
 // GetWindowsDesktopServicesResponse contains all registered Windows desktop services.
 message GetWindowsDesktopServicesResponse {
-    // Servers is a list of Windows desktop services.
+    // Services is a list of Windows desktop services.
     repeated types.WindowsDesktopServiceV3 services = 1 [ (gogoproto.jsontag) = "services" ];
+}
+
+// GetWindowsDesktopServiceRequest is a request for a specific Windows Desktop Service.
+message GetWindowsDesktopServiceRequest {
+    // Name is the name of the Windows Desktop Service to be requested.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
+// GetWindowsDesktopServiceResponse contains the requested WindowsDesktopService
+message GetWindowsDesktopServiceResponse {
+    // Service is the requested Windows Desktop Service.
+    types.WindowsDesktopServiceV3 service = 1 [ (gogoproto.jsontag) = "service" ];
 }
 
 // DeleteWindowsDesktopServiceRequest is a request to delete a Windows desktop service.
@@ -1141,16 +1153,14 @@ message GetWindowsDesktopsResponse {
     repeated types.WindowsDesktopV3 Desktops = 1 [ (gogoproto.jsontag) = "desktops" ];
 }
 
-// GetWindowsDesktopRequest is a request for a single Windows desktop host.
-message GetWindowsDesktopRequest {
-    // Name is the name of the Windows desktop host.
-    string Name = 1 [ (gogoproto.jsontag) = "name" ];
-}
-
-// DeleteWindowsDesktopRequest is a request to delete a Windows desktop host.
+// DeleteWindowsDesktopRequest is a request to delete a Windows
+// desktop host. If HostID is not specified, all Windows desktops with
+// specified Name will be deleted
 message DeleteWindowsDesktopRequest {
     // Name is the name of the Windows desktop host.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // HostID is the ID of the Windows Desktop Service reporting the desktop.
+    string HostID = 2 [ (gogoproto.jsontag) = "host_id" ];
 }
 
 // WindowsDesktopCertRequest is a request to generate a client certificate used
@@ -1755,6 +1765,8 @@ service AuthService {
     // GetWindowsDesktopServices returns all registered Windows desktop services.
     rpc GetWindowsDesktopServices(google.protobuf.Empty)
         returns (GetWindowsDesktopServicesResponse);
+    rpc GetWindowsDesktopService(GetWindowsDesktopServiceRequest)
+        returns (GetWindowsDesktopServiceResponse);
     // UpsertWindowsDesktopService registers a new Windows desktop service.
     rpc UpsertWindowsDesktopService(types.WindowsDesktopServiceV3) returns (types.KeepAlive);
     // DeleteWindowsDesktopService removes the specified Windows desktop service.
@@ -1763,10 +1775,8 @@ service AuthService {
     // DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
     rpc DeleteAllWindowsDesktopServices(google.protobuf.Empty) returns (google.protobuf.Empty);
 
-    // GetWindowsDesktops returns all registered Windows desktop hosts.
-    rpc GetWindowsDesktops(google.protobuf.Empty) returns (GetWindowsDesktopsResponse);
-    // GetWindowsDesktop returns a registered Windows desktop host.
-    rpc GetWindowsDesktop(GetWindowsDesktopRequest) returns (types.WindowsDesktopV3);
+    // GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
+    rpc GetWindowsDesktops(types.WindowsDesktopFilter) returns (GetWindowsDesktopsResponse);
     // CreateWindowsDesktop registers a new Windows desktop host.
     rpc CreateWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
     // UpdateWindowsDesktop updates an existing Windows desktop host.
@@ -1774,6 +1784,8 @@ service AuthService {
     // UpsertWindowsDesktop updates a Windows desktop host, creating it if it doesn't exist.
     rpc UpsertWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
     // DeleteWindowsDesktop removes the specified Windows desktop host.
+    // Unlike GetWindowsDesktops, this call will delete at-most 1 desktop.
+    // To delete all desktops, use DeleteAllWindowsDesktops.
     rpc DeleteWindowsDesktop(DeleteWindowsDesktopRequest) returns (google.protobuf.Empty);
     // DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
     rpc DeleteAllWindowsDesktops(google.protobuf.Empty) returns (google.protobuf.Empty);
