@@ -264,10 +264,10 @@ func (s *Server) CreateBotProvisionToken(ctx context.Context, botName string, tt
 }
 
 // validateGenerationLabel validates and updates a generation label.
-func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, certReq *certRequest, currentIdentityGeneration uint64) error {
+func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, certReq *certRequest, currentIdentityGeneration uint64) error {
 	// Fetch the user, bypassing the cache. We might otherwise fetch a stale
 	// value in case of a rapid certificate renewal.
-	user, err := a.Identity.GetUser(user.GetName(), false)
+	user, err := s.Identity.GetUser(user.GetName(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -312,7 +312,7 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		// There's a tiny chance the underlying user is mutated between calls
 		// to GetUser() but we're comparing with an older value so it'll fail
 		// safely.
-		newUser, err := a.Identity.GetUser(user.GetName(), false)
+		newUser, err := s.Identity.GetUser(user.GetName(), false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -322,7 +322,7 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 
 		// Note: we bypass the RBAC check on purpose as bot users should not
 		// have user update permissions.
-		if err := a.CompareAndSwapUser(ctx, newUser, user); err != nil {
+		if err := s.CompareAndSwapUser(ctx, newUser, user); err != nil {
 			// If this fails it's likely to be some miscellaneous competing
 			// write. The request should be tried again - if it's malicious,
 			// someone will get a generation mismatch and trigger a lock.
@@ -347,13 +347,13 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := a.UpsertLock(context.Background(), lock); err != nil {
+		if err := s.UpsertLock(context.Background(), lock); err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Emit an audit event.
 		userMetadata := ClientUserMetadata(ctx)
-		if a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RenewableCertificateGenerationMismatch{
+		if s.emitter.EmitAuditEvent(s.closeCtx, &apievents.RenewableCertificateGenerationMismatch{
 			Metadata: apievents.Metadata{
 				Type: events.RenewableCertificateGenerationMismatchEvent,
 				Code: events.RenewableCertificateGenerationMismatchCode,
@@ -373,7 +373,7 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 	newGeneration := currentIdentityGeneration + 1
 
 	// As above, commit some crimes to clone the User.
-	newUser, err := a.Identity.GetUser(user.GetName(), false)
+	newUser, err := s.Identity.GetUser(user.GetName(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -381,7 +381,7 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 	metadata.Labels[types.BotGenerationLabel] = fmt.Sprint(newGeneration)
 	newUser.SetMetadata(metadata)
 
-	if err := a.CompareAndSwapUser(ctx, newUser, user); err != nil {
+	if err := s.CompareAndSwapUser(ctx, newUser, user); err != nil {
 		// If this fails it's likely to be some miscellaneous competing
 		// write. The request should be tried again - if it's malicious,
 		// someone will get a generation mismatch and trigger a lock.
@@ -402,7 +402,7 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 // This function does not validate the current identity at all; the caller is
 // expected to validate that the client is allowed to issue the renewable
 // certificates.
-func (a *Server) generateInitialRenewableUserCerts(ctx context.Context, username string, pubKey []byte, expires time.Time) (*proto.Certs, error) {
+func (s *Server) generateInitialRenewableUserCerts(ctx context.Context, username string, pubKey []byte, expires time.Time) (*proto.Certs, error) {
 	var err error
 
 	// Extract the user and role set for whom the certificate will be generated.
@@ -411,7 +411,7 @@ func (a *Server) generateInitialRenewableUserCerts(ctx context.Context, username
 	// This call bypasses RBAC check for users read on purpose.
 	// Users who are allowed to impersonate other users might not have
 	// permissions to read user data.
-	user, err := a.GetUser(username, false)
+	user, err := s.GetUser(username, false)
 	if err != nil {
 		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", username)
 		return nil, trace.AccessDenied("access denied")
@@ -424,7 +424,7 @@ func (a *Server) generateInitialRenewableUserCerts(ctx context.Context, username
 	}
 
 	// Cap the cert TTL to the MaxRenewableCertTTL.
-	if max := a.GetClock().Now().Add(defaults.MaxRenewableCertTTL); expires.After(max) {
+	if max := s.GetClock().Now().Add(defaults.MaxRenewableCertTTL); expires.After(max) {
 		expires = max
 	}
 
@@ -432,7 +432,7 @@ func (a *Server) generateInitialRenewableUserCerts(ctx context.Context, username
 	roles := user.GetRoles()
 	traits := user.GetTraits()
 
-	parsedRoles, err := services.FetchRoleList(roles, a, traits)
+	parsedRoles, err := services.FetchRoleList(roles, s, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -442,7 +442,7 @@ func (a *Server) generateInitialRenewableUserCerts(ctx context.Context, username
 	// Generate certificate
 	certReq := certRequest{
 		user:          user,
-		ttl:           expires.Sub(a.GetClock().Now()),
+		ttl:           expires.Sub(s.GetClock().Now()),
 		publicKey:     pubKey,
 		checker:       checker,
 		traits:        user.GetTraits(),
@@ -451,11 +451,11 @@ func (a *Server) generateInitialRenewableUserCerts(ctx context.Context, username
 		generation:    1,
 	}
 
-	if err := a.validateGenerationLabel(ctx, user, &certReq, 0); err != nil {
+	if err := s.validateGenerationLabel(ctx, user, &certReq, 0); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(certReq)
+	certs, err := s.generateUserCert(certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
