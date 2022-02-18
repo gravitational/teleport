@@ -21,8 +21,11 @@ package asciitable
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"text/tabwriter"
+
+	"golang.org/x/term"
 )
 
 // Column represents a column in the table.
@@ -56,6 +59,54 @@ func MakeTable(headers []string) Table {
 	for i := range t.columns {
 		t.columns[i].Title = headers[i]
 		t.columns[i].width = len(headers[i])
+	}
+	return t
+}
+
+func MakeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncatedColumn string) Table {
+	width, _, err := term.GetSize(int(os.Stdin.Fd()))
+	if err != nil {
+		width = 80
+	}
+	truncatedColMinSize := 16
+	maxColWidth := (width - truncatedColMinSize) / (len(columnOrder) - 1)
+	t := MakeTable([]string{})
+	totalLen := 0
+	columns := []Column{}
+
+	for collIndex, colName := range columnOrder {
+		column := Column{
+			Title:         colName,
+			MaxCellLength: len(colName),
+		}
+		if colName == truncatedColumn { // truncated column is handled separately in next loop
+			columns = append(columns, column)
+			continue
+		}
+		for _, row := range rows {
+			cellLen := row[collIndex]
+			if len(cellLen) > column.MaxCellLength {
+				column.MaxCellLength = len(cellLen)
+			}
+		}
+		if column.MaxCellLength > maxColWidth {
+			column.MaxCellLength = maxColWidth
+			totalLen += column.MaxCellLength + 4 // "...<space>"
+		} else {
+			totalLen += column.MaxCellLength + 1 // +1 for column separator
+		}
+		columns = append(columns, column)
+	}
+
+	for _, column := range columns {
+		if column.Title == truncatedColumn {
+			column.MaxCellLength = width - totalLen - len("... ")
+		}
+		t.AddColumn(column)
+	}
+
+	for _, row := range rows {
+		t.AddRow(row)
 	}
 	return t
 }
