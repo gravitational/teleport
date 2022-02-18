@@ -152,7 +152,7 @@ func (h *Handler) createDesktopConnection(
 
 	sendTDPError := func(ws *websocket.Conn, err error) error {
 		tdpErr := tdp.NewConn(&WebsocketIO{Conn: ws}).SendError(err.Error())
-		if err != nil {
+		if tdpErr != nil {
 			return trace.Wrap(tdpErr)
 		}
 		return nil
