@@ -35,7 +35,6 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -1446,7 +1445,7 @@ func printNodesAsText(nodes []types.Server, verbose bool) {
 			rows = append(rows,
 				[]string{n.GetHostname(), getAddr(n), sortedLabels(n.GetAllLabels())})
 		}
-		t = makeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
+		t = asciitable.MakeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
 	}
 	fmt.Println(t.AsBuffer().String())
 }
@@ -1509,58 +1508,10 @@ func showApps(apps []types.Application, active []tlsca.RouteToApp, verbose bool)
 			labels := sortedLabels(app.GetAllLabels())
 			rows = append(rows, []string{name, desc, addr, labels})
 		}
-		t := makeTableWithTruncatedColumn(
+		t := asciitable.MakeTableWithTruncatedColumn(
 			[]string{"Application", "Description", "Public Address", "Labels"}, rows, "Labels")
 		fmt.Println(t.AsBuffer().String())
 	}
-}
-
-func makeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncatedColumn string) asciitable.Table {
-	width, _, err := term.GetSize(int(os.Stdin.Fd()))
-	if err != nil {
-		width = 80
-	}
-	truncatedColMinSize := 16
-	maxColWidth := (width - truncatedColMinSize) / (len(columnOrder) - 1)
-	t := asciitable.MakeTable([]string{})
-	totalLen := 0
-	columns := []asciitable.Column{}
-
-	for collIndex, colName := range columnOrder {
-		column := asciitable.Column{
-			Title:         colName,
-			MaxCellLength: len(colName),
-		}
-		if colName == truncatedColumn { // truncated column is handled separately in next loop
-			columns = append(columns, column)
-			continue
-		}
-		for _, row := range rows {
-			cellLen := row[collIndex]
-			if len(cellLen) > column.MaxCellLength {
-				column.MaxCellLength = len(cellLen)
-			}
-		}
-		if column.MaxCellLength > maxColWidth {
-			column.MaxCellLength = maxColWidth
-			totalLen += column.MaxCellLength + 4 // "...<space>"
-		} else {
-			totalLen += column.MaxCellLength + 1 // +1 for column separator
-		}
-		columns = append(columns, column)
-	}
-
-	for _, column := range columns {
-		if column.Title == truncatedColumn {
-			column.MaxCellLength = width - totalLen - len("... ")
-		}
-		t.AddColumn(column)
-	}
-
-	for _, row := range rows {
-		t.AddRow(row)
-	}
-	return t
 }
 
 func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
@@ -1605,7 +1556,7 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 				connect,
 			})
 		}
-		t := makeTableWithTruncatedColumn([]string{"Name", "Description", "Labels", "Connect"}, rows, "Labels")
+		t := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Labels", "Connect"}, rows, "Labels")
 		fmt.Println(t.AsBuffer().String())
 	}
 }
