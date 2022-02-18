@@ -46,6 +46,30 @@ const hostMaxLen = 255
 // Max username length as defined by glibc.
 const userMaxLen = 32
 
+// Sometimes the _UTMP_PATH and _WTMP_PATH macros from glibc are bad, this seems to depend on distro.
+// I asked around on IRC, no one really knows why. I suspect it's another
+// archaic remnant of old Unix days and that a cleanup is long overdue.
+//
+// In the meantime, we just try to resolve from these paths as a second step
+// if the built-in path resolution fails and no overrides are passed in.
+func defaultPaths(utmpPathIn, wtmpPathIn string) (string, string) {
+	var utmpPath, wtmpPath string
+
+	if utmpPathIn == "" {
+		utmpPath = "/var/run/utmp"
+	} else {
+		utmpPath = utmpPathIn
+	}
+
+	if wtmpPathIn == "" {
+		wtmpPath = "/var/log/wtmp"
+	} else {
+		wtmpPath = wtmpPathIn
+	}
+
+	return utmpPath, wtmpPath
+}
+
 // Open writes a new entry to the utmp database with a tag of `USER_PROCESS`.
 // This should be called when an interactive session is started.
 //
@@ -54,6 +78,7 @@ const userMaxLen = 32
 // `remote`: IPv6 address of the remote host.
 // `tty`: Pointer to the tty stream
 func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32, tty *os.File) error {
+	utmpPath, wtmpPath = defaultPaths(utmpPath, wtmpPath)
 	ttyName, err := os.Readlink(tty.Name())
 	if err != nil {
 		return trace.Errorf("failed to resolve soft proc tty link: %v", err)
@@ -126,6 +151,7 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 //
 // The `ttyName` parameter must be the name of the TTY including the `/dev/` prefix.
 func Close(utmpPath, wtmpPath string, tty *os.File) error {
+	utmpPath, wtmpPath = defaultPaths(utmpPath, wtmpPath)
 	ttyName, err := os.Readlink(tty.Name())
 	if err != nil {
 		return trace.Errorf("failed to resolve soft proc tty link: %v", err)
