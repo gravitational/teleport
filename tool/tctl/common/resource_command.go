@@ -653,6 +653,21 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("network restrictions have been reset to defaults (allow all)\n")
+	case types.KindCertAuthority:
+		if rc.ref.SubKind == "" || rc.ref.Name == "" {
+			return trace.BadParameter(
+				"full %s path must be specified (e.g. '%s/%s/clustername')",
+				types.KindCertAuthority, types.KindCertAuthority, types.HostCA,
+			)
+		}
+		err := client.DeleteCertAuthority(types.CertAuthID{
+			Type:       types.CertAuthType(rc.ref.SubKind),
+			DomainName: rc.ref.Name,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, rc.ref.SubKind, rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
