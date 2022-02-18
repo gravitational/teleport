@@ -458,7 +458,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
 				Type:  RenewableCertificateASN1ExtensionOID,
-				Value: "true",
+				Value: types.True,
 			})
 	}
 	if id.TeleportCluster != "" {
@@ -636,7 +636,7 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(RenewableCertificateASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
-				id.Renewable, _ = strconv.ParseBool(val)
+				id.Renewable = val == types.True
 			}
 		case attr.Type.Equal(TeleportClusterASN1ExtensionOID):
 			val, ok := attr.Value.(string)

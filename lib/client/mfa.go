@@ -47,7 +47,7 @@ var promptWebauthn = wancli.Login
 // If promptDevicePrefix is set, it will be printed in prompts before "security
 // key" or "device". This is used to emphasize between different kinds of
 // devices, like registered vs new.
-func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge, promptDevicePrefix string) (*proto.MFAAuthenticateResponse, error) {
+func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge, promptDevicePrefix string, quiet bool) (*proto.MFAAuthenticateResponse, error) {
 	// Is there a challenge present?
 	if c.TOTP == nil && len(c.U2F) == 0 && c.WebauthnChallenge == nil {
 		return &proto.MFAAuthenticateResponse{}, nil
@@ -86,10 +86,12 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		go func() {
 			const kind = "TOTP"
 			var msg string
-			if hasNonTOTP {
-				msg = fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix)
-			} else {
-				msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
+			if !quiet {
+				if hasNonTOTP {
+					msg = fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix)
+				} else {
+					msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
+				}
 			}
 			code, err := promptOTP(ctx, os.Stderr, prompt.Stdin(), msg)
 			if err != nil {
@@ -105,7 +107,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 				},
 			}
 		}()
-	} else {
+	} else if !quiet {
 		fmt.Fprintf(os.Stderr, "Tap any %ssecurity key\n", promptDevicePrefix)
 	}
 
