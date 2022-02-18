@@ -1,5 +1,11 @@
 { pkgs ? import <nixpkgs> { }
-, pkgsUnstable ? import (builtins.fetchTarball "https://github.com/NixOS/nixpkgs/archive/48d63e924a2666baf37f4f14a18f19347fbd54a2.tar.gz") { }
+, pkgsUnstable ? import
+    (builtins.fetchTarball
+      {
+        url = "https://github.com/NixOS/nixpkgs/archive/48d63e924a2666baf37f4f14a18f19347fbd54a2.tar.gz";
+        sha256 = "0dcxc4yc2y5z08pmkmjws4ir0r2cbc5mha2a48bn0bk7nxc6wx8g";
+      })
+    { }
 , buildGoModule ? pkgs.buildGoModule
 }:
 let tdr = buildGoModule rec {
