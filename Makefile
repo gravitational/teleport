@@ -820,6 +820,8 @@ enter:
 grpc:
 	$(MAKE) -C build.assets grpc
 
+API_IMPORT_PATH := github.com/gravitational/teleport/api
+
 # proto file dependencies within the api module must be passed with the 'M' flag. This
 # way protoc generated files will use the correct api module import path in the case where
 # the import path has a version suffix, e.g. github.com/gravitational/teleport/api/v8
@@ -844,9 +846,6 @@ buildbox-grpc:
 		lib/events/slice.proto \
 		lib/multiplexer/test/ping.proto \
 		lib/web/envelope.proto
-
-# we eval within the make target to avoid invoking `go run` with every other call to the makefile
-	$(eval API_IMPORT_PATH := $(shell go run build.assets/gomod/print-import-path/main.go ./api))
 
 	cd api/client/proto && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
