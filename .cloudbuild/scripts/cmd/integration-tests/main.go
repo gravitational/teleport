@@ -70,9 +70,6 @@ func innerMain() error {
 		return nil
 	}
 
-	cancelCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	// From this point on, whatever happens we want to upload any artifacts
 	// produced by the build
 	defer func() {
