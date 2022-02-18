@@ -52,7 +52,7 @@ const (
 )
 
 // defaultDeviceTypes lists the supported device types for `tsh mfa add`.
-var defaultDeviceTypes = []string{totpDeviceType, u2fDeviceType, webauthnDeviceType}
+var defaultDeviceTypes = []string{totpDeviceType, webauthnDeviceType}
 
 type mfaCommands struct {
 	ls  *mfaLSCommand
