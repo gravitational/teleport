@@ -26,6 +26,11 @@ limitations under the License.
 #include <stdlib.h>
 #include <limits.h>
 
+// Sometimes the _UTMP_PATH and _WTMP_PATH macros from glibc are bad, this seems to depend on distro.
+// I asked around on IRC, no one really knows why. I suspect it's another
+// archaic remnant of old Unix days and that a cleanup is long overdue.
+//
+// In the meantime, we just try to resolve from these paths instead.
 #define UACC_UTMP_PATH "/var/run/utmp"
 #define UACC_WTMP_PATH "/var/run/wtmp"
 
