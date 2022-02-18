@@ -142,6 +142,7 @@ func (h *Handler) createDesktopConnection(
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer pc.Close()
 
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
