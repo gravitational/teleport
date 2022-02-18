@@ -96,6 +96,54 @@ func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, s
 	s.emit(ctx, event)
 }
 
+func (s *WindowsService) onClipboardSend(ctx context.Context, id *tlsca.Identity, sessionID string, desktopAddr string, length int32) {
+	event := &events.DesktopClipboardSend{
+		Metadata: events.Metadata{
+			Type:        libevents.DesktopClipboardSendEvent,
+			Code:        libevents.DesktopClipboardSendCode,
+			ClusterName: s.clusterName,
+			Time:        s.cfg.Clock.Now().UTC(),
+		},
+		UserMetadata: id.GetUserMetadata(),
+		SessionMetadata: events.SessionMetadata{
+			SessionID: sessionID,
+			WithMFA:   id.MFAVerified,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			LocalAddr:  id.ClientIP,
+			RemoteAddr: desktopAddr,
+			Protocol:   libevents.EventProtocolTDP,
+		},
+		DesktopAddr: desktopAddr,
+		Length:      length,
+	}
+	s.emit(ctx, event)
+}
+
+func (s *WindowsService) onClipboardReceive(ctx context.Context, id *tlsca.Identity, sessionID string, desktopAddr string, length int32) {
+	event := &events.DesktopClipboardReceive{
+		Metadata: events.Metadata{
+			Type:        libevents.DesktopClipboardReceiveEvent,
+			Code:        libevents.DesktopClipboardReceiveCode,
+			ClusterName: s.clusterName,
+			Time:        s.cfg.Clock.Now().UTC(),
+		},
+		UserMetadata: id.GetUserMetadata(),
+		SessionMetadata: events.SessionMetadata{
+			SessionID: sessionID,
+			WithMFA:   id.MFAVerified,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			LocalAddr:  id.ClientIP,
+			RemoteAddr: desktopAddr,
+			Protocol:   libevents.EventProtocolTDP,
+		},
+		DesktopAddr: desktopAddr,
+		Length:      length,
+	}
+	s.emit(ctx, event)
+}
+
 func (s *WindowsService) emit(ctx context.Context, event events.AuditEvent) {
 	if err := s.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
 		s.cfg.Log.WithError(err).Errorf("Failed to emit audit event %v", event)

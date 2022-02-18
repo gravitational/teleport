@@ -38,6 +38,7 @@ var computerAttribtes = []string{
 	attrObjectGUID,
 	attrOS,
 	attrOSVersion,
+	attrPrimaryGroupID,
 }
 
 const (
@@ -48,11 +49,16 @@ const (
 	// gmsaClass is the object class for group managed service accounts in Active Directory.
 	gmsaClass = "msDS-GroupManagedServiceAccount"
 
-	attrName        = "name"
-	attrDNSHostName = "dNSHostName" // unusual capitalization is correct
-	attrObjectGUID  = "objectGUID"
-	attrOS          = "operatingSystem"
-	attrOSVersion   = "operatingSystemVersion"
+	// See: https://docs.microsoft.com/en-US/windows/security/identity-protection/access-control/security-identifiers
+	writableDomainControllerGroupID = "516"
+	readOnlyDomainControllerGroupID = "521"
+
+	attrName           = "name"
+	attrDNSHostName    = "dNSHostName" // unusual capitalization is correct
+	attrObjectGUID     = "objectGUID"
+	attrOS             = "operatingSystem"
+	attrOSVersion      = "operatingSystemVersion"
+	attrPrimaryGroupID = "primaryGroupID"
 )
 
 // startDesktopDiscovery starts fetching desktops from LDAP, periodically
@@ -163,21 +169,32 @@ func (s *WindowsService) upsertDesktop(ctx context.Context, r types.ResourceWith
 }
 
 func (s *WindowsService) deleteDesktop(ctx context.Context, r types.ResourceWithLabels) error {
-	return s.cfg.AuthClient.DeleteWindowsDesktop(ctx, r.GetName())
+	d, ok := r.(types.WindowsDesktop)
+	if !ok {
+		return trace.Errorf("delete: expected a WindowsDesktop, got %T", r)
+	}
+	return s.cfg.AuthClient.DeleteWindowsDesktop(ctx, d.GetHostID(), d.GetName())
+}
+
+func applyLabelsFromLDAP(entry *ldap.Entry, labels map[string]string) {
+	labels["teleport.dev/dns_host_name"] = entry.GetAttributeValue(attrDNSHostName)
+	labels["teleport.dev/computer_name"] = entry.GetAttributeValue(attrName)
+	labels["teleport.dev/os"] = entry.GetAttributeValue(attrOS)
+	labels["teleport.dev/os_version"] = entry.GetAttributeValue(attrOSVersion)
+	labels[types.OriginLabel] = types.OriginDynamic
+	switch entry.GetAttributeValue(attrPrimaryGroupID) {
+	case writableDomainControllerGroupID, readOnlyDomainControllerGroupID:
+		labels["teleport.dev/is_domain_controller"] = "true"
+	}
 }
 
 // ldapEntryToWindowsDesktop generates the Windows Desktop resource
 // from an LDAP search result
 func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.ResourceWithLabels, error) {
 	hostname := entry.GetAttributeValue(attrDNSHostName)
-
 	labels := getHostLabels(hostname)
-	labels["teleport.dev/dns_host_name"] = hostname
-	labels["teleport.dev/computer_name"] = entry.GetAttributeValue(attrName)
-	labels["teleport.dev/os"] = entry.GetAttributeValue(attrOS)
-	labels["teleport.dev/os_version"] = entry.GetAttributeValue(attrOSVersion)
 	labels["teleport.dev/windows_domain"] = s.cfg.Domain
-	labels[types.OriginLabel] = types.OriginDynamic
+	applyLabelsFromLDAP(entry, labels)
 
 	addrs, err := s.dnsResolver.LookupHost(ctx, hostname)
 	if err != nil || len(addrs) == 0 {
@@ -198,6 +215,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 		types.WindowsDesktopSpecV3{
 			Addr:   addr.String(),
 			Domain: s.cfg.Domain,
+			HostID: s.cfg.Heartbeat.HostUUID,
 		},
 	)
 	if err != nil {

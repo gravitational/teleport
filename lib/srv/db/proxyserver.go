@@ -34,6 +34,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -208,8 +210,14 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 
 // ServeMongo starts accepting Mongo client connections.
 func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) error {
-	s.log.Debug("Started Mongo proxy.")
-	defer s.log.Debug("Mongo proxy exited.")
+	return s.serveGenericTLS(listener, tlsConfig, defaults.ProtocolMongoDB)
+}
+
+// serveGenericTLS starts accepting a plain TLS database client connection.
+// dbName is used only for logging purposes.
+func (s *ProxyServer) serveGenericTLS(listener net.Listener, tlsConfig *tls.Config, dbName string) error {
+	s.log.Debugf("Started %s proxy.", dbName)
+	defer s.log.Debugf("%s proxy exited.", dbName)
 	for {
 		clientConn, err := listener.Accept()
 		if err != nil {
@@ -218,16 +226,17 @@ func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) e
 			}
 			return trace.Wrap(err)
 		}
+
 		go func() {
 			defer clientConn.Close()
 			tlsConn := tls.Server(clientConn, tlsConfig)
 			if err := tlsConn.Handshake(); err != nil {
-				s.log.WithError(err).Error("Mongo TLS handshake failed.")
+				s.log.WithError(err).Errorf("%s TLS handshake failed.", dbName)
 				return
 			}
 			err := s.handleConnection(tlsConn)
 			if err != nil {
-				s.log.WithError(err).Error("Failed to handle Mongo client connection.")
+				s.log.WithError(err).Errorf("Failed to handle %s client connection.", dbName)
 			}
 		}()
 	}
@@ -261,31 +270,32 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	if !ok {
 		return trace.BadParameter("expected *tls.Conn, got %T", conn)
 	}
-	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, tlsConn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	clientIP, err := utils.ClientIPFromConn(conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	// Apply connection and rate limiting.
 	release, err := s.cfg.Limiter.RegisterRequestAndConnection(clientIP)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer release()
-
-	serviceConn, authContext, err := s.Connect(ctx, common.ConnectParams{
+	proxyCtx, err := s.Authorize(s.closeCtx, tlsConn, common.ConnectParams{
 		ClientIP: clientIP,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	switch proxyCtx.Identity.RouteToDatabase.Protocol {
+	case defaults.ProtocolSQLServer:
+		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
+	}
+	serviceConn, err := s.Connect(s.closeCtx, proxyCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	defer serviceConn.Close()
-	err = s.Proxy(ctx, authContext, tlsConn, serviceConn)
+	err = s.Proxy(s.closeCtx, proxyCtx, tlsConn, serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -314,6 +324,21 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 	}
 }
 
+// SQLServerProxy returns a new instance of the SQL Server protocol aware proxy.
+func (s *ProxyServer) SQLServerProxy() *sqlserver.Proxy {
+	// SQL Server clients don't support client certificates, connections
+	// come over TLS routing tunnel.
+	tlsConf := s.cfg.TLSConfig.Clone()
+	tlsConf.ClientAuth = tls.NoClientCert
+	tlsConf.GetConfigForClient = nil
+	return &sqlserver.Proxy{
+		TLSConfig:  tlsConf,
+		Middleware: s.middleware,
+		Service:    s,
+		Log:        s.log,
+	}
+}
+
 // Connect connects to the database server running on a remote cluster
 // over reverse tunnel and upgrades this end of the connection to TLS so
 // the identity can be passed over it.
@@ -322,24 +347,20 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 // decoded from the client certificate by auth.Middleware.
 //
 // Implements common.Service.
-func (s *ProxyServer) Connect(ctx context.Context, params common.ConnectParams) (net.Conn, *auth.Context, error) {
-	proxyContext, err := s.authorize(ctx, params)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext) (net.Conn, error) {
 	// There may be multiple database servers proxying the same database. If
 	// we get a connection problem error trying to dial one of them, likely
 	// the database server is down so try the next one.
-	for _, server := range s.cfg.Shuffle(proxyContext.servers) {
+	for _, server := range s.cfg.Shuffle(proxyCtx.Servers) {
 		s.log.Debugf("Dialing to %v.", server)
-		tlsConfig, err := s.getConfigForServer(ctx, proxyContext.identity, server)
+		tlsConfig, err := s.getConfigForServer(ctx, proxyCtx.Identity, server)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
-		serviceConn, err := proxyContext.cluster.Dial(reversetunnel.DialParams{
+		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnel.DialParams{
 			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@db-proxy"},
 			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
-			ServerID: fmt.Sprintf("%v.%v", server.GetHostID(), proxyContext.cluster.GetName()),
+			ServerID: fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
 			ConnType: types.DatabaseTunnel,
 		})
 		if err != nil {
@@ -348,34 +369,34 @@ func (s *ProxyServer) Connect(ctx context.Context, params common.ConnectParams) 
 				s.log.WithError(err).Warnf("Failed to dial %v.", server)
 				continue
 			}
-			return nil, nil, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		// Upgrade the connection so the client identity can be passed to the
 		// remote server during TLS handshake. On the remote side, the connection
 		// received from the reverse tunnel will be handled by tls.Server.
 		serviceConn = tls.Client(serviceConn, tlsConfig)
-		return serviceConn, proxyContext.authContext, nil
+		return serviceConn, nil
 	}
-	return nil, nil, trace.BadParameter("failed to connect to any of the database servers")
+	return nil, trace.BadParameter("failed to connect to any of the database servers")
 }
 
 // Proxy starts proxying all traffic received from database client between
 // this proxy and Teleport database service over reverse tunnel.
 //
 // Implements common.Service.
-func (s *ProxyServer) Proxy(ctx context.Context, authContext *auth.Context, clientConn, serviceConn net.Conn) error {
+func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, clientConn, serviceConn net.Conn) error {
 	// Wrap a client connection into monitor that auto-terminates
 	// idle connection and connection with expired cert.
 	tc, err := monitorConn(ctx, monitorConnConfig{
 		conn:         clientConn,
 		lockWatcher:  s.cfg.LockWatcher,
-		lockTargets:  authContext.LockTargets(),
-		identity:     authContext.Identity.GetIdentity(),
-		checker:      authContext.Checker,
+		lockTargets:  proxyCtx.AuthContext.LockTargets(),
+		identity:     proxyCtx.AuthContext.Identity.GetIdentity(),
+		checker:      proxyCtx.AuthContext.Checker,
 		clock:        s.cfg.Clock,
 		serverID:     s.cfg.ServerID,
 		authClient:   s.cfg.AuthClient,
-		teleportUser: authContext.Identity.GetIdentity().Username,
+		teleportUser: proxyCtx.AuthContext.Identity.GetIdentity().Username,
 		emitter:      s.cfg.Emitter,
 		log:          s.log,
 		ctx:          s.closeCtx,
@@ -483,19 +504,12 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 	return tc, nil
 }
 
-// proxyContext contains parameters for a database session being proxied.
-type proxyContext struct {
-	// identity is the authorized client identity.
-	identity tlsca.Identity
-	// cluster is the remote cluster running the database server.
-	cluster reversetunnel.RemoteSite
-	// servers is a list of database servers that proxy the requested database.
-	servers []types.DatabaseServer
-	// authContext is a context of authenticated user.
-	authContext *auth.Context
-}
-
-func (s *ProxyServer) authorize(ctx context.Context, params common.ConnectParams) (*proxyContext, error) {
+// Authorize authorizes the provided client TLS connection.
+func (s *ProxyServer) Authorize(ctx context.Context, tlsConn *tls.Conn, params common.ConnectParams) (*common.ProxyContext, error) {
+	ctx, err := s.middleware.WrapContextWithUser(ctx, tlsConn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	authContext, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -514,11 +528,11 @@ func (s *ProxyServer) authorize(ctx context.Context, params common.ConnectParams
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &proxyContext{
-		identity:    identity,
-		cluster:     cluster,
-		servers:     servers,
-		authContext: authContext,
+	return &common.ProxyContext{
+		Identity:    identity,
+		Cluster:     cluster,
+		Servers:     servers,
+		AuthContext: authContext,
 	}, nil
 }
 
