@@ -101,8 +101,9 @@ var (
 
 	auditEmitEvent = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "audit_emit_events",
-			Help: "Number of audit events emitted",
+			Namespace: teleport.MetricNamespace,
+			Name:      "audit_emit_events",
+			Help:      "Number of audit events emitted",
 		},
 	)
 
