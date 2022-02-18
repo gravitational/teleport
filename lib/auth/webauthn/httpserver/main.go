@@ -232,7 +232,7 @@ func (s *server) register1(w http.ResponseWriter, r *http.Request) {
 	var authResp *proto.MFAAuthenticateResponse
 	challenge := resp.GetExistingMFAChallenge()
 	switch {
-	case challenge.GetTOTP() == nil && challenge.GetU2F() == nil && challenge.GetWebauthnChallenge() == nil: // aka empty challenge
+	case challenge.GetTOTP() == nil && challenge.GetWebauthnChallenge() == nil: // aka empty challenge
 		authResp = &proto.MFAAuthenticateResponse{}
 	case challenge.GetTOTP() != nil:
 		authResp = &proto.MFAAuthenticateResponse{
