@@ -517,6 +517,21 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("kubernetes service %v has been deleted\n", rc.ref.Name)
+	case services.KindCertAuthority:
+		if rc.ref.SubKind == "" || rc.ref.Name == "" {
+			return trace.BadParameter(
+				"full %s path must be specified (e.g. '%s/%s/clustername')",
+				services.KindCertAuthority, services.KindCertAuthority, services.HostCA,
+			)
+		}
+		err := client.DeleteCertAuthority(services.CertAuthID{
+			Type:       services.CertAuthType(rc.ref.SubKind),
+			DomainName: rc.ref.Name,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("%s '%s/%s' has been deleted\n", services.KindCertAuthority, rc.ref.SubKind, rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
