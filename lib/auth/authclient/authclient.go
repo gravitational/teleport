@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package authclient contains common code for creating an auth server client
-// which may use SSH tunnelling through a proxy.
+// which may use SSH tunneling through a proxy.
 package authclient
 
 import (
