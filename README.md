@@ -187,14 +187,8 @@ to work. For installation instructions, read the [GitHub CLI installation](https
 
 ### Updating Documentation
 
-TL;DR version:
-
-```bash
-make docs
-make run-docs
-```
-
-For more details, read the [docs/README](docs/README.md) file.
+Teleport docs are built using [next](https://github.com/gravitational/next). Please see the README in that repo
+for details on how to make and test changes to Teleport docs.
 
 ### Managing dependencies
 
