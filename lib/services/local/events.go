@@ -1187,7 +1187,19 @@ type windowsDesktopsParser struct {
 func (p *windowsDesktopsParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindWindowsDesktop, types.V3, 0)
+		hostID, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindWindowsDesktop,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:        name,
+				Namespace:   apidefaults.Namespace,
+				Description: hostID, // pass ID via description field for the cache
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalWindowsDesktop(
 			event.Item.Value,

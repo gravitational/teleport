@@ -24,6 +24,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
@@ -35,11 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/trace"
-
-	"github.com/stretchr/testify/require"
 )
 
 // ports contains tcp ports allocated for all integration tests.
@@ -352,6 +351,9 @@ func TestHSMRotation(t *testing.T) {
 	log.Debug("TestHSMRotation: starting proxy")
 	proxy := newTeleportService(newProxyConfig(ctx, t, authConfig.Auth.SSHAddr, log), "proxy")
 	require.NoError(t, proxy.waitForStart(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, proxy.process.Close())
+	})
 	teleportServices = append(teleportServices, proxy)
 
 	log.Debug("TestHSMRotation: sending rotation request init")
@@ -456,6 +458,9 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	proxyConfig := newProxyConfig(ctx, t, *authAddr, log)
 	proxy := newTeleportService(proxyConfig, "proxy")
 	require.NoError(t, proxy.waitForStart(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, proxy.process.Close())
+	})
 	teleportServices = append(teleportServices, proxy)
 
 	// add a new auth server

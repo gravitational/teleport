@@ -75,8 +75,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump := app.Command("configure", "Generate a simple config file to get started.")
 	ver := app.Command("version", "Print the version.")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
-	exec := app.Command("exec", "Used internally by Teleport to re-exec itself to run a command.").Hidden()
-	forward := app.Command("forward", "Used internally by Teleport to re-exec itself to port forward.").Hidden()
+	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
+	forward := app.Command(teleport.ForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
+	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
@@ -203,6 +204,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbStartCmd.Flag("aws-rds-cluster-id", "(Only for Aurora) Aurora cluster identifier.").StringVar(&ccf.DatabaseAWSRDSClusterID)
 	dbStartCmd.Flag("gcp-project-id", "(Only for Cloud SQL) GCP Cloud SQL project identifier.").StringVar(&ccf.DatabaseGCPProjectID)
 	dbStartCmd.Flag("gcp-instance-id", "(Only for Cloud SQL) GCP Cloud SQL instance identifier.").StringVar(&ccf.DatabaseGCPInstanceID)
+	dbStartCmd.Flag("ad-keytab-file", "(Only for SQL Server) Kerberos keytab file.").StringVar(&ccf.DatabaseADKeytabFile)
+	dbStartCmd.Flag("ad-krb5-file", "(Only for SQL Server) Kerberos krb5.conf file.").Default(defaults.Krb5FilePath).StringVar(&ccf.DatabaseADKrb5File)
+	dbStartCmd.Flag("ad-domain", "(Only for SQL Server) Active Directory domain.").StringVar(&ccf.DatabaseADDomain)
+	dbStartCmd.Flag("ad-spn", "(Only for SQL Server) Service Principal Name for Active Directory auth.").StringVar(&ccf.DatabaseADSPN)
 	dbStartCmd.Flag("diag-addr", "Start diagnostic prometheus and healthz endpoint.").StringVar(&ccf.DiagnosticAddr)
 	dbStartCmd.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
 	dbStartCmd.Alias(dbUsageExamples) // We're using "alias" section to display usage examples.
@@ -296,6 +301,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onExec()
 	case forward.FullCommand():
 		err = onForward()
+	case checkHomeDir.FullCommand():
+		err = onCheckHome()
 	case ver.FullCommand():
 		utils.PrintVersion()
 	case dbConfigureCreate.FullCommand():
@@ -575,6 +582,14 @@ func onExec() error {
 // Used with "direct-tcpip" channel on Teleport nodes.
 func onForward() error {
 	srv.RunAndExit(teleport.ForwardSubCommand)
+	return nil
+}
+
+// onCheckHome is a subcommand used to re-execute Teleport to check for the
+// existence of the user's home dir. This is needed in cases where the user's
+// home dir isn't visible to the parent process's user.
+func onCheckHome() error {
+	srv.RunAndExit(teleport.CheckHomeDirSubCommand)
 	return nil
 }
 
