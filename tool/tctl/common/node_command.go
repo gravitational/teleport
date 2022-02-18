@@ -63,6 +63,9 @@ type NodeCommand struct {
 	// ls output format -- text or json
 	lsFormat string
 
+	// verbose sets whether full table output should be shown for labels
+	verbose bool
+
 	// CLI subcommands (clauses)
 	nodeAdd  *kingpin.CmdClause
 	nodeList *kingpin.CmdClause
@@ -84,6 +87,7 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.nodeList = nodes.Command("ls", "List all active SSH nodes within the cluster")
 	c.nodeList.Flag("namespace", "Namespace of the nodes").Default(apidefaults.Namespace).StringVar(&c.namespace)
 	c.nodeList.Flag("format", "Output format, 'text', or 'yaml'").Default("text").StringVar(&c.lsFormat)
+	c.nodeList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
 	c.nodeList.Alias(ListNodesHelp)
 	c.nodeList.Arg("labels", labelHelp).StringVar(&c.labels)
 	c.nodeList.Flag("search", searchHelp).StringVar(&c.searchKeywords)
@@ -242,7 +246,7 @@ func (c *NodeCommand) ListActive(clt auth.ClientI) error {
 	coll := &serverCollection{servers: nodes}
 	switch c.lsFormat {
 	case "text":
-		if err := coll.writeText(os.Stdout); err != nil {
+		if err := coll.writeText(c.verbose, os.Stdout); err != nil {
 			return trace.Wrap(err)
 		}
 	case "yaml":
