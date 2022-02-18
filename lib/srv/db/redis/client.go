@@ -22,6 +22,7 @@ package redis
 import (
 	"context"
 	"crypto/tls"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -31,7 +32,7 @@ import (
 
 // Commands with additional processing in Teleport when using cluster mode.
 const (
-	mulitCmd    = "multi"
+	multiCmd    = "multi"
 	execCmd     = "exec"
 	watchCmd    = "watch"
 	dbsizeCmd   = "dbsize"
@@ -47,7 +48,7 @@ type clusterClient struct {
 	redis.ClusterClient
 }
 
-// newClient creates a new Redis client base on given ConnectionMode. If connection mode is not supported
+// newClient creates a new Redis client based on given ConnectionMode. If connection mode is not supported
 // an error is returned.
 func newClient(ctx context.Context, mode ConnectionMode, addr string, tlsConfig *tls.Config) (redis.UniversalClient, error) {
 	// TODO(jakub): Use system CA bundle if connecting to AWS.
@@ -75,15 +76,17 @@ func newClient(ctx context.Context, mode ConnectionMode, addr string, tlsConfig 
 	}
 }
 
-// Process add supports for additional cluster commands.
+// Process add supports for additional cluster commands. Our Redis implementation passes most commands to
+// go-redis `Process()` function which doesn't handel all Cluster commands like for ex. DBSIZE, FLUSHDB, etc.
+// This "override" adds
 func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 	cmd, ok := inCmd.(*redis.Cmd)
 	if !ok {
-		return trace.BadParameter("failed to cast Redis command")
+		return trace.BadParameter("failed to cast Redis command type: %T", cmd)
 	}
 
 	switch cmdName := strings.ToLower(cmd.Name()); cmdName {
-	case mulitCmd, execCmd, watchCmd:
+	case multiCmd, execCmd, watchCmd:
 		// do not allow transaction commands as they always fail on exec.
 		return trace.NotImplemented("%s is not supported in the cluster mode", cmdName)
 	case dbsizeCmd:
@@ -98,6 +101,7 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 		var resultsKeys []string
 		var mtx sync.Mutex
 
+		// ForEachMaster is called in parallel, so locking inside is needed.
 		if err := c.ForEachMaster(ctx, func(ctx context.Context, client *redis.Client) error {
 			scanCmd := redis.NewScanCmd(ctx, client.Process, cmd.Args()...)
 			err := client.Process(ctx, scanCmd)
@@ -119,8 +123,8 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 			return trace.Wrap(err)
 		}
 
-		cmd := redis.NewCmd(ctx, cmd.Args())
-		cmd.SetVal(resultsKeys)
+		// TODO(jakule): rethink iterator issue.
+		cmd.SetVal([]interface{}{strconv.FormatInt(0, 10), resultsKeys})
 
 		return nil
 	case keysCmd:
@@ -157,15 +161,12 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 		}
 
 		var resultsKeys []interface{}
-		var mtx sync.Mutex
 
 		keys := cmd.Args()[1:]
 		for _, k := range keys {
 			result := c.Get(ctx, k.(string))
 			if result.Err() == redis.Nil {
-				mtx.Lock()
 				resultsKeys = append(resultsKeys, redis.Nil)
-				mtx.Unlock()
 				continue
 			}
 
@@ -174,20 +175,29 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 				return trace.Wrap(result.Err())
 			}
 
-			mtx.Lock()
 			resultsKeys = append(resultsKeys, result.Val())
-			mtx.Unlock()
 		}
 
 		cmd.SetVal(resultsKeys)
 
 		return nil
 	case flushallCmd, flushdbCmd:
+		var mtx sync.Mutex
+
 		if err := c.ForEachMaster(ctx, func(ctx context.Context, client *redis.Client) error {
 			singleCmd := redis.NewCmd(ctx, cmd.Args()...)
 			err := client.Process(ctx, singleCmd)
 			if err != nil {
 				return trace.Wrap(err)
+			}
+
+			mtx.Lock()
+			defer mtx.Unlock()
+
+			if cmd.Err() != nil {
+				// If other call have already set error do not erase it.
+				// It should be returned to the caller.
+				return nil
 			}
 
 			cmd.SetVal(singleCmd.Val())

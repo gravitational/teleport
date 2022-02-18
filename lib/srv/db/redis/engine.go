@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"net"
 
 	"github.com/go-redis/redis/v8"
@@ -149,7 +148,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
 	}
 
-	connectionAddr := fmt.Sprintf("%s:%s", connectionOptions.address, connectionOptions.port)
+	connectionAddr := net.JoinHostPort(connectionOptions.address, connectionOptions.port)
 	redisConn, err := newClient(ctx, connectionOptions.mode, connectionAddr, tlsConfig)
 	if err != nil {
 		return trace.Wrap(err)
