@@ -1701,8 +1701,9 @@ message RenewableCertificateGenerationMismatch {
     Metadata Metadata = 1
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
-    // Identity is the identity associated with the certificate, as interpreted by Teleport.
-    Identity Identity = 2 [ (gogoproto.jsontag) = "identity" ];
+    // UserMetadata is a common user event metadata.
+    UserMetadata UserMetadata = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
 // OneOf is a union of one of audit events submitted to the auth service

@@ -1831,21 +1831,18 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// The bot almost certainly lacks permission to create locks, so bypass
-		// RBAC.
-		if err := a.authServer.UpsertLock(context.Background(), lock); err != nil {
+		if err := a.UpsertLock(context.Background(), lock); err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Emit an audit event.
-		ident := a.context.Identity.GetIdentity()
-		eventIdent := ident.GetEventIdentity()
-		if a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &apievents.RenewableCertificateGenerationMismatch{
+		userMetadata := ClientUserMetadata(ctx)
+		if a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RenewableCertificateGenerationMismatch{
 			Metadata: apievents.Metadata{
 				Type: events.RenewableCertificateGenerationMismatchEvent,
 				Code: events.RenewableCertificateGenerationMismatchCode,
 			},
-			Identity: &eventIdent,
+			UserMetadata: userMetadata,
 		}); err != nil {
 			log.WithError(err).Warn("Failed to emit renewable cert generation mismatch event")
 		}
