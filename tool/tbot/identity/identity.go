@@ -341,6 +341,7 @@ func ReadSSHIdentityFromKeyPair(keyBytes, publicKeyBytes, certBytes []byte) (*Id
 	}, nil
 }
 
+// SaveIdentity saves a bot identity to a destination.
 func SaveIdentity(id *Identity, d destination.Destination) error {
 	for _, data := range []struct {
 		name     string
@@ -362,8 +363,8 @@ func SaveIdentity(id *Identity, d destination.Destination) error {
 	return nil
 }
 
+// LoadIdentity loads a bot identity from a destination.
 func LoadIdentity(d destination.Destination) (*Identity, error) {
-	// TODO: encode the whole thing using the identityfile package?
 	var key, sshPublicKey, tlsCA, sshCA []byte
 	var certs proto.Certs
 	var err error
