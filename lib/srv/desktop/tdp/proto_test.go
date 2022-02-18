@@ -31,6 +31,9 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	authproto "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 func TestEncodeDecode(t *testing.T) {
@@ -125,4 +128,26 @@ func loadBitmaps(b *testing.B) []PNGFrame {
 	}
 	require.NoError(b, s.Err())
 	return result
+}
+
+func TestMFA(t *testing.T) {
+	var buff bytes.Buffer
+	c := NewConn(&buff)
+	respWant := &MFA{
+		Type: defaults.WebsocketU2FChallenge[0],
+		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
+			Response: &authproto.MFAAuthenticateResponse_U2F{
+				U2F: &authproto.U2FResponse{
+					KeyHandle:  "key_handler",
+					ClientData: "client_data",
+					Signature:  "signature",
+				},
+			},
+		},
+	}
+	err := c.OutputMessage(respWant)
+	require.NoError(t, err)
+	respGot, err := c.InputMessage()
+	require.NoError(t, err)
+	require.Equal(t, respWant, respGot)
 }

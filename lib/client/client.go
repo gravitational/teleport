@@ -439,6 +439,12 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	//TODO delete CI debug log
+	buff, err := json.MarshalIndent(mfaResp, " ", " ")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Warnf("Got challange from client MFA %q \n", string(buff))
 	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: mfaResp}})
 	if err != nil {
 		return nil, trace.Wrap(err)

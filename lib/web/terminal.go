@@ -404,6 +404,7 @@ func promptMFAChallenge(
 			return nil, trace.BadParameter("expected websocket.BinaryMessage, got %v", ty)
 		}
 
+		log.Warn("MYDEBUG got bytes to decode to TDP mesasge: %q", string(bytes))
 		return codec.decode(bytes, envelopeType)
 	}
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -42,18 +43,21 @@ func Decode(b []byte, typ string) (*authproto.MFAAuthenticateResponse, error) {
 				Webauthn: wanlib.CredentialAssertionResponseToProto(&webauthnResponse),
 			},
 		}
-	case defaults.WebsocketU2FChallenge:
-		var u2fResponse authproto.U2FResponse
+
+	default:
+		var u2fResponse u2f.AuthenticateChallengeResponse
 		if err := json.Unmarshal(b, &u2fResponse); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		resp = &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_U2F{
-				U2F: &u2fResponse,
+				U2F: &authproto.U2FResponse{
+					KeyHandle:  u2fResponse.KeyHandle,
+					ClientData: u2fResponse.ClientData,
+					Signature:  u2fResponse.SignatureData,
+				},
 			},
 		}
-	default:
-		return nil, trace.BadParameter("unsupported change type %q", typ)
 	}
 
 	return resp, nil

@@ -31,11 +31,16 @@ import (
 	"io"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/web/mfajson"
+
+	//wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // MessageType identifies the type of the message.
@@ -463,6 +468,7 @@ type MFA struct {
 	// MFAAuthenticateResponse is the response to the MFA challenge,
 	// sent from the browser to Teleport.
 	*authproto.MFAAuthenticateResponse
+	u2f.AuthenticateChallengeResponse
 }
 
 func (m MFA) Encode() ([]byte, error) {
@@ -472,6 +478,7 @@ func (m MFA) Encode() ([]byte, error) {
 	var buff []byte
 	var err error
 
+	log.Debug("MYDEBUG  ->>>> send buff 111 ")
 	if m.MFAAuthenticateChallenge != nil {
 		buff, err = json.Marshal(m.MFAAuthenticateChallenge)
 		if err != nil {
@@ -480,12 +487,18 @@ func (m MFA) Encode() ([]byte, error) {
 	} else if m.MFAAuthenticateResponse != nil {
 		switch t := m.MFAAuthenticateResponse.Response.(type) {
 		case *authproto.MFAAuthenticateResponse_U2F:
-			buff, err = json.Marshal(m.MFAAuthenticateResponse.GetU2F())
+			msg := m.MFAAuthenticateResponse.GetU2F()
+			resp := u2f.AuthenticateChallengeResponse{
+				KeyHandle:     msg.KeyHandle,
+				SignatureData: msg.Signature,
+				ClientData:    msg.ClientData,
+			}
+			buff, err = json.Marshal(resp)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 		case *authproto.MFAAuthenticateResponse_Webauthn:
-			buff, err = json.Marshal(m.MFAAuthenticateResponse.GetWebauthn())
+			buff, err = json.Marshal(wanlib.CredentialAssertionResponseFromProto(m.MFAAuthenticateResponse.GetWebauthn()))
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -500,6 +513,7 @@ func (m MFA) Encode() ([]byte, error) {
 		return nil, trace.BadParameter("mfa challenge data exceeds maximum length")
 	}
 	binary.Write(buf, binary.BigEndian, uint32(len(buff)))
+	log.Debug("MYDEBUG  ->>>> send buff ", string(buff))
 	buf.Write(buff)
 	return buf.Bytes(), nil
 }
