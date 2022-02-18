@@ -5,9 +5,11 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/suite"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -80,6 +82,113 @@ func TestRemoteClusterStatus(t *testing.T) {
 	gotRC.SetResourceID(0)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(rc, gotRC))
+}
+
+func TestValidateTrustedCluster(t *testing.T) {
+	const localClusterName = "localcluster"
+	const validToken = "validtoken"
+
+	testAuth, err := NewTestAuthServer(TestAuthServerConfig{
+		ClusterName: localClusterName,
+		Dir:         t.TempDir(),
+	})
+	require.NoError(t, err)
+	a := testAuth.AuthServer
+
+	tks, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
+			Roles: []types.SystemRole{types.RoleTrustedCluster},
+			Token: validToken,
+		}},
+	})
+	require.NoError(t, err)
+	a.SetStaticTokens(tks)
+
+	_, err = a.validateTrustedCluster(&ValidateTrustedClusterRequest{
+		Token: "invalidtoken",
+		CAs:   []types.CertAuthority{},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid cluster token")
+
+	_, err = a.validateTrustedCluster(&ValidateTrustedClusterRequest{
+		Token: validToken,
+		CAs:   []types.CertAuthority{},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "expected exactly one")
+
+	_, err = a.validateTrustedCluster(&ValidateTrustedClusterRequest{
+		Token: validToken,
+		CAs: []types.CertAuthority{
+			suite.NewTestCA(types.HostCA, "rc1"),
+			suite.NewTestCA(types.HostCA, "rc2"),
+		},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "expected exactly one")
+
+	_, err = a.validateTrustedCluster(&ValidateTrustedClusterRequest{
+		Token: validToken,
+		CAs: []types.CertAuthority{
+			suite.NewTestCA(types.UserCA, "rc3"),
+		},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "expected host certificate authority")
+
+	_, err = a.validateTrustedCluster(&ValidateTrustedClusterRequest{
+		Token: validToken,
+		CAs: []types.CertAuthority{
+			suite.NewTestCA(types.HostCA, localClusterName),
+		},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "same name as this cluster")
+
+	leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "rc4"))
+	resp, err := a.validateTrustedCluster(&ValidateTrustedClusterRequest{
+		Token: validToken,
+		CAs:   []types.CertAuthority{leafClusterCA},
+	})
+	require.NoError(t, err)
+
+	require.Len(t, resp.CAs, 2)
+	require.ElementsMatch(t,
+		[]types.CertAuthType{types.HostCA, types.UserCA},
+		[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType()},
+	)
+
+	for _, returnedCA := range resp.CAs {
+		localCA, err := a.GetCertAuthority(types.CertAuthID{
+			Type:       returnedCA.GetType(),
+			DomainName: localClusterName,
+		}, false)
+		require.NoError(t, err)
+		require.True(t, services.CertAuthoritiesEquivalent(localCA, returnedCA))
+	}
+
+	rcs, err := a.GetRemoteClusters()
+	require.NoError(t, err)
+	require.Len(t, rcs, 1)
+	require.Equal(t, leafClusterCA.GetName(), rcs[0].GetName())
+
+	hostCAs, err := a.GetCertAuthorities(types.HostCA, false)
+	require.NoError(t, err)
+	require.Len(t, hostCAs, 2)
+	require.ElementsMatch(t,
+		[]string{localClusterName, leafClusterCA.GetName()},
+		[]string{hostCAs[0].GetName(), hostCAs[1].GetName()},
+	)
+	require.Empty(t, hostCAs[0].GetRoles())
+	require.Empty(t, hostCAs[0].GetRoleMap())
+	require.Empty(t, hostCAs[1].GetRoles())
+	require.Empty(t, hostCAs[1].GetRoleMap())
+
+	userCAs, err := a.GetCertAuthorities(types.UserCA, false)
+	require.NoError(t, err)
+	require.Len(t, userCAs, 1)
+	require.Equal(t, localClusterName, userCAs[0].GetName())
 }
 
 func newTestAuthServer(t *testing.T, name ...string) *Server {
