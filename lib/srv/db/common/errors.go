@@ -19,6 +19,8 @@ package common
 import (
 	"net/http"
 
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
@@ -53,7 +55,7 @@ func ConvertError(err error) error {
 	case *googleapi.Error:
 		return convertGCPError(e)
 	case awserr.RequestFailure:
-		return convertAWSRequestFailureError(e)
+		return awslib.ConvertRequestFailureError(e)
 	case *pgconn.PgError:
 		return convertPostgresError(e)
 	case *mysql.MyError:
@@ -69,19 +71,6 @@ func convertGCPError(err *googleapi.Error) error {
 		return trace.AccessDenied(err.Error())
 	case http.StatusConflict:
 		return trace.CompareFailed(err.Error())
-	}
-	return err // Return unmodified.
-}
-
-// convertAWSRequestFailureError converts AWS RequestFailure errors to trace errors.
-func convertAWSRequestFailureError(err awserr.RequestFailure) error {
-	switch err.StatusCode() {
-	case http.StatusForbidden:
-		return trace.AccessDenied(err.Error())
-	case http.StatusConflict:
-		return trace.AlreadyExists(err.Error())
-	case http.StatusNotFound:
-		return trace.NotFound(err.Error())
 	}
 	return err // Return unmodified.
 }
