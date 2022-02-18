@@ -128,7 +128,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.withAuth(srv.authenticateSSHUser))
 	srv.GET("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.getWebSession))
 	srv.DELETE("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.deleteWebSession))
-	srv.POST("/:version/web/password/token", srv.withRate(srv.withAuth(srv.changePasswordWithToken)))
 
 	// Servers and presence heartbeat
 	srv.POST("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNode))
@@ -225,12 +224,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/github/connectors/:id", srv.withAuth(srv.deleteGithubConnector))
 	srv.POST("/:version/github/requests/create", srv.withAuth(srv.createGithubAuthRequest))
 	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
-
-	// U2F
-	// DELETE IN 9.x, superseded by /mfa/ endpoints (codingllama)
-	srv.GET("/:version/u2f/signuptokens/:token", srv.withAuth(srv.getSignupU2FRegisterRequest))
-	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.mfaLoginBegin))
-	srv.GET("/:version/u2f/appid", srv.withAuth(srv.getU2FAppID))
 
 	// Generic MFA and WebAuthn
 	srv.POST("/:version/mfa/users/:user/login/begin", srv.withAuth(srv.mfaLoginBegin))
@@ -1164,58 +1157,6 @@ func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *htt
 	return localCA, nil
 }
 
-// DELETE IN 9.0.0: defined in grpcserver "ChangeUserAuthentication", kept for fallback.
-func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req ChangePasswordWithTokenRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	protoReq := &proto.ChangeUserAuthenticationRequest{
-		TokenID:     req.TokenID,
-		NewPassword: req.Password,
-	}
-
-	if req.U2FRegisterResponse != nil {
-		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
-			U2F: &proto.U2FRegisterResponse{
-				RegistrationData: req.U2FRegisterResponse.RegistrationData,
-				ClientData:       req.U2FRegisterResponse.ClientData,
-			},
-		}}
-	}
-
-	if req.SecondFactorToken != "" {
-		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
-			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
-		}}
-	}
-
-	res, err := auth.ChangeUserAuthentication(r.Context(), protoReq)
-	if err != nil {
-		log.Debugf("Failed to change user password with token: %v.", err)
-		return nil, trace.Wrap(err)
-	}
-
-	return rawMessage(services.MarshalWebSession(res.WebSession, services.WithVersion(version)))
-}
-
-// getU2FAppID returns the U2F AppID in the auth configuration
-func (s *APIServer) getU2FAppID(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cap, err := auth.GetAuthPreference(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	universalSecondFactor, err := cap.GetU2F()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	w.Header().Set("Content-Type", "application/fido.trusted-apps+json")
-	return universalSecondFactor.AppID, nil
-}
-
 func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	id := types.CertAuthID{
 		DomainName: p.ByName("domain"),
@@ -1301,24 +1242,6 @@ func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	return se, nil
-}
-
-// DELETE IN 9.0.0 replaced by grpc CreateRegisterChallenge.
-func (s *APIServer) getSignupU2FRegisterRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	token := p.ByName("token")
-	res, err := auth.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
-		TokenID:    token,
-		DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &u2f.RegisterChallenge{
-		Challenge: res.GetU2F().GetChallenge(),
-		AppID:     res.GetU2F().GetAppID(),
-		Version:   res.GetU2F().GetVersion(),
-	}, nil
 }
 
 type upsertOIDCConnectorRawReq struct {
