@@ -449,25 +449,26 @@ func TestSSHSection(t *testing.T) {
 }
 
 func TestX11Config(t *testing.T) {
-	for _, tc := range []struct {
-		desc            string
-		mutate          func(cfgMap)
-		expectError     require.ErrorAssertionFunc
-		expectX11Config *x11.ServerConfig
+	testCases := []struct {
+		desc              string
+		mutate            func(cfgMap)
+		expectReadError   require.ErrorAssertionFunc
+		expectConfigError require.ErrorAssertionFunc
+		expectX11Config   *x11.ServerConfig
 	}{
 		{
 			desc:            "default",
 			mutate:          func(cfg cfgMap) {},
-			expectError:     require.NoError,
 			expectX11Config: &x11.ServerConfig{},
-		}, {
-			desc: "disabled",
+		},
+		// Test x11 enabled
+		{
+			desc: "x11 disabled",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
 					"enabled": "no",
 				}
 			},
-			expectError:     require.NoError,
 			expectX11Config: &x11.ServerConfig{},
 		}, {
 			desc: "x11 enabled",
@@ -476,22 +477,25 @@ func TestX11Config(t *testing.T) {
 					"enabled": "yes",
 				}
 			},
-			expectError: require.NoError,
 			expectX11Config: &x11.ServerConfig{
 				Enabled:       true,
 				DisplayOffset: x11.DefaultDisplayOffset,
-				MaxDisplay:    x11.DefaultMaxDisplay,
+				MaxDisplay:    x11.DefaultDisplayOffset + x11.DefaultMaxDisplays,
 			},
 		}, {
-			desc: "enabled value invalid",
+			desc: "x11 enabled value invalid",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled":        "no",
-					"display_offset": "100",
+					"enabled": "maybe",
 				}
 			},
-			expectError: require.Error,
-		}, {
+			expectConfigError: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, true, trace.IsBadParameter(err))
+			},
+		},
+		// Test display offset
+		{
 			desc: "display offset set",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -499,23 +503,10 @@ func TestX11Config(t *testing.T) {
 					"display_offset": "100",
 				}
 			},
-			expectError: require.NoError,
 			expectX11Config: &x11.ServerConfig{
 				Enabled:       true,
 				DisplayOffset: 100,
-				MaxDisplay:    x11.DefaultMaxDisplay,
-			},
-		}, {
-			desc: "not enabled, display offset set",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled":        "no",
-					"display_offset": "100",
-				}
-			},
-			expectError: require.NoError,
-			expectX11Config: &x11.ServerConfig{
-				Enabled: false,
+				MaxDisplay:    100 + x11.DefaultMaxDisplays,
 			},
 		}, {
 			desc: "display offset value invalid",
@@ -525,7 +516,10 @@ func TestX11Config(t *testing.T) {
 					"display_offset": "banana",
 				}
 			},
-			expectError: require.Error,
+			expectReadError: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, true, trace.IsBadParameter(err))
+			},
 		}, {
 			desc: "display offset value capped",
 			mutate: func(cfg cfgMap) {
@@ -534,12 +528,28 @@ func TestX11Config(t *testing.T) {
 					"display_offset": math.MaxUint32,
 				}
 			},
-			expectError: require.Error,
+			expectX11Config: &x11.ServerConfig{
+				Enabled:       true,
+				DisplayOffset: x11.MaxDisplayNumber,
+				MaxDisplay:    x11.MaxDisplayNumber,
+			},
+		},
+		// Test max display
+		{
+			desc: "max display set",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":     "yes",
+					"max_display": "100",
+				}
+			},
 			expectX11Config: &x11.ServerConfig{
 				Enabled:       true,
 				DisplayOffset: x11.DefaultDisplayOffset,
+				MaxDisplay:    100 + x11.DefaultDisplayOffset,
 			},
 		}, {
+			// DELETE IN 10.0.0 (Joerger): yaml typo
 			desc: "max displays set",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -547,57 +557,67 @@ func TestX11Config(t *testing.T) {
 					"max_displays": "100",
 				}
 			},
-			expectError: require.NoError,
 			expectX11Config: &x11.ServerConfig{
 				Enabled:       true,
 				DisplayOffset: x11.DefaultDisplayOffset,
-				MaxDisplay:    100,
+				MaxDisplay:    100 + x11.DefaultDisplayOffset,
 			},
 		}, {
-			desc: "not enabled, max displays set",
+			desc: "max display value invalid",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled":      "no",
-					"max_displays": "100",
+					"enabled":     "yes",
+					"max_display": "banana",
 				}
 			},
-			expectError: require.NoError,
-			expectX11Config: &x11.ServerConfig{
-				Enabled: false,
+			expectReadError: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, true, trace.IsBadParameter(err))
 			},
 		}, {
-			desc: "max displays value invalid",
+			desc: "max display value capped",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled":      "yes",
-					"max_displays": "banana",
+					"enabled":     "yes",
+					"max_display": math.MaxUint32,
 				}
 			},
-			expectError: require.Error,
-		}, {
-			desc: "max displays value capped",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled":      "yes",
-					"max_displays": math.MaxUint32,
-				}
-			},
-			expectError: require.Error,
 			expectX11Config: &x11.ServerConfig{
 				Enabled:       true,
 				DisplayOffset: x11.DefaultDisplayOffset,
-				MaxDisplay:    x11.MaxDisplayNumber - x11.DefaultDisplayOffset,
+				MaxDisplay:    x11.MaxDisplayNumber,
+			},
+		}, {
+			desc: "max display smaller than display offset",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":        "maybe",
+					"display_offset": "1000",
+					"max_display":    "100",
+				}
+			},
+			expectConfigError: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, true, trace.IsBadParameter(err))
 			},
 		},
-	} {
+	}
+
+	for _, tc := range testCases {
 		text := bytes.NewBuffer(editConfig(t, tc.mutate))
+
 		cfg, err := ReadConfig(text)
-		tc.expectError(t, err)
-		if err != nil {
+		if tc.expectReadError != nil {
+			tc.expectReadError(t, err)
 			return
 		}
+		require.NoError(t, err)
 
 		serverCfg, err := cfg.SSH.X11ServerConfig()
+		if tc.expectConfigError != nil {
+			tc.expectConfigError(t, err)
+			return
+		}
 		require.NoError(t, err)
 		require.Equal(t, tc.expectX11Config, serverCfg)
 	}
