@@ -202,7 +202,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 			TLSCert:             sessCtx.session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),
 		},
-	}, promptMFAChallenge(ws, &wsLock))
+	}, promptMFAChallenge(ws, &wsLock, tdpMFACodec{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
