@@ -738,6 +738,8 @@ message ProvisionTokenSpecV2 {
     // Supported joining methods include "token", "ec2", and "iam".
     string JoinMethod = 4
         [ (gogoproto.jsontag) = "join_method", (gogoproto.casttype) = "JoinMethod" ];
+    // BotName is the name of the bot this token grants access to, if any
+    string BotName = 5 [ (gogoproto.jsontag) = "bot_name,omitempty" ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.

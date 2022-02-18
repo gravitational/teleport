@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
@@ -85,7 +86,7 @@ func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts
 		clientConfig.TLS.RootCAs = options.CertPool
 	}
 
-	client, err := connectToAuthService(context.Background(), cfg, clientConfig)
+	client, err := authclient.Connect(context.Background(), clientConfig)
 	require.NoError(t, err)
 
 	_, err = command.TryRun(selectedCmd, client)

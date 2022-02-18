@@ -18,12 +18,9 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"net/url"
-	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1649,122 +1646,6 @@ func (a *ServerWithRoles) NewKeepAliver(ctx context.Context) (types.KeepAliver, 
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-// GenerateInitialRenewableUserCerts generates renewable certs for a non-interactive user
-// using a previously issued single-use token.
-//
-// The token's TTL is enforced, and if the operation is successful the token is destroyed.
-func (a *ServerWithRoles) GenerateInitialRenewableUserCerts(ctx context.Context, req proto.RenewableCertsRequest) (*proto.Certs, error) {
-	if len(req.Token) == 0 {
-		return nil, trace.BadParameter("missing token")
-	}
-	if len(req.PublicKey) == 0 {
-		return nil, trace.BadParameter("missing public key")
-	}
-
-	token, err := a.authServer.GetUserToken(ctx, req.Token)
-	if err != nil {
-		log.Debugf("Could not fetch bot token: %+v", err)
-		return nil, trace.AccessDenied("the token is not valid")
-	}
-
-	if err := a.authServer.verifyUserToken(token, UserTokenTypeBot); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// TODO: consider allowing scoping to a specific SSH node with NodeName and Usage
-	expires := a.authServer.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
-
-	// Generate the initial set of user certificates.
-	certs, err := a.generateInitialRenewableUserCerts(ctx, token.GetUser(), req.PublicKey, expires)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := a.authServer.DeleteUserToken(ctx, req.Token); err != nil {
-		log.Warnf("could not delete user token %v after generating certs: %v",
-			backend.MaskKeyName(req.Token), err)
-	}
-
-	return certs, nil
-}
-
-// generateInitialRenewableUserCerts is used to generate renewable bot certs
-// and overlaps significantly with `generateUserCerts()`. However, it omits a
-// number of options (impersonation, access requests, role requests, actual
-// cert renewal, and most UserCertsRequest options that don't relate to bots)
-// and does not care if the current identity is Nop.
-// This function does not validate the current identity at all; the caller is
-// expected to validate that the client is allowed to issue the renewable
-// certificates.
-func (a *ServerWithRoles) generateInitialRenewableUserCerts(ctx context.Context, username string, pubKey []byte, expires time.Time) (*proto.Certs, error) {
-	var err error
-
-	// On the off chance there is currently an identity and it has the
-	// disallow-reissue flag set, honor it. This could only ever be a bug at
-	// best.
-	if a.context.Identity.GetIdentity().DisallowReissue {
-		return nil, trace.AccessDenied("access denied: identity is not allowed to issue certificates")
-	}
-
-	// Extract the user and role set for whom the certificate will be generated.
-	// This should be safe since this is typically done against a local user.
-	//
-	// This call bypasses RBAC check for users read on purpose.
-	// Users who are allowed to impersonate other users might not have
-	// permissions to read user data.
-	user, err := a.authServer.GetUser(username, false)
-	if err != nil {
-		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", username)
-		return nil, trace.AccessDenied("access denied")
-	}
-
-	// Do not allow SSO users to be impersonated.
-	if user.GetCreatedBy().Connector != nil {
-		log.Warningf("User %v tried to issue a cert for externally managed user %v, this is not supported.", a.context.User.GetName(), username)
-		return nil, trace.AccessDenied("access denied")
-	}
-
-	// Cap the cert TTL to the MaxRenewableCertTTL.
-	if max := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); expires.After(max) {
-		expires = max
-	}
-
-	// Inherit the user's roles and traits verbatim.
-	roles := user.GetRoles()
-	traits := user.GetTraits()
-
-	parsedRoles, err := services.FetchRoleList(roles, a.authServer, traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// add implicit roles to the set and build a checker
-	checker := services.NewRoleSet(parsedRoles...)
-
-	// Generate certificate, note that the roles TTL will be ignored because
-	// the request is coming from "tctl auth sign" itself.
-	certReq := certRequest{
-		user:            user,
-		ttl:             expires.Sub(a.authServer.GetClock().Now()),
-		publicKey:       pubKey,
-		overrideRoleTTL: a.hasBuiltinRole(string(types.RoleAdmin)),
-		checker:         checker,
-		traits:          user.GetTraits(),
-		renewable:       true,
-		generation:      1,
-	}
-
-	if err := a.validateGenerationLabel(ctx, user, &certReq); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	certs, err := a.authServer.generateUserCert(certReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return certs, nil
-}
-
 // determineDesiredRolesAndTraits inspects the current request to determine
 // which roles and traits the requesting user wants to be present on the
 // resulting certificate. This does not attempt to determine if the
@@ -1813,137 +1694,6 @@ func (a *ServerWithRoles) determineDesiredRolesAndTraits(req proto.UserCertsRequ
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
 	return a.generateUserCerts(ctx, req)
-}
-
-// validateGenerationLabel validates and updates a generation label.
-func (a *ServerWithRoles) validateGenerationLabel(ctx context.Context, user types.User, certReq *certRequest) error {
-	// Fetch the user, bypassing the cache. We might otherwise fetch a stale
-	// value in case of a rapid certificate renewal.
-	user, err := a.authServer.Identity.GetUser(user.GetName(), false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var currentUserGeneration uint64
-	label, labelOk := user.GetMetadata().Labels[types.BotGenerationLabel]
-	if labelOk {
-		currentUserGeneration, err = strconv.ParseUint(label, 10, 64)
-		if err != nil {
-			return trace.BadParameter("user has invalid value for label %q", types.BotGenerationLabel)
-		}
-	}
-
-	// If there is no existing generation on any of the user, identity, or
-	// cert request, we have nothing to do here.
-	currentIdentityGeneration := a.context.Identity.GetIdentity().Generation
-	if currentUserGeneration == 0 && currentIdentityGeneration == 0 && certReq.generation == 0 {
-		return nil
-	}
-
-	// If the certReq already has generation set, it was explicitly requested
-	// (presumably this is the initial set of renewable certs). We'll want to
-	// commit that value to the User object.
-	if certReq.generation > 0 {
-		// ...however, if the user already has a stored generation, bail.
-		// (bots should be deleted and recreated if their certs expire)
-		if currentUserGeneration > 0 {
-			return trace.BadParameter(
-				"user %q has already been issued a renewable certificate and cannot be issued another; consider deleting and recreating the bot",
-				user.GetName(),
-			)
-		}
-
-		// Fetch a fresh copy of the user we can mutate safely. We can't
-		// implement a protobuf clone on User due to protobuf's proto.Clone()
-		// panicing when the user object has traits set, and a JSON
-		// marshal/unmarshal creates an import cycle so... here we are.
-		// There's a tiny chance the underlying user is mutated between calls
-		// to GetUser() but we're comparing with an older value so it'll fail
-		// safely.
-		newUser, err := a.authServer.Identity.GetUser(user.GetName(), false)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		metadata := newUser.GetMetadata()
-		metadata.Labels[types.BotGenerationLabel] = fmt.Sprint(certReq.generation)
-		newUser.SetMetadata(metadata)
-
-		// Note: we bypass the RBAC check on purpose as bot users should not
-		// have user update permissions.
-		if err := a.authServer.CompareAndSwapUser(ctx, newUser, user); err != nil {
-			// If this fails it's likely to be some miscellaneous competing
-			// write. The request should be tried again - if it's malicious,
-			// someone will get a generation mismatch and trigger a lock.
-			return trace.WrapWithMessage(err, "Database comparison failed, try the request again")
-		}
-
-		return nil
-	}
-
-	// By now, we know a generation counter is in play _somewhere_. The current
-	// generations must match to continue:
-	if currentIdentityGeneration != currentUserGeneration {
-		// Lock the bot user indefinitely.
-		lock, err := types.NewLock(uuid.New().String(), types.LockSpecV2{
-			Target: types.LockTarget{
-				User: user.GetName(),
-			},
-			Message: fmt.Sprintf(
-				"The bot user %q has been locked due to a certificate generation mismatch, possibly indicating a stolen certificate.",
-				user.GetName(),
-			),
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		// The bot almost certainly lacks permission to create locks, so bypass
-		// RBAC.
-		if err := a.authServer.UpsertLock(context.Background(), lock); err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Emit an audit event.
-		ident := a.context.Identity.GetIdentity()
-		eventIdent := ident.GetEventIdentity()
-		if a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &apievents.RenewableCertificateGenerationMismatch{
-			Metadata: apievents.Metadata{
-				Type: events.RenewableCertificateGenerationMismatchEvent,
-				Code: events.RenewableCertificateGenerationMismatchCode,
-			},
-			Identity: &eventIdent,
-		}); err != nil {
-			log.WithError(err).Warn("Failed to emit renewable cert generation mismatch event")
-		}
-
-		return trace.AccessDenied(
-			"renewable cert generation mismatch: stored=%v, presented=%v",
-			currentUserGeneration, currentIdentityGeneration,
-		)
-	}
-
-	// Update the user with the new generation count.
-	newGeneration := currentIdentityGeneration + 1
-
-	// As above, commit some crimes to clone the User.
-	newUser, err := a.authServer.Identity.GetUser(user.GetName(), false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	metadata := newUser.GetMetadata()
-	metadata.Labels[types.BotGenerationLabel] = fmt.Sprint(newGeneration)
-	newUser.SetMetadata(metadata)
-
-	if err := a.authServer.CompareAndSwapUser(ctx, newUser, user); err != nil {
-		// If this fails it's likely to be some miscellaneous competing
-		// write. The request should be tried again - if it's malicious,
-		// someone will get a generation mismatch and trigger a lock.
-		return trace.WrapWithMessage(err, "Database comparison failed, try the request again")
-	}
-
-	// And lastly, set the generation on the cert request.
-	certReq.generation = newGeneration
-
-	return nil
 }
 
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
@@ -1999,6 +1749,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", req.Username)
 		return nil, trace.AccessDenied("access denied")
 	}
+
 	// Do not allow SSO users to be impersonated.
 	if req.Username != a.context.User.GetName() && user.GetCreatedBy().Connector != nil {
 		log.Warningf("User %v tried to issue a cert for externally managed user %v, this is not supported.", a.context.User.GetName(), req.Username)
@@ -2222,7 +1973,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	// If the cert is renewable, process any certificate generation counter.
 	if certReq.renewable {
-		if err := a.validateGenerationLabel(ctx, user, &certReq); err != nil {
+		currentIdentityGeneration := a.context.Identity.GetIdentity().Generation
+		if err := a.authServer.validateGenerationLabel(ctx, user, &certReq, currentIdentityGeneration); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -2245,6 +1997,9 @@ func (a *ServerWithRoles) CreateBot(ctx context.Context, req *proto.CreateBotReq
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbRead, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

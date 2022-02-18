@@ -30,9 +30,12 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -117,114 +120,6 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	}
 }
 
-func newToken(t *testing.T, tokenID, user, kind string, expiry time.Time) types.UserToken {
-	t.Helper()
-	token, err := types.NewUserToken(tokenID)
-	require.NoError(t, err, "could not create user token")
-
-	token.SetUser(user)
-	token.SetSubKind(kind)
-	token.SetExpiry(expiry)
-	return token
-}
-
-// TestGenerateInitialRenewableUserCerts tests that a user token can be used
-// to generate renewable certificates for a non-interactive user.
-func TestGenerateInitialRenewableUserCerts(t *testing.T) {
-	t.Parallel()
-
-	srv := newTestTLSServer(t)
-
-	_, err := createBotRole(context.Background(), srv.Auth(), "test", "bot-test", []string{})
-	require.NoError(t, err)
-
-	user, err := createBotUser(context.Background(), srv.Auth(), "test", "bot-test")
-	require.NoError(t, err)
-
-	later := srv.Clock().Now().Add(4 * time.Hour)
-
-	goodToken := newToken(t, "good-token", user.GetName(), UserTokenTypeBot, later)
-	expiredToken := newToken(t, "expired", user.GetName(), UserTokenTypeBot, srv.Clock().Now().Add(-1*time.Hour))
-	wrongKind := newToken(t, "wrong-kind", user.GetName(), UserTokenTypeResetPassword, later)
-	wrongUser := newToken(t, "wrong-user", "llama", UserTokenTypeBot, later)
-	invalidToken := newToken(t, "this-token-does-not-exist", user.GetName(), UserTokenTypeBot, later)
-
-	goodToken, err = srv.Auth().CreateUserToken(context.Background(), goodToken)
-	require.NoError(t, err)
-	expiredToken, err = srv.Auth().CreateUserToken(context.Background(), expiredToken)
-	require.NoError(t, err)
-	wrongKind, err = srv.Auth().CreateUserToken(context.Background(), wrongKind)
-	require.NoError(t, err)
-	wrongUser, err = srv.Auth().CreateUserToken(context.Background(), wrongUser)
-	require.NoError(t, err)
-
-	client, err := srv.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
-
-	_, pub, err := srv.Auth().GenerateKeyPair("")
-	require.NoError(t, err)
-	require.NotEmpty(t, pub)
-
-	for _, test := range []struct {
-		desc      string
-		token     types.UserToken
-		assertErr require.ErrorAssertionFunc
-	}{
-		{
-			desc:      "OK good token",
-			token:     goodToken,
-			assertErr: require.NoError,
-		},
-		{
-			desc:      "NOK expired token",
-			token:     expiredToken,
-			assertErr: require.Error,
-		},
-		{
-			desc:      "NOK wrong token kind",
-			token:     wrongKind,
-			assertErr: require.Error,
-		},
-		{
-			desc:      "NOK token for wrong user",
-			token:     wrongUser,
-			assertErr: require.Error,
-		},
-		{
-			desc:      "NOK invalid token",
-			token:     invalidToken,
-			assertErr: require.Error,
-		},
-	} {
-		t.Run(test.desc, func(t *testing.T) {
-			// TODO: we should not use a client tied to a user for this,
-			// instead construct a client just like auth.Register does
-			// (whatever identity is used there will have Renewable)
-			certs, err := client.GenerateInitialRenewableUserCerts(context.Background(), proto.RenewableCertsRequest{
-				Token:     test.token.GetName(),
-				PublicKey: pub,
-			})
-			test.assertErr(t, err)
-
-			if err == nil {
-				require.NotEmpty(t, certs.SSH)
-				require.NotEmpty(t, certs.TLS)
-
-				// ensure token was removed
-				_, err = srv.Auth().GetUserToken(context.Background(), test.token.GetName())
-				require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
-
-				// ensure cert is renewable
-				x509, err := tlsca.ParseCertificatePEM(certs.TLS)
-				require.NoError(t, err)
-				id, err := tlsca.FromSubject(x509.Subject, later)
-				require.NoError(t, err)
-				require.True(t, id.Renewable)
-			}
-		})
-	}
-}
-
 func renewBotCerts(
 	srv *TestTLSServer, tlsCert tls.Certificate, botUser string,
 	publicKey []byte, privateKey []byte,
@@ -261,17 +156,21 @@ func TestBotCertificateGenerationCheck(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	privateKey, publicKey, err := srv.Auth().GenerateKeyPair("")
+	privateKey, publicKey, err := native.GenerateKeyPair("")
+	require.NoError(t, err)
+	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
+	require.NoError(t, err)
+	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
 	require.NoError(t, err)
 
-	// Create a new unauthenticated client.
-	client, err := srv.NewClient(TestNop())
-	require.NoError(t, err)
-
-	// Generate a first set of certs.
-	certs, err := client.GenerateInitialRenewableUserCerts(context.Background(), proto.RenewableCertsRequest{
-		Token:     bot.TokenID,
-		PublicKey: publicKey,
+	certs, err := Register(RegisterParams{
+		Token: bot.TokenID,
+		ID: IdentityID{
+			Role: types.RoleBot,
+		},
+		Servers:      []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: publicKey,
 	})
 	require.NoError(t, err)
 
@@ -310,17 +209,21 @@ func TestBotCertificateGenerationStolen(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	privateKey, publicKey, err := srv.Auth().GenerateKeyPair("")
+	privateKey, publicKey, err := native.GenerateKeyPair("")
+	require.NoError(t, err)
+	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
+	require.NoError(t, err)
+	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
 	require.NoError(t, err)
 
-	// Create a new unauthenticated client.
-	client, err := srv.NewClient(TestNop())
-	require.NoError(t, err)
-
-	// Generate a first set of certs.
-	certs, err := client.GenerateInitialRenewableUserCerts(context.Background(), proto.RenewableCertsRequest{
-		Token:     bot.TokenID,
-		PublicKey: publicKey,
+	certs, err := Register(RegisterParams{
+		Token: bot.TokenID,
+		ID: IdentityID{
+			Role: types.RoleBot,
+		},
+		Servers:      []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: publicKey,
 	})
 	require.NoError(t, err)
 

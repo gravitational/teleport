@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -192,6 +193,35 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
+func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
+	checkers, err := apisshutils.ParseAuthorizedKeys(i.SSHCACertBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return checkers, nil
+}
+
+// SSHClientConfig returns a ssh.ClientConfig used by the bot to connect to
+// the reverse tunnel server.
+func (i *Identity) SSHClientConfig() (*ssh.ClientConfig, error) {
+	callback, err := apisshutils.NewHostKeyCallback(
+		apisshutils.HostKeyCallbackConfig{
+			GetHostCheckers: i.getSSHCheckers,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(i.Cert.ValidPrincipals) < 1 {
+		return nil, trace.BadParameter("user cert has no valid principals")
+	}
+	return &ssh.ClientConfig{
+		User:            i.Cert.ValidPrincipals[0],
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
+		HostKeyCallback: callback,
+		Timeout:         apidefaults.DefaultDialTimeout,
+	}, nil
+}
+
 // ReadIdentityFromKeyPair reads SSH and TLS identity from key pair.
 func ReadIdentityFromKeyPair(privateKey []byte, publicKey []byte, certs *proto.Certs) (*Identity, error) {
 	identity, err := ReadSSHIdentityFromKeyPair(privateKey, publicKey, certs.SSH)
@@ -344,7 +374,7 @@ func SaveIdentity(id *Identity, d destination.Destination) error {
 		{TLSCertKey, id.TLSCertBytes, destination.ModeHintSecret},
 		{SSHCertKey, id.CertBytes, destination.ModeHintSecret},
 		{TLSCACertsKey, bytes.Join(id.TLSCACertsBytes, []byte("$")), destination.ModeHintSecret},
-		{SSHCACertsKey, bytes.Join(id.SSHCACertBytes, []byte("\n")), destination.ModeHintSecret},
+		{SSHCACertsKey, bytes.Join(id.SSHCACertBytes, []byte("$")), destination.ModeHintSecret},
 		{PrivateKeyKey, id.KeyBytes, destination.ModeHintSecret},
 		{PublicKeyKey, id.SSHPublicKeyBytes, destination.ModeHintUnspecified},
 	} {
@@ -379,7 +409,7 @@ func LoadIdentity(d destination.Destination) (*Identity, error) {
 		}
 	}
 
-	certs.SSHCACerts = bytes.Split(sshCA, []byte("\n"))
+	certs.SSHCACerts = bytes.Split(sshCA, []byte("$"))
 	certs.TLSCACerts = bytes.Split(tlsCA, []byte("$"))
 
 	log.Debugf("Loaded %d SSH CA certs and %d TLS CA certs", len(certs.SSHCACerts), len(certs.TLSCACerts))

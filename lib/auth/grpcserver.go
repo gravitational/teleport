@@ -823,24 +823,6 @@ func (g *GRPCServer) GetBotUsers(_ *proto.GetBotUsersRequest, stream proto.AuthS
 	return nil
 }
 
-func (g *GRPCServer) GenerateInitialRenewableUserCerts(ctx context.Context, req *proto.RenewableCertsRequest) (*proto.Certs, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if req == nil {
-		req = &proto.RenewableCertsRequest{}
-	}
-
-	certs, err := auth.GenerateInitialRenewableUserCerts(ctx, *req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return certs, nil
-}
-
 // GetPluginData loads all plugin data matching the supplied filter.
 func (g *GRPCServer) GetPluginData(ctx context.Context, filter *types.PluginDataFilter) (*proto.PluginDataSeq, error) {
 	// TODO(fspmarshall): Implement rate-limiting to prevent misbehaving plugins from

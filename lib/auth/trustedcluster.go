@@ -526,17 +526,17 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	return &validateResponse, nil
 }
 
-func (a *Server) validateTrustedClusterToken(ctx context.Context, token string) (map[string]string, error) {
-	roles, labels, err := a.ValidateToken(ctx, token)
+func (a *Server) validateTrustedClusterToken(ctx context.Context, tokenName string) (map[string]string, error) {
+	provisionToken, err := a.ValidateToken(ctx, tokenName)
 	if err != nil {
 		return nil, trace.AccessDenied("the remote server denied access: invalid cluster token")
 	}
 
-	if !roles.Include(types.RoleTrustedCluster) {
+	if !provisionToken.GetRoles().Include(types.RoleTrustedCluster) {
 		return nil, trace.AccessDenied("role does not match")
 	}
 
-	return labels, nil
+	return provisionToken.GetMetadata().Labels, nil
 }
 
 func (a *Server) sendValidateRequestToProxy(host string, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
