@@ -68,6 +68,12 @@ type TemplateConfig struct {
 }
 
 func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
+	// Accept either a template name (with no options) or a verbose struct, e.g.
+	//   configs:
+	//     - ssh_client
+	//     - ssh_client:
+	//         proxy_port: 1234
+
 	var simpleTemplate string
 	if err := node.Decode(&simpleTemplate); err == nil {
 		switch simpleTemplate {
@@ -82,12 +88,10 @@ func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
 		return nil
 	}
 
+	// Fall back to the full struct; alias it to get standard unmarshal
+	// behavior and avoid recursion
 	type rawTemplate TemplateConfig
-	if err := node.Decode((*rawTemplate)(c)); err != nil {
-		return err
-	}
-
-	return nil
+	return trace.Wrap(node.Decode((*rawTemplate)(c)))
 }
 
 func (c *TemplateConfig) CheckAndSetDefaults() error {

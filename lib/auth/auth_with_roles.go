@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1745,7 +1746,7 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		// (bots should be deleted and recreated if their certs expire)
 		if currentUserGeneration > 0 {
 			return trace.BadParameter(
-				"user %q has already been issued a renewable certificate and cannot be issued another",
+				"user %q has already been issued a renewable certificate and cannot be issued another; consider deleting and recreating the bot",
 				user.GetName(),
 			)
 		}
@@ -1768,7 +1769,10 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		// Note: we bypass the RBAC check on purpose as bot users should not
 		// have user update permissions.
 		if err := a.CompareAndSwapUser(ctx, newUser, user); err != nil {
-			return trace.Wrap(err)
+			// If this fails it's likely to be some miscellaneous competing
+			// write. The request should be tried again - if it's malicious,
+			// someone will get a generation mismatch and trigger a lock.
+			return trace.WrapWithMessage(err, "Database comparison failed, try the request again")
 		}
 
 		return nil
@@ -1776,6 +1780,35 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 
 	// The current generations must match to continue:
 	if currentIdentityGeneration != currentUserGeneration {
+		// Lock the bot user indefinitely.
+		lock, err := types.NewLock(uuid.New().String(), types.LockSpecV2{
+			Target: types.LockTarget{
+				User: user.GetName(),
+			},
+			Message: fmt.Sprintf(
+				"The bot user %q has been locked due to a certificate generation mismatch, possibly indicating a stolen certificate.",
+				user.GetName(),
+			),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := a.UpsertLock(context.Background(), lock); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Emit an audit event.
+		userMetadata := ClientUserMetadata(ctx)
+		if a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RenewableCertificateGenerationMismatch{
+			Metadata: apievents.Metadata{
+				Type: events.RenewableCertificateGenerationMismatchEvent,
+				Code: events.RenewableCertificateGenerationMismatchCode,
+			},
+			UserMetadata: userMetadata,
+		}); err != nil {
+			log.WithError(err).Warn("Failed to emit renewable cert generation mismatch event")
+		}
+
 		return trace.AccessDenied(
 			"renewable cert generation mismatch: stored=%v, presented=%v",
 			currentUserGeneration, currentIdentityGeneration,
@@ -1795,7 +1828,10 @@ func (a *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 	newUser.SetMetadata(metadata)
 
 	if err := a.CompareAndSwapUser(ctx, newUser, user); err != nil {
-		return trace.Wrap(err)
+		// If this fails it's likely to be some miscellaneous competing
+		// write. The request should be tried again - if it's malicious,
+		// someone will get a generation mismatch and trigger a lock.
+		return trace.WrapWithMessage(err, "Database comparison failed, try the request again")
 	}
 
 	// And lastly, set the generation on the cert request.
@@ -2105,6 +2141,9 @@ func (a *ServerWithRoles) CreateBot(ctx context.Context, req *proto.CreateBotReq
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbRead, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

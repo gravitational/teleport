@@ -766,7 +766,7 @@ type certRequest struct {
 	// having its TTL increased
 	renewable bool
 	// includeHostCA indicates that host CA certs should be included in the
-	// returns certs
+	// returned certs
 	includeHostCA bool
 	// generation indicates the number of times this certificate has been
 	// renewed.

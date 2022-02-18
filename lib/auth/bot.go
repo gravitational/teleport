@@ -30,45 +30,52 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// botResourceName returns the default name for resources associated with the
+// BotResourceName returns the default name for resources associated with the
 // given named bot.
-func botResourceName(botName string) string {
+func BotResourceName(botName string) string {
 	return "bot-" + strings.ReplaceAll(botName, " ", "-")
 }
 
 // createBotRole creates a role from a bot template with the given parameters.
-func createBotRole(ctx context.Context, s *Server, botName string, resourceName string, roleRequests []string) (*types.RoleV4, error) {
-	role := types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V4,
-		Metadata: types.Metadata{
-			Name:        resourceName,
-			Description: fmt.Sprintf("Automatically generated role for bot %s", botName),
-			Labels: map[string]string{
-				types.BotLabel: botName,
+func createBotRole(ctx context.Context, s *Server, botName string, resourceName string, roleRequests []string) (types.Role, error) {
+	role, err := types.NewRole(resourceName, types.RoleSpecV4{
+		Options: types.RoleOptions{
+			// TODO: inherit TTLs from cert length?
+			MaxSessionTTL: types.Duration(12 * time.Hour),
+		},
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				// Bots read certificate authorities to watch for CA rotations
+				types.NewRule(types.KindCertAuthority, []string{types.VerbReadNoSecrets}),
+			},
+			Impersonate: &types.ImpersonateConditions{
+				Roles: roleRequests,
 			},
 		},
-		Spec: types.RoleSpecV4{
-			Options: types.RoleOptions{
-				// TODO: inherit TTLs from cert length?
-				MaxSessionTTL: types.Duration(12 * time.Hour),
-			},
-			Allow: types.RoleConditions{
-				Rules: []types.Rule{
-					// Bots read certificate authorities to watch for CA rotations
-					types.NewRule(types.KindCertAuthority, []string{types.VerbReadNoSecrets}),
-				},
-				Impersonate: &types.ImpersonateConditions{
-					Roles: roleRequests,
-				},
-			},
-		},
-	}
-	if err := s.UpsertRole(ctx, &role); err != nil {
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &role, nil
+	meta := role.GetMetadata()
+	meta.Description = fmt.Sprintf("Automatically generated role for bot %s", botName)
+	if meta.Labels == nil {
+		meta.Labels = map[string]string{}
+	}
+	meta.Labels[types.BotLabel] = botName
+
+	rolev4, ok := role.(*types.RoleV4)
+	if !ok {
+		return nil, trace.BadParameter("unsupported role version %v", role)
+	}
+	rolev4.Metadata = meta
+
+	err = s.UpsertRole(ctx, role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return role, nil
 }
 
 // createBotUser creates a new backing User for bot use. A role with a
@@ -113,7 +120,7 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		return nil, trace.BadParameter("bot name must not be empty")
 	}
 
-	resourceName := botResourceName(req.Name)
+	resourceName := BotResourceName(req.Name)
 
 	// Ensure existing resources don't already exist.
 	_, err := s.GetRole(ctx, resourceName)
@@ -203,7 +210,7 @@ func (s *Server) deleteBot(ctx context.Context, botName string) error {
 	// TODO:
 	// remove any locks for the bot's impersonator role?
 	// remove the bot's user
-	resourceName := botResourceName(botName)
+	resourceName := BotResourceName(botName)
 
 	userErr := s.deleteBotUser(ctx, botName, resourceName)
 	roleErr := s.deleteBotRole(ctx, botName, resourceName)
