@@ -838,6 +838,8 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
+	conf.Apps.Enabled = false
+	conf.SSH.Enabled = false
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -852,6 +854,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	expectedEvents := []string{
 		service.DatabasesIdentityEvent,
 		service.DatabasesReady,
+		service.TeleportReadyEvent,
 	}
 
 	// Start the process and block until the expected events have arrived.
@@ -1114,6 +1117,9 @@ func (i *TeleInstance) Start() error {
 	}
 	if i.Config.Apps.Enabled {
 		expectedEvents = append(expectedEvents, service.AppsReady)
+	}
+	if i.Config.Databases.Enabled {
+		expectedEvents = append(expectedEvents, service.DatabasesReady)
 	}
 
 	// Start the process and block until the expected events have arrived.
