@@ -44,20 +44,20 @@ type mfaCodec interface {
 type protobufMFACodec struct{}
 
 func (protobufMFACodec) encode(chal *auth.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
-	chalEnc, err := json.Marshal(chal)
+	jsonBytes, err := json.Marshal(chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	envelope := &Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    envelopeType,
-		Payload: string(chalEnc),
+		Payload: string(jsonBytes),
 	}
-	envelopeBytes, err := proto.Marshal(envelope)
+	protoBytes, err := proto.Marshal(envelope)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return envelopeBytes, nil
+	return protoBytes, nil
 }
 
 func (protobufMFACodec) decode(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateResponse, error) {
@@ -81,17 +81,17 @@ func (tdpMFACodec) encode(chal *auth.MFAAuthenticateChallenge, envelopeType stri
 			envelopeType, defaults.WebsocketWebauthnChallenge, defaults.WebsocketU2FChallenge)
 	}
 
-	mfaChal := tdp.MFAJson{
-		MfaType:                  envelopeType[0],
+	tdpMsg := tdp.MFA{
+		Type:                     envelopeType[0],
 		MFAAuthenticateChallenge: chal,
 	}
-	return mfaChal.Encode()
+	return tdpMsg.Encode()
 }
 
 func (tdpMFACodec) decode(buf []byte, envelopeType string) (*authproto.MFAAuthenticateResponse, error) {
-	mfaJson, err := tdp.DecodeMFAJson(bytes.NewReader(buf))
+	msg, err := tdp.DecodeMFA(bytes.NewReader(buf))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return mfaJson.MFAAuthenticateResponse, nil
+	return msg.MFAAuthenticateResponse, nil
 }

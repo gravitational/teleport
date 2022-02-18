@@ -52,7 +52,7 @@ const (
 	TypeClientUsername   = MessageType(7)
 	TypeMouseWheel       = MessageType(8)
 	TypeError            = MessageType(9)
-	TypeMFAJson          = MessageType(10)
+	TypeMFA              = MessageType(10)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -103,8 +103,8 @@ func decode(in peekReader) (Message, error) {
 		return decodeClipboardData(in, maxClipboardDataLength)
 	case TypeError:
 		return decodeError(in)
-	case TypeMFAJson:
-		return DecodeMFAJson(in)
+	case TypeMFA:
+		return DecodeMFA(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", t)
 	}
@@ -453,20 +453,21 @@ func decodeClipboardData(in peekReader, maxLen uint32) (ClipboardData, error) {
 
 const maxMFADataLength = 1024 * 1024
 
-type MFAJson struct {
-	// MfaType should be one of WebsocketU2FChallengeByte or WebsocketWebauthnChallengeByte.
-	MfaType byte
-	// MFAAuthenticateChallenge is the struct we send to the client (as a json, see Encode())
+type MFA struct {
+	// Type should be one of defaults.WebsocketU2FChallenge or defaults.WebsocketWebauthnChallenge
+	Type byte
+	// MFAAuthenticateChallenge is the challenge we send to the client.
+	// Used for messages from Teleport to the user's browser.
 	*auth.MFAAuthenticateChallenge
-	// MFAAuthenticateResponse is the struct we expect to receive in response to the challenge
-	// (as a json, see DecodeMFAJson())
+	// MFAAuthenticateResponse is the response to the MFA challenge,
+	// sent from the browser to Teleport.
 	*authproto.MFAAuthenticateResponse
 }
 
-func (m MFAJson) Encode() ([]byte, error) {
+func (m MFA) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeMFAJson))
-	buf.WriteByte(byte(m.MfaType))
+	buf.WriteByte(byte(TypeMFA))
+	buf.WriteByte(byte(m.Type))
 	chalEnc, err := json.Marshal(m.MFAAuthenticateChallenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -479,13 +480,13 @@ func (m MFAJson) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func DecodeMFAJson(in peekReader) (*MFAJson, error) {
+func DecodeMFA(in peekReader) (*MFA, error) {
 	t, err := in.ReadByte()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if t != byte(TypeMFAJson) {
-		return nil, trace.BadParameter("got message type %v, expected TypeMFAJson(%v)", t, TypeMFAJson)
+	if t != byte(TypeMFA) {
+		return nil, trace.BadParameter("got message type %v, expected TypeMFAJson(%v)", t, TypeMFA)
 	}
 
 	mt, err := in.ReadByte()
@@ -519,8 +520,8 @@ func DecodeMFAJson(in peekReader) (*MFAJson, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &MFAJson{
-		MfaType:                 mt,
+	return &MFA{
+		Type:                    mt,
 		MFAAuthenticateResponse: mfaResp,
 	}, nil
 }
