@@ -63,11 +63,11 @@ func createBotRole(ctx context.Context, s *Server, botName string, resourceName 
 	}
 	meta.Labels[types.BotLabel] = botName
 
-	rolev4, ok := role.(*types.RoleV5)
+	rolev5, ok := role.(*types.RoleV5)
 	if !ok {
 		return trace.BadParameter("unsupported role version %v", role)
 	}
-	rolev4.Metadata = meta
+	rolev5.Metadata = meta
 
 	return s.UpsertRole(ctx, role)
 }
