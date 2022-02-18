@@ -1,4 +1,4 @@
-timeout: 20m
+timeout: 25m
 
 options:
   machineType: 'E2_HIGHCPU_32'
@@ -19,5 +19,10 @@ steps:
     entrypoint: bash 
     args: 
       - -c
-      - go run ./cmd/unit-tests -w=/workspace -t=$_BASE_BRANCH -c=HEAD
-    timeout: 15m
+      - |
+        go run ./cmd/unit-tests \
+          -target $_BASE_BRANCH \
+          -bucket test-logs     \
+          -build $BUILD_ID      \
+          -a "test-logs/*.json"
+    timeout: 20m

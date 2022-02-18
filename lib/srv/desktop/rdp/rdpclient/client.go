@@ -224,6 +224,7 @@ func (c *Client) connect(ctx context.Context) error {
 		// screen size.
 		C.uint16_t(c.clientWidth),
 		C.uint16_t(c.clientHeight),
+		C.bool(c.cfg.AllowClipboard),
 	)
 	if err := cgoError(res.err); err != nil {
 		return trace.Wrap(err)
@@ -246,6 +247,12 @@ func (c *Client) start() {
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
 		if err := cgoError(C.read_rdp_output(c.rustClient)); err != nil {
 			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
+
+			// close the TDP connection to the browser
+			// (without this the input streaming goroutine will hang
+			// waiting for user input)
+			c.cfg.Conn.SendError("There was an error reading data from the Windows Desktop")
+			c.cfg.Conn.Close()
 		}
 	}()
 
@@ -254,7 +261,7 @@ func (c *Client) start() {
 	go func() {
 		defer c.wg.Done()
 		defer c.Close()
-		defer c.cfg.Log.Info("RDP input streaming finished")
+		defer c.cfg.Log.Info("TDP input streaming finished")
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
 		for {

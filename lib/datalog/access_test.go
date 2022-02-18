@@ -93,7 +93,7 @@ func createUser(name string, roles []string, traits map[string][]string) (types.
 }
 
 func createRole(name string, allowLogins []string, denyLogins []string, allowLabels types.Labels, denyLabels types.Labels) (types.Role, error) {
-	role, err := types.NewRole(name, types.RoleSpecV4{
+	role, err := types.NewRole(name, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:     allowLogins,
 			NodeLabels: allowLabels,
