@@ -1018,7 +1018,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:226
+# Generated at dronegen/tag.go:231
 ################################################
 
 kind: pipeline
@@ -1055,8 +1055,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1159,7 +1164,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:226
+# Generated at dronegen/tag.go:231
 ################################################
 
 kind: pipeline
@@ -1196,8 +1201,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1299,7 +1309,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:226
+# Generated at dronegen/tag.go:231
 ################################################
 
 kind: pipeline
@@ -1336,8 +1346,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1437,7 +1452,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:226
+# Generated at dronegen/tag.go:231
 ################################################
 
 kind: pipeline
@@ -1474,8 +1489,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1575,7 +1595,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:415
 ################################################
 
 kind: pipeline
@@ -1612,8 +1632,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1741,7 +1766,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:415
 ################################################
 
 kind: pipeline
@@ -1778,8 +1803,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1904,7 +1934,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:415
 ################################################
 
 kind: pipeline
@@ -1941,8 +1971,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2056,7 +2091,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:415
 ################################################
 
 kind: pipeline
@@ -2093,8 +2128,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2205,7 +2245,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:226
+# Generated at dronegen/tag.go:231
 ################################################
 
 kind: pipeline
@@ -2242,8 +2282,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2343,7 +2388,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:415
 ################################################
 
 kind: pipeline
@@ -2380,8 +2425,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2509,7 +2559,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:415
 ################################################
 
 kind: pipeline
@@ -2546,8 +2596,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -3187,7 +3242,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:226
+# Generated at dronegen/tag.go:231
 ################################################
 
 kind: pipeline
@@ -3224,8 +3279,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -3325,7 +3385,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:226
+# Generated at dronegen/tag.go:231
 ################################################
 
 kind: pipeline
@@ -3362,8 +3422,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -3463,7 +3528,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:415
 ################################################
 
 kind: pipeline
@@ -3500,8 +3565,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -3615,7 +3685,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:415
 ################################################
 
 kind: pipeline
@@ -3652,8 +3722,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -3767,7 +3842,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:415
 ################################################
 
 kind: pipeline
@@ -3804,8 +3879,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -3933,7 +4013,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:415
 ################################################
 
 kind: pipeline
@@ -3970,8 +4050,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -4099,7 +4184,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:226
+# Generated at dronegen/tag.go:231
 ################################################
 
 kind: pipeline
@@ -4136,8 +4221,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -5035,6 +5125,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: d895e3e7580f0a8b56437a28807f481cca538fcf2fd140c4250b8e2bc57190e2
+hmac: fa45d2aabbed1f5f4fc0523538bb6266b3e9a7671e0850105f110a419781b0c0
 
 ...

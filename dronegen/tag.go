@@ -45,7 +45,12 @@ func tagCheckoutCommands(fips bool) []string {
 		// create necessary directories
 		`mkdir -p /go/cache /go/artifacts`,
 		// set version
-		`if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt`,
+		`VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+  echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+  exit 1
+fi
+echo "$$VERSION" > /go/.version.txt`,
 	}
 	return commands
 }
