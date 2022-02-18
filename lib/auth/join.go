@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 )
@@ -114,6 +115,18 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		switch provisionToken.GetJoinMethod() {
+		case types.JoinMethodEC2, types.JoinMethodIAM:
+			// don't delete long-lived AWS join tokens
+		default:
+			// delete bot join tokens so they can't be re-used
+			if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
+				log.WithError(err).Warnf("could not delete bot provision token %q after generating certs",
+					string(backend.MaskKeyName(provisionToken.GetName())))
+			}
+		}
+
 		log.Infof("Bot %q has joined the cluster.", botResourceName)
 		return certs, nil
 	}
