@@ -462,6 +462,10 @@ const (
 	// CertificateCreateEvent is emitted when a certificate is issued.
 	CertificateCreateEvent = "cert.create"
 
+	// RenewableCertificateGenerationMismatchEvent is emitted when a renewable
+	// certificate's generation counter is invalid.
+	RenewableCertificateGenerationMismatchEvent = "cert.generation_mismatch"
+
 	// CertificateTypeUser is the CertificateType for certificate events pertaining to user certificates.
 	CertificateTypeUser = "user"
 )
