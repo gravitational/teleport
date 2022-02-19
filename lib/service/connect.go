@@ -394,13 +394,12 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.Wrap(err)
 		}
 
-		identity, err = auth.Register(auth.RegisterParams{
+		certs, err := auth.Register(auth.RegisterParams{
 			Token:                process.Config.Token,
 			ID:                   id,
 			Servers:              process.Config.AuthServers,
 			AdditionalPrincipals: additionalPrincipals,
 			DNSNames:             dnsNames,
-			PrivateKey:           keyPair.PrivateKey,
 			PublicTLSKey:         keyPair.PublicTLSKey,
 			PublicSSHKey:         keyPair.PublicSSHKey,
 			CipherSuites:         process.Config.CipherSuites,
@@ -414,6 +413,12 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		identity, err = auth.ReadIdentityFromKeyPair(keyPair.PrivateKey, certs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		process.deleteKeyPair(role, reason)
 	}
 
