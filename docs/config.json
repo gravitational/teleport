@@ -195,6 +195,7 @@
             { "title": "Self-Hosted MySQL/MariaDB", "slug": "/database-access/guides/mysql-self-hosted/" },
             { "title": "Self-Hosted MongoDB", "slug": "/database-access/guides/mongodb-self-hosted/" },
             { "title": "Self-Hosted CockroachDB", "slug": "/database-access/guides/cockroachdb-self-hosted/" },
+            { "title": "SQL Server (Preview)", "slug": "/database-access/guides/sql-server-ad/" },
             { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" },
             { "title": "Dynamic Registration", "slug": "/database-access/guides/dynamic-registration/" },
             { "title": "High Availability", "slug": "/database-access/guides/ha/" }
