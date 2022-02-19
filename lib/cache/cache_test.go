@@ -478,10 +478,34 @@ func TestNodeCAFiltering(t *testing.T) {
 }
 
 func waitForRestart(t *testing.T, eventsC <-chan Event) {
-	waitForEvent(t, eventsC, WatcherStarted, Reloading, WatcherFailed)
+	expectEvent(t, eventsC, WatcherStarted)
 }
 
-func waitForEvent(t *testing.T, eventsC <-chan Event, expectedEvent string, skipEvents ...string) {
+func drainEvents(eventsC <-chan Event) {
+	for {
+		select {
+		case <-eventsC:
+		default:
+			return
+		}
+	}
+}
+
+func expectEvent(t *testing.T, eventsC <-chan Event, expectedEvent string) {
+	timeC := time.After(5 * time.Second)
+	for {
+		select {
+		case event := <-eventsC:
+			if event.Type == expectedEvent {
+				return
+			}
+		case <-timeC:
+			t.Fatalf("Timeout waiting for expected event: %s", expectedEvent)
+		}
+	}
+}
+
+func expectNextEvent(t *testing.T, eventsC <-chan Event, expectedEvent string, skipEvents ...string) {
 	timeC := time.After(5 * time.Second)
 	for {
 		// wait for watcher to restart
@@ -678,7 +702,7 @@ func TestTombstones(t *testing.T) {
 
 	require.NoError(t, p.cache.Close())
 	// wait for TombstoneWritten, ignoring all other event types
-	waitForEvent(t, p.eventsC, TombstoneWritten, WatcherStarted, EventProcessed, WatcherFailed)
+	expectEvent(t, p.eventsC, TombstoneWritten)
 	// simulate bad connection to auth server
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 	p.eventsS.closeWatchers()
@@ -820,9 +844,9 @@ func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
 	}
 }
 
-// TestListNodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
+// TestListResources_NodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
 // using ttl-based caching works as expected.
-func TestListNodesTTLVariant(t *testing.T) {
+func TestListResources_NodesTTLVariant(t *testing.T) {
 	const nodeCount = 100
 	const pageSize = 10
 	var err error
@@ -869,6 +893,8 @@ func TestListNodesTTLVariant(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, allNodes, nodeCount)
 
+	// DELETE IN 10.0.0 this block with ListNodes is replaced
+	// by the following block with ListResources test.
 	var nodes []types.Server
 	var startKey string
 	for {
@@ -891,23 +917,33 @@ func TestListNodesTTLVariant(t *testing.T) {
 			break
 		}
 	}
-
 	require.Len(t, nodes, nodeCount)
 
 	var resources []types.ResourceWithLabels
 	var listResourcesStartKey string
+	sortBy := types.SortBy{
+		Field:  types.ResourceMetadataName,
+		IsDesc: true,
+	}
 	require.Eventually(t, func() bool {
 		page, nextKey, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
 			Namespace:    apidefaults.Namespace,
 			ResourceType: types.KindNode,
 			StartKey:     listResourcesStartKey,
 			Limit:        int32(pageSize),
+			SortBy:       sortBy,
 		})
 		require.NoError(t, err)
 		resources = append(resources, page...)
 		listResourcesStartKey = nextKey
 		return len(resources) == nodeCount
 	}, 5*time.Second, 100*time.Millisecond)
+
+	servers, err := types.ResourcesWithLabels(resources).AsServers()
+	require.NoError(t, err)
+	fieldVals, err := types.Servers(servers).GetFieldVals(sortBy.Field)
+	require.NoError(t, err)
+	require.IsDecreasing(t, fieldVals)
 }
 
 func initStrategy(t *testing.T) {
@@ -973,7 +1009,7 @@ func initStrategy(t *testing.T) {
 	// wait for the watcher to fail
 	// there could be optional event processed event,
 	// see NOTE 1 above
-	waitForEvent(t, p.eventsC, WatcherFailed, EventProcessed, Reloading)
+	expectNextEvent(t, p.eventsC, WatcherFailed, EventProcessed, Reloading)
 
 	// backend is out, but old value is available
 	out2, err := p.cache.GetCertAuthority(ca.GetID(), false)
@@ -991,7 +1027,7 @@ func initStrategy(t *testing.T) {
 
 	// wait for watcher to restart successfully; ignoring any failed
 	// attempts which occurred before backend became healthy again.
-	waitForEvent(t, p.eventsC, WatcherStarted, WatcherFailed, Reloading)
+	expectEvent(t, p.eventsC, WatcherStarted)
 
 	// new value is available now
 	out, err = p.cache.GetCertAuthority(ca.GetID(), false)
@@ -1369,7 +1405,7 @@ func TestRoles(t *testing.T) {
 	p := newPackForNode(t)
 	t.Cleanup(p.Close)
 
-	role, err := types.NewRole("role1", types.RoleSpecV4{
+	role, err := types.NewRole("role1", types.RoleSpecV5{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.Duration(time.Hour),
 		},
@@ -2289,6 +2325,72 @@ func TestDatabases(t *testing.T) {
 	out, err = p.databases.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
+}
+
+func TestRelativeExpiry(t *testing.T) {
+	const checkInterval = time.Second
+	const nodeCount = int64(100)
+
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
+	p := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = checkInterval
+		c.Clock = clock
+		return ForAuth(c)
+	})
+	t.Cleanup(p.Close)
+
+	// add servers that expire at a range of times
+	now := clock.Now()
+	for i := int64(0); i < nodeCount; i++ {
+		exp := now.Add(time.Minute * time.Duration(i))
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server.SetExpiry(exp)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(t, err)
+		// Check that information has been replicated to the cache.
+		expectEvent(t, p.eventsC, EventProcessed)
+	}
+
+	nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, nodes, 100)
+
+	clock.Advance(time.Minute * 25)
+	// get rid of events that were emitted before clock advanced
+	drainEvents(p.eventsC)
+	// wait for next relative expiry check to run
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// verify that roughly expected proportion of nodes was removed.
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.True(t, len(nodes) < 100 && len(nodes) > 75, "node_count=%d", len(nodes))
+
+	clock.Advance(time.Minute * 25)
+	// get rid of events that were emitted before clock advanced
+	drainEvents(p.eventsC)
+	// wait for next relative expiry check to run
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// verify that roughly expected proportion of nodes was removed.
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.True(t, len(nodes) < 75 && len(nodes) > 50, "node_count=%d", len(nodes))
+
+	// finally, we check the "sliding window" by verifying that we don't remove all nodes
+	// even if we advance well past the latest expiry time.
+	clock.Advance(time.Hour * 24)
+	// get rid of events that were emitted before clock advanced
+	drainEvents(p.eventsC)
+	// wait for next relative expiry check to run
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// verify that sliding window has preserved most recent nodes
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.True(t, len(nodes) > 0, "node_count=%d", len(nodes))
 }
 
 func TestCache_Backoff(t *testing.T) {

@@ -166,7 +166,7 @@ Roles govern access to databases, SSH servers, kubernetes clusters, and web apps
 ```yaml
 ---
 kind: role
-version: v4
+version: v5
 metadata:
   name: example
 spec:
@@ -211,6 +211,19 @@ spec:
     # cluster. This setting slows down Teleport performance because it has to track
     # connections cluster-wide.
     max_connections: 2
+    # Specify whether or not to record the user's desktop sessions.
+    # Desktop session recording is enabled if one or more of the user's
+    # roles has enabled recording. Defaults to true if unspecified.
+    # Desktop sessions will never be recorded if auth_service.session_recording
+    # is set to 'off' in teleport.yaml or if the cluster's session_recording_config
+    # resource has set 'mode: off'.
+    record_sessions:
+      desktop: true
+    # Specify whether clipboard sharing should be allowed with the
+    # remote desktop (requires a supported browser). Defaults to true
+    # if unspecified. If one or more of the user's roles has disabled
+    # the clipboard, then it will be disabled.
+    desktop_clipboard: true
 
   # The allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. By default, nothing is allowed.

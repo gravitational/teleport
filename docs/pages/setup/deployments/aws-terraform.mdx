@@ -7,6 +7,13 @@ h1: Running Teleport Enterprise in High Availability mode on AWS
 This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/ha-autoscale-cluster#terraform-based-provisioning-example-amazon-single-ami)
 and describe how to use and administrate the resulting Teleport deployment.
 
+<Details scope={["cloud"]} scopeOnly={true} opened={true} title="Teleport Cloud">
+Our reference Terraform code deploys self-hosted instances of the Teleport Auth Service and Proxy Service. Since Teleport Cloud manages these services for you, users interested in Terraform should consult the following guides instead of this one:
+
+- To get started with Teleport and Terraform: [Terraform Provider](../guides/terraform-provider.mdx)
+- For a full reference: [Terraform Provider Resources](../reference/terraform-provider.mdx)
+</Details>
+
 ## Prerequisites
 
 Our code requires Terraform 0.12+. You can [download Terraform here](https://www.terraform.io/downloads.html). We will assume that you have

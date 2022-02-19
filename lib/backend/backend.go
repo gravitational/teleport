@@ -257,9 +257,7 @@ func nextKey(key []byte) []byte {
 	return noEnd
 }
 
-var (
-	noEnd = []byte{0}
-)
+var noEnd = []byte{0}
 
 // RangeEnd returns end of the range for given key.
 func RangeEnd(key []byte) []byte {
@@ -277,6 +275,18 @@ func NextPaginationKey(r types.Resource) string {
 		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
 	default:
 		return string(nextKey([]byte(r.GetName())))
+	}
+}
+
+// GetPaginationKey returns the pagination key given resource.
+func GetPaginationKey(r types.Resource) string {
+	switch resourceWithType := r.(type) {
+	case types.DatabaseServer:
+		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
+	case types.AppServer:
+		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
+	default:
+		return r.GetName()
 	}
 }
 

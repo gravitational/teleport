@@ -147,7 +147,7 @@ func (m *MultiLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, even
 }
 
 // SearchSessionEvents is a flexible way to find session events.
-// Only session.end events are returned by this function.
+// Only session.end and windows.desktop.session.end events are returned by this function.
 // This is used to find completed sessions.
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
@@ -163,7 +163,7 @@ func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, orde
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (m *MultiLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	c, e := make(chan apievents.AuditEvent), make(chan error, 1)

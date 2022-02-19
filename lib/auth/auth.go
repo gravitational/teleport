@@ -145,6 +145,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
+	if cfg.SessionTrackerService == nil {
+		cfg.SessionTrackerService, err = local.NewSessionTrackerService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
 		cfg.KeyStoreConfig.RSAKeyPairSource = cfg.Authority.GenerateKeyPair
 	}
@@ -179,19 +185,20 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		emitter:         cfg.Emitter,
 		streamer:        cfg.Streamer,
 		Services: Services{
-			Trust:                cfg.Trust,
-			Presence:             cfg.Presence,
-			Provisioner:          cfg.Provisioner,
-			Identity:             cfg.Identity,
-			Access:               cfg.Access,
-			DynamicAccessExt:     cfg.DynamicAccessExt,
-			ClusterConfiguration: cfg.ClusterConfiguration,
-			Restrictions:         cfg.Restrictions,
-			Apps:                 cfg.Apps,
-			Databases:            cfg.Databases,
-			IAuditLog:            cfg.AuditLog,
-			Events:               cfg.Events,
-			WindowsDesktops:      cfg.WindowsDesktops,
+			Trust:                 cfg.Trust,
+			Presence:              cfg.Presence,
+			Provisioner:           cfg.Provisioner,
+			Identity:              cfg.Identity,
+			Access:                cfg.Access,
+			DynamicAccessExt:      cfg.DynamicAccessExt,
+			ClusterConfiguration:  cfg.ClusterConfiguration,
+			Restrictions:          cfg.Restrictions,
+			Apps:                  cfg.Apps,
+			Databases:             cfg.Databases,
+			IAuditLog:             cfg.AuditLog,
+			Events:                cfg.Events,
+			WindowsDesktops:       cfg.WindowsDesktops,
+			SessionTrackerService: cfg.SessionTrackerService,
 		},
 		keyStore: keyStore,
 	}
@@ -217,6 +224,7 @@ type Services struct {
 	services.Apps
 	services.Databases
 	services.WindowsDesktops
+	services.SessionTrackerService
 	types.Events
 	events.IAuditLog
 }
@@ -276,9 +284,20 @@ var (
 		},
 	)
 
+	registeredAgents = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricRegisteredServers,
+			Help: "The number of Teleport servers (a server consists of one or more Teleport services) that have connected to the Teleport cluster, including the Teleport version. " +
+				"After disconnecting, a Teleport server has a TTL of 10 minutes, so this value will include servers that have recently disconnected but have not reached their TTL.",
+		},
+		[]string{teleport.TagVersion},
+	)
+
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
 		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
+		registeredAgents,
 	}
 )
 
@@ -395,9 +414,11 @@ func (a *Server) runPeriodicOperations() {
 		Duration: apidefaults.ServerKeepAliveTTL() * 2,
 		Jitter:   utils.NewSeventhJitter(),
 	})
+	promTicker := time.NewTicker(defaults.PrometheusScrapeInterval)
 	missedKeepAliveCount := 0
 	defer ticker.Stop()
 	defer heartbeatCheckTicker.Stop()
+	defer promTicker.Stop()
 	for {
 		select {
 		case <-a.closeCtx.Done():
@@ -423,7 +444,113 @@ func (a *Server) runPeriodicOperations() {
 			}
 			// Update prometheus gauge
 			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
+		case <-promTicker.C:
+			a.updateVersionMetrics()
 		}
+	}
+}
+
+// updateVersionMetrics leverages the cache to report all versions of teleport servers connected to the
+// cluster via prometheus metrics
+func (a *Server) updateVersionMetrics() {
+	hostID := make(map[string]struct{})
+	versionCount := make(map[string]int)
+
+	// Nodes, Proxies, Auths, KubeServices, and WindowsDesktopServices use the UUID as the name field where
+	// DB and App store it in the spec. Check expiry due to DynamoDB taking up to 48hr to expire from backend
+	// and then store hostID and version count information.
+	serverCheck := func(server interface{}) {
+		type serverKubeWindows interface {
+			Expiry() time.Time
+			GetName() string
+			GetTeleportVersion() string
+		}
+		type appDB interface {
+			serverKubeWindows
+			GetHostID() string
+		}
+
+		// appDB needs to be first as it also matches the serverKubeWindows interface
+		if a, ok := server.(appDB); ok {
+			if a.Expiry().Before(time.Now()) {
+				return
+			}
+			if _, present := hostID[a.GetHostID()]; !present {
+				hostID[a.GetHostID()] = struct{}{}
+				versionCount[a.GetTeleportVersion()]++
+			}
+		} else if s, ok := server.(serverKubeWindows); ok {
+			if s.Expiry().Before(time.Now()) {
+				return
+			}
+			if _, present := hostID[s.GetName()]; !present {
+				hostID[s.GetName()] = struct{}{}
+				versionCount[s.GetTeleportVersion()]++
+			}
+		}
+	}
+	client := a.GetCache()
+
+	proxyServers, err := client.GetProxies()
+	if err != nil {
+		log.Debugf("Failed to get Proxies for teleport_registered_servers metric: %v", err)
+	}
+	for _, proxyServer := range proxyServers {
+		serverCheck(proxyServer)
+	}
+
+	authServers, err := client.GetAuthServers()
+	if err != nil {
+		log.Debugf("Failed to get Auth servers for teleport_registered_servers metric: %v", err)
+	}
+	for _, authServer := range authServers {
+		serverCheck(authServer)
+	}
+
+	servers, err := client.GetNodes(a.closeCtx, apidefaults.Namespace)
+	if err != nil {
+		log.Debugf("Failed to get Nodes for teleport_registered_servers metric: %v", err)
+	}
+	for _, server := range servers {
+		serverCheck(server)
+	}
+
+	dbs, err := client.GetDatabaseServers(a.closeCtx, apidefaults.Namespace)
+	if err != nil {
+		log.Debugf("Failed to get Database servers for teleport_registered_servers metric: %v", err)
+	}
+	for _, db := range dbs {
+		serverCheck(db)
+	}
+
+	apps, err := client.GetApplicationServers(a.closeCtx, apidefaults.Namespace)
+	if err != nil {
+		log.Debugf("Failed to get Application servers for teleport_registered_servers metric: %v", err)
+	}
+	for _, app := range apps {
+		serverCheck(app)
+	}
+
+	kubeServices, err := client.GetKubeServices(a.closeCtx)
+	if err != nil {
+		log.Debugf("Failed to get Kube services for teleport_registered_servers metric: %v", err)
+	}
+	for _, kubeService := range kubeServices {
+		serverCheck(kubeService)
+	}
+
+	windowsServices, err := client.GetWindowsDesktopServices(a.closeCtx)
+	if err != nil {
+		log.Debugf("Failed to get Window Desktop Services for teleport_registered_servers metric: %v", err)
+	}
+	for _, windowsService := range windowsServices {
+		serverCheck(windowsService)
+	}
+
+	// reset the gauges so that any versions that fall off are removed from exported metrics
+	registeredAgents.Reset()
+	for version, count := range versionCount {
+		registeredAgents.WithLabelValues(version).Set(float64(count))
 	}
 }
 
@@ -1019,6 +1146,20 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	eventIdentity := identity.GetEventIdentity()
+	eventIdentity.Expires = certRequest.NotAfter
+	if a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
+		Metadata: apievents.Metadata{
+			Type: events.CertificateCreateEvent,
+			Code: events.CertificateCreateCode,
+		},
+		CertificateType: events.CertificateTypeUser,
+		Identity:        &eventIdentity,
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit certificate create event.")
+	}
+
 	return &proto.Certs{
 		SSH:        sshCert,
 		TLS:        tlsCert,
@@ -2129,9 +2270,8 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 // ValidateToken takes a provisioning token value and finds if it's valid. Returns
 // a list of roles this token allows its owner to assume and token labels, or an error if the token
 // cannot be found.
-func (a *Server) ValidateToken(token string) (types.SystemRoles, map[string]string, error) {
-	ctx := context.TODO()
-	tkns, err := a.GetCache().GetStaticTokens()
+func (a *Server) ValidateToken(ctx context.Context, token string) (types.SystemRoles, map[string]string, error) {
+	tkns, err := a.GetStaticTokens()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2146,7 +2286,7 @@ func (a *Server) ValidateToken(token string) (types.SystemRoles, map[string]stri
 
 	// If it's not a static token, check if it's a ephemeral token in the backend.
 	// If a ephemeral token is found, make sure it's still valid.
-	tok, err := a.GetCache().GetToken(ctx, token)
+	tok, err := a.GetToken(ctx, token)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2172,74 +2312,6 @@ func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
 		return false
 	}
 	return true
-}
-
-// RegisterUsingToken adds a new node to the Teleport cluster using previously issued token.
-// A node must also request a specific role (and the role must match one of the roles
-// the token was generated for).
-//
-// If a token was generated with a TTL, it gets enforced (can't register new nodes after TTL expires)
-// If a token was generated with a TTL=0, it means it's a single-use token and it gets destroyed
-// after a successful registration.
-func (a *Server) RegisterUsingToken(req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
-
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// If the request uses Simplified Node Joining check that the identity is
-	// valid and matches the token allow rules.
-	err := a.CheckEC2Request(context.Background(), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// make sure the token is valid
-	roles, _, err := a.ValidateToken(req.Token)
-	if err != nil {
-		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %v", req.NodeName, req.HostID, req.Role, err)
-		return nil, trace.AccessDenied(fmt.Sprintf("%q [%v] can not join the cluster with role %s, the token is not valid", req.NodeName, req.HostID, req.Role))
-	}
-
-	// make sure the caller is requested the role allowed by the token
-	if !roles.Include(req.Role) {
-		msg := fmt.Sprintf("node %q [%v] can not join the cluster, the token does not allow %q role", req.NodeName, req.HostID, req.Role)
-		log.Warn(msg)
-		return nil, trace.BadParameter(msg)
-	}
-
-	// generate and return host certificate and keys
-	certs, err := a.GenerateHostCerts(context.Background(),
-		&proto.HostCertsRequest{
-			HostID:               req.HostID,
-			NodeName:             req.NodeName,
-			Role:                 req.Role,
-			AdditionalPrincipals: req.AdditionalPrincipals,
-			PublicTLSKey:         req.PublicTLSKey,
-			PublicSSHKey:         req.PublicSSHKey,
-			RemoteAddr:           req.RemoteAddr,
-			DNSNames:             req.DNSNames,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
-	return certs, nil
-}
-
-func (a *Server) RegisterNewAuthServer(ctx context.Context, token string) error {
-	tok, err := a.Provisioner.GetToken(ctx, token)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !tok.GetRoles().Include(types.RoleAuth) {
-		return trace.AccessDenied("role does not match")
-	}
-	if err := a.DeleteToken(ctx, token); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
@@ -2916,6 +2988,26 @@ func (a *Server) GetApp(ctx context.Context, name string) (types.Application, er
 	return a.GetCache().GetApp(ctx, name)
 }
 
+// CreateSessionTracker creates a tracker resource for an active session.
+func (a *Server) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
+	return a.SessionTrackerService.CreateSessionTracker(ctx, req)
+}
+
+// GetActiveSessionTrackers returns a list of active session trackers.
+func (a *Server) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
+	return a.SessionTrackerService.GetActiveSessionTrackers(ctx)
+}
+
+// RemoveSessionTracker removes a tracker resource for an active session.
+func (a *Server) RemoveSessionTracker(ctx context.Context, sessionID string) error {
+	return a.SessionTrackerService.RemoveSessionTracker(ctx, sessionID)
+}
+
+// UpdateSessionTracker updates a tracker resource for an active session.
+func (a *Server) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
+	return a.SessionTrackerService.UpdateSessionTracker(ctx, req)
+}
+
 // GetDatabaseServers returns all registers database proxy servers.
 func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
@@ -3031,6 +3123,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if pref.GetRequireSessionMFA() {
 		// Cluster always requires MFA, regardless of roles.
 		return &proto.IsMFARequiredResponse{Required: true}, nil
@@ -3150,6 +3243,18 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			services.AccessMFAParams{},
 			dbRoleMatchers...,
 		)
+	case *proto.IsMFARequiredRequest_WindowsDesktop:
+		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(desktops) == 0 {
+			return nil, trace.NotFound("windows desktop %q not found", t.WindowsDesktop.GetWindowsDesktop())
+		}
+
+		noMFAAccessErr = checker.CheckAccess(desktops[0],
+			services.AccessMFAParams{},
+			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
 	default:
 		return nil, trace.BadParameter("unknown Target %T", req.Target)

@@ -451,7 +451,7 @@ func TestAuthenticate(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			f.cfg.ReverseTunnelSrv = tt.tunnel
 			ap.kubeServices = tt.kubeServices
-			roles, err := services.FromSpec("ops", types.RoleSpecV4{
+			roles, err := services.FromSpec("ops", types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					KubeUsers:  tt.roleKubeUsers,
 					KubeGroups: tt.roleKubeGroups,
@@ -684,7 +684,6 @@ func TestNewClusterSessionLocal(t *testing.T) {
 	authCtx.kubeCluster = "local"
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
-	require.NotNil(t, sess.forwarder)
 	require.Equal(t, []kubeClusterEndpoint{{addr: f.creds["local"].targetAddr}}, sess.kubeClusterEndpoints)
 
 	// Make sure newClusterSession used provided creds
@@ -702,7 +701,6 @@ func TestNewClusterSessionRemote(t *testing.T) {
 	// Succeed on remote cluster session
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
-	require.NotNil(t, sess.forwarder)
 	require.Equal(t, []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}}, sess.kubeClusterEndpoints)
 
 	// Make sure newClusterSession obtained a new client cert instead of using f.creds.
@@ -750,7 +748,6 @@ func TestNewClusterSessionDirect(t *testing.T) {
 	}
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
-	require.NotNil(t, sess.forwarder)
 	require.Equal(t, []kubeClusterEndpoint{publicEndpoint, tunnelEndpoint}, sess.kubeClusterEndpoints)
 
 	// Make sure newClusterSession obtained a new client cert instead of using f.creds.

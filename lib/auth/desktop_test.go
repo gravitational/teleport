@@ -23,24 +23,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testModules struct {
-	modules.Modules
-}
-
-func (m *testModules) Features() modules.Features {
-	return modules.Features{
-		Desktop: false, // Explicily turn off desktop access.
-	}
-}
-
 // TestDesktopAccessDisabled makes sure desktop access can be disabled via modules.
 // Since desktop connections require a cert, this is mediated via the cert generating function.
 func TestDesktopAccessDisabled(t *testing.T) {
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Desktop: false, // Explicily turn off desktop access.
+		},
+	})
 
-	t.Parallel()
 	ctx := context.Background()
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)

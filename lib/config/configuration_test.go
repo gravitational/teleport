@@ -1712,23 +1712,25 @@ func TestAppsCLF(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		clf := CommandLineFlags{
-			Roles:   tt.inRoles,
-			AppName: tt.inAppName,
-			AppURI:  tt.inAppURI,
-		}
-		cfg := service.MakeDefaultConfig()
-		err := Configure(&clf, cfg)
-		if err != nil {
-			require.IsType(t, err, tt.outError, tt.desc)
-		} else {
-			require.NoError(t, err, tt.desc)
-		}
-		if tt.outError != nil {
-			continue
-		}
-		require.True(t, cfg.Apps.Enabled, tt.desc)
-		require.Len(t, cfg.Apps.Apps, 1, tt.desc)
+		t.Run(tt.desc, func(t *testing.T) {
+			clf := CommandLineFlags{
+				Roles:   tt.inRoles,
+				AppName: tt.inAppName,
+				AppURI:  tt.inAppURI,
+			}
+			cfg := service.MakeDefaultConfig()
+			err := Configure(&clf, cfg)
+			if err != nil {
+				require.IsType(t, err, tt.outError)
+			} else {
+				require.NoError(t, err)
+			}
+			if tt.outError != nil {
+				return
+			}
+			require.True(t, cfg.Apps.Enabled)
+			require.Len(t, cfg.Apps.Apps, 1)
+		})
 	}
 }
 
@@ -1961,6 +1963,34 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				GCP: service.DatabaseGCP{
 					ProjectID:  "gcp-project-1",
 					InstanceID: "gcp-instance-1",
+				},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
+		{
+			desc: "SQL Server",
+			inFlags: CommandLineFlags{
+				DatabaseName:         "sqlserver",
+				DatabaseProtocol:     defaults.ProtocolSQLServer,
+				DatabaseURI:          "localhost:1433",
+				DatabaseADKeytabFile: "/etc/keytab",
+				DatabaseADDomain:     "EXAMPLE.COM",
+				DatabaseADSPN:        "MSSQLSvc/sqlserver.example.com:1433",
+			},
+			outDatabase: service.Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
+				},
+				AD: service.DatabaseAD{
+					KeytabFile: "/etc/keytab",
+					Krb5File:   defaults.Krb5FilePath,
+					Domain:     "EXAMPLE.COM",
+					SPN:        "MSSQLSvc/sqlserver.example.com:1433",
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile},
