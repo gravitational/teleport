@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/websocket"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
 
@@ -49,6 +48,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 )
 
@@ -131,6 +131,7 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		authProvider: authProvider,
 		encoder:      unicode.UTF8.NewEncoder(),
 		decoder:      unicode.UTF8.NewDecoder(),
+		wsLock:       &sync.Mutex{},
 	}, nil
 }
 
@@ -178,6 +179,8 @@ type TerminalHandler struct {
 	buffer []byte
 
 	closeOnce sync.Once
+
+	wsLock *sync.Mutex
 }
 
 // Serve builds a connect to the remote node and then pumps back two types of
@@ -189,15 +192,18 @@ func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
 	t.ctx.AddClosers(t)
 	defer t.ctx.RemoveCloser(t)
 
-	// We initial a server explicitly here instead of using websocket.HandlerFunc
-	// to set an empty origin checker (this is to make our lives easier in tests).
-	// The main use of the origin checker is to enforce the browsers same-origin
-	// policy. That does not matter here because even if malicious Javascript
-	// would try and open a websocket the request to this endpoint requires the
-	// bearer token to be in the URL so it would not be sent along by default
-	// like cookies are.
-	ws := &websocket.Server{Handler: t.handler}
-	ws.ServeHTTP(w, r)
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin:     func(r *http.Request) bool { return true },
+	}
+
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		t.log.Errorf("Error upgrading to websocket: %v", err)
+	}
+
+	t.handler(ws, r)
 }
 
 // Close the websocket stream.
@@ -218,7 +224,7 @@ func (t *TerminalHandler) Close() error {
 // handler is the main websocket loop. It creates a Teleport client and then
 // pumps raw events and audit events back to the client until the SSH session
 // is complete.
-func (t *TerminalHandler) handler(ws *websocket.Conn) {
+func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	defer ws.Close()
 
 	// Create a context for signaling when the terminal session is over.
@@ -226,7 +232,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
-	tc, err := t.makeClient(ws)
+	tc, err := t.makeClient(ws, r)
 	if err != nil {
 		t.log.WithError(err).Infof("Failed creating a client for session %v.", t.params.SessionID)
 		writeErr := t.writeError(err, ws)
@@ -238,9 +244,6 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 
 	t.log.Debugf("Creating websocket stream for %v.", t.params.SessionID)
 
-	// Start sending ping frames through websocket to client.
-	go t.startPingLoop(ws)
-
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamTerminal(ws, tc)
 	go t.streamEvents(ws, tc)
@@ -251,8 +254,8 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 }
 
 // makeClient builds a *client.TeleportClient for the connection.
-func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient, error) {
-	clientConfig, err := makeTeleportClientConfig(ws.Request().Context(), t.ctx)
+func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*client.TeleportClient, error) {
+	clientConfig, err := makeTeleportClientConfig(r.Context(), t.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -274,7 +277,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 	clientConfig.Host = t.hostName
 	clientConfig.HostPort = t.hostPort
 	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)}
-	clientConfig.ClientAddr = ws.Request().RemoteAddr
+	clientConfig.ClientAddr = r.RemoteAddr
 
 	if len(t.params.InteractiveCommand) > 0 {
 		clientConfig.Interactive = true
@@ -323,7 +326,7 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 			Cert:    t.ctx.session.GetPub(),
 			TLSCert: t.ctx.session.GetTLSCert(),
 		},
-	}, t.promptMFAChallenge(ws))
+	}, promptMFAChallenge(ws, t.wsLock, protobufMFACodec{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -336,7 +339,11 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 	return nil
 }
 
-func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMFAChallengeHandler {
+func promptMFAChallenge(
+	ws *websocket.Conn,
+	wsLock *sync.Mutex,
+	codec mfaCodec,
+) client.PromptMFAChallengeHandler {
 	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 		var chal *auth.MFAAuthenticateChallenge
 		var envelopeType string
@@ -375,98 +382,29 @@ func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMF
 		}
 
 		// Send the challenge over the socket.
-		chalEnc, err := json.Marshal(chal)
+		msg, err := codec.encode(chal, envelopeType)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		envelope := &Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    envelopeType,
-			Payload: string(chalEnc),
-		}
-		envelopeBytes, err := proto.Marshal(envelope)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		err = websocket.Message.Send(ws, envelopeBytes)
+
+		wsLock.Lock()
+		err = ws.WriteMessage(websocket.BinaryMessage, msg)
+		wsLock.Unlock()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		// Read the challenge response.
 		var bytes []byte
-		if err = websocket.Message.Receive(ws, &bytes); err != nil {
+		ty, bytes, err := ws.ReadMessage()
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// Reset envelope to zero value.
-		envelope = &Envelope{}
-		if err = proto.Unmarshal(bytes, envelope); err != nil {
-			return nil, trace.Wrap(err)
+		if ty != websocket.BinaryMessage {
+			return nil, trace.BadParameter("expected websocket.BinaryMessage, got %v", ty)
 		}
 
-		var mfaResponse *authproto.MFAAuthenticateResponse
-
-		// Convert from JSON to proto.
-		switch envelopeType {
-		case defaults.WebsocketWebauthnChallenge:
-			var webauthnResponse wanlib.CredentialAssertionResponse
-			if err := json.Unmarshal([]byte(envelope.Payload), &webauthnResponse); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			mfaResponse = &authproto.MFAAuthenticateResponse{
-				Response: &authproto.MFAAuthenticateResponse_Webauthn{
-					Webauthn: wanlib.CredentialAssertionResponseToProto(&webauthnResponse),
-				},
-			}
-
-		default:
-			var u2fResponse u2f.AuthenticateChallengeResponse
-			if err := json.Unmarshal([]byte(envelope.Payload), &u2fResponse); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			mfaResponse = &authproto.MFAAuthenticateResponse{
-				Response: &authproto.MFAAuthenticateResponse_U2F{
-					U2F: &authproto.U2FResponse{
-						KeyHandle:  u2fResponse.KeyHandle,
-						ClientData: u2fResponse.ClientData,
-						Signature:  u2fResponse.SignatureData,
-					},
-				},
-			}
-		}
-
-		return mfaResponse, nil
-	}
-}
-
-// startPingLoop starts a loop that will continuously send a ping frame through the websocket
-// to prevent the connection between web client and teleport proxy from becoming idle.
-// Interval is determined by the keep_alive_interval config set by user (or default).
-// Loop will terminate when there is an error sending ping frame or when terminal session is closed.
-func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
-	// Define our own marshal func to just return a ping payload type.
-	codec := websocket.Codec{Marshal: func(v interface{}) (data []byte, payloadType byte, err error) {
-		return nil, websocket.PingFrame, nil
-	}}
-
-	t.log.Debugf("Starting websocket ping loop with interval %v.", t.params.KeepAliveInterval)
-	tickerCh := time.NewTicker(t.params.KeepAliveInterval)
-	defer tickerCh.Stop()
-
-	for {
-		select {
-		case <-tickerCh.C:
-			// Pongs are internally handled by the websocket library.
-			// https://github.com/golang/net/blob/master/websocket/hybi.go#L291
-			if err := codec.Send(ws, nil); err != nil {
-				t.log.Errorf("Unable to send ping frame to web client: %v.", err)
-				t.Close()
-				return
-			}
-		case <-t.terminalContext.Done():
-			t.log.Debug("Terminating websocket ping loop.")
-			return
-		}
+		return codec.decode(bytes, envelopeType)
 	}
 }
 
@@ -512,7 +450,9 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		t.log.Errorf("Unable to marshal close event for web client.")
 		return
 	}
-	err = websocket.Message.Send(ws, envelopeBytes)
+	t.wsLock.Lock()
+	err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+	t.wsLock.Unlock()
 	if err != nil {
 		t.log.Errorf("Unable to send close event to web client.")
 		return
@@ -554,7 +494,9 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 			}
 
 			// Send bytes over the websocket to the web client.
-			err = websocket.Message.Send(ws, envelopeBytes)
+			t.wsLock.Lock()
+			err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+			t.wsLock.Unlock()
 			if err != nil {
 				logger.Errorf("Unable to send audit event to web client: %v.", err)
 				continue
@@ -652,7 +594,9 @@ func (t *TerminalHandler) write(data []byte, ws *websocket.Conn) (n int, err err
 	}
 
 	// Send bytes over the websocket to the web client.
-	err = websocket.Message.Send(ws, envelopeBytes)
+	t.wsLock.Lock()
+	err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+	t.wsLock.Unlock()
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -673,13 +617,17 @@ func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error
 		return n, nil
 	}
 
-	var bytes []byte
-	err = websocket.Message.Receive(ws, &bytes)
+	ty, bytes, err := ws.ReadMessage()
 	if err != nil {
-		if err == io.EOF {
+		if err == io.EOF || websocket.IsCloseError(err, 1006) {
 			return 0, io.EOF
 		}
+
 		return 0, trace.Wrap(err)
+	}
+
+	if ty != websocket.BinaryMessage {
+		return 0, trace.BadParameter("expected binary message, got %v", ty)
 	}
 
 	var envelope Envelope

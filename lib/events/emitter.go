@@ -159,6 +159,7 @@ func (w *CheckingEmitterConfig) CheckAndSetDefaults() error {
 
 // EmitAuditEvent emits audit event
 func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	auditEmitEvent.Inc()
 	if err := checkAndSetEventFields(event, r.Clock, r.UIDGenerator, r.ClusterName); err != nil {
 		log.WithError(err).Errorf("Failed to emit audit event.")
 		AuditFailedEmit.Inc()
@@ -181,10 +182,10 @@ func checkAndSetEventFields(event apievents.AuditEvent, clock clockwork.Clock, u
 	if event.GetType() == "" {
 		return trace.BadParameter("missing mandatory event type field")
 	}
-	if event.GetCode() == "" && event.GetType() != SessionPrintEvent {
+	if event.GetCode() == "" && event.GetType() != SessionPrintEvent && event.GetType() != DesktopRecordingEvent {
 		return trace.BadParameter("missing mandatory event code field for %v event", event.GetType())
 	}
-	if event.GetID() == "" && event.GetType() != SessionPrintEvent {
+	if event.GetID() == "" && event.GetType() != SessionPrintEvent && event.GetType() != DesktopRecordingEvent {
 		event.SetID(uid.New())
 	}
 	if event.GetTime().IsZero() {
@@ -558,9 +559,8 @@ func (t *TeeStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEve
 		errors = append(errors, err)
 	}
 	// Forward session events except the ones that pollute global logs
-	// terminal resize, print, disk access and app session request events.
 	switch event.GetType() {
-	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, AppSessionRequestEvent, "":
+	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, AppSessionRequestEvent, DesktopRecordingEvent, "":
 		return trace.NewAggregate(errors...)
 	}
 	if err := t.emitter.EmitAuditEvent(ctx, event); err != nil {

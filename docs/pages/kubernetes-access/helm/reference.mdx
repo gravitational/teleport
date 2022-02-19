@@ -1480,6 +1480,80 @@ You can specify multiple apps by adding additional list elements.
   You can see a list of all the supported [values which can be used in a Teleport application access configuration here](../../application-access/reference.mdx#configuration).
 </Admonition>
 
+## `awsDatabases`
+
+<Admonition type="tip" title="Database auto-discovery">
+  This section configures database auto-discovery, which is only currently supported on AWS. You can configure databases for other platforms using the [`databases`](#databases) section below this.
+</Admonition>
+
+<Admonition type="note" title="IAM roles">
+  For AWS database auto-discovery to work, your agent pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx#step-36-configure-iam).
+
+  After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
+
+  ```
+  annotations:
+    serviceAccount:
+      eks.amazonaws.com/role-arn: arn:aws:iam::1234567890:role/my-rds-autodiscovery-role
+  ```
+</Admonition>
+
+| Type | Default value | Required? |
+| - | - | - |
+| `list` | `[]` | No |
+
+`awsDatabases` is a YAML list object detailing the filters for the AWS databases that should be discovered and proxied by Teleport Database access.
+
+You can specify multiple database filters by adding additional list elements.
+
+- `types` is a list containing the types of AWS databases that should be discovered.
+- `regions` is a list of AWS regions which should be scanned for databases.
+- `tags` can be used to set AWS tags that must be matched for databases to be discovered.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  awsDatabases:
+    - types: ["rds"]
+      regions: ["us-east-1", "us-west-2"]
+      tags:
+        "environment": "production"
+    - types: ["rds"]
+      regions: ["us-east-1"]
+      tags:
+        "environment": "dev"
+    - types: ["rds"]
+      regions: ["eu-west-1"]
+      tags:
+        "*": "*"
+  ```
+
+  <Admonition type="note" title="YAML formatting">
+    YAML is very sensitive to correct spacing. When specifying lists in a `values.yaml` file, you might like
+    to [use a linter](https://codebeautify.org/yaml-validator) to validate your YAML list and ensure that it is correctly formatted.
+  </Admonition>
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set "awsDatabases[0].types[0]=rds" \
+  --set "awsDatabases[0].regions[0]=us-east-1" \
+  --set "awsDatabases[0].regions[1]=us-west-2" \
+  --set "awsDatabases[0].tags[0].environment=production" \
+  --set "awsDatabases[1].types[0]=rds" \
+  --set "awsDatabases[1].regions[0]=us-east-1" \
+  --set "awsDatabases[1].tags[0].environment=dev" \
+  --set "awsDatabases[2].types[0]=rds" \
+  --set "awsDatabases[2].regions[0]=eu-west-1" \
+  --set "awsDatabases[2].tags[0].*=*"
+  ```
+
+  <Admonition type="note">
+    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
+  </Admonition>
+
+  </TabItem>
+</Tabs>
+
 ## `databases`
 
 | Type | Default value | Required? |

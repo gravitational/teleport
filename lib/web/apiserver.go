@@ -333,6 +333,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
+	// add Node token generation
+	h.POST("/webapi/nodes/token", h.WithAuth(h.createScriptJoinTokenHandle))
+	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
+	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
 
@@ -410,8 +414,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	// Desktop access endpoints.
 	h.GET("/webapi/sites/:site/desktops", h.WithClusterAuth(h.getDesktopsHandle))
 	h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
-	// GET //webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
+	// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
 	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.desktopConnectHandle))
+	// GET /webapi/sites/:site/desktopplayback/:sid?access_token=<bearer_token>
+	h.GET("/webapi/sites/:site/desktopplayback/:sid", h.WithAuth(h.desktopPlaybackHandle))
 
 	// if Web UI is enabled, check the assets dir:
 	var indexPage *template.Template
@@ -565,7 +571,15 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	userContext, err := ui.NewUserContext(user, roleset, h.ClusterFeatures)
+	// The following section is similar to
+	// https://github.com/gravitational/teleport/blob/ea810d30d99f26e58a190edc5facfbe0c09ea5e5/lib/srv/desktop/windows_server.go#L757-L769
+	recConfig, err := c.unsafeCachedAuthClient.GetSessionRecordingConfig(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	desktopRecordingEnabled := recConfig.GetMode() != types.RecordOff
+
+	userContext, err := ui.NewUserContext(user, roleset, h.ClusterFeatures, desktopRecordingEnabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -894,10 +908,22 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 	}
 
+	// get tunnel address to display on cloud instances
+	tunnelPublicAddr := ""
+	if h.ClusterFeatures.GetCloud() {
+		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+		if err != nil {
+			h.log.WithError(err).Warn("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
+		} else {
+			tunnelPublicAddr = proxyConfig.SSH.TunnelPublicAddr
+		}
+	}
+
 	webCfg := ui.WebConfig{
-		Auth:            authSettings,
-		CanJoinSessions: canJoinSessions,
-		IsCloud:         h.ClusterFeatures.GetCloud(),
+		Auth:                authSettings,
+		CanJoinSessions:     canJoinSessions,
+		IsCloud:             h.ClusterFeatures.GetCloud(),
+		TunnelPublicAddress: tunnelPublicAddr,
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -2323,6 +2349,9 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
+	// Teleport 8 clients are still expecting the legacy JSON format.
+	// Teleport 9 clients handle both legacy and new.
+	// TODO(zmb3) return certs directly in Teleport 10
 	return auth.LegacyCertsFromProto(certs), nil
 }
 

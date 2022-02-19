@@ -9,6 +9,10 @@ This section will cover:
 - Getting started with a local Teleport using Docker.
 - Using Teleport with Teleport's native client, `tsh`.
 
+<Details scope={["cloud"]} title="Teleport Cloud" scopeOnly={true} opened={true}>
+Teleport Cloud includes managed instances of Teleport's Auth Service and Proxy Service. Since all of Teleport's services are run from the same binary, you can use our Docker image to run other services (e.g., the Database Service or App Service), or explore the Auth and Proxy Services locally.
+</Details>
+
 ## Prerequisites
 
 - Teleport v(=teleport.version=) Open Source or Enterprise.
@@ -19,6 +23,7 @@ $ docker version
 # Client: Docker Engine - Community
 # Version:           (=docker.version=)
 ```
+
 
 ## Step 1/4. Pick your image
 

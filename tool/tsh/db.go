@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -96,6 +95,11 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	// user to authenticate the connection as.
 	if db.Protocol == defaults.ProtocolMongoDB && db.Username == "" {
 		return trace.BadParameter("please provide the database user name using --db-user flag")
+	}
+	if db.Protocol == defaults.ProtocolRedis && db.Username == "" {
+		// Default to "default" in the same way as Redis does. We need the username to check access on our side.
+		// ref: https://redis.io/commands/auth
+		db.Username = defaults.DefaultRedisUsername
 	}
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
@@ -244,7 +248,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 		host, port = tc.PostgresProxyHostPort()
 	case defaults.ProtocolMySQL:
 		host, port = tc.MySQLProxyHostPort()
-	case defaults.ProtocolMongoDB:
+	case defaults.ProtocolMongoDB, defaults.ProtocolRedis, defaults.ProtocolSQLServer:
 		host, port = tc.WebProxyHostPort()
 	default:
 		return trace.BadParameter("unknown database protocol: %q", database)
@@ -273,12 +277,36 @@ Key:       %v
 	return nil
 }
 
-func startLocalALPNSNIProxy(cf *CLIConf, tc *client.TeleportClient, databaseProtocol string) (*alpnproxy.LocalProxy, error) {
+// maybeStartLocalProxy starts local TLS ALPN proxy if needed depending on the
+// connection scenario and returns a list of options to use in the connect
+// command.
+func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, cluster string) ([]ConnectCommandFunc, error) {
+	// Local proxy is started if TLS routing is enabled, or if this is a SQL
+	// Server connection which always requires a local proxy.
+	if !tc.TLSRoutingEnabled && db.Protocol != defaults.ProtocolSQLServer {
+		return []ConnectCommandFunc{}, nil
+	}
+
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	lp, err := mkLocalProxy(cf, tc.WebProxyAddr, databaseProtocol, listener)
+
+	opts := localProxyOpts{
+		proxyAddr: tc.WebProxyAddr,
+		listener:  listener,
+		protocol:  db.Protocol,
+		insecure:  cf.InsecureSkipVerify,
+	}
+
+	// For SQL Server connections, local proxy must be configured with the
+	// client certificate that will be used to route connections.
+	if db.Protocol == defaults.ProtocolSQLServer {
+		opts.certFile = profile.DatabaseCertPathForCluster("", db.ServiceName)
+		opts.keyFile = profile.KeyPath()
+	}
+
+	lp, err := mkLocalProxy(cf.Context, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -290,7 +318,18 @@ func startLocalALPNSNIProxy(cf *CLIConf, tc *client.TeleportClient, databaseProt
 		}
 	}()
 
-	return lp, nil
+	addr, err := utils.ParseAddr(lp.GetAddr())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// When connecting over TLS, psql only validates hostname against presented
+	// certificate's DNS names. As such, connecting to 127.0.0.1 will fail
+	// validation, so connect to localhost.
+	host := "localhost"
+	return []ConnectCommandFunc{
+		WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(cluster)),
+	}, nil
 }
 
 // onDatabaseConnect implements "tsh db connect" command.
@@ -317,6 +356,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 	}
+
 	key, err := tc.LocalAgent().GetCoreKey()
 	if err != nil {
 		return trace.Wrap(err)
@@ -326,21 +366,9 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	var opts []ConnectCommandFunc
-	if tc.TLSRoutingEnabled {
-		lp, err := startLocalALPNSNIProxy(cf, tc, database.Protocol)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		addr, err := utils.ParseAddr(lp.GetAddr())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// When connecting over TLS, psql only validates hostname against presented certificate's
-		// DNS names. As such, connecting to 127.0.0.1 will fail validation, so connect to localhost.
-		host := "localhost"
-		opts = append(opts, WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)))
+	opts, err := maybeStartLocalProxy(cf, tc, profile, database, rootClusterName)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	cmd, err := newCmdBuilder(tc, profile, database, rootClusterName, opts...).getConnectCommand()
 	if err != nil {

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -253,6 +254,67 @@ func hasLocalUserRole(checker services.AccessChecker) bool {
 	return ok
 }
 
+// CreateSessionTracker creates a tracker resource for an active session.
+func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
+	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) {
+		return nil, trace.AccessDenied("this request can be only executed by a node, proxy or kube service")
+	}
+
+	return a.authServer.CreateSessionTracker(ctx, req)
+}
+
+// GetSessionTracker returns the current state of a session tracker for an active session.
+func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
+	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) {
+		return nil, trace.AccessDenied("this request can be only executed by a node, proxy or kube service")
+	}
+
+	return a.authServer.GetSessionTracker(ctx, sessionID)
+}
+
+// GetActiveSessionTrackers returns a list of active session trackers.
+func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
+	sessions, err := a.authServer.GetActiveSessionTrackers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var filteredSessions []types.SessionTracker
+
+	for _, session := range sessions {
+		evaluator := NewSessionAccessEvaluator(session.GetHostPolicySets(), session.GetSessionKind())
+		joinerRoles, err := a.authServer.GetRoles(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		modes, err := evaluator.CanJoin(SessionAccessContext{Roles: joinerRoles})
+		if err == nil || len(modes) > 0 {
+			filteredSessions = append(filteredSessions, session)
+		}
+	}
+
+	return filteredSessions, nil
+}
+
+// RemoveSessionTracker removes a tracker resource for an active session.
+func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID string) error {
+	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) {
+		return trace.AccessDenied("this request can be only executed by a node, proxy or kube service")
+	}
+
+	return a.authServer.RemoveSessionTracker(ctx, sessionID)
+}
+
+// UpdateSessionTracker updates a tracker resource for an active session.
+func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
+	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) {
+		return trace.AccessDenied("this request can be only executed by a node, proxy or kube service")
+	}
+
+	return a.authServer.UpdateSessionTracker(ctx, req)
+}
+
 // AuthenticateWebUser authenticates web user, creates and returns a web session
 // in case authentication is successful
 func (a *ServerWithRoles) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error) {
@@ -473,7 +535,7 @@ func (a *ServerWithRoles) RegisterNewAuthServer(ctx context.Context, token strin
 //
 // This wrapper does not do any extra authz checks, as the register method has
 // its own authz mechanism.
-func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeResponse ChallengeResponseFunc) (*proto.Certs, error) {
+func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error) {
 	certs, err := a.authServer.RegisterUsingIAMMethod(ctx, challengeResponse)
 	return certs, trace.Wrap(err)
 }
@@ -601,6 +663,13 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbUpdate); err != nil {
 			return trace.Wrap(err)
 		}
+	case constants.KeepAliveKube:
+		if serverName != handle.Name || !a.hasBuiltinRole(string(types.RoleKube)) {
+			return trace.AccessDenied("access denied")
+		}
+		if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unknown keep alive type %q", handle.Type)
 	}
@@ -660,6 +729,14 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 			}
 		case types.KindDatabaseServer:
 			if err := a.action(apidefaults.Namespace, types.KindDatabaseServer, types.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case types.KindKubeService:
+			if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case types.KindWindowsDesktopService:
+			if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		default:
@@ -806,16 +883,24 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	}
 
 	limit := int(req.Limit)
+	actionVerbs := []string{types.VerbList, types.VerbRead}
+
 	switch req.ResourceType {
-	case types.KindDatabaseServer,
-		types.KindAppServer,
-		types.KindNode,
-		types.KindKubeService:
+	case types.KindNode:
+		// We are checking list only for Nodes to keep backwards compatibility.
+		// The read verb got added to GetNodes initially in:
+		//   https://github.com/gravitational/teleport/pull/1209
+		// but got removed shortly afterwards in:
+		//   https://github.com/gravitational/teleport/pull/1224
+		actionVerbs = []string{types.VerbList}
+
+	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService:
+
 	default:
 		return nil, "", trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 	}
 
-	if err := a.action(req.Namespace, req.ResourceType, types.VerbList); err != nil {
+	if err := a.action(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
@@ -850,11 +935,9 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 			switch match, err := services.MatchResourceByFilters(resource, filter); {
 			case err != nil:
 				return false, trace.Wrap(err)
-			case !match:
-				continue
+			case match:
+				resources = append(resources, resource)
 			}
-
-			resources = append(resources, resource)
 		}
 
 		return len(resources) == limit, nil
@@ -891,7 +974,8 @@ func (a *ServerWithRoles) checkAccessToResource(resource types.Resource) error {
 }
 
 // ListNodes returns a paginated list of nodes filtered by user access.
-// DELETE IN 10.0
+//
+// DELETE IN 10.0.0 in favor of ListResources.
 func (a *ServerWithRoles) ListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
 	if err := a.action(req.Namespace, types.KindNode, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
@@ -900,7 +984,7 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, req proto.ListNodesRequ
 	return a.filterAndListNodes(ctx, req)
 }
 
-// DELETE in 10.0
+// DELETE IN 10.0.0 in favor of ListResources.
 func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
 	limit := int(req.Limit)
 	if limit <= 0 {
@@ -1434,6 +1518,7 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 		ServerVersion:   teleport.Version,
 		ServerFeatures:  modules.GetModules().Features().ToProto(),
 		ProxyPublicAddr: a.getProxyPublicAddr(),
+		IsBoring:        modules.GetModules().IsBoringBinary(),
 	}, nil
 }
 
@@ -1866,6 +1951,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// TLS certs.
 	case proto.UserCertsRequest_All:
 		// Unrestricted usage.
+	case proto.UserCertsRequest_WindowsDesktop:
+		// Desktop certs.
+		certReq.usage = []string{teleport.UsageWindowsDesktopOnly}
 	default:
 		return nil, trace.BadParameter("unsupported cert usage %q", req.Usage)
 	}
@@ -2239,7 +2327,6 @@ func (a *ServerWithRoles) ResumeAuditStream(ctx context.Context, sid session.ID,
 	}, nil
 }
 
-// streamWithRoles verifies every event
 type streamWithRoles struct {
 	a        *ServerWithRoles
 	serverID string
@@ -3269,6 +3356,15 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 	return a.authServer.UpsertKubeService(ctx, s)
 }
 
+// UpsertKubeServiceV2 creates or updates a Server representing a teleport
+// kubernetes service.
+func (a *ServerWithRoles) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.UpsertKubeServiceV2(ctx, s)
+}
+
 // GetKubeServices returns all Servers representing teleport kubernetes
 // services.
 func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, error) {
@@ -3489,7 +3585,7 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	if err := a.actionForKindSession(apidefaults.Namespace, types.VerbList, sessionID); err != nil {
@@ -3724,6 +3820,18 @@ func (a *ServerWithRoles) GetWindowsDesktopServices(ctx context.Context) ([]type
 	return services, nil
 }
 
+// GetWindowsDesktopService returns a registered windows desktop service by name.
+func (a *ServerWithRoles) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	service, err := a.authServer.GetWindowsDesktopService(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return service, nil
+}
+
 // UpsertWindowsDesktopService creates or updates a new windows desktop service.
 func (a *ServerWithRoles) UpsertWindowsDesktopService(ctx context.Context, s types.WindowsDesktopService) (*types.KeepAlive, error) {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbCreate, types.VerbUpdate); err != nil {
@@ -3749,11 +3857,11 @@ func (a *ServerWithRoles) DeleteAllWindowsDesktopServices(ctx context.Context) e
 }
 
 // GetWindowsDesktops returns all registered windows desktop hosts.
-func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
+func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	hosts, err := a.authServer.GetWindowsDesktops(ctx)
+	hosts, err := a.authServer.GetWindowsDesktops(ctx, filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3762,23 +3870,6 @@ func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context) ([]types.Windo
 		return nil, trace.Wrap(err)
 	}
 	return filtered, nil
-}
-
-// GetWindowsDesktop returns a registered windows desktop host.
-func (a *ServerWithRoles) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
-	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	host, err := a.authServer.GetWindowsDesktop(ctx, name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if filtered, err := a.filterWindowsDesktops([]types.WindowsDesktop{host}); err != nil {
-		return nil, trace.Wrap(err)
-	} else if len(filtered) == 0 {
-		return nil, trace.NotFound("not found")
-	}
-	return host, nil
 }
 
 // CreateWindowsDesktop creates a new windows desktop host.
@@ -3795,11 +3886,17 @@ func (a *ServerWithRoles) UpdateWindowsDesktop(ctx context.Context, s types.Wind
 		return trace.Wrap(err)
 	}
 
-	existing, err := a.authServer.GetWindowsDesktop(ctx, s.GetName())
+	existing, err := a.authServer.GetWindowsDesktops(ctx,
+		types.WindowsDesktopFilter{HostID: s.GetHostID(), Name: s.GetName()})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.checkAccessToWindowsDesktop(existing); err != nil {
+	if len(existing) == 0 {
+		return trace.NotFound("no windows desktops with HostID %s and Name %s",
+			s.GetHostID(), s.GetName())
+	}
+
+	if err := a.checkAccessToWindowsDesktop(existing[0]); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.checkAccessToWindowsDesktop(s); err != nil {
@@ -3815,11 +3912,17 @@ func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.Wind
 		return trace.Wrap(err)
 	}
 
+	if s.GetHostID() == "" {
+		// dont try to insert desktops with empty hostIDs
+		return nil
+	}
+
 	// If the desktop exists, check access,
 	// if it doesn't, continue.
-	existing, err := a.authServer.GetWindowsDesktop(ctx, s.GetName())
-	if err == nil {
-		if err := a.checkAccessToWindowsDesktop(existing); err != nil {
+	existing, err := a.authServer.GetWindowsDesktops(ctx,
+		types.WindowsDesktopFilter{HostID: s.GetHostID(), Name: s.GetName()})
+	if err == nil && len(existing) != 0 {
+		if err := a.checkAccessToWindowsDesktop(existing[0]); err != nil {
 			return trace.Wrap(err)
 		}
 	} else if err != nil && !trace.IsNotFound(err) {
@@ -3832,19 +3935,27 @@ func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.Wind
 	return a.authServer.UpsertWindowsDesktop(ctx, s)
 }
 
-// DeleteWindowsDesktop removes the specified windows desktop host.
-func (a *ServerWithRoles) DeleteWindowsDesktop(ctx context.Context, name string) error {
+// DeleteWindowsDesktop removes the specified Windows desktop host.
+// Note: unlike GetWindowsDesktops, this will delete at-most one desktop.
+// Passing an empty host ID will not trigger "delete all" behavior. To delete
+// all desktops, use DeleteAllWindowsDesktops.
+func (a *ServerWithRoles) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	desktop, err := a.authServer.GetWindowsDesktop(ctx, name)
+	desktop, err := a.authServer.GetWindowsDesktops(ctx,
+		types.WindowsDesktopFilter{HostID: hostID, Name: name})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.checkAccessToWindowsDesktop(desktop); err != nil {
+	if len(desktop) == 0 {
+		return trace.NotFound("no windows desktops with HostID %s and Name %s",
+			hostID, name)
+	}
+	if err := a.checkAccessToWindowsDesktop(desktop[0]); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteWindowsDesktop(ctx, name)
+	return a.authServer.DeleteWindowsDesktop(ctx, hostID, name)
 }
 
 // DeleteAllWindowsDesktops removes all registered windows desktop hosts.
@@ -3853,13 +3964,13 @@ func (a *ServerWithRoles) DeleteAllWindowsDesktops(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	// Only delete the desktops the user has access to.
-	desktops, err := a.authServer.GetWindowsDesktops(ctx)
+	desktops, err := a.authServer.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	for _, desktop := range desktops {
 		if err := a.checkAccessToWindowsDesktop(desktop); err == nil {
-			if err := a.authServer.DeleteWindowsDesktop(ctx, desktop.GetName()); err != nil {
+			if err := a.authServer.DeleteWindowsDesktop(ctx, desktop.GetHostID(), desktop.GetName()); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -3969,6 +4080,18 @@ func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType t
 		return nil, trace.Wrap(err)
 	}
 	return crl, nil
+}
+
+// UpdatePresence is coupled to the service layer and must exist here but is never actually called
+// since it's handled by the session presence task. This is never valid to call.
+func (a *ServerWithRoles) UpdatePresence(ctx context.Context, sessionID, user string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// UpdatePresence is coupled to the service layer and must exist here but is never actually called
+// since it's handled by the session presence task. This is never valid to call.
+func (a *ServerWithRoles) MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

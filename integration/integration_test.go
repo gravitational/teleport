@@ -189,6 +189,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("PAM", suite.bind(testPAM))
 	t.Run("PortForwarding", suite.bind(testPortForwarding))
 	t.Run("ProxyHostKeyCheck", suite.bind(testProxyHostKeyCheck))
+	t.Run("ReverseTunnelCollapse", suite.bind(testReverseTunnelCollapse))
 	t.Run("RotateChangeSigningAlg", suite.bind(testRotateChangeSigningAlg))
 	t.Run("RotateRollback", suite.bind(testRotateRollback))
 	t.Run("RotateSuccess", suite.bind(testRotateSuccess))
@@ -623,7 +624,7 @@ func TestMain(m *testing.M) {
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 &&
-		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
+		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand || os.Args[1] == teleport.CheckHomeDirSubCommand) {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
@@ -935,7 +936,7 @@ func verifySessionJoin(t *testing.T, username string, teleport *TeleInstance) {
 				return
 
 			case <-ticker.C:
-				err := cl.Join(context.TODO(), apidefaults.Namespace, session.ID(sessionID), personB)
+				err := cl.Join(context.TODO(), types.SessionPeerMode, apidefaults.Namespace, session.ID(sessionID), personB)
 				if err == nil {
 					sessionB <- nil
 					return
@@ -1178,7 +1179,7 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	teleport := suite.newTeleportInstance()
 
 	username := suite.me.Username
-	role, err := types.NewRole("devs", types.RoleSpecV4{
+	role, err := types.NewRole("devs", types.RoleSpecV5{
 		Options: tc.options,
 		Allow: types.RoleConditions{
 			Logins: []string{username},
@@ -1740,7 +1741,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := types.NewRole(mainDevs, types.RoleSpecV4{
+	role, err := types.NewRole(mainDevs, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -1768,7 +1769,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = types.NewRole(auxDevs, types.RoleSpecV4{
+	role, err = types.NewRole(auxDevs, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2050,7 +2051,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
 	mainDevs := "main-devs"
-	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV4{
+	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2065,7 +2066,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.NoError(t, err)
 
 	mainAdmins := "main-admins"
-	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV4{
+	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{"superuser"},
 		},
@@ -2076,7 +2077,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// Ops users can only access remote clusters with label 'access': 'ops'
 	mainOps := "main-ops"
-	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV4{
+	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:        []string{username},
 			ClusterLabels: types.Labels{"access": []string{"ops"}},
@@ -2105,7 +2106,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV4{
+	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2297,7 +2298,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := types.NewRole(mainDevs, types.RoleSpecV4{
+	role, err := types.NewRole(mainDevs, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2325,7 +2326,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = types.NewRole(auxDevs, types.RoleSpecV4{
+	role, err = types.NewRole(auxDevs, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -2484,6 +2485,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 			SSHPort:           proxySSHPort,
 			WebPort:           proxyWebPort,
 			ReverseTunnelPort: proxyReverseTunnelPort,
+			DisableWebService: true,
 		}
 		newProxy, err := main.StartProxy(newConfig)
 		require.NoError(t, err)
@@ -2614,6 +2616,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 		SSHPort:           proxySSHPort,
 		WebPort:           proxyWebPort,
 		ReverseTunnelPort: proxyReverseTunnelPort,
+		DisableWebService: true,
 	}
 	secondProxy, err := main.StartProxy(proxyConfig)
 	require.NoError(t, err)
@@ -2692,6 +2695,152 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, main.StopAll())
 }
 
+// TestReverseTunnelCollapse makes sure that when a reverse tunnel collapses
+// nodes will reconnect when network connection between the proxy and node
+// is restored.
+func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	t.Cleanup(func() { tr.Stop() })
+
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+
+	// Create and start load balancer for proxies.
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt())))
+	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
+	require.NoError(t, err)
+	require.NoError(t, lb.Listen())
+	go lb.Serve()
+	t.Cleanup(func() { require.NoError(t, lb.Close()) })
+
+	// Create a Teleport instance with Auth/Proxy.
+	mainConfig := func() (*testing.T, []string, []*InstanceSecrets, *service.Config) {
+		tconf := suite.defaultServiceConfig()
+
+		tconf.Auth.Enabled = true
+
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+			{
+				AddrNetwork: "tcp",
+				Addr:        frontend.String(),
+			},
+		}
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+		tconf.Proxy.DisableALPNSNIListener = true
+
+		tconf.SSH.Enabled = false
+
+		return t, nil, nil, tconf
+	}
+	main := suite.newTeleportWithConfig(mainConfig())
+	t.Cleanup(func() { require.NoError(t, main.StopAll()) })
+
+	// Create a Teleport instance with a Proxy.
+	nodePorts := ports.PopIntSlice(3)
+	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+	proxyConfig := ProxyConfig{
+		Name:                   "cluster-main-proxy",
+		SSHPort:                proxySSHPort,
+		WebPort:                proxyWebPort,
+		ReverseTunnelPort:      proxyReverseTunnelPort,
+		DisableWebService:      false,
+		DisableWebInterface:    true,
+		DisableALPNSNIListener: true,
+	}
+	proxyTunnel, err := main.StartProxy(proxyConfig)
+	require.NoError(t, err)
+
+	proxyOneBackend := utils.MustParseAddr(net.JoinHostPort(Loopback, main.GetPortReverseTunnel()))
+	lb.AddBackend(*proxyOneBackend)
+	proxyTwoBackend := utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort)))
+	lb.AddBackend(*proxyTwoBackend)
+
+	// Create a Teleport instance with a Node.
+	nodeConfig := func() *service.Config {
+		tconf := suite.defaultServiceConfig()
+		tconf.Hostname = "cluster-main-node"
+		tconf.Token = "token"
+		tconf.AuthServers = []utils.NetAddr{
+			{
+				AddrNetwork: "tcp",
+				Addr:        net.JoinHostPort(Loopback, strconv.Itoa(proxyWebPort)),
+			},
+		}
+		tconf.Auth.Enabled = false
+		tconf.Proxy.Enabled = false
+		tconf.SSH.Enabled = true
+
+		return tconf
+	}
+	node, err := main.StartNode(nodeConfig())
+	require.NoError(t, err)
+
+	// Wait for active tunnel connections to be established.
+	waitForActiveTunnelConnections(t, main.Tunnel, Site, 0)
+	waitForActiveTunnelConnections(t, proxyTunnel, Site, 1)
+
+	// Execute the connection via first proxy.
+	cfg := ClientConfig{
+		Login:   suite.me.Username,
+		Cluster: Site,
+		Host:    "cluster-main-node",
+	}
+	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
+	require.Error(t, err)
+
+	cfgProxy := ClientConfig{
+		Login:   suite.me.Username,
+		Cluster: Site,
+		Host:    "cluster-main-node",
+		Proxy:   &proxyConfig,
+	}
+
+	output, err := runCommand(t, main, []string{"echo", "hello world"}, cfgProxy, 10)
+	require.NoError(t, err)
+	require.Equal(t, "hello world\n", output)
+
+	// stop the proxy to collapse the tunnel
+	require.NoError(t, main.StopProxy())
+	waitForActiveTunnelConnections(t, main.Tunnel, Site, 0)
+	waitForActiveTunnelConnections(t, proxyTunnel, Site, 0)
+
+	// Requests going via both proxy will fail.
+	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
+	require.Error(t, err)
+	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfgProxy, 1)
+	require.Error(t, err)
+
+	// wait for the node to reach a degraded state
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+	eventC := make(chan service.Event)
+	node.WaitForEvent(ctx, service.TeleportDegradedEvent, eventC)
+	select {
+	case <-eventC:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for node to become degraded")
+	}
+
+	// start the proxy again and ensure the tunnel is re-established
+	proxyTunnel, err = main.StartProxy(proxyConfig)
+	require.NoError(t, err)
+	waitForActiveTunnelConnections(t, main.Tunnel, Site, 0)
+	waitForActiveTunnelConnections(t, proxyTunnel, Site, 1)
+
+	// Requests going to the connected proxy should succeed.
+	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
+	require.Error(t, err)
+	output, err = runCommand(t, main, []string{"echo", "hello world"}, cfgProxy, 40)
+	require.NoError(t, err)
+	require.Equal(t, "hello world\n", output)
+
+	// Stop everything.
+	err = proxyTunnel.Shutdown(context.Background())
+	require.NoError(t, err)
+}
+
 // TestDiscoveryNode makes sure the discovery protocol works with nodes.
 func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
@@ -2741,6 +2890,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 		SSHPort:           proxySSHPort,
 		WebPort:           proxyWebPort,
 		ReverseTunnelPort: proxyReverseTunnelPort,
+		DisableWebService: true,
 	}
 	proxyTunnel, err := main.StartProxy(proxyConfig)
 	require.NoError(t, err)
@@ -2838,19 +2988,18 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 func waitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
 	var lastCount int
 	var lastErr error
-	for i := 0; i < 30; i++ {
+	require.Eventually(t, func() bool {
 		cluster, err := tunnel.GetSite(clusterName)
 		if err != nil {
 			lastErr = err
-			continue
+			return false
 		}
 		lastCount = cluster.GetTunnelsCount()
-		if lastCount >= expectedCount {
-			return
-		}
-		time.Sleep(1 * time.Second)
-	}
-	t.Fatalf("Connections count on %v: %v, expected %v, last error: %v", clusterName, lastCount, expectedCount, lastErr)
+		return lastCount >= expectedCount
+	},
+		30*time.Second,
+		time.Second,
+		"Connections count on %v: %v, expected %v, last error: %v", clusterName, lastCount, expectedCount, lastErr)
 }
 
 // waitForProxyCount waits a set time for the proxy count in clusterName to
@@ -3137,7 +3286,7 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 				}
 			}
 			require.NoError(t, err)
-			require.Equal(t, "hello", strings.TrimSpace(string(output)))
+			require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "hello"))
 		}
 	}
 }
@@ -3305,9 +3454,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	// audit log should have the fact that the session occurred recorded in it
-	sessions, err = site.GetSessions(apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, sessions, 1)
+	// but the session could have been garbage collected at this point.
 
 	// however, attempts to read the actual sessions should fail because it was
 	// not actually recorded
@@ -3800,7 +3947,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := types.NewRole(mainDevs, types.RoleSpecV4{
+	role, err := types.NewRole(mainDevs, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{suite.me.Username},
 		},
@@ -3818,7 +3965,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = types.NewRole(auxDevs, types.RoleSpecV4{
+	role, err = types.NewRole(auxDevs, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{suite.me.Username},
 		},
@@ -4151,7 +4298,7 @@ func (s *integrationTestSuite) rotationConfig(disableWebService bool) *service.C
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebService = disableWebService
 	tconf.Proxy.DisableWebInterface = true
-	tconf.PollingPeriod = 500 * time.Millisecond
+	tconf.PollingPeriod = time.Second
 	tconf.ClientTimeout = time.Second
 	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
 	tconf.MaxRetryPeriod = time.Second
@@ -4311,7 +4458,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		}
 
 		for i := 0; i < 10; i++ {
-			err = cl.Join(context.TODO(), apidefaults.Namespace, session.ID(sessionID), personB)
+			err = cl.Join(context.TODO(), types.SessionPeerMode, apidefaults.Namespace, session.ID(sessionID), personB)
 			if err == nil || isSSHError(err) {
 				err = nil
 				break
@@ -4472,7 +4619,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	for _, tt := range tests {
 		t.Run(tt.inRoleName, func(t *testing.T) {
 			// Create role with logins and labels for this test.
-			role, err := types.NewRole(tt.inRoleName, types.RoleSpecV4{
+			role, err := types.NewRole(tt.inRoleName, types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Logins:     []string{tt.inLogin},
 					NodeLabels: tt.inLabels,
@@ -5194,7 +5341,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	authServer := main.Process.GetAuthServer()
 
 	// Create new request role
-	requestedRole, err := types.NewRole(requestedRoleName, types.RoleSpecV4{
+	requestedRole, err := types.NewRole(requestedRoleName, types.RoleSpecV5{
 		Options: types.RoleOptions{},
 		Allow:   types.RoleConditions{},
 	})
@@ -5204,7 +5351,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	require.NoError(t, err)
 
 	// Create user role with ability to request role
-	userRole, err := types.NewRole(userRoleName, types.RoleSpecV4{
+	userRole, err := types.NewRole(userRoleName, types.RoleSpecV5{
 		Options: types.RoleOptions{},
 		Allow: types.RoleConditions{
 			Logins: []string{

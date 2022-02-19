@@ -259,6 +259,8 @@ type UserCertParams struct {
 	// DisallowReissue flags that any attempt to request new certificates while
 	// authenticated with this cert should be denied.
 	DisallowReissue bool
+	// CertificateExtensions are user configured ssh key extensions
+	CertificateExtensions []*types.CertExtension
 }
 
 // CheckAndSetDefaults checks the user certificate parameters

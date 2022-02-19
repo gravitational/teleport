@@ -109,6 +109,45 @@ func (r ResourcesWithLabels) Less(i, j int) bool { return r[i].GetName() < r[j].
 // Swap swaps two resources.
 func (r ResourcesWithLabels) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 
+// AsAppServers converts each resource into type AppServer.
+func (r ResourcesWithLabels) AsAppServers() ([]AppServer, error) {
+	apps := make([]AppServer, 0, len(r))
+	for _, resource := range r {
+		app, ok := resource.(AppServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.AppServer, got: %T", resource)
+		}
+		apps = append(apps, app)
+	}
+	return apps, nil
+}
+
+// AsServers converts each resource into type Server.
+func (r ResourcesWithLabels) AsServers() ([]Server, error) {
+	servers := make([]Server, 0, len(r))
+	for _, resource := range r {
+		server, ok := resource.(Server)
+		if !ok {
+			return nil, trace.BadParameter("expected types.Server, got: %T", resource)
+		}
+		servers = append(servers, server)
+	}
+	return servers, nil
+}
+
+// AsDatabaseServers converts each resource into type DatabaseServer.
+func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
+	dbs := make([]DatabaseServer, 0, len(r))
+	for _, resource := range r {
+		db, ok := resource.(DatabaseServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.DatabaseServer, got: %T", resource)
+		}
+		dbs = append(dbs, db)
+	}
+	return dbs, nil
+}
+
 // GetVersion returns resource version
 func (h *ResourceHeader) GetVersion() string {
 	return h.Version
@@ -291,13 +330,6 @@ func IsValidLabelKey(s string) bool {
 // Returns true if all search vals were matched (or if nil search vals).
 // Returns false if no or partial match (or nil field values).
 func MatchSearch(fieldVals []string, searchVals []string, customMatch func(val string) bool) bool {
-	if len(searchVals) == 0 {
-		return true
-	}
-	if len(fieldVals) == 0 && customMatch == nil {
-		return false
-	}
-
 	// Case fold all values to avoid repeated case folding while matching.
 	caseFoldedSearchVals := utils.ToLowerStrings(searchVals)
 	caseFoldedFieldVals := utils.ToLowerStrings(fieldVals)
@@ -320,4 +352,11 @@ Outer:
 	}
 
 	return true
+}
+
+func stringCompare(a string, b string, isDesc bool) bool {
+	if isDesc {
+		return a > b
+	}
+	return a < b
 }
