@@ -27,7 +27,7 @@ import userService from './services/user';
 import appService from './services/apps';
 import KubeService from './services/kube';
 import DatabaseService from './services/databases';
-import DesktopService from './services/desktops';
+import desktopService from './services/desktops';
 import MfaService from './services/mfa';
 
 class TeleportContext implements types.Context {
@@ -49,7 +49,7 @@ class TeleportContext implements types.Context {
   appService = appService;
   kubeService = new KubeService();
   databaseService = new DatabaseService();
-  desktopService = new DesktopService();
+  desktopService = desktopService;
   mfaService = new MfaService();
   isEnterprise = cfg.isEnterprise;
 

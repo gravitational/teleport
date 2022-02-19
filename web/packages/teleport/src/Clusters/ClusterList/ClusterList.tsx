@@ -79,9 +79,7 @@ function renderActionCell({ clusterId }: Cluster, flags: MenuFlags) {
     $items.push(renderMenuItem('Databases', cfg.getDatabasesRoute(clusterId)));
   }
   if (flags.showDesktops) {
-    $items.push(
-      renderMenuItem('Desktops (preview)', cfg.getDesktopsRoute(clusterId))
-    );
+    $items.push(renderMenuItem('Desktops', cfg.getDesktopsRoute(clusterId)));
   }
   if (flags.showAudit) {
     $items.push(renderMenuItem('Audit Log', cfg.getAuditRoute(clusterId)));

@@ -33,4 +33,6 @@ class DesktopService {
   }
 }
 
-export default DesktopService;
+const desktopService = new DesktopService();
+
+export default desktopService;

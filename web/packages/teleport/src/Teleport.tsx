@@ -28,7 +28,7 @@ import AppLauncher from './AppLauncher';
 import Console from './Console';
 import DesktopSession from './DesktopSession';
 import Player from './Player';
-import TeleportContextProvider from './teleportContextProvider';
+import TeleportContextProvider from './TeleportContextProvider';
 import TeleportContext from './teleportContext';
 import cfg from './config';
 

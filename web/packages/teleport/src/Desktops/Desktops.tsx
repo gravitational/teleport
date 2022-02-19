@@ -45,7 +45,7 @@ export function Desktops(props: State) {
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
-        <FeatureHeaderTitle>Desktops (preview)</FeatureHeaderTitle>
+        <FeatureHeaderTitle>Desktops</FeatureHeaderTitle>
       </FeatureHeader>
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>

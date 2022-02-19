@@ -23,6 +23,7 @@
     "xterm-addon-fit": "^0.5.0"
   },
   "devDependencies": {
-    "@gravitational/build": "^1.0.0"
+    "@gravitational/build": "^1.0.0",
+    "jest-canvas-mock": "^2.3.1"
   }
 }

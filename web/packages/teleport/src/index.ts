@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import Context from './teleportContext';
-import ContextProvider from './teleportContextProvider';
+import ContextProvider from './TeleportContextProvider';
 import useTeleport from './useTeleport';
 
 export { Context, ContextProvider, useTeleport };

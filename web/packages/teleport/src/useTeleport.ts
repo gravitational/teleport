@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { ReactContext } from './teleportContextProvider';
+import { ReactContext } from './TeleportContextProvider';
 
 export default function useTeleport() {
   const teleportContext = React.useContext(ReactContext);

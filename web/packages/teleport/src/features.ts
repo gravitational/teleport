@@ -441,7 +441,7 @@ export class FeatureDesktops {
   }
 
   route = {
-    title: 'Desktops (preview)',
+    title: 'Desktops',
     path: cfg.routes.desktops,
     exact: true,
     component: Desktops,
@@ -453,7 +453,7 @@ export class FeatureDesktops {
     }
 
     ctx.storeNav.addSideItem({
-      title: 'Desktops (preview)',
+      title: 'Desktops',
       Icon: Icons.Desktop,
       exact: true,
       getLink(clusterId: string) {

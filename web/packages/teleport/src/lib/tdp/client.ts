@@ -19,12 +19,14 @@ import Codec, {
   ScrollAxis,
   ClientScreenSpec,
   PngFrame,
+  ClipboardData,
 } from './codec';
 import Logger from 'shared/libs/logger';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
   TDP_PNG_FRAME = 'tdp png frame',
+  TDP_CLIPBOARD_DATA = 'tdp clipboard data',
   TDP_ERROR = 'tdp error',
   WS_OPEN = 'ws open',
   WS_CLOSE = 'ws close',
@@ -94,6 +96,9 @@ export default class Client extends EventEmitter {
         case MessageType.MOUSE_MOVE:
           this.handleMouseMove(buffer);
           break;
+        case MessageType.CLIPBOARD_DATA:
+          this.handleClipboardData(buffer);
+          break;
         case MessageType.ERROR:
           this.handleError(new Error(this.codec.decodeErrorMessage(buffer)));
           break;
@@ -129,6 +134,13 @@ export default class Client extends EventEmitter {
     );
   }
 
+  handleClipboardData(buffer: ArrayBuffer) {
+    this.emit(
+      TdpClientEvent.TDP_CLIPBOARD_DATA,
+      this.codec.decodeClipboardData(buffer)
+    );
+  }
+
   // Assuming we have a message of type PNG_FRAME, extract its
   // bounds and png bitmap and emit a render event.
   handlePngFrame(buffer: ArrayBuffer) {
@@ -157,6 +169,10 @@ export default class Client extends EventEmitter {
     // Only send message if key is recognized, otherwise do nothing.
     const msg = this.codec.encodeKeyboardInput(code, state);
     if (msg) this.socket.send(msg);
+  }
+
+  sendClipboardData(clipboardData: ClipboardData) {
+    this.socket.send(this.codec.encodeClipboardData(clipboardData));
   }
 
   resize(spec: ClientScreenSpec) {

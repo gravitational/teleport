@@ -1,5 +1,13 @@
 import { arrayBufferToBase64 } from 'shared/utils/base64';
 
+// This is needed for tests until jsdom adds support for TextEncoder (https://github.com/jsdom/jsdom/issues/2524)
+const {
+  TextEncoder: TestTextEncoder,
+  TextDecoder: TestTextDecoder,
+} = require('util');
+window.TextEncoder = window.TextEncoder || TestTextEncoder;
+window.TextDecoder = window.TextDecoder || TestTextDecoder;
+
 export type Message = ArrayBuffer;
 
 export enum MessageType {
@@ -44,6 +52,14 @@ export type PngFrame = {
   data: HTMLImageElement;
 };
 
+// | message type (6) | length uint32 | data []byte |
+// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#6---clipboard-data
+export type ClipboardData = {
+  // TODO(isaiah): store this as a byte array
+  // https://github.com/gravitational/webapps/issues/610
+  data: string;
+};
+
 // TdaCodec provides an api for encoding and decoding teleport desktop access protocol messages [1]
 // Buffers in TdaCodec are manipulated as DataView's [2] in order to give us low level control
 // of endianness (defaults to big endian, which is what we want), as opposed to using *Array
@@ -52,6 +68,9 @@ export type PngFrame = {
 // [2] https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/DataView
 // [3] https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Int32Array
 export default class Codec {
+  encoder = new window.TextEncoder();
+  decoder = new window.TextDecoder();
+
   // Maps from browser KeyboardEvent.code values to Windows hardware keycodes.
   // Currently only supports Chrome keycodes: TODO(isaiah) -- add support for firefox/safari/edge.
   // See https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code/code_values#code_values_on_windows
@@ -273,29 +292,43 @@ export default class Codec {
     return buffer;
   }
 
-  // encodeUsername encodes a username to log in to the remote desktop with.
-  // | message type (7) | username_length uint32 | username []byte |
-  encodeUsername(username: string): Message {
-    // Encode username/pass to utf8
-    let encoder = new TextEncoder();
-    const usernameUtf8array = encoder.encode(username);
+  // _encodeStringMessage encodes a message of the form
+  // | message type (N) | length uint32 | data []byte |
+  _encodeStringMessage(messageType: MessageType, data: string) {
+    const dataUtf8array = this.encoder.encode(data);
 
-    // Initialize buffer and corresponding view.
-    // Numbers correspond to message spec
-    const bufLen = 1 + 4 + usernameUtf8array.length;
+    // bufLen is 1 byte for the `message type`,
+    // 4 bytes for the `length uint32`,
+    // and enough bytes for the full `data []byte`
+    const bufLen = 1 + 4 + dataUtf8array.length;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
     let offset = 0;
 
-    // set data
-    view.setUint8(offset++, MessageType.CLIENT_USERNAME);
-    view.setUint32(offset, usernameUtf8array.length);
-    offset += 4; // 4 bytes to offset 32-bit uint
-    usernameUtf8array.forEach(byte => {
+    view.setUint8(offset++, messageType);
+    view.setUint32(offset, dataUtf8array.length);
+    offset += 4;
+    dataUtf8array.forEach(byte => {
       view.setUint8(offset++, byte);
     });
 
     return buffer;
+  }
+
+  // encodeClipboardData encodes clipboard data
+  // | message type (6) | length uint32 | data []byte |
+  // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#6---clipboard-data
+  encodeClipboardData(clipboardData: ClipboardData) {
+    return this._encodeStringMessage(
+      MessageType.CLIPBOARD_DATA,
+      clipboardData.data
+    );
+  }
+
+  // encodeUsername encodes a username to log in to the remote desktop with.
+  // | message type (7) | username_length uint32 | username []byte |
+  encodeUsername(username: string): Message {
+    return this._encodeStringMessage(MessageType.CLIENT_USERNAME, username);
   }
 
   // encodeMouseWheelScroll encodes a mouse wheel scroll event.
@@ -311,17 +344,11 @@ export default class Codec {
     return buffer;
   }
 
-  // encodeClipboard encodes clipboard data
-  // TODO: need to iterate on protocol in order to syncronize clipboards
-  // see https://gravitational.slack.com/archives/D0275RJQHUY/p1629130769002200
-  encodeClipboard() {
-    throw new Error('Not implemented');
-  }
-
-  // decodeClipboard decodes clipboard data
-  // TODO: see docstring for encClipboard
-  decodeClipboard() {
-    throw new Error('Not implemented');
+  // decodeClipboardData decodes clipboard data
+  decodeClipboardData(buffer: ArrayBuffer): ClipboardData {
+    return {
+      data: this._decodeStringMessage(buffer),
+    };
   }
 
   // _decodeMessageType decodes the MessageType from a raw tdp message
@@ -339,11 +366,14 @@ export default class Codec {
   // decodeError decodes a raw tdp ERROR message and returns it as a string
   // | message type (9) | message_length uint32 | message []byte
   decodeErrorMessage(buffer: ArrayBuffer): string {
+    return this._decodeStringMessage(buffer);
+  }
+
+  // _decodeStringMessage decodes a tdp message of the form
+  // | message type (N) | message_length uint32 | message []byte
+  _decodeStringMessage(buffer: ArrayBuffer): string {
     // slice(5) ensures we skip the message type and message_length
-    let messageUtf8array = new Uint8Array(buffer.slice(5));
-    let decoder = new TextDecoder();
-    let message = decoder.decode(messageUtf8array);
-    return message;
+    return this.decoder.decode(new Uint8Array(buffer.slice(5)));
   }
 
   // decodePngFrame decodes a raw tdp PNG frame message and returns it as a PngFrame
