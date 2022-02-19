@@ -1056,7 +1056,7 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 		name                      string
 		getAuthPreference         func() types.AuthPreference
 		registerDevice            func() *auth.TestDevice
-		getChallengeResponseBytes func(chals *auth.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte
+		getChallengeResponseBytes func(chals *client.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte
 	}{
 		{
 			name: "with webauthn",
@@ -1079,7 +1079,7 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 
 				return webauthnDev
 			},
-			getChallengeResponseBytes: func(chals *auth.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
+			getChallengeResponseBytes: func(chals *client.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
 				res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
 					WebauthnChallenge: wanlib.CredentialAssertionToProto(chals.WebauthnChallenge),
 				})
@@ -1110,7 +1110,7 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 			var env Envelope
 			require.Nil(t, proto.Unmarshal(raw, &env))
 
-			chals := &auth.MFAAuthenticateChallenge{}
+			chals := &client.MFAAuthenticateChallenge{}
 			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chals))
 
 			// Send response over ws.
@@ -2341,7 +2341,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 			res, err := tc.clt.PostJSON(ctx, endpoint, tc.reqBody)
 			require.NoError(t, err)
 
-			var chal auth.MFAAuthenticateChallenge
+			var chal client.MFAAuthenticateChallenge
 			err = json.Unmarshal(res.Bytes(), &chal)
 			require.NoError(t, err)
 			require.True(t, chal.TOTPChallenge)
