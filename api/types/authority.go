@@ -723,3 +723,46 @@ func (k *JWTKeyPair) CheckAndSetDefaults() error {
 	}
 	return nil
 }
+
+type CertAuthorityFilter map[CertAuthType]string
+
+func (f CertAuthorityFilter) IsEmpty() bool {
+	return len(f) == 0
+}
+
+// Match checks if a given CA matches this filter.
+func (f CertAuthorityFilter) Match(ca CertAuthority) bool {
+	if len(f) == 0 {
+		return true
+	}
+
+	return f[ca.GetType()] == Wildcard || f[ca.GetType()] == ca.GetClusterName()
+}
+
+// IntoMap makes this filter into a map for use as the Filter in a WatchKind.
+func (f CertAuthorityFilter) IntoMap() map[string]string {
+	if len(f) == 0 {
+		return nil
+	}
+
+	m := make(map[string]string, len(f))
+	for caType, name := range f {
+		m[string(caType)] = name
+	}
+	return m
+}
+
+// FromMap converts the provided map into this filter.
+func (f *CertAuthorityFilter) FromMap(m map[string]string) {
+	if len(m) == 0 {
+		*f = nil
+		return
+	}
+
+	*f = make(CertAuthorityFilter, len(m))
+	// there's not a lot of value in rejecting unknown values from the filter
+	for key, val := range m {
+		(*f)[CertAuthType(key)] = val
+	}
+
+}
