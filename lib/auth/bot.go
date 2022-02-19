@@ -140,6 +140,14 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		return nil, trace.AlreadyExists("cannot add bot: user %q already exists", resourceName)
 	}
 
+	// Ensure all requested roles exist.
+	for _, roleName := range req.Roles {
+		_, err := s.GetRole(ctx, roleName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Create the resources.
 	if _, err := createBotRole(ctx, s, req.Name, resourceName, req.Roles); err != nil {
 		return nil, trace.Wrap(err)
@@ -328,7 +336,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 			// If this fails it's likely to be some miscellaneous competing
 			// write. The request should be tried again - if it's malicious,
 			// someone will get a generation mismatch and trigger a lock.
-			return trace.WrapWithMessage(err, "Database comparison failed, try the request again")
+			return trace.CompareFailed("Database comparison failed, try the request again")
 		}
 
 		return nil
@@ -349,7 +357,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := s.UpsertLock(context.Background(), lock); err != nil {
+		if err := s.UpsertLock(ctx, lock); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -387,7 +395,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		// If this fails it's likely to be some miscellaneous competing
 		// write. The request should be tried again - if it's malicious,
 		// someone will get a generation mismatch and trigger a lock.
-		return trace.WrapWithMessage(err, "Database comparison failed, try the request again")
+		return trace.CompareFailed("Database comparison failed, try the request again")
 	}
 
 	// And lastly, set the generation on the cert request.

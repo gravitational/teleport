@@ -38,7 +38,7 @@ type Config struct {
 	TLS *tls.Config
 	// SSH is client SSH config.
 	SSH *ssh.ClientConfig
-	// AuthAddrs is a list of possible auth or proxy server addresses.
+	// AuthServers is a list of possible auth or proxy server addresses.
 	AuthServers []utils.NetAddr
 	// Log sets the logger for the client to use.
 	Log logrus.FieldLogger

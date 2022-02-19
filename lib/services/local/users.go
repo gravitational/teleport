@@ -212,7 +212,12 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 	if err := services.ValidateUser(new); err != nil {
 		return trace.Wrap(err)
 	}
-	newValue, err := services.MarshalUser(new.WithoutSecrets().(types.User))
+
+	newRaw, ok := new.WithoutSecrets().(types.User)
+	if !ok {
+		return trace.BadParameter("Invalid user type %T", new)
+	}
+	newValue, err := services.MarshalUser(newRaw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -223,7 +228,11 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 		ID:      new.GetResourceID(),
 	}
 
-	existingValue, err := services.MarshalUser(existing.WithoutSecrets().(types.User))
+	existingRaw, ok := existing.WithoutSecrets().(types.User)
+	if !ok {
+		return trace.BadParameter("Invalid user type %T", existing)
+	}
+	existingValue, err := services.MarshalUser(existingRaw)
 	if err != nil {
 		return trace.Wrap(err)
 	}

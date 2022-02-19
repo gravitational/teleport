@@ -122,7 +122,7 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 		default:
 			// delete bot join tokens so they can't be re-used
 			if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
-				log.WithError(err).Warnf("could not delete bot provision token %q after generating certs",
+				log.WithError(err).Warnf("Could not delete bot provision token %q after generating certs",
 					string(backend.MaskKeyName(provisionToken.GetName())))
 			}
 		}

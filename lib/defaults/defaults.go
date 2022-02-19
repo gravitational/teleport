@@ -169,7 +169,7 @@ const (
 	ChangePasswordTokenTTL = 8 * time.Hour
 
 	// DefaultRenewableCertTTL is the default TTL for a renewable user certificate.
-	DefaultRenewableCertTTL = 8 * time.Hour
+	DefaultRenewableCertTTL = 1 * time.Hour
 
 	// MaxRenewableCertTTL is the maximum TTL that a certificate renewal bot
 	// can request for a renewable user certificate.
