@@ -1178,7 +1178,7 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 		// but ssh certificates must contain at least one valid principal.
 		// we add a single distinctive value which should be unique, and
 		// will never be a valid unix login (due to leading '-').
-		logins = []string{"-teleport-nologin-" + uuid.New().String()}
+		logins = []string{constants.NoLoginPrefix + uuid.New().String()}
 	}
 
 	if len(logins) == 0 {

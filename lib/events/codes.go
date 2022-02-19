@@ -496,4 +496,8 @@ const (
 
 	// CertificateCreateCode is the certificate issuance event code.
 	CertificateCreateCode = "TC000I"
+
+	// RenewableCertificateGenerationMismatchCode is the renewable cert
+	// generation mismatch code.
+	RenewableCertificateGenerationMismatchCode = "TCB00W"
 )

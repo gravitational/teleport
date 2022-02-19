@@ -752,6 +752,8 @@ message ProvisionTokenSpecV2 {
     // Supported joining methods include "token", "ec2", and "iam".
     string JoinMethod = 4
         [ (gogoproto.jsontag) = "join_method", (gogoproto.casttype) = "JoinMethod" ];
+    // BotName is the name of the bot this token grants access to, if any
+    string BotName = 5 [ (gogoproto.jsontag) = "bot_name,omitempty" ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -1132,6 +1134,9 @@ enum UserTokenUsage {
     USER_TOKEN_RECOVER_PASSWORD = 1;
     // USER_TOKEN_RECOVER_MFA is a request to recover a MFA.
     USER_TOKEN_RECOVER_MFA = 2;
+    // USER_TOKEN_RENEWAL_BOT is a request to generate certificates
+    // for a bot user.
+    USER_TOKEN_RENEWAL_BOT = 3;
 }
 
 message UserTokenSpecV3 {
