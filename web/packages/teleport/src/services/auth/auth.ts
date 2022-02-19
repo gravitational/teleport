@@ -30,13 +30,14 @@ import { DeviceType } from './types';
 
 const auth = {
   u2fBrowserSupported() {
-    if (window['u2f']) {
-      return null;
+    if (!window['u2f'] || navigator.userAgent.includes('Chrome')) {
+      return new Error(
+        'The U2F API for hardware keys is not supported by your browser. \
+        Please notify your system administrator to update cluster settings \
+        to use WebAuthn as the second factor protocol. In the meantime, \
+        you can use Firefox to use this hardware key.'
+      );
     }
-
-    return new Error(
-      'this browser does not support U2F required for hardware tokens, please try Chrome or Firefox instead'
-    );
   },
 
   checkWebauthnSupport() {
@@ -102,7 +103,7 @@ const auth = {
     return auth.mfaLoginBegin(name, password).then(data => {
       const promise = new Promise((resolve, reject) => {
         const { appId, challenge, registeredKeys } = data.u2f;
-        window['u2f'].sign(appId, challenge, registeredKeys, function(res) {
+        window['u2f'].sign(appId, challenge, registeredKeys, function (res) {
           if (res.errorCode) {
             const err = auth._getU2fErr(res.errorCode);
             reject(err);
@@ -208,7 +209,7 @@ const auth = {
     return auth.mfaChangePasswordBegin(oldPass).then(data => {
       return new Promise((resolve, reject) => {
         const { appId, challenge, registeredKeys } = data.u2f;
-        window['u2f'].sign(appId, challenge, registeredKeys, function(res) {
+        window['u2f'].sign(appId, challenge, registeredKeys, function (res) {
           if (res.errorCode) {
             const err = auth._getU2fErr(res.errorCode);
             reject(err);
@@ -330,14 +331,19 @@ const auth = {
     return auth.createMfaRegistrationChallenge(tokenId, 'u2f').then(data => {
       const challenge = data.u2fRegisterRequest;
       return new Promise((resolve, reject) => {
-        window['u2f'].register(challenge.appId, [challenge], [], function(res) {
-          if (res.errorCode) {
-            const err = auth._getU2fErr(res.errorCode);
-            reject(err);
-            return;
+        window['u2f'].register(
+          challenge.appId,
+          [challenge],
+          [],
+          function (res) {
+            if (res.errorCode) {
+              const err = auth._getU2fErr(res.errorCode);
+              reject(err);
+              return;
+            }
+            resolve(res);
           }
-          resolve(res);
-        });
+        );
       });
     });
   },
@@ -359,7 +365,7 @@ const auth = {
 
 function base64EncodeUnicode(str: string) {
   return window.btoa(
-    encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+    encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function (match, p1) {
       const hexadecimalStr = '0x' + p1;
       return String.fromCharCode(Number(hexadecimalStr));
     })

@@ -210,11 +210,11 @@ export type Props = {
 
 function ErrorMessage({ message = '' }) {
   // quick fix: check if error text has U2F substring
-  const browserSupported = !message.includes('does not support U2F');
-  const showU2fErrorLink = browserSupported && message.includes('U2F');
+  const notSupportedErr = !message.includes('is not supported');
+  const showU2fErrorLink = notSupportedErr && message.includes('U2F');
 
   return (
-    <Alerts.Danger>
+    <Alerts.Danger style={{ wordBreak: 'break-word' }}>
       <div>
         {message}
         {showU2fErrorLink && (

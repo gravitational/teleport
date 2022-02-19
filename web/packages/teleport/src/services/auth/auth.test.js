@@ -46,11 +46,11 @@ describe('services/auth', () => {
     expect.assertions(2);
 
     await auth.loginWithU2f(email, password).catch(err => {
-      expect(err.message).toContain('does not support U2F');
+      expect(err.message).toContain('is not supported');
     });
 
     await auth.resetPasswordWithU2f('any', password).catch(err => {
-      expect(err.message).toContain('does not support U2F');
+      expect(err.message).toContain('is not supported');
     });
   });
 
@@ -132,9 +132,7 @@ describe('services/auth', () => {
     };
 
     await auth.resetPasswordWithU2f('tokenId', password);
-    expect(
-      api.post
-    ).toHaveBeenCalledWith(
+    expect(api.post).toHaveBeenCalledWith(
       cfg.getMfaCreateRegistrationChallengeUrl('tokenId'),
       { deviceType: 'u2f' }
     );

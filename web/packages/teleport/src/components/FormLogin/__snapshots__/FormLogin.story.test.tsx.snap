@@ -2544,6 +2544,7 @@ exports[`server error rendering 1`] = `
   <div
     class="c2"
     kind="danger"
+    style="word-break: break-word;"
   >
     invalid credentials with looooooooooooooooooooooooooooooooong text
   </div>
