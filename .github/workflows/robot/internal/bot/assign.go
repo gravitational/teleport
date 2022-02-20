@@ -20,6 +20,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/gravitational/teleport/.github/workflows/robot/internal/github"
 	"github.com/gravitational/trace"
 )
 
@@ -29,11 +30,23 @@ import (
 // set of reviewers determined by: content of the PR, if the author is internal
 // or external, and team they are on.
 func (b *Bot) Assign(ctx context.Context) error {
+	// Get list of requested reviewers, if the requested reviewers meets
+	// requirements, don't assign additional reviewers.
+	requested, err := b.c.GitHub.RequestedReviewers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = checkRequested(requested)
+	if err == nil {
+		log.Printf("Assign: Already assigned reviewers: %v.", requested)
+		return nil
+	}
+
+	// Get list of reviewers for this PR.
 	reviewers, err := b.getReviewers(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	log.Printf("Assign: Requesting reviews from: %v.", reviewers)
 
 	// Request GitHub assign reviewers to this PR.
@@ -44,6 +57,32 @@ func (b *Bot) Assign(ctx context.Context) error {
 		reviewers)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (b *Bot) checkRequested(requested []string) error {
+	if b.c.Review.IsInternal(b.c.Environment.Author) {
+		return trace.BadParameter("self review is only supported for internal authors")
+	}
+
+	docs, code, err := b.parseChanges(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create a fake review map with the requested reviewers approval to see if
+	// assigned reviewers is sufficient.
+	fakeReviews := make(map[string]*github.Review, len(requested))
+	for _, reviewer := range requested {
+		fakeReviews[reviewer] = &github.Review{
+			Author: reviewer,
+			State:  "APPROVED",
+		}
+	}
+	if err := b.c.Review.Check(b.c.Environment.Author, fakeReviews, docs, code); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return nil

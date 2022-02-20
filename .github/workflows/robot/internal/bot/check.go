@@ -56,7 +56,7 @@ func (b *Bot) Check(ctx context.Context) error {
 				b.c.Environment.Number,
 				strings.Title(err.String())+".",
 			)
-			if checkerr != nil {
+			if cerr != nil {
 				log.Printf("Check: Failed to leave comment %q: %v.", err, cerr)
 			}
 			return trace.NewAggregate(err, cerr)
@@ -72,7 +72,7 @@ func (b *Bot) Check(ctx context.Context) error {
 
 		return nil
 	}
-	if err := b.c.Review.CheckExternal(b.c.Environment.Author, reviews); err != nil {
+	if err := b.c.Review.CheckAdmin(b.c.Environment.Author, reviews, 1); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -81,7 +81,7 @@ func (b *Bot) Check(ctx context.Context) error {
 
 func (b *Bot) checkTests(ctx context.Context) error {
 	// If an admin has approved, bypass the test coverage check.
-	if err := b.c.Review.CheckAdmin(); err == nil {
+	if err := b.c.Review.CheckAdmin(2); err == nil {
 		return nil
 	}
 
