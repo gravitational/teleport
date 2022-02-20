@@ -195,15 +195,16 @@ func (r *Assignments) getCodeReviewerSets(author string) ([]string, []string) {
 }
 
 // CheckExternal requires two admins have approved.
-func (r *Assignments) CheckExternal(author string, reviews map[string]*github.Review) error {
-	log.Printf("Check: Found external author %v.", author)
+func (r *Assignments) CheckAdmin(author string, reviews map[string]*github.Review, count int) error {
+	log.Printf("Check: Checking for %v admin approvals for %v.", count, author)
 
 	reviewers := r.getAdminReviewers(author)
 
-	if checkN(reviewers, reviews) > 1 {
+	n := checkN(reviewers, reviews)
+	if n >= count {
 		return nil
 	}
-	return trace.BadParameter("at least two approvals required from %v", reviewers)
+	return trace.BadParameter("at least %v approvals required from %v, only have %v", count, reviewers, n)
 }
 
 // CheckInternal will verify if required reviewers have approved. Checks if
