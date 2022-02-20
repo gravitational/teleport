@@ -56,9 +56,6 @@ type Client interface {
 
 	// DeleteWorkflowRun is used to delete a workflow run.
 	DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error
-
-	// CreateComment will leave a comment on an Issue or Pull Request.
-	CreateComment(ctx context.Context, organization string, repository string, number int, comment string) error
 }
 
 type client struct {
@@ -344,21 +341,6 @@ func (c *client) DeleteWorkflowRun(ctx context.Context, organization string, rep
 		return trace.Wrap(err)
 	}
 	_, err = c.client.Do(ctx, req, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// CreateComment will leave a comment on an Issue or Pull Request.
-func (c *client) CreateComment(ctx context.Context, organization string, repository string, number int, comment string) error {
-	_, _, err := c.client.Issues.CreateComment(ctx,
-		organization,
-		repository,
-		number,
-		&go_github.IssueComment{
-			Body: &comment,
-		})
 	if err != nil {
 		return trace.Wrap(err)
 	}

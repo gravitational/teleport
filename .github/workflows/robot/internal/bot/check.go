@@ -18,9 +18,9 @@ package bot
 
 import (
 	"context"
-	"log"
 	"strings"
 
+	"github.com/gravitational/teleport/.github/workflows/robot/internal/github"
 	"github.com/gravitational/trace"
 )
 
@@ -47,49 +47,43 @@ func (b *Bot) Check(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 
-		// Before requesting code reviews, check if PR contains test coverage. If
-		// not, prompt the user to add test coverage.
-		if err := b.checkTests(ctx); err != nil {
-			cerr := b.c.GitHub.CreateComment(ctx,
-				b.c.Environment.Organization,
-				b.c.Environment.Repository,
-				b.c.Environment.Number,
-				strings.Title(err.String())+".",
-			)
-			if cerr != nil {
-				log.Printf("Check: Failed to leave comment %q: %v.", err, cerr)
-			}
-			return trace.NewAggregate(err, cerr)
-		}
-
 		docs, code, err := b.parseChanges(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		// Check if PR has received required approvals.
 		if err := b.c.Review.CheckInternal(b.c.Environment.Author, reviews, docs, code); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Check if PR has test coverage or has admin approval to bypass.
+		if err := b.checkTests(ctx, b.c.Environment.Author, reviews); err != nil {
 			return trace.Wrap(err)
 		}
 
 		return nil
 	}
-	if err := b.c.Review.CheckAdmin(b.c.Environment.Author, reviews, 1); err != nil {
+
+	// PRs from external authors require two admin approvals to merge.
+	if err := b.c.Review.CheckAdmin(b.c.Environment.Author, reviews, 2); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-func (b *Bot) checkTests(ctx context.Context) error {
+func (b *Bot) checkTests(ctx context.Context, author string, reviews map[string]*github.Review) error {
 	// If an admin has approved, bypass the test coverage check.
-	if err := b.c.Review.CheckAdmin(2); err == nil {
+	if err := b.c.Review.CheckAdmin(author, reviews, 1); err == nil {
 		return nil
 	}
 
 	if err := b.hasTestCoverage(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
 
+	return nil
 }
 
 func (b *Bot) hasTestCoverage(ctx context.Context) error {
@@ -105,6 +99,7 @@ func (b *Bot) hasTestCoverage(ctx context.Context) error {
 	var tests bool
 
 	for _, file := range files {
+		// Remove after "branch/v7" and "branch/v8" go out of support.
 		if strings.HasPrefix(file, "vendor/") {
 			continue
 		}

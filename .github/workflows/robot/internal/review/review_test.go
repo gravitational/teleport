@@ -326,8 +326,8 @@ func TestGetDocsReviewers(t *testing.T) {
 	}
 }
 
-// TestCheckExternal checks external reviews.
-func TestCheckExternal(t *testing.T) {
+// TestCheckAdmin checks external reviews.
+func TestCheckAdmin(t *testing.T) {
 	r := &Assignments{
 		c: &Config{
 			// Code.
@@ -422,7 +422,7 @@ func TestCheckExternal(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			err := r.CheckExternal(test.author, test.reviews)
+			err := r.CheckAdmin(test.author, test.reviews, 2)
 			if test.result {
 				require.NoError(t, err)
 			} else {
