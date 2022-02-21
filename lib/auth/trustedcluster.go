@@ -493,6 +493,12 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	if remoteClusterName == domainName {
 		return nil, trace.AccessDenied("remote cluster has same name as this cluster: %v", domainName)
 	}
+	_, err = a.GetTrustedCluster(ctx, remoteClusterName)
+	if err == nil {
+		return nil, trace.AccessDenied("remote cluster has same name as trusted cluster: %v", remoteClusterName)
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
 
 	remoteCluster, err := types.NewRemoteCluster(remoteClusterName)
 	if err != nil {
