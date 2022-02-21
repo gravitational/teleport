@@ -22,6 +22,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"syscall"
 	"time"
@@ -120,9 +121,15 @@ func innerMain() error {
 	}
 
 	log.Printf("Add user to docker group")
-	err = exec.Command("bash", []string{"-c", "usermod -a -G docker $(id -nu 1000)"}...).Run()
+
+	usr, err := user.LookupId("1000")
 	if err != nil {
-		return trace.Wrap(err, "Failed to add user to docker group")
+		return trace.Wrap(err, "failed to get user 1000")
+	}
+
+	err = exec.Command("usermod", []string{"-a", "-G", "docker", usr.Name}...).Run()
+	if err != nil {
+		return trace.Wrap(err, "failed to add user to docker group")
 	}
 
 	log.Printf("Running nonroot integration tests...")
