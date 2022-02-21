@@ -481,7 +481,7 @@ $(TEST_LOG_DIR):
 #
 .PHONY: test-go
 test-go: ensure-webassets bpf-bytecode roletester rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
-test-go: FLAGS ?= '-race'
+test-go: FLAGS ?= -race -timeout=15m
 test-go: PACKAGES = $(shell go list ./... | grep -v integration | grep -v tool/tsh)
 test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC) $(TEST_LOG_DIR)
