@@ -89,6 +89,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 func TestValidateTrustedCluster(t *testing.T) {
 	const localClusterName = "localcluster"
 	const validToken = "validtoken"
+	ctx := context.Background()
 
 	testAuth, err := NewTestAuthServer(TestAuthServerConfig{
 		ClusterName: localClusterName,
@@ -148,7 +149,24 @@ func TestValidateTrustedCluster(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "same name as this cluster")
 
-	leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "rc4"))
+	trustedCluster, err := types.NewTrustedCluster("trustedcluster",
+		types.TrustedClusterSpecV2{Roles: []string{"nonempty"}})
+	require.NoError(t, err)
+	// use the UpsertTrustedCluster in Presence as we just want the resource in
+	// the backend, we don't want to actually connect
+	_, err = a.Presence.UpsertTrustedCluster(ctx, trustedCluster)
+	require.NoError(t, err)
+
+	_, err = a.validateTrustedCluster(&ValidateTrustedClusterRequest{
+		Token: validToken,
+		CAs: []types.CertAuthority{
+			suite.NewTestCA(types.HostCA, trustedCluster.GetName()),
+		},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "same name as trusted cluster")
+
+	leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
 	resp, err := a.validateTrustedCluster(&ValidateTrustedClusterRequest{
 		Token: validToken,
 		CAs:   []types.CertAuthority{leafClusterCA},
