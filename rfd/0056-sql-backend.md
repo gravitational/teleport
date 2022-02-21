@@ -11,7 +11,7 @@ state: draft
 A Teleport Backend is a pluggable interface for storing core cluster state.
 This RFD proposes the addition of a new backend supporting SQL database platforms.
 The initial supported platforms for the SQL Backend will be PostgreSQL and 
-CockroachDB. Support will include self-hosting PostgreSQL/CockroachDB or 
+CockroachDB. Support will include self-hosted PostgreSQL/CockroachDB or 
 hosting the database on a cloud provider platform (AWS/GCP).
 
 
