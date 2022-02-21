@@ -43,12 +43,10 @@ int UACC_UTMP_FAILED_TO_SELECT_FILE = 6;
 int UACC_UTMP_OTHER_ERROR = 7;
 int UACC_UTMP_PATH_DOES_NOT_EXIST = 8;
 
-// This is a bit of a hack, but it seems cleaner than doing it any other way, besides C loves
-// these anyway. We use this string pointer to store a potential error message from glibc
-// in certain cases.
+// This is a bit of a hack, but it seems cleaner than doing it any other way when we're dealing with CGO FFI.
+// We use this string pointer to store a potential error message from glibc in certain cases.
 //
-// At first glance this may seem unsafe.
-// This pointer however is protected by the mutex lock that's enforced on all uacc logic on the Go side.
+// At first glance this may seem racy, however this pointer is protected by the mutex that wraps all uacc logic on the Go side.
 char* UACC_PATH_ERR;
 
 // I initially attempted to use the login/logout BSD functions but ran into a string of unexpected behaviours such as
