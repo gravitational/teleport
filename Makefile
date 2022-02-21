@@ -820,21 +820,24 @@ enter:
 grpc:
 	$(MAKE) -C build.assets grpc
 
-API_IMPORT_PATH := github.com/gravitational/teleport/api
-
-# proto file dependencies within the api module must be passed with the 'M' flag. This
-# way protoc generated files will use the correct api module import path in the case where
-# the import path has a version suffix, e.g. github.com/gravitational/teleport/api/v8
-GOGOPROTO_IMPORTMAP ?= $\
-	Mgithub.com/gravitational/teleport/api/types/types.proto=$(API_IMPORT_PATH)/types,$\
-	Mgithub.com/gravitational/teleport/api/types/events/events.proto=$(API_IMPORT_PATH)/types/events,$\
-	Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,$\
-	Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn
+print/env:
+	env
 
 # buildbox-grpc generates GRPC stubs
 .PHONY: buildbox-grpc
+buildbox-grpc: API_IMPORT_PATH := $(shell head -1 api/go.mod | awk '{print $$2}')
+# Proto file dependencies within the api module must be passed with the 'M'
+# flag. This way protoc generated files will use the correct api module import
+# path in the case where the import path has a version suffix, e.g.
+# "github.com/gravitational/teleport/api/v8".
+buildbox-grpc: GOGOPROTO_IMPORTMAP := $\
+	Mgithub.com/gravitational/teleport/api/types/events/events.proto=$(API_IMPORT_PATH)/types/events,$\
+	Mgithub.com/gravitational/teleport/api/types/types.proto=$(API_IMPORT_PATH)/types,$\
+	Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn,$\
+	Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,$\
+	Mignoreme=ignoreme
 buildbox-grpc:
-	echo $$PROTO_INCLUDE
+	@echo "PROTO_INCLUDE = $$PROTO_INCLUDE"
 	$(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}' \
 		api/client/proto/authservice.proto \
 		api/client/proto/joinservice.proto \
