@@ -1307,6 +1307,7 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (t
 // CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
 func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	var username string
+	var passwordless bool
 
 	switch req.GetRequest().(type) {
 	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
@@ -1331,7 +1332,10 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 
 		username = token.GetUser()
 
-	default:
+	case *proto.CreateAuthenticateChallengeRequest_Passwordless_:
+		passwordless = true // Allows empty username.
+
+	default: // unset or CreateAuthenticateChallengeRequest_ContextUser_.
 		var err error
 		username, err = GetClientUsername(ctx)
 		if err != nil {
@@ -1339,7 +1343,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username)
+	challenges, err := a.mfaAuthChallenge(ctx, username, passwordless)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied("unable to create MFA challenges")
@@ -3187,7 +3191,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user string) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless bool) (*proto.MFAAuthenticateChallenge, error) {
 	// Check what kind of MFA is enabled.
 	apref, err := a.GetAuthPreference(ctx)
 	if err != nil {
@@ -3215,16 +3219,42 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string) (*proto.MFAA
 		webConfig = val
 	}
 
-	devs, err := a.Identity.GetMFADevices(ctx, user, true)
+	// Handle passwordless separately, it works differently from MFA.
+	if passwordless {
+		if !enableWebauthn {
+			return nil, trace.BadParameter("passwordless requires WebAuthn")
+		}
+		webLogin := &wanlib.PasswordlessFlow{
+			Webauthn: webConfig,
+			Identity: a.Identity,
+		}
+		assertion, err := webLogin.Begin(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &proto.MFAAuthenticateChallenge{
+			WebauthnChallenge: wanlib.CredentialAssertionToProto(assertion),
+		}, nil
+	}
+
+	// User required for non-passwordless.
+	if user == "" {
+		return nil, trace.BadParameter("user required")
+	}
+
+	devs, err := a.Identity.GetMFADevices(ctx, user, true /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	groupedDevs := groupByDeviceType(devs, enableWebauthn)
 	challenge := &proto.MFAAuthenticateChallenge{}
+
+	// TOTP challenge.
 	if enableTOTP && groupedDevs.TOTP {
 		challenge.TOTP = &proto.TOTPChallenge{}
 	}
+
+	// WebAuthn challenge.
 	if len(groupedDevs.Webauthn) > 0 {
 		webLogin := &wanlib.LoginFlow{
 			U2F:      u2fPref,

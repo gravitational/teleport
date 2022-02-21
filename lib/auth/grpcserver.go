@@ -1813,7 +1813,7 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *proto.DeleteRoleReques
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream proto.AuthService_MaintainSessionPresenceServer, challengeReq *proto.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
 
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user)
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, false /* passwordless */)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1964,7 +1964,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_AddMF
 	ctx := stream.Context()
 
 	// Note: authChallenge may be empty if this user has no existing MFA devices.
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user)
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user, false /* passwordless */)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2089,7 +2089,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_De
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user)
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user, false /* passwordless */)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2252,7 +2252,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 
-	challenge, err := auth.mfaAuthChallenge(ctx, user)
+	challenge, err := auth.mfaAuthChallenge(ctx, user, false /* passwordless */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
