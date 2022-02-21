@@ -40,7 +40,7 @@ const (
 )
 
 // main is just a stub that prints out an error message and sets a nonzero exit
-// code on failure. All of the work happens in `innerMain()`.
+// code on failure. All the work happens in `innerMain()`.
 func main() {
 	if err := innerMain(); err != nil {
 		log.Fatalf("FAILED: %s", err.Error())
@@ -117,6 +117,12 @@ func innerMain() error {
 	err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID, gomodcache)
 	if err != nil {
 		return trace.Wrap(err, "failed starting etcd")
+	}
+
+	log.Printf("Add user to docker group")
+	err = exec.Command("bash", []string{"-c", "usermod -a -G docker $(id -nu 1000)"}...).Run()
+	if err != nil {
+		return trace.Wrap(err, "Failed to add user to docker group")
 	}
 
 	log.Printf("Running nonroot integration tests...")
