@@ -107,8 +107,8 @@ func toGrpcOpType(in types.OpType) grpcbackend.OpType {
 func ConvertGrpcItemsBackendItems(in []*grpcbackend.Item) []backend.Item {
 	result := make([]backend.Item, 0, len(in))
 
-	for _, v := range in {
-		result = append(result, *ConvertGrpcItemBackendItem(v))
+	for i, v := range in {
+		result[i] = *ConvertGrpcItemBackendItem(v)
 	}
 
 	return result
@@ -120,8 +120,8 @@ func ConvertBackendItemsGrpcItems(in []backend.Item) []*grpcbackend.Item {
 	}
 	result := make([]*grpcbackend.Item, 0, len(in))
 
-	for _, v := range in {
-		result = append(result, ConvertBackendItemGrpcItem(v))
+	for i, v := range in {
+		result[i] = ConvertBackendItemGrpcItem(v)
 	}
 
 	return result

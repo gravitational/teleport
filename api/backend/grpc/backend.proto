@@ -16,7 +16,7 @@
 // to be used over gRPC.
 
 syntax = "proto3";
-package proto;
+package api.backend.grpc;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
