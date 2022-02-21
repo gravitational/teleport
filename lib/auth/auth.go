@@ -3297,32 +3297,63 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 	return res
 }
 
-func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse) (*types.MFADevice, error) {
+// validateMFAAuthResponse validates an MFA or passwordless challenge.
+// Returns the device used to solve the challenge (if applicable) and the
+// username.
+func (a *Server) validateMFAAuthResponse(
+	ctx context.Context,
+	resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	// Sanity check user/passwordless.
+	if user == "" && !passwordless {
+		return nil, "", trace.BadParameter("user required")
+	}
+
 	switch res := resp.Response.(type) {
-	case *proto.MFAAuthenticateResponse_TOTP:
-		return a.checkOTP(user, res.TOTP.Code)
+	// cases in order of preference
 	case *proto.MFAAuthenticateResponse_Webauthn:
+		// Read necessary configurations.
 		cap, err := a.GetAuthPreference(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
-		u2f, _ := cap.GetU2F()
+		u2f, err := cap.GetU2F()
+		switch {
+		case trace.IsNotFound(err): // OK, may happen.
+		case err != nil: // Unexpected.
+			return nil, "", trace.Wrap(err)
+		}
 		webConfig, err := cap.GetWebauthn()
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
-		webLogin := &wanlib.LoginFlow{
-			U2F:      u2f,
-			Webauthn: webConfig,
-			Identity: a.Identity,
+
+		assertionResp := wanlib.CredentialAssertionResponseFromProto(res.Webauthn)
+		var dev *types.MFADevice
+		if passwordless {
+			webLogin := &wanlib.PasswordlessFlow{
+				Webauthn: webConfig,
+				Identity: a.Identity,
+			}
+			dev, user, err = webLogin.Finish(ctx, assertionResp)
+		} else {
+			webLogin := &wanlib.LoginFlow{
+				U2F:      u2f,
+				Webauthn: webConfig,
+				Identity: a.Identity,
+			}
+			dev, err = webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
 		}
-		dev, err := webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
 		if err != nil {
-			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
+			return nil, "", trace.AccessDenied("MFA response validation failed: %v", err)
 		}
-		return dev, nil
+		return dev, user, nil
+
+	case *proto.MFAAuthenticateResponse_TOTP:
+		dev, err := a.checkOTP(user, res.TOTP.Code)
+		return dev, user, trace.Wrap(err)
+
 	default:
-		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
+		return nil, "", trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
 }
 
