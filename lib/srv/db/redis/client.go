@@ -22,7 +22,6 @@ package redis
 import (
 	"context"
 	"crypto/tls"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -41,6 +40,18 @@ const (
 	mgetCmd     = "mget"
 	flushallCmd = "flushall"
 	flushdbCmd  = "flushdb"
+	scriptCmd   = "script"
+
+	// Below are Redis administration commands which
+	syncCmd  = "sync"
+	psyncCmd = "psync"
+)
+
+// Overridden subcommands for Redis SCRIPT command.
+const (
+	scriptLoadSubcmd   = "load"
+	scriptExistsSubcmd = "exists"
+	scriptFLushSubcmd  = "flush"
 )
 
 // clusterClient is a wrapper around redis.ClusterClient
@@ -78,7 +89,13 @@ func newClient(ctx context.Context, mode ConnectionMode, addr string, tlsConfig 
 
 // Process add supports for additional cluster commands. Our Redis implementation passes most commands to
 // go-redis `Process()` function which doesn't handel all Cluster commands like for ex. DBSIZE, FLUSHDB, etc.
-// This "override" adds
+// This function provides additional processing for those commands enabling more Redis commands in Cluster mode.
+// Commands are override by a simple rule:
+// * If command work only on a single slot (one shard) without any modifications and returns a CROSSLINK error if executed on
+//   multiple keys it's send the Redis client as it is, and it's the client responsibility to make sure keys are in a single slot.
+// * If a command returns incorrect result in the Cluster mode (for ex. DBSIZE as it would return only size of one shard not whole cluster)
+//   then it's handled by Teleport or blocked if reasonable processing is not possible.
+// * Otherwise a commands is sent to Redis without any modifications.
 func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 	cmd, ok := inCmd.(*redis.Cmd)
 	if !ok {
@@ -86,8 +103,9 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 	}
 
 	switch cmdName := strings.ToLower(cmd.Name()); cmdName {
-	case multiCmd, execCmd, watchCmd:
-		// do not allow transaction commands as they always fail on exec.
+	case multiCmd, execCmd, watchCmd, scanCmd,
+		syncCmd, psyncCmd:
+		// block commands that return incorrect results in Cluster mode
 		return trace.NotImplemented("%s is not supported in the cluster mode", cmdName)
 	case dbsizeCmd:
 		// use go-redis dbsize implementation. It returns size of all keys in the whole cluster instead of
@@ -95,36 +113,6 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 		res := c.DBSize(ctx)
 		cmd.SetVal(res.Val())
 		cmd.SetErr(res.Err())
-
-		return nil
-	case scanCmd:
-		var resultsKeys []string
-		var mtx sync.Mutex
-
-		// ForEachMaster is called in parallel, so locking inside is needed.
-		if err := c.ForEachMaster(ctx, func(ctx context.Context, client *redis.Client) error {
-			scanCmd := redis.NewScanCmd(ctx, client.Process, cmd.Args()...)
-			err := client.Process(ctx, scanCmd)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			keys, _, err := scanCmd.Result()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			mtx.Lock()
-			resultsKeys = append(resultsKeys, keys...)
-			mtx.Unlock()
-
-			return nil
-		}); err != nil {
-			return trace.Wrap(err)
-		}
-
-		// TODO(jakule): rethink iterator issue.
-		cmd.SetVal([]interface{}{strconv.FormatInt(0, 10), resultsKeys})
 
 		return nil
 	case keysCmd:
@@ -209,7 +197,57 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 		}
 
 		return nil
+	case scriptCmd:
+		return c.handleScriptCmd(ctx, cmd)
 	default:
+		return c.ClusterClient.Process(ctx, cmd)
+	}
+}
+
+// handleScriptCmd processes Redis SCRIPT command in Cluster mode.
+func (c *clusterClient) handleScriptCmd(ctx context.Context, cmd *redis.Cmd) error {
+	cmdArgs := cmd.Args()
+
+	if len(cmdArgs) < 2 {
+		return trace.BadParameter("wrong number of arguments for 'script' command")
+	}
+
+	args := make([]string, len(cmdArgs))
+
+	for i := range cmdArgs {
+		var ok bool
+		args[i], ok = cmdArgs[i].(string)
+		if !ok {
+			return trace.BadParameter("wrong script subcommand type, expected string, got %T", cmdArgs[i])
+		}
+	}
+
+	switch cmdSubName := strings.ToLower(args[1]); cmdSubName {
+	case scriptExistsSubcmd:
+		res := c.ScriptExists(ctx, args[2:]...)
+
+		cmd.SetVal(res.Val())
+		cmd.SetErr(res.Err())
+
+		return nil
+	case scriptLoadSubcmd:
+		res := c.ScriptLoad(ctx, args[2])
+
+		cmd.SetVal(res.Val())
+		cmd.SetErr(res.Err())
+
+		return nil
+
+	case scriptFLushSubcmd:
+		// TODO(jakule): ASYNC is ignored.
+		res := c.ScriptFlush(ctx)
+
+		cmd.SetVal(res.Val())
+		cmd.SetErr(res.Err())
+
+		return nil
+	default:
+		// default SCRIPT KILL and DEBUG
 		return c.ClusterClient.Process(ctx, cmd)
 	}
 }

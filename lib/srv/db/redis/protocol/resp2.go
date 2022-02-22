@@ -99,6 +99,10 @@ func WriteCmd(wr *redis.Writer, vals interface{}) error {
 		if err := writeStringSlice(wr, val); err != nil {
 			return trace.Wrap(err)
 		}
+	case []bool:
+		if err := writeBoolSlice(wr, val); err != nil {
+			return trace.Wrap(err)
+		}
 	case []interface{}:
 		if err := writeSlice(wr, val); err != nil {
 			return trace.Wrap(err)
@@ -134,6 +138,25 @@ func writeError(wr *redis.Writer, prefix string, val error) error {
 
 // writeSlice converts []interface{} to Redis wire form.
 func writeSlice(wr *redis.Writer, vals []interface{}) error {
+	if err := wr.WriteByte(redis.ArrayReply); err != nil {
+		return trace.Wrap(err)
+	}
+	n := len(vals)
+	if err := wr.WriteLen(n); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, v0 := range vals {
+		if err := WriteCmd(wr, v0); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// writeSlice converts []interface{} to Redis wire form.
+func writeBoolSlice(wr *redis.Writer, vals []bool) error {
 	if err := wr.WriteByte(redis.ArrayReply); err != nil {
 		return trace.Wrap(err)
 	}
