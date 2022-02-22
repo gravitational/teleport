@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/customflag"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/git"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/secrets"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
@@ -48,6 +50,7 @@ type commandlineArgs struct {
 	buildID                string
 	artifactSearchPatterns customflag.StringArray
 	bucket                 string
+	githubKeySrc           string
 }
 
 func parseCommandLine() (commandlineArgs, error) {
@@ -59,6 +62,7 @@ func parseCommandLine() (commandlineArgs, error) {
 	flag.StringVar(&args.buildID, "build", "", "The build ID")
 	flag.StringVar(&args.bucket, "bucket", "", "The artifact storage bucket.")
 	flag.Var(&args.artifactSearchPatterns, "a", "Path to artifacts. May be globbed, and have multiple entries.")
+	flag.StringVar(&args.githubKeySrc, "key-secret", "", "Location of github deploy token, as a Google Cloud Secret")
 
 	flag.Parse()
 
@@ -104,6 +108,30 @@ func run() error {
 	args, err := parseCommandLine()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// If a github deploy key location was supplied...
+	var deployKey []byte
+	if args.githubKeySrc != "" {
+		// fetch the deployment key from the GCB secret manager
+		log.Infof("Fetching deploy key from %s", args.githubKeySrc)
+		deployKey, err = secrets.Fetch(context.Background(), args.githubKeySrc)
+		if err != nil {
+			return trace.Wrap(err, "failed fetching deploy key")
+		}
+	}
+
+	log.Info("Configuring git")
+	gitCfg, err := git.Configure(args.workspace, deployKey)
+	if err != nil {
+		return trace.Wrap(err, "failed configuring git")
+	}
+	defer gitCfg.Close()
+
+	log.Info("Unshallowing repository")
+	err = gitCfg.Do("fetch", "-v", "--unshallow")
+	if err != nil {
+		return trace.Wrap(err, "unshallow failed")
 	}
 
 	log.Println("Analysing code changes")
