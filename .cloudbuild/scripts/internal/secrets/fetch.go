@@ -29,7 +29,7 @@ func Fetch(ctx context.Context, resourceName string) ([]byte, error) {
 	return secret.Payload.Data, nil
 }
 
-// FetchString fetches a single secret from the Google Cloud secret manager and returns 
+// FetchString fetches a single secret from the Google Cloud secret manager and returns
 // it as a string.
 func FetchString(ctx context.Context, resourceName string) (string, error) {
 	data, err := Fetch(ctx, resourceName)

@@ -9,8 +9,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Config represents a git repository that has been configured to use a 
-// deployment key, and acts as a handle to the resources so that we can 
+// Config represents a git repository that has been configured to use a
+// deployment key, and acts as a handle to the resources so that we can
 // clean them up when we're done.
 type Config struct {
 	identity   string
