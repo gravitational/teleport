@@ -120,9 +120,22 @@ func innerMain() error {
 		return trace.Wrap(err, "failed starting etcd")
 	}
 
+	log.Printf("docker socket info")
+	out, err := exec.Command("stat", "/var/run/docker.sock").CombinedOutput()
+	if err != nil {
+		return trace.Wrap(err, "failed to stat /var/run/docker.sock")
+	}
+
+	log.Printf("stat: %s", string(out))
+
 	log.Printf("Create group docker")
 
-	err = exec.Command("groupadd", "-g", "998", "docker").Run()
+	fileInfo, _ := os.Stat("/var/run/docker.sock")
+	fileSys := fileInfo.Sys()
+	fileGid := fmt.Sprint(fileSys.(*syscall.Stat_t).Gid)
+
+	log.Printf("creating group docker with id %s", fileGid)
+	err = exec.Command("groupadd", "-g", fileGid, "docker").Run()
 	if err != nil {
 		return trace.Wrap(err, "failed to create group docker")
 	}
