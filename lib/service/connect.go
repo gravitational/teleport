@@ -23,9 +23,11 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -37,10 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
 )
 
 // reconnectToAuthService continuously attempts to reconnect to the auth
@@ -396,13 +394,12 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.Wrap(err)
 		}
 
-		identity, err = auth.Register(auth.RegisterParams{
+		certs, err := auth.Register(auth.RegisterParams{
 			Token:                process.Config.Token,
 			ID:                   id,
 			Servers:              process.Config.AuthServers,
 			AdditionalPrincipals: additionalPrincipals,
 			DNSNames:             dnsNames,
-			PrivateKey:           keyPair.PrivateKey,
 			PublicTLSKey:         keyPair.PublicTLSKey,
 			PublicSSHKey:         keyPair.PublicSSHKey,
 			CipherSuites:         process.Config.CipherSuites,
@@ -416,6 +413,12 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		identity, err = auth.ReadIdentityFromKeyPair(keyPair.PrivateKey, certs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		process.deleteKeyPair(role, reason)
 	}
 
@@ -526,7 +529,12 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 		return nil
 	}
 
-	watcher, err := process.newWatcher(conn, types.Watch{Kinds: []types.WatchKind{{Kind: types.KindCertAuthority}}})
+	watcher, err := process.newWatcher(conn, types.Watch{Kinds: []types.WatchKind{{
+		Kind: types.KindCertAuthority,
+		Filter: types.CertAuthorityFilter{
+			types.HostCA: conn.ClientIdentity.ClusterName,
+		}.IntoMap(),
+	}}})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -549,7 +557,7 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 				process.log.Debugf("Skipping event %v for %v", event.Type, event.Resource.GetName())
 				continue
 			}
-			if ca.GetType() != types.HostCA && ca.GetClusterName() != conn.ClientIdentity.ClusterName {
+			if ca.GetType() != types.HostCA || ca.GetClusterName() != conn.ClientIdentity.ClusterName {
 				process.log.Debugf("Skipping event for %v %v", ca.GetType(), ca.GetClusterName())
 				continue
 			}
@@ -890,9 +898,10 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 	}
 
 	dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
-		Resolver:     resolver,
-		ClientConfig: sshConfig,
-		Log:          process.log,
+		Resolver:              resolver,
+		ClientConfig:          sshConfig,
+		Log:                   process.log,
+		InsecureSkipTLSVerify: lib.IsInsecureDevMode(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

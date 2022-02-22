@@ -29,6 +29,7 @@ _obj
 _test
 tmp
 target/
+test-logs/
 
 # Architecture specific extensions/prefixes
 [568vq].out

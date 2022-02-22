@@ -1,6 +1,6 @@
 ---
 authors: Zac Bergquist (zac@goteleport.com), Isaiah Becker-Mayer (isaiah@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0048 - Desktop Access: Session Recording

@@ -15,6 +15,8 @@
 package x11
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -128,11 +130,11 @@ func TestDisplaySocket(t *testing.T) {
 		{
 			desc:           "unix socket no hostname",
 			display:        Display{DisplayNumber: 10},
-			expectUnixAddr: "/tmp/.X11-unix/X10",
+			expectUnixAddr: filepath.Join(os.TempDir(), ".X11-unix", "X10"),
 		}, {
 			desc:           "unix socket with hostname",
 			display:        Display{HostName: "unix", DisplayNumber: 10},
-			expectUnixAddr: "/tmp/.X11-unix/X10",
+			expectUnixAddr: filepath.Join(os.TempDir(), ".X11-unix", "X10"),
 		}, {
 			desc:          "localhost",
 			display:       Display{HostName: "localhost", DisplayNumber: 10},
@@ -146,7 +148,7 @@ func TestDisplaySocket(t *testing.T) {
 			display: Display{HostName: "1.2.3.4.5", DisplayNumber: 10},
 		}, {
 			desc:    "invalid unix socket",
-			display: Display{HostName: "/tmp/socket", DisplayNumber: 10},
+			display: Display{HostName: filepath.Join(os.TempDir(), "socket"), DisplayNumber: 10},
 		},
 	}
 

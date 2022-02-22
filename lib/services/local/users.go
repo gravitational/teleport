@@ -205,6 +205,60 @@ func (s *IdentityService) UpsertUser(user types.User) error {
 	return nil
 }
 
+// CompareAndSwapUser updates a user, but fails if the value (as exists in the
+// backend) differs from the provided `existing` value. If the existing value
+// matches, returns no error, otherwise returns `trace.CompareFailed`.
+func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
+	if err := services.ValidateUser(new); err != nil {
+		return trace.Wrap(err)
+	}
+
+	newRaw, ok := new.WithoutSecrets().(types.User)
+	if !ok {
+		return trace.BadParameter("Invalid user type %T", new)
+	}
+	newValue, err := services.MarshalUser(newRaw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newItem := backend.Item{
+		Key:     backend.Key(webPrefix, usersPrefix, new.GetName(), paramsPrefix),
+		Value:   newValue,
+		Expires: new.Expiry(),
+		ID:      new.GetResourceID(),
+	}
+
+	existingRaw, ok := existing.WithoutSecrets().(types.User)
+	if !ok {
+		return trace.BadParameter("Invalid user type %T", existing)
+	}
+	existingValue, err := services.MarshalUser(existingRaw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	existingItem := backend.Item{
+		Key:     backend.Key(webPrefix, usersPrefix, existing.GetName(), paramsPrefix),
+		Value:   existingValue,
+		Expires: existing.Expiry(),
+		ID:      existing.GetResourceID(),
+	}
+
+	_, err = s.CompareAndSwap(ctx, existingItem, newItem)
+	if err != nil {
+		if trace.IsCompareFailed(err) {
+			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
+		}
+		return trace.Wrap(err)
+	}
+
+	if auth := new.GetLocalAuth(); auth != nil {
+		if err = s.upsertLocalAuthSecrets(new.GetName(), *auth); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
 // GetUser returns a user by name
 func (s *IdentityService) GetUser(user string, withSecrets bool) (types.User, error) {
 	if withSecrets {
@@ -657,6 +711,61 @@ func (s *IdentityService) DeleteWebauthnSessionData(ctx context.Context, user, s
 
 func sessionDataKey(user, sessionID string) []byte {
 	return backend.Key(webPrefix, usersPrefix, user, webauthnSessionData, sessionID)
+}
+
+func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error {
+	switch {
+	case scope == "":
+		return trace.BadParameter("missing parameter scope")
+	case id == "":
+		return trace.BadParameter("missing parameter id")
+	case sd == nil:
+		return trace.BadParameter("missing parameter sd")
+	}
+
+	// TODO(codingllama): Limit number of in-flight challenges.
+
+	value, err := json.Marshal(sd)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.Put(ctx, backend.Item{
+		Key:     globalSessionDataKey(scope, id),
+		Value:   value,
+		Expires: s.Clock().Now().UTC().Add(defaults.WebauthnGlobalChallengeTimeout),
+	})
+	return trace.Wrap(err)
+}
+
+func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error) {
+	switch {
+	case scope == "":
+		return nil, trace.BadParameter("missing parameter scope")
+	case id == "":
+		return nil, trace.BadParameter("missing parameter id")
+	}
+
+	item, err := s.Get(ctx, globalSessionDataKey(scope, id))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sd := &wantypes.SessionData{}
+	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
+}
+
+func (s *IdentityService) DeleteGlobalWebauthnSessionData(ctx context.Context, scope, id string) error {
+	switch {
+	case scope == "":
+		return trace.BadParameter("missing parameter scope")
+	case id == "":
+		return trace.BadParameter("missing parameter id")
+	}
+
+	return trace.Wrap(s.Delete(ctx, globalSessionDataKey(scope, id)))
+}
+
+func globalSessionDataKey(scope, id string) []byte {
+	return backend.Key(webauthnPrefix, webauthnGlobalSessionData, scope, id)
 }
 
 func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
@@ -1319,24 +1428,26 @@ func (s recoveryAttemptsChronologically) Swap(i, j int) {
 }
 
 const (
-	webPrefix               = "web"
-	usersPrefix             = "users"
-	sessionsPrefix          = "sessions"
-	attemptsPrefix          = "attempts"
-	pwdPrefix               = "pwd"
-	hotpPrefix              = "hotp"
-	connectorsPrefix        = "connectors"
-	oidcPrefix              = "oidc"
-	samlPrefix              = "saml"
-	githubPrefix            = "github"
-	requestsPrefix          = "requests"
-	u2fRegChalPrefix        = "adduseru2fchallenges"
-	usedTOTPPrefix          = "used_totp"
-	usedTOTPTTL             = 30 * time.Second
-	mfaDevicePrefix         = "mfa"
-	u2fSignChallengePrefix  = "u2fsignchallenge"
-	webauthnLocalAuthPrefix = "webauthnlocalauth"
-	webauthnSessionData     = "webauthnsessiondata"
-	recoveryCodesPrefix     = "recoverycodes"
-	recoveryAttemptsPrefix  = "recoveryattempts"
+	webPrefix                 = "web"
+	usersPrefix               = "users"
+	sessionsPrefix            = "sessions"
+	attemptsPrefix            = "attempts"
+	pwdPrefix                 = "pwd"
+	hotpPrefix                = "hotp"
+	connectorsPrefix          = "connectors"
+	oidcPrefix                = "oidc"
+	samlPrefix                = "saml"
+	githubPrefix              = "github"
+	requestsPrefix            = "requests"
+	u2fRegChalPrefix          = "adduseru2fchallenges"
+	usedTOTPPrefix            = "used_totp"
+	usedTOTPTTL               = 30 * time.Second
+	mfaDevicePrefix           = "mfa"
+	u2fSignChallengePrefix    = "u2fsignchallenge"
+	webauthnPrefix            = "webauthn"
+	webauthnGlobalSessionData = "sessionData"
+	webauthnLocalAuthPrefix   = "webauthnlocalauth"
+	webauthnSessionData       = "webauthnsessiondata"
+	recoveryCodesPrefix       = "recoverycodes"
+	recoveryAttemptsPrefix    = "recoveryattempts"
 )

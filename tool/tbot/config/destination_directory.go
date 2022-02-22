@@ -32,6 +32,14 @@ type DestinationDirectory struct {
 }
 
 func (dd *DestinationDirectory) UnmarshalYAML(node *yaml.Node) error {
+	// Accept either a string path or a full struct (allowing for options in
+	// the future, e.g. configuring permissions, etc):
+	//   directory: /foo
+	// or:
+	//   directory:
+	//     path: /foo
+	//     some_future_option: bar
+
 	var path string
 	if err := node.Decode(&path); err == nil {
 		dd.Path = path
@@ -42,11 +50,7 @@ func (dd *DestinationDirectory) UnmarshalYAML(node *yaml.Node) error {
 	// override (we want to use standard unmarshal behavior for the full
 	// struct)
 	type rawDirectory DestinationDirectory
-	if err := node.Decode((*rawDirectory)(dd)); err != nil {
-		return err
-	}
-
-	return nil
+	return trace.Wrap(node.Decode((*rawDirectory)(dd)))
 }
 
 func (dd *DestinationDirectory) CheckAndSetDefaults() error {

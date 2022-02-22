@@ -51,7 +51,6 @@ type BotsCommand struct {
 	botsAdd    *kingpin.CmdClause
 	botsRemove *kingpin.CmdClause
 	botsLock   *kingpin.CmdClause
-	botsUnlock *kingpin.CmdClause
 }
 
 // Initialize sets up the "tctl bots" command.
@@ -72,19 +71,14 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.botsRemove.Arg("name", "Name of an existing bot to remove.").Required().StringVar(&c.botName)
 
 	c.botsLock = bots.Command("lock", "Prevent a bot from renewing its certificates.")
+	c.botsLock.Arg("name", "Name of an existing bot to lock.").Required().StringVar(&c.botName)
 	c.botsLock.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.lockExpires)
 	c.botsLock.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.lockTTL)
-	c.botsLock.Hidden() // TODO
-	// TODO: id/name flag or arg instead? what do other commands do?
-
-	c.botsUnlock = bots.Command("unlock", "Unlock a locked bot, allowing it to resume renewing certificates.")
-	c.botsUnlock.Hidden() // TODO
+	c.botsLock.Hidden()
 }
 
 // TryRun attempts to run subcommands.
 func (c *BotsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
-	// TODO: create a smaller interface - we don't need all of ClientI
-
 	switch cmd {
 	case c.botsList.FullCommand():
 		err = c.ListBots(client)
@@ -94,17 +88,12 @@ func (c *BotsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 		err = c.RemoveBot(client)
 	case c.botsLock.FullCommand():
 		err = c.LockBot(client)
-	case c.botsUnlock.FullCommand():
-		err = c.UnlockBot(client)
 	default:
 		return false, nil
 	}
 
 	return true, trace.Wrap(err)
 }
-
-// TODO: define a smaller interface than auth.ClientI for the CLI commands
-// (we only use a small subset of the giant ClientI interface)
 
 // ListBots writes a listing of the cluster's certificate renewal bots
 // to standard out.
@@ -119,10 +108,19 @@ func (c *BotsCommand) ListBots(client auth.ClientI) error {
 			fmt.Println("No users found")
 			return nil
 		}
-		t := asciitable.MakeTable([]string{"User", "Roles"})
+		t := asciitable.MakeTable([]string{"Bot", "User", "Roles"})
 		for _, u := range users {
+			var botName string
+			meta := u.GetMetadata()
+			if val, ok := meta.Labels[types.BotLabel]; ok {
+				botName = val
+			} else {
+				// Should not be possible, but not worth failing over.
+				botName = "-"
+			}
+
 			t.AddRow([]string{
-				u.GetName(), strings.Join(u.GetRoles(), ","),
+				botName, u.GetName(), strings.Join(u.GetRoles(), ","),
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
@@ -207,16 +205,32 @@ func (c *BotsCommand) RemoveBot(client auth.ClientI) error {
 }
 
 func (c *BotsCommand) LockBot(client auth.ClientI) error {
-	// TODO: this is entirely untested.
 	lockExpiry, err := computeLockExpiry(c.lockExpires, c.lockTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	user, err := client.GetUser(auth.BotResourceName(c.botName), false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	meta := user.GetMetadata()
+	botName, ok := meta.Labels[types.BotLabel]
+	if !ok {
+		return trace.BadParameter("User %q is not a bot user; use `tctl lock` directly to lock this user", user.GetName())
+	}
+
+	if botName != c.botName {
+		return trace.BadParameter("User %q is not associated with expected bot %q (expected %q); use `tctl lock` directly to lock this user", user.GetName(), c.botName, botName)
+	}
+
 	lock, err := types.NewLock(uuid.New().String(), types.LockSpecV2{
-		Target:  types.LockTarget{}, // TODO: fill in role for impersonator
+		Target: types.LockTarget{
+			User: user.GetName(),
+		},
 		Expires: lockExpiry,
-		Message: "The certificate renewal bot associated with this role has been locked.",
+		Message: fmt.Sprintf("The bot user %q associated with bot %q has been locked.", user.GetName(), c.botName),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -226,12 +240,9 @@ func (c *BotsCommand) LockBot(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	return nil
-}
+	fmt.Printf("Created a lock with name %q.\n", lock.GetName())
 
-func (c *BotsCommand) UnlockBot(client auth.ClientI) error {
-	// find the lock with a target role corresponding to this bot and remove it
-	return trace.NotImplemented("")
+	return nil
 }
 
 func splitRoles(flag string) []string {

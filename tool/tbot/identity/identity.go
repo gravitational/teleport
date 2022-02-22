@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -209,6 +210,35 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
+func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
+	checkers, err := apisshutils.ParseAuthorizedKeys(i.SSHCACertBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return checkers, nil
+}
+
+// SSHClientConfig returns a ssh.ClientConfig used by the bot to connect to
+// the reverse tunnel server.
+func (i *Identity) SSHClientConfig() (*ssh.ClientConfig, error) {
+	callback, err := apisshutils.NewHostKeyCallback(
+		apisshutils.HostKeyCallbackConfig{
+			GetHostCheckers: i.getSSHCheckers,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(i.Cert.ValidPrincipals) < 1 {
+		return nil, trace.BadParameter("user cert has no valid principals")
+	}
+	return &ssh.ClientConfig{
+		User:            i.Cert.ValidPrincipals[0],
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
+		HostKeyCallback: callback,
+		Timeout:         apidefaults.DefaultDialTimeout,
+	}, nil
+}
+
 // ReadIdentityFromStore reads stored identity credentials
 func ReadIdentityFromStore(params *LoadIdentityParams, certs *proto.Certs, kinds ...ArtifactKind) (*Identity, error) {
 	var identity Identity
@@ -325,9 +355,6 @@ func ReadSSHIdentityFromKeyPair(identity *Identity, keyBytes, publicKeyBytes, ce
 		}
 	}
 
-	// TODO: host certs use CertExtensionAuthority, client certs use CertExtensionTeleportRouteToCluster
-	// (or at least, teleport-route-to-cluster _appears_ to be a sane cluster name, but I have no idea
-	// how it is actually set.)
 	clusterName := cert.Permissions.Extensions[teleport.CertExtensionTeleportRouteToCluster]
 	if clusterName == "" {
 		return trace.BadParameter("missing cert extension %v", utils.CertExtensionAuthority)
@@ -343,6 +370,7 @@ func ReadSSHIdentityFromKeyPair(identity *Identity, keyBytes, publicKeyBytes, ce
 	return nil
 }
 
+// SaveIdentity saves a bot identity to a destination.
 func SaveIdentity(id *Identity, d destination.Destination, kinds ...ArtifactKind) error {
 	for _, artifact := range GetArtifacts() {
 		// Only store artifacts matching one of the set kinds.
@@ -361,8 +389,8 @@ func SaveIdentity(id *Identity, d destination.Destination, kinds ...ArtifactKind
 	return nil
 }
 
+// LoadIdentity loads a bot identity from a destination.
 func LoadIdentity(d destination.Destination, kinds ...ArtifactKind) (*Identity, error) {
-	// TODO: encode the whole thing using the identityfile package?
 	var certs proto.Certs
 	var params LoadIdentityParams
 

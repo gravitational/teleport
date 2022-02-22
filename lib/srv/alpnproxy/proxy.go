@@ -436,7 +436,7 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 
 func isDBTLSProtocol(protocol common.Protocol) bool {
 	switch protocol {
-	case common.ProtocolMongoDB:
+	case common.ProtocolMongoDB, common.ProtocolRedisDB:
 		return true
 	default:
 		return false

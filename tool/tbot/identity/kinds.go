@@ -82,5 +82,5 @@ func ContainsKind(kind ArtifactKind, kinds []ArtifactKind) bool {
 // BotKinds returns a list of all artifact kinds used internally by the bot.
 // End-user destinations may contain a different set of artifacts.
 func BotKinds() []ArtifactKind {
-	return []ArtifactKind{KindAlways, KindBotInternal, KindTLS}
+	return []ArtifactKind{KindAlways, KindBotInternal, KindSSH, KindTLS}
 }

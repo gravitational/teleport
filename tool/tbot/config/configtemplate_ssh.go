@@ -17,9 +17,11 @@ limitations under the License.
 package config
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -59,61 +61,39 @@ func (c *TemplateSSHClient) Describe() []FileDescription {
 	}
 }
 
-func (c *TemplateSSHClient) Render(authClient *auth.Client, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	if !destination.ContainsKind(identity.KindSSH) {
 		return trace.BadParameter("%s config template requires kind `ssh` to be enabled", TemplateSSHClientName)
 	}
 
 	dest, err := destination.GetDestination()
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
-
-	var (
-		proxyHosts     []string
-		firstProxyHost string
-		firstProxyPort string
-	)
 
 	clusterName, err := authClient.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	proxies, err := authClient.GetProxies()
+	ping, err := authClient.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	for i, proxy := range proxies {
-		host, _, err := utils.SplitHostPort(proxy.GetPublicAddr())
-		if err != nil {
-			log.Debugf("proxy %+v has no usable public address", proxy)
-			continue
-		}
-
-		if i == 0 {
-			firstProxyHost = host
-
-			// TODO: ideally it'd be nice to fetch this dynamically
-			// TODO: eventually we could consider including `tsh proxy`
-			// functionality and sidestep this entirely.
-			firstProxyPort = fmt.Sprint(c.ProxyPort)
-		}
-
-		proxyHosts = append(proxyHosts, host)
+	proxyHost, _, err := utils.SplitHostPort(ping.ProxyPublicAddr)
+	if err != nil {
+		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.ProxyPublicAddr, err)
 	}
 
-	if len(proxyHosts) == 0 {
-		return trace.BadParameter("auth server has no proxies with a valid public address")
-	}
-
-	proxyHostStr := strings.Join(proxyHosts, ",")
+	// TODO: ideally it'd be nice to fetch this dynamically
+	// TODO: eventually we could consider including `tsh proxy`
+	// functionality and sidestep this entirely.
+	proxyPort := strconv.Itoa(int(c.ProxyPort))
 
 	// Backend note: Prefer to use absolute paths for filesystem backends.
 	// If the backend is something else, use "". ssh_config will generate with
 	// paths relative to the destination.
-
 	var dataDir string
 	if dir, ok := dest.(*DestinationDirectory); ok {
 		dataDir, err = filepath.Abs(dir.Path)
@@ -124,7 +104,7 @@ func (c *TemplateSSHClient) Render(authClient *auth.Client, currentIdentity *ide
 		dataDir = ""
 	}
 
-	knownHosts, err := fetchKnownHosts(authClient, clusterName.GetClusterName(), proxyHostStr)
+	knownHosts, err := fetchKnownHosts(authClient, clusterName.GetClusterName(), proxyHost)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -140,8 +120,8 @@ func (c *TemplateSSHClient) Render(authClient *auth.Client, currentIdentity *ide
 	sshConfigPath := filepath.Join(dataDir, "ssh_config")
 	if err := sshConfigTemplate.Execute(&sshConfigBuilder, sshConfigParameters{
 		ClusterName:         clusterName.GetClusterName(),
-		ProxyHost:           firstProxyHost,
-		ProxyPort:           firstProxyPort,
+		ProxyHost:           proxyHost,
+		ProxyPort:           proxyPort,
 		KnownHostsPath:      knownHostsPath,
 		IdentityFilePath:    identityFilePath,
 		CertificateFilePath: certificateFilePath,
@@ -186,7 +166,7 @@ Host *.{{ .ClusterName }} !{{ .ProxyHost }}
 # End generated Teleport configuration
 `))
 
-func fetchKnownHosts(client *auth.Client, clusterName, proxyHosts string) (string, error) {
+func fetchKnownHosts(client auth.ClientI, clusterName, proxyHosts string) (string, error) {
 	ca, err := client.GetCertAuthority(types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName,

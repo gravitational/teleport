@@ -309,6 +309,50 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_CertificateCreate{
 			CertificateCreate: e,
 		}
+	case *DesktopRecording:
+		out.Event = &OneOf_DesktopRecording{
+			DesktopRecording: e,
+		}
+	case *DesktopClipboardReceive:
+		out.Event = &OneOf_DesktopClipboardReceive{
+			DesktopClipboardReceive: e,
+		}
+	case *DesktopClipboardSend:
+		out.Event = &OneOf_DesktopClipboardSend{
+			DesktopClipboardSend: e,
+		}
+	case *MySQLStatementPrepare:
+		out.Event = &OneOf_MySQLStatementPrepare{
+			MySQLStatementPrepare: e,
+		}
+	case *MySQLStatementExecute:
+		out.Event = &OneOf_MySQLStatementExecute{
+			MySQLStatementExecute: e,
+		}
+	case *MySQLStatementSendLongData:
+		out.Event = &OneOf_MySQLStatementSendLongData{
+			MySQLStatementSendLongData: e,
+		}
+	case *MySQLStatementClose:
+		out.Event = &OneOf_MySQLStatementClose{
+			MySQLStatementClose: e,
+		}
+	case *MySQLStatementReset:
+		out.Event = &OneOf_MySQLStatementReset{
+			MySQLStatementReset: e,
+		}
+	case *MySQLStatementFetch:
+		out.Event = &OneOf_MySQLStatementFetch{
+			MySQLStatementFetch: e,
+		}
+	case *MySQLStatementBulkExecute:
+		out.Event = &OneOf_MySQLStatementBulkExecute{
+			MySQLStatementBulkExecute: e,
+		}
+	case *RenewableCertificateGenerationMismatch:
+		out.Event = &OneOf_RenewableCertificateGenerationMismatch{
+			RenewableCertificateGenerationMismatch: e,
+		}
 	default:
 		return nil, trace.BadParameter("event type %T is not supported", in)
 	}

@@ -1,0 +1,24 @@
+SQL Server clients connect to a Teleport cluster via the local proxy in
+[TLS Routing](../../architecture/tls-routing.mdx) mode.
+
+Log into your SQL Server database with `tsh db login` and execute `tsh db config`
+to locate the paths to the client certificate and key pair:
+
+```bash
+$ tsh db config sqlserver
+Name:      sqlserver
+...
+Cert:      /home/alice/.tsh/keys/teleport.example.com/alice-db/cluster/example-x509.pem
+Key:       /home/alice/.tsh/keys/teleport.example.com/alice
+```
+
+Start the local TLS proxy providing the cert/key paths and, optionally, the port
+number to listen on:
+
+```bash
+$ tsh proxy db \
+    --port 4242 \
+    --cert-file /home/alice/.tsh/keys/teleport.example.com/alice-db/cluster/example-x509.pem \
+    --key-file /home/alice/.tsh/keys/teleport.example.com/alice \
+    sqlserver
+```

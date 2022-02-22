@@ -104,7 +104,7 @@ db_service:
     dynamic_labels:
     {{- range $name, $label := .StaticDatabaseDynamicLabels }}
     - name: {{ $name }}
-      period: {{ $label.Period }}
+      period: "{{ $label.Period.Duration }}"
       command:
       {{- range $command := $label.Command }}
       - {{ $command | quote }}

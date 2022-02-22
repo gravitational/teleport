@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -341,6 +342,12 @@ type Config struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool
+
+	// Reason is a reason attached to started sessions meant to describe their intent.
+	Reason string
+
+	// Invited is a list of people invited to a session.
+	Invited []string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1294,7 +1301,7 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 
 	key, err := proxyClient.IssueUserCertsWithMFA(ctx, params,
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return PromptMFAChallenge(ctx, proxyAddr, c, "")
+			return PromptMFAChallenge(ctx, proxyAddr, c, "", false)
 		})
 
 	return key, err
@@ -1459,7 +1466,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	if len(nodeAddrs) > 1 {
 		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
 	}
-	return tc.runShell(ctx, nodeClient, nil)
+	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) {
@@ -1488,7 +1495,7 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 }
 
 // Join connects to the existing/active SSH session
-func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID session.ID, input io.Reader) (err error) {
+func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipantMode, namespace string, sessionID session.ID, input io.Reader) (err error) {
 	if namespace == "" {
 		return trace.BadParameter(auth.MissingNamespaceError)
 	}
@@ -1568,8 +1575,21 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	// Start forwarding ports if configured.
 	tc.startPortForwarding(ctx, nc)
 
+	presenceCtx, presenceCancel := context.WithCancel(ctx)
+	defer presenceCancel()
+
+	var beforeStart func(io.Writer)
+	if mode == types.SessionModeratorMode {
+		beforeStart = func(out io.Writer) {
+			nc.OnMFA = func() {
+				runPresenceTask(presenceCtx, out, site, tc, string(session.ID))
+			}
+		}
+	}
+
 	// running shell with a given session means "join" it:
-	return tc.runShell(ctx, nc, session)
+	err = tc.runShell(ctx, nc, mode, session, beforeStart)
+	return trace.Wrap(err)
 }
 
 // Play replays the recorded session
@@ -1621,7 +1641,7 @@ func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessi
 	}
 	sid, err := session.ParseID(sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
+		return nil, trace.BadParameter("%q is not a valid session ID (must be GUID)", sid)
 	}
 	// connect to the auth server (site) who made the recording
 	proxyClient, err := tc.ConnectToProxy(ctx)
@@ -2017,7 +2037,7 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 		return trace.Wrap(err)
 	}
 	defer nodeSession.Close()
-	if err := nodeSession.runCommand(ctx, command, tc.OnShellCreated, tc.Config.Interactive); err != nil {
+	if err := nodeSession.runCommand(ctx, types.SessionPeerMode, command, tc.OnShellCreated, tc.Config.Interactive); err != nil {
 		originErr := trace.Unwrap(err)
 		exitErr, ok := originErr.(*ssh.ExitError)
 		if ok {
@@ -2038,13 +2058,27 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 }
 
 // runShell starts an interactive SSH session/shell.
-// sessToJoin : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, sessToJoin *session.Session) error {
-	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
+// sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
+func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin *session.Session, beforeStart func(io.Writer)) error {
+	env := make(map[string]string)
+	env[teleport.EnvSSHJoinMode] = string(mode)
+	env[teleport.EnvSSHSessionReason] = tc.Config.Reason
+
+	encoded, err := json.Marshal(&tc.Config.Invited)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = nodeSession.runShell(ctx, tc.OnShellCreated); err != nil {
+
+	env[teleport.EnvSSHSessionInvited] = string(encoded)
+	for key, value := range tc.Env {
+		env[key] = value
+	}
+
+	nodeSession, err := newSession(nodeClient, sessToJoin, env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err = nodeSession.runShell(ctx, mode, beforeStart, tc.OnShellCreated); err != nil {
 		switch e := trace.Unwrap(err).(type) {
 		case *ssh.ExitError:
 			tc.ExitStatus = e.ExitStatus()
@@ -3390,4 +3424,16 @@ func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {
 		}
 	}
 	return databases, nil
+}
+
+// GetActiveSessions fetches a list of all active sessions tracked by the SessionTracker resource
+// that the user has access to.
+func (tc *TeleportClient) GetActiveSessions(ctx context.Context) ([]types.SessionTracker, error) {
+	proxy, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer proxy.Close()
+	return proxy.GetActiveSessions(ctx)
 }

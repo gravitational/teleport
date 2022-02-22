@@ -41,16 +41,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testWithCloudModules struct {
-	modules.Modules
-}
-
-func (m *testWithCloudModules) Features() modules.Features {
-	return modules.Features{
-		Cloud: true, // Enable cloud feature which is required for account recovery.
-	}
-}
-
 // TestGenerateAndUpsertRecoveryCodes tests the following:
 //  - generation of recovery codes are of correct format
 //  - recovery codes are upserted
@@ -145,9 +135,11 @@ func TestStartAccountRecovery(t *testing.T) {
 	mockEmitter := &events.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testWithCloudModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -211,9 +203,11 @@ func TestStartAccountRecovery_WithLock(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testWithCloudModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -262,9 +256,11 @@ func TestStartAccountRecovery_UserErrors(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testWithCloudModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -322,9 +318,11 @@ func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 	mockEmitter := &events.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testWithCloudModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -453,9 +451,11 @@ func TestVerifyAccountRecovery_WithLock(t *testing.T) {
 	mockEmitter := &events.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testWithCloudModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -520,9 +520,11 @@ func TestVerifyAccountRecovery_WithErrors(t *testing.T) {
 	mockEmitter := &events.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testWithCloudModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -617,9 +619,11 @@ func TestCompleteAccountRecovery(t *testing.T) {
 	mockEmitter := &events.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testWithCloudModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -744,9 +748,11 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 	mockEmitter := &events.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testWithCloudModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -914,9 +920,11 @@ func TestAccountRecoveryFlow(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testWithCloudModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
 	cases := []struct {
 		name               string
@@ -1187,9 +1195,11 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testWithCloudModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
 	// Enable second factors.
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -1296,9 +1306,11 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testWithCloudModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,

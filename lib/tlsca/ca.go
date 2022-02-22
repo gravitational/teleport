@@ -138,6 +138,8 @@ type Identity struct {
 	// Renewable indicates that this identity is allowed to renew it's
 	// own credentials. This is only enabled for certificate renewal bots.
 	Renewable bool
+	// Generation counts the number of times this certificate has been renewed.
+	Generation uint64
 }
 
 // RouteToApp holds routing information for applications.
@@ -318,6 +320,10 @@ var (
 	// that a certificate may be renewed by a certificate renewal bot.
 	RenewableCertificateASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 13}
 
+	// GenerationASN1ExtensionOID is an extension OID used to count the number
+	// of times this certificate has been renewed.
+	GenerationASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 14}
+
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
 	DatabaseServiceNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 1}
@@ -452,7 +458,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
 				Type:  RenewableCertificateASN1ExtensionOID,
-				Value: "true",
+				Value: types.True,
 			})
 	}
 	if id.TeleportCluster != "" {
@@ -549,6 +555,15 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
+	if id.Generation > 0 {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  GenerationASN1ExtensionOID,
+				Value: fmt.Sprint(id.Generation),
+			},
+		)
+	}
+
 	return subject, nil
 }
 
@@ -621,7 +636,7 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(RenewableCertificateASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
-				id.Renewable, _ = strconv.ParseBool(val)
+				id.Renewable = val == types.True
 			}
 		case attr.Type.Equal(TeleportClusterASN1ExtensionOID):
 			val, ok := attr.Value.(string)
@@ -682,6 +697,17 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.DisallowReissue = val == types.True
+			}
+		case attr.Type.Equal(GenerationASN1ExtensionOID):
+			// This doesn't seem to play nice with int types, so we'll parse it
+			// from a string.
+			val, ok := attr.Value.(string)
+			if ok {
+				generation, err := strconv.ParseUint(val, 10, 64)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				id.Generation = generation
 			}
 		}
 	}

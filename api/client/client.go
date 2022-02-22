@@ -709,7 +709,7 @@ func (c *Client) DeleteBot(ctx context.Context, botName string) error {
 
 // GetBotUsers fetches all bot users.
 func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
-	stream, err := c.grpc.GetBotUsers(context.TODO(), &proto.GetBotUsersRequest{}, c.callOpts...)
+	stream, err := c.grpc.GetBotUsers(ctx, &proto.GetBotUsersRequest{}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -721,17 +721,6 @@ func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 		users = append(users, user)
 	}
 	return users, nil
-}
-
-// GenerateInitialRenewableUserCerts exchanges a bot token for a set of
-// renewable user certificates.
-func (c *Client) GenerateInitialRenewableUserCerts(ctx context.Context, req *proto.RenewableCertsRequest) (*proto.Certs, error) {
-	certs, err := c.grpc.GenerateInitialRenewableUserCerts(ctx, req, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return certs, nil
 }
 
 // GetAccessRequests retrieves a list of all access requests matching the provided filter.
@@ -1319,7 +1308,7 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
-	roleV4, ok := role.(*types.RoleV4)
+	roleV4, ok := role.(*types.RoleV5)
 	if !ok {
 		return trace.BadParameter("invalid type %T", role)
 	}
@@ -2199,6 +2188,15 @@ func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.Windows
 	return services, nil
 }
 
+// GetWindowsDesktopService returns a registered windows desktop service by name.
+func (c *Client) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
+	resp, err := c.grpc.GetWindowsDesktopService(ctx, &proto.GetWindowsDesktopServiceRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp.GetService(), nil
+}
+
 // UpsertWindowsDesktopService registers a new windows desktop service.
 func (c *Client) UpsertWindowsDesktopService(ctx context.Context, service types.WindowsDesktopService) (*types.KeepAlive, error) {
 	s, ok := service.(*types.WindowsDesktopServiceV3)
@@ -2233,8 +2231,8 @@ func (c *Client) DeleteAllWindowsDesktopServices(ctx context.Context) error {
 }
 
 // GetWindowsDesktops returns all registered windows desktop hosts.
-func (c *Client) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
-	resp, err := c.grpc.GetWindowsDesktops(ctx, &empty.Empty{}, c.callOpts...)
+func (c *Client) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
+	resp, err := c.grpc.GetWindowsDesktops(ctx, &filter, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -2243,15 +2241,6 @@ func (c *Client) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop
 		desktops = append(desktops, desktop)
 	}
 	return desktops, nil
-}
-
-// GetWindowsDesktop returns a registered windows desktop host.
-func (c *Client) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
-	desktop, err := c.grpc.GetWindowsDesktop(ctx, &proto.GetWindowsDesktopRequest{Name: name}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return desktop, nil
 }
 
 // CreateWindowsDesktop registers a new windows desktop host.
@@ -2285,9 +2274,13 @@ func (c *Client) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 }
 
 // DeleteWindowsDesktop removes the specified windows desktop host.
-func (c *Client) DeleteWindowsDesktop(ctx context.Context, name string) error {
+// Note: unlike GetWindowsDesktops, this will delete at-most one desktop.
+// Passing an empty host ID will not trigger "delete all" behavior. To delete
+// all desktops, use DeleteAllWindowsDesktops.
+func (c *Client) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
 	_, err := c.grpc.DeleteWindowsDesktop(ctx, &proto.DeleteWindowsDesktopRequest{
-		Name: name,
+		Name:   name,
+		HostID: hostID,
 	}, c.callOpts...)
 	if err != nil {
 		return trail.FromGRPC(err)
@@ -2460,4 +2453,60 @@ func (c *Client) GetResources(ctx context.Context, namespace, resourceType strin
 	}
 
 	return resources, nil
+}
+
+// CreateSessionTracker creates a tracker resource for an active session.
+func (c *Client) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
+	resp, err := c.grpc.CreateSessionTracker(ctx, req)
+	return resp, trail.FromGRPC(err)
+}
+
+// GetSessionTracker returns the current state of a session tracker for an active session.
+func (c *Client) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
+	req := &proto.GetSessionTrackerRequest{SessionID: sessionID}
+	resp, err := c.grpc.GetSessionTracker(ctx, req)
+	return resp, trail.FromGRPC(err)
+}
+
+// GetActiveSessionTrackers returns a list of active session trackers.
+func (c *Client) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
+	stream, err := c.grpc.GetActiveSessionTrackers(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+
+	}
+
+	var sessions []types.SessionTracker
+	for {
+		session, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return nil, trace.Wrap(err)
+		}
+
+		sessions = append(sessions, session)
+	}
+
+	return sessions, nil
+}
+
+// RemoveSessionTracker removes a tracker resource for an active session.
+func (c *Client) RemoveSessionTracker(ctx context.Context, sessionID string) error {
+	_, err := c.grpc.RemoveSessionTracker(ctx, &proto.RemoveSessionTrackerRequest{SessionID: sessionID})
+	return trail.FromGRPC(err)
+}
+
+// UpdateSessionTracker updates a tracker resource for an active session.
+func (c *Client) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
+	_, err := c.grpc.UpdateSessionTracker(ctx, req)
+	return trail.FromGRPC(err)
+}
+
+// MaintainSessionPresence establishes a channel used to continuously verify the presence for a session.
+func (c *Client) MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error) {
+	stream, err := c.grpc.MaintainSessionPresence(ctx)
+	return stream, trail.FromGRPC(err)
 }

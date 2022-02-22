@@ -1339,18 +1339,18 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 	require.False(t, resp.Required)
 }
 
-// TestRoleVersions tests that downgraded V3 roles are returned to older
-// clients, and V4 roles are returned to newer clients.
+// TestRoleVersions tests that downgraded V4 roles are returned to older
+// clients, and V5 roles are returned to newer clients.
 func TestRoleVersions(t *testing.T) {
 	srv := newTestTLSServer(t)
 
-	role := &types.RoleV4{
+	role := &types.RoleV5{
 		Kind:    types.KindRole,
-		Version: types.V4,
+		Version: types.V5,
 		Metadata: types.Metadata{
 			Name: "test_role",
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{
 					types.NewRule(types.KindRole, services.RO()),
@@ -1374,26 +1374,26 @@ func TestRoleVersions(t *testing.T) {
 	}{
 		{
 			desc:                "old",
-			clientVersion:       "6.2.1",
-			expectedRoleVersion: "v3",
-			assertErr:           require.NoError,
-		},
-		{
-			desc:                "new",
-			clientVersion:       "6.3.0",
+			clientVersion:       "7.1.1",
 			expectedRoleVersion: "v4",
 			assertErr:           require.NoError,
 		},
 		{
+			desc:                "new",
+			clientVersion:       "9.0.0",
+			expectedRoleVersion: "v5",
+			assertErr:           require.NoError,
+		},
+		{
 			desc:                "alpha",
-			clientVersion:       "6.2.4-alpha.0",
+			clientVersion:       "7.2.4-alpha.0",
 			expectedRoleVersion: "v4",
 			assertErr:           require.NoError,
 		},
 		{
 			desc:                "greater than 10",
 			clientVersion:       "10.0.0-beta",
-			expectedRoleVersion: "v4",
+			expectedRoleVersion: "v5",
 			assertErr:           require.NoError,
 		},
 		{
@@ -1409,7 +1409,7 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc:                "no version metadata",
 			disableMetadata:     true,
-			expectedRoleVersion: "v3",
+			expectedRoleVersion: "v4",
 			assertErr:           require.NoError,
 		},
 	}
@@ -1583,7 +1583,9 @@ func TestNodesCRUD(t *testing.T) {
 	t.Run("NodeGetters", func(t *testing.T) {
 		t.Run("List Nodes", func(t *testing.T) {
 			t.Parallel()
-			// list nodes one at a time, last page should be empty
+			// List nodes one at a time, last page should be empty.
+
+			// First node.
 			nodes, nextKey, err := clt.ListNodes(ctx, proto.ListNodesRequest{
 				Namespace: apidefaults.Namespace,
 				Limit:     1,
@@ -1594,6 +1596,7 @@ func TestNodesCRUD(t *testing.T) {
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 			require.Equal(t, backend.NextPaginationKey(node1), nextKey)
 
+			// Second node (last).
 			nodes, nextKey, err = clt.ListNodes(ctx, proto.ListNodesRequest{
 				Namespace: apidefaults.Namespace,
 				Limit:     1,
@@ -1603,22 +1606,13 @@ func TestNodesCRUD(t *testing.T) {
 			require.Len(t, nodes, 1)
 			require.Empty(t, cmp.Diff([]types.Server{node2}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-			require.Equal(t, backend.NextPaginationKey(node2), nextKey)
+			require.Empty(t, nextKey)
 
-			nodes, nextKey, err = clt.ListNodes(ctx, proto.ListNodesRequest{
-				Namespace: apidefaults.Namespace,
-				Limit:     1,
-				StartKey:  nextKey,
-			})
-			require.NoError(t, err)
-			require.Empty(t, nodes)
-			require.Equal(t, "", nextKey)
-
-			// ListNodes should fail if namespace isn't provided
+			// ListNodes should not fail if namespace is empty
 			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
 				Limit: 1,
 			})
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+			require.NoError(t, err)
 
 			// ListNodes should fail if limit is nonpositive
 			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
@@ -1641,9 +1635,9 @@ func TestNodesCRUD(t *testing.T) {
 			require.Empty(t, cmp.Diff([]types.Server{node1, node2}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
-			// GetNodes should fail if namespace isn't provided
+			// GetNodes should not fail if namespace is empty
 			_, err = clt.GetNodes(ctx, "")
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+			require.NoError(t, err)
 		})
 		t.Run("GetNode", func(t *testing.T) {
 			t.Parallel()

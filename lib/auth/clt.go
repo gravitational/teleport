@@ -52,7 +52,8 @@ const (
 	// CurrentVersion is a current API version
 	CurrentVersion = types.V2
 
-	// MissingNamespaceError is a _very_ common error this file generatets
+	// MissingNamespaceError indicates that the client failed to
+	// provide the namespace in the request.
 	MissingNamespaceError = "missing required parameter: namespace"
 )
 
@@ -551,6 +552,18 @@ func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		return nil, trace.Wrap(err)
 	}
 
+	var certs proto.Certs
+	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If we got certs, we're done, however, we may be talking to a Teleport 9 or earlier server,
+	// which still sends back the legacy JSON format.
+	if len(certs.SSH) > 0 && len(certs.TLS) > 0 {
+		return &certs, nil
+	}
+
+	// DELETE IN 10.0.0 (zmb3)
 	return UnmarshalLegacyCerts(out.Bytes())
 }
 
@@ -943,6 +956,11 @@ func (c *Client) UpsertUser(user types.User) error {
 	}
 	_, err = c.PostJSON(c.Endpoint("users"), &upsertUserRawReq{User: data})
 	return trace.Wrap(err)
+}
+
+// CompareAndSwapUser not implemented: can only be called locally
+func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.User) error {
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // ChangePassword updates users password based on the old password.
@@ -1368,7 +1386,7 @@ func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, 
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (c *Client) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	return c.APIClient.StreamSessionEvents(ctx, string(sessionID), startIndex)
@@ -1597,18 +1615,6 @@ func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 	return c.APIClient.GetBotUsers(ctx)
 }
 
-func (c *Client) GenerateInitialRenewableUserCerts(ctx context.Context, req proto.RenewableCertsRequest) (*proto.Certs, error) {
-	if len(req.Token) == 0 {
-		return nil, trace.BadParameter("missing token")
-	}
-
-	if len(req.PublicKey) == 0 {
-		return nil, trace.BadParameter("missing public key")
-	}
-
-	return c.APIClient.GenerateInitialRenewableUserCerts(ctx, &req)
-}
-
 // GetAppServers gets all application servers.
 func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	return c.APIClient.GetAppServers(ctx, namespace)
@@ -1689,6 +1695,10 @@ func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
 
 // DeleteAllLocks not implemented: can only be called locally.
 func (c *Client) DeleteAllLocks(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -1778,6 +1788,10 @@ type IdentityService interface {
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user types.User) error
 
+	// CompareAndSwapUser updates an existing user in a backend, but fails if
+	// the user in the backend does not match the expected value.
+	CompareAndSwapUser(ctx context.Context, new, expected types.User) error
+
 	// DeleteUser deletes an existng user in a backend by username.
 	DeleteUser(ctx context.Context, user string) error
 
@@ -1814,10 +1828,6 @@ type IdentityService interface {
 	// text format, signs it using User Certificate Authority signing key and
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
-
-	// GenerateInitialRenewableUserCerts generates renewable certs for a non-interactive user
-	// using a previously issued single-use token.
-	GenerateInitialRenewableUserCerts(ctx context.Context, req proto.RenewableCertsRequest) (*proto.Certs, error)
 
 	// GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
 	// certificate for a single session
@@ -1862,6 +1872,9 @@ type IdentityService interface {
 	CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
 	// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
 	CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error)
+
+	// MaintainSessionPresence establishes a channel used to continuously verify the presence for a session.
+	MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error)
 
 	// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
 	// This token is used as part of a URL that will be emailed to the user (not done in this request).
@@ -1935,6 +1948,7 @@ type ClientI interface {
 	WebService
 	session.Service
 	services.ClusterConfiguration
+	services.SessionTrackerService
 	types.Events
 
 	types.WebSessionsGetter
