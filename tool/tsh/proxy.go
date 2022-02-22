@@ -252,12 +252,15 @@ func onProxyCommandAPP(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	listener, err := net.Listen("tcp", "localhost:0")
+	addr := "localhost:0"
+	if cf.LocalProxyPort != "" {
+		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
+	}
+
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	fmt.Println(cf.InsecureSkipVerify)
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		Listener:           listener,
@@ -276,11 +279,16 @@ func onProxyCommandAPP(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Println(lp.GetAddr())
+	defer lp.Close()
+	go func() {
+		if err = lp.Start(cf.Context); err != nil {
+			log.WithError(err).Errorf("Failed to start local proxy.")
+		}
+	}()
 
-	if err = lp.Start(cf.Context); err != nil {
-		return trace.Wrap(err)
-	}
+	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, lp.GetAddr())
+
+	<-cf.Context.Done()
 
 	return nil
 }
