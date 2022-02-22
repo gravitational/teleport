@@ -793,7 +793,7 @@ func (l *globalSessionDataLimiter) add(scope string, n int) int {
 
 	// Reset counters to account for key expiration.
 	now := l.Clock.Now()
-	if now.Sub(l.lastReset) >= defaults.WebauthnGlobalChallengeTimeout {
+	if now.Sub(l.lastReset) >= l.ResetPeriod {
 		for k := range l.scopeCount {
 			l.scopeCount[k] = 0
 		}
@@ -826,21 +826,27 @@ func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, s
 		return trace.BadParameter("missing parameter sd")
 	}
 
-	if entries := sdLimiter.add(scope, 1); entries > GlobalSessionDataMaxEntries {
-		sdLimiter.add(scope, -1) // request denied, adjust accordingly
-		return trace.LimitExceeded("too many in-flight challenges")
-	}
-
+	// Marshal before checking limiter, in case this fails.
 	value, err := json.Marshal(sd)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = s.Put(ctx, backend.Item{
+
+	// Are we within the limits for the current time window?
+	if entries := sdLimiter.add(scope, 1); entries > GlobalSessionDataMaxEntries {
+		sdLimiter.add(scope, -1) // Request denied, adjust accordingly
+		return trace.LimitExceeded("too many in-flight challenges")
+	}
+
+	if _, err = s.Put(ctx, backend.Item{
 		Key:     globalSessionDataKey(scope, id),
 		Value:   value,
 		Expires: s.Clock().Now().UTC().Add(defaults.WebauthnGlobalChallengeTimeout),
-	})
-	return trace.Wrap(err)
+	}); err != nil {
+		sdLimiter.add(scope, -1) // Don't count eventual write failures
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error) {
