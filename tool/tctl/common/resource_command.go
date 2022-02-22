@@ -306,6 +306,21 @@ func (d *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("remote cluster %q has been deleted\n", d.ref.Name)
+	case services.KindCertAuthority:
+		if d.ref.SubKind == "" || d.ref.Name == "" {
+			return trace.BadParameter(
+				"full %s path must be specified (e.g. '%s/%s/clustername')",
+				services.KindCertAuthority, services.KindCertAuthority, services.HostCA,
+			)
+		}
+		err := client.DeleteCertAuthority(services.CertAuthID{
+			Type:       services.CertAuthType(d.ref.SubKind),
+			DomainName: d.ref.Name,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("%s '%s/%s' has been deleted\n", services.KindCertAuthority, d.ref.SubKind, d.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", d.ref.Kind)
 	}

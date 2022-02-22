@@ -384,15 +384,37 @@ func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClus
 	// log the remote certificate authorities we are adding
 	log.Debugf("Received validate request: token=%v, CAs=%v", validateRequest.Token, validateRequest.CAs)
 
-	// add remote cluster resource to keep track of the remote cluster
-	var remoteClusterName string
-	for _, certAuthority := range validateRequest.CAs {
-		// don't add a ca with the same as as local cluster name
-		if certAuthority.GetName() == domainName {
-			return nil, trace.AccessDenied("remote certificate authority has same name as cluster certificate authority: %v", domainName)
-		}
-		remoteClusterName = certAuthority.GetName()
+	if len(validateRequest.CAs) != 1 {
+		return nil, trace.AccessDenied("expected exactly one certificate authority, received %v", len(validateRequest.CAs))
 	}
+	remoteCA := validateRequest.CAs[0]
+	err = remoteCA.CheckAndSetDefaults()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if remoteCA.GetName() != remoteCA.GetClusterName() {
+		return nil, trace.AccessDenied("remote CA is inconsistently named, metadata name is %q and spec cluster name is %q", remoteCA.GetName(), remoteCA.GetClusterName())
+	}
+
+	if remoteCA.GetType() != services.HostCA {
+		return nil, trace.AccessDenied("expected host certificate authority, received CA with type %q", remoteCA.GetType())
+	}
+
+	// a host CA shouldn't have a rolemap or roles in the first place
+	remoteCA.SetRoleMap(nil)
+	remoteCA.SetRoles(nil)
+
+	remoteClusterName := remoteCA.GetName()
+	if remoteClusterName == domainName {
+		return nil, trace.AccessDenied("remote cluster has same name as this cluster: %v", domainName)
+	}
+	_, err = a.GetTrustedCluster(remoteClusterName)
+	if err == nil {
+		return nil, trace.AccessDenied("remote cluster has same name as trusted cluster: %v", remoteClusterName)
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	remoteCluster, err := services.NewRemoteCluster(remoteClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -405,12 +427,9 @@ func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClus
 		}
 	}
 
-	// token has been validated, upsert the given certificate authority
-	for _, certAuthority := range validateRequest.CAs {
-		err = a.UpsertCertAuthority(certAuthority)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	err = a.UpsertCertAuthority(remoteCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// export local cluster certificate authority and return it to the cluster

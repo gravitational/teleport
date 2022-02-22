@@ -471,6 +471,12 @@ func ParseRef(ref string) (*Ref, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &Ref{Kind: shortcut, Name: parts[1]}, nil
+	case 3:
+		shortcut, err := ParseShortcut(parts[0])
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &Ref{Kind: shortcut, SubKind: parts[1], Name: parts[2]}, nil
 	}
 	return nil, trace.BadParameter("failed to parse '%v'", ref)
 }
@@ -486,8 +492,9 @@ func isDelimiter(r rune) bool {
 
 // Ref is a resource reference
 type Ref struct {
-	Kind string
-	Name string
+	Kind    string
+	SubKind string
+	Name    string
 }
 
 func (r *Ref) IsEmtpy() bool {
