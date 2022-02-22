@@ -1212,24 +1212,6 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 		registerDevice func(t *testing.T, ctx context.Context, clt *auth.Client) *auth.TestDevice
 	}{
 		{
-			name: "u2f",
-			authPref: types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorU2F,
-				U2F: &types.U2F{
-					AppID:  "https://localhost",
-					Facets: []string{"https://localhost"},
-				},
-				RequireSessionMFA: true,
-			},
-			mfaHandler: handleMFAU2FCChallenge,
-			registerDevice: func(t *testing.T, ctx context.Context, clt *auth.Client) *auth.TestDevice {
-				dev, err := auth.RegisterTestDevice(ctx, clt, "u2f", apiProto.DeviceType_DEVICE_TYPE_U2F, nil /* authenticator */)
-				require.NoError(t, err)
-				return dev
-			},
-		},
-		{
 			name: "webauthn",
 			authPref: types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
@@ -1296,6 +1278,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 		})
 	}
 }
+
 func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
 	mfaChallange, err := tdp.DecodeMFAChallenge(bufio.NewReader(&WebsocketIO{Conn: ws}))
 	require.NoError(t, err)
@@ -1308,33 +1291,6 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
 				Webauthn: res.GetWebauthn(),
-			},
-		},
-	})
-	require.NoError(t, err)
-}
-
-func handleMFAU2FCChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
-	mfaChallange, err := tdp.DecodeMFAChallenge(bufio.NewReader(&WebsocketIO{Conn: ws}))
-	require.NoError(t, err)
-	res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
-		U2F: []*apiProto.U2FChallenge{{
-			KeyHandle: mfaChallange.U2FChallenges[0].KeyHandle,
-			Challenge: mfaChallange.U2FChallenges[0].Challenge,
-			AppID:     mfaChallange.U2FChallenges[0].AppID,
-			Version:   mfaChallange.U2FChallenges[0].Version,
-		}},
-	})
-	require.NoError(t, err)
-	err = tdp.NewConn(&WebsocketIO{Conn: ws}).OutputMessage(tdp.MFA{
-		Type: defaults.WebsocketU2FChallenge[0],
-		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_U2F{
-				U2F: &authproto.U2FResponse{
-					KeyHandle:  res.GetU2F().KeyHandle,
-					ClientData: res.GetU2F().ClientData,
-					Signature:  res.GetU2F().Signature,
-				},
 			},
 		},
 	})
@@ -3682,8 +3638,7 @@ func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
 	require.NoError(t, err)
 }
 
-type mockProxySettings struct {
-}
+type mockProxySettings struct{}
 
 func (mock *mockProxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error) {
 	return &webclient.ProxySettings{}, nil
