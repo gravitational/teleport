@@ -377,10 +377,14 @@ func maybeFilterCertAuthorityWatches(ctx context.Context, clusterName string, ro
 		}
 
 		log.Debugf("Injecting filter for CertAuthority watch for Node-only watcher with version %v", clientVersion)
-		watch.Kinds[i].Filter = types.CertAuthorityFilter{
-			types.HostCA: clusterName,
-			types.UserCA: types.Wildcard,
-		}.IntoMap()
+		watch.Kinds[i].Filter = NodeCertAuthorityFilter(clusterName).IntoMap()
+	}
+}
+
+func NodeCertAuthorityFilter(clusterName string) types.CertAuthorityFilter {
+	return types.CertAuthorityFilter{
+		types.HostCA: clusterName,
+		types.UserCA: types.Wildcard,
 	}
 }
 

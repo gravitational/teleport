@@ -28,6 +28,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -395,7 +396,7 @@ func TestNodeCAFiltering(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, nodeCacheBackend.Close()) })
 
 	// this mimics a cache for a node pulling events from the auth server via WatchEvents
-	nodeCache, err := New(ForNode(Config{
+	nodeCacheCfg := ForNode(Config{
 		Events:        p.cache,
 		Trust:         p.cache.trustCache,
 		ClusterConfig: p.cache.clusterConfigCache,
@@ -409,7 +410,10 @@ func TestNodeCAFiltering(t *testing.T) {
 		WebSession:    p.cache.webSessionCache,
 		WebToken:      p.cache.webTokenCache,
 		Backend:       nodeCacheBackend,
-	}))
+	})
+	// inject the same filter that would be injected when connecting through grpc
+	nodeCacheCfg.Watches[0].Filter = auth.NodeCertAuthorityFilter("example.com").IntoMap()
+	nodeCache, err := New(nodeCacheCfg)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
 
