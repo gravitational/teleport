@@ -342,6 +342,7 @@ for file in $(find . -type f ! -iname '*.sha256'); do
     exit 1
   fi
   curl $CREDENTIALS --fail -o /dev/null -F description="%s" -F os="%s" -F arch="%s" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+  curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/$product@$VERSION/assets/$(basename $file)"
 done`,
 			b.Description(packageType), b.os, b.arch),
 	}
