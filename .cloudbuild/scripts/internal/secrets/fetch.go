@@ -9,6 +9,7 @@ import (
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
 )
 
+// Fetch goes and grabs a single secret from the Google Cloud secret manager
 func Fetch(ctx context.Context, resourceName string) ([]byte, error) {
 	c, err := secretmanager.NewClient(ctx)
 	if err != nil {
@@ -28,6 +29,8 @@ func Fetch(ctx context.Context, resourceName string) ([]byte, error) {
 	return secret.Payload.Data, nil
 }
 
+// FetchString fetches a single secret from the Google Cloud secret manager and returns 
+// it as a string.
 func FetchString(ctx context.Context, resourceName string) (string, error) {
 	data, err := Fetch(ctx, resourceName)
 	if err != nil {
