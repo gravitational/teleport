@@ -1,5 +1,5 @@
 ---
-title: Desktop Access Access Controls
+title:  Role-Based Access Control for Desktop Access
 description: Role-based access control (RBAC) for Teleport Desktop Access
 ---
 
@@ -8,7 +8,7 @@ description: Role-based access control (RBAC) for Teleport Desktop Access
 Teleport's RBAC allows administrators to set up granular access policies for
 Windows desktops connected to Teleport.
 
-Teleport's "role" resource provides the following instruments for controlling
+Teleport's `role` resource provides the following options for controlling
 desktop access:
 
 ```yaml
@@ -57,12 +57,13 @@ use wildcards (`"*"`) to match all desktop labels.
 
 Windows desktops acquire labels in two ways:
 
-1. The `host_labels` rules defined in the Windows Desktop Service configuration
+1. The `host_labels` rules defined in the `windows_desktop_service` section of
+   your Teleport configuration file.
 2. Automatic `teleport.dev/` labels applied by Teleport (for desktops discovered
    via LDAP only)
 
 For example, the following `host_labels` configuration would apply the
-`environment: dev` label to a Windows desktop named `test.dev.example.com`,
+`environment: dev` label to a Windows desktop named `test.dev.example.com`
 and the `environment: prod` label to `desktop.prod.example.com`:
 
 ```yaml
@@ -103,8 +104,8 @@ allow:
 
 ## Clipboard Access
 
-In order to a user to copy and paste between a remote desktop and their local
-workstation, shared clipboard must be enabled for the user. The
+In order for a user to copy and paste between a remote desktop and their local
+workstation, clipboard sharing must be enabled for the user. The
 `desktop_clipboard` role option defaults to enabled if unspecified. To disable
 clipboard sharing for a Teleport user, ensure that they are assigned at least
 one role that explicitly disables clipboard sharing:
@@ -132,6 +133,6 @@ record_sessions:
   desktop: false
 ```
 
-In order to disable desktop session recording for a user, _all_ of the user's
+In order to disable desktop session recording for a user, *all* of the user's
 roles must disable it. In other words, the presence of a single role which
 enables recording is enough to ensure sessions are recorded.
