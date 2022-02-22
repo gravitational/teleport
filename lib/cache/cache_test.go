@@ -396,22 +396,19 @@ func TestNodeCAFiltering(t *testing.T) {
 
 	// this mimics a cache for a node pulling events from the auth server via WatchEvents
 	nodeCache, err := New(ForNode(Config{
-		Events:          p.cache,
-		Trust:           p.cache.trustCache,
-		ClusterConfig:   p.cache.clusterConfigCache,
-		Provisioner:     p.cache.provisionerCache,
-		Users:           p.cache.usersCache,
-		Access:          p.cache.accessCache,
-		DynamicAccess:   p.cache.dynamicAccessCache,
-		Presence:        p.cache.presenceCache,
-		Restrictions:    p.cache.restrictionsCache,
-		Apps:            p.cache.appsCache,
-		Databases:       p.cache.databasesCache,
-		AppSession:      p.cache.appSessionCache,
-		WebSession:      p.cache.webSessionCache,
-		WebToken:        p.cache.webTokenCache,
-		WindowsDesktops: p.cache.windowsDesktopsCache,
-		Backend:         nodeCacheBackend,
+		Events:        p.cache,
+		Trust:         p.cache.trustCache,
+		ClusterConfig: p.cache.clusterConfigCache,
+		Provisioner:   p.cache.provisionerCache,
+		Users:         p.cache.usersCache,
+		Access:        p.cache.accessCache,
+		DynamicAccess: p.cache.dynamicAccessCache,
+		Presence:      p.cache.presenceCache,
+		Restrictions:  p.cache.restrictionsCache,
+		AppSession:    p.cache.appSessionCache,
+		WebSession:    p.cache.webSessionCache,
+		WebToken:      p.cache.webTokenCache,
+		Backend:       nodeCacheBackend,
 	}))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
