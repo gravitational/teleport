@@ -864,7 +864,7 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 		}
 	}
 
-	// DELETE IN 10.0.0 (Joerger): yaml typo
+	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
 	if ssh.X11.MaxDisplays != nil && ssh.X11.MaxDisplay == nil {
 		ssh.X11.MaxDisplay = ssh.X11.MaxDisplays
 	}
@@ -987,7 +987,7 @@ type X11 struct {
 	// MaxDisplay tells the server what X11 display number to stop at when
 	// searching for an open X11 unix socket for XServer proxies.
 	MaxDisplay *uint `yaml:"max_display,omitempty"`
-	// DELETE IN 10.0.0 (Joerger): yaml typo
+	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
 	MaxDisplays *uint `yaml:"max_displays,omitempty"`
 }
 

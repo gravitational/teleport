@@ -390,42 +390,6 @@ func TestSSHSection(t *testing.T) {
 				cfg["ssh_service"].(cfgMap)["port_forwarding"] = "banana"
 			},
 			expectError: require.Error,
-		}, {
-			desc: "X11 enabled",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled": "yes",
-				}
-			},
-			expectError: require.NoError,
-		}, {
-			desc: "X11 disabled",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled": "no",
-				}
-			},
-			expectError: require.NoError,
-		}, {
-			desc:        "X11 display offset default",
-			mutate:      func(cfg cfgMap) {},
-			expectError: require.NoError,
-		}, {
-			desc: "X11 display offset 100",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"display_offset": 100,
-				}
-			},
-			expectError: require.NoError,
-		}, {
-			desc: "X11 display offset invalid value",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"display_offset": -100,
-				}
-			},
-			expectError: require.Error,
 		},
 	}
 
@@ -482,17 +446,6 @@ func TestX11Config(t *testing.T) {
 				DisplayOffset: x11.DefaultDisplayOffset,
 				MaxDisplay:    x11.DefaultDisplayOffset + x11.DefaultMaxDisplays,
 			},
-		}, {
-			desc: "x11 enabled value invalid",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled": "maybe",
-				}
-			},
-			expectConfigError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.True(t, true, trace.IsBadParameter(err))
-			},
 		},
 		// Test display offset
 		{
@@ -507,18 +460,6 @@ func TestX11Config(t *testing.T) {
 				Enabled:       true,
 				DisplayOffset: 100,
 				MaxDisplay:    100 + x11.DefaultMaxDisplays,
-			},
-		}, {
-			desc: "display offset value invalid",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled":        "yes",
-					"display_offset": "banana",
-				}
-			},
-			expectReadError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.True(t, true, trace.IsBadParameter(err))
 			},
 		}, {
 			desc: "display offset value capped",
@@ -549,7 +490,7 @@ func TestX11Config(t *testing.T) {
 				MaxDisplay:    100 + x11.DefaultDisplayOffset,
 			},
 		}, {
-			// DELETE IN 10.0.0 (Joerger): yaml typo
+			// DELETE IN 10.0.0 (Joerger): yaml typo, use max_display.
 			desc: "max displays set",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -561,18 +502,6 @@ func TestX11Config(t *testing.T) {
 				Enabled:       true,
 				DisplayOffset: x11.DefaultDisplayOffset,
 				MaxDisplay:    100 + x11.DefaultDisplayOffset,
-			},
-		}, {
-			desc: "max display value invalid",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled":     "yes",
-					"max_display": "banana",
-				}
-			},
-			expectReadError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.True(t, true, trace.IsBadParameter(err))
 			},
 		}, {
 			desc: "max display value capped",
@@ -598,7 +527,7 @@ func TestX11Config(t *testing.T) {
 			},
 			expectConfigError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
-				require.True(t, true, trace.IsBadParameter(err))
+				require.True(t, trace.IsBadParameter(err), "got err = %v, want BadParameter", err)
 			},
 		},
 	}
