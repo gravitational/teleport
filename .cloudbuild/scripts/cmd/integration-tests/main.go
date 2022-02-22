@@ -128,25 +128,23 @@ func innerMain() error {
 
 	log.Printf("stat: %s", string(out))
 
-	log.Printf("Create group docker")
-
 	fileInfo, _ := os.Stat("/var/run/docker.sock")
 	fileSys := fileInfo.Sys()
 	fileGid := fmt.Sprint(fileSys.(*syscall.Stat_t).Gid)
 
-	log.Printf("creating group docker with id %s", fileGid)
-	err = exec.Command("groupadd", "-g", fileGid, "docker").Run()
-	if err != nil {
-		return trace.Wrap(err, "failed to create group docker")
-	}
-
-	log.Printf("Add non-root user to the docker group")
+	log.Printf("Add non-root user to the docker socket group")
 	usr, err := user.LookupId("1000")
 	if err != nil {
 		return trace.Wrap(err, "failed to get user 1000")
 	}
 
-	err = exec.Command("usermod", "-a", "-G", "docker", usr.Username).Run()
+	group, err := user.LookupGroupId(fileGid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Printf("adding %s user to %s group", usr.Username, group.Name)
+	err = exec.Command("usermod", "-a", "-G", group.Name, usr.Username).Run()
 	if err != nil {
 		return trace.Wrap(err, "failed to add user to docker group")
 	}
