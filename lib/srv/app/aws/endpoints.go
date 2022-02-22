@@ -20,28 +20,36 @@ import (
 	"net/http"
 	"strings"
 
-	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
-	"github.com/aws/aws-sdk-go/service/appregistry"
 	"github.com/aws/aws-sdk-go/service/appstream"
 	"github.com/aws/aws-sdk-go/service/detective"
 	"github.com/aws/aws-sdk-go/service/ecr"
+	"github.com/aws/aws-sdk-go/service/ecrpublic"
 	"github.com/aws/aws-sdk-go/service/elasticinference"
 	"github.com/aws/aws-sdk-go/service/iot"
 	"github.com/aws/aws-sdk-go/service/iot1clickprojects"
+	"github.com/aws/aws-sdk-go/service/iotdataplane"
+	"github.com/aws/aws-sdk-go/service/iotdeviceadvisor"
+	"github.com/aws/aws-sdk-go/service/ioteventsdata"
 	"github.com/aws/aws-sdk-go/service/iotfleethub"
 	"github.com/aws/aws-sdk-go/service/iotjobsdataplane"
+	"github.com/aws/aws-sdk-go/service/iotsecuretunneling"
 	"github.com/aws/aws-sdk-go/service/iotwireless"
 	"github.com/aws/aws-sdk-go/service/lexmodelsv2"
-	"github.com/aws/aws-sdk-go/service/marketplaceentitlementservice"
+	"github.com/aws/aws-sdk-go/service/marketplacecatalog"
 	"github.com/aws/aws-sdk-go/service/mediastoredata"
 	"github.com/aws/aws-sdk-go/service/mediatailor"
+	"github.com/aws/aws-sdk-go/service/memorydb"
+	"github.com/aws/aws-sdk-go/service/migrationhubconfig"
+	"github.com/aws/aws-sdk-go/service/mobile"
 	"github.com/aws/aws-sdk-go/service/pinpoint"
+	"github.com/aws/aws-sdk-go/service/pinpointsmsvoice"
 	"github.com/aws/aws-sdk-go/service/pricing"
 	"github.com/aws/aws-sdk-go/service/sagemaker"
 	"github.com/aws/aws-sdk-go/service/ses"
 	"github.com/aws/aws-sdk-go/service/sso"
 	"github.com/aws/aws-sdk-go/service/ssooidc"
+	"github.com/aws/aws-sdk-go/service/timestreamquery"
 
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 
@@ -56,30 +64,16 @@ func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Some clients may sign with some upper case letters (e.g.
-	// "IoTSecuredTunneling") where other clients may sign with the same key
-	// but in all lower cases. We use all lower cases as keys in our mappings.
-	signingName := strings.ToLower(awsAuthHeader.Service)
-
-	// EndpointFor from aws-sdk-go does not support all services. Use endpoint
-	// resolvers from aws-sdk-go-v2 for those exceptions.
-	endpointV2Resolver, found := endpointsV2Resolvers[signingName]
-	if found {
-		endpointV2, err := endpointV2Resolver(awsAuthHeader.Region)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// SigningName can be empty using the resolver. Set it back to what is
-		// received from the header.
-		endpointV2.SigningName = awsAuthHeader.Service
-		return endpointV2ToEndpointV1(&endpointV2), nil
-	}
-
 	// EndpointFor expects an endpoints ID which can be different from the
 	// signing name.
-	endpointsID := endpointsIDFromSigningName(signingName)
-	resolvedEndpoint, err := endpoints.DefaultResolver().EndpointFor(endpointsID, awsAuthHeader.Region)
+	endpointsID := endpointsIDFromSigningName(awsAuthHeader.Service)
+
+	// Allow ResolveUnknownService to resolve services not in the defaults mapping.
+	opts := func(opts *endpoints.Options) {
+		opts.ResolveUnknownService = true
+	}
+
+	resolvedEndpoint, err := endpoints.DefaultResolver().EndpointFor(endpointsID, awsAuthHeader.Region, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -90,25 +84,13 @@ func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	return &resolvedEndpoint, nil
 }
 
-// endpointV2ToEndpointV1 converts endpoint object from aws-sdk-go-v2 to
-// v1's endpoints.ResolvedEndpoint.
-func endpointV2ToEndpointV1(endpointV2 *awsv2.Endpoint) *endpoints.ResolvedEndpoint {
-	return &endpoints.ResolvedEndpoint{
-		URL:           endpointV2.URL,
-		PartitionID:   endpointV2.PartitionID,
-		SigningRegion: endpointV2.SigningRegion,
-		SigningName:   endpointV2.SigningName,
-		SigningMethod: endpointV2.SigningMethod,
-	}
-}
-
 // endpointsIDFromSigningName returns the endpoints ID used for endpoint
 // lookups by calling endpoints.DefaultResolver().EndpointFor.
 //
 // A "services" map with supported endpoints IDs as the keys can be found at:
 // https://github.com/aws/aws-sdk-go/blob/v1.43.2/aws/endpoints/defaults.go
 func endpointsIDFromSigningName(signingName string) string {
-	if endpointsID, ok := endpointsIDMapping[signingName]; ok {
+	if endpointsID, ok := endpointsIDMapping[strings.ToLower(signingName)]; ok {
 		return endpointsID
 	}
 
@@ -120,26 +102,35 @@ func endpointsIDFromSigningName(signingName string) string {
 // endpointsIDMapping is a mapping of services' signing names to their
 // endpoints IDs.
 var endpointsIDMapping = map[string]string{
-	"appstream":         appstream.EndpointsID,
-	"aws-marketplace":   marketplaceentitlementservice.EndpointsID,
-	"awsssooidc":        ssooidc.EndpointsID,
-	"awsssoportal":      sso.EndpointsID,
-	"detective":         detective.EndpointsID,
-	"ecr":               ecr.EndpointsID,
-	"elastic-inference": elasticinference.EndpointsID,
-	"execute-api":       iot.EndpointsID,
-	"iot-jobs-data":     iotjobsdataplane.EndpointsID,
-	"iot1click":         iot1clickprojects.EndpointsID,
-	"iotfleethub":       iotfleethub.EndpointsID,
-	"iotwireless":       iotwireless.EndpointsID,
-	"lex":               lexmodelsv2.EndpointsID,
-	"mediastore":        mediastoredata.EndpointsID,
-	"mediatailor":       mediatailor.EndpointsID,
-	"mobiletargeting":   pinpoint.EndpointsID,
-	"pricing":           pricing.EndpointsID,
-	"sagemaker":         sagemaker.EndpointsID,
-	"servicecatalog":    appregistry.EndpointsID,
-	"ses":               ses.EndpointsID,
+	"appstream":           appstream.EndpointsID,
+	"aws-marketplace":     marketplacecatalog.EndpointsID,
+	"awsmobilehubservice": mobile.EndpointsID,
+	"awsssooidc":          ssooidc.EndpointsID,
+	"awsssoportal":        sso.EndpointsID,
+	"detective":           detective.EndpointsID,
+	"ecr":                 ecr.EndpointsID,
+	"ecr-public":          ecrpublic.EndpointsID,
+	"elastic-inference":   elasticinference.EndpointsID,
+	"execute-api":         iot.EndpointsID,
+	"iot-jobs-data":       iotjobsdataplane.EndpointsID,
+	"iot1click":           iot1clickprojects.EndpointsID,
+	"iotdata":             iotdataplane.EndpointsID,
+	"iotdeviceadvisor":    iotdeviceadvisor.EndpointsID,
+	"ioteventsdata":       ioteventsdata.EndpointsID,
+	"iotfleethub":         iotfleethub.EndpointsID,
+	"iotsecuredtunneling": iotsecuretunneling.EndpointsID,
+	"iotwireless":         iotwireless.EndpointsID,
+	"lex":                 lexmodelsv2.EndpointsID,
+	"mediastore":          mediastoredata.EndpointsID,
+	"mediatailor":         mediatailor.EndpointsID,
+	"memorydb":            memorydb.EndpointsID,
+	"mgh":                 migrationhubconfig.EndpointsID,
+	"mobiletargeting":     pinpoint.EndpointsID,
+	"pricing":             pricing.EndpointsID,
+	"sagemaker":           sagemaker.EndpointsID,
+	"ses":                 ses.EndpointsID,
+	"sms-voice":           pinpointsmsvoice.EndpointsID,
+	"timestream":          timestreamquery.EndpointsID,
 }
 
 // TODO Many services may sign with same names but use different hostnames.
@@ -150,7 +141,6 @@ var endpointsIDMapping = map[string]string{
 // "apigateway"          : apigateway, apigatewaymanagementapi, apigatewayv2
 // "appconfig"           : appconfig, appconfigdata
 // "aws-marketplace"     : marketplacecatalog, marketplaceentitlementservice, marketplacemetering
-// "aws-marketplace"     : marketplaceentitlementservice, marketplacemetering, marketplacecatalog
 // "chime"               : chime, chimesdkmeetings, chimesdkmessaging, chimesdkidentity
 // "cloudhsm"            : cloudhsm, cloudhsmv2
 // "cloudsearch"         : cloudsearch, cloudsearchdomain
