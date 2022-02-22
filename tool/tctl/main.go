@@ -34,6 +34,7 @@ func main() {
 		&common.DBCommand{},
 		&common.AccessCommand{},
 		&common.LockCommand{},
+		&common.BotsCommand{},
 	}
 	common.Run(commands)
 }
