@@ -65,10 +65,10 @@ var artifacts []Artifact = []Artifact{
 		Kind:     KindSSH,
 		ModeHint: destination.ModeHintSecret,
 		ToBytes: func(i *Identity) []byte {
-			return bytes.Join(i.SSHCACertBytes, []byte("\n"))
+			return bytes.Join(i.SSHCACertBytes, []byte("$"))
 		},
 		FromBytes: func(c *proto.Certs, p *LoadIdentityParams, b []byte) {
-			c.SSHCACerts = bytes.Split(b, []byte("\n"))
+			c.SSHCACerts = bytes.Split(b, []byte("$"))
 		},
 	},
 

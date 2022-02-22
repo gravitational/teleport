@@ -61,7 +61,7 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// ContainsKind determins if this destination contains the given ConfigKind.
+// ContainsKind determines if this destination contains the given ConfigKind.
 func (dc *DestinationConfig) ContainsKind(kind identity.ArtifactKind) bool {
 	for _, k := range dc.Kinds {
 		if k == kind {
