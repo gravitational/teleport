@@ -26,7 +26,6 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
 	"github.com/gravitational/trace"
 )
@@ -85,18 +84,6 @@ func innerMain() error {
 	args, err := parseCommandLine()
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	log.Println("Analysing code changes")
-	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
-	if err != nil {
-		return trace.Wrap(err, "Failed analyzing code")
-	}
-
-	hasOnlyDocChanges := ch.Docs && (!ch.Code)
-	if hasOnlyDocChanges {
-		log.Println("No non-docs changes detected. Skipping tests.")
-		return nil
 	}
 
 	log.Printf("Starting etcd...")

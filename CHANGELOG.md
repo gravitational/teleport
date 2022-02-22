@@ -1,5 +1,19 @@
 # Changelog
 
+## 7.3.14
+
+This release of Teleport contains a security fix.
+
+An attacker in possession of a valid trusted cluster join token could inject a
+malicious CA into a Teleport cluster that would allow them to bypass root
+cluster authorization and potentially connect to any node within the root
+cluster.
+
+For customers using Trusted Clusters, we recommend upgrading to one of the
+patched releases listed below then revoking and rotating all trusted cluster
+tokens. As a best practice, make sure that trusted cluster tokens have short
+time-to-live and ideally are removed after being used once.
+
 ## 7.3.13
 
 This release of Teleport contains improvements, fixes and a security fix.
