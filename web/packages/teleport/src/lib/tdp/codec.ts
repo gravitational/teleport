@@ -20,6 +20,7 @@ export enum MessageType {
   CLIENT_USERNAME = 7,
   MOUSE_WHEEL_SCROLL = 8,
   ERROR = 9,
+  MFA_JSON = 10,
 }
 
 // 0 is left button, 1 is middle button, 2 is right button
@@ -58,6 +59,13 @@ export type ClipboardData = {
   // TODO(isaiah): store this as a byte array
   // https://github.com/gravitational/webapps/issues/610
   data: string;
+};
+
+// | message type (10) | mfa_type byte | message_length uint32 | json []byte
+export type MfaJson = {
+  // TODO(isaiah) make this a type that ensures it's the same as MessageTypeEnum.U2F_CHALLENGE and MessageTypeEnum.WEBAUTHN_CHALLENGE
+  mfaType: 'u' | 'n';
+  jsonString: string;
 };
 
 // TdaCodec provides an api for encoding and decoding teleport desktop access protocol messages [1]
@@ -300,14 +308,14 @@ export default class Codec {
     // bufLen is 1 byte for the `message type`,
     // 4 bytes for the `length uint32`,
     // and enough bytes for the full `data []byte`
-    const bufLen = 1 + 4 + dataUtf8array.length;
+    const bufLen = byteLength + uint32Length + dataUtf8array.length;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
     let offset = 0;
 
     view.setUint8(offset++, messageType);
     view.setUint32(offset, dataUtf8array.length);
-    offset += 4;
+    offset += uint32Length;
     dataUtf8array.forEach(byte => {
       view.setUint8(offset++, byte);
     });
@@ -344,6 +352,27 @@ export default class Codec {
     return buffer;
   }
 
+  // | message type (10) | mfa_type byte | message_length uint32 | json []byte
+  encodeMfaJson(mfaJson: MfaJson): Message {
+    const dataUtf8array = this.encoder.encode(mfaJson.jsonString);
+
+    const bufLen =
+      byteLength + byteLength + uint32Length + dataUtf8array.length;
+    const buffer = new ArrayBuffer(bufLen);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    view.setUint8(offset++, MessageType.MFA_JSON);
+    view.setUint8(offset++, mfaJson.mfaType.charCodeAt(0));
+    view.setUint32(offset, dataUtf8array.length);
+    offset += uint32Length;
+    dataUtf8array.forEach(byte => {
+      view.setUint8(offset++, byte);
+    });
+
+    return buffer;
+  }
+
   // decodeClipboardData decodes clipboard data
   decodeClipboardData(buffer: ArrayBuffer): ClipboardData {
     return {
@@ -351,13 +380,13 @@ export default class Codec {
     };
   }
 
-  // _decodeMessageType decodes the MessageType from a raw tdp message
+  // decodeMessageType decodes the MessageType from a raw tdp message
   // passed in as an ArrayBuffer (this typically would come from a websocket).
   // Throws an error on an invalid or unexpected MessageType value.
-  _decodeMessageType(buffer: ArrayBuffer): MessageType {
+  decodeMessageType(buffer: ArrayBuffer): MessageType {
     const messageType = new DataView(buffer).getUint8(0);
     // TODO(isaiah): this is fragile, instead switch all possibilities here.
-    if (messageType > MessageType.ERROR) {
+    if (messageType > MessageType.MFA_JSON) {
       throw new Error(`invalid message type: ${messageType}`);
     }
     return messageType;
@@ -367,6 +396,18 @@ export default class Codec {
   // | message type (9) | message_length uint32 | message []byte
   decodeErrorMessage(buffer: ArrayBuffer): string {
     return this._decodeStringMessage(buffer);
+  }
+
+  // decodeMfaChallenge decodes a raw tdp MFA challenge message and returns it as a string (of a json).
+  // | message type (10) | mfa_type byte | message_length uint32 | json []byte
+  decodeMfaJson(buffer: ArrayBuffer): MfaJson {
+    let dv = new DataView(buffer);
+    const mfaType = String.fromCharCode(dv.getUint8(1));
+    if (mfaType !== 'n' && mfaType !== 'u') {
+      throw new Error(`invalid mfa type ${mfaType}, should be "n" or "u"`);
+    }
+    const jsonString = this.decoder.decode(new Uint8Array(buffer.slice(6)));
+    return { mfaType, jsonString };
   }
 
   // _decodeStringMessage decodes a tdp message of the form
@@ -400,3 +441,6 @@ export default class Codec {
     return `data:image/png;base64,${arrayBufferToBase64(buffer.slice(17))}`;
   }
 }
+
+const byteLength = 1;
+const uint32Length = 4;

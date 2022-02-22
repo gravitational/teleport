@@ -769,7 +769,7 @@ exports[`connection error 1`] = `
       class="c12"
       kind="danger"
     >
-      failed
+      some connection error
     </div>
     <canvas
       style="display: none; flex: 1;"
@@ -1385,6 +1385,194 @@ exports[`unintended disconnect 1`] = `
     >
       Session disconnected for an unkown reason
     </div>
+    <canvas
+      style="display: none; flex: 1;"
+    />
+  </div>
+</div>
+`;
+
+exports[`webauthn prompt 1`] = `
+.c12 {
+  box-sizing: border-box;
+  margin: 72px;
+  text-align: center;
+}
+
+.c5 {
+  display: inline-block;
+  transition: color .3s;
+  padding-right: 8px;
+  color: #FFFFFF;
+}
+
+.c11 {
+  display: inline-block;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c10 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all .3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 12px;
+  height: 24px;
+  width: 24px;
+  margin-left: 24px;
+  color: rgba(255,255,255,0.56);
+}
+
+.c10 .c4 {
+  color: inherit;
+}
+
+.c10:disabled {
+  color: rgba(255,255,255,0.3);
+}
+
+.c10:disabled {
+  color: rgba(255,255,255,0.3);
+}
+
+.c10:hover,
+.c10:focus {
+  background: rgba(255,255,255,0.1);
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.c1 {
+  box-sizing: border-box;
+  height: 40px;
+  background-color: #000;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+}
+
+.c7 {
+  box-sizing: border-box;
+  padding-left: 16px;
+  padding-right: 16px;
+  display: flex;
+}
+
+.c8 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c6 {
+  font-weight: 600;
+  font-size: 18px;
+  align-self: 'center';
+}
+
+.c9 {
+  width: 10px;
+  height: 10px;
+  border-radius: 10px;
+  margin-right: 6px;
+  vertical-align: text-bottom;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <nav
+      class="c1"
+      height="40px"
+      style="justify-content: space-between;"
+    >
+      <div
+        class="c2"
+        style="color: rgba(255, 255, 255, 0.56);"
+      >
+        user@host.com
+      </div>
+      <div
+        class="c3"
+        style="color: rgba(255, 255, 255, 0.56); vertical-align: text-bottom;"
+      >
+        <span
+          class="c4 c5 icon icon-clipboard-text c6"
+          color="light"
+          style="color: rgba(255, 255, 255, 0.56);"
+        />
+        Clipboard Sharing 
+        Disabled
+      </div>
+      <div
+        class="c7"
+      >
+        <div
+          class="c8"
+        >
+          <div
+            class="c9"
+            style="background-color: rgba(255, 255, 255, 0.56);"
+          />
+          <div
+            class="c3"
+            style="color: rgba(255, 255, 255, 0.56);"
+          >
+            Not 
+            Recording
+          </div>
+        </div>
+        <div
+          class="c8"
+        >
+          <button
+            class="c10"
+            color="text.secondary"
+            data-testid="button"
+            style="font-size: 20px;"
+          >
+            <span
+              class="c4 c11 icon icon-ellipsis "
+              color="light"
+            />
+          </button>
+        </div>
+      </div>
+    </nav>
+    <div
+      class="c12"
+    />
     <canvas
       style="display: none; flex: 1;"
     />

@@ -12,7 +12,7 @@ devCfg.devServer = {
     directory: path.join(__dirname, 'build/app/dist/renderer'),
     serveIndex: false,
   },
-  allowedHosts: 'auto',
+  allowedHosts: 'all',
   server: {
     type: 'https',
   },

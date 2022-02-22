@@ -65,6 +65,12 @@ const props: State = {
   onContextMenu: () => false,
   onMouseEnter: () => {},
   onClipboardData: () => {},
+  webauthn: {
+    errorText: '',
+    requested: false,
+    authenticate: () => {},
+    setState: () => {},
+  },
 };
 
 export const Processing = () => (
@@ -135,6 +141,7 @@ export const ConnectedSettingsTrue = () => {
     />
   );
 };
+
 export const Disconnected = () => (
   <DesktopSession
     {...props}
@@ -144,6 +151,7 @@ export const Disconnected = () => (
     disconnected={true}
   />
 );
+
 export const FetchError = () => (
   <DesktopSession
     {...props}
@@ -153,6 +161,7 @@ export const FetchError = () => (
     disconnected={false}
   />
 );
+
 export const ConnectionError = () => (
   <DesktopSession
     {...props}
@@ -165,6 +174,7 @@ export const ConnectionError = () => (
     disconnected={false}
   />
 );
+
 export const ClipboardError = () => (
   <DesktopSession
     {...props}
@@ -179,6 +189,7 @@ export const ClipboardError = () => (
     }}
   />
 );
+
 export const UnintendedDisconnect = () => (
   <DesktopSession
     {...props}
@@ -188,6 +199,28 @@ export const UnintendedDisconnect = () => (
     wsConnection={'closed'}
   />
 );
+
+export const WebAuthnPrompt = () => (
+  <DesktopSession
+    {...props}
+    fetchAttempt={{ status: 'processing' }}
+    tdpConnection={{ status: 'processing' }}
+    clipboardState={{
+      enabled: true,
+      permission: { state: 'prompt' },
+      errorText: '',
+    }}
+    wsConnection={'open'}
+    disconnected={false}
+    webauthn={{
+      errorText: '',
+      requested: true,
+      authenticate: () => {},
+      setState: () => {},
+    }}
+  />
+);
+
 export const Performance = () => {
   const client = fakeClient();
   client.init = () => {

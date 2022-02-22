@@ -11,7 +11,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import { EventEmitter } from 'events';
+import Logger from 'shared/libs/logger';
+import { TermEventEnum } from 'teleport/lib/term/enums.js';
+import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
+import { WebauthnAssertionResponse } from 'teleport/services/auth';
 import Codec, {
   MessageType,
   MouseButton,
@@ -21,7 +24,6 @@ import Codec, {
   PngFrame,
   ClipboardData,
 } from './codec';
-import Logger from 'shared/libs/logger';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
@@ -36,7 +38,7 @@ export enum TdpClientEvent {
 // sending client commands, and recieving and processing server messages. It's listener is responsible for
 // calling Client.nuke() (typically after Client emits a TdpClientEvent.DISCONNECT or TdpClientEvent.ERROR event) in order to clean
 // up its websocket listeners.
-export default class Client extends EventEmitter {
+export default class Client extends EventEmitterWebAuthnSender {
   codec: Codec;
   socket: WebSocket;
   socketAddr: string;
@@ -81,8 +83,8 @@ export default class Client extends EventEmitter {
   }
 
   processMessage(buffer: ArrayBuffer) {
-    const messageType = this.codec._decodeMessageType(buffer);
     try {
+      const messageType = this.codec.decodeMessageType(buffer);
       switch (messageType) {
         case MessageType.PNG_FRAME:
           this.handlePngFrame(buffer);
@@ -102,6 +104,9 @@ export default class Client extends EventEmitter {
         case MessageType.ERROR:
           this.handleError(new Error(this.codec.decodeErrorMessage(buffer)));
           break;
+        case MessageType.MFA_JSON:
+          this.handleMfaChallenge(buffer);
+          break;
         default:
           this.logger.warn(`received unsupported message type ${messageType}`);
       }
@@ -112,7 +117,7 @@ export default class Client extends EventEmitter {
 
   handleClientScreenSpec(buffer: ArrayBuffer) {
     this.logger.warn(
-      `received unsupported message type ${this.codec._decodeMessageType(
+      `received unsupported message type ${this.codec.decodeMessageType(
         buffer
       )}`
     );
@@ -120,7 +125,7 @@ export default class Client extends EventEmitter {
 
   handleMouseButton(buffer: ArrayBuffer) {
     this.logger.warn(
-      `received unsupported message type ${this.codec._decodeMessageType(
+      `received unsupported message type ${this.codec.decodeMessageType(
         buffer
       )}`
     );
@@ -128,7 +133,7 @@ export default class Client extends EventEmitter {
 
   handleMouseMove(buffer: ArrayBuffer) {
     this.logger.warn(
-      `received unsupported message type ${this.codec._decodeMessageType(
+      `received unsupported message type ${this.codec.decodeMessageType(
         buffer
       )}`
     );
@@ -147,6 +152,31 @@ export default class Client extends EventEmitter {
     this.codec.decodePngFrame(buffer, (pngFrame: PngFrame) =>
       this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
     );
+  }
+
+  // TODO(isaiah): neither of the TdpClientEvent.TDP_ERROR are accurate, they should
+  // instead be associated with a new event TdpClientEvent.CLIENT_ERROR.
+  // https://github.com/gravitational/webapps/issues/615
+  handleMfaChallenge(buffer: ArrayBuffer) {
+    try {
+      const mfaJson = this.codec.decodeMfaJson(buffer);
+      if (mfaJson.mfaType == 'n') {
+        this.emit(TermEventEnum.WEBAUTHN_CHALLENGE, mfaJson.jsonString);
+      } else {
+        // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error.
+        this.emit(
+          TdpClientEvent.TDP_ERROR,
+          new Error(
+            'Multifactor authentication is required for accessing this desktop, \
+      however the U2F API for hardware keys is not supported for desktop sessions. \
+      Please notify your system administrator to update cluster settings \
+      to use WebAuthn as the second factor protocol.'
+          )
+        );
+      }
+    } catch (err) {
+      this.emit(TdpClientEvent.TDP_ERROR, err);
+    }
   }
 
   sendUsername(username: string) {
@@ -173,6 +203,14 @@ export default class Client extends EventEmitter {
 
   sendClipboardData(clipboardData: ClipboardData) {
     this.socket.send(this.codec.encodeClipboardData(clipboardData));
+  }
+
+  sendWebAuthn(data: WebauthnAssertionResponse) {
+    const msg = this.codec.encodeMfaJson({
+      mfaType: 'n',
+      jsonString: JSON.stringify(data),
+    });
+    this.socket.send(msg);
   }
 
   resize(spec: ClientScreenSpec) {

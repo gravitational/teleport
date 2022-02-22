@@ -76,7 +76,7 @@ const devServer = new WebpackDevServer(
     },
     host: '0.0.0.0',
     port: PORT,
-    allowedHosts: 'auto',
+    allowedHosts: 'all',
     client: {
       overlay: false,
     },

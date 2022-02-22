@@ -18,6 +18,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'react-router';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { useClipboardReadWrite } from './useClipboard';
+import useWebAuthn from 'teleport/lib/useWebAuthn';
 import { UrlDesktopParams } from 'teleport/config';
 import desktopService from 'teleport/services/desktops';
 import userService from 'teleport/services/user';
@@ -141,6 +142,8 @@ export default function useDesktopSession() {
       !clipboardState.errorText,
   });
 
+  const webauthn = useWebAuthn(clientCanvasProps.tdpClient);
+
   return {
     hostname,
     username,
@@ -151,6 +154,7 @@ export default function useDesktopSession() {
     wsConnection,
     disconnected,
     setDisconnected,
+    webauthn,
     ...clientCanvasProps,
   };
 }

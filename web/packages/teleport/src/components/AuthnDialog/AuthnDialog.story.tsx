@@ -18,7 +18,7 @@ import React from 'react';
 import AuthnDialog, { Props } from './AuthnDialog';
 
 export default {
-  title: 'Teleport/Console/AuthnDialog',
+  title: 'Teleport/AuthnDialog',
 };
 
 export const Loaded = () => <AuthnDialog {...props} />;

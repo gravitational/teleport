@@ -138,3 +138,52 @@ and iterate on shared functionality.
     },
     "editor.tabSize": 2,
 ```
+
+### MFA Development
+
+When developing MFA sections of the codebase, you may need to configure the `teleport.yaml` of your target teleport cluster to accept hardware keys registered over the local development setup. Webauthn can get tempermental if you try to use localhost as your `rp_id`, but you can get around this by using https://nip.io/. For example, if you want to configure optional `webauthn` mfa, you can set up your auth service like so:
+
+```yaml
+auth_service:
+  authentication:
+    type: local
+    second_factor: optional
+    webauthn:
+      rp_id: proxy.0.0.0.0.nip.io
+```
+
+Then start the dev server like `yarn start-teleport --target=https://proxy.0.0.0.0.nip.io:3080` and access it at https://proxy.0.0.0.0.nip.io:8080.
+
+Though `u2f` tends to be more forgiving about using localhost, its still sometimes useful to configure it with nip.io in order that your registered u2f keys are compatible with webauthn. For example, if you wished to configure a u2f version of the webauthn setup above, you could use an `auth_service` like this:
+
+```yaml
+auth_service:
+  authentication:
+    type: local
+    second_factor: optional
+    webauthn:
+      disabled: true
+    u2f:
+      app_id: https://proxy.0.0.0.0.nip.io
+      facets:
+        - https://proxy.0.0.0.0.nip.io
+        - https://proxy.0.0.0.0.nip.io:8080
+```
+
+After registering a key, you could switch your server to use `webauthn` by changing the configuration to
+
+```yaml
+auth_service:
+  authentication:
+    type: local
+    second_factor: optional
+    webauthn:
+      rp_id: proxy.0.0.0.0.nip.io
+    u2f:
+      app_id: https://proxy.0.0.0.0.nip.io
+      facets:
+        - https://proxy.0.0.0.0.nip.io
+        - https://proxy.0.0.0.0.nip.io:8080
+```
+
+and your previously registered u2f key would be able to remain in use.

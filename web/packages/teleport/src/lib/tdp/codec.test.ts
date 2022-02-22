@@ -104,16 +104,16 @@ test('decodes message types', () => {
   const { buffer: pngFrameBuf } = makeBuf(MessageType.PNG_FRAME);
   const { buffer: clipboardBuf } = makeBuf(MessageType.CLIPBOARD_DATA);
   const { buffer: errorBuf } = makeBuf(MessageType.ERROR);
-  const { buffer: invalidBuf } = makeBuf(MessageType.ERROR + 1);
+  const { buffer: invalidBuf } = makeBuf(MessageType.MFA_JSON + 1);
 
-  expect(codec._decodeMessageType(pngFrameBuf)).toEqual(MessageType.PNG_FRAME);
-  expect(codec._decodeMessageType(clipboardBuf)).toEqual(
+  expect(codec.decodeMessageType(pngFrameBuf)).toEqual(MessageType.PNG_FRAME);
+  expect(codec.decodeMessageType(clipboardBuf)).toEqual(
     MessageType.CLIPBOARD_DATA
   );
-  expect(codec._decodeMessageType(errorBuf)).toEqual(MessageType.ERROR);
+  expect(codec.decodeMessageType(errorBuf)).toEqual(MessageType.ERROR);
   expect(() => {
-    codec._decodeMessageType(invalidBuf);
-  }).toThrow(`invalid message type: ${MessageType.ERROR + 1}`);
+    codec.decodeMessageType(invalidBuf);
+  }).toThrow(`invalid message type: ${MessageType.MFA_JSON + 1}`);
 });
 
 test('decodes errors', () => {

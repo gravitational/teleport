@@ -9,6 +9,7 @@ import {
   ConnectionError,
   ClipboardError,
   UnintendedDisconnect,
+  WebAuthnPrompt,
 } from './DesktopSession.story';
 
 test('connected settings false', () => {
@@ -43,5 +44,10 @@ test('clipboard error', () => {
 
 test('unintended disconnect', () => {
   const { container } = render(<UnintendedDisconnect />);
+  expect(container).toMatchSnapshot();
+});
+
+test('webauthn prompt', () => {
+  const { container } = render(<WebAuthnPrompt />);
   expect(container).toMatchSnapshot();
 });

@@ -23,8 +23,8 @@ import * as stores from 'teleport/Console/stores';
 import FileTransfer, { useFileTransferDialogs } from './../FileTransfer';
 import Terminal from './Terminal';
 import Document from '../Document';
-import AuthnDialog from './AuthnDialog';
-import useWebauthn from './useWebauthn';
+import AuthnDialog from 'teleport/components/AuthnDialog';
+import useWebAuthn from 'teleport/lib/useWebAuthn';
 import useSshSession from './useSshSession';
 import ActionBar from './ActionBar';
 
@@ -32,7 +32,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
   const scpDialogs = useFileTransferDialogs();
   const { tty, status, statusText, closeDocument } = useSshSession(doc);
-  const webauthn = useWebauthn(tty);
+  const webauthn = useWebAuthn(tty);
 
   function onCloseScpDialogs() {
     scpDialogs.close();

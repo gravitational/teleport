@@ -14,8 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { EventEmitter } from 'events';
 import Logger from 'shared/libs/logger';
+import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
+import { WebauthnAssertionResponse } from 'teleport/services/auth';
 import { EventTypeEnum, TermEventEnum, StatusCodeEnum } from './enums';
 import { Protobuf, MessageTypeEnum } from './protobuf';
 
@@ -25,7 +26,7 @@ const defaultOptions = {
   buffered: true,
 };
 
-class Tty extends EventEmitter {
+class Tty extends EventEmitterWebAuthnSender {
   socket = null;
 
   _buffered = true;
@@ -71,6 +72,10 @@ class Tty extends EventEmitter {
     const msg = this._proto.encodeRawMessage(data);
     const bytearray = new Uint8Array(msg);
     this.socket.send(bytearray.buffer);
+  }
+
+  sendWebAuthn(data: WebauthnAssertionResponse) {
+    this.send(JSON.stringify(data));
   }
 
   // part of the flow control

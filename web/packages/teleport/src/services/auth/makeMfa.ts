@@ -134,3 +134,7 @@ export function makeWebauthnAssertionResponse(res) {
     },
   };
 }
+
+export type WebauthnAssertionResponse = ReturnType<
+  typeof makeWebauthnAssertionResponse
+>;

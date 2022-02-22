@@ -17,9 +17,10 @@ limitations under the License.
 import React, { PropsWithChildren } from 'react';
 import styled from 'styled-components';
 import { Indicator, Box, Alert, Text, Flex } from 'design';
+import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
+import AuthnDialog from 'teleport/components/AuthnDialog';
 import useDesktopSession, { State } from './useDesktopSession';
 import TopBar from './TopBar';
-import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 
 export default function Container() {
   const state = useDesktopSession();
@@ -54,11 +55,11 @@ export function DesktopSession(props: State) {
 
   let alertText: string;
   if (fetchAttempt.status === 'failed') {
-    alertText = fetchAttempt.statusText;
+    alertText = fetchAttempt.statusText || 'fetch attempt failed';
   } else if (tdpConnection.status === 'failed') {
-    alertText = tdpConnection.status;
+    alertText = tdpConnection.statusText || 'tdp connection failed';
   } else if (clipboardError) {
-    alertText = clipboardState.errorText;
+    alertText = clipboardState.errorText || 'clipboard sharing failed';
   } else if (unknownConnectionError) {
     alertText = 'Session disconnected for an unkown reason';
   } else {
@@ -103,6 +104,7 @@ function Session(props: PropsWithChildren<State>) {
     wsConnection,
     disconnected,
     setDisconnected,
+    webauthn,
     tdpClient,
     username,
     hostname,
@@ -151,6 +153,22 @@ function Session(props: PropsWithChildren<State>) {
       />
 
       {props.children}
+
+      {webauthn.requested && (
+        <AuthnDialog
+          onContinue={webauthn.authenticate}
+          onCancel={() => {
+            webauthn.setState(prevState => {
+              return {
+                ...prevState,
+                errorText:
+                  'This session requires multi factor authentication to continue. Please hit "Retry" and follow the prompts given by your browser to complete authentication.',
+              };
+            });
+          }}
+          errorText={webauthn.errorText}
+        />
+      )}
 
       {/* TdpClientCanvas should always be present in the DOM so that it calls
           tdpClient.init() and initializes the required tdpClient event listeners,
