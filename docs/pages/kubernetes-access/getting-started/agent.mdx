@@ -69,7 +69,7 @@ $ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName
 The `kubernetes_groups`, `kubernetes_labels` and `kubernetes_users` determine the access from a Teleport
 role to the Kubernetes Clusters.
 
-```YAML
+```yaml
   # Sets which groups in the Kubernetes the user should access as.  The group must
   # already exist in the Kubernetes cluster. Example: system:masters
     kubernetes_groups:
