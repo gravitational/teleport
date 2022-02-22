@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services/suite"
 
 	"github.com/gravitational/trace"
 )
@@ -633,7 +634,6 @@ func TestListResources(t *testing.T) {
 
 			resources, nextKey, err := presence.ListResources(ctx, proto.ListResourcesRequest{
 				Limit:        1,
-				Namespace:    apidefaults.Namespace,
 				ResourceType: test.resourceType,
 				StartKey:     "",
 			})
@@ -670,9 +670,11 @@ func TestListResources(t *testing.T) {
 				require.NoError(t, err)
 
 				resultResourcesLen += len(resources)
+				if resultResourcesLen == totalResources {
+					require.Empty(t, nextKey)
+				}
 				return resultResourcesLen == totalResources
 			}, time.Second, 100*time.Millisecond)
-			require.Empty(t, nextKey)
 
 			// list resources only with matching labels
 			resultResourcesWithLabelsLen := 0
@@ -687,9 +689,11 @@ func TestListResources(t *testing.T) {
 				require.NoError(t, err)
 
 				resultResourcesWithLabelsLen += len(resources)
+				if resultResourcesWithLabelsLen == totalWithLabels {
+					require.Empty(t, nextKey)
+				}
 				return resultResourcesWithLabelsLen == totalWithLabels
 			}, time.Second, 100*time.Millisecond)
-			require.Empty(t, nextKey)
 
 			// list resources only with matching search keywords
 			resultResourcesWithSearchKeywordsLen := 0
@@ -704,9 +708,11 @@ func TestListResources(t *testing.T) {
 				require.NoError(t, err)
 
 				resultResourcesWithSearchKeywordsLen += len(resources)
+				if resultResourcesWithSearchKeywordsLen == totalWithLabels {
+					require.Empty(t, nextKey)
+				}
 				return resultResourcesWithSearchKeywordsLen == totalWithLabels
 			}, time.Second, 100*time.Millisecond)
-			require.Empty(t, nextKey)
 
 			// list resources only with matching expression
 			resultResourcesWithMatchExprsLen := 0
@@ -721,9 +727,57 @@ func TestListResources(t *testing.T) {
 				require.NoError(t, err)
 
 				resultResourcesWithMatchExprsLen += len(resources)
+				if resultResourcesWithMatchExprsLen == totalWithLabels {
+					require.Empty(t, nextKey)
+				}
 				return resultResourcesWithMatchExprsLen == totalWithLabels
 			}, time.Second, 100*time.Millisecond)
-			require.Empty(t, nextKey)
+
+			// Test sorting by metadata.name, since not all resources support sorting:
+			sortBy := types.SortBy{Field: types.ResourceMetadataName, IsDesc: true}
+			var sortedResources []types.ResourceWithLabels
+
+			switch test.resourceType {
+			case types.KindNode, types.KindAppServer, types.KindDatabaseServer:
+				require.Eventually(t, func() bool {
+					resources, nextKey, err = presence.ListResources(ctx, proto.ListResourcesRequest{
+						Limit:        int32(resourcesPerPage),
+						Namespace:    apidefaults.Namespace,
+						ResourceType: test.resourceType,
+						StartKey:     nextKey,
+						SortBy:       sortBy,
+					})
+					require.NoError(t, err)
+
+					sortedResources = append(sortedResources, resources...)
+					if len(sortedResources) == totalResources {
+						require.Empty(t, nextKey)
+					}
+					return len(sortedResources) == totalResources
+				}, time.Second, 100*time.Millisecond)
+			}
+
+			// Test sorted resources are in the correct direction.
+			switch test.resourceType {
+			case types.KindNode:
+				servers, err := types.ResourcesWithLabels(sortedResources).AsServers()
+				require.NoError(t, err)
+				fieldVals, err := types.Servers(servers).GetFieldVals(sortBy.Field)
+				require.NoError(t, err)
+				require.IsDecreasing(t, fieldVals)
+			case types.KindAppServer:
+				servers, err := types.ResourcesWithLabels(sortedResources).AsAppServers()
+				require.NoError(t, err)
+				fieldVals, err := types.AppServers(servers).GetFieldVals(sortBy.Field)
+				require.NoError(t, err)
+				require.IsDecreasing(t, fieldVals)
+			case types.KindDatabaseServer:
+				servers, err := types.ResourcesWithLabels(sortedResources).AsDatabaseServers()
+				require.NoError(t, err)
+				fieldVals, err := types.DatabaseServers(servers).GetFieldVals(sortBy.Field)
+				require.NoError(t, err)
+				require.IsDecreasing(t, fieldVals)
+			}
 
 			// delete everything
 			err = test.deleteAllResourcesFunc(ctx, presence)
@@ -740,4 +794,183 @@ func TestListResources(t *testing.T) {
 			require.Empty(t, resources)
 		})
 	}
+}
+
+func TestListResources_Helpers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+	namespace := apidefaults.Namespace
+	bend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	presence := NewPresenceService(bend)
+
+	tests := []struct {
+		name  string
+		fetch func(proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error)
+	}{
+		{
+			name: "listResources",
+			fetch: func(req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+				return presence.listResources(ctx, req)
+			},
+		},
+		{
+			name: "listResourcesWithSort",
+			fetch: func(req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+				return presence.listResourcesWithSort(ctx, req)
+			},
+		},
+		{
+			name: "FakePaginate",
+			fetch: func(req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+				nodes, err := presence.GetNodes(ctx, namespace)
+				require.NoError(t, err)
+
+				return FakePaginate(types.Servers(nodes).AsResources(), req)
+			},
+		},
+	}
+
+	t.Run("test fetching when there is 0 upserted nodes", func(t *testing.T) {
+		req := proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Limit:        5,
+		}
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				page, nextKey, err := tc.fetch(req)
+				require.NoError(t, err)
+				require.Empty(t, nextKey)
+				require.Empty(t, page)
+			})
+		}
+	})
+
+	// Add some test servers.
+	for i := 0; i < 20; i++ {
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
+		_, err = presence.UpsertNode(ctx, server)
+		require.NoError(t, err)
+	}
+
+	// Test servers have been inserted.
+	nodes, err := presence.GetNodes(ctx, namespace)
+	require.NoError(t, err)
+	require.Len(t, nodes, 20)
+
+	t.Run("test invalid limit value", func(t *testing.T) {
+		req := proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    namespace,
+		}
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				_, _, err := tc.fetch(req)
+				require.True(t, trace.IsBadParameter(err))
+			})
+		}
+	})
+
+	t.Run("test retrieving entire list upfront", func(t *testing.T) {
+		req := proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    namespace,
+			Limit:        int32(len(nodes)),
+		}
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				page, nextKey, err := tc.fetch(req)
+				require.NoError(t, err)
+				require.Empty(t, nextKey)
+
+				fetchedNodes, err := types.ResourcesWithLabels(page).AsServers()
+				require.NoError(t, err)
+				require.Equal(t, nodes, fetchedNodes)
+			})
+		}
+	})
+
+	t.Run("test first, middle, last fetching", func(t *testing.T) {
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				// First fetch.
+				page, nextKey, err := tc.fetch(proto.ListResourcesRequest{
+					ResourceType: types.KindNode,
+					Namespace:    namespace,
+					Limit:        10,
+				})
+				require.NoError(t, err)
+				require.Len(t, page, 10)
+
+				fetchedNodes, err := types.ResourcesWithLabels(page).AsServers()
+				require.NoError(t, err)
+				require.Equal(t, nodes[:10], fetchedNodes)
+				require.Equal(t, backend.GetPaginationKey(nodes[10]), nextKey) // 11th item
+
+				// Middle fetch.
+				page, nextKey, err = tc.fetch(proto.ListResourcesRequest{
+					ResourceType: types.KindNode,
+					Namespace:    namespace,
+					StartKey:     nextKey,
+					Limit:        5,
+				})
+				require.NoError(t, err)
+				require.Len(t, page, 5)
+
+				fetchedNodes, err = types.ResourcesWithLabels(page).AsServers()
+				require.NoError(t, err)
+				require.Equal(t, nodes[10:15], fetchedNodes)
+				require.Equal(t, backend.GetPaginationKey(nodes[15]), nextKey) // 16th item
+
+				// Last fetch.
+				page, nextKey, err = presence.listResources(ctx, proto.ListResourcesRequest{
+					ResourceType: types.KindNode,
+					Namespace:    namespace,
+					StartKey:     nextKey,
+					Limit:        5,
+				})
+				require.NoError(t, err)
+				require.Len(t, page, 5)
+
+				fetchedNodes, err = types.ResourcesWithLabels(page).AsServers()
+				require.NoError(t, err)
+				require.Equal(t, nodes[15:20], fetchedNodes)
+				require.Empty(t, nextKey)
+			})
+		}
+	})
+
+	t.Run("test one result filter", func(t *testing.T) {
+		targetVal := nodes[14].GetName()
+		req := proto.ListResourcesRequest{
+			ResourceType:   types.KindNode,
+			Namespace:      namespace,
+			StartKey:       "",
+			Limit:          5,
+			SearchKeywords: []string{targetVal},
+		}
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				page, nextKey, err := tc.fetch(req)
+				require.NoError(t, err)
+				require.Len(t, page, 1)
+				require.Equal(t, targetVal, page[0].GetName())
+				require.Empty(t, nextKey)
+			})
+		}
+	})
 }

@@ -358,6 +358,7 @@ func (s *Server) newUserToken(req CreateUserTokenRequest) (types.UserToken, erro
 	token.SetUser(req.Name)
 	token.SetCreated(s.clock.Now().UTC())
 	token.SetURL(url)
+
 	return token, nil
 }
 

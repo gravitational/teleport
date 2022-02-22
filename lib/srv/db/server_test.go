@@ -37,7 +37,8 @@ func TestDatabaseServerStart(t *testing.T) {
 	testCtx := setupTestContext(ctx, t,
 		withSelfHostedPostgres("postgres"),
 		withSelfHostedMySQL("mysql"),
-		withSelfHostedMongo("mongo"))
+		withSelfHostedMongo("mongo"),
+		withSelfHostedRedis("redis"))
 
 	tests := []struct {
 		database types.Database
@@ -45,6 +46,7 @@ func TestDatabaseServerStart(t *testing.T) {
 		{database: testCtx.postgres["postgres"].resource},
 		{database: testCtx.mysql["mysql"].resource},
 		{database: testCtx.mongo["mongo"].resource},
+		{database: testCtx.redis["redis"].resource},
 	}
 
 	for _, test := range tests {
@@ -56,7 +58,7 @@ func TestDatabaseServerStart(t *testing.T) {
 	// Make sure servers were announced and their labels updated.
 	servers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Len(t, servers, 3)
+	require.Len(t, servers, 4)
 	for _, server := range servers {
 		require.Equal(t, map[string]string{"echo": "test"},
 			server.GetDatabase().GetAllLabels())

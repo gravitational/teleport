@@ -48,6 +48,9 @@ type UsersService interface {
 	UpdateUser(ctx context.Context, user types.User) error
 	// UpsertUser updates parameters about user
 	UpsertUser(user types.User) error
+	// CompareAndSwapUser updates an existing user, but fails if the user does
+	// not match an expected backend value.
+	CompareAndSwapUser(ctx context.Context, new, existing types.User) error
 	// DeleteUser deletes a user with all the keys from the backend
 	DeleteUser(ctx context.Context, user string) error
 	// GetUsers returns a list of users registered with the local auth server

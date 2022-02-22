@@ -19,7 +19,6 @@ package protocol
 import (
 	"bytes"
 	"io"
-	"net"
 
 	"github.com/gravitational/trace"
 	"github.com/siddontang/go-mysql/mysql"
@@ -103,7 +102,7 @@ func (p *ChangeUser) User() string {
 
 // ParsePacket reads a protocol packet from the connection and returns it
 // in a parsed form. See ReadPacket below for the packet structure.
-func ParsePacket(conn net.Conn) (Packet, error) {
+func ParsePacket(conn io.Reader) (Packet, error) {
 	packetBytes, packetType, err := ReadPacket(conn)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -122,9 +121,9 @@ func ParsePacket(conn net.Conn) (Packet, error) {
 		// fields. In protocol version 4.1 it includes '#' marker:
 		//
 		// https://dev.mysql.com/doc/internals/en/packet-ERR_Packet.html
-		minLen := 7 // 4-byte header + 3-byte payload before message
-		if bytes.Contains(packetBytes, []byte("#")) {
-			minLen = 13 // 4-byte header + 9-byte payload before message
+		minLen := packetHeaderSize + packetTypeSize + 2 // 4-byte header + 1-byte type + 2-byte error code
+		if len(packetBytes) > minLen && packetBytes[minLen] == '#' {
+			minLen += 6 // 1-byte marker '#' + 5-byte state
 		}
 		// Be a bit paranoid and make sure the packet is not truncated.
 		if len(packetBytes) < minLen {
@@ -134,26 +133,75 @@ func ParsePacket(conn net.Conn) (Packet, error) {
 
 	case mysql.COM_QUERY:
 		// Be a bit paranoid and make sure the packet is not truncated.
-		if len(packetBytes) < 5 {
+		if len(packetBytes) < packetHeaderAndTypeSize {
 			return nil, trace.BadParameter("failed to parse COM_QUERY packet: %v", packetBytes)
 		}
 		// 4-byte packet header + 1-byte payload header, then query text.
-		return &Query{packet: packet, query: string(packetBytes[5:])}, nil
+		return &Query{packet: packet, query: string(packetBytes[packetHeaderAndTypeSize:])}, nil
 
 	case mysql.COM_QUIT:
 		return &Quit{packet: packet}, nil
 
 	case mysql.COM_CHANGE_USER:
-		if len(packetBytes) < 5 {
-			return nil, trace.BadParameter("failed to parse COM_CHANGE_USER packet: %s", packetBytes)
+		if len(packetBytes) < packetHeaderAndTypeSize {
+			return nil, trace.BadParameter("failed to parse COM_CHANGE_USER packet: %v", packetBytes)
 		}
 		// User is the first null-terminated string in the payload:
 		// https://dev.mysql.com/doc/internals/en/com-change-user.html#packet-COM_CHANGE_USER
-		idx := bytes.IndexByte(packetBytes[5:], 0x00)
+		idx := bytes.IndexByte(packetBytes[packetHeaderAndTypeSize:], 0x00)
 		if idx < 0 {
-			return nil, trace.BadParameter("failed to parse COM_CHANGE_USER packet: %s", packetBytes)
+			return nil, trace.BadParameter("failed to parse COM_CHANGE_USER packet: %v", packetBytes)
 		}
-		return &ChangeUser{packet: packet, user: string(packetBytes[5 : 5+idx])}, nil
+		return &ChangeUser{packet: packet, user: string(packetBytes[packetHeaderAndTypeSize : packetHeaderAndTypeSize+idx])}, nil
+
+	case mysql.COM_STMT_PREPARE:
+		packet, ok := parseStatementPreparePacket(packet)
+		if !ok {
+			return nil, trace.BadParameter("failed to parse COM_STMT_PREPARE packet: %v", packetBytes)
+		}
+		return packet, nil
+
+	case mysql.COM_STMT_SEND_LONG_DATA:
+		packet, ok := parseStatementSendLongDataPacket(packet)
+		if !ok {
+			return nil, trace.BadParameter("failed to parse COM_STMT_SEND_LONG_DATA packet: %v", packetBytes)
+		}
+		return packet, nil
+
+	case mysql.COM_STMT_EXECUTE:
+		packet, ok := parseStatementExecutePacket(packet)
+		if !ok {
+			return nil, trace.BadParameter("failed to parse COM_STMT_EXECUTE packet: %v", packetBytes)
+		}
+		return packet, nil
+
+	case mysql.COM_STMT_CLOSE:
+		packet, ok := parseStatementClosePacket(packet)
+		if !ok {
+			return nil, trace.BadParameter("failed to parse COM_STMT_CLOSE packet: %v", packetBytes)
+		}
+		return packet, nil
+
+	case mysql.COM_STMT_RESET:
+		packet, ok := parseStatementResetPacket(packet)
+		if !ok {
+			return nil, trace.BadParameter("failed to parse COM_STMT_RESET packet: %v", packetBytes)
+		}
+		return packet, nil
+
+	case mysql.COM_STMT_FETCH:
+		packet, ok := parseStatementFetchPacket(packet)
+		if !ok {
+			return nil, trace.BadParameter("failed to parse COM_STMT_FETCH packet: %v", packetBytes)
+		}
+		return packet, nil
+
+	case packetTypeStatementBulkExecute:
+		packet, ok := parseStatementBulkExecutePacket(packet)
+		if !ok {
+			return nil, trace.BadParameter("failed to parse COM_STMT_BULK_EXECUTE packet: %v", packetBytes)
+		}
+		return packet, nil
 	}
 
 	return &Generic{packet: packet}, nil
@@ -176,7 +224,7 @@ func ParsePacket(conn net.Conn) (Packet, error) {
 //           number
 //
 // https://dev.mysql.com/doc/internals/en/mysql-packet.html
-func ReadPacket(conn net.Conn) (pkt []byte, pktType byte, err error) {
+func ReadPacket(conn io.Reader) (pkt []byte, pktType byte, err error) {
 	// Read 4-byte packet header.
 	var header [4]byte
 	if _, err := io.ReadFull(conn, header[:]); err != nil {
@@ -206,10 +254,30 @@ func ReadPacket(conn net.Conn) (pkt []byte, pktType byte, err error) {
 }
 
 // WritePacket writes the provided protocol packet to the connection.
-func WritePacket(pkt []byte, conn net.Conn) (int, error) {
+func WritePacket(pkt []byte, conn io.Writer) (int, error) {
 	n, err := conn.Write(pkt)
 	if err != nil {
 		return 0, trace.ConvertSystemError(err)
 	}
 	return n, nil
 }
+
+const (
+	// packetHeaderSize is the size of the packet header.
+	packetHeaderSize = 4
+
+	// packetTypeSize is the size of the command type.
+	packetTypeSize = 1
+
+	// packetHeaderAndTypeSize is the combined size of the packet header and
+	// type.
+	packetHeaderAndTypeSize = packetHeaderSize + packetTypeSize
+)
+
+const (
+	// packetTypeStatementBulkExecute is a MariaDB specific packet type for
+	// COM_STMT_BULK_EXECUTE packets.
+	//
+	// https://mariadb.com/kb/en/com_stmt_bulk_execute/
+	packetTypeStatementBulkExecute = 0xfa
+)
