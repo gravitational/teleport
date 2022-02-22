@@ -937,3 +937,15 @@ and non interactive tsh bench loads.
     paste
   - [ ] `desktop.clipboard.receive` (`TDP03I`) emitted for remote copy -> local
     paste
+
+## Binaries compatibility
+
+- Verify that teleport/tsh/tctl/tbot run on:
+  - [ ] CentOS 7
+  - [ ] CentOS 8
+  - [ ] Ubuntu 18.04
+  - [ ] Ubuntu 20.04
+  - [ ] Debian 9
+- Verify tsh runs on:
+  - [ ] Windows 10
+  - [ ] MacOS
