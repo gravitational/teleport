@@ -21,8 +21,46 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.8.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.4.0
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.5.0
+	github.com/aws/aws-sdk-go-v2/service/amplifyuibuilder v1.3.0
+	github.com/aws/aws-sdk-go-v2/service/appconfig v1.10.1
+	github.com/aws/aws-sdk-go-v2/service/applicationcostprofiler v1.7.0
+	github.com/aws/aws-sdk-go-v2/service/backupgateway v1.3.0
+	github.com/aws/aws-sdk-go-v2/service/codeguruprofiler v1.10.1
+	github.com/aws/aws-sdk-go-v2/service/codestarnotifications v1.9.0
+	github.com/aws/aws-sdk-go-v2/service/devopsguru v1.14.0
+	github.com/aws/aws-sdk-go-v2/service/dlm v1.9.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.16.0
+	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.11.0
+	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.11.0
+	github.com/aws/aws-sdk-go-v2/service/fis v1.10.0
+	github.com/aws/aws-sdk-go-v2/service/globalaccelerator v1.11.0
+	github.com/aws/aws-sdk-go-v2/service/imagebuilder v1.17.0
+	github.com/aws/aws-sdk-go-v2/service/iotdataplane v1.9.1
+	github.com/aws/aws-sdk-go-v2/service/iotdeviceadvisor v1.12.0
+	github.com/aws/aws-sdk-go-v2/service/iottwinmaker v1.3.0
+	github.com/aws/aws-sdk-go-v2/service/location v1.13.0
+	github.com/aws/aws-sdk-go-v2/service/memorydb v1.7.0
+	github.com/aws/aws-sdk-go-v2/service/migrationhubrefactorspaces v1.3.0
+	github.com/aws/aws-sdk-go-v2/service/migrationhubstrategy v1.3.0
+	github.com/aws/aws-sdk-go-v2/service/mobile v1.9.0
+	github.com/aws/aws-sdk-go-v2/service/panorama v1.4.0
+	github.com/aws/aws-sdk-go-v2/service/pinpointsmsvoice v1.8.0
+	github.com/aws/aws-sdk-go-v2/service/proton v1.10.0
+	github.com/aws/aws-sdk-go-v2/service/rdsdata v1.9.0
+	github.com/aws/aws-sdk-go-v2/service/redshiftdata v1.13.0
+	github.com/aws/aws-sdk-go-v2/service/resiliencehub v1.3.0
+	github.com/aws/aws-sdk-go-v2/service/route53recoverycluster v1.6.0
+	github.com/aws/aws-sdk-go-v2/service/route53recoveryreadiness v1.6.1
+	github.com/aws/aws-sdk-go-v2/service/signer v1.11.0
+	github.com/aws/aws-sdk-go-v2/service/snowdevicemanagement v1.6.0
+	github.com/aws/aws-sdk-go-v2/service/ssmcontacts v1.11.0
+	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.12.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.7.0
+	github.com/aws/aws-sdk-go-v2/service/timestreamquery v1.11.0
+	github.com/aws/aws-sdk-go-v2/service/wafv2 v1.16.0
+	github.com/aws/aws-sdk-go-v2/service/wellarchitected v1.12.0
+	github.com/aws/aws-sdk-go-v2/service/worklink v1.9.0
+	github.com/aws/aws-sdk-go-v2/service/workmailmessageflow v1.9.0
 	github.com/beevik/etree v1.1.0
 	github.com/coreos/go-oidc v0.0.4
 	github.com/coreos/go-semver v0.3.0
@@ -49,9 +87,7 @@ require (
 	github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
 	github.com/gravitational/kingpin v2.1.11-0.20190130013101-742f2714c145+incompatible
-	github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a
 	github.com/gravitational/oxy v0.0.0-20211213172937-a1ba0900a4c9
-	github.com/gravitational/reporting v0.0.0-20210923183620-237377721140
 	github.com/gravitational/roundtrip v1.0.1
 	github.com/gravitational/teleport/api v0.0.0
 	github.com/gravitational/trace v1.1.17
@@ -109,7 +145,9 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.23.3
 	k8s.io/apimachinery v0.23.3
+	k8s.io/cli-runtime v0.23.3
 	k8s.io/client-go v0.23.3
+	k8s.io/kubectl v0.23.3
 )
 
 require (
@@ -205,9 +243,6 @@ require (
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.0.2 // indirect
 	github.com/xdg-go/stringprep v1.0.2 // indirect
-	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect
-	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
-	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/yuin/gopher-lua v0.0.0-20200816102855-ee81675732da // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.1 // indirect
@@ -231,56 +266,12 @@ require (
 )
 
 require (
-	github.com/aws/aws-sdk-go-v2/service/amplifyuibuilder v1.3.0
-	github.com/aws/aws-sdk-go-v2/service/appconfig v1.10.1
-	github.com/aws/aws-sdk-go-v2/service/applicationcostprofiler v1.7.0
-	github.com/aws/aws-sdk-go-v2/service/backupgateway v1.3.0
-	github.com/aws/aws-sdk-go-v2/service/codeguruprofiler v1.10.1
-	github.com/aws/aws-sdk-go-v2/service/codestarnotifications v1.9.0
-	github.com/aws/aws-sdk-go-v2/service/devopsguru v1.14.0
-	github.com/aws/aws-sdk-go-v2/service/dlm v1.9.0
-	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.11.0
-	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.11.0
-	github.com/aws/aws-sdk-go-v2/service/fis v1.10.0
-	github.com/aws/aws-sdk-go-v2/service/globalaccelerator v1.11.0
-	github.com/aws/aws-sdk-go-v2/service/imagebuilder v1.17.0
-	github.com/aws/aws-sdk-go-v2/service/iotdataplane v1.9.1
-	github.com/aws/aws-sdk-go-v2/service/iotdeviceadvisor v1.12.0
-	github.com/aws/aws-sdk-go-v2/service/iottwinmaker v1.3.0
-	github.com/aws/aws-sdk-go-v2/service/location v1.13.0
-	github.com/aws/aws-sdk-go-v2/service/memorydb v1.7.0
-	github.com/aws/aws-sdk-go-v2/service/migrationhubrefactorspaces v1.3.0
-	github.com/aws/aws-sdk-go-v2/service/migrationhubstrategy v1.3.0
-	github.com/aws/aws-sdk-go-v2/service/mobile v1.9.0
-	github.com/aws/aws-sdk-go-v2/service/panorama v1.4.0
-	github.com/aws/aws-sdk-go-v2/service/pinpointsmsvoice v1.8.0
-	github.com/aws/aws-sdk-go-v2/service/proton v1.10.0
-	github.com/aws/aws-sdk-go-v2/service/rdsdata v1.9.0
-	github.com/aws/aws-sdk-go-v2/service/redshiftdata v1.13.0
-	github.com/aws/aws-sdk-go-v2/service/resiliencehub v1.3.0
-	github.com/aws/aws-sdk-go-v2/service/route53recoverycluster v1.6.0
-	github.com/aws/aws-sdk-go-v2/service/route53recoveryreadiness v1.6.1
-	github.com/aws/aws-sdk-go-v2/service/signer v1.11.0
-	github.com/aws/aws-sdk-go-v2/service/snowdevicemanagement v1.6.0
-	github.com/aws/aws-sdk-go-v2/service/ssmcontacts v1.11.0
-	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.12.0
-	github.com/aws/aws-sdk-go-v2/service/timestreamquery v1.11.0
-	github.com/aws/aws-sdk-go-v2/service/wafv2 v1.16.0
-	github.com/aws/aws-sdk-go-v2/service/wellarchitected v1.12.0
-	github.com/aws/aws-sdk-go-v2/service/worklink v1.9.0
-	github.com/aws/aws-sdk-go-v2/service/workmailmessageflow v1.9.0
-	k8s.io/cli-runtime v0.23.3
-	k8s.io/kubectl v0.23.3
-)
-
-require (
 	github.com/MakeNowJust/heredoc v0.0.0-20170808103936-bb23615498cd // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.2.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.5.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.10.0 // indirect
 	github.com/chai2010/gettext-go v0.0.0-20160711120539-c6fed771bfd5 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
