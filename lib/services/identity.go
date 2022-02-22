@@ -48,6 +48,9 @@ type UsersService interface {
 	UpdateUser(ctx context.Context, user types.User) error
 	// UpsertUser updates parameters about user
 	UpsertUser(user types.User) error
+	// CompareAndSwapUser updates an existing user, but fails if the user does
+	// not match an expected backend value.
+	CompareAndSwapUser(ctx context.Context, new, existing types.User) error
 	// DeleteUser deletes a user with all the keys from the backend
 	DeleteUser(ctx context.Context, user string) error
 	// GetUsers returns a list of users registered with the local auth server
@@ -124,12 +127,19 @@ type Identity interface {
 	// UpsertWebauthnLocalAuth creates or updates the local auth configuration for
 	// Webauthn.
 	// WebauthnLocalAuth is a component of LocalAuthSecrets.
+	// Automatically indexes the WebAuthn user ID for lookup by
+	// GetTeleportUserByWebauthnID.
 	UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error
 
 	// GetWebauthnLocalAuth retrieves the existing local auth configuration for
 	// Webauthn, if any.
 	// WebauthnLocalAuth is a component of LocalAuthSecrets.
 	GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error)
+
+	// GetTeleportUserByWebauthnID reads a Teleport username from a WebAuthn user
+	// ID (aka user handle).
+	// See UpsertWebauthnLocalAuth and types.WebauthnLocalAuth.
+	GetTeleportUserByWebauthnID(ctx context.Context, webID []byte) (string, error)
 
 	// UpsertWebauthnSessionData creates or updates WebAuthn session data in
 	// storage, for the purpose of later verifying an authentication or

@@ -562,27 +562,29 @@ func TestTokensCRUD(t *testing.T) {
 	require.Empty(t, btokens, 0)
 
 	// generate persistent token
-	tok, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
+	tokenName, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
 	require.NoError(t, err)
-	require.Len(t, tok, 2*TokenLenBytes)
+	require.Len(t, tokenName, 2*TokenLenBytes)
 	tokens, err := s.a.GetTokens(ctx)
 	require.NoError(t, err)
 	require.Len(t, tokens, 1)
-	require.Equal(t, tokens[0].GetName(), tok)
+	require.Equal(t, tokens[0].GetName(), tokenName)
 
-	roles, _, err := s.a.ValidateToken(ctx, tok)
+	tokenResource, err := s.a.ValidateToken(ctx, tokenName)
 	require.NoError(t, err)
+	roles := tokenResource.GetRoles()
 	require.True(t, roles.Include(types.RoleNode))
 	require.False(t, roles.Include(types.RoleProxy))
 
 	// generate predefined token
 	customToken := "custom-token"
-	tok, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}, Token: customToken})
+	tokenName, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}, Token: customToken})
 	require.NoError(t, err)
-	require.Equal(t, tok, customToken)
+	require.Equal(t, tokenName, customToken)
 
-	roles, _, err = s.a.ValidateToken(ctx, tok)
+	tokenResource, err = s.a.ValidateToken(ctx, tokenName)
 	require.NoError(t, err)
+	roles = tokenResource.GetRoles()
 	require.True(t, roles.Include(types.RoleNode))
 	require.False(t, roles.Include(types.RoleProxy))
 
@@ -603,9 +605,10 @@ func TestTokensCRUD(t *testing.T) {
 	err = s.a.SetStaticTokens(st)
 	require.NoError(t, err)
 
-	r, _, err := s.a.ValidateToken(ctx, "static-token-value")
+	tokenResource, err = s.a.ValidateToken(ctx, "static-token-value")
 	require.NoError(t, err)
-	require.Equal(t, r, roles)
+	fetchesRoles := tokenResource.GetRoles()
+	require.Equal(t, fetchesRoles, roles)
 
 	// List tokens (should see 2: one static, one regular)
 	tokens, err = s.a.GetTokens(ctx)
@@ -619,11 +622,11 @@ func TestBadTokens(t *testing.T) {
 
 	ctx := context.Background()
 	// empty
-	_, _, err := s.a.ValidateToken(ctx, "")
+	_, err := s.a.ValidateToken(ctx, "")
 	require.Error(t, err)
 
 	// garbage
-	_, _, err = s.a.ValidateToken(ctx, "bla bla")
+	_, err = s.a.ValidateToken(ctx, "bla bla")
 	require.Error(t, err)
 
 	// tampered
@@ -631,7 +634,7 @@ func TestBadTokens(t *testing.T) {
 	require.NoError(t, err)
 
 	tampered := string(tok[0]+1) + tok[1:]
-	_, _, err = s.a.ValidateToken(ctx, tampered)
+	_, err = s.a.ValidateToken(ctx, tampered)
 	require.Error(t, err)
 }
 

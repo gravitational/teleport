@@ -58,6 +58,8 @@ const (
 	RoleDatabase SystemRole = "Db"
 	// RoleWindowsDesktop is a role for a Windows desktop service.
 	RoleWindowsDesktop SystemRole = "WindowsDesktop"
+	// RoleBot is a role for a bot.
+	RoleBot SystemRole = "Bot"
 )
 
 // roleMappings maps a set of allowed lowercase system role names
@@ -79,6 +81,7 @@ var roleMappings = map[string]SystemRole{
 	"db":              RoleDatabase,
 	"windowsdesktop":  RoleWindowsDesktop,
 	"windows_desktop": RoleWindowsDesktop,
+	"bot":             RoleBot,
 }
 
 // NewTeleportRoles return a list of teleport roles from slice of strings

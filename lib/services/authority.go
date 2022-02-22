@@ -261,6 +261,10 @@ type UserCertParams struct {
 	DisallowReissue bool
 	// CertificateExtensions are user configured ssh key extensions
 	CertificateExtensions []*types.CertExtension
+	// Renewable indicates this certificate is renewable
+	Renewable bool
+	// Generation counts the number of times a certificate has been renewed.
+	Generation uint64
 }
 
 // CheckAndSetDefaults checks the user certificate parameters

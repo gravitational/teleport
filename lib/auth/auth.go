@@ -770,6 +770,15 @@ type certRequest struct {
 	// disallowReissue flags that a cert should not be allowed to issue future
 	// certificates.
 	disallowReissue bool
+	// renewable indicates that the certificate can be renewed,
+	// having its TTL increased
+	renewable bool
+	// includeHostCA indicates that host CA certs should be included in the
+	// returned certs
+	includeHostCA bool
+	// generation indicates the number of times this certificate has been
+	// renewed.
+	generation uint64
 }
 
 // check verifies the cert request is valid.
@@ -1022,21 +1031,21 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
-	ca, err := a.Trust.GetCertAuthority(types.CertAuthID{
+	userCA, err := a.Trust.GetCertAuthority(types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: clusterName,
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caSigner, err := a.keyStore.GetSSHSigner(ca)
+	caSigner, err := a.keyStore.GetSSHSigner(userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	params := services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          sshutils.GetSigningAlgName(ca),
+		CASigningAlg:          sshutils.GetSigningAlgName(userCA),
 		PublicUserKey:         req.publicKey,
 		Username:              req.user.GetName(),
 		Impersonator:          req.impersonator,
@@ -1053,6 +1062,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		MFAVerified:           req.mfaVerified,
 		ClientIP:              req.clientIP,
 		DisallowReissue:       req.disallowReissue,
+		Renewable:             req.renewable,
+		Generation:            req.generation,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1091,7 +1102,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	// generate TLS certificate
-	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1131,6 +1142,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		AWSRoleARNs:     roleARNs,
 		ActiveRequests:  req.activeRequests.AccessRequests,
 		DisallowReissue: req.disallowReissue,
+		Renewable:       req.renewable,
+		Generation:      req.generation,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -1160,12 +1173,33 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		log.WithError(err).Warn("Failed to emit certificate create event.")
 	}
 
-	return &proto.Certs{
-		SSH:        sshCert,
-		TLS:        tlsCert,
-		TLSCACerts: services.GetTLSCerts(ca),
-		SSHCACerts: services.GetSSHCheckingKeys(ca),
-	}, nil
+	// create certs struct to return to user
+	certs := &proto.Certs{
+		SSH: sshCert,
+		TLS: tlsCert,
+	}
+
+	// always include user CA TLS and SSH certs
+	cas := []types.CertAuthority{userCA}
+
+	// also include host CA certs if requested
+	if req.includeHostCA {
+		hostCA, err := a.Trust.GetCertAuthority(types.CertAuthID{
+			Type:       types.HostCA,
+			DomainName: clusterName,
+		}, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cas = append(cas, hostCA)
+	}
+
+	for _, ca := range cas {
+		certs.TLSCACerts = append(certs.TLSCACerts, services.GetTLSCerts(ca)...)
+		certs.SSHCACerts = append(certs.SSHCACerts, services.GetSSHCheckingKeys(ca)...)
+	}
+
+	return certs, nil
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication
@@ -1480,7 +1514,7 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 			Identity: identity,
 		}
 
-		credentialCreation, err := webRegistration.Begin(ctx, req.username)
+		credentialCreation, err := webRegistration.Begin(ctx, req.username, false /* passwordless */)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2270,17 +2304,17 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 // ValidateToken takes a provisioning token value and finds if it's valid. Returns
 // a list of roles this token allows its owner to assume and token labels, or an error if the token
 // cannot be found.
-func (a *Server) ValidateToken(ctx context.Context, token string) (types.SystemRoles, map[string]string, error) {
+func (a *Server) ValidateToken(ctx context.Context, token string) (types.ProvisionToken, error) {
 	tkns, err := a.GetStaticTokens()
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// First check if the token is a static token. If it is, return right away.
 	// Static tokens have no expiration.
 	for _, st := range tkns.GetStaticTokens() {
 		if subtle.ConstantTimeCompare([]byte(st.GetName()), []byte(token)) == 1 {
-			return st.GetRoles(), nil, nil
+			return st, nil
 		}
 	}
 
@@ -2288,13 +2322,13 @@ func (a *Server) ValidateToken(ctx context.Context, token string) (types.SystemR
 	// If a ephemeral token is found, make sure it's still valid.
 	tok, err := a.GetToken(ctx, token)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if !a.checkTokenTTL(tok) {
-		return nil, nil, trace.AccessDenied("token expired")
+		return nil, trace.AccessDenied("token expired")
 	}
 
-	return tok.GetRoles(), tok.GetMetadata().Labels, nil
+	return tok, nil
 }
 
 // checkTokenTTL checks if the token is still valid. If it is not, the token

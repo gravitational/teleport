@@ -168,6 +168,16 @@ const (
 	// ChangePasswordTokenTTL is a default password change token expiry time
 	ChangePasswordTokenTTL = 8 * time.Hour
 
+	// DefaultRenewableCertTTL is the default TTL for a renewable user certificate.
+	DefaultRenewableCertTTL = 1 * time.Hour
+
+	// MaxRenewableCertTTL is the maximum TTL that a certificate renewal bot
+	// can request for a renewable user certificate.
+	MaxRenewableCertTTL = 24 * time.Hour
+
+	// DefaultBotJoinTTL is the default TTL for bot join tokens.
+	DefaultBotJoinTTL = 1 * time.Hour
+
 	// RecoveryStartTokenTTL is a default expiry time for a recovery start token.
 	RecoveryStartTokenTTL = 3 * time.Hour
 

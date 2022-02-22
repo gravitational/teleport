@@ -417,6 +417,7 @@ func (f *fakeDevice) checkUserPresent() error {
 }
 
 type fakeIdentity struct {
+	User        string
 	Devices     []*types.MFADevice
 	LocalAuth   *types.WebauthnLocalAuth
 	SessionData *wantypes.SessionData
@@ -432,6 +433,13 @@ func (f *fakeIdentity) GetWebauthnLocalAuth(ctx context.Context, user string) (*
 		return nil, trace.NotFound("not found") // code relies on not found to work properly
 	}
 	return f.LocalAuth, nil
+}
+
+func (f *fakeIdentity) GetTeleportUserByWebauthnID(ctx context.Context, webID []byte) (string, error) {
+	if f.User == "" {
+		return "", trace.NotFound("not found")
+	}
+	return f.User, nil
 }
 
 func (f *fakeIdentity) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {

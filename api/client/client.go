@@ -689,6 +689,40 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 	return token, nil
 }
 
+// CreateBot creates a new bot from the specified descriptor.
+func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+	response, err := c.grpc.CreateBot(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return response, nil
+}
+
+// DeleteBot deletes a bot and associated resources.
+func (c *Client) DeleteBot(ctx context.Context, botName string) error {
+	_, err := c.grpc.DeleteBot(ctx, &proto.DeleteBotRequest{
+		Name: botName,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetBotUsers fetches all bot users.
+func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
+	stream, err := c.grpc.GetBotUsers(ctx, &proto.GetBotUsersRequest{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	var users []types.User
+	for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+		users = append(users, user)
+	}
+	return users, nil
+}
+
 // GetAccessRequests retrieves a list of all access requests matching the provided filter.
 func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 	rsp, err := c.grpc.GetAccessRequests(ctx, &filter, c.callOpts...)
