@@ -552,6 +552,18 @@ func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		return nil, trace.Wrap(err)
 	}
 
+	var certs proto.Certs
+	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If we got certs, we're done, however, we may be talking to a Teleport 9 or earlier server,
+	// which still sends back the legacy JSON format.
+	if len(certs.SSH) > 0 && len(certs.TLS) > 0 {
+		return &certs, nil
+	}
+
+	// DELETE IN 10.0.0 (zmb3)
 	return UnmarshalLegacyCerts(out.Bytes())
 }
 
@@ -944,6 +956,11 @@ func (c *Client) UpsertUser(user types.User) error {
 	}
 	_, err = c.PostJSON(c.Endpoint("users"), &upsertUserRawReq{User: data})
 	return trace.Wrap(err)
+}
+
+// CompareAndSwapUser not implemented: can only be called locally
+func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.User) error {
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // ChangePassword updates users password based on the old password.
@@ -1583,6 +1600,21 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 	})
 }
 
+// CreateBot creates a bot and associated resources.
+func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+	return c.APIClient.CreateBot(ctx, req)
+}
+
+// DeleteBot deletes a certificate renewal bot and associated resources.
+func (c *Client) DeleteBot(ctx context.Context, botName string) error {
+	return c.APIClient.DeleteBot(ctx, botName)
+}
+
+// GetBotUsers fetches all bot users.
+func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
+	return c.APIClient.GetBotUsers(ctx)
+}
+
 // GetAppServers gets all application servers.
 func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	return c.APIClient.GetAppServers(ctx, namespace)
@@ -1663,6 +1695,10 @@ func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
 
 // DeleteAllLocks not implemented: can only be called locally.
 func (c *Client) DeleteAllLocks(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -1752,6 +1788,10 @@ type IdentityService interface {
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user types.User) error
 
+	// CompareAndSwapUser updates an existing user in a backend, but fails if
+	// the user in the backend does not match the expected value.
+	CompareAndSwapUser(ctx context.Context, new, expected types.User) error
+
 	// DeleteUser deletes an existng user in a backend by username.
 	DeleteUser(ctx context.Context, user string) error
 
@@ -1804,6 +1844,13 @@ type IdentityService interface {
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
+	// CreateBot creates a new certificate renewal bot and associated resources.
+	CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error)
+	// DeleteBot removes a certificate renewal bot and associated resources.
+	DeleteBot(ctx context.Context, botName string) error
+	// GetBotUsers gets all bot users.
+	GetBotUsers(ctx context.Context) ([]types.User, error)
+
 	// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
 	// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
 	ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error)
@@ -1825,6 +1872,9 @@ type IdentityService interface {
 	CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
 	// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
 	CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error)
+
+	// MaintainSessionPresence establishes a channel used to continuously verify the presence for a session.
+	MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error)
 
 	// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
 	// This token is used as part of a URL that will be emailed to the user (not done in this request).
@@ -1898,6 +1948,7 @@ type ClientI interface {
 	WebService
 	session.Service
 	services.ClusterConfiguration
+	services.SessionTrackerService
 	types.Events
 
 	types.WebSessionsGetter

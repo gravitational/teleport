@@ -24,15 +24,13 @@ import (
 	"context"
 	"flag"
 	"log"
-	"sort"
 	"strings"
 	"time"
 
 	"golang.org/x/mod/semver"
 
+	"github.com/gravitational/teleport/build.assets/tooling/lib/github"
 	"github.com/gravitational/trace"
-
-	go_github "github.com/google/go-github/v41/github"
 )
 
 func main() {
@@ -46,7 +44,7 @@ func main() {
 
 	switch check {
 	case "latest":
-		err = checkLatest(ctx, tag, newGitHub())
+		err = checkLatest(ctx, tag, github.NewGitHub())
 	case "prerelease":
 		err = checkPrerelease(tag)
 	default:
@@ -78,20 +76,27 @@ func parseFlags() (string, string, error) {
 	return *tag, *check, nil
 }
 
-func checkLatest(ctx context.Context, tag string, gh github) error {
+func checkLatest(ctx context.Context, tag string, gh github.GitHub) error {
 	releases, err := gh.ListReleases(ctx, "gravitational", "teleport")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	sort.SliceStable(releases, func(i int, j int) bool {
-		return releases[i] > releases[j]
-	})
 	if len(releases) == 0 {
 		return trace.BadParameter("failed to find any releases on GitHub")
 	}
 
-	if semver.Compare(tag, releases[0]) <= 0 {
-		return trace.BadParameter("found newer version of release, not releasing. Latest release: %v, tag: %v", releases[0], tag)
+	var tags []string
+	for _, r := range releases {
+		if r.GetDraft() {
+			continue
+		}
+		tags = append(tags, r.GetTagName())
+	}
+
+	semver.Sort(tags)
+	latest := tags[len(tags)-1]
+	if semver.Compare(tag, latest) <= 0 {
+		return trace.BadParameter("found newer version of release, not releasing. Latest release: %v, tag: %v", latest, tag)
 	}
 
 	return nil
@@ -105,47 +110,4 @@ func checkPrerelease(tag string) error {
 		return trace.BadParameter("version contains build metadata: %v", tag)
 	}
 	return nil
-}
-
-type github interface {
-	ListReleases(ctx context.Context, organization string, repository string) ([]string, error)
-}
-
-type ghClient struct {
-	client *go_github.Client
-}
-
-func newGitHub() *ghClient {
-	return &ghClient{
-		client: go_github.NewClient(nil),
-	}
-}
-
-func (c *ghClient) ListReleases(ctx context.Context, organization string, repository string) ([]string, error) {
-	var releases []string
-
-	opt := &go_github.ListOptions{
-		Page:    0,
-		PerPage: 100,
-	}
-	for n := 0; n < 100; n++ {
-		page, resp, err := c.client.Repositories.ListReleases(ctx,
-			organization,
-			repository,
-			opt)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		for _, p := range page {
-			releases = append(releases, p.GetTagName())
-		}
-
-		if resp.NextPage == 0 {
-			break
-		}
-		opt.Page = resp.NextPage
-	}
-
-	return releases, nil
 }

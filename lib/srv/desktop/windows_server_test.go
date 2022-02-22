@@ -207,29 +207,25 @@ func TestEmitsRecordingEventsOnSend(t *testing.T) {
 			Clock: clock,
 		},
 	}
+	emitter := &libevents.MockEmitter{}
 
 	// a fake PNG Frame message
 	encoded := []byte{byte(tdp.TypePNGFrame), 0x01, 0x02}
 
-	ch := make(chan events.AuditEvent)
-	go func() {
-		delay := func() int64 { return 0 }
-		handler := s.makeTDPSendHandler(context.Background(), &channelEmitter{eventsCh: ch}, delay)
+	delay := func() int64 { return 0 }
+	handler := s.makeTDPSendHandler(context.Background(), emitter, delay,
+		nil, "session-1", "windows.example.com")
 
-		// the handler accepts both the message structure and its encoded form,
-		// but our logic only depends on the encoded form, so pass a nil message
-		var msg tdp.Message
-		handler(msg, encoded)
-	}()
+	// the handler accepts both the message structure and its encoded form,
+	// but our logic only depends on the encoded form, so pass a nil message
+	var msg tdp.Message
+	handler(msg, encoded)
 
-	select {
-	case e := <-ch:
-		dr, ok := e.(*events.DesktopRecording)
-		require.True(t, ok)
-		require.Equal(t, encoded, dr.Message)
-	case <-time.After(1 * time.Second):
-		require.FailNow(t, "timed out waiting for event")
-	}
+	e := emitter.LastEvent()
+	require.NotNil(t, e)
+	dr, ok := e.(*events.DesktopRecording)
+	require.True(t, ok)
+	require.Equal(t, encoded, dr.Message)
 }
 
 func TestSkipsExtremelyLargePNGs(t *testing.T) {
@@ -240,27 +236,23 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 			Log:   &logrus.Logger{Out: io.Discard},
 		},
 	}
+	emitter := &libevents.MockEmitter{}
 
 	// a fake PNG Frame message, which is way too big to be legitimate
 	maliciousPNG := make([]byte, libevents.MaxProtoMessageSizeBytes+1)
 	rand.Read(maliciousPNG)
 	maliciousPNG[0] = byte(tdp.TypePNGFrame)
 
-	ch := make(chan events.AuditEvent, 1)
-
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPSendHandler(context.Background(), &channelEmitter{eventsCh: ch}, delay)
+	handler := s.makeTDPSendHandler(context.Background(), emitter, delay,
+		nil, "session-1", "windows.example.com")
 
 	// the handler accepts both the message structure and its encoded form,
 	// but our logic only depends on the encoded form, so pass a nil message
 	var msg tdp.Message
 	handler(msg, maliciousPNG)
 
-	select {
-	case e := <-ch:
-		require.FailNowf(t, "", "windows service should not have emitted a %T event", e)
-	default:
-	}
+	require.Nil(t, emitter.LastEvent())
 }
 
 func TestEmitsRecordingEventsOnReceive(t *testing.T) {
@@ -270,43 +262,83 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 			Clock: clock,
 		},
 	}
+	emitter := &libevents.MockEmitter{}
+
+	delay := func() int64 { return 0 }
+	handler := s.makeTDPReceiveHandler(context.Background(), emitter, delay,
+		nil, "session-1", "windows.example.com")
 
 	msg := tdp.MouseButton{
 		Button: tdp.LeftMouseButton,
 		State:  tdp.ButtonPressed,
 	}
+	handler(msg)
 
-	ch := make(chan events.AuditEvent)
-	go func() {
-		delay := func() int64 { return 0 }
-		handler := s.makeTDPRecieveHandler(context.Background(), &channelEmitter{eventsCh: ch}, delay)
-		handler(msg)
-	}()
-
-	select {
-	case e := <-ch:
-		dr, ok := e.(*events.DesktopRecording)
-		require.True(t, ok)
-		decoded, err := tdp.Decode(dr.Message)
-		require.NoError(t, err)
-		require.Equal(t, msg, decoded)
-	case <-time.After(1 * time.Second):
-		require.FailNow(t, "timed out waiting for event")
-	}
+	e := emitter.LastEvent()
+	require.NotNil(t, e)
+	dr, ok := e.(*events.DesktopRecording)
+	require.True(t, ok)
+	decoded, err := tdp.Decode(dr.Message)
+	require.NoError(t, err)
+	require.Equal(t, msg, decoded)
 }
 
-// TODO(zmb3): this is duplicated from lib/events/emitter_test.go
-// move common testing emitters to a testevents package
+func TestEmitsClipboardSendEvents(t *testing.T) {
+	s, id, emitter := setup()
 
-type channelEmitter struct {
-	eventsCh chan events.AuditEvent
+	// clipboard events go straight to the audit log,
+	// not the session recording, so they use s.cfg.Emitter
+	// rather than the emitter passed in here
+	var recordingStreamer events.Emitter /* = nil */
+	handler := s.makeTDPReceiveHandler(context.Background(),
+		recordingStreamer, func() int64 { return 0 },
+		id, "session-0", "windows.example.com")
+
+	fakeClipboardData := make([]byte, 1024)
+	rand.Read(fakeClipboardData)
+
+	start := s.cfg.Clock.Now().UTC()
+	msg := tdp.ClipboardData(fakeClipboardData)
+	handler(msg)
+
+	e := emitter.LastEvent()
+	require.NotNil(t, e)
+	cs, ok := e.(*events.DesktopClipboardSend)
+	require.True(t, ok)
+	require.Equal(t, int32(len(fakeClipboardData)), cs.Length)
+	require.Equal(t, "session-0", cs.SessionID)
+	require.Equal(t, "windows.example.com", cs.DesktopAddr)
+	require.Equal(t, s.clusterName, cs.ClusterName)
+	require.Equal(t, start, cs.Time)
 }
 
-func (c *channelEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case c.eventsCh <- event:
-		return nil
-	}
+func TestEmitsClipboardReceiveEvents(t *testing.T) {
+	s, id, emitter := setup()
+
+	// clipboard events go straight to the audit log,
+	// not the session recording, so they use s.cfg.Emitter
+	// rather than the emitter passed in here
+	var recordingStreamer events.Emitter /* = nil */
+	handler := s.makeTDPSendHandler(context.Background(),
+		recordingStreamer, func() int64 { return 0 },
+		id, "session-0", "windows.example.com")
+
+	fakeClipboardData := make([]byte, 512)
+	rand.Read(fakeClipboardData)
+
+	start := s.cfg.Clock.Now().UTC()
+	msg := tdp.ClipboardData(fakeClipboardData)
+	encoded, err := msg.Encode()
+	require.NoError(t, err)
+	handler(msg, encoded)
+
+	e := emitter.LastEvent()
+	require.NotNil(t, e)
+	cs, ok := e.(*events.DesktopClipboardReceive)
+	require.True(t, ok)
+	require.Equal(t, int32(len(fakeClipboardData)), cs.Length)
+	require.Equal(t, "session-0", cs.SessionID)
+	require.Equal(t, "windows.example.com", cs.DesktopAddr)
+	require.Equal(t, s.clusterName, cs.ClusterName)
+	require.Equal(t, start, cs.Time)
 }

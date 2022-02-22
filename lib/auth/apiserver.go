@@ -150,9 +150,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections/:cluster", srv.withAuth(srv.deleteTunnelConnections))
 	srv.DELETE("/:version/tunnelconnections", srv.withAuth(srv.deleteAllTunnelConnections))
 
-	// Server Credentials
-	srv.POST("/:version/server/credentials", srv.withAuth(srv.generateHostCerts))
-
+	// Remote clusters
 	srv.POST("/:version/remoteclusters", srv.withAuth(srv.createRemoteCluster))
 	srv.GET("/:version/remoteclusters/:cluster", srv.withAuth(srv.getRemoteCluster))
 	srv.GET("/:version/remoteclusters", srv.withAuth(srv.getRemoteClusters))
@@ -192,13 +190,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.GET("/:version/namespaces", srv.withAuth(srv.getNamespaces))
 	srv.GET("/:version/namespaces/:namespace", srv.withAuth(srv.getNamespace))
 	srv.DELETE("/:version/namespaces/:namespace", srv.withAuth(srv.deleteNamespace))
-
-	// Roles - Moved to grpc
-	// DELETE IN 7.0
-	srv.POST("/:version/roles", srv.withAuth(srv.upsertRole))
-	srv.GET("/:version/roles", srv.withAuth(srv.getRoles))
-	srv.GET("/:version/roles/:role", srv.withAuth(srv.getRole))
-	srv.DELETE("/:version/roles/:role", srv.withAuth(srv.deleteRole))
 
 	// cluster configuration
 	srv.GET("/:version/configuration/name", srv.withAuth(srv.getClusterName))
@@ -1038,6 +1029,9 @@ func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *h
 		return nil, trace.Wrap(err)
 	}
 
+	// Teleport 8 clients are still expecting the legacy JSON format.
+	// Teleport 9 clients handle both legacy and new.
+	// TODO(zmb3) return certs directly in Teleport 10
 	return LegacyCertsFromProto(certs), nil
 }
 
@@ -1055,53 +1049,6 @@ func (s *APIServer) registerNewAuthServer(auth ClientI, w http.ResponseWriter, r
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
-}
-
-// DELETE IN 9.0 (zmb3)
-type legacyHostCertsRequest struct {
-	HostID               string            `json:"host_id"`
-	NodeName             string            `json:"node_name"`
-	Roles                types.SystemRoles `json:"roles"`
-	AdditionalPrincipals []string          `json:"additional_principals,omitempty"`
-	DNSNames             []string          `json:"dns_names,omitempty"`
-	PublicTLSKey         []byte            `json:"public_tls_key"`
-	PublicSSHKey         []byte            `json:"public_ssh_key"`
-	RemoteAddr           string            `json:"remote_addr"`
-	Rotation             *types.Rotation   `json:"rotation,omitempty"`
-}
-
-// DELETE IN 9.0 (zmb3) now available in GRPC server)
-func (s *APIServer) generateHostCerts(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	// We can't use proto.HostCertsRequest here, because this old API expects
-	// a list of roles with exactly one element, rather than a single role.
-	var req legacyHostCertsRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(req.Roles) != 1 {
-		return nil, trace.BadParameter("expected exactly one system role")
-	}
-
-	// Pass along the remote address the request came from to the registration function.
-	req.RemoteAddr = r.RemoteAddr
-
-	certs, err := auth.GenerateHostCerts(r.Context(), &proto.HostCertsRequest{
-		HostID:               req.HostID,
-		NodeName:             req.NodeName,
-		Role:                 req.Roles[0],
-		AdditionalPrincipals: req.AdditionalPrincipals,
-		DNSNames:             req.DNSNames,
-		PublicTLSKey:         req.PublicTLSKey,
-		PublicSSHKey:         req.PublicSSHKey,
-		RemoteAddr:           req.RemoteAddr,
-		Rotation:             req.Rotation,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return LegacyCertsFromProto(certs), nil
 }
 
 func (s *APIServer) rotateCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -2219,77 +2166,6 @@ func (s *APIServer) deleteNamespace(auth ClientI, w http.ResponseWriter, r *http
 
 type upsertRoleRawReq struct {
 	Role json.RawMessage `json:"role"`
-}
-
-// DELETE IN 7.0
-func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertRoleRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	role, err := services.UnmarshalRole(req.Role)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = services.ValidateRole(role); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = auth.UpsertRole(r.Context(), role)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("'%v' role upserted", role.GetName())), nil
-}
-
-// DELETE IN 7.0
-func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	role, err := auth.GetRole(r.Context(), p.ByName("role"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roleV4, ok := role.(*types.RoleV4)
-	if !ok {
-		return nil, trace.BadParameter("unrecognized role version")
-	}
-	downgraded, err := downgradeRole(context.Background(), roleV4)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rawMessage(services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID()))
-}
-
-// DELETE IN 7.0
-func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	roles, err := auth.GetRoles(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out := make([]json.RawMessage, len(roles))
-	for i, role := range roles {
-		roleV4, ok := role.(*types.RoleV4)
-		if !ok {
-			return nil, trace.BadParameter("unrecognized role version")
-		}
-		downgraded, err := downgradeRole(r.Context(), roleV4)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		raw, err := services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out[i] = raw
-	}
-	return out, nil
-}
-
-// DELETE IN 7.0
-func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	role := p.ByName("role")
-	if err := auth.DeleteRole(r.Context(), role); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("role %q deleted", role)), nil
 }
 
 func (s *APIServer) getClusterName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

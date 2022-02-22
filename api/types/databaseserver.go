@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/gravitational/teleport/api"
@@ -295,3 +296,64 @@ func (s DatabaseServers) Less(i, j int) bool {
 
 // Swap swaps two database servers.
 func (s DatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (s DatabaseServers) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	// We assume sorting by type DatabaseServer, we are really
+	// wanting to sort its contained resource Database.
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetDatabase().GetName(), s[j].GetDatabase().GetName(), isDesc)
+		})
+	case ResourceSpecDescription:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetDatabase().GetDescription(), s[j].GetDatabase().GetDescription(), isDesc)
+		})
+	case ResourceSpecType:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetDatabase().GetType(), s[j].GetDatabase().GetType(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindDatabaseServer)
+	}
+
+	return nil
+}
+
+// AsResources returns db servers as type resources with labels.
+func (s DatabaseServers) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (s DatabaseServers) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, 0, len(s))
+	switch field {
+	case ResourceMetadataName:
+		for _, server := range s {
+			vals = append(vals, server.GetDatabase().GetName())
+		}
+	case ResourceSpecDescription:
+		for _, server := range s {
+			vals = append(vals, server.GetDatabase().GetDescription())
+		}
+	case ResourceSpecType:
+		for _, server := range s {
+			vals = append(vals, server.GetDatabase().GetType())
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindDatabaseServer)
+	}
+
+	return vals, nil
+}

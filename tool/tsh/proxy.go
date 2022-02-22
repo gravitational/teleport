@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -34,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -168,7 +168,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 			log.WithError(err).Warnf("Failed to close listener.")
 		}
 	}()
-	lp, err := mkLocalProxy(cf, client.WebProxyAddr, database.Protocol, listener)
+	lp, err := mkLocalProxy(cf.Context, localProxyOpts{
+		proxyAddr: client.WebProxyAddr,
+		protocol:  database.Protocol,
+		listener:  listener,
+		insecure:  cf.InsecureSkipVerify,
+		certFile:  cf.LocalProxyCertFile,
+		keyFile:   cf.LocalProxyKeyFile,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -200,22 +207,36 @@ func onProxyCommandDB(cf *CLIConf) error {
 	return nil
 }
 
-func mkLocalProxy(cf *CLIConf, remoteProxyAddr string, protocol string, listener net.Listener) (*alpnproxy.LocalProxy, error) {
-	alpnProtocol, err := toALPNProtocol(protocol)
+type localProxyOpts struct {
+	proxyAddr string
+	listener  net.Listener
+	protocol  string
+	insecure  bool
+	certFile  string
+	keyFile   string
+}
+
+func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalProxy, error) {
+	alpnProtocol, err := alpncommon.ToALPNProtocol(opts.protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	address, err := utils.ParseAddr(remoteProxyAddr)
+	address, err := utils.ParseAddr(opts.proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs, err := mkLocalProxyCerts(opts.certFile, opts.keyFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify: cf.InsecureSkipVerify,
-		RemoteProxyAddr:    remoteProxyAddr,
+		InsecureSkipVerify: opts.insecure,
+		RemoteProxyAddr:    opts.proxyAddr,
 		Protocol:           alpnProtocol,
-		Listener:           listener,
-		ParentContext:      cf.Context,
+		Listener:           opts.listener,
+		ParentContext:      ctx,
 		SNI:                address.Host(),
+		Certs:              certs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -223,17 +244,18 @@ func mkLocalProxy(cf *CLIConf, remoteProxyAddr string, protocol string, listener
 	return lp, nil
 }
 
-func toALPNProtocol(dbProtocol string) (alpncommon.Protocol, error) {
-	switch dbProtocol {
-	case defaults.ProtocolMySQL:
-		return alpncommon.ProtocolMySQL, nil
-	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
-		return alpncommon.ProtocolPostgres, nil
-	case defaults.ProtocolMongoDB:
-		return alpncommon.ProtocolMongoDB, nil
-	default:
-		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
+func mkLocalProxyCerts(certFile, keyFile string) ([]tls.Certificate, error) {
+	if certFile == "" && keyFile == "" {
+		return []tls.Certificate{}, nil
 	}
+	if certFile == "" && keyFile != "" || certFile != "" && keyFile == "" {
+		return nil, trace.BadParameter("both --cert-file and --key-file are required")
+	}
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []tls.Certificate{cert}, nil
 }
 
 func onProxyCommandAPP(cf *CLIConf) error {
