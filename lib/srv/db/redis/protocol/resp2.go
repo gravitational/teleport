@@ -155,7 +155,7 @@ func writeSlice(wr *redis.Writer, vals []interface{}) error {
 	return nil
 }
 
-// writeSlice converts []interface{} to Redis wire form.
+// writeBoolSlice converts a boolean slice to Redis wire form.
 func writeBoolSlice(wr *redis.Writer, vals []bool) error {
 	if err := wr.WriteByte(redis.ArrayReply); err != nil {
 		return trace.Wrap(err)
