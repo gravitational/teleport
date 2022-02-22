@@ -17,7 +17,7 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
+	"crypto/x509"
 	"net"
 
 	"github.com/gravitational/teleport/api/types"
@@ -99,22 +99,50 @@ func checkProxyRole(authInfo credentials.AuthInfo) error {
 	return trace.AccessDenied("proxy system role required")
 }
 
+// getConfigForClient clones and updates the server's tls config with the
+// appropriate client certificate authorities.
 func getConfigForClient(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-		clusterName, err := ap.GetClusterName()
-		if err != nil {
-			log.WithError(err).Error("Failed to retrieve cluster name.")
-			return nil, nil
-		}
-
-		pool, err := auth.ClientCertPool(ap, clusterName.GetClusterName())
+		pool, err := getCertPool(ap)
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve client CA pool.")
 			return nil, nil
 		}
 
 		tlsCopy := tlsConfig.Clone()
+		tlsCopy.ClientAuth = tls.RequireAndVerifyClientCert
 		tlsCopy.ClientCAs = pool
 		return tlsCopy, nil
 	}
+}
+
+// getConfigForServer clones and updates the client's tls config with the
+// appropriate server certificate authorities.
+func getConfigForServer(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.FieldLogger) func() (*tls.Config, error) {
+	return func() (*tls.Config, error) {
+		pool, err := getCertPool(ap)
+		if err != nil {
+			log.WithError(err).Error("Failed to retrieve server CA pool.")
+			return tlsConfig, nil
+		}
+
+		tlsCopy := tlsConfig.Clone()
+		tlsCopy.RootCAs = pool
+		return tlsCopy, nil
+	}
+}
+
+// getCertPool returns a new cert pool from cache if any.
+func getCertPool(ap auth.AccessCache) (*x509.CertPool, error) {
+	clusterName, err := ap.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pool, err := auth.ClientCertPool(ap, clusterName.GetClusterName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return pool, nil
 }
