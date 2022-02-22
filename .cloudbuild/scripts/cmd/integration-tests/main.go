@@ -122,7 +122,7 @@ func innerMain() error {
 
 	log.Printf("Create group docker")
 
-	err = exec.Command("groupadd", "docker").Run()
+	err = exec.Command("groupadd", "-g", "998", "docker").Run()
 	if err != nil {
 		return trace.Wrap(err, "failed to create group docker")
 	}
@@ -133,7 +133,7 @@ func innerMain() error {
 		return trace.Wrap(err, "failed to get user 1000")
 	}
 
-	err = exec.Command("usermod", "-a", "-G", "docker", usr.Name).Run()
+	err = exec.Command("usermod", "-a", "-G", "docker", usr.Username).Run()
 	if err != nil {
 		return trace.Wrap(err, "failed to add user to docker group")
 	}
