@@ -154,7 +154,6 @@ highAvailability:
     # This defaults to 'cert-manager.io' which is the default Issuer group.
     issuerGroup: cert-manager.io
 
-
 ##################################################
 # Values that you shouldn't need to change.
 ##################################################
@@ -185,6 +184,13 @@ log:
 # Extra Kubernetes configuration #
 ##################################
 
+# Specifies whether a service account should be created
+serviceAccount:
+  create: true
+  # (optional) Override the name of the service account used by the agent.
+  # If not set and create is true, a name is generated using the release name
+  name: ""
+
 # Affinity for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 # NOTE: If affinity is set here, highAvailability.requireAntiAffinity cannot also be used - you can only set one or the other.
@@ -211,7 +217,8 @@ annotations:
 service:
   type: LoadBalancer
   # Additional entries here will be added to the service spec.
-  spec: {}
+  spec:
+    {}
     # loadBalancerIP: "1.2.3.4"
 
 # Extra arguments to pass to 'teleport start' for the main Teleport pod

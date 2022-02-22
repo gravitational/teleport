@@ -102,7 +102,7 @@ spec:
     {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
   {{- end }}
 {{- end }}
-      serviceAccountName: {{ .Values.serviceAccountName | default .Release.Name }}
+      serviceAccountName: {{ .Values.serviceAccount.name | default .Release.Name }}
       {{- if .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}

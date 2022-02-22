@@ -4,4 +4,5 @@ roles: kube
 kubeClusterName: test-kube-cluster
 clusterRoleName: teleport-kube-agent-test
 clusterRoleBindingName: teleport-kube-agent-test
-serviceAccountName: teleport-kube-agent-test
+serviceAccount:
+  name: teleport-kube-agent-test

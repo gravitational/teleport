@@ -10,6 +10,7 @@
         "chartMode",
         "highAvailability",
         "image",
+        "serviceAccount",
         "enterpriseImage",
         "log",
         "affinity",
@@ -270,6 +271,26 @@
             "type": "string",
             "default": "quay.io/gravitational/teleport"
         },
+        "serviceAccount": {
+            "$id": "#/properties/serviceAccount",
+            "type": "object",
+            "required": [
+                "create",
+                "name"
+            ],
+            "properties": {
+                "create": {
+                    "$id": "#/properties/serviceAccount/properties/create",
+                    "type": "boolean",
+                    "default": true
+                },
+                "name": {
+                    "$id": "#/properties/serviceAccount/properties/name",
+                    "type": "string",
+                    "default": ""
+                }
+            }
+        },
         "enterpriseImage": {
             "$id": "#/properties/enterpriseImage",
             "type": "string",
@@ -299,7 +320,13 @@
                 "level": {
                     "$id": "#/properties/log/properties/level",
                     "type": "string",
-                    "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
+                    "enum": [
+                        "DEBUG",
+                        "INFO",
+                        "WARN",
+                        "WARNING",
+                        "ERROR"
+                    ],
                     "default": "INFO"
                 },
                 "deployment": {

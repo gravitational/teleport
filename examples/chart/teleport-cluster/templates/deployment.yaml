@@ -202,4 +202,4 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      serviceAccountName: {{ .Release.Name }}
+      serviceAccountName: {{ .Values.serviceAccount.name | default .Release.Name }}

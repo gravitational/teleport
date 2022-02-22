@@ -58,5 +58,5 @@ roleRef:
   name: {{ .Release.Name }}-psp
 subjects:
 - kind: ServiceAccount
-  name: {{ .Release.Name }}
+  name: {{ .Values.serviceAccount.name | default .Release.Name }}
 {{- end -}}

@@ -129,8 +129,12 @@ imagePullSecrets: []
 clusterRoleName: ""
 # (optional) Override the name of the ClusterRoleBinding used by the agent's service account.
 clusterRoleBindingName: ""
-# (optional) Override the name of the service account used by the agent.
-serviceAccountName: ""
+# Specifies whether a service account should be created
+serviceAccount:
+  create: true
+  # (optional) Override the name of the service account used by the agent.
+  # If not set and create is true, a name is generated using the release name
+  name: ""
 # Name of the Secret to store the teleport join token.
 secretName: teleport-kube-agent-join-token
 

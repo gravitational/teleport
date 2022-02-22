@@ -8,5 +8,5 @@ roleRef:
   name: {{ .Values.clusterRoleName | default .Release.Name }}
 subjects:
 - kind: ServiceAccount
-  name: {{ .Values.serviceAccountName | default .Release.Name }}
+  name: {{ .Values.serviceAccount.name | default .Release.Name }}
   namespace: {{ .Release.Namespace }}
