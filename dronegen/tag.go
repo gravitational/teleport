@@ -328,7 +328,7 @@ func tagCreateReleaseAssetCommands(b buildType, packageType string) []string {
 		`CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"`,
 		`which curl || apk add --no-cache curl`,
 		fmt.Sprintf(`cd "$WORKSPACE_DIR/go/artifacts"
-for file in $(find . -type f ! -iname '*.sha256'); do
+for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
   # Skip files that are not results of this build
   # (e.g. tarballs from which OS packages are made)
   [ -f "$file.sha256" ] || continue

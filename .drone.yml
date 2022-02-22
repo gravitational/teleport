@@ -1128,7 +1128,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -1283,7 +1283,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -1436,7 +1436,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -1589,7 +1589,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -1765,7 +1765,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -1943,7 +1943,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -2115,7 +2115,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -2279,7 +2279,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -2432,7 +2432,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -2608,7 +2608,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -2780,7 +2780,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -2958,7 +2958,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -3157,7 +3157,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -3338,7 +3338,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -3489,7 +3489,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -3642,7 +3642,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -3809,7 +3809,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -3976,7 +3976,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -4152,7 +4152,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -4333,7 +4333,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -4494,7 +4494,7 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
@@ -5340,6 +5340,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 0d503efb2fd594636d184ac8db22b58d7b64d9b7e701213fe8a5de2b94ad506f
+hmac: 28c4b0de364b7c2d704c1ca9558bca52bee19351218c1f07674a263b59227fec
 
 ...
