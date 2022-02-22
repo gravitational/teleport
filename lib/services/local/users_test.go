@@ -707,7 +707,7 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 		UserVerification: "required",
 	}
 
-	identity, _ := newIdentityService(t)
+	identity := newIdentityService(t, clockwork.NewFakeClock())
 	ctx := context.Background()
 
 	// OK: below limit.
