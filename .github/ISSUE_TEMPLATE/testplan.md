@@ -913,12 +913,17 @@ and non interactive tsh bench loads.
   - [ ] RBAC denies access to a Windows desktop due to labels
   - [ ] RBAC denies access to a Windows desktop with the wrong OS-login.
 - Clipboard Support
-  - [ ] Verify that clipboard sharing is not enabled when the user has a role
-    that disables it. The live session should show disabled in the top bar and
-    copy/paste should not work between your workstation and the remote desktop.
-  - [ ] Copy text from local workstation, paste into remote desktop
-  - [ ] Copy text from remote desktop, paste into local workstation
-  - [ ] Verify that top bar correctly shows clipboard sharing enabled
+  - When a user has a role with clipboard sharing enabled and is using a chromium based browser
+    - [ ] Going to a desktop when clipboard permissions are in "Ask" mode (aka "prompt") causes the browser to show a prompt while the UI shows a spinner
+    - [ ] X-ing out of the prompt (causing the clipboard permission to remain in "Ask" mode) causes the prompt to show up again
+    - [ ] Denying clibpoard permissions brings up a relevant error alert (with "Clipboard Sharing Disabled" in the top bar)
+    - [ ] Allowing clipboard permissions allows you to see the desktop session, with "Clipboard Sharing Enabled" highlighted in the top bar
+    - [ ] Copy text from local workstation, paste into remote desktop
+    - [ ] Copy text from remote desktop, paste into local workstation
+  - When a user has a role with clipboard sharing enabled and is *not* using a chromium based browser
+    - [ ] The UI shows a relevant alert and "Clipboard Sharing Disabled" is highlighted in the top bar
+  - When a user has a role with clipboard sharing *disabled* and is using a chromium and non-chromium based browser (confirm both)
+    - [ ] The live session should show disabled in the top bar and copy/paste should not work between your workstation and the remote desktop.
 - Session Recording
   - [ ] Verify sessions are not recorded if *all* of a user's roles disable recording
   - [ ] Verify sync recording (`mode: node-sync` or `mode: proy-sync`)
