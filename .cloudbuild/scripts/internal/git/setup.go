@@ -20,13 +20,14 @@ type Config struct {
 
 // Configure alters the configuration of the git repository in `repoDir`
 // so that we can access it from build. If `deployKey` is non-nil the repo
-// will be configured to use that. The config
+// will be configured to use that. If no deploy key is supplied, the repository
+// config is untouched.
 func Configure(repoDir string, deployKey []byte) (cfg *Config, err error) {
 	var identity string
 	var hostsFile string
 
 	// The deploy key we're using is too sensitive to just hope that every
-	// exit path will clean it up on failure, so let's gust register a
+	// exit path will clean it up on failure, so let's just register a
 	// cleanup function now just in case.
 	defer func() {
 		if err != nil {

@@ -8,20 +8,15 @@ import (
 )
 
 func writeKey(deployKey []byte) (string, error) {
+	// Note that tempfiles are automatically created with 0600, so no-one else
+	// should be able to read this.
 	keyFile, err := ioutil.TempFile("", "*")
 	if err != nil {
 		return "", trace.Wrap(err, "failed creating keyfile")
 	}
 	defer keyFile.Close()
 
-	// We don't want *anyone else* reading this key
-	err = keyFile.Chmod(0600)
-	if err != nil {
-		return "", trace.Wrap(err, "failed securing deploy key")
-	}
-
 	log.Infof("Writing deploy key to %s", keyFile.Name())
-
 	_, err = keyFile.Write(deployKey)
 	if err != nil {
 		return "", trace.Wrap(err, "failed writing deploy key")

@@ -14,11 +14,6 @@ func touchTempFile() (string, error) {
 	}
 	defer tempFile.Close()
 
-	err = tempFile.Chmod(0600)
-	if err != nil {
-		return "", trace.Wrap(err, "failed securing known hosts file")
-	}
-
 	return tempFile.Name(), nil
 }
 
