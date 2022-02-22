@@ -20,7 +20,7 @@ description: Configuration reference for Teleport Desktop Access.
 
 The Windows Desktop Service can be deployed in two modes.
 
-### Direct Mode
+### Direct mode
 
 In *direct* mode, Windows Desktop Services registers directly with the Teleport
 Auth Server, and listens for desktop connections from the Teleport Proxy. To
@@ -29,7 +29,7 @@ enable direct mode, set `windows_desktop_service.listen_addr` in
 Auth Server. Direct mode requires network connectivity from the Teleport Proxy
 to Windows Desktop Service, and from Windows Desktop Service to the Auth Server.
 
-### IoT Mode (Reverse Tunnel)
+### IoT mode (reverse tunnel)
 
 In *IoT mode*, Windows Desktop Service only needs to be able to make an outbound
 connection to a Teleport Proxy. The Windows Desktop Service establishes a

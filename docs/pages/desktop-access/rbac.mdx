@@ -90,9 +90,9 @@ For desktops discovered via LDAP, Teleport applies the following labels automati
 ## Logins
 
 The `windows_desktop_logins` role setting lists the Windows user accounts that
-the role permits access to. Like with SSH access, the
-`{{internal.windows_logins}}` variable can be used for local users, which maps
-to any logins that are supplied when the user is created with
+the role permits access to. For local users, the `{{internal.windows_logins}}`
+variable can be used as a placeholder for the user's `windows_logins` trait. The
+`windows_logins` trait can be specified when the user is created with
 `tctl users add alice --windows-logins=Administrator,DBUser`.
 
 New clusters automatically populate the preset `access` role with the following:
