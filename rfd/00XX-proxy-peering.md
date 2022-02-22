@@ -213,6 +213,13 @@ These failures will be presented to the client as follows:
 
 3 and 4 will have the same behavior as a node agent disconnecting unexpectedly with the current implementation. This results in an [ExitMissingError](https://pkg.go.dev/golang.org/x/crypto/ssh#ExitMissingError) being displayed client side.
 
+### TLS Routing
+Load balancers between the agent and proxy servers may want to diffentiate between old agents that need to connect to every proxy and the new agents described in this document. This is important for geo distributed deployments to ensure low latency routing.
+
+The cluster must be configure with `proxy_listener_mode: multiplex` to enable TLS ALPN routing. New agents will add an additional protocol `teleport-reversetunnelv2` to the ALPN header field resulting in the following list: `["teleport-reversetunnelv2", "teleport-reversetunnel"]`.
+
+Preserving `teleport-reversetunnel` in the list of protocols, ensures that new agents are able to connect to proxies running an older version of teleport.
+
 ## Alternative Considerations
 
 ### Node Tracker
