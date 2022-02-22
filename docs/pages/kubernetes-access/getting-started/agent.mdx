@@ -1,10 +1,10 @@
 ---
-title: Connect a Kubernetes Cluster to Teleport
-description: Connecting a Kubernetes cluster to Teleport
+title: Connect Kubernetes Cluster to Teleport
+description: Connecting Kubernetes cluster to Teleport
 ---
 
 <Admonition type="notice" title="Editions">
-You can use this guide with Teleport Open Source, Teleport Enterprise, and Teleport Cloud.
+This guide works for Open Source and Enterprise, self-hosted or cloud-hosted editions of Teleport.
 </Admonition>
 
 ## Prerequisites
@@ -24,8 +24,8 @@ proxy_service:
   # ...
   public_addr: proxy.example.com:3080
 
-  kube_listen_addr: 0.0.0.0:3026  
-  ```  
+  kube_listen_addr: 0.0.0.0:3026
+  ```
 </Admonition>
 
 ## Deployment overview
@@ -37,7 +37,7 @@ Teleport cluster `tele.example.com`:
   ![Kubernetes agent](../../../img/k8s/agent.svg)
 </Figure>
 
-## Step 1/2. Get a join token
+## Step 1/4. Get a join token
 
 Start a lightweight agent in your Kubernetes cluster `cookie` and connect it to `tele.example.com`.
 We would need a join token from `tele.example.com`:
@@ -48,7 +48,7 @@ $ TOKEN=$(tctl nodes add --roles=kube --ttl=10000h --format=json | jq -r '.[0]')
 $ echo $TOKEN
 ```
 
-## Step 2/2. Deploy teleport-kube-agent
+## Step 2/4. Deploy teleport-kube-agent
 
 Switch `kubectl` to the Kubernetes cluster `cookie` and run:
 
@@ -64,14 +64,118 @@ $ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName
   --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
 ```
 
+## Step 3/4 Configure User and Roles for Access
+
+The `kubernetes_groups`, `kubernetes_labels` and `kubernetes_users` determine the access from a Teleport
+role to the Kubernetes Clusters.
+
+```YAML
+  # Sets which groups in the Kubernetes the user should access as.  The group must
+  # already exist in the Kubernetes cluster. Example: system:masters
+    kubernetes_groups:
+    - '{{internal.kubernetes_groups}}'
+  # Matches to the labels on the Kubernetes cluster. '*': '*' will match to any cluster.
+    kubernetes_labels:
+      '*': '*'
+  # Sets which users in the Kubernetes the user should access as.  The user must
+  # already exist in the Kubernetes cluster. Example: alice@mycompany1.com
+    kubernetes_users:
+    - '{{internal.kubernetes_users}}'
+```
+
+<Admonition type="tip" title="Group or User required">
+At least one user or group available in the Kubernetes cluster must be set in a user's Teleport role to access the Kubernetes cluster.
+</Admonition>
+
+<Tabs>
+  <TabItem label="Specify access in Role">
+To add a group like `system:masters` into the access  role follow these steps.  Get
+the role to a local file.
+
+```code
+$ tctl get roles/access > access.yaml
+```
+
+Modify the role to include the group
+  ```yaml
+  kubernetes_groups:
+  - '{{internal.kubernetes_groups}}'
+  - system:masters
+  ```
+Update the role.
+```code
+$ tctl create -f access.yaml
+```
+
+
+</TabItem>
+  <TabItem label="Local user">
+  Create a local Teleport user with the built-in `access` role:
+
+  ```code
+  $ tctl users add --roles=access alice
+  ```
+
+  The `access` role allows users to see all connected Kubernetes clusters, but
+  access is restricted to the user's `kubernetes_groups` and
+  `kubernetes_users` traits. Normally, these traits come from the identity provider. For
+  the local user you've just created you can update them manually to allow it to
+  connect to Kubernetes clusters as groups or users.
+
+  First, export the user resource:
+
+  ```code
+  $ tctl get users/alice > alice.yaml
+  ```
+
+  Update the resource to include the following traits:
+
+  ```yaml
+  traits:
+    kubernetes_users:
+    - alice@mycompany1.com
+    kubernetes_groups:
+    - system:masters
+  ```
+
+  ```code
+  tctl create -f alice.yaml
+  ```
+  </TabItem>
+  <TabItem label="Populate Kubernetes Groups and Users from SSO">
+
+  Teleport's roles map OIDC claims or SAML attributes using template variables.
+  You can autopopulate the `kubernetes_groups` and `kubernetes_users` from template
+  variables with the `external` tab.  In this example the `{{external.groups}}`
+  and `{{external.email}}` will populate the `kubernetes_group` and `kubernetes_users`
+  respectively.
+
+```yaml
+kind: role
+version: v4
+metadata:
+  name: group-member
+spec:
+  allow:
+    # For Alice, will be substituted with the list ["admins", "devs"]
+    kubernetes_groups: ["{{external.groups}}"]
+    # For Alice, will be substituted with ["alice@example.com"]
+    kubernetes_users: ["{{external.email}}"]
+```
+  </TabItem>
+
+</Tabs>
+
+## Step 4/4 Configure User and Roles for Access
+
 List connected clusters using `tsh kube ls` and switch between
 them using `tsh kube login`:
 
 ```code
 $ tsh kube ls
 
-# Kube Cluster Name Selected 
-# ----------------- -------- 
+# Kube Cluster Name Selected
+# ----------------- --------
 # cookie
 
 # kubeconfig now points to the cookie cluster
@@ -80,7 +184,33 @@ $ tsh kube login cookie
 
 # kubectl command executed on `cookie` but is routed through `tele.example.com` cluster.
 $ kubectl get pods
+#NAME    READY   STATUS    RESTARTS   AGE
+#redis   1/1     Running   0          6d1h
 ```
+
+The `kubectl` activity will be available as `Kubernetes Request`
+
+Next open a `exec` session into a pod. Any of your `exec` sessions will be recorded and then available for replay.
+
+```bash
+$ kubectl exec -it redis -- bash
+root@redis:/data# df
+Filesystem     1K-blocks    Used Available Use% Mounted on
+overlay         83873772 5102848  78770924   7% /
+tmpfs              65536       0     65536   0% /dev
+tmpfs            1983728       0   1983728   0% /sys/fs/cgroup
+/dev/nvme0n1p1  83873772 5102848  78770924   7% /data
+shm                65536       0     65536   0% /dev/shm
+tmpfs            1983728      12   1983716   1% /run/secrets/kubernetes.io/serviceaccount
+tmpfs            1983728       0   1983728   0% /proc/acpi
+tmpfs            1983728       0   1983728   0% /sys/firmware
+root@redis:/data# exit
+exit
+```
+
+The session recording replay will be available within the session recordings.
+
+
 
 ## Next Steps
 
