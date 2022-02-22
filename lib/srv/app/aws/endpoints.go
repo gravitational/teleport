@@ -26,25 +26,25 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/aws/aws-sdk-go/service/ecrpublic"
 	"github.com/aws/aws-sdk-go/service/elasticinference"
-	"github.com/aws/aws-sdk-go/service/iot"
-	"github.com/aws/aws-sdk-go/service/iot1clickprojects"
+	"github.com/aws/aws-sdk-go/service/iot1clickdevicesservice"
 	"github.com/aws/aws-sdk-go/service/iotdataplane"
 	"github.com/aws/aws-sdk-go/service/iotdeviceadvisor"
 	"github.com/aws/aws-sdk-go/service/ioteventsdata"
 	"github.com/aws/aws-sdk-go/service/iotfleethub"
 	"github.com/aws/aws-sdk-go/service/iotjobsdataplane"
 	"github.com/aws/aws-sdk-go/service/iotsecuretunneling"
+	"github.com/aws/aws-sdk-go/service/iottwinmaker"
 	"github.com/aws/aws-sdk-go/service/iotwireless"
 	"github.com/aws/aws-sdk-go/service/lexmodelsv2"
 	"github.com/aws/aws-sdk-go/service/marketplacecatalog"
-	"github.com/aws/aws-sdk-go/service/mediastoredata"
 	"github.com/aws/aws-sdk-go/service/mediatailor"
 	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/migrationhubconfig"
+	"github.com/aws/aws-sdk-go/service/migrationhubstrategyrecommendations"
 	"github.com/aws/aws-sdk-go/service/mobile"
 	"github.com/aws/aws-sdk-go/service/pinpoint"
 	"github.com/aws/aws-sdk-go/service/pinpointsmsvoice"
 	"github.com/aws/aws-sdk-go/service/pricing"
+	"github.com/aws/aws-sdk-go/service/proton"
 	"github.com/aws/aws-sdk-go/service/sagemaker"
 	"github.com/aws/aws-sdk-go/service/ses"
 	"github.com/aws/aws-sdk-go/service/sso"
@@ -102,63 +102,38 @@ func endpointsIDFromSigningName(signingName string) string {
 // endpointsIDMapping is a mapping of services' signing names to their
 // endpoints IDs.
 var endpointsIDMapping = map[string]string{
-	"appstream":           appstream.EndpointsID,
-	"aws-marketplace":     marketplacecatalog.EndpointsID,
-	"awsmobilehubservice": mobile.EndpointsID,
-	"awsssooidc":          ssooidc.EndpointsID,
-	"awsssoportal":        sso.EndpointsID,
-	"detective":           detective.EndpointsID,
-	"ecr":                 ecr.EndpointsID,
-	"ecr-public":          ecrpublic.EndpointsID,
-	"elastic-inference":   elasticinference.EndpointsID,
-	"execute-api":         iot.EndpointsID,
-	"iot-jobs-data":       iotjobsdataplane.EndpointsID,
-	"iot1click":           iot1clickprojects.EndpointsID,
-	"iotdata":             iotdataplane.EndpointsID,
-	"iotdeviceadvisor":    iotdeviceadvisor.EndpointsID,
-	"ioteventsdata":       ioteventsdata.EndpointsID,
-	"iotfleethub":         iotfleethub.EndpointsID,
-	"iotsecuredtunneling": iotsecuretunneling.EndpointsID,
-	"iotwireless":         iotwireless.EndpointsID,
-	"lex":                 lexmodelsv2.EndpointsID,
-	"mediastore":          mediastoredata.EndpointsID,
-	"mediatailor":         mediatailor.EndpointsID,
-	"memorydb":            memorydb.EndpointsID,
-	"mgh":                 migrationhubconfig.EndpointsID,
-	"mobiletargeting":     pinpoint.EndpointsID,
-	"pricing":             pricing.EndpointsID,
-	"sagemaker":           sagemaker.EndpointsID,
-	"ses":                 ses.EndpointsID,
-	"sms-voice":           pinpointsmsvoice.EndpointsID,
-	"timestream":          timestreamquery.EndpointsID,
+	"appstream":                             appstream.EndpointsID,
+	"aws-marketplace":                       marketplacecatalog.EndpointsID,
+	"awsiottwinmaker":                       iottwinmaker.EndpointsID,
+	"awsmigrationhubstrategyrecommendation": migrationhubstrategyrecommendations.EndpointsID,
+	"awsmobilehubservice":                   mobile.EndpointsID,
+	"awsproton20200720":                     proton.EndpointsID,
+	"awsssooidc":                            ssooidc.EndpointsID,
+	"awsssoportal":                          sso.EndpointsID,
+	"detective":                             detective.EndpointsID,
+	"ecr":                                   ecr.EndpointsID,
+	"ecr-public":                            ecrpublic.EndpointsID,
+	"elastic-inference":                     elasticinference.EndpointsID,
+	"iot-jobs-data":                         iotjobsdataplane.EndpointsID,
+	"iot1click":                             iot1clickdevicesservice.EndpointsID,
+	"iotdata":                               iotdataplane.EndpointsID,
+	"iotdeviceadvisor":                      iotdeviceadvisor.EndpointsID,
+	"ioteventsdata":                         ioteventsdata.EndpointsID,
+	"iotfleethub":                           iotfleethub.EndpointsID,
+	"iotsecuredtunneling":                   iotsecuretunneling.EndpointsID,
+	"iotwireless":                           iotwireless.EndpointsID,
+	"lex":                                   lexmodelsv2.EndpointsID,
+	"mediatailor":                           mediatailor.EndpointsID,
+	"memorydb":                              memorydb.EndpointsID,
+	"mobiletargeting":                       pinpoint.EndpointsID,
+	"pricing":                               pricing.EndpointsID,
+	"sagemaker":                             sagemaker.EndpointsID,
+	"ses":                                   ses.EndpointsID,
+	"sms-voice":                             pinpointsmsvoice.EndpointsID,
+	"timestream":                            timestreamquery.EndpointsID,
 }
 
-// TODO Many services may sign with same names but use different hostnames.
-// Will need a way to differentiate them. For now, either make the best guess
-// in the mapping above or use the default signing name. Here is an incomplete
-// list:
-//
-// "apigateway"          : apigateway, apigatewaymanagementapi, apigatewayv2
-// "appconfig"           : appconfig, appconfigdata
-// "aws-marketplace"     : marketplacecatalog, marketplaceentitlementservice, marketplacemetering
-// "chime"               : chime, chimesdkmeetings, chimesdkmessaging, chimesdkidentity
-// "cloudhsm"            : cloudhsm, cloudhsmv2
-// "cloudsearch"         : cloudsearch, cloudsearchdomain
-// "elasticloadbalancing": elasticloadbalancing, elasticloadbalancingv2
-// "es"                  : elasticsearchservice, opensearch
-// "forecast"            : forecast, forecastquery
-// "greengrass"          : greengrass, greengrassv2
-// "connect"             : connect, connectcontactlens, connectparticipant
-// "dynamodb"            : dynamodb, dynamodbstreams
-// "forecast"            : forecast, forecastquery
-// "iot1click"           : iot1clickprojects, iot1clickdevicesservice.
-// "lex"                 : lexmodelbuildingservice, lexruntimeservice, lexmodelsv2, lexruntimev2.
-// "migrationhub"        : migrationhub, migrationhubconfig
-// "personalize"         : personalize, personalizeruntime, personalizeevents
-// "qldb"                : qldb, qldbsession
-// "rds"                 : rds, neptune, docdb
-// "s3"                  : s3, s3control
-// "sagemaker"           : sagemaker, sagemakerruntime, sagemakeredgemanager, sagemakerfeaturestoreruntime, augmentedairuntime.
-// "ses"                 : ses, sesv2, pinpointemail
-// "timestream"          : timestreamquery, timestreamwrite
-// "transcribe"          : transcribe, transcribestreamingservice
+// TODO(greedy52) Many services may sign with same names but use different
+// hostnames. Will need a way to differentiate them. For now, either make the
+// best guess in the mapping above or use the default signing names. See
+// signingNameToHostnames in endpoints_test.go for conflicting services.
