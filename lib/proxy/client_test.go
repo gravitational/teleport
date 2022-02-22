@@ -16,11 +16,7 @@ package proxy
 
 import (
 	"context"
-	"crypto/tls"
-	"net"
 	"testing"
-
-	clientapi "github.com/gravitational/teleport/api/client/proto"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -33,16 +29,9 @@ func TestClientConn(t *testing.T) {
 	ca, err := newSelfSignedCA()
 	require.NoError(t, err)
 
-	client := setupClient(t, ca)
-	server1 := setupServer(t, ca)
-	server2 := setupServer(t, ca)
-	go server1.Serve()
-	go server2.Serve()
-	t.Cleanup(func() {
-		server1.Close()
-		server2.Close()
-		client.Close()
-	})
+	client, _ := setupClient(t, ca, ca, types.RoleProxy)
+	server1, _ := setupServer(t, ca, ca, types.RoleProxy)
+	server2, _ := setupServer(t, ca, ca, types.RoleProxy)
 
 	// start with a fresh client
 	require.Equal(t, len(client.conns), 0)
@@ -51,74 +40,113 @@ func TestClientConn(t *testing.T) {
 	stream, cached, err := client.dial(context.TODO(), server1.config.Listener.Addr().String())
 	require.NoError(t, err)
 	require.False(t, cached)
+	require.NotNil(t, stream)
 	require.Equal(t, len(client.conns), 1)
-
-	err = stream.Send(&clientapi.Frame{
-		Message: &clientapi.Frame_Data{
-			&clientapi.Data{Bytes: []byte("test")},
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, sendMsg(stream))
+	stream.CloseSend()
 
 	// dial second server
-	_, cached, err = client.dial(context.TODO(), server2.config.Listener.Addr().String())
+	stream, cached, err = client.dial(context.TODO(), server2.config.Listener.Addr().String())
 	require.NoError(t, err)
 	require.False(t, cached)
+	require.NotNil(t, stream)
 	require.Equal(t, len(client.conns), 2)
+	stream.CloseSend()
 
 	// redial second server
-	_, cached, err = client.dial(context.TODO(), server2.config.Listener.Addr().String())
+	stream, cached, err = client.dial(context.TODO(), server2.config.Listener.Addr().String())
 	require.NoError(t, err)
 	require.True(t, cached)
+	require.NotNil(t, stream)
 	require.Equal(t, len(client.conns), 2)
+	stream.CloseSend()
 
 	// close second server
 	// and attempt to redial it
-	server2.Close()
-	_, _, err = client.dial(context.TODO(), server2.config.Listener.Addr().String())
+	server2.Shutdown()
+	stream, cached, err = client.dial(context.TODO(), server2.config.Listener.Addr().String())
 	require.Error(t, err)
+	require.Nil(t, stream)
 	require.Equal(t, len(client.conns), 1)
 }
 
-// setupClients return a Client object.
-func setupClient(t *testing.T, ca *tlsca.CertAuthority) *Client {
-	tlsConf := certFromIdentity(t, ca, tlsca.Identity{
+func TestCAChange(t *testing.T) {
+	clientCA, err := newSelfSignedCA()
+	require.NoError(t, err)
+
+	serverCA, err := newSelfSignedCA()
+	require.NoError(t, err)
+
+	client, clientTLSConfig := setupClient(t, clientCA, serverCA, types.RoleProxy)
+	server, serverTLSConfig := setupServer(t, serverCA, clientCA, types.RoleProxy)
+
+	// dial server and send a test data frame
+	stream1, cached, err := client.dial(context.TODO(), server.config.Listener.Addr().String())
+	require.NoError(t, err)
+	require.False(t, cached)
+	require.NotNil(t, stream1)
+
+	require.NoError(t, sendMsg(stream1))
+
+	// server ca rotated
+	newServerCA, err := newSelfSignedCA()
+	require.NoError(t, err)
+
+	newServerTLSConfig := certFromIdentity(t, newServerCA, tlsca.Identity{
 		Groups: []string{string(types.RoleProxy)},
 	})
 
-	client, err := NewClient(ClientConfig{
-		AccessCache: &mockAccessCache{},
-		TLSConfig:   tlsConf,
-	})
+	*serverTLSConfig = *newServerTLSConfig
+
+	// existing connection should still be working
+	stream1, cached, err = client.dial(context.TODO(), server.config.Listener.Addr().String())
+	require.NoError(t, err)
+	require.True(t, cached)
+	require.NotNil(t, stream1)
+	require.NoError(t, sendMsg(stream1))
+
+	// new connection should fail because client tls config still references old
+	// RootCAs.
+	stream2, err := client.newConnection(context.TODO(), server.config.Listener.Addr().String())
+	require.Error(t, err)
+	require.Nil(t, stream2)
+
+	// new connection should succeed because client references new RootCAs
+	*serverCA = *newServerCA
+	stream3, err := client.newConnection(context.TODO(), server.config.Listener.Addr().String())
+	require.NoError(t, err)
+	require.NotNil(t, stream3)
+	require.NoError(t, sendMsg(stream3))
+	stream3.CloseSend()
+
+	// for good measure, original stream should still be working
+	require.NoError(t, sendMsg(stream1))
+
+	// client ca rotated
+	newClientCA, err := newSelfSignedCA()
 	require.NoError(t, err)
 
-	return client
-}
-
-// setupServer return a Server object.
-func setupServer(t *testing.T, ca *tlsca.CertAuthority) *Server {
-	tlsConf := certFromIdentity(t, ca, tlsca.Identity{
+	newClientTLSConfig := certFromIdentity(t, newClientCA, tlsca.Identity{
 		Groups: []string{string(types.RoleProxy)},
 	})
 
-	getConfigForClient := func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
-		config := tlsConf.Clone()
-		config.ClientAuth = tls.RequireAndVerifyClientCert
-		config.ClientCAs = config.RootCAs
-		return config, nil
-	}
+	*clientTLSConfig = *newClientTLSConfig
 
-	listener, err := net.Listen("tcp", "localhost:0")
+	// new connection should fail because server tls config still references old
+	// ClientCAs.
+	stream4, err := client.newConnection(context.TODO(), server.config.Listener.Addr().String())
+	require.Error(t, err)
+	require.Nil(t, stream4)
+
+	// new connection should succeed because client references new RootCAs
+	*clientCA = *newClientCA
+	stream5, err := client.newConnection(context.TODO(), server.config.Listener.Addr().String())
 	require.NoError(t, err)
+	require.NotNil(t, stream5)
+	require.NoError(t, sendMsg(stream5))
+	stream5.CloseSend()
 
-	server, err := NewServer(ServerConfig{
-		AccessCache:        &mockAccessCache{},
-		Listener:           listener,
-		TLSConfig:          tlsConf,
-		ClusterDialer:      &mockClusterDialer{},
-		getConfigForClient: getConfigForClient,
-	})
-	require.NoError(t, err)
-
-	return server
+	// and one final time, original stream should still be working
+	require.NoError(t, sendMsg(stream1))
+	stream1.CloseSend()
 }
