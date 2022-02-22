@@ -47,7 +47,7 @@ const (
 // ClientConfig configures a Client instance.
 type ClientConfig struct {
 	// AccessCache is the caching client connected to the proxy client.
-	AccessCache auth.AccessCache
+	AccessCache auth.ProxyAccessPoint
 	// TLSConfig is the proxy client TLS configuration.
 	TLSConfig *tls.Config
 	// Log is the proxy client logger.
@@ -56,6 +56,9 @@ type ClientConfig struct {
 	Clock clockwork.Clock
 	// CleanupInterval is used to call Clean at regular intervals.
 	CleanupInterval time.Duration
+
+	// getConfigForServer updates the client tls config
+	getConfigForServer func() (*tls.Config, error)
 }
 
 // checkAndSetDefaults checks and sets default values
@@ -87,6 +90,10 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 
 	if len(c.TLSConfig.Certificates) == 0 {
 		return trace.BadParameter("missing tls certificate")
+	}
+
+	if c.getConfigForServer == nil {
+		c.getConfigForServer = getConfigForServer(c.TLSConfig, c.AccessCache, c.Log)
 	}
 
 	return nil
@@ -264,7 +271,12 @@ func (c *Client) newConnection(ctx context.Context, proxyAddr string) (clientapi
 		delete(c.conns, proxyAddr)
 	}
 
-	transportCreds := newProxyCredentials(credentials.NewTLS(c.config.TLSConfig))
+	tlsConfig, err := c.config.getConfigForServer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	transportCreds := newProxyCredentials(credentials.NewTLS(tlsConfig))
 	conn, err := grpc.DialContext(
 		ctx,
 		proxyAddr,

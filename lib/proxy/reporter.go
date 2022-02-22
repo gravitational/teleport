@@ -92,19 +92,19 @@ func newRequestReporter(rep reporter, req string) *requestReporter {
 	return rr
 }
 
-// reportCall reports client request specific metrics
+// reportCall reports request specific metrics
 func (r *requestReporter) reportCall(err error) {
 	r.getHandledCounter().WithLabelValues(r.req.service, r.req.method, statusCode(err)).Inc()
 	r.getHandledHistogram().WithLabelValues(r.req.service, r.req.method).Observe(time.Since(r.startTime).Seconds())
 }
 
-// reportMsgSent reports client message sent specific metrics
+// reportMsgSent reports message sent specific metrics
 func (r *requestReporter) reportMsgSent(err error, size int) {
 	r.getStreamMsgSentCounter().WithLabelValues(r.req.service, r.req.method, statusCode(err), strconv.Itoa(size)).Inc()
 	r.sendTimer.ObserveDuration()
 }
 
-// reportMsgReceived reports client message received specific metrics
+// reportMsgReceived reports message received specific metrics
 func (r *requestReporter) reportMsgReceived(err error, size int) {
 	r.getStreamMsgReceivedCounter().WithLabelValues(r.req.service, r.req.method, statusCode(err), strconv.Itoa(size)).Inc()
 	r.receiveTimer.ObserveDuration()
