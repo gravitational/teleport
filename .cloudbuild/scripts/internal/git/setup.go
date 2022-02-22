@@ -98,7 +98,7 @@ func cleanup(deployKey, knownHosts string) {
 	if knownHosts != "" {
 		log.Infof("Removing known_hosts file %s", knownHosts)
 		if err := os.Remove(knownHosts); err != nil {
-			log.WithError(err).Error("Failed cleaning up deploy key")
+			log.WithError(err).Error("Failed cleaning up known_hosts key")
 		}
 	}
 
