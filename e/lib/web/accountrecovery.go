@@ -14,7 +14,6 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
@@ -121,8 +120,6 @@ type verifyAccountRecoveryRequest struct {
 	Password string `json:"password"`
 	// SecondFactorToken is the otp value.
 	SecondFactorToken string `json:"secondFactorToken"`
-	// U2FSignResponse is u2f sign response for a u2f challenge.
-	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2fSignResponse"`
 	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
 	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
@@ -147,14 +144,6 @@ func (p *Plugin) verifyAccountRecoveryHandle(w http.ResponseWriter, r *http.Requ
 	case req.SecondFactorToken != "":
 		protoReq.AuthnCred = &proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{Code: req.SecondFactorToken}},
-		}}
-	case req.U2FSignResponse != nil:
-		protoReq.AuthnCred = &proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
-			Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{
-				KeyHandle:  req.U2FSignResponse.KeyHandle,
-				ClientData: req.U2FSignResponse.ClientData,
-				Signature:  req.U2FSignResponse.SignatureData,
-			}},
 		}}
 	case req.WebauthnAssertionResponse != nil:
 		protoReq.AuthnCred = &proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
@@ -191,8 +180,6 @@ type completeAccountRecoveryRequest struct {
 	SecondFactorToken string `json:"secondFactorToken"`
 	// Password is user password
 	Password string `json:"password"`
-	// U2FRegisterResponse is U2F registration challenge response.
-	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2fRegisterResponse"`
 	// WebauthnCreationResponse is the signed credential creation response.
 	WebauthnCreationResponse *wanlib.CredentialCreationResponse `json:"webauthnCreationResponse"`
 	// DeviceName is the name of the second factor device.
@@ -224,13 +211,6 @@ func (p *Plugin) completeAccountRecoveryHandle(w http.ResponseWriter, r *http.Re
 			Response: &proto.MFARegisterResponse_Webauthn{
 				Webauthn: wanlib.CredentialCreationResponseToProto(req.WebauthnCreationResponse),
 			},
-		}}
-	case req.U2FRegisterResponse != nil:
-		protoReq.NewAuthnCred = &proto.CompleteAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
-			Response: &proto.MFARegisterResponse_U2F{U2F: &proto.U2FRegisterResponse{
-				RegistrationData: req.U2FRegisterResponse.RegistrationData,
-				ClientData:       req.U2FRegisterResponse.ClientData,
-			}},
 		}}
 	default:
 		return nil, trace.BadParameter("at least one auth credential is required")

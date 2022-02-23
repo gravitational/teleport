@@ -13,31 +13,30 @@ steps:
       - -c
       - go run .cloudbuild/ci/checkout.go -workspace=/tmp/teleport -target=$_BASE_BRANCH
 
-  # Run the integration tests. Actual content of this job depends on the changes 
+  # Run the integration tests. Actual content of this job depends on the changes
   # detected in the PR
   - name: quay.io/gravitational/teleport-buildbox:go1.17.2
     id: run-tests
     dir: /tmp/teleport/.cloudbuild/scripts
     entrypoint: /bin/bash
-    args: 
+    args:
       - -c
-      - go run ./cmd/integration-tests -w=/tmp/teleport -t=$_BASE_BRANCH -c=HEAD
-    timeout: 20m   
+      - go run ./cmd/integration-tests -workspace=/tmp/teleport -target=$_BASE_BRANCH
+    timeout: 30m
 
 availableSecrets:
   secretManager:
   - versionName: projects/771512790633/secrets/webassets-e-deployment-key/versions/2
     env: WEBASSETS_DEPLOYMENT_KEY
 
-timeout: 25m
+timeout: 35m
 
 options:
   volumes:
     - name: oss_teleport
       path: /tmp/teleport
 
-  env: 
+  env:
     - GOMODCACHE=/tmp/teleport/.gomodcacheci
 
   machineType: 'E2_HIGHCPU_32'
-  
