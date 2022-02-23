@@ -484,10 +484,12 @@ func TestTLSConfiguration(t *testing.T) {
 
 func TestRDSCAURLForDatabase(t *testing.T) {
 	tests := map[string]string{
-		"us-west-1":     "https://truststore.pki.rds.amazonaws.com/us-west-1/us-west-1-bundle.pem",
-		"ca-central-1":  "https://truststore.pki.rds.amazonaws.com/ca-central-1/ca-central-1-bundle.pem",
-		"us-gov-east-1": "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-east-1/us-gov-east-1-bundle.pem",
-		"us-gov-west-1": "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-west-1/us-gov-west-1-bundle.pem",
+		"us-west-1":      "https://truststore.pki.rds.amazonaws.com/us-west-1/us-west-1-bundle.pem",
+		"ca-central-1":   "https://truststore.pki.rds.amazonaws.com/ca-central-1/ca-central-1-bundle.pem",
+		"us-gov-east-1":  "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-east-1/us-gov-east-1-bundle.pem",
+		"us-gov-west-1":  "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-west-1/us-gov-west-1-bundle.pem",
+		"cn-northwest-1": "https://rds-truststore.s3.cn-north-1.amazonaws.com.cn/cn-northwest-1/cn-northwest-1-bundle.pem",
+		"cn-north-1":     "https://rds-truststore.s3.cn-north-1.amazonaws.com.cn/cn-north-1/cn-north-1-bundle.pem",
 	}
 	for region, expectURL := range tests {
 		t.Run(region, func(t *testing.T) {
@@ -506,9 +508,10 @@ func TestRDSCAURLForDatabase(t *testing.T) {
 
 func TestRedshiftCAURLForDatabase(t *testing.T) {
 	tests := map[string]string{
-		"us-west-1":    "https://s3.amazonaws.com/redshift-downloads/amazon-trust-ca-bundle.crt",
-		"ca-central-1": "https://s3.amazonaws.com/redshift-downloads/amazon-trust-ca-bundle.crt",
-		"cn-north-1":   "https://s3.cn-north-1.amazonaws.com.cn/redshift-downloads-cn/amazon-trust-ca-bundle.crt",
+		"us-west-1":      "https://s3.amazonaws.com/redshift-downloads/amazon-trust-ca-bundle.crt",
+		"ca-central-1":   "https://s3.amazonaws.com/redshift-downloads/amazon-trust-ca-bundle.crt",
+		"cn-north-1":     "https://s3.cn-north-1.amazonaws.com.cn/redshift-downloads-cn/amazon-trust-ca-bundle.crt",
+		"cn-northwest-1": "https://s3.cn-north-1.amazonaws.com.cn/redshift-downloads-cn/amazon-trust-ca-bundle.crt",
 	}
 	for region, expectURL := range tests {
 		t.Run(region, func(t *testing.T) {
