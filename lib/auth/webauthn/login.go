@@ -63,10 +63,7 @@ type loginFlow struct {
 }
 
 func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (*CredentialAssertion, error) {
-	switch {
-	case f.Webauthn.Disabled:
-		return nil, trace.BadParameter("webauthn disabled")
-	case user == "" && !passwordless:
+	if user == "" && !passwordless {
 		return nil, trace.BadParameter("user required")
 	}
 
@@ -170,8 +167,6 @@ func beginLogin(
 
 func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAssertionResponse, passwordless bool) (*types.MFADevice, string, error) {
 	switch {
-	case f.Webauthn.Disabled:
-		return nil, "", trace.BadParameter("webauthn disabled")
 	case user == "" && !passwordless:
 		return nil, "", trace.BadParameter("user required")
 	case resp == nil:
