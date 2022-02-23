@@ -196,7 +196,7 @@ You can also use any other ACME-compatible server.
   ```
   </TabItem>
   <TabItem label="--set">
-  ``code
+  ```code
   $ --set acme=true \
   --set acmeEmail=user@email.com \
   --set acmeURI=https://acme-staging-v02.api.letsencrypt.org/directory
@@ -226,7 +226,7 @@ To disable this, you can set `enabled` to `false`.
   ```
   </TabItem>
   <TabItem label="--set">
-  ``code
+  ```code
   $ --set podSecurityPolicy.enabled=false
   ```
   </TabItem>
@@ -254,7 +254,7 @@ Teleport's RBAC policies to define access rules for the cluster.
   ```
   </TabItem>
   <TabItem label="--set">
-  ``code
+  ```code
   $ --set labels.environment=production \
   --set labels.region=us-east
   ```
@@ -296,7 +296,7 @@ The default is left blank, which will automatically create a `PersistentVolumeCl
   ```
   </TabItem>
   <TabItem label="--set">
-  ``code
+  ```code
   $ --set standalone.existingClaimName=my-existing-pvc-name
   ```
   </TabItem>
@@ -383,7 +383,7 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
   ```
   </TabItem>
   <TabItem label="--set">
-  ``code
+  ```code
   $ --set highAvailability.replicaCount=3
   ```
   </TabItem>

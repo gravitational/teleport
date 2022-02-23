@@ -1514,7 +1514,7 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 			Identity: identity,
 		}
 
-		credentialCreation, err := webRegistration.Begin(ctx, req.username)
+		credentialCreation, err := webRegistration.Begin(ctx, req.username, false /* passwordless */)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
