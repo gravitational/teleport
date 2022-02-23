@@ -300,16 +300,17 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	defer lp.Close()
-	go func() {
-		if err = lp.Start(cf.Context); err != nil {
-			log.WithError(err).Errorf("Failed to start local proxy.")
-		}
-	}()
-
 	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, lp.GetAddr())
 
-	<-cf.Context.Done()
+	go func() {
+		<-cf.Context.Done()
+		lp.Close()
+	}()
+
+	defer lp.Close()
+	if err = lp.Start(cf.Context); err != nil {
+		log.WithError(err).Errorf("Failed to start local proxy.")
+	}
 
 	return nil
 }
