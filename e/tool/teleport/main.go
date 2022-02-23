@@ -10,6 +10,10 @@ import (
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
+func init() {
+	utils.RegisterPrometheusCollectors(utils.BuildCollector())
+}
+
 func main() {
 	app, executedCommand, config := common.Run(common.Options{
 		Args:     os.Args[1:],
