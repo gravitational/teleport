@@ -4,22 +4,6 @@ description: Teleport Desktop Access introduction and resources.
 videoBanner: n2h0GisWdss
 ---
 
-<Admonition
-  type="warning"
-  title="Warning"
->
-  Desktop Access is currently in Preview. Do not use this feature for any critical
-  infrastructure and keep a backup option for accessing your desktop hosts.
-
-  Desktop Access Preview:
-
-  - is not compatible with HSM integration.
-  - does not support clipboard sharing.
-  - does not support session recording.
-  - does not support per-session MFA.
-  - may have worse performance than a native RDP client.
-</Admonition>
-
 # Desktop Access
 
 Teleport manages graphical desktop access to remote hosts. With Teleport
@@ -34,7 +18,7 @@ Desktop Access, you get:
   type="note"
   title="Supported platforms"
 >
-  Only Windows hosts accessible over RDP are supported currently. Specifically:
+  Only Windows hosts accessible over RDP are supported. Specifically:
 
   - Windows Server 2012 R2 / Windows 10 or newer
   - Hosts connected to an Active Directory domain
@@ -50,17 +34,20 @@ Desktop Access, you get:
 
 ## Resources
 
-{/*
-
-To learn more about configuring role-based access control for Desktop Access,
-check out [RBAC](./rbac.mdx) section.
-
-TODO: Complete the RBAC section
-
-*/}
-
-See [Reference](./reference.mdx) for an overview of
-Desktop Access related configuration and CLI commands.
+<TileSet>
+  <Tile icon="wrench" title="Configuration" href="./reference/configuration.mdx">
+    Configure Windows Desktop Service
+  </Tile>
+  <Tile icon="lock" title="RBAC" href="./rbac.mdx">
+    Role-based Access Control for Teleport Desktop Access
+  </Tile>
+  <Tile icon="window" title="CLI" href="./reference/cli.mdx">
+    CLI Reference
+  </Tile>
+  <Tile icon="list" title="Audit" href="./reference/audit.mdx">
+    Audit Events
+  </Tile>
+</TileSet>
 
 ## Troubleshooting
 
