@@ -35,22 +35,22 @@ import (
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
 
-func newIdentityService(t *testing.T) (*local.IdentityService, clockwork.Clock) {
+func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityService {
 	t.Helper()
-	clock := clockwork.NewFakeClock()
 	backend, err := lite.NewWithConfig(context.Background(), lite.Config{
 		Path:             t.TempDir(),
 		PollStreamPeriod: 200 * time.Millisecond,
 		Clock:            clock,
 	})
 	require.NoError(t, err)
-	return local.NewIdentityService(backend), clock
+	return local.NewIdentityService(backend)
 }
 
 func TestRecoveryCodesCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	identity, clock := newIdentityService(t)
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
 
 	// Create a recovery codes resource.
 	mockedCodes := []types.RecoveryCode{
@@ -129,7 +129,8 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 func TestRecoveryAttemptsCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	identity, clock := newIdentityService(t)
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
 
 	// Predefine times for equality check.
 	time1 := clock.Now()
@@ -190,7 +191,7 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 
 func TestIdentityService_UpsertMFADevice(t *testing.T) {
 	t.Parallel()
-	identity, _ := newIdentityService(t)
+	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	tests := []struct {
 		name string
@@ -261,7 +262,7 @@ func TestIdentityService_UpsertMFADevice(t *testing.T) {
 
 func TestIdentityService_UpsertMFADevice_errors(t *testing.T) {
 	t.Parallel()
-	identity, _ := newIdentityService(t)
+	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	totpDev := &types.MFADevice{
 		Metadata: types.Metadata{
@@ -392,7 +393,7 @@ func TestIdentityService_UpsertMFADevice_errors(t *testing.T) {
 
 func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 	t.Parallel()
-	identity, _ := newIdentityService(t)
+	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	updateViaUser := func(ctx context.Context, user string, wal *types.WebauthnLocalAuth) error {
 		u, err := types.NewUser(user)
@@ -481,19 +482,54 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 			err := test.update(ctx, test.name, test.wal)
 			require.NoError(t, err)
 
-			want := test.wal
-			got, err := test.get(ctx, test.name)
+			wantWLA := test.wal
+			gotWLA, err := test.get(ctx, test.name)
 			require.NoError(t, err)
-			if diff := cmp.Diff(want, got); diff != "" {
+			if diff := cmp.Diff(wantWLA, gotWLA); diff != "" {
 				t.Fatalf("WebauthnLocalAuth mismatch (-want +got):\n%s", diff)
 			}
+
+			gotUser, err := identity.GetTeleportUserByWebauthnID(ctx, gotWLA.UserID)
+			require.NoError(t, err)
+			require.Equal(t, test.name, gotUser)
+		})
+	}
+}
+
+func TestIdentityService_GetTeleportUserByWebauthnID(t *testing.T) {
+	t.Parallel()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	tests := []struct {
+		name      string
+		webID     []byte
+		assertErr func(error) bool
+	}{
+		{
+			name:      "NOK empty web ID",
+			webID:     nil,
+			assertErr: trace.IsBadParameter,
+		},
+		{
+			name:      "NOK unknown web ID",
+			webID:     []byte{1, 2, 3, 4, 5},
+			assertErr: trace.IsNotFound,
+		},
+	}
+
+	ctx := context.Background()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := identity.GetTeleportUserByWebauthnID(ctx, test.webID)
+			require.Error(t, err)
+			require.True(t, test.assertErr(err))
 		})
 	}
 }
 
 func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	t.Parallel()
-	identity, _ := newIdentityService(t)
+	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	const user1 = "llama"
 	const user2 = "alpaca"
@@ -568,7 +604,7 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 
 func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 	t.Parallel()
-	identity, _ := newIdentityService(t)
+	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	user1Login1 := &wantypes.SessionData{
 		Challenge:        []byte("challenge1"),
@@ -641,4 +677,62 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 		_, err := identity.GetGlobalWebauthnSessionData(ctx, p.scope, p.id)
 		require.NoError(t, err) // Other keys preserved
 	}
+}
+
+func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) {
+	// Don't t.Parallel()!
+
+	sdMax := local.GlobalSessionDataMaxEntries
+	sdClock := local.SessionDataLimiter.Clock
+	sdReset := local.SessionDataLimiter.ResetPeriod
+	defer func() {
+		local.GlobalSessionDataMaxEntries = sdMax
+		local.SessionDataLimiter.Clock = sdClock
+		local.SessionDataLimiter.ResetPeriod = sdReset
+	}()
+	fakeClock := clockwork.NewFakeClock()
+	period := 1 * time.Minute // arbitrary, applied to fakeClock
+	local.GlobalSessionDataMaxEntries = 2
+	local.SessionDataLimiter.Clock = fakeClock
+	local.SessionDataLimiter.ResetPeriod = period
+
+	const scopeLogin = "login"
+	const scopeOther = "other"
+	const id1 = "challenge1"
+	const id2 = "challenge2"
+	const id3 = "challenge3"
+	const id4 = "challenge4"
+	sd := &wantypes.SessionData{
+		Challenge:        []byte("supersecretchallenge"), // typically matches the key
+		UserVerification: "required",
+	}
+
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	// OK: below limit.
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id1, sd))
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id2, sd))
+	// NOK: limit reached.
+	err := identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id3, sd)
+	require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+
+	// OK: different scope.
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id1, sd))
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id2, sd))
+	// NOK: limit reached.
+	err = identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id3, sd)
+	require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+
+	// OK: keys removed.
+	require.NoError(t, identity.DeleteGlobalWebauthnSessionData(ctx, scopeLogin, id1))
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id4, sd))
+
+	// NOK: reach and double-check limits.
+	require.Error(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id3, sd))
+	require.Error(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id3, sd))
+	// OK: passage of time resets limits.
+	fakeClock.Advance(period)
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id3, sd))
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id3, sd))
 }

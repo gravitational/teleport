@@ -638,14 +638,12 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 			return trace.Wrap(s.closeCtx.Err())
 		default:
 		}
-
 		conn, err := lis.Accept()
 		if err != nil {
 			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
 				return nil
 			}
 			return trace.Wrap(err)
-
 		}
 		proxyConn, ok := conn.(*tls.Conn)
 		if !ok {
@@ -722,12 +720,20 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	desktopName := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
 	log = log.WithField("desktop-name", desktopName)
 
-	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopName)
+	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx,
+		types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID, Name: desktopName})
 	if err != nil {
 		log.WithError(err).Warning("Failed to fetch desktop by name")
 		sendTDPError("Teleport failed to find the requested desktop in its database.")
 		return
 	}
+	if len(desktops) == 0 {
+		log.Error("no windows desktops with HostID %s and Name %s", s.cfg.Heartbeat.HostUUID,
+			desktopName)
+		sendTDPError(fmt.Sprintf("Could not find desktop %v.", desktopName))
+		return
+	}
+	desktop := desktops[0]
 
 	log = log.WithField("desktop-addr", desktop.GetAddr())
 	log.Debug("Connecting to Windows desktop")
@@ -789,9 +795,13 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	var windowsUser string
 	authorize := func(login string) error {
 		windowsUser = login // capture attempted login user
+		mfaParams := services.AccessMFAParams{
+			Verified:       identity.MFAVerified != "",
+			AlwaysRequired: authPref.GetRequireSessionMFA(),
+		}
 		return authCtx.Checker.CheckAccess(
 			desktop,
-			services.AccessMFAParams{Verified: true},
+			mfaParams,
 			services.NewWindowsLoginMatcher(login))
 	}
 
@@ -959,6 +969,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 			types.WindowsDesktopSpecV3{
 				Addr:   addr,
 				Domain: s.cfg.Domain,
+				HostID: s.cfg.Heartbeat.HostUUID,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -976,11 +987,9 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 // should be reasonably fast to do this scan on every heartbeat. However, with
 // a very large number of desktops in the cluster, this may use up a lot of CPU
 // time.
-//
-// TODO(zmb3): think of an alternative way to not duplicate desktop objects
-// coming from different windows_desktop_services.
 func (s *WindowsService) nameForStaticHost(addr string) (string, error) {
-	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(s.closeCtx)
+	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(s.closeCtx,
+		types.WindowsDesktopFilter{})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
