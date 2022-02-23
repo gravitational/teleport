@@ -328,7 +328,7 @@ func loadAppCertificate(tc *client.TeleportClient, appName string) (tls.Certific
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 	if len(cert.Certificate) < 1 {
-		return tls.Certificate{}, trace.NotFound("invalid certificate length")
+		return tls.Certificate{}, trace.NotFound("invalid certificate - please login to the application again. 'tsh app login'")
 	}
 	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
 	if err != nil {
