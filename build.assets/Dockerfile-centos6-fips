@@ -7,18 +7,22 @@ ENV LANGUAGE=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     LC_CTYPE=en_US.UTF-8
 
-RUN yum makecache fast && \
+# Replace regular CentOS 6 mirror list with vault.centos.org, as CentOS 6 is EOL
+# and regular mirrors aren't hosted any more.
+RUN sed -i 's%^mirrorlist%#mirrorlist%g' /etc/yum.repos.d/* && \
+    sed -i 's%#baseurl=http://mirror.centos.org%baseurl=http://vault.centos.org%g' /etc/yum.repos.d/* && \
+    yum makecache fast && \
     yum -y install gcc pam-devel glibc-devel net-tools tree git zip && \
     yum clean all
 
 ARG UID
 ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
-     mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
+    mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz ;\
-     cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
+    cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
 
 # 1) Install binary go runtime for bootstrapping
 # 2) Get source for the correct Go boringcrypto runtime and compile it with Go bootstrap runtime
