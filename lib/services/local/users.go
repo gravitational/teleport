@@ -881,10 +881,6 @@ func (s *IdentityService) DeleteGlobalWebauthnSessionData(ctx context.Context, s
 	return nil
 }
 
-func globalSessionDataPrefix(scope string) []byte {
-	return backend.Key(webauthnPrefix, webauthnGlobalSessionData, scope)
-}
-
 func globalSessionDataKey(scope, id string) []byte {
 	return backend.Key(webauthnPrefix, webauthnGlobalSessionData, scope, id)
 }
