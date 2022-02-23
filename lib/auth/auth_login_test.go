@@ -70,22 +70,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			},
 		},
 		{
-			name: "OK second_factor:u2f",
-			spec: &types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorU2F,
-				U2F: &types.U2F{
-					AppID:  "https://localhost",
-					Facets: []string{"https://localhost"},
-				},
-			},
-			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
-				require.Empty(t, challenge.GetTOTP())
-				require.NotEmpty(t, challenge.GetU2F())
-				require.Empty(t, challenge.GetWebauthnChallenge())
-			},
-		},
-		{
 			name: "OK second_factor:webauthn (derived from U2F)",
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
@@ -144,34 +128,13 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorOptional,
-				U2F: &types.U2F{
-					AppID:  "https://localhost",
-					Facets: []string{"https://localhost"},
-				},
-			},
-			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
-				require.NotNil(t, challenge.GetTOTP())
-				require.NotEmpty(t, challenge.GetU2F())
-				require.NotEmpty(t, challenge.GetWebauthnChallenge())
-			},
-		},
-		{
-			name: "OK second_factor:optional with global Webauthn disable",
-			spec: &types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOptional,
-				U2F: &types.U2F{
-					AppID:  "https://localhost",
-					Facets: []string{"https://localhost"},
-				},
 				Webauthn: &types.Webauthn{
-					Disabled: true,
+					RPID: "localhost",
 				},
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.NotNil(t, challenge.GetTOTP())
-				require.NotEmpty(t, challenge.GetU2F())
-				require.Empty(t, challenge.GetWebauthnChallenge())
+				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 			},
 		},
 		{
@@ -179,14 +142,12 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorOn,
-				U2F: &types.U2F{
-					AppID:  "https://localhost",
-					Facets: []string{"https://localhost"},
+				Webauthn: &types.Webauthn{
+					RPID: "localhost",
 				},
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.NotNil(t, challenge.GetTOTP())
-				require.NotEmpty(t, challenge.GetU2F())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 			},
 		},
@@ -198,10 +159,11 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			require.NoError(t, authServer.SetAuthPreference(ctx, authPreference))
 
 			challenge, err := authServer.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
-					Username: username,
-					Password: []byte(password),
-				}},
+				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+					UserCredentials: &proto.UserCredentials{
+						Username: username,
+						Password: []byte(password),
+					}},
 			})
 			require.NoError(t, err)
 			test.assertChallenge(challenge)
@@ -233,7 +195,6 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 		solveChallenge func(*proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 	}{
 		{name: "OK TOTP device", solveChallenge: mfa.TOTPDev.SolveAuthn},
-		{name: "OK U2F device", solveChallenge: mfa.U2FDev.SolveAuthn},
 		{name: "OK Webauthn device", solveChallenge: mfa.WebDev.SolveAuthn},
 	}
 	for _, test := range tests {
@@ -371,7 +332,6 @@ func TestCreateAuthenticateChallenge_WithUserCredentials(t *testing.T) {
 			default:
 				require.NoError(t, err)
 				require.NotNil(t, res.GetTOTP())
-				require.NotEmpty(t, res.GetU2F())
 				require.NotEmpty(t, res.GetWebauthnChallenge())
 			}
 		})
@@ -463,7 +423,6 @@ func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
 			default:
 				require.NoError(t, err)
 				require.NotNil(t, res.GetTOTP())
-				require.NotEmpty(t, res.GetU2F())
 				require.NotEmpty(t, res.GetWebauthnChallenge())
 			}
 		})
@@ -503,10 +462,6 @@ func TestCreateRegisterChallenge(t *testing.T) {
 		deviceType proto.DeviceType
 	}{
 		{
-			name:       "u2f challenge",
-			deviceType: proto.DeviceType_DEVICE_TYPE_U2F,
-		},
-		{
 			name:       "totp challenge",
 			deviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
 		},
@@ -529,10 +484,6 @@ func TestCreateRegisterChallenge(t *testing.T) {
 			switch tc.deviceType {
 			case proto.DeviceType_DEVICE_TYPE_TOTP:
 				require.NotNil(t, res.GetTOTP().GetQRCode())
-
-			case proto.DeviceType_DEVICE_TYPE_U2F:
-				require.NotNil(t, res.GetU2F())
-
 			case proto.DeviceType_DEVICE_TYPE_WEBAUTHN:
 				require.NotNil(t, res.GetWebauthn())
 			}
@@ -541,17 +492,16 @@ func TestCreateRegisterChallenge(t *testing.T) {
 }
 
 type configureMFAResp struct {
-	User, Password          string
-	TOTPDev, U2FDev, WebDev *TestDevice
+	User, Password  string
+	TOTPDev, WebDev *TestDevice
 }
 
 func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "https://localhost",
-			Facets: []string{"https://localhost"},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 		// Use default Webauthn config.
 	})
@@ -574,9 +524,6 @@ func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 	totpDev, err := RegisterTestDevice(ctx, clt, "totp-1", proto.DeviceType_DEVICE_TYPE_TOTP, nil, WithTestDeviceClock(srv.Clock()))
 	require.NoError(t, err)
 
-	u2fDev, err := RegisterTestDevice(ctx, clt, "u2f-1", proto.DeviceType_DEVICE_TYPE_U2F, totpDev)
-	require.NoError(t, err)
-
 	webDev, err := RegisterTestDevice(ctx, clt, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev)
 	require.NoError(t, err)
 
@@ -584,7 +531,6 @@ func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 		User:     username,
 		Password: password,
 		TOTPDev:  totpDev,
-		U2FDev:   u2fDev,
 		WebDev:   webDev,
 	}
 }
