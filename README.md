@@ -185,11 +185,6 @@ Run `make update-webassets` to update the `webassets` repo and create a PR for
 You will need to have the `gh` utility installed on your system for the script
 to work. For installation instructions, read the [GitHub CLI installation](https://github.com/cli/cli/releases/latest) documentation.
 
-### Updating Documentation
-
-Teleport docs are built using [next](https://github.com/gravitational/next). Please see the README in that repo
-for details on how to make and test changes to Teleport docs.
-
 ### Managing dependencies
 
 All dependencies are managed using [Go modules](https://blog.golang.org/using-go-modules). Here are the instructions for some common tasks:
