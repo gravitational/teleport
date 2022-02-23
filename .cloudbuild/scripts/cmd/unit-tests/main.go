@@ -53,6 +53,8 @@ type commandlineArgs struct {
 	githubKeySrc           string
 }
 
+// NOTE: changing the interface to this build script may require follow-up
+// changes in the cloudbuild yaml for both `teleport` and `teleport.e`
 func parseCommandLine() (commandlineArgs, error) {
 	args := commandlineArgs{}
 

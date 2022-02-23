@@ -4,12 +4,6 @@ description: Connect Teleport to Active Directory and log into a Windows Desktop
 videoBanner: YvMqgcq0MTQ
 ---
 
-<Admonition type="warning" title="Warning">
-  Desktop Access is currently in Preview. Do not use this feature for any
-  critical infrastructure and keep a backup option for accessing your desktop
-  hosts.
-</Admonition>
-
 # Getting Started
 
 In this guide we will connect an Active Directory domain to Teleport using
@@ -365,7 +359,8 @@ the filepath to the `der_ca_file` configuration variable.
 
 In order to enable Desktop Access in Teleport, add the following section in
 `teleport.yaml` on your Linux server. For a detailed description of these
-configuration fields, see the [reference](./reference.mdx) page.
+configuration fields, see the
+[configuration reference](./reference/configuration.mdx) page.
 
 <Details title="Desktop Service Configuration" min="7.0" scopeOnly={true} scope={["oss", "enterprise"]}>
 ```yaml
@@ -437,8 +432,13 @@ spec:
     windows_desktop_logins: ["Administrator"]
 ```
 
-See the [RBAC section](./reference.mdx#rbac) in the Reference documentation
-for more information about setting up Windows Desktop Access permissions.
+<Admonition type="warning" title="RBAC Configuration">
+Ensure that each Teleport user is only assigned Windows logins that they should
+be allowed to access.
+</Admonition>
+
+See the [RBAC page](./rbac.mdx) for more information about setting up
+Windows Desktop Access permissions.
 
 See the [Access Controls Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles)
 guide for instructions on how to create or update a user with a given role.
