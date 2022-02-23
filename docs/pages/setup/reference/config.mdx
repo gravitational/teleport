@@ -507,6 +507,25 @@ ssh_service:
     # Enables/disables TCP forwarding. Default is 'true'
     port_forwarding: true
 
+    # When enabled, User's with the "permit_x11_forwarding" role option
+    # will be able to request x11 forwarding sessions with "tsh ssh -X".
+    #
+    # x11 forwarding will only work if the server has the "xauth" binary installed
+    # and supports unix sockets, e.g. "$TEMP/.X11-unix/X[display_number]".
+    #
+    # display_offset and max_display can be used to set a specific range
+    # of x11 displays to use when granting x11 forwarding sessions. This
+    # may be useful on servers with multiple Teleport Nodes or other x11
+    # services, or on nodes which want to support >1000 concurrent x11
+    # forwarding sessions.
+    x11: 
+      # "no" by default
+      enabled: yes
+      # "10" by default
+      display_offset: 10
+      # defaults to "display_offset + 1000"
+      max_display: 1010
+
 # This section configures the 'proxy service'
 proxy_service:
     # Turns 'proxy' role on. Default is 'yes'
