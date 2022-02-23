@@ -36,7 +36,6 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -350,32 +349,10 @@ func promptMFAChallenge(
 
 		// Convert from proto to JSON types.
 		switch {
-		// Webauthn takes precedence.
 		case c.GetWebauthnChallenge() != nil:
 			envelopeType = defaults.WebsocketWebauthnChallenge
 			chal = &auth.MFAAuthenticateChallenge{
 				WebauthnChallenge: wanlib.CredentialAssertionFromProto(c.WebauthnChallenge),
-			}
-		case len(c.U2F) > 0:
-			u2fChals := make([]u2f.AuthenticateChallenge, 0, len(c.U2F))
-			envelopeType = defaults.WebsocketU2FChallenge
-			for _, uc := range c.U2F {
-				u2fChals = append(u2fChals, u2f.AuthenticateChallenge{
-					Version:   uc.Version,
-					Challenge: uc.Challenge,
-					KeyHandle: uc.KeyHandle,
-					AppID:     uc.AppID,
-				})
-			}
-			chal = &auth.MFAAuthenticateChallenge{
-				AuthenticateChallenge: &u2f.AuthenticateChallenge{
-					// Get the common challenge fields from the first item.
-					// All of these fields should be identical for all u2fChals.
-					Challenge: u2fChals[0].Challenge,
-					AppID:     u2fChals[0].AppID,
-					Version:   u2fChals[0].Version,
-				},
-				U2FChallenges: u2fChals,
 			}
 		default:
 			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")
@@ -545,7 +522,7 @@ func (t *TerminalHandler) writeError(err error, ws *websocket.Conn) error {
 // and port.
 func resolveServerHostPort(servername string, existingServers []types.Server) (string, int, error) {
 	// If port is 0, client wants us to figure out which port to use.
-	var defaultPort = 0
+	defaultPort := 0
 
 	if servername == "" {
 		return "", defaultPort, trace.BadParameter("empty server name")

@@ -1592,27 +1592,6 @@ func TestAddMFADeviceSync(t *testing.T) {
 			},
 		},
 		{
-			name:       "U2F device with privilege exception token",
-			deviceName: "new-u2f",
-			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
-				// Obtain a privilege exception token.
-				privExToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilegeException)
-				require.NoError(t, err)
-
-				// Create register challenge and sign.
-				u2fRegRes, _, err := getLegacyMockedU2FAndRegisterRes(srv.Auth(), privExToken.GetName())
-				require.NoError(t, err)
-
-				return &proto.AddMFADeviceSyncRequest{
-					TokenID:       privExToken.GetName(),
-					NewDeviceName: deviceName,
-					NewMFAResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
-						U2F: u2fRegRes,
-					}},
-				}
-			},
-		},
-		{
 			name:       "Webauthn device with privilege exception token",
 			deviceName: "new-webauthn",
 			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {

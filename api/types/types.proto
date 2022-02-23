@@ -1083,14 +1083,7 @@ message Webauthn {
     // By default no devices are denied.
     repeated string AttestationDeniedCAs = 3
         [ (gogoproto.jsontag) = "attestation_denied_cas,omitempty" ];
-    // Disables Webauthn, regardless of other cluster settings.
-    // Allows fallback to pure U2F in clusters with second_factor:on or
-    // second_factor:optional.
-    // Must not be set for clusters with second_factor:webauthn.
-    // Temporary safety switch for Webauthn, to be removed in future versions of
-    // Teleport.
-    // DELETE IN 9.x, fallback not possible without U2F (codingllama).
-    bool Disabled = 4 [ (gogoproto.jsontag) = "disabled,omitempty" ];
+    reserved 4; // bool Disabled
 }
 
 // Namespace represents namespace resource specification
