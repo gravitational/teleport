@@ -237,10 +237,12 @@ const (
 	//
 	// https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-ssl-support.html
 	redshiftDefaultCAURL = "https://s3.amazonaws.com/redshift-downloads/amazon-trust-ca-bundle.crt"
-	// redshiftDefaultCAURL is the Redshift CA bundle download URL for AWS China regions.
+	// redshiftDefaultCAURL is the Redshift CA bundle download URL for AWS
+	// China regions.
 	//
 	// https://docs.amazonaws.cn/redshift/latest/mgmt/connecting-ssl-support.html
 	redshiftCNRegionCAURL = "https://s3.cn-north-1.amazonaws.com.cn/redshift-downloads-cn/amazon-trust-ca-bundle.crt"
+
 	// azureCAURL is the URL of the CA certificate for validating certificates
 	// presented by Azure hosted databases. See:
 	//

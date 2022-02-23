@@ -23,22 +23,27 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// IsRDSEndpoint returns true if input URI is an RDS endpoint.
+// IsAWSEndpoint returns true if the input URI is an AWS endpoint.
+func IsAWSEndpoint(uri string) bool {
+	// Note that AWSCNEndpointSuffix contains AWSEndpointSuffix so there is no
+	// need to search for AWSCNEndpointSuffix explicitly.
+	return strings.Contains(uri, AWSEndpointSuffix)
+}
+
+// IsRDSEndpoint returns true if the input URI is an RDS endpoint.
 //
 // https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html
 func IsRDSEndpoint(uri string) bool {
-	// Note that AWSEndpointSuffix contains AWSCNEndpointSuffix.
 	return strings.Contains(uri, RDSEndpointSubdomain) &&
-		strings.Contains(uri, AWSEndpointSuffix)
+		IsAWSEndpoint(uri)
 }
 
-// IsRedshiftEndpoint returns true if input URI is an Redshift endpoint.
+// IsRedshiftEndpoint returns true if the input URI is an Redshift endpoint.
 //
 // https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-from-psql.html
 func IsRedshiftEndpoint(uri string) bool {
-	// Note that AWSEndpointSuffix contains AWSCNEndpointSuffix.
 	return strings.Contains(uri, RedshiftEndpointSubdomain) &&
-		strings.Contains(uri, AWSEndpointSuffix)
+		IsAWSEndpoint(uri)
 }
 
 // trimAWSParentDomain removes common AWS endpoint suffixes from the endpoint.
@@ -63,7 +68,8 @@ func ParseRDSURI(uri string) (id, region string, err error) {
 	return ParseRDSEndpoint(endpoint)
 }
 
-// ParseRDSEndpoint extracts IDs and region from the provided RDS endpoint.
+// ParseRDSEndpoint extracts the identifier and region from the provided RDS
+// endpoint.
 //
 // RDS/Aurora endpoints look like this:
 // aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com
@@ -88,7 +94,7 @@ func ParseRDSEndpoint(endpoint string) (id, region string, err error) {
 		region = parts[3]
 
 	default:
-		return "", "", trace.BadParameter("endpoint %v is not a valid RDS endpoint", endpoint)
+		return "", "", trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
 	}
 
 	return parts[0], region, nil
@@ -125,7 +131,7 @@ func ParseRedshiftURI(uri string) (clusterID, region string, err error) {
 		region = parts[3]
 
 	default:
-		return "", "", trace.BadParameter("endpoint %v is not a valid Redshift endpoint", endpoint)
+		return "", "", trace.BadParameter("failed to parse %v as Redshift endpoint", endpoint)
 	}
 
 	return parts[0], region, nil
