@@ -21,9 +21,15 @@ get-ips:
 # print proxy static ip
 .PHONY: get-proxy-ip
 get-proxy-ip:
-	@terraform output -raw proxy_ip
+	@echo 35.82.178.61
+
+
+#@terraform output -raw proxy_ip
 
 # print grafana static ip
 .PHONY: get-grafana-ip
 get-grafana-ip:
-	@terraform output -raw grafana_ip
+	@echo 35.82.106.254
+
+
+#@terraform output -raw grafana_ip

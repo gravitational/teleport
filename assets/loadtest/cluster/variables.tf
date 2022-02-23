@@ -19,7 +19,7 @@ variable "zone" {
 variable "nodes_per_zone" {
   type        = number
   description = "The number of kubernetes nodes per zone"
-  default     = 1
+  default     = 14
 }
 
 variable "cluster_name" {

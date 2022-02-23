@@ -30,7 +30,7 @@ env:
 	@echo NODE_TOKEN=$(shell cat node-token) >> secrets.env
 	@echo PROXY_TOKEN=$(shell cat proxy-token) >> secrets.env
 	@echo TC_TOKEN=$(shell cat tc-token) >> secrets.env
-	@echo GCP_PROJECT=$(shell make --no-print-directory -C ../../cluster get-project) >> secrets.env
+	#@echo GCP_PROJECT=$(shell make --no-print-directory -C ../../cluster get-project) >> secrets.env
 
 grafana-pass:
 	openssl rand -base64 32 | tr -d '\n' > grafana-pass

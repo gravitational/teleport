@@ -262,13 +262,28 @@ install-iot-node:
 # install a non-IoT mode node
 .PHONY: install-node
 install-node:
-	@make expand-yaml FILENAME=../teleport/teleport-node
+	NODE_COUNT=10 TELEPORT_IMAGE=${TELEPORT_IMAGE} ./mk-multinode.sh
 	kubectl create configmap node-config -n loadtest \
-		--from-file=teleport.yaml=../teleport/teleport-node-gen.yaml \
+		--from-file=./multinode-cfg-gen/ \
 		--dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -f node-deployment-gen.yaml
+#	@make expand-yaml FILENAME=../teleport/teleport-node
+#	kubectl create configmap node-config -n loadtest \
+#		--from-file=teleport.yaml=../teleport/teleport-node-gen.yaml \
+#		--dry-run=client -o yaml | kubectl apply -f -
+#
+#	@make expand-yaml FILENAME=node
+#	kubectl apply -f node-gen.yaml
 
-	@make expand-yaml FILENAME=node
-	kubectl apply -f node-gen.yaml
+
+# install a non-IoT mode node
+.PHONY: install-node-aws-debug
+install-node-aws-debug:
+	NODE_COUNT=10 TELEPORT_IMAGE=quay.io/gravitational/teleport-ent:6.2.24 ./mk-multinode-aws-debug.sh
+	kubectl create configmap node-config \
+		--from-file=./multinode-cfg-gen/ \
+		--dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -f node-deployment-gen.yaml
 
 # installs a trusted cluster
 .PHONY: install-tc

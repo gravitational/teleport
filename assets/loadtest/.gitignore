@@ -6,6 +6,7 @@ k8s/certificate.yaml
 k8s/secrets/**
 !k8s/secrets/Makefile
 **/*-gen.yaml
+**/*-gen/
 
 **/profiles/**
 
