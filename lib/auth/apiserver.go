@@ -719,10 +719,6 @@ func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *htt
 	return string(certs.SSH), nil
 }
 
-type signInReq struct {
-	Password string `json:"password"`
-}
-
 type WebSessionReq struct {
 	// User is the user name associated with the session id.
 	User string `json:"user"`
@@ -1058,7 +1054,6 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 		return nil, trace.Wrap(err)
 	}
 	certs, err := auth.GetCertAuthorities(types.CertAuthType(p.ByName("type")), loadKeys)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
