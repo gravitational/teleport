@@ -27,10 +27,17 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	authproto "github.com/gravitational/teleport/api/client/proto"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/auth"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 func TestEncodeDecode(t *testing.T) {
@@ -125,4 +132,64 @@ func loadBitmaps(b *testing.B) []PNGFrame {
 	}
 	require.NoError(b, s.Err())
 	return result
+}
+
+func TestMFA(t *testing.T) {
+	var buff bytes.Buffer
+	c := NewConn(&buff)
+
+	mfaWant := &MFA{
+		Type: defaults.WebsocketWebauthnChallenge[0],
+		MFAAuthenticateChallenge: &auth.MFAAuthenticateChallenge{
+			WebauthnChallenge: &wanlib.CredentialAssertion{
+				Response: protocol.PublicKeyCredentialRequestOptions{
+					Challenge:      []byte("challenge"),
+					Timeout:        10,
+					RelyingPartyID: "teleport",
+					AllowedCredentials: []protocol.CredentialDescriptor{
+						{
+							Type:         "public-key",
+							CredentialID: []byte("credential id"),
+							Transport:    []protocol.AuthenticatorTransport{protocol.USB},
+						},
+					},
+					UserVerification: "discouraged",
+					Extensions: protocol.AuthenticationExtensions{
+						"ext1": "value1",
+					},
+				},
+			},
+		},
+	}
+	err := c.OutputMessage(mfaWant)
+	require.NoError(t, err)
+	mfaGot, err := DecodeMFAChallenge(bufio.NewReader(&buff))
+	require.NoError(t, err)
+	require.Equal(t, mfaWant, mfaGot)
+
+	respWant := &MFA{
+		Type: defaults.WebsocketWebauthnChallenge[0],
+		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
+			Response: &authproto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: &wantypes.CredentialAssertionResponse{
+					Type:  "public-key",
+					RawId: []byte("credential id"),
+					Response: &wantypes.AuthenticatorAssertionResponse{
+						ClientDataJson:    []byte("client data json"),
+						AuthenticatorData: []byte("authenticator data"),
+						Signature:         []byte("signature"),
+						UserHandle:        []byte("user handle"),
+					},
+					Extensions: &wantypes.AuthenticationExtensionsClientOutputs{
+						AppId: true,
+					},
+				},
+			},
+		},
+	}
+	err = c.OutputMessage(respWant)
+	require.NoError(t, err)
+	respGot, err := c.InputMessage()
+	require.NoError(t, err)
+	require.Equal(t, respWant, respGot)
 }

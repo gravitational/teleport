@@ -638,14 +638,12 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 			return trace.Wrap(s.closeCtx.Err())
 		default:
 		}
-
 		conn, err := lis.Accept()
 		if err != nil {
 			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
 				return nil
 			}
 			return trace.Wrap(err)
-
 		}
 		proxyConn, ok := conn.(*tls.Conn)
 		if !ok {
@@ -797,9 +795,13 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	var windowsUser string
 	authorize := func(login string) error {
 		windowsUser = login // capture attempted login user
+		mfaParams := services.AccessMFAParams{
+			Verified:       identity.MFAVerified != "",
+			AlwaysRequired: authPref.GetRequireSessionMFA(),
+		}
 		return authCtx.Checker.CheckAccess(
 			desktop,
-			services.AccessMFAParams{Verified: true},
+			mfaParams,
 			services.NewWindowsLoginMatcher(login))
 	}
 

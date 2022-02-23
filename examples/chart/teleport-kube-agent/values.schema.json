@@ -7,6 +7,7 @@
         "roles",
         "kubeClusterName",
         "apps",
+        "awsDatabases",
         "databases",
         "teleportVersionOverride",
         "insecureSkipProxyTLSVerify",
@@ -69,6 +70,34 @@
                     "default": ""
                 },
                 "additionalProperties": true
+            }
+        },
+        "awsDatabases": {
+            "$id": "#/properties/awsDatabases",
+            "type": "array",
+            "default": [],
+            "required": [
+                "types",
+                "regions",
+                "tags"
+            ],
+            "properties": {
+                "types": {
+                    "$id": "#/properties/awsDatabases/types",
+                    "type": "array",
+                    "default": []
+                },
+                "regions": {
+                    "$id": "#/properties/awsDatabases/regions",
+                    "type": "string",
+                    "default": []
+                },
+                "tags": {
+                    "$id": "#/properties/awsDatabases/tags",
+                    "type": "string",
+                    "default": []
+                },
+                "additionalProperties": false
             }
         },
         "databases": {

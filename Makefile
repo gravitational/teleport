@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=9.0.0-dev
+VERSION=10.0.0-dev
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -159,7 +159,7 @@ endif
 
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
-BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh
+BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
 RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE) and $(ROLETESTER_MESSAGE) and $(RDPCLIENT_MESSAGE)."
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
@@ -207,6 +207,10 @@ $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
+
+.PHONY: $(BUILDDIR)/tbot
+$(BUILDDIR)/tbot:
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tbot $(BUILDFLAGS) ./tool/tbot
 
 #
 # BPF support (IF ENABLED)
@@ -816,19 +820,24 @@ enter:
 grpc:
 	$(MAKE) -C build.assets grpc
 
-# proto file dependencies within the api module must be passed with the 'M' flag. This
-# way protoc generated files will use the correct api module import path in the case where
-# the import path has a version suffix, e.g. github.com/gravitational/teleport/api/v8
-GOGOPROTO_IMPORTMAP ?= $\
-	Mgithub.com/gravitational/teleport/api/types/types.proto=$(API_IMPORT_PATH)/types,$\
-	Mgithub.com/gravitational/teleport/api/types/events/events.proto=$(API_IMPORT_PATH)/types/events,$\
-	Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,$\
-	Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn
+print/env:
+	env
 
 # buildbox-grpc generates GRPC stubs
 .PHONY: buildbox-grpc
+buildbox-grpc: API_IMPORT_PATH := $(shell head -1 api/go.mod | awk '{print $$2}')
+# Proto file dependencies within the api module must be passed with the 'M'
+# flag. This way protoc generated files will use the correct api module import
+# path in the case where the import path has a version suffix, e.g.
+# "github.com/gravitational/teleport/api/v8".
+buildbox-grpc: GOGOPROTO_IMPORTMAP := $\
+	Mgithub.com/gravitational/teleport/api/types/events/events.proto=$(API_IMPORT_PATH)/types/events,$\
+	Mgithub.com/gravitational/teleport/api/types/types.proto=$(API_IMPORT_PATH)/types,$\
+	Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn,$\
+	Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,$\
+	Mignoreme=ignoreme
 buildbox-grpc:
-	echo $$PROTO_INCLUDE
+	@echo "PROTO_INCLUDE = $$PROTO_INCLUDE"
 	$(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}' \
 		api/client/proto/authservice.proto \
 		api/client/proto/joinservice.proto \
@@ -840,9 +849,6 @@ buildbox-grpc:
 		lib/events/slice.proto \
 		lib/multiplexer/test/ping.proto \
 		lib/web/envelope.proto
-
-# we eval within the make target to avoid invoking `go run` with every other call to the makefile
-	$(eval API_IMPORT_PATH := $(shell go run build.assets/gomod/print-import-path/main.go ./api))
 
 	cd api/client/proto && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \

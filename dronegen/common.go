@@ -70,7 +70,6 @@ type buildType struct {
 	os              string
 	arch            string
 	fips            bool
-	centos6         bool
 	centos7         bool
 	windowsUnsigned bool
 }
@@ -101,9 +100,7 @@ func dockerVolumeRefs(v ...volumeRef) []volumeRef {
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos combo
 func releaseMakefileTarget(b buildType) string {
 	makefileTarget := fmt.Sprintf("release-%s", b.arch)
-	if b.centos6 {
-		makefileTarget += "-centos6"
-	} else if b.centos7 {
+	if b.centos7 {
 		makefileTarget += "-centos7"
 	}
 	if b.fips {
