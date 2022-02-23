@@ -1245,7 +1245,7 @@ func EncodeSSOLoginResult(clientRedirectURL string, result auth.SSOLoginResult) 
 		return nil, trace.Wrap(err)
 	}
 
-	return encryptJson(clientRedirectURL, out, false)
+	return encryptJSON(clientRedirectURL, out, false)
 }
 
 // ConstructSSHResponse creates a special SSH response for SSH login method
@@ -1263,10 +1263,10 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return encryptJson(response.ClientRedirectURL, out, response.FIPS)
+	return encryptJSON(response.ClientRedirectURL, out, response.FIPS)
 }
 
-func encryptJson(clientRedirectURL string, jsonResponse []byte, FIPS bool) (*url.URL, error) {
+func encryptJSON(clientRedirectURL string, jsonResponse []byte, FIPS bool) (*url.URL, error) {
 	u, err := url.Parse(clientRedirectURL)
 	if err != nil {
 		return nil, trace.Wrap(err)

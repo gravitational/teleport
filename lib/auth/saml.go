@@ -388,9 +388,8 @@ func (a *Server) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, *
 
 	if err != nil {
 		return nil, di, err
-	} else {
-		return &re.auth, di, nil
 	}
+	return &re.auth, di, nil
 }
 
 type samlAuthResponse struct {
@@ -412,31 +411,31 @@ type SsoDiagnosticInfo struct {
 const (
 	DiagInfoProblem                 = "common.problem"
 	DiagInfoError                   = "common.error"
-	DiagInfoRequestId               = "common.requestID"
+	DiagInfoRequestID               = "common.requestID"
 	DiagInfoCreateUserParams        = "common.createUserParams"
 	DiagInfoSAMLAttributesToRoles   = "SAML.attributesToRoles"
 	DiagInfoSAMLAssertionInfo       = "SAML.assertionInfo"
 	DiagInfoSAMLAttributeStatements = "SAML.attributeStatements"
 )
 
-func (di *SsoDiagnosticInfo) GetClientRedirectUrl() (string, error) {
-	clientRedirectUrl := ""
+func (di *SsoDiagnosticInfo) GetClientRedirectURL() (string, error) {
+	url := ""
 
 	if di != nil {
 		if di.SAMLRequest != nil {
-			clientRedirectUrl = di.SAMLRequest.ClientRedirectURL
+			url = di.SAMLRequest.ClientRedirectURL
 		} else if di.OIDCRequest != nil {
-			clientRedirectUrl = di.OIDCRequest.ClientRedirectURL
+			url = di.OIDCRequest.ClientRedirectURL
 		} else if di.GithubRequest != nil {
-			clientRedirectUrl = di.GithubRequest.ClientRedirectURL
+			url = di.GithubRequest.ClientRedirectURL
 		}
 	}
 
-	if clientRedirectUrl == "" {
+	if url == "" {
 		return "", trace.Errorf("unable to find client redirect URL.")
 	}
 
-	return clientRedirectUrl, nil
+	return url, nil
 }
 
 func (di *SsoDiagnosticInfo) SetProblem(problem string, err error) {
@@ -459,7 +458,7 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, *
 		return nil, di, trace.Wrap(err)
 	}
 
-	di.DiagMap[DiagInfoRequestId] = requestID
+	di.DiagMap[DiagInfoRequestID] = requestID
 
 	request, err := a.Identity.GetSAMLAuthRequest(requestID)
 	if err != nil {

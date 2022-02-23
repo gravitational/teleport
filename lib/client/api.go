@@ -2936,9 +2936,8 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 
 	if response.Success {
 		return response.LoginResponse, nil
-	} else {
-		return nil, trace.Wrap(errFromDiagnosticInfo(response))
 	}
+	return nil, trace.Wrap(errFromDiagnosticInfo(response))
 }
 
 func errFromDiagnosticInfo(response *auth.SSOLoginResult) error {

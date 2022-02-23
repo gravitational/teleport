@@ -100,7 +100,7 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 	response, di, err := h.cfg.ProxyClient.ValidateSAMLResponse(samlResponse)
 
 	if di != nil && di.SSOTestFlow {
-		clientRedirectUrl, err2 := di.GetClientRedirectUrl()
+		clientRedirectURL, err2 := di.GetClientRedirectURL()
 		if err2 != nil {
 			logger.WithError(err2).Error("Error parsing response.")
 			return client.LoginFailedRedirectURL
@@ -131,7 +131,7 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 			result.DiagnosticInfo[key] = value
 		}
 
-		redirectURL, err := EncodeSSOLoginResult(clientRedirectUrl, result)
+		redirectURL, err := EncodeSSOLoginResult(clientRedirectURL, result)
 		if err != nil {
 			logger.WithError(err).Error("Error constructing ssh response.")
 			return client.LoginFailedRedirectURL
