@@ -53,8 +53,30 @@ data:
     db_service:
       {{- if contains "db" (.Values.roles | toString) }}
       enabled: true
+      {{- if not (or (.Values.awsDatabases) (.Values.databases)) }}
+        {{- fail "'awsDatabases' and/or 'databases' is required in chart values when db role is enabled, see README" }}
+      {{- end }}
       databases:
+      {{- if .Values.awsDatabases }}
+        aws:
+        {{- range $awsDb := .Values.awsDatabases }}
+          {{- if not (hasKey $awsDb "types") }}
+            {{- fail "'types' is required for all 'awsDatabases' in chart values when key is set and db role is enabled, see README" }}
+          {{- end }}
+          {{- if not (hasKey $awsDb "regions") }}
+            {{- fail "'regions' is required for all 'awsDatabases' in chart values when key is set and db role is enabled, see README" }}
+          {{- end }}
+          {{- if not (hasKey $awsDb "tags") }}
+            {{- fail "'tags' is required for all 'awsDatabases' in chart values when key is set and db role is enabled, see README" }}
+          {{- end }}
+        {{- end }}
+        {{- toYaml .Values.awsDatabases | nindent 8 }}
+      {{- end }}
+      {{- if .Values.databases }}
         {{- range $db := .Values.databases }}
+          {{- if (and ($.Values.awsDatabases) (hasKey $db "aws")) }}
+            {{- fail "The 'aws' key cannot be used under 'databases' when 'awsDatabases' is also set - use autodiscovery for AWS databases, or run a separate agent without awsDatabases" }}
+          {{- end }}
           {{- if not (hasKey $db "name") }}
             {{- fail "'name' is required for all 'databases' in chart values when db role is enabled, see README" }}
           {{- end }}
@@ -65,10 +87,11 @@ data:
             {{- fail "'protocol' is required for all 'databases' in chart values when db role is enabled, see README" }}
           {{- end }}
         {{- end }}
-        {{- required "'databases' map is required in chart values when db role is enabled, see README" .Values.databases | toYaml | nindent 8 }}
+        {{- toYaml .Values.databases | nindent 6 }}
       {{- else }}
       enabled: false
       {{- end }}
+    {{- end }}
     {{- end }}
 
     auth_service:
