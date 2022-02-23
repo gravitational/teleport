@@ -1175,6 +1175,27 @@ func (c *Client) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.
 	return response, nil
 }
 
+func tryFindSsoDiagnosticInfo(origError error) (*SsoDiagnosticInfo, error) {
+	raw, ok := trace.GetFields(origError)["sso-diag-info"]
+	if !ok {
+		return nil, trace.NotFound("cannot find sso diagnostic info field `sso-diag-info`")
+	}
+
+	out, err := json.Marshal(raw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var diagInfo SsoDiagnosticInfo
+
+	err = json.Unmarshal(out, &diagInfo)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &diagInfo, nil
+}
+
 // ValidateSAMLResponse validates response returned by SAML identity provider
 func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, *SsoDiagnosticInfo, error) {
 	out, err := c.PostJSON(c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
@@ -1182,12 +1203,9 @@ func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, *SsoDiagnos
 	})
 
 	// try to recover diagnostic info from proxy error
-	var di *SsoDiagnosticInfo
-	di = nil
-
-	var ssoDi SsoDiagnosticInfo
-	if trace.UnwrapProxyField(err, "sso-diag-info", &ssoDi) {
-		di = &ssoDi
+	di, errSso := tryFindSsoDiagnosticInfo(err)
+	if errSso != nil {
+		log.WithError(errSso).Debugf("Unable to find SSO Diagnostic Info")
 	}
 
 	if err != nil {

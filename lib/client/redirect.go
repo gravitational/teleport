@@ -104,7 +104,7 @@ func NewRedirector(ctx context.Context, login SSHLoginSSO, issueLogin IssueSSOLo
 		SSHLoginSSO:                 login,
 		mux:                         http.NewServeMux(),
 		key:                         key,
-		shortPath:                   "/" + uuid.New(),
+		shortPath:                   "/" + uuid.New().String(),
 		responseC:                   make(chan *auth.SSOLoginResult, 1),
 		errorC:                      make(chan error, 1),
 		issueSSOLoginConsoleRequest: issueLogin,

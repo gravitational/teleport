@@ -2240,7 +2240,7 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*
 	return samlReq, nil
 }
 
-func (a *ServerWithRoles) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
+func (a *ServerWithRoles) ValidateSAMLResponse(re string) (*SAMLAuthResponse, *SsoDiagnosticInfo, error) {
 	// auth callback is it's own authz, no need to check extra permissions
 	return a.authServer.ValidateSAMLResponse(re)
 }
