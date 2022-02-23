@@ -16,6 +16,14 @@ While completing this guide, you will deploy a single Teleport pod running the A
 If you are already running Teleport on another platform, you can use your existing Teleport deployment to access your Kubernetes cluster. [Follow our guide](./agent.mdx) to connect your Kubernetes cluster to Teleport.
 </Admonition>
 
+<Details title="Teleport Cloud customers" scopeOnly={true} scope={["cloud"]}>
+This guide shows you how to deploy the Teleport Auth Service and Proxy Service on a Kubernetes cluster. These services are fully managed in Teleport Cloud.
+
+Instead, Teleport Cloud users should consult the following guide, which shows you how to connect a Teleport Kubernetes Service node to an existing Teleport cluster.
+
+[Connect a Kubernetes Cluster to Teleport](./agent.mdx)
+</Details>
+
 ## Follow along with our video guide
 
 <iframe
@@ -32,7 +40,7 @@ If you are already running Teleport on another platform, you can use your existi
 - A Kubernetes cluster hosted by a cloud provider, which is required for the load balancer we deploy in this guide.
 
 <Admonition title="Local-only setups" type="tip">
-Teleport also supports Kubernetes in on-premise and air-gapped environments. If you would like to try out Teleport on your local machine, we recommend following our [Docker Compose guide](../../getting-started/docker-compose.mdx). 
+Teleport also supports Kubernetes in on-premise and air-gapped environments. If you would like to try out Teleport on your local machine, we recommend following our [Docker Compose guide](../../getting-started/docker-compose.mdx).
 </Admonition>
 
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
@@ -102,7 +110,7 @@ to create a public IP for Teleport.
 
     If `$MYIP` is blank, your cloud provider may have assigned a hostname to the load balancer rather than an IP address. Run the following command to retrieve the hostname, which you will use in place of `$MYIP` for subsequent commands.
 
-    ```code 
+    ```code
     $ MYIP=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
     ```
   </TabItem>
@@ -125,7 +133,7 @@ to create a public IP for Teleport.
 
     If `$MYIP` is blank, your cloud provider may have assigned a hostname to the load balancer rather than an IP address. Run the following command to retrieve the hostname, which you will use in place of `$MYIP` for subsequent commands.
 
-    ```code 
+    ```code
     $ MYIP=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
     ```
   </TabItem>
@@ -233,8 +241,8 @@ For other install options, check out [install guide](../../installation.mdx)
     ```code
     $ curl -L -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
     $ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    $ sudo mv teleport/tsh /usr/local/bin/tsh
-    $ sudo mv teleport/tctl /usr/local/bin/tctl
+    $ sudo mv teleport-ent/tsh /usr/local/bin/tsh
+    $ sudo mv teleport-ent/tctl /usr/local/bin/tctl
     ```
   </TabItem>
 </Tabs>

@@ -1473,6 +1473,22 @@ func (s *PresenceService) GetWindowsDesktopServices(ctx context.Context) ([]type
 	return srvs, nil
 }
 
+func (s *PresenceService) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
+	result, err := s.Get(ctx, backend.Key(windowsDesktopServicesPrefix, name))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	service, err := services.UnmarshalWindowsDesktopService(
+		result.Value,
+		services.WithResourceID(result.ID),
+		services.WithExpires(result.Expires),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return service, nil
+}
+
 // UpsertWindowsDesktopService registers new Windows desktop service.
 func (s *PresenceService) UpsertWindowsDesktopService(ctx context.Context, srv types.WindowsDesktopService) (*types.KeepAlive, error) {
 	if err := srv.CheckAndSetDefaults(); err != nil {
@@ -1531,9 +1547,8 @@ func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResou
 }
 
 func (s *PresenceService) listResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
-	reqLimit := int(req.Limit)
-	if reqLimit <= 0 {
-		return nil, "", trace.BadParameter("nonpositive limit value")
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
 	var keyPrefix []string
@@ -1566,6 +1581,7 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	}
 
 	// Get most limit+1 results to determine if there will be a next key.
+	reqLimit := int(req.Limit)
 	maxLimit := reqLimit + 1
 	var resources []types.ResourceWithLabels
 	if err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, maxLimit, func(items []backend.Item) (stop bool, err error) {
@@ -1605,6 +1621,10 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 // listResourcesWithSort supports sorting by falling back to retrieving all resources
 // with GetXXXs, filter, and then fake pagination.
 func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
 	var resources []types.ResourceWithLabels
 	switch req.ResourceType {
 	case types.KindNode:
@@ -1652,9 +1672,8 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 
 // FakePaginate is used when we are working with an entire list of resources upfront but still requires pagination.
 func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
-	limit := int(req.Limit)
-	if limit <= 0 {
-		return nil, "", trace.BadParameter("nonpositive limit value")
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
 	// Trim resources that precede start key.
@@ -1671,6 +1690,7 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 
 	// Iterate and filter resources, finding match up to limit+1 (+1 to determine next key),
 	// and halting when we reach page limit.
+	limit := int(req.Limit)
 	var nextKey string
 	var filtered []types.ResourceWithLabels
 	filter := services.MatchResourceFilter{

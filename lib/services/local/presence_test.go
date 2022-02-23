@@ -634,7 +634,6 @@ func TestListResources(t *testing.T) {
 
 			resources, nextKey, err := presence.ListResources(ctx, proto.ListResourcesRequest{
 				Limit:        1,
-				Namespace:    apidefaults.Namespace,
 				ResourceType: test.resourceType,
 				StartKey:     "",
 			})
@@ -839,7 +838,6 @@ func TestListResources_Helpers(t *testing.T) {
 	t.Run("test fetching when there is 0 upserted nodes", func(t *testing.T) {
 		req := proto.ListResourcesRequest{
 			ResourceType: types.KindNode,
-			Namespace:    namespace,
 			Limit:        5,
 		}
 		for _, tc := range tests {

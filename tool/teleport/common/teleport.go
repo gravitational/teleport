@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/config"
+	dbconfigurators "github.com/gravitational/teleport/lib/configurators/databases"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -64,10 +65,15 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	app = utils.InitCLIParser("teleport", "Clustered SSH service. Learn more at https://goteleport.com/teleport")
 
 	// define global flags:
-	var ccf config.CommandLineFlags
-	var scpFlags scp.Flags
-	var dumpFlags dumpFlags
-	var dbConfigCreateFlags createDatabaseConfigFlags
+	var (
+		ccf                             config.CommandLineFlags
+		scpFlags                        scp.Flags
+		dumpFlags                       dumpFlags
+		configureDatabaseAWSPrintFlags  configureDatabaseAWSPrintFlags
+		configureDatabaseAWSCreateFlags configureDatabaseAWSCreateFlags
+		configureDatabaseBootstrapFlags configureDatabaseBootstrapFlags
+		dbConfigCreateFlags             createDatabaseConfigFlags
+	)
 
 	// define commands:
 	start := app.Command("start", "Starts the Teleport service.")
@@ -204,10 +210,15 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbStartCmd.Flag("aws-rds-cluster-id", "(Only for Aurora) Aurora cluster identifier.").StringVar(&ccf.DatabaseAWSRDSClusterID)
 	dbStartCmd.Flag("gcp-project-id", "(Only for Cloud SQL) GCP Cloud SQL project identifier.").StringVar(&ccf.DatabaseGCPProjectID)
 	dbStartCmd.Flag("gcp-instance-id", "(Only for Cloud SQL) GCP Cloud SQL instance identifier.").StringVar(&ccf.DatabaseGCPInstanceID)
+	dbStartCmd.Flag("ad-keytab-file", "(Only for SQL Server) Kerberos keytab file.").StringVar(&ccf.DatabaseADKeytabFile)
+	dbStartCmd.Flag("ad-krb5-file", "(Only for SQL Server) Kerberos krb5.conf file.").Default(defaults.Krb5FilePath).StringVar(&ccf.DatabaseADKrb5File)
+	dbStartCmd.Flag("ad-domain", "(Only for SQL Server) Active Directory domain.").StringVar(&ccf.DatabaseADDomain)
+	dbStartCmd.Flag("ad-spn", "(Only for SQL Server) Service Principal Name for Active Directory auth.").StringVar(&ccf.DatabaseADSPN)
 	dbStartCmd.Flag("diag-addr", "Start diagnostic prometheus and healthz endpoint.").StringVar(&ccf.DiagnosticAddr)
 	dbStartCmd.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
 	dbStartCmd.Alias(dbUsageExamples) // We're using "alias" section to display usage examples.
-	dbConfigure := dbCmd.Command("configure", "Provides commands for configuring Database Service agents.")
+
+	dbConfigure := dbCmd.Command("configure", "Bootstraps database service configuration and cloud permissions.")
 	dbConfigureCreate := dbConfigure.Command("create", "Creates a sample Database Service configuration.")
 	dbConfigureCreate.Flag("proxy", fmt.Sprintf("Teleport proxy address to connect to [%s].", defaults.ProxyWebListenAddr().Addr)).
 		Default(defaults.ProxyWebListenAddr().Addr).
@@ -224,6 +235,35 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"Write to stdout with -o=stdout, default config file with -o=file or custom path with -o=file:///path").Short('o').Default(
 		teleport.SchemeStdout).StringVar(&dbConfigCreateFlags.output)
 	dbConfigureCreate.Alias(dbCreateConfigExamples) // We're using "alias" section to display usage examples.
+
+	dbConfigureBootstrap := dbConfigure.Command("bootstrap", "Bootstrap the necessary configuration for the database agent. It reads the provided agent configuration to determine what will be bootstrapped.")
+	dbConfigureBootstrap.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&configureDatabaseBootstrapFlags.config.ConfigPath)
+	dbConfigureBootstrap.Flag("manual", "When executed in \"manual\" mode, it will print the instructions to complete the configuration instead of applying them directly.").BoolVar(&configureDatabaseBootstrapFlags.config.Manual)
+	dbConfigureBootstrap.Flag("policy-name", fmt.Sprintf("Name of the Teleport Database agent policy. Default: %q", dbconfigurators.DefaultPolicyName)).Default(dbconfigurators.DefaultPolicyName).StringVar(&configureDatabaseBootstrapFlags.config.PolicyName)
+	dbConfigureBootstrap.Flag("confirm", "Do not prompt user and auto-confirm all actions.").BoolVar(&configureDatabaseBootstrapFlags.confirm)
+	dbConfigureBootstrap.Flag("attach-to-role", "Role name to attach policy to. Mutually exclusive with --attach-to-user. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.").StringVar(&configureDatabaseBootstrapFlags.config.AttachToRole)
+	dbConfigureBootstrap.Flag("attach-to-user", "User name to attach policy to. Mutually exclusive with --attach-to-role. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.").StringVar(&configureDatabaseBootstrapFlags.config.AttachToUser)
+
+	dbConfigureAWS := dbConfigure.Command("aws", "Bootstrap for AWS hosted databases.")
+	dbConfigureAWSPrintIAM := dbConfigureAWS.Command("print-iam", "Generate and show IAM policies.")
+	dbConfigureAWSPrintIAM.Flag("types",
+		fmt.Sprintf("Comma-separated list of database types to include in the policy. Any of %s", strings.Join(awsDatabaseTypes, ","))).
+		Short('r').
+		StringVar(&configureDatabaseAWSPrintFlags.types)
+	dbConfigureAWSPrintIAM.Flag("role", "IAM role name to attach policy to. Mutually exclusive with --user").StringVar(&configureDatabaseAWSPrintFlags.role)
+	dbConfigureAWSPrintIAM.Flag("user", "IAM user name to attach policy to. Mutually exclusive with --role").StringVar(&configureDatabaseAWSPrintFlags.user)
+	dbConfigureAWSPrintIAM.Flag("policy", "Only print IAM policy document.").BoolVar(&configureDatabaseAWSPrintFlags.policyOnly)
+	dbConfigureAWSPrintIAM.Flag("boundary", "Only print IAM boundary policy document.").BoolVar(&configureDatabaseAWSPrintFlags.boundaryOnly)
+	dbConfigureAWSCreateIAM := dbConfigureAWS.Command("create-iam", "Generate, create and attach IAM policies.")
+	dbConfigureAWSCreateIAM.Flag("types",
+		fmt.Sprintf("Comma-separated list of database types to include in the policy. Any of %s", strings.Join(awsDatabaseTypes, ","))).
+		Short('r').
+		StringVar(&configureDatabaseAWSCreateFlags.types)
+	dbConfigureAWSCreateIAM.Flag("name", "Created policy name. Defaults to empty. Will be auto-generated if not provided.").Default(dbconfigurators.DefaultPolicyName).StringVar(&configureDatabaseAWSCreateFlags.policyName)
+	dbConfigureAWSCreateIAM.Flag("attach", "Try to attach the policy to the IAM identity.").Default("true").BoolVar(&configureDatabaseAWSCreateFlags.attach)
+	dbConfigureAWSCreateIAM.Flag("confirm", "Do not prompt user and auto-confirm all actions.").BoolVar(&configureDatabaseAWSCreateFlags.confirm)
+	dbConfigureAWSCreateIAM.Flag("role", "IAM role name to attach policy to. Mutually exclusive with --user").StringVar(&configureDatabaseAWSCreateFlags.role)
+	dbConfigureAWSCreateIAM.Flag("user", "IAM user name to attach policy to. Mutually exclusive with --role").StringVar(&configureDatabaseAWSCreateFlags.user)
 
 	// define a hidden 'scp' command (it implements server-side implementation of handling
 	// 'scp' requests)
@@ -303,6 +343,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		utils.PrintVersion()
 	case dbConfigureCreate.FullCommand():
 		err = onDumpDatabaseConfig(dbConfigCreateFlags)
+	case dbConfigureAWSPrintIAM.FullCommand():
+		err = onConfigureDatabasesAWSPrint(configureDatabaseAWSPrintFlags)
+	case dbConfigureAWSCreateIAM.FullCommand():
+		err = onConfigureDatabasesAWSCreate(configureDatabaseAWSCreateFlags)
+	case dbConfigureBootstrap.FullCommand():
+		err = onConfigureDatabaseBootstrap(configureDatabaseBootstrapFlags)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -355,18 +401,6 @@ func (flags *dumpFlags) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	flags.output = normalizeOutput(flags.output)
-	return nil
-}
-
-type createDatabaseConfigFlags struct {
-	config.DatabaseSampleFlags
-	// output is the destination to write the configuration to.
-	output string
-}
-
-// CheckAndSetDefaults checks and sets the defaults
-func (flags *createDatabaseConfigFlags) CheckAndSetDefaults() error {
 	flags.output = normalizeOutput(flags.output)
 	return nil
 }
@@ -449,27 +483,6 @@ func onConfigDump(flags dumpFlags) error {
 		}
 	}
 
-	return nil
-}
-
-func onDumpDatabaseConfig(flags createDatabaseConfigFlags) error {
-	if err := flags.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	sfc, err := config.MakeDatabaseAgentConfigString(flags.DatabaseSampleFlags)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	configPath, err := dumpConfigFile(flags.output, sfc, "")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if configPath != "" {
-		fmt.Printf("Wrote config to file %q. Now you can start the server. Happy Teleporting!\n", configPath)
-	}
 	return nil
 }
 

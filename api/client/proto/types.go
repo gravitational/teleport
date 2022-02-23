@@ -20,7 +20,9 @@ package proto
 import (
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+
 	"github.com/gravitational/trace"
 )
 
@@ -73,7 +75,7 @@ func (req *HostCertsRequest) CheckAndSetDefaults() error {
 // CheckAndSetDefaults checks and sets default values.
 func (req *ListResourcesRequest) CheckAndSetDefaults() error {
 	if req.Namespace == "" {
-		return trace.BadParameter("missing parameter namespace")
+		req.Namespace = apidefaults.Namespace
 	}
 
 	if req.Limit <= 0 {

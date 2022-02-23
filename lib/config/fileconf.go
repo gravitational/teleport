@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
 
@@ -745,7 +745,10 @@ type Webauthn struct {
 	RPID                  string   `yaml:"rp_id,omitempty"`
 	AttestationAllowedCAs []string `yaml:"attestation_allowed_cas,omitempty"`
 	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
-	Disabled              bool     `yaml:"disabled,omitempty"`
+	// Disabled has no effect, it is kept solely to not break existing
+	// configurations.
+	// DELETE IN 11.0, time to sunset U2F (codingllama).
+	Disabled bool `yaml:"disabled,omitempty"`
 }
 
 func (w *Webauthn) Parse() (*types.Webauthn, error) {
@@ -757,13 +760,18 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 	if err != nil {
 		return nil, trace.BadParameter("webauthn.attestation_denied_cas: %v", err)
 	}
+	if w.Disabled {
+		log.Warnf(`` +
+			`The "webauthn.disabled" setting is marked for removal and currently has no effect. ` +
+			`Please update your configuration to use WebAuthn. ` +
+			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`)
+	}
 	return &types.Webauthn{
 		// Allow any RPID to go through, we rely on
 		// types.Webauthn.CheckAndSetDefaults to correct it.
 		RPID:                  w.RPID,
 		AttestationAllowedCAs: allowedCAs,
 		AttestationDeniedCAs:  deniedCAs,
-		Disabled:              w.Disabled,
 	}, nil
 }
 
@@ -1035,6 +1043,20 @@ type Database struct {
 	AWS DatabaseAWS `yaml:"aws"`
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP `yaml:"gcp"`
+	// AD contains Active Directory database configuration.
+	AD DatabaseAD `yaml:"ad"`
+}
+
+// DatabaseAD contains database Active Directory configuration.
+type DatabaseAD struct {
+	// KeytabFile is the path to the Kerberos keytab file.
+	KeytabFile string `yaml:"keytab_file"`
+	// Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
+	Krb5File string `yaml:"krb5_file,omitempty"`
+	// Domain is the Active Directory domain the database resides in.
+	Domain string `yaml:"domain"`
+	// SPN is the service principal name for the database.
+	SPN string `yaml:"spn"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.

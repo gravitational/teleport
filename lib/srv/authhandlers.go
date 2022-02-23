@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -146,6 +147,16 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	identity.ActiveRequests = accessRequestIDs
 	if _, ok := certificate.Extensions[teleport.CertExtensionDisallowReissue]; ok {
 		identity.DisallowReissue = true
+	}
+	if _, ok := certificate.Extensions[teleport.CertExtensionRenewable]; ok {
+		identity.Renewable = true
+	}
+	if generationStr, ok := certificate.Extensions[teleport.CertExtensionGeneration]; ok {
+		generation, err := strconv.ParseUint(generationStr, 10, 64)
+		if err != nil {
+			return IdentityContext{}, trace.Wrap(err)
+		}
+		identity.Generation = generation
 	}
 	return identity, nil
 }
