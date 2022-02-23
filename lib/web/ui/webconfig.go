@@ -43,6 +43,8 @@ type WebConfig struct {
 	CanJoinSessions bool `json:"canJoinSessions"`
 	// ProxyClusterName is the name of the local cluster
 	ProxyClusterName string `json:"proxyCluster,omitempty"`
+	// TunnelPublicAddress is the public ssh tunnel address
+	TunnelPublicAddress string `json:"tunnelPublicAddress,omitempty"`
 }
 
 // WebConfigAuthProvider describes auth. provider

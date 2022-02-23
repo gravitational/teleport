@@ -102,8 +102,8 @@ type Handler struct {
 	// from configuration
 	sshPort string
 
-	// clusterFeatures contain flags for supported and unsupported features.
-	clusterFeatures proto.Features
+	// ClusterFeatures contain flags for supported and unsupported features.
+	ClusterFeatures proto.Features
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -222,7 +222,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		cfg:             cfg,
 		log:             newPackageLogger(),
 		clock:           clockwork.NewRealClock(),
-		clusterFeatures: cfg.ClusterFeatures,
+		ClusterFeatures: cfg.ClusterFeatures,
 	}
 
 	for _, o := range opts {
@@ -538,7 +538,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	userContext, err := ui.NewUserContext(user, roleset, h.clusterFeatures)
+	userContext, err := ui.NewUserContext(user, roleset, h.ClusterFeatures)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -845,9 +845,16 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		AuthType:         authType,
 	}
 
+	// get tunnel address to display on cloud instances
+	tunnelPublicAddr := ""
+	if h.ClusterFeatures.GetCloud() {
+		tunnelPublicAddr = h.cfg.ProxySettings.SSH.TunnelListenAddr
+	}
+
 	webCfg := ui.WebConfig{
-		Auth:            authSettings,
-		CanJoinSessions: canJoinSessions,
+		Auth:                authSettings,
+		CanJoinSessions:     canJoinSessions,
+		TunnelPublicAddress: tunnelPublicAddr,
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
