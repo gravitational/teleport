@@ -533,21 +533,23 @@ func TestX11Config(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		text := bytes.NewBuffer(editConfig(t, tc.mutate))
+		t.Run(tc.desc, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, tc.mutate))
 
-		cfg, err := ReadConfig(text)
-		if tc.expectReadError != nil {
-			tc.expectReadError(t, err)
-			return
-		}
-		require.NoError(t, err)
+			cfg, err := ReadConfig(text)
+			if tc.expectReadError != nil {
+				tc.expectReadError(t, err)
+				return
+			}
+			require.NoError(t, err)
 
-		serverCfg, err := cfg.SSH.X11ServerConfig()
-		if tc.expectConfigError != nil {
-			tc.expectConfigError(t, err)
-			return
-		}
-		require.NoError(t, err)
-		require.Equal(t, tc.expectX11Config, serverCfg)
+			serverCfg, err := cfg.SSH.X11ServerConfig()
+			if tc.expectConfigError != nil {
+				tc.expectConfigError(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.expectX11Config, serverCfg)
+		})
 	}
 }
