@@ -349,7 +349,7 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 }
 
 // SSHAgentMFALogin requests a MFA challenge via the proxy.
-// If the credentials are valid, the proxy wiil return a challenge. We then
+// If the credentials are valid, the proxy will return a challenge. We then
 // prompt the user to provide 2nd factor and pass the response to the proxy.
 // If the authentication succeeds, we will get a temporary certificate back.
 func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginResponse, error) {
