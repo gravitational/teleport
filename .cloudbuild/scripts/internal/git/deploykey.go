@@ -1,7 +1,7 @@
 package git
 
 import (
-	"io/ioutil"
+	"os"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -10,7 +10,7 @@ import (
 func writeKey(deployKey []byte) (string, error) {
 	// Note that tempfiles are automatically created with 0600, so no-one else
 	// should be able to read this.
-	keyFile, err := ioutil.TempFile("", "*")
+	keyFile, err := os.TempFile("", "*")
 	if err != nil {
 		return "", trace.Wrap(err, "failed creating keyfile")
 	}

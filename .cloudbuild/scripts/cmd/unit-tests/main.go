@@ -123,15 +123,9 @@ func run() error {
 		}
 	}
 
-	log.Info("Configuring git")
-	gitCfg, err := git.Configure(args.workspace, deployKey)
-	if err != nil {
-		return trace.Wrap(err, "failed configuring git")
-	}
-	defer gitCfg.Close()
-
-	log.Info("Unshallowing repository")
-	err = gitCfg.Do("fetch", "-v", "--unshallow")
+	unshallowCtx, unshallowCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer unshallowCancel()
+	err = git.UnshallowRepository(unshallowCtx, args.workspace, deployKey)
 	if err != nil {
 		return trace.Wrap(err, "unshallow failed")
 	}

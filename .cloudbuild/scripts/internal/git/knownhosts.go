@@ -1,10 +1,13 @@
 package git
 
 import (
-	"fmt"
 	"io/ioutil"
+	"os"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 func touchTempFile() (string, error) {
@@ -17,21 +20,25 @@ func touchTempFile() (string, error) {
 	return tempFile.Name(), nil
 }
 
-func configureKnownHosts() (string, error) {
-	knownHostsFile, err := touchTempFile()
+func configureKnownHosts(hostname string, keys []ssh.PublicKey) (string, error) {
+	knownHostsFile, err := os.CreateTemp("", "*")
 	if err != nil {
-		return "", trace.Wrap(err, "failed creating known_hosts file")
+		return "", trace.Wrap(err, "failed creating known hosts file")
+	}
+	defer knownHostsFile.Close()
+
+	log.Infof("Writing known_hosts file to %s", knownHostsFile.Name())
+
+	addrs := []string{hostname}
+	for _, k := range keys {
+		log.Infof("processing key %s...", k.Type())
+		_, err := knownHostsFile.WriteString(knownhosts.Line(addrs, k) + "\n")
+		if err != nil {
+			knownHostsFile.Close()
+			os.Remove(knownHostsFile.Name())
+			return "", trace.Wrap(err, "failed writing known hosts")
+		}
 	}
 
-	script := fmt.Sprintf("ssh-keyscan -H github.com > %q 2>/dev/null", knownHostsFile)
-	err = run(".", nil, "/bin/bash", "-c", script)
-	if err != nil {
-		return "", trace.Wrap(err, "failed adding github.com to known hosts")
-	}
-
-	// Ideally we would now validate the contents of `knownHostsFile` against the
-	// keys published here:
-	//	 https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints
-
-	return knownHostsFile, nil
+	return knownHostsFile.Name(), nil
 }
