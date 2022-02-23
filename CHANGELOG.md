@@ -1,5 +1,11 @@
 # Changelog
 
+## 7.3.15
+
+This release of Teleport contains a performance improvement.
+
+* Reduce network utilization by propagating only necessary CAs when using Trusted Clusters. [#10020](https://github.com/gravitational/teleport/pull/10020)
+
 ## 7.3.14
 
 This release of Teleport contains a security fix.
