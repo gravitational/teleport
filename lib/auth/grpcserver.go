@@ -77,6 +77,14 @@ var (
 			Buckets: prometheus.LinearBuckets(0, 100, 20),
 		},
 	)
+	connectedResources = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricConnectedResources,
+			Help:      "Tracks the number and type of resources connected via keepalives",
+		},
+		[]string{teleport.TagType},
+	)
 )
 
 // GRPCServer is GPRC Auth Server API
@@ -126,11 +134,6 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if firstIteration {
-			g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
-			heartbeatConnectionsReceived.Inc()
-			firstIteration = false
-		}
 		keepAlive, err := stream.Recv()
 		if err == io.EOF {
 			g.Debugf("Connection closed.")
@@ -143,6 +146,13 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 		err = auth.KeepAliveServer(stream.Context(), *keepAlive)
 		if err != nil {
 			return trace.Wrap(err)
+		}
+		if firstIteration {
+			g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
+			heartbeatConnectionsReceived.Inc()
+			connectedResources.WithLabelValues(keepAlive.GetType()).Inc()
+			defer connectedResources.WithLabelValues(keepAlive.GetType()).Dec()
+			firstIteration = false
 		}
 	}
 }
@@ -3538,7 +3548,7 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 
 // NewGRPCServer returns a new instance of GRPC server
 func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
-	err := utils.RegisterPrometheusCollectors(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes)
+	err := utils.RegisterPrometheusCollectors(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes, connectedResources)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
