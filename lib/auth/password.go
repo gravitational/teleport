@@ -103,7 +103,6 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 	// validate new password
 	if err := services.VerifyPassword(req.NewPassword); err != nil {
 		return trace.Wrap(err)
-
 	}
 
 	// Authenticate.
@@ -116,9 +115,6 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 		authReq.Pass = &PassCreds{
 			Password: req.OldPassword,
 		}
-	}
-	if req.WebauthnResponse != nil {
-		authReq.Webauthn = req.WebauthnResponse
 	}
 	if req.SecondFactorToken != "" {
 		authReq.OTP = &OTPCreds{
