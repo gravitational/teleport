@@ -258,7 +258,7 @@ func mkLocalProxyCerts(certFile, keyFile string) ([]tls.Certificate, error) {
 	return []tls.Certificate{cert}, nil
 }
 
-func onProxyCommandAPP(cf *CLIConf) error {
+func onProxyCommandApp(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -291,7 +291,6 @@ func onProxyCommandAPP(cf *CLIConf) error {
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),
-		AWSCredentials:     nil,
 		Certs:              []tls.Certificate{appCerts},
 	})
 	if err != nil {
