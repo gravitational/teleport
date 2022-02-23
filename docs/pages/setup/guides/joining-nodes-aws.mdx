@@ -29,8 +29,11 @@ IAM credentials, such as an EC2 instance with an attached IAM role.
 No specific permissions or IAM policy is required: an IAM role with no attached
 policies is sufficient.
 No IAM credentials at all are required on the Teleport Auth server.
+
+<Admonition type="warning">
 The IAM join method is not compatible with the `--insecure-no-tls` flag, and is
 currently not supported in the AWS China or GovCloud partitions.
+</Admonition>
 
 ## Prerequisites
 
