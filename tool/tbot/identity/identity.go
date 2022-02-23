@@ -381,7 +381,7 @@ func SaveIdentity(id *Identity, d destination.Destination, kinds ...ArtifactKind
 		data := artifact.ToBytes(id)
 
 		log.Debugf("Writing %s", artifact.Key)
-		if err := d.Write(artifact.Key, data, artifact.ModeHint); err != nil {
+		if err := d.Write(artifact.Key, data); err != nil {
 			return trace.WrapWithMessage(err, "could not write to %v", artifact.Key)
 		}
 	}

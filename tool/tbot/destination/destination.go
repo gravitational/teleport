@@ -16,23 +16,10 @@ limitations under the License.
 
 package destination
 
-// ModeHint is a backend-agnostic file mode hint.
-type ModeHint int64
-
-const (
-	// ModeHintUnspecified hints that files should be created with default
-	// (possibly insecure) permissions.
-	ModeHintUnspecified ModeHint = iota
-
-	// ModeHintSecret hints that files should be created with restricted
-	// permissions, appropriate for secret data.
-	ModeHintSecret
-)
-
 // Destination can persist renewable certificates.
 type Destination interface {
 	// Write stores data to the destination with the given name.
-	Write(name string, data []byte, modeHint ModeHint) error
+	Write(name string, data []byte) error
 
 	// Read fetches data from the destination with a given name.
 	Read(name string) ([]byte, error)

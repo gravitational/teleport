@@ -17,7 +17,6 @@ limitations under the License.
 package config
 
 import (
-	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 )
@@ -51,7 +50,7 @@ func (dm *DestinationMemory) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (dm *DestinationMemory) Write(name string, data []byte, _ destination.ModeHint) error {
+func (dm *DestinationMemory) Write(name string, data []byte) error {
 	dm.store[name] = data
 
 	return nil

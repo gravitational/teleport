@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -51,12 +50,10 @@ func (c *TemplateSSHClient) CheckAndSetDefaults() error {
 func (c *TemplateSSHClient) Describe() []FileDescription {
 	return []FileDescription{
 		{
-			Name:     "ssh_config",
-			ModeHint: destination.ModeHintSecret,
+			Name: "ssh_config",
 		},
 		{
-			Name:     "known_hosts",
-			ModeHint: destination.ModeHintSecret,
+			Name: "known_hosts",
 		},
 	}
 }

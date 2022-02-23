@@ -21,7 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gravitational/teleport/tool/tbot/destination"
+	"github.com/gravitational/teleport/tool/tbot/botfs"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 )
@@ -61,9 +61,8 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (dd *DestinationDirectory) Write(name string, data []byte, modeHint destination.ModeHint) error {
-	// TODO: honor modeHint?
-	if err := os.WriteFile(filepath.Join(dd.Path, name), data, 0600); err != nil {
+func (dd *DestinationDirectory) Write(name string, data []byte) error {
+	if err := os.WriteFile(filepath.Join(dd.Path, name), data, botfs.DefaultMode); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

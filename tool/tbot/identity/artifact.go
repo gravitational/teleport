@@ -20,13 +20,11 @@ import (
 	"bytes"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/tool/tbot/destination"
 )
 
 type Artifact struct {
 	Key       string
 	Kind      ArtifactKind
-	ModeHint  destination.ModeHint
 	ToBytes   func(*Identity) []byte
 	FromBytes func(*proto.Certs, *LoadIdentityParams, []byte)
 }
@@ -50,9 +48,8 @@ func (a *Artifact) Matches(kinds ...ArtifactKind) bool {
 var artifacts []Artifact = []Artifact{
 	// SSH artifacts
 	{
-		Key:      SSHCertKey,
-		Kind:     KindSSH,
-		ModeHint: destination.ModeHintSecret,
+		Key:  SSHCertKey,
+		Kind: KindSSH,
 		ToBytes: func(i *Identity) []byte {
 			return i.CertBytes
 		},
@@ -61,9 +58,8 @@ var artifacts []Artifact = []Artifact{
 		},
 	},
 	{
-		Key:      SSHCACertsKey,
-		Kind:     KindSSH,
-		ModeHint: destination.ModeHintSecret,
+		Key:  SSHCACertsKey,
+		Kind: KindSSH,
 		ToBytes: func(i *Identity) []byte {
 			return bytes.Join(i.SSHCACertBytes, []byte("$"))
 		},
@@ -74,9 +70,8 @@ var artifacts []Artifact = []Artifact{
 
 	// TLS artifacts
 	{
-		Key:      TLSCertKey,
-		Kind:     KindTLS,
-		ModeHint: destination.ModeHintSecret,
+		Key:  TLSCertKey,
+		Kind: KindTLS,
 		ToBytes: func(i *Identity) []byte {
 			return i.TLSCertBytes
 		},
@@ -85,9 +80,8 @@ var artifacts []Artifact = []Artifact{
 		},
 	},
 	{
-		Key:      TLSCACertsKey,
-		Kind:     KindTLS,
-		ModeHint: destination.ModeHintSecret,
+		Key:  TLSCACertsKey,
+		Kind: KindTLS,
 		ToBytes: func(i *Identity) []byte {
 			return bytes.Join(i.TLSCACertsBytes, []byte("$"))
 		},
@@ -98,9 +92,8 @@ var artifacts []Artifact = []Artifact{
 
 	// Common artifacts
 	{
-		Key:      PrivateKeyKey,
-		Kind:     KindAlways,
-		ModeHint: destination.ModeHintSecret,
+		Key:  PrivateKeyKey,
+		Kind: KindAlways,
 		ToBytes: func(i *Identity) []byte {
 			return i.PrivateKeyBytes
 		},
@@ -109,9 +102,8 @@ var artifacts []Artifact = []Artifact{
 		},
 	},
 	{
-		Key:      PublicKeyKey,
-		Kind:     KindAlways,
-		ModeHint: destination.ModeHintUnspecified,
+		Key:  PublicKeyKey,
+		Kind: KindAlways,
 		ToBytes: func(i *Identity) []byte {
 			return i.PublicKeyBytes
 		},
@@ -120,9 +112,8 @@ var artifacts []Artifact = []Artifact{
 		},
 	},
 	{
-		Key:      TokenHashKey,
-		Kind:     KindBotInternal,
-		ModeHint: destination.ModeHintSecret,
+		Key:  TokenHashKey,
+		Kind: KindBotInternal,
 		ToBytes: func(i *Identity) []byte {
 			return i.TokenHashBytes
 		},
