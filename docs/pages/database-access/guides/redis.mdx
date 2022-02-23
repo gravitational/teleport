@@ -1,0 +1,231 @@
+---
+title: Database Access with Redis (Preview)
+description: How to configure Teleport Database Access with Redis.
+---
+
+<Details
+  title="Version warning"
+  opened={true}
+  scope={["oss", "enterprise"]}
+  scopeOnly={true}
+  min="9.0"
+>
+  Database access for Redis is available starting from Teleport `9.0`.
+</Details>
+<Admonition type="warning" title="Preview">
+  Database access for Redis is currently in a Preview mode.
+</Admonition>
+
+This guide will help you to:
+
+- Install and configure Teleport.
+- Configure mutual TLS authentication between Teleport and your Redis database.
+- Connect to Redis database through Teleport.
+
+## Prerequisites
+
+- Teleport version `9.0` or newer.
+- Redis database (standalone or cluster) version `6.0` or newer.
+
+## Step 1/5. Set up Teleport Auth and Proxy
+
+(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
+
+## Step 2/5. Create a Teleport user
+
+(!docs/pages/includes/database-access/create-user.mdx!)
+
+## Step 3/5. Configure Redis.
+
+Redis user must be protected by a strong password. We recommend using a password generator built-in in Redis.
+To generate password connect to a Redis instance and call:
+
+```
+ACL GENPASS
+```
+
+or use OpenSSL if you have it installed on your machine
+
+```
+openssl rand -hex 32
+```
+
+This command generates a string that looks like that `0a49c95a25b0f92787d07a5b6bdc1a25b3a2130a1b338ec524f1b5dcd708bc65`.
+
+Create a new user using generated password.
+
+```
+ACL SETUSER alice on >STRONG_GENERATED_PASSWORD allcommands allkeys
+```
+
+Now you can log in as a new user using the below command:
+
+```
+AUTH alice STRONG_GENERATED_PASSWORD
+```
+
+Disable the `default` user.
+
+```
+ACL SETUSER default off
+```
+
+Alternatively, you can set a password for the `default` user by adding below line to your `redis.conf` file:
+
+```
+requirepass STRONG_GENERATED_PASSWORD
+```
+
+<Admonition type="warning">
+  It's very important to either disable or protect with password the `default` user. Otherwise, everyone with access
+  ot the database can login as the `default` user which by default has administrator privileges.
+</Admonition>
+
+## Step 4/5.
+
+### Set up mutual TLS
+
+(!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
+
+Create the secrets:
+
+<Tabs>
+  <TabItem label="Standalone">
+    When connecting to standalone Redis, sign the certificate for the hostname over
+    which Teleport will be connecting to it.
+
+    For example, if your Redis server is accessible at `redis.example.com`
+    hostname, run:
+
+    ```code
+    $ tctl auth sign --format=redis --host=redis.example.com --out=server --ttl=2190h
+    ```
+
+    (!docs/pages/includes/database-access/ttl-note.mdx!)
+
+    The command will create three files: `server.cas` with Teleport's certificate
+    authority, `server.key` with generated private key and `server.crt` with generated user certificate. You will
+    need these files to enable mutual TLS on your Redis server.
+  </TabItem>
+  <TabItem label="Cluster">
+    When connecting to a Redis Cluster, sign certificates for each member
+    using the hostnames and the IP they're accessible at.
+
+    For example, if the first member is accessible at `redis1.example.com` with IP `10.0.1` and
+    the second at `redis2.example.com` with IP `10.0.0.2`, run:
+
+    ```code
+    $ tctl auth sign --format=redis --host=redis1.example.com,10.0.0.1 --out=redis1 --ttl=2190h
+    $ tctl auth sign --format=redis --host=redis2.example.com,10.0.0.2 --out=redis2 --ttl=2190h
+    ```
+
+    (!docs/pages/includes/database-access/ttl-note.mdx!)
+
+    The command will create three files: `server.cas` with Teleport's certificate
+    authority, `server.key` with generated private key and `server.crt` with generated user certificate. You will
+    need these files to enable mutual TLS on your Redis server.
+  </TabItem>
+</Tabs>
+
+(!docs/pages/includes/database-access/rotation-note.mdx!)
+
+Use the generated secrets to enable mutual TLS in your `redis.conf` configuration
+file and restart the database:
+
+<Tabs>
+  <TabItem label="Standalone">
+    ```ini
+    tls-port 6379
+    port 0
+
+    tls-ca-cert-file /path/to/server.cas
+    tls-cert-file /path/to/server.crt
+    tls-key-file /path/to/server.key
+    tls-protocols "TLSv1.2 TLSv1.3"
+    ```
+  </TabItem>
+  <TabItem label="Cluster">
+    ```ini
+    tls-port 7001
+    port 0
+
+    cluster-enabled yes
+
+    tls-replication yes
+    tls-cluster yes
+
+    tls-cert-file /usr/local/etc/redis/certs/server.crt
+    tls-key-file /usr/local/etc/redis/certs/server.key
+    tls-ca-cert-file /usr/local/etc/redis/certs/server.cas
+    ```
+  </TabItem>
+</Tabs>
+
+When configuring a replica set, make sure to do it for each member and use
+secrets generated for the particular server.
+
+Once mutual TLS has been enabled, you will no longer be able to connect to
+the cluster without providing a valid client certificate. You can use
+`tls-auth-clients optional` setting to allow connections
+from clients that do not present a certificate.
+
+See [Configure TLS/SSL](https://redis.io/topics/encryption)
+in Redis documentation for more details.
+
+## Step 5/5. Connect
+
+Log into your Teleport cluster and see available databases:
+
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
+$ tsh db ls
+# Name          Description     Labels
+# ------------- --------------- --------
+# example-redis Example Redis env=dev
+```
+
+To connect to a particular database instance, first retrieve its certificate
+using `tsh db login` command:
+
+```code
+$ tsh db login example-redis
+```
+
+<Admonition type="tip" title="Tip">
+  You can be logged into multiple databases simultaneously.
+</Admonition>
+
+You can optionally specify the database name and the user to use by default
+when connecting to the database instance:
+
+```code
+$ tsh db login --db-user=alice example-redis
+```
+
+<Admonition type="note" title="Note">
+  If flag `--db-user` is not provided Teleport logs in as the `default` user.
+</Admonition>
+
+Once logged in, connect to the database:
+
+```code
+$ tsh db connect example-redis
+```
+
+<Admonition type="note" title="Note">
+  The `redis-cli` command-line client should be available in the system `PATH` in order to be
+  able to connect.
+</Admonition>
+
+To log out of the database and remove credentials:
+
+```code
+# Remove credentials for a particular database instance.
+$ tsh db logout example-redis
+# Remove credentials for all database instances.
+$ tsh db logout
+```
+
+## Next steps
+
+(!docs/pages/includes/database-access/guides-next-steps.mdx!)

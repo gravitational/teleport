@@ -459,6 +459,10 @@
               "slug": "/database-access/guides/gui-clients/"
             },
             {
+              "title": "Redis (Preview)",
+              "slug": "/database-access/guides/redis/"
+            },
+            {
               "title": "Dynamic Registration",
               "slug": "/database-access/guides/dynamic-registration/"
             },
