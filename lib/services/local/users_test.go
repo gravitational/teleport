@@ -678,3 +678,61 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 		require.NoError(t, err) // Other keys preserved
 	}
 }
+
+func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) {
+	// Don't t.Parallel()!
+
+	sdMax := local.GlobalSessionDataMaxEntries
+	sdClock := local.SessionDataLimiter.Clock
+	sdReset := local.SessionDataLimiter.ResetPeriod
+	defer func() {
+		local.GlobalSessionDataMaxEntries = sdMax
+		local.SessionDataLimiter.Clock = sdClock
+		local.SessionDataLimiter.ResetPeriod = sdReset
+	}()
+	fakeClock := clockwork.NewFakeClock()
+	period := 1 * time.Minute // arbitrary, applied to fakeClock
+	local.GlobalSessionDataMaxEntries = 2
+	local.SessionDataLimiter.Clock = fakeClock
+	local.SessionDataLimiter.ResetPeriod = period
+
+	const scopeLogin = "login"
+	const scopeOther = "other"
+	const id1 = "challenge1"
+	const id2 = "challenge2"
+	const id3 = "challenge3"
+	const id4 = "challenge4"
+	sd := &wantypes.SessionData{
+		Challenge:        []byte("supersecretchallenge"), // typically matches the key
+		UserVerification: "required",
+	}
+
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	// OK: below limit.
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id1, sd))
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id2, sd))
+	// NOK: limit reached.
+	err := identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id3, sd)
+	require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+
+	// OK: different scope.
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id1, sd))
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id2, sd))
+	// NOK: limit reached.
+	err = identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id3, sd)
+	require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+
+	// OK: keys removed.
+	require.NoError(t, identity.DeleteGlobalWebauthnSessionData(ctx, scopeLogin, id1))
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id4, sd))
+
+	// NOK: reach and double-check limits.
+	require.Error(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id3, sd))
+	require.Error(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id3, sd))
+	// OK: passage of time resets limits.
+	fakeClock.Advance(period)
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id3, sd))
+	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id3, sd))
+}
