@@ -380,7 +380,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
 	case awsutils.IsRDSEndpoint(d.Spec.URI):
-		instanceID, region, err := awsutils.ParseRDSEndpoint(d.Spec.URI)
+		instanceID, region, err := awsutils.ParseRDSURI(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -391,7 +391,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			d.Spec.AWS.Region = region
 		}
 	case awsutils.IsRedshiftEndpoint(d.Spec.URI):
-		clusterID, region, err := awsutils.ParseRedshiftEndpoint(d.Spec.URI)
+		clusterID, region, err := awsutils.ParseRedshiftURI(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}

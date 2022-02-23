@@ -37,34 +37,39 @@ func IsRedshiftEndpoint(uri string) bool {
 	return strings.Contains(uri, AWSEndpointSuffix) && strings.Contains(uri, RedshiftEndpointSubdomain)
 }
 
-// TrimAWSEndpointSuffixes removes AWS endpoint suffixes from the endpoint.
-func TrimAWSEndpointSuffixes(endpoint string) (string, bool) {
+// trimAWSEndpointSuffixes removes AWS endpoint suffixes from the endpoint.
+func trimAWSEndpointSuffixes(endpoint string) (string, error) {
 	switch {
 	case strings.HasSuffix(endpoint, AWSEndpointSuffix):
-		return endpoint[:len(endpoint)-len(AWSEndpointSuffix)], true
+		return endpoint[:len(endpoint)-len(AWSEndpointSuffix)], nil
 
 	case strings.HasSuffix(endpoint, AWSCNEndpointSuffix):
-		return endpoint[:len(endpoint)-len(AWSCNEndpointSuffix)], true
+		return endpoint[:len(endpoint)-len(AWSCNEndpointSuffix)], nil
 	}
-	return endpoint, false
+
+	return endpoint, trace.BadParameter("endpoint %v is not an AWS endpoint", endpoint)
 }
 
-// ParseRDSEndpoint extracts IDs and region from the provided RDS endpoint.
-func ParseRDSEndpoint(endpoint string) (instanceID, region string, err error) {
-	host, _, err := net.SplitHostPort(endpoint)
+// ParseRDSURI extracts IDs and region from the provided RDS URI.
+func ParseRDSURI(uri string) (id, region string, err error) {
+	endpoint, _, err := net.SplitHostPort(uri)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
+	return ParseRDSEndpoint(endpoint)
+}
 
+// ParseRDSEndpoint extracts IDs and region from the provided RDS endpoint.
+func ParseRDSEndpoint(endpoint string) (id, region string, err error) {
 	// RDS/Aurora endpoints look like this:
 	// aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com
 	// aurora-instance-2.abcdefghijklmnop.rds.cn-north-1.amazonaws.com.cn
-	trimmedHost, hasSuffix := TrimAWSEndpointSuffixes(host)
-	if !hasSuffix {
+	trimmedEndpoint, err := trimAWSEndpointSuffixes(endpoint)
+	if err != nil {
 		return "", "", trace.BadParameter("endpoint %v is not an AWS endpoint", endpoint)
 	}
 
-	parts := strings.Split(trimmedHost, ".")
+	parts := strings.Split(trimmedEndpoint, ".")
 	if len(parts) != 4 {
 		return "", "", trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
 	}
@@ -79,9 +84,10 @@ func ParseRDSEndpoint(endpoint string) (instanceID, region string, err error) {
 	}
 }
 
-// ParseRedshiftEndpoint extracts cluster ID and region from the provided Redshift endpoint.
-func ParseRedshiftEndpoint(endpoint string) (clusterID, region string, err error) {
-	host, _, err := net.SplitHostPort(endpoint)
+// ParseRedshiftURI extracts cluster ID and region from the provided Redshift
+// URI.
+func ParseRedshiftURI(uri string) (clusterID, region string, err error) {
+	endpoint, _, err := net.SplitHostPort(uri)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
@@ -89,12 +95,12 @@ func ParseRedshiftEndpoint(endpoint string) (clusterID, region string, err error
 	// Redshift endpoints look like this:
 	// redshift-cluster-1.abcdefghijklmnop.us-east-1.rds.amazonaws.com
 	// redshift-cluster-2.abcdefghijklmnop.rds.cn-north-1.amazonaws.com.cn
-	trimmedHost, hasSuffix := TrimAWSEndpointSuffixes(host)
-	if !hasSuffix {
+	trimmedEndpoint, err := trimAWSEndpointSuffixes(endpoint)
+	if err != nil {
 		return "", "", trace.BadParameter("endpoint %v is not an AWS endpoint", endpoint)
 	}
 
-	parts := strings.Split(trimmedHost, ".")
+	parts := strings.Split(trimmedEndpoint, ".")
 	if len(parts) != 4 {
 		return "", "", trace.BadParameter("failed to parse %v as Redshift endpoint", endpoint)
 	}

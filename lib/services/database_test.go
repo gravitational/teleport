@@ -282,12 +282,6 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 	})
 }
 
-func TestParseRDSCustomEndpoint(t *testing.T) {
-	name, err := parseRDSCustomEndpoint("custom-endpoint.cluster-custom-example.ca-central-1.rds.amazonaws.com")
-	require.NoError(t, err)
-	require.Equal(t, "custom-endpoint", name)
-}
-
 func TestAuroraMySQLVersion(t *testing.T) {
 	tests := []struct {
 		engineVersion        string

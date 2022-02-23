@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRDSEndpoint(t *testing.T) {
+func TestRDSURI(t *testing.T) {
 	tests := []struct {
 		name                string
 		uri                 string
@@ -67,7 +67,7 @@ func TestRDSEndpoint(t *testing.T) {
 
 			require.Equal(t, test.expectIsRDSEndpoint, IsRDSEndpoint(test.uri))
 
-			instanceID, region, err := ParseRDSEndpoint(test.uri)
+			instanceID, region, err := ParseRDSURI(test.uri)
 			if test.expectParseErrorIs != nil {
 				require.Error(t, err)
 				require.True(t, test.expectParseErrorIs(err))
@@ -80,7 +80,7 @@ func TestRDSEndpoint(t *testing.T) {
 	}
 }
 
-func TestRedshiftEndpoint(t *testing.T) {
+func TestRedshiftURI(t *testing.T) {
 	tests := []struct {
 		name                     string
 		uri                      string
@@ -98,7 +98,7 @@ func TestRedshiftEndpoint(t *testing.T) {
 		},
 		{
 			name:                     "cn-north-1",
-			uri:                      "redshift-cluster-2.abcdefghijklmnop.redshift.cn-north-1.amazonaws.com:5432",
+			uri:                      "redshift-cluster-2.abcdefghijklmnop.redshift.cn-north-1.amazonaws.com.cn:5432",
 			expectClusterID:          "redshift-cluster-2",
 			expectRegion:             "cn-north-1",
 			expectIsRedshiftEndpoint: true,
@@ -124,7 +124,7 @@ func TestRedshiftEndpoint(t *testing.T) {
 
 			require.Equal(t, test.expectIsRedshiftEndpoint, IsRedshiftEndpoint(test.uri))
 
-			clusterID, region, err := ParseRedshiftEndpoint(test.uri)
+			clusterID, region, err := ParseRedshiftURI(test.uri)
 			if test.expectParseErrorIs != nil {
 				require.Error(t, err)
 				require.True(t, test.expectParseErrorIs(err))
