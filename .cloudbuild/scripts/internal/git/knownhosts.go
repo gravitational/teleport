@@ -1,7 +1,6 @@
 package git
 
 import (
-	"io/ioutil"
 	"os"
 
 	"github.com/gravitational/trace"
@@ -9,16 +8,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 )
-
-func touchTempFile() (string, error) {
-	tempFile, err := ioutil.TempFile("", "*")
-	if err != nil {
-		return "", trace.Wrap(err, "failed creating known hosts file")
-	}
-	defer tempFile.Close()
-
-	return tempFile.Name(), nil
-}
 
 func configureKnownHosts(hostname string, keys []ssh.PublicKey) (string, error) {
 	knownHostsFile, err := os.CreateTemp("", "*")

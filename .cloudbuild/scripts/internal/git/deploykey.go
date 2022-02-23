@@ -10,7 +10,7 @@ import (
 func writeKey(deployKey []byte) (string, error) {
 	// Note that tempfiles are automatically created with 0600, so no-one else
 	// should be able to read this.
-	keyFile, err := os.TempFile("", "*")
+	keyFile, err := os.CreateTemp("", "*")
 	if err != nil {
 		return "", trace.Wrap(err, "failed creating keyfile")
 	}

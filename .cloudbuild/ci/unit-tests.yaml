@@ -2,6 +2,11 @@ timeout: 25m
 
 options:
   machineType: 'E2_HIGHCPU_32'
+  
+  # This build needs to run in environments where the _GITHUB_DEPLOY_KEY_SRC  
+  # substitution is defined, but also environments where it isn't. The
+  # ALLOW_LOOSE option disables GCBs strict checking of substitution usage,
+  # so that the build will still run if _GITHUB_DEPLOY_KEY_SRC is not defined.
   substitution_option: ALLOW_LOOSE
   
 steps:
