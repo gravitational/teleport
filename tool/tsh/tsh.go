@@ -441,9 +441,9 @@ func Run(args []string, opts ...cliOption) error {
 	proxyDB.Flag("port", " Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").StringVar(&cf.LocalProxyCertFile)
 	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").StringVar(&cf.LocalProxyKeyFile)
-	proxyAPP := proxy.Command("app", "Start local TSL proxy for app connection when using Teleport in single-port mode")
-	proxyAPP.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
-	proxyAPP.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode")
+	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
+	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -698,7 +698,7 @@ func Run(args []string, opts ...cliOption) error {
 		err = onProxyCommandSSH(&cf)
 	case proxyDB.FullCommand():
 		err = onProxyCommandDB(&cf)
-	case proxyAPP.FullCommand():
+	case proxyApp.FullCommand():
 		err = onProxyCommandApp(&cf)
 
 	case dbList.FullCommand():
