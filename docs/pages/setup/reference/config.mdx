@@ -97,7 +97,7 @@ teleport:
     # Logging configuration. Possible output values to disk via 
     # '/var/lib/teleport/teleport.log',
     # 'stdout', 'stderr' and 'syslog'. Possible severity values are INFO (default), WARN, DEBUG,
-    # and ERROR.
+    # and ERROR.  ERROR is recommended for the production setting to minimize unnecessary logging.
     log:
         output: /var/lib/teleport/teleport.log
         severity: ERROR
