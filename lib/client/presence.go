@@ -82,7 +82,7 @@ func runPresenceTask(ctx context.Context, term io.Writer, auth auth.ClientI, tc 
 func solveMFA(ctx context.Context, term io.Writer, tc *TeleportClient, challenge *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	fmt.Fprint(term, "\r\nTeleport > Please tap your MFA key\r\n")
 
-	// This is here to enforce the usage of an U2F or WebAuthn device.
+	// This is here to enforce the usage of a MFA device.
 	// We don't support TOTP for live presence.
 	challenge.TOTP = nil
 

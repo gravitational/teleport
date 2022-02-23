@@ -704,9 +704,6 @@ const (
 	// WebsocketResize is receiving a resize request.
 	WebsocketResize = "w"
 
-	// WebsocketU2FChallenge is sending a U2F challenge.
-	WebsocketU2FChallenge = "u"
-
 	// WebsocketWebauthnChallenge is sending a webauthn challenge.
 	WebsocketWebauthnChallenge = "n"
 )

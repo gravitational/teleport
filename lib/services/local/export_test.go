@@ -1,4 +1,4 @@
-// Copyright 2021 Gravitational, Inc
+// Copyright 2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package client
+package local
 
-// PasswordFromConsoleFn exports passwordFromConsoleFn for tests.
-var PasswordFromConsoleFn = &passwordFromConsoleFn
-
-// Prompts exports prompts for tests.
-var Prompts = prompts
+// SessionDataLimiter exports sdLimiter for tests.
+var SessionDataLimiter = sdLimiter

@@ -125,10 +125,10 @@ func (muk *Key) SignCredentialCreation(origin string, cc *wanlib.CredentialCreat
 	if aa := cc.Response.AuthenticatorSelection.AuthenticatorAttachment; aa == protocol.Platform {
 		return nil, trace.BadParameter("platform attachment required by authenticator selection")
 	}
-	if rrk := cc.Response.AuthenticatorSelection.RequireResidentKey; rrk != nil && *rrk {
+	if rrk := cc.Response.AuthenticatorSelection.RequireResidentKey; rrk != nil && *rrk && !muk.AllowResidentKey {
 		return nil, trace.BadParameter("resident key required by authenticator selection")
 	}
-	if uv := cc.Response.AuthenticatorSelection.UserVerification; uv == protocol.VerificationRequired {
+	if uv := cc.Response.AuthenticatorSelection.UserVerification; uv == protocol.VerificationRequired && !muk.SetUV {
 		return nil, trace.BadParameter("user verification required by authenticator selection")
 	}
 
@@ -147,6 +147,12 @@ func (muk *Key) SignCredentialCreation(origin string, cc *wanlib.CredentialCreat
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	flags := res.RawResp[0]
+	if flags == u2fRegistrationFlags {
+		// Apply U2F-compabitle authenticatorMakeCredential logic.
+		// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#u2f-authenticatorMakeCredential-interoperability
+		flags = byte(protocol.FlagUserPresent | protocol.FlagAttestedCredentialData)
+	}
 
 	pubKeyCBOR, err := wanlib.U2FKeyToCBOR(&muk.PrivateKey.PublicKey)
 	if err != nil {
@@ -155,9 +161,7 @@ func (muk *Key) SignCredentialCreation(origin string, cc *wanlib.CredentialCreat
 
 	authData := &bytes.Buffer{}
 	authData.Write(appIDHash[:])
-	// Attested credential data present.
-	// https://www.w3.org/TR/webauthn-2/#attested-credential-data.
-	authData.WriteByte(byte(protocol.FlagAttestedCredentialData | protocol.FlagUserPresent))
+	authData.WriteByte(flags)
 	binary.Write(authData, binary.BigEndian, uint32(0)) // counter, zeroed
 	authData.Write(make([]byte, 16))                    // AAGUID, zeroed
 	binary.Write(authData, binary.BigEndian, uint16(len(muk.KeyHandle)))
