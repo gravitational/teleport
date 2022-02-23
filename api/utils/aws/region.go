@@ -23,9 +23,9 @@ func IsCNRegion(region string) bool {
 	return strings.HasPrefix(region, CNRegionPrefix)
 }
 
-// ISUSGovRegion returns true if the region is an AWS US GovCloud region.
-func ISUSGovRegion(region string) bool {
-	return strings.HasPrefix(region, CNRegionPrefix)
+// IsUSGovRegion returns true if the region is an AWS US GovCloud region.
+func IsUSGovRegion(region string) bool {
+	return strings.HasPrefix(region, USGovRegionPrefix)
 }
 
 const (

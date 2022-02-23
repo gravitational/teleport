@@ -23,34 +23,38 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// IsRDSEndpoint returns true if input is an RDS endpoint
+// IsRDSEndpoint returns true if input URI is an RDS endpoint.
 //
 // https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html
 func IsRDSEndpoint(uri string) bool {
-	return strings.Contains(uri, AWSEndpointSuffix) && strings.Contains(uri, RDSEndpointSubdomain)
+	// Note that AWSEndpointSuffix contains AWSCNEndpointSuffix.
+	return strings.Contains(uri, RDSEndpointSubdomain) &&
+		strings.Contains(uri, AWSEndpointSuffix)
 }
 
-// IsRedshiftEndpoint returns true if input is an RDS endpoint
+// IsRedshiftEndpoint returns true if input URI is an Redshift endpoint.
 //
 // https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-from-psql.html
 func IsRedshiftEndpoint(uri string) bool {
-	return strings.Contains(uri, AWSEndpointSuffix) && strings.Contains(uri, RedshiftEndpointSubdomain)
+	// Note that AWSEndpointSuffix contains AWSCNEndpointSuffix.
+	return strings.Contains(uri, RedshiftEndpointSubdomain) &&
+		strings.Contains(uri, AWSEndpointSuffix)
 }
 
-// trimAWSEndpointSuffixes removes AWS endpoint suffixes from the endpoint.
-func trimAWSEndpointSuffixes(endpoint string) (string, error) {
-	switch {
-	case strings.HasSuffix(endpoint, AWSEndpointSuffix):
+// trimAWSParentDomain removes common AWS endpoint suffixes from the endpoint.
+func trimAWSParentDomain(endpoint string) (string, error) {
+	if strings.HasSuffix(endpoint, AWSEndpointSuffix) {
 		return endpoint[:len(endpoint)-len(AWSEndpointSuffix)], nil
+	}
 
-	case strings.HasSuffix(endpoint, AWSCNEndpointSuffix):
+	if strings.HasSuffix(endpoint, AWSCNEndpointSuffix) {
 		return endpoint[:len(endpoint)-len(AWSCNEndpointSuffix)], nil
 	}
 
 	return endpoint, trace.BadParameter("endpoint %v is not an AWS endpoint", endpoint)
 }
 
-// ParseRDSURI extracts IDs and region from the provided RDS URI.
+// ParseRDSURI extracts the identifier and region from the provided RDS URI.
 func ParseRDSURI(uri string) (id, region string, err error) {
 	endpoint, _, err := net.SplitHostPort(uri)
 	if err != nil {
@@ -60,13 +64,14 @@ func ParseRDSURI(uri string) (id, region string, err error) {
 }
 
 // ParseRDSEndpoint extracts IDs and region from the provided RDS endpoint.
+//
+// RDS/Aurora endpoints look like this:
+// aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com
+// aurora-instance-2.abcdefghijklmnop.rds.cn-north-1.amazonaws.com.cn
 func ParseRDSEndpoint(endpoint string) (id, region string, err error) {
-	// RDS/Aurora endpoints look like this:
-	// aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com
-	// aurora-instance-2.abcdefghijklmnop.rds.cn-north-1.amazonaws.com.cn
-	trimmedEndpoint, err := trimAWSEndpointSuffixes(endpoint)
+	trimmedEndpoint, err := trimAWSParentDomain(endpoint)
 	if err != nil {
-		return "", "", trace.BadParameter("endpoint %v is not an AWS endpoint", endpoint)
+		return "", "", trace.Wrap(err)
 	}
 
 	parts := strings.Split(trimmedEndpoint, ".")
@@ -74,30 +79,36 @@ func ParseRDSEndpoint(endpoint string) (id, region string, err error) {
 		return "", "", trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
 	}
 
-	// Region and service name at either position 2 or 3.
-	if parts[3] == RDSServiceName {
-		return parts[0], parts[2], nil
-	} else if parts[2] == RDSServiceName {
-		return parts[0], parts[3], nil
-	} else {
-		return "", "", trace.BadParameter("endpoint %v is not an RDS endpoint", endpoint)
+	// Service name/region can be at either position 2 or 3.
+	switch {
+	case parts[3] == RDSServiceName:
+		region = parts[2]
+
+	case parts[2] == RDSServiceName:
+		region = parts[3]
+
+	default:
+		return "", "", trace.BadParameter("endpoint %v is not a valid RDS endpoint", endpoint)
 	}
+
+	return parts[0], region, nil
 }
 
 // ParseRedshiftURI extracts cluster ID and region from the provided Redshift
 // URI.
+//
+// Redshift endpoints look like this:
+// redshift-cluster-1.abcdefghijklmnop.us-east-1.rds.amazonaws.com
+// redshift-cluster-2.abcdefghijklmnop.rds.cn-north-1.amazonaws.com.cn
 func ParseRedshiftURI(uri string) (clusterID, region string, err error) {
 	endpoint, _, err := net.SplitHostPort(uri)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
 
-	// Redshift endpoints look like this:
-	// redshift-cluster-1.abcdefghijklmnop.us-east-1.rds.amazonaws.com
-	// redshift-cluster-2.abcdefghijklmnop.rds.cn-north-1.amazonaws.com.cn
-	trimmedEndpoint, err := trimAWSEndpointSuffixes(endpoint)
+	trimmedEndpoint, err := trimAWSParentDomain(endpoint)
 	if err != nil {
-		return "", "", trace.BadParameter("endpoint %v is not an AWS endpoint", endpoint)
+		return "", "", trace.Wrap(err)
 	}
 
 	parts := strings.Split(trimmedEndpoint, ".")
@@ -105,21 +116,32 @@ func ParseRedshiftURI(uri string) (clusterID, region string, err error) {
 		return "", "", trace.BadParameter("failed to parse %v as Redshift endpoint", endpoint)
 	}
 
-	// Region and service name at either position 2 or 3.
-	if parts[3] == RedshiftServiceName {
-		return parts[0], parts[2], nil
-	} else if parts[2] == RedshiftServiceName {
-		return parts[0], parts[3], nil
-	} else {
-		return "", "", trace.BadParameter("endpoint %v is not an Redshift endpoint", endpoint)
+	// Service name/region can be at either position 2 or 3.
+	switch {
+	case parts[3] == RedshiftServiceName:
+		region = parts[2]
+
+	case parts[2] == RedshiftServiceName:
+		region = parts[3]
+
+	default:
+		return "", "", trace.BadParameter("endpoint %v is not a valid Redshift endpoint", endpoint)
 	}
+
+	return parts[0], region, nil
 }
 
 const (
-	// AWSEndpointSuffix is the endpoint suffix for the AWS Standard regions.
+	// AWSEndpointSuffix is the endpoint suffix for AWS Standard and AWS US
+	// GovCloud regions.
+	//
+	// https://docs.aws.amazon.com/general/latest/gr/rande.html#regional-endpoints
+	// https://docs.aws.amazon.com/govcloud-us/latest/UserGuide/using-govcloud-endpoints.html
 	AWSEndpointSuffix = ".amazonaws.com"
 
-	// AWSCNEndpointSuffix is the endpoint suffix for the AWS China regions.
+	// AWSCNEndpointSuffix is the endpoint suffix for AWS China regions.
+	//
+	// https://docs.amazonaws.cn/en_us/aws/latest/userguide/endpoints-arns.html
 	AWSCNEndpointSuffix = ".amazonaws.com.cn"
 
 	// RDSServiceName is the service name for AWS RDS.
@@ -131,6 +153,6 @@ const (
 	// RDSEndpointSubdomain is the RDS/Aurora subdomain.
 	RDSEndpointSubdomain = "." + RDSServiceName + "."
 
-	// RedshiftEndpointSubdomain is the Redshift endpoint suffix.
+	// RedshiftEndpointSubdomain is the Redshift endpoint subdomain.
 	RedshiftEndpointSubdomain = "." + RedshiftServiceName + "."
 )

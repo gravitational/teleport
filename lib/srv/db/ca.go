@@ -200,11 +200,12 @@ func rdsCAURLForDatabase(database types.Database) string {
 	case awsutils.IsCNRegion(region):
 		return fmt.Sprintf(rdsCNRegionCAURLTemplate, region, region)
 
-	case awsutils.ISUSGovRegion(region):
+	case awsutils.IsUSGovRegion(region):
 		return fmt.Sprintf(rdsUSGovRegionCAURLTemplate, region, region)
-	}
 
-	return fmt.Sprintf(rdsDefaultCAURLTemplate, region, region)
+	default:
+		return fmt.Sprintf(rdsDefaultCAURLTemplate, region, region)
+	}
 }
 
 // redshiftCAURLForDatabase returns root certificate download URL based on the region
