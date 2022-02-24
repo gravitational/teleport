@@ -240,7 +240,7 @@ func (s *Server) getBotUsers(ctx context.Context) ([]types.User, error) {
 
 // checkOrCreateBotToken checks the existing token if given, or creates a new
 // random dynamic provision token which allows bots to join with the given
-// botName. Returns the token name.
+// botName. Returns the token and any error.
 func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBotRequest) (types.ProvisionToken, error) {
 	resourceName := BotResourceName(req.Name)
 
@@ -262,6 +262,13 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 		if provisionToken.GetBotName() != resourceName {
 			return nil, trace.BadParameter("token %q is valid for bot with name %q, not %q",
 				req.TokenID, provisionToken.GetBotName(), resourceName)
+		}
+		switch provisionToken.GetJoinMethod() {
+		case types.JoinMethodToken, types.JoinMethodIAM:
+		default:
+			return nil, trace.BadParameter(
+				"token %q has join method %q which is not supported for bots. Supported join methods are %v",
+				req.TokenID, provisionToken.GetJoinMethod(), []types.JoinMethod{types.JoinMethodToken, types.JoinMethodIAM})
 		}
 		return provisionToken, nil
 	}
@@ -325,34 +332,22 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 	// Teleport API calls.
 	certReq.includeHostCA = true
 
-	// The requested generation should only be explicitly set when a token
-	// is being exchanged for an initial set of user certs, otherwise the
-	// requested generation will be automatically set to
-	// (currentIdentityGeneration + 1) below.
+	// If the certReq already has generation set, it was explicitly requested
+	// (presumably this is the initial set of renewable certs). We'll want to
+	// commit that value to the User object.
 	if certReq.generation > 0 {
-		// If the user already has a generation set, it would indicate that the
-		// token is being reused.
-		//
-		// Regular/secret tokens will be deleted before returning signed user
-		// certs and cannot be reused, but bot tokens which make use of the EC2
-		// or IAM join methods are expected to be used repeatedly to fetch certs
-		// with generation 1, rather than renewing the original certs in a
-		// chain of increasing generations.
-		//
-		// Sanity check that the requested generation is equal to 1 and the
-		// current user generation is 0 (unset) or 1 (if an EC2 or IAM token is
-		// being reused).
-		if certReq.generation != 1 || currentUserGeneration > 1 {
+		// ...however, if the user already has a stored generation, bail.
+		// (bots should be deleted and recreated if their certs expire)
+		if currentUserGeneration > 0 {
 			return trace.BadParameter(
 				"user %q has already been issued a renewable certificate and cannot be issued another; consider deleting and recreating the bot",
 				user.GetName(),
 			)
 		}
 
-		if currentUserGeneration == 1 {
-			// This is the case where an EC2 or IAM join token is being reused
-			// and the user already has the correct generation set.
-			return nil
+		// Sanity check that the requested generation is 1.
+		if certReq.generation != 1 {
+			return trace.BadParameter("explicitly requested generation %d is not equal to 1, this is a logic error", certReq.generation)
 		}
 
 		// Fetch a fresh copy of the user we can mutate safely. We can't
@@ -444,15 +439,14 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 	return nil
 }
 
-// generateInitialRenewableUserCerts is used to generate renewable bot certs
-// and overlaps significantly with `generateUserCerts()`. However, it omits a
-// number of options (impersonation, access requests, role requests, actual
-// cert renewal, and most UserCertsRequest options that don't relate to bots)
-// and does not care if the current identity is Nop.
-// This function does not validate the current identity at all; the caller is
-// expected to validate that the client is allowed to issue the renewable
-// certificates.
-func (s *Server) generateInitialRenewableUserCerts(ctx context.Context, username string, pubKey []byte, expires time.Time) (*proto.Certs, error) {
+// generateInitialBotCerts is used to generate bot certs and overlaps
+// significantly with `generateUserCerts()`. However, it omits a number of
+// options (impersonation, access requests, role requests, actual cert renewal,
+// and most UserCertsRequest options that don't relate to bots) and does not
+// care if the current identity is Nop.  This function does not validate the
+// current identity at all; the caller is expected to validate that the client
+// is allowed to issue the (possibly renewable) certificates.
+func (s *Server) generateInitialBotCerts(ctx context.Context, username string, pubKey []byte, expires time.Time, renewable bool) (*proto.Certs, error) {
 	var err error
 
 	// Extract the user and role set for whom the certificate will be generated.
@@ -489,6 +483,12 @@ func (s *Server) generateInitialRenewableUserCerts(ctx context.Context, username
 	// add implicit roles to the set and build a checker
 	checker := services.NewRoleSet(parsedRoles...)
 
+	// renewable cert request must include a generation
+	var generation uint64
+	if renewable {
+		generation = 1
+	}
+
 	// Generate certificate
 	certReq := certRequest{
 		user:          user,
@@ -496,9 +496,9 @@ func (s *Server) generateInitialRenewableUserCerts(ctx context.Context, username
 		publicKey:     pubKey,
 		checker:       checker,
 		traits:        user.GetTraits(),
-		renewable:     true,
+		renewable:     renewable,
 		includeHostCA: true,
-		generation:    1,
+		generation:    generation,
 	}
 
 	if err := s.validateGenerationLabel(ctx, user, &certReq, 0); err != nil {

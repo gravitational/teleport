@@ -74,7 +74,7 @@ func Run(args []string) error {
 	startCmd.Flag("destination-dir", "Directory to write generated certificates").StringVar(&cf.DestinationDir)
 	startCmd.Flag("certificate-ttl", "TTL of generated certificates").Default("60m").DurationVar(&cf.CertificateTTL)
 	startCmd.Flag("renew-interval", "Interval at which certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewInterval)
-	startCmd.Flag("join-method", "Method to use to join the cluster (token, ec2, or iam)").StringVar(&cf.JoinMethod)
+	startCmd.Flag("join-method", "Method to use to join the cluster.").Default("token").EnumVar(&cf.JoinMethod, "token", "iam")
 
 	configCmd := app.Command("config", "Parse and dump a config file").Hidden()
 
@@ -283,14 +283,14 @@ func renewIdentityViaAuth(
 ) (*identity.Identity, error) {
 	// TODO: enforce expiration > renewal period (by what margin?)
 
-	// If using the EC2 or IAM join method, repeatedly fetch new certs rather
-	// than renewing.
+	// If using the IAM join method, repeatedly fetch new certs rather than
+	// renewing.
 	var joinMethod types.JoinMethod
 	if cfg.Onboarding != nil {
 		joinMethod = cfg.Onboarding.JoinMethod
 	}
 	switch joinMethod {
-	case types.JoinMethodEC2, types.JoinMethodIAM:
+	case types.JoinMethodIAM:
 		ident, err := getIdentityFromToken(cfg)
 		return ident, trace.Wrap(err)
 	default:
