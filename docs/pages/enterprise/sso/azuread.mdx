@@ -12,12 +12,7 @@ SSH credentials to specific groups of users with a SAML Authentication Connector
 
 The following steps configure an example SAML authentication connector matching Azure AD groups with security roles.  You can choose to configure other options.
 
-<Admonition
-  type="warning"
-  title="Version Warning"
->
-  This guide requires either an Enterprise version of Teleport or a Teleport Cloud account.
-</Admonition>
+(!docs/pages/includes/versionwarning.mdx!)
 
 ## Prerequisites
 
@@ -59,7 +54,7 @@ Before you get started you’ll need:
    ![Edit Basic SAML Configuration](../../../img/azuread/azuread-7-editbasicsaml.png)
 
 8. For **Entity ID** and **Reply URL**, enter the same proxy URL.
-  
+
    For self-hosted deployments, the URL will be similar to `https://teleport.example.com:3080/v1/webapi/saml/acs`.
 
    For Teleport Cloud users, the URL will be similar to `https://mytenant.teleport.sh`.
@@ -355,7 +350,7 @@ spec:
     private_key: |
       -----BEGIN RSA PRIVATE KEY-----
       New private key
-      -----END RSA PRIVATE KEY-----  
+      -----END RSA PRIVATE KEY-----
   signing_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----
@@ -372,7 +367,7 @@ version: v2
 Update the connector:
 
 ```code
-$ tctl create -f azure-out.yaml 
+$ tctl create -f azure-out.yaml
 ```
 
 ### Activate token encryption

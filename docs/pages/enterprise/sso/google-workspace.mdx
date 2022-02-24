@@ -16,12 +16,7 @@ to define policies like:
 - Developers must never SSH into production servers.
 - ... and many others.
 
-<Admonition
-  type="warning"
-  title="Version Warning"
->
-  This guide requires an enterprise version of Teleport.
-</Admonition>
+(!docs/pages/includes/versionwarning.mdx!)
 
 ## Prerequisites
 
@@ -75,7 +70,7 @@ to `v3`.
     ![configuration of the OAuth consent screen](../../../img/googleoidc/consent-screen-1.png)
 
   Configure the appearence of your connector by picking a visible name, user support email, etc.
-  
+
   Select the `.../auth/userinfo.email` and `openid` scopes.
     ![select email and openid scopes](../../../img/googleoidc/consent-screen-2.png)
 
@@ -93,7 +88,7 @@ to `v3`.
 
   Pick a name for your service account. Leave project access grants and user access grants empty.
     ![service account creation](../../../img/googleoidc/serviceacct-creation.png)
-  
+
   Click the newly-created account to view its details, and copy the Unique ID for later.
     ![service account unique ID](../../../img/googleoidc/serviceacct-uniqueid.png)
 

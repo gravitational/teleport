@@ -15,12 +15,7 @@ like:
 - Developers must never SSH into production servers.
 - ... and many others.
 
-<Admonition
-  type="warning"
-  title="Version Warning"
->
-  This guide requires an Enterprise edition of Teleport.
-</Admonition>
+(!docs/pages/includes/versionwarning.mdx!)
 
 ## Enable SAML Authentication
 
@@ -124,7 +119,7 @@ $ tctl create onelogin-connector.yaml
 ## Create a new Teleport Role
 
 We are going to create a new that'll use external username data from OneLogin
-to map to a host linux login. 
+to map to a host linux login.
 
 In the below role, Devs are only allowed to login to nodes labelled with `access: relaxed`
 Teleport label. Developers can log in as either `ubuntu` to a username that

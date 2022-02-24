@@ -15,12 +15,7 @@ like:
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
 - Developers must never SSH into production servers.
 
-<Admonition
-  type="warning"
-  title="Version Warning"
->
-  This guide requires a commercial edition of Teleport.
-</Admonition>
+(!docs/pages/includes/versionwarning.mdx!)
 
 ## Enable SAML Authentication
 
@@ -116,11 +111,11 @@ $ tctl create okta-connector.yaml
 
 ## Create a Developer Teleport Role
 
-We are going to create a new role that'll pull in external information from Okta. Notice 
-`{{external.username}}` login. It configures Teleport to look at *"username"* Okta claim 
-and use that field as an allowed login for each user.  This example uses email as the 
-username format.  The `email.local(external.trait)` function will remove the `@domain` 
-and just have the username prefix.  
+We are going to create a new role that'll pull in external information from Okta. Notice
+`{{external.username}}` login. It configures Teleport to look at *"username"* Okta claim
+and use that field as an allowed login for each user.  This example uses email as the
+username format.  The `email.local(external.trait)` function will remove the `@domain`
+and just have the username prefix.
 
 ```yaml
 kind: role
