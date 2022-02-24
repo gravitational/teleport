@@ -213,6 +213,10 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 
 // NewDatabaseFromRedshiftCluster creates a database resource from a Redshift cluster.
 func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, error) {
+	if cluster.Endpoint == nil {
+		return nil, trace.BadParameter("missing endpoint in Redshift cluster %v", aws.StringValue(cluster.ClusterIdentifier))
+	}
+
 	metadata, err := MetadataFromRedshiftCluster(cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
