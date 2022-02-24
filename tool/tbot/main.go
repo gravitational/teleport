@@ -290,7 +290,7 @@ func renewIdentityViaAuth(
 	// expiration date.
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		PublicKey: currentIdentity.PublicKeyBytes,
-		Username:  currentIdentity.XCert.Subject.CommonName,
+		Username:  currentIdentity.X509Cert.Subject.CommonName,
 		Expires:   time.Now().Add(certTTL),
 	})
 	if err != nil {
@@ -324,7 +324,7 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botR
 // describeTLSIdentity writes an informational message about the given identity to
 // the log.
 func describeTLSIdentity(ident *identity.Identity) (string, error) {
-	cert := ident.XCert
+	cert := ident.X509Cert
 	if cert == nil {
 		return "", trace.BadParameter("attempted to describe TLS identity without TLS credentials")
 	}
@@ -358,7 +358,7 @@ func describeTLSIdentity(ident *identity.Identity) (string, error) {
 // describeSSHIdentity writes an informational message about the given SSH
 // identity to the log.
 func describeSSHIdentity(ident *identity.Identity) (string, error) {
-	cert := ident.Cert
+	cert := ident.SSHCert
 	if cert == nil {
 		return "", trace.BadParameter("attempted to describe SSH identity without SSH credentials")
 	}
@@ -468,7 +468,7 @@ func renewLoop(ctx context.Context, cfg *config.BotConfig, client auth.ClientI, 
 		// Determine the default role list based on the bot role. The role's
 		// name should match the certificate's Key ID (user and role names
 		// should all match bot-$name)
-		botResourceName := ident.XCert.Subject.CommonName
+		botResourceName := ident.X509Cert.Subject.CommonName
 		defaultRoles, err := fetchDefaultRoles(ctx, client, botResourceName)
 		if err != nil {
 			log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
@@ -476,7 +476,7 @@ func renewLoop(ctx context.Context, cfg *config.BotConfig, client auth.ClientI, 
 		}
 
 		// Next, generate impersonated certs
-		expires := ident.XCert.NotAfter
+		expires := ident.X509Cert.NotAfter
 		for _, dest := range cfg.Destinations {
 			destImpl, err := dest.GetDestination()
 			if err != nil {
@@ -544,7 +544,7 @@ func renewLoop(ctx context.Context, cfg *config.BotConfig, client auth.ClientI, 
 // attempt to connect via the proxy and therefore requires both SSH and TLS
 // credentials.
 func authenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity, authServer string) (auth.ClientI, error) {
-	if id.Cert == nil || id.XCert == nil {
+	if id.SSHCert == nil || id.X509Cert == nil {
 		return nil, trace.BadParameter("auth client requires a fully formed identity")
 	}
 
@@ -596,7 +596,7 @@ func generateImpersonatedIdentity(
 	// expiration date.
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		PublicKey:    publicKey,
-		Username:     currentIdentity.XCert.Subject.CommonName,
+		Username:     currentIdentity.X509Cert.Subject.CommonName,
 		Expires:      expires,
 		RoleRequests: roleRequests,
 	})

@@ -83,10 +83,10 @@ type Identity struct {
 	SSHCACertBytes [][]byte
 	// KeySigner is an SSH host certificate signer
 	KeySigner ssh.Signer
-	// Cert is a parsed SSH certificate
-	Cert *ssh.Certificate
-	// XCert is X509 client certificate
-	XCert *x509.Certificate
+	// SSHCert is a parsed SSH certificate
+	SSHCert *ssh.Certificate
+	// X509Cert is an X509 client certificate
+	X509Cert *x509.Certificate
 	// ClusterName is a name of host's cluster
 	ClusterName string
 	// TokenHashBytes is the hash of the original join token
@@ -112,8 +112,8 @@ func (i *Identity) Params() *LoadIdentityParams {
 // String returns user-friendly representation of the identity.
 func (i *Identity) String() string {
 	var out []string
-	if i.XCert != nil {
-		out = append(out, fmt.Sprintf("cert(%v issued by %v:%v)", i.XCert.Subject.CommonName, i.XCert.Issuer.CommonName, i.XCert.Issuer.SerialNumber))
+	if i.X509Cert != nil {
+		out = append(out, fmt.Sprintf("cert(%v issued by %v:%v)", i.X509Cert.Subject.CommonName, i.X509Cert.Issuer.CommonName, i.X509Cert.Issuer.SerialNumber))
 	}
 	for j := range i.TLSCACertsBytes {
 		cert, err := tlsca.ParseCertificatePEM(i.TLSCACertsBytes[j])
@@ -161,7 +161,7 @@ func (i *Identity) HasTLSConfig() bool {
 
 // HasPrincipals returns whether identity has principals
 func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
-	set := utils.StringsSet(i.Cert.ValidPrincipals)
+	set := utils.StringsSet(i.SSHCert.ValidPrincipals)
 	for _, principal := range additionalPrincipals {
 		if _, ok := set[principal]; !ok {
 			return false
@@ -172,10 +172,10 @@ func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
 
 // HasDNSNames returns true if TLS certificate has required DNS names
 func (i *Identity) HasDNSNames(dnsNames []string) bool {
-	if i.XCert == nil {
+	if i.X509Cert == nil {
 		return false
 	}
-	set := utils.StringsSet(i.XCert.DNSNames)
+	set := utils.StringsSet(i.X509Cert.DNSNames)
 	for _, dnsName := range dnsNames {
 		if _, ok := set[dnsName]; !ok {
 			return false
@@ -228,11 +228,11 @@ func (i *Identity) SSHClientConfig() (*ssh.ClientConfig, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(i.Cert.ValidPrincipals) < 1 {
+	if len(i.SSHCert.ValidPrincipals) < 1 {
 		return nil, trace.BadParameter("user cert has no valid principals")
 	}
 	return &ssh.ClientConfig{
-		User:            i.Cert.ValidPrincipals[0],
+		User:            i.SSHCert.ValidPrincipals[0],
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
 		HostKeyCallback: callback,
 		Timeout:         apidefaults.DefaultDialTimeout,
@@ -304,7 +304,7 @@ func ReadTLSIdentityFromKeyPair(identity *Identity, keyBytes, certBytes []byte, 
 	identity.PrivateKeyBytes = keyBytes
 	identity.TLSCertBytes = certBytes
 	identity.TLSCACertsBytes = caCertsBytes
-	identity.XCert = cert
+	identity.X509Cert = cert
 
 	// The passed in ciphersuites don't appear to matter here since the returned
 	// *tls.Config is never actually used?
@@ -365,7 +365,7 @@ func ReadSSHIdentityFromKeyPair(identity *Identity, keyBytes, publicKeyBytes, ce
 	identity.PublicKeyBytes = publicKeyBytes
 	identity.CertBytes = certBytes
 	identity.KeySigner = certSigner
-	identity.Cert = cert
+	identity.SSHCert = cert
 
 	return nil
 }
