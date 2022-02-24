@@ -118,6 +118,9 @@ const (
 
 	// RSAKeySize is the size of the RSA key.
 	RSAKeySize = 2048
+
+	// NoLoginPrefix is the prefix used for nologin certificate principals.
+	NoLoginPrefix = "-teleport-nologin-"
 )
 
 // SecondFactorType is the type of 2FA authentication.
@@ -131,9 +134,10 @@ const (
 	SecondFactorOTP = SecondFactorType("otp")
 	// SecondFactorU2F means that only U2F is supported for 2FA and 2FA is
 	// required for all users.
+	// U2F is marked for removal. It currently works as an alias for "webauthn".
 	SecondFactorU2F = SecondFactorType("u2f")
-	// SecondFactorWebauthn means that only Webauthn is supported for 2FA and 2FA is
-	// required for all users.
+	// SecondFactorWebauthn means that only Webauthn is supported for 2FA and 2FA
+	// is required for all users.
 	SecondFactorWebauthn = SecondFactorType("webauthn")
 	// SecondFactorOn means that all 2FA protocols are supported and 2FA is
 	// required for all users.

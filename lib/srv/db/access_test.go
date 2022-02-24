@@ -1160,17 +1160,19 @@ func TestRedisTransaction(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
+	// use just 2 concurrent connections as we want to test our proxy/protocol behaviour not Redis concurrency.
+	const concurrentConnections = 2
 
 	// Create a channel for potential transaction errors, as testify require package cannot be used from a goroutine.
-	asyncErrors := make(chan error, 10)
+	asyncErrors := make(chan error, concurrentConnections)
 	defer close(asyncErrors)
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < concurrentConnections; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			if err := increment("counter3"); err != nil {
+			if err := increment("counter"); err != nil {
 				asyncErrors <- err
 			}
 		}()
@@ -1183,10 +1185,10 @@ func TestRedisTransaction(t *testing.T) {
 	default:
 	}
 
-	n, err := redisClient.Get(ctx, "counter3").Int()
+	n, err := redisClient.Get(ctx, "counter").Int()
 
 	require.NoError(t, err)
-	require.Equal(t, 10, n)
+	require.Equal(t, concurrentConnections, n)
 }
 
 func TestRedisNil(t *testing.T) {

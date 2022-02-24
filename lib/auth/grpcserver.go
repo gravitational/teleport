@@ -317,6 +317,12 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 	for _, kind := range watch.Kinds {
 		servicesWatch.Kinds = append(servicesWatch.Kinds, proto.ToWatchKind(kind))
 	}
+
+	if clusterName, err := auth.GetClusterName(); err == nil {
+		// we might want to enforce a filter for older clients in certain conditions
+		maybeFilterCertAuthorityWatches(stream.Context(), clusterName.GetClusterName(), auth.Checker.RoleNames(), &servicesWatch)
+	}
+
 	watcher, err := auth.NewWatcher(stream.Context(), servicesWatch)
 	if err != nil {
 		return trace.Wrap(err)
@@ -344,6 +350,56 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		}
 	}
 }
+
+// maybeFilterCertAuthorityWatches will add filters to the CertAuthority
+// WatchKinds in the watch if the client is authenticated as just a `Node` with
+// no other roles and if the client is older than the cutoff version, and if the
+// WatchKind for KindCertAuthority is trivial, i.e. it's a WatchKind{Kind:
+// KindCertAuthority} with no other fields set. In any other case we will assume
+// that the client knows what it's doing and the cache watcher will still send
+// everything.
+//
+// DELETE IN 10.0, no supported clients should require this at that point
+func maybeFilterCertAuthorityWatches(ctx context.Context, clusterName string, roleNames []string, watch *types.Watch) {
+	if len(roleNames) != 1 || roleNames[0] != string(types.RoleNode) {
+		return
+	}
+
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if !ok {
+		log.Debug("no client version found in grpc context")
+		return
+	}
+
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		log.WithError(err).Debugf("couldn't parse client version %q", clientVersionString)
+		return
+	}
+
+	// we treat the entire previous major version as "old" for this version
+	// check, even if there might have been backports; compliant clients will
+	// supply their own filter anyway
+	if !clientVersion.LessThan(certAuthorityFilterVersionCutoff) {
+		return
+	}
+
+	for i, k := range watch.Kinds {
+		if k.Kind != types.KindCertAuthority || !k.IsTrivial() {
+			continue
+		}
+
+		log.Debugf("Injecting filter for CertAuthority watch for Node-only watcher with version %v", clientVersion)
+		watch.Kinds[i].Filter = types.CertAuthorityFilter{
+			types.HostCA: clusterName,
+			types.UserCA: types.Wildcard,
+		}.IntoMap()
+	}
+}
+
+// certAuthorityFilterVersionCutoff is the version starting from which we stop
+// injecting filters for CertAuthority watches in maybeFilterCertAuthorityWatches.
+var certAuthorityFilterVersionCutoff = *semver.New("9.0.0")
 
 // resourceLabel returns the label for the provided types.Event
 func resourceLabel(event types.Event) string {
@@ -764,6 +820,63 @@ func (g *GRPCServer) GetResetPasswordToken(ctx context.Context, req *proto.GetRe
 	}
 
 	return r, nil
+}
+
+// CreateBot creates a new bot and an optional join token.
+func (g *GRPCServer) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := auth.ServerWithRoles.CreateBot(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Infof("%q bot created", req.GetName())
+
+	return response, nil
+}
+
+// DeleteBot removes a bot and its associated resources.
+func (g *GRPCServer) DeleteBot(ctx context.Context, req *proto.DeleteBotRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.ServerWithRoles.DeleteBot(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Infof("%q bot deleted", req.Name)
+
+	return &empty.Empty{}, nil
+}
+
+// GetBotUsers lists all users with a bot label
+func (g *GRPCServer) GetBotUsers(_ *proto.GetBotUsersRequest, stream proto.AuthService_GetBotUsersServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	users, err := auth.ServerWithRoles.GetBotUsers(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, user := range users {
+		v2, ok := user.(*types.UserV2)
+		if !ok {
+			log.Warnf("expected type services.UserV2, got %T for user %q", user, user.GetName())
+			return trace.Errorf("encountered unexpected user type")
+		}
+		if err := stream.Send(v2); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
@@ -2150,6 +2263,10 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 		}
 	case proto.UserCertsRequest_All:
 		return trace.BadParameter("must specify a concrete Usage in UserCertsRequest, one of SSH, Kubernetes or Database")
+	case proto.UserCertsRequest_WindowsDesktop:
+		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
+			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
+		}
 	default:
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
@@ -2218,7 +2335,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 	switch req.Usage {
 	case proto.UserCertsRequest_SSH:
 		resp.Cert = &proto.SingleUseUserCert_SSH{SSH: certs.SSH}
-	case proto.UserCertsRequest_Kubernetes, proto.UserCertsRequest_Database:
+	case proto.UserCertsRequest_Kubernetes, proto.UserCertsRequest_Database, proto.UserCertsRequest_WindowsDesktop:
 		resp.Cert = &proto.SingleUseUserCert_TLS{TLS: certs.TLS}
 	default:
 		return nil, trace.BadParameter("unknown certificate usage %q", req.Usage)
@@ -3249,6 +3366,25 @@ func (g *GRPCServer) GetWindowsDesktopServices(ctx context.Context, req *empty.E
 	}, nil
 }
 
+// GetWindowsDesktopService returns a registered Windows desktop service by name.
+func (g *GRPCServer) GetWindowsDesktopService(ctx context.Context, req *proto.GetWindowsDesktopServiceRequest) (*proto.GetWindowsDesktopServiceResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	windowsDesktopService, err := auth.GetWindowsDesktopService(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	service, ok := windowsDesktopService.(*types.WindowsDesktopServiceV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", service)
+	}
+	return &proto.GetWindowsDesktopServiceResponse{
+		Service: service,
+	}, nil
+}
+
 // UpsertWindowsDesktopService registers a new Windows desktop service.
 func (g *GRPCServer) UpsertWindowsDesktopService(ctx context.Context, service *types.WindowsDesktopServiceV3) (*types.KeepAlive, error) {
 	auth, err := g.authenticate(ctx)
@@ -3303,12 +3439,12 @@ func (g *GRPCServer) DeleteAllWindowsDesktopServices(ctx context.Context, _ *emp
 }
 
 // GetWindowsDesktops returns all registered Windows desktop hosts.
-func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, _ *empty.Empty) (*proto.GetWindowsDesktopsResponse, error) {
+func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, filter *types.WindowsDesktopFilter) (*proto.GetWindowsDesktopsResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	windowsDesktops, err := auth.GetWindowsDesktops(ctx)
+	windowsDesktops, err := auth.GetWindowsDesktops(ctx, *filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3323,23 +3459,6 @@ func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, _ *empty.Empty) (*p
 	return &proto.GetWindowsDesktopsResponse{
 		Desktops: desktops,
 	}, nil
-}
-
-// GetWindowsDesktop returns a named registered Windows desktop host.
-func (g *GRPCServer) GetWindowsDesktop(ctx context.Context, req *proto.GetWindowsDesktopRequest) (*types.WindowsDesktopV3, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	windowsDesktop, err := auth.GetWindowsDesktop(ctx, req.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	desktop, ok := windowsDesktop.(*types.WindowsDesktopV3)
-	if !ok {
-		return nil, trace.BadParameter("unexpected type %T", windowsDesktop)
-	}
-	return desktop, nil
 }
 
 // CreateWindowsDesktop registers a new Windows desktop host.
@@ -3381,13 +3500,16 @@ func (g *GRPCServer) UpsertWindowsDesktop(ctx context.Context, desktop *types.Wi
 	return &empty.Empty{}, nil
 }
 
-// DeleteWindowsDesktop removes the specified Windows desktop host.
+// DeleteWindowsDesktop removes the specified windows desktop host.
+// Note: unlike GetWindowsDesktops, this will delete at-most one desktop.
+// Passing an empty host ID will not trigger "delete all" behavior. To delete
+// all desktops, use DeleteAllWindowsDesktops.
 func (g *GRPCServer) DeleteWindowsDesktop(ctx context.Context, req *proto.DeleteWindowsDesktopRequest) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.DeleteWindowsDesktop(ctx, req.GetName())
+	err = auth.DeleteWindowsDesktop(ctx, req.GetHostID(), req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
