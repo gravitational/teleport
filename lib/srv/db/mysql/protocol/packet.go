@@ -54,7 +54,12 @@ func ParsePacket(conn io.Reader) (Packet, error) {
 	}
 
 	if int(packetType) < len(packetParsersByType) && packetParsersByType[packetType] != nil {
-		return packetParsersByType[packetType](packetBytes)
+		packet, err := packetParsersByType[packetType](packetBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return packet, nil
 	}
 
 	return &Generic{
