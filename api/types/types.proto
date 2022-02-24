@@ -394,6 +394,8 @@ message ServerSpecV2 {
     // https://github.com/gravitational/teleport/issues/4862
     repeated KubernetesCluster KubernetesClusters = 10
         [ (gogoproto.jsontag) = "kube_clusters,omitempty" ];
+    // PeerAddr is the address a proxy server is reachable at by its peer proxies.
+    string PeerAddr = 11 [ (gogoproto.jsontag) = "peer_addr,omitempty" ];
 }
 
 // AppServerV3 represents a single proxied web app.

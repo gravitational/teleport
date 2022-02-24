@@ -3018,43 +3018,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		log.Info("Web UI is disabled.")
 	}
 
-	sshProxy, err := regular.New(cfg.Proxy.SSHAddr,
-		cfg.Hostname,
-		[]ssh.Signer{conn.ServerIdentity.KeySigner},
-		accessPoint,
-		cfg.DataDir,
-		"",
-		process.proxyPublicAddr(),
-		conn.Client,
-		regular.SetLimiter(proxyLimiter),
-		regular.SetProxyMode(tsrv, accessPoint),
-		regular.SetSessionServer(conn.Client),
-		regular.SetCiphers(cfg.Ciphers),
-		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
-		regular.SetMACAlgorithms(cfg.MACAlgorithms),
-		regular.SetNamespace(apidefaults.Namespace),
-		regular.SetRotationGetter(process.getRotation),
-		regular.SetFIPS(cfg.FIPS),
-		regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentProxy)),
-		regular.SetEmitter(streamEmitter),
-		regular.SetLockWatcher(lockWatcher),
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	process.RegisterCriticalFunc("proxy.ssh", func() error {
-		utils.Consolef(cfg.Console, log, teleport.ComponentProxy, "SSH proxy service %s:%s is starting on %v.",
-			teleport.Version, teleport.Gitref, cfg.Proxy.SSHAddr.Addr)
-		log.Infof("SSH proxy service %s:%s is starting on %v", teleport.Version, teleport.Gitref, cfg.Proxy.SSHAddr)
-		go sshProxy.Serve(listeners.ssh)
-		// broadcast that the proxy ssh server has started
-		process.BroadcastEvent(Event{Name: ProxySSHReady, Payload: nil})
-		return nil
-	})
-
+	var peerAddr string
 	var proxyServer *proxy.Server
 	if listeners.proxy != nil {
+		peerAddr = listeners.proxy.Addr().String()
 		proxyServer, err = proxy.NewServer(proxy.ServerConfig{
 			AccessCache:   accessPoint,
 			Listener:      listeners.proxy,
@@ -3085,6 +3052,41 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return nil
 		})
 	}
+
+	sshProxy, err := regular.New(cfg.Proxy.SSHAddr,
+		cfg.Hostname,
+		[]ssh.Signer{conn.ServerIdentity.KeySigner},
+		accessPoint,
+		cfg.DataDir,
+		"",
+		process.proxyPublicAddr(),
+		conn.Client,
+		regular.SetLimiter(proxyLimiter),
+		regular.SetProxyMode(peerAddr, tsrv, accessPoint),
+		regular.SetSessionServer(conn.Client),
+		regular.SetCiphers(cfg.Ciphers),
+		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
+		regular.SetMACAlgorithms(cfg.MACAlgorithms),
+		regular.SetNamespace(apidefaults.Namespace),
+		regular.SetRotationGetter(process.getRotation),
+		regular.SetFIPS(cfg.FIPS),
+		regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentProxy)),
+		regular.SetEmitter(streamEmitter),
+		regular.SetLockWatcher(lockWatcher),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	process.RegisterCriticalFunc("proxy.ssh", func() error {
+		utils.Consolef(cfg.Console, log, teleport.ComponentProxy, "SSH proxy service %s:%s is starting on %v.",
+			teleport.Version, teleport.Gitref, cfg.Proxy.SSHAddr.Addr)
+		log.Infof("SSH proxy service %s:%s is starting on %v", teleport.Version, teleport.Gitref, cfg.Proxy.SSHAddr)
+		go sshProxy.Serve(listeners.ssh)
+		// broadcast that the proxy ssh server has started
+		process.BroadcastEvent(Event{Name: ProxySSHReady, Payload: nil})
+		return nil
+	})
 
 	rcWatchLog := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentReverseTunnelAgent, process.id),
