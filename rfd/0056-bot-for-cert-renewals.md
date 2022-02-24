@@ -3,11 +3,11 @@ authors: Zac Bergquist (zac.bergquist@goteleport.com), Tim Buckley (tim@gotelepo
 state: draft
 ---
 
-# RFD TBD - Teleport Cert Renewal Bot
+# RFD 56 - Teleport Cert Renewal Bot
 
 ## What
 
-RFD TBD defines the high-level goals and architecture for a new agent that can
+RFD 56 defines the high-level goals and architecture for a new agent that can
 continuously renew Teleport-issued certificates.
 
 ## Why
@@ -166,7 +166,7 @@ destinations:
 The user then starts the bot with the configuration file:
 
 ```
-$ tbot start -c /etc/tbot.yaml
+$ tbot -c /etc/tbot.yaml start
 ```
 
 Once the bot fetches its own certificate, it then fetches additional
@@ -375,7 +375,7 @@ Notes:
    certificate using the `memory` storage backend. This has security benefits
    but prevents the bot from recovering if stopped as the renewable credentials
    would only exist in memory.
-    * Future joining methods (e.g. EC2 identity document) may mitigate this
+    * Other joining methods (e.g. IAM / EC2 joining) may mitigate this
       downside.
  * The Teleport auth server's CA certificates are verified at first connect
    using CA pins, following Teleport's usual node joining procedure.
@@ -412,14 +412,36 @@ limitations:
  * Unix sockets: challenging permissions semantics (still relies on ACLs and
    `libc` has related edge cases).
 
-#### Join Script
+#### IAM / EC2 Joining
 
-We intend to develop a bot join script, similar in functionality to the node
-join script that exists in Teleport enterprise. While not required, this will
-make it even easier to install and run the bot as a systemd service on the
-target machine.
+The bot will support joining via AWS IAM identity verification similar to the
+process described in our [Joining Nodes in AWS][aws-join] guide:
 
-TODO: support for auto-join on AWS without token using EC2 identity documents
+ 1. End user creates a provisioning token via a YAML file. This file is
+    identical to static node join tokens but adds a new `bot_name` field.
+ 2. When creating a bot, the end user specifies a `--token=[name]` flag to
+    indicate a static token should be used.
+ 3. `tctl bots add --token=...` prints a customized onboarding command
+
+Bots joined to the cluster in this way do not receive renewable certificates.
+The IAM / EC2 joining use-case implies potentially many bot instances
+associated with the same bot user, and we expect these will often be
+short-lived. This leads to a few problems with renewable certificates:
+
+ 1. Renewable certificates that are not continually renewed (because the
+    job that issued them has completed, for instance) can be stolen without
+    triggering a certificate generation mismatch.
+ 2. It breaks the simple implementation of generation counters, of which each
+    user only has a single generation counter. This is solvable but not
+    worthwhile given the above: it would just allow each certificate lineage
+    to be separately stolen.
+
+Instead, we opt to have bots renew certificates by continually
+re-authenticating using the IAM join method. As EC2 joining relies on instance
+identity documents which can themselves be stolen, this join method will
+initially not be supported until a workaround is developed.
+
+[aws-join]: https://goteleport.com/docs/setup/guides/joining-nodes-aws/
 
 ### Implementation
 
@@ -510,6 +532,11 @@ destinations:
       # (This is an example; ssh-server may not need this or any parameters)
       - ssh-server:
           hostname: example.com
+  
+  # Some backends may optionally accept advanced parameters via an object:
+  - directory:
+      path: /foo/bar
+      symlinks: insecure
 ```
 
 In future iterations, additional output destination backends may be considered.
@@ -591,12 +618,11 @@ Notes:
    a separate package that can render configuration snippets for a variety of
    external systems. This work is out of scope for the purposes of this RFD.
 
-#### Polling for expiration
+#### Renewal cycle
 
-To watch a certificate for expiration, the `teleport/lib/utils/interval`
-package will be used. The tbot will only set up polling for _user certs_, as
-host certificates issued by teleport do not expire (host certificates *will* be
-re-issued during CA rotations).
+New certificates are requested immediately upon bot startup, regardless of
+time until expiration. The bot then enters a renewal loop at a user-requested
+interval using the `teleport/lib/utils/interval` package.
 
 #### Initial User Certificates
 
@@ -614,9 +640,9 @@ When the backend receives the request to generate new user credentials, it valid
 the token, ensuring that the token is of the correct type and has not expired.
 
 This flow can be extended to support other auth methods beyond simple token
-registration; for example, we could additionally accept an EC2 identity
-document as is currently done for
-[Simplified Node Joining for AWS](0041-aws-node-join.md).
+registration; for example, we will additionally support joining using the AWS IAM
+join method used for nodes today. See also:
+[Simplified Node Joining for AWS](./0041-aws-node-join.md)
 
 #### Renewable User Certificates
 
@@ -657,11 +683,12 @@ The auth server will emit new events to the audit log when:
     roles.
   * Renewable certs: certain certificates may be renewed beyond their original
     TTL.
+  * `auth.Register` extended to support bot joining (i.e. returning bot user
+    certificates)
 * New auth gRPC endpoints:
-  * `CreateBotToken()`: creates a new bot join token
-  * `GenerateInitialRenewableUserCerts()`: exchanges a bot token for an initial
-    set of renewable certificates, to be rate-limited similarly to other
-    token-accepting endpoints (`StartAccountRecovery`, etc)
+  * `CreateBot()`: creates a new bot (user + role) and returns a join token
+  * `DeleteBot()`: deletes a bot (user + role)
+  * `GetBotUsers()`: fetches all bot users
 * New TLS certificate extensions:
   * `disallow-reissue`: entirely prevents an identity from interacting with
     `generateUserCerts`, used to prevent privilege re-escalation with role
