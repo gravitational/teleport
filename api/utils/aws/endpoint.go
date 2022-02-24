@@ -56,7 +56,7 @@ func trimAWSParentDomain(endpoint string) (string, error) {
 		return strings.TrimSuffix(endpoint, AWSCNEndpointSuffix), nil
 	}
 
-	return nil, trace.BadParameter("endpoint %v is not an AWS endpoint", endpoint)
+	return "", trace.BadParameter("endpoint %v is not an AWS endpoint", endpoint)
 }
 
 // ParseRDSURI extracts the identifier and region from the provided RDS URI.
