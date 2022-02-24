@@ -504,6 +504,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	}
 
 	var kubeUsers, kubeGroups []string
+	var denyAuthenticated bool
 	// Only check k8s principals for local clusters.
 	//
 	// For remote clusters, everything will be remapped to new roles on the
@@ -511,7 +512,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	if !isRemoteCluster {
 		var err error
 		// check signing TTL and return a list of allowed logins for local cluster based on Kubernetes service labels.
-		kubeGroups, kubeUsers, err = f.getKubeGroupsAndUsers(roles, kubeCluster, sessionTTL)
+		kubeGroups, kubeUsers, denyAuthenticated, err = f.getKubeGroupsAndUsers(roles, kubeCluster, sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -526,8 +527,11 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// KubeSystemAuthenticated is a builtin group that allows
 	// any user to access common API methods, e.g. discovery methods
 	// required for initial client usage, without it, restricted user's
-	// kubectl clients will not work
-	if !apiutils.SliceContainsStr(kubeGroups, teleport.KubeSystemAuthenticated) {
+	// kubectl clients will not work.
+	//
+	// We add this by default to preserve backwards compatibility but it will be omitted
+	// if explicitly denied in any role the user has.
+	if !denyAuthenticated && !apiutils.SliceContainsStr(kubeGroups, teleport.KubeSystemAuthenticated) {
 		kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
 	}
 
@@ -626,10 +630,10 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 func (f *Forwarder) getKubeGroupsAndUsers(
 	roles services.AccessChecker,
 	kubeClusterName string,
-	sessionTTL time.Duration) (groups, users []string, err error) {
+	sessionTTL time.Duration) (groups, users []string, denyAuthenticated bool, err error) {
 	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, false, trace.Wrap(err)
 	}
 
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
@@ -642,15 +646,15 @@ func (f *Forwarder) getKubeGroupsAndUsers(
 			// Get list of allowed kube user/groups based on kubernetes service labels.
 			labels := types.CombineLabels(c.StaticLabels, c.DynamicLabels)
 			labelsMatcher := services.NewKubernetesClusterLabelMatcher(labels)
-			groups, users, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
+			groups, users, denyAuthenticated, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
 			if err != nil {
-				return nil, nil, trace.Wrap(err)
+				return nil, nil, false, trace.Wrap(err)
 			}
-			return groups, users, nil
+			return groups, users, denyAuthenticated, nil
 		}
 	}
 	// kubeClusterName not found. Empty list of allowed kube users/groups is returned.
-	return []string{}, []string{}, nil
+	return []string{}, []string{}, false, nil
 }
 
 func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
