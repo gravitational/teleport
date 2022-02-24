@@ -313,7 +313,7 @@ store it in `~/.tsh/keys/<proxy>` directory.
 With a certificate in place, Joe can now interact with the Teleport cluster:
 
 ```bsh
-# SSH into any host behind the proxy (joe user should already exist on the node):
+# SSH into any host behind the proxy (Unix user 'joe' should already exist on the node):
 $ tsh ssh joe@node.example.com
 
 # See what hosts are available behind the proxy:
