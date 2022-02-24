@@ -238,6 +238,28 @@ func TestParsePacket(t *testing.T) {
 			expectErrorIs: trace.IsConnectionProblem,
 		},
 		{
+			name:          "not enough data for header",
+			input:         bytes.NewBuffer([]byte{0x00}),
+			expectErrorIs: isUnexpectedEOFError,
+		},
+		{
+			name:          "not enough data for payload",
+			input:         bytes.NewBuffer([]byte{0xff, 0xff, 0xff, 0x00, 0x01}),
+			expectErrorIs: isUnexpectedEOFError,
+		},
+		{
+			name: "unrecognized type",
+			input: bytes.NewBuffer([]byte{
+				0x01, 0x00, 0x00, 0x00, // header
+				0x44, // type
+			}),
+			expectedPacket: &Generic{
+				packet: packet{
+					bytes: []byte{0x01, 0x00, 0x00, 0x00, 0x44},
+				},
+			},
+		},
+		{
 			name:           "OK_HEADER",
 			input:          bytes.NewBuffer(sampleOKPacket.Bytes()),
 			expectedPacket: sampleOKPacket,
@@ -319,4 +341,8 @@ func TestParsePacket(t *testing.T) {
 			}
 		})
 	}
+}
+
+func isUnexpectedEOFError(err error) bool {
+	return trace.Unwrap(err) == io.ErrUnexpectedEOF
 }
