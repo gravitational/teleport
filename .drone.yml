@@ -2880,9 +2880,9 @@ steps:
     ARCH: amd64
     BUILDBOX_PASSWORD:
       from_secret: BUILDBOX_PASSWORD
-    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
     OS: darwin
-    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
 - name: Copy Mac pkg artifacts
   commands:
@@ -4801,6 +4801,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: a5b1fe1c18ae5ca0f8052214786e9d8a49786933bc28d5933883e40e2f146555
+hmac: d99b0c1e55254da06e08af1cadce1e7ae30475b3c2436e3f3c21114e658df73c
 
 ...

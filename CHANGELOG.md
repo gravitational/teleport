@@ -1,5 +1,11 @@
 # Changelog
 
+## 7.3.16
+
+This release of Teleport contains a bug fix.
+
+* Fix an issue with some Teleport components not recognizing new `cert.create` audit event.
+
 ## 7.3.15
 
 This release of Teleport contains a performance improvement.
