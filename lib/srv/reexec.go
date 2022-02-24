@@ -134,7 +134,7 @@ type UaccMetadata struct {
 
 // RunCommand reads in the command to run from the parent process (over a
 // pipe) then constructs and runs the command.
-func RunCommand() (io.Writer, int, error) {
+func RunCommand() (errw io.Writer, code int, err error) {
 	// errorWriter is used to return any error message back to the client. By
 	// default it writes to stdout, but if a TTY is allocated, it will write
 	// to it instead.
@@ -152,7 +152,7 @@ func RunCommand() (io.Writer, int, error) {
 
 	// Read in the command payload.
 	var b bytes.Buffer
-	_, err := b.ReadFrom(cmdfd)
+	_, err = b.ReadFrom(cmdfd)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -331,7 +331,7 @@ func RunCommand() (io.Writer, int, error) {
 
 // RunForward reads in the command to run from the parent process (over a
 // pipe) then port forwards.
-func RunForward() (io.Writer, int, error) {
+func RunForward() (errw io.Writer, code int, err error) {
 	// errorWriter is used to return any error message back to the client.
 	// Use stderr so that it's not forwarded to the remote client.
 	errorWriter := os.Stderr
@@ -344,7 +344,7 @@ func RunForward() (io.Writer, int, error) {
 
 	// Read in the command payload.
 	var b bytes.Buffer
-	_, err := b.ReadFrom(cmdfd)
+	_, err = b.ReadFrom(cmdfd)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -412,6 +412,18 @@ func RunForward() (io.Writer, int, error) {
 	return ioutil.Discard, teleport.RemoteCommandSuccess, nil
 }
 
+// runCheckHomeDir check's if the active user's $HOME dir exists.
+func runCheckHomeDir() (errw io.Writer, code int, err error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ioutil.Discard, teleport.HomeDirNotFound, nil
+	}
+	if !utils.IsDir(home) {
+		return ioutil.Discard, teleport.HomeDirNotFound, nil
+	}
+	return ioutil.Discard, teleport.RemoteCommandSuccess, nil
+}
+
 // RunAndExit will run the requested command and then exit. This wrapper
 // allows Run{Command,Forward} to use defers and makes sure error messages
 // are consistent across both.
@@ -425,6 +437,8 @@ func RunAndExit(commandType string) {
 		w, code, err = RunCommand()
 	case teleport.ForwardSubCommand:
 		w, code, err = RunForward()
+	case teleport.CheckHomeDirSubCommand:
+		w, code, err = runCheckHomeDir()
 	default:
 		w, code, err = os.Stderr, teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
@@ -435,38 +449,23 @@ func RunAndExit(commandType string) {
 	os.Exit(code)
 }
 
+// IsReexec determines if the current process is a teleport reexec command.
+// Used by tests to reroute the execution to RunAndExit.
+func IsReexec() bool {
+	if len(os.Args) == 2 {
+		switch os.Args[1] {
+		case teleport.ExecSubCommand, teleport.ForwardSubCommand, teleport.CheckHomeDirSubCommand:
+			return true
+		}
+	}
+
+	return false
+}
+
 // buildCommand constructs a command that will execute the users shell. This
 // function is run by Teleport while it's re-executing.
 func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
-
-	// Get UID and GID.
-	uid, err := strconv.Atoi(localUser.Uid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	gid, err := strconv.Atoi(localUser.Gid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Lookup supplementary groups for the user.
-	userGroups, err := localUser.GroupIds()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	groups := make([]uint32, 0)
-	for _, sgid := range userGroups {
-		igid, err := strconv.Atoi(sgid)
-		if err != nil {
-			log.Warnf("Cannot interpret user group: '%v'", sgid)
-		} else {
-			groups = append(groups, uint32(igid))
-		}
-	}
-	if len(groups) == 0 {
-		groups = append(groups, uint32(gid))
-	}
 
 	// Get the login shell for the user (or fallback to the default).
 	shellPath, err := shell.GetLoginShell(c.Login)
@@ -497,18 +496,11 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 		cmd.Args = []string{shellPath, "-c", c.Command}
 	}
 
-	// Ensure that the user has a home directory.
-	// TODO: Generalize this to support Windows.
-	homeDir := string(os.PathSeparator)
-	if utils.IsDir(localUser.HomeDir) {
-		homeDir = localUser.HomeDir
-	}
-
 	// Create default environment for user.
 	cmd.Env = []string{
 		"LANG=en_US.UTF-8",
 		getDefaultEnvPath(localUser.Uid, defaultLoginDefsPath),
-		"HOME=" + homeDir,
+		"HOME=" + localUser.HomeDir,
 		"USER=" + c.Login,
 		"SHELL=" + shellPath,
 	}
@@ -529,9 +521,6 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 
 	// If any additional environment variables come from PAM, apply them as well.
 	cmd.Env = append(cmd.Env, pamEnvironment...)
-
-	// Set the home directory for the user.
-	cmd.Dir = homeDir
 
 	// If a terminal was requested, connect std{in,out,err} to the TTY and set
 	// the controlling TTY. Otherwise, connect std{in,out,err} to
@@ -557,6 +546,23 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 		}
 	}
 
+	// Set the command's cwd to the user's $HOME, or "/" if
+	// they don't have an existing home dir.
+	// TODO (atburke): Generalize this to support Windows.
+	exists, err := checkHomeDir(localUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	} else if exists {
+		cmd.Dir = localUser.HomeDir
+	} else if !exists {
+		// Write failure to find home dir to stdout, same as OpenSSH.
+		msg := fmt.Sprintf("Could not set shell's cwd to home directory %q, defaulting to %q\n", localUser.HomeDir, string(os.PathSeparator))
+		if _, err := cmd.Stdout.Write([]byte(msg)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cmd.Dir = string(os.PathSeparator)
+	}
+
 	// Only set process credentials if the UID/GID of the requesting user are
 	// different than the process (Teleport).
 	//
@@ -568,18 +574,18 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	// workaround this, the credentials struct is only set if the credentials
 	// are different from the process itself. If the credentials are not, simply
 	// pick up the ambient credentials of the process.
-	if strconv.Itoa(os.Getuid()) != localUser.Uid || strconv.Itoa(os.Getgid()) != localUser.Gid {
-		cmd.SysProcAttr.Credential = &syscall.Credential{
-			Uid:    uint32(uid),
-			Gid:    uint32(gid),
-			Groups: groups,
-		}
+	credential, err := getCmdCredential(localUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
+	if os.Getuid() != int(credential.Uid) || os.Getgid() != int(credential.Gid) {
+		cmd.SysProcAttr.Credential = credential
 		log.Debugf("Creating process with UID %v, GID: %v, and Groups: %v.",
-			uid, gid, groups)
+			credential.Uid, credential.Gid, credential.Groups)
 	} else {
 		log.Debugf("Creating process with ambient credentials UID %v, GID: %v, Groups: %v.",
-			uid, gid, groups)
+			credential.Uid, credential.Gid, credential.Groups)
 	}
 
 	// Perform OS-specific tweaks to the command.
@@ -671,4 +677,84 @@ func copyCommand(ctx *ServerContext, cmdbytes []byte) {
 		log.Errorf("Failed to copy command over pipe: %v.", err)
 		return
 	}
+}
+
+// checkHomeDir checks if the user's home dir exists
+func checkHomeDir(localUser *user.User) (bool, error) {
+	if fi, err := os.Stat(localUser.HomeDir); err == nil {
+		return fi.IsDir(), nil
+	}
+
+	// In some environments, the user's home directory exists but isn't visible to
+	// root, e.g. /home is mounted to an nfs export with root_squash enabled.
+	// In case we are in that scenario, re-exec teleport as the user to check
+	// if the home dir actually does exist.
+	executable, err := os.Executable()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	credential, err := getCmdCredential(localUser)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	// Build the "teleport exec" command.
+	cmd := &exec.Cmd{
+		Path: executable,
+		Args: []string{executable, teleport.CheckHomeDirSubCommand},
+		Env:  []string{"HOME=" + localUser.HomeDir},
+		SysProcAttr: &syscall.SysProcAttr{
+			Setsid:     true,
+			Credential: credential,
+		},
+	}
+
+	// Perform OS-specific tweaks to the command.
+	reexecCommandOSTweaks(cmd)
+
+	if err := cmd.Run(); err != nil {
+		if cmd.ProcessState.ExitCode() == teleport.HomeDirNotFound {
+			return false, nil
+		}
+		return false, trace.Wrap(err)
+	}
+	return true, nil
+}
+
+// getCmdCredentials parses the uid, gid, and groups of the
+// given user into a credential object for a command to use.
+func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
+	uid, err := strconv.Atoi(localUser.Uid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	gid, err := strconv.Atoi(localUser.Gid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Lookup supplementary groups for the user.
+	userGroups, err := localUser.GroupIds()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	groups := make([]uint32, 0)
+	for _, sgid := range userGroups {
+		igid, err := strconv.Atoi(sgid)
+		if err != nil {
+			log.Warnf("Cannot interpret user group: '%v'", sgid)
+		} else {
+			groups = append(groups, uint32(igid))
+		}
+	}
+	if len(groups) == 0 {
+		groups = append(groups, uint32(gid))
+	}
+
+	return &syscall.Credential{
+		Uid:    uint32(uid),
+		Gid:    uint32(gid),
+		Groups: groups,
+	}, nil
 }

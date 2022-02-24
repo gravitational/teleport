@@ -2549,7 +2549,7 @@ type dbListeners struct {
 
 // Empty returns true if no database access listeners are initialized.
 func (l *dbListeners) Empty() bool {
-	return l.postgres == nil && l.mysql == nil && l.tls == nil
+	return l.postgres == nil && l.mysql == nil && l.tls == nil && l.mongo == nil
 }
 
 // Close closes all database access listeners.
@@ -3221,10 +3221,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Handler:   dbProxyServer.PostgresProxy().HandleConnection,
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
-				// Add MongoDB teleport ALPN protocol without setting custom Handler.
-				// ALPN Proxy will handle MongoDB connection internally (terminate wrapped TLS traffic) and route
-				// extracted connection to ALPN Proxy DB TLS Handler.
-				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMongoDB),
+				// For the following protocols ALPN Proxy will handle the
+				// connection internally (terminate wrapped TLS traffic) and
+				// route extracted connection to ALPN Proxy DB TLS Handler.
+				MatchFunc: alpnproxy.MatchByProtocol(
+					alpncommon.ProtocolMongoDB,
+					alpncommon.ProtocolRedisDB,
+					alpncommon.ProtocolSQLServer),
 			})
 		}
 

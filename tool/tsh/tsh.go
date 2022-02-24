@@ -262,6 +262,10 @@ type CLIConf struct {
 
 	// LocalProxyPort is a port used by local proxy listener.
 	LocalProxyPort string
+	// LocalProxyCertFile is the client certificate used by local proxy.
+	LocalProxyCertFile string
+	// LocalProxyKeyFile is the client key used by local proxy.
+	LocalProxyKeyFile string
 
 	// ConfigProxyTarget is the node which should be connected to in `tsh config-proxy`.
 	ConfigProxyTarget string
@@ -435,6 +439,11 @@ func Run(args []string, opts ...cliOption) error {
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode")
 	proxyDB.Arg("db", "The name of the database to start local proxy for").Required().StringVar(&cf.DatabaseService)
 	proxyDB.Flag("port", " Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").StringVar(&cf.LocalProxyCertFile)
+	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").StringVar(&cf.LocalProxyKeyFile)
+	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode")
+	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
+	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -689,6 +698,8 @@ func Run(args []string, opts ...cliOption) error {
 		err = onProxyCommandSSH(&cf)
 	case proxyDB.FullCommand():
 		err = onProxyCommandDB(&cf)
+	case proxyApp.FullCommand():
+		err = onProxyCommandApp(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)

@@ -278,6 +278,10 @@ func TestWatchers(t *testing.T) {
 	w, err := p.cache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
 		{
 			Kind: types.KindCertAuthority,
+			Filter: types.CertAuthorityFilter{
+				types.HostCA: "example.com",
+				types.UserCA: types.Wildcard,
+			}.IntoMap(),
 		},
 		{
 			Kind: types.KindAccessRequest,
@@ -353,6 +357,20 @@ func TestWatchers(t *testing.T) {
 		t.Fatalf("Timeout waiting for event.")
 	}
 
+	// this ca will not be matched by our filter, so the same reasoning applies
+	// as we upsert it and delete it
+	filteredCa := suite.NewTestCA(types.HostCA, "example.net")
+	require.NoError(t, p.trustS.UpsertCertAuthority(filteredCa))
+	require.NoError(t, p.trustS.DeleteCertAuthority(filteredCa.GetID()))
+
+	select {
+	case e := <-w.Events():
+		require.Equal(t, types.OpDelete, e.Type)
+		require.Equal(t, types.KindCertAuthority, e.Resource.GetKind())
+	case <-time.After(time.Second):
+		t.Fatalf("Timeout waiting for event.")
+	}
+
 	// event has arrived, now close the watchers
 	p.backend.CloseWatchers()
 
@@ -362,6 +380,101 @@ func TestWatchers(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatalf("Timeout waiting for close event.")
 	}
+}
+
+func TestNodeCAFiltering(t *testing.T) {
+	ctx := context.Background()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "example.com",
+	})
+	require.NoError(t, err)
+	err = p.cache.clusterConfigCache.UpsertClusterName(clusterName)
+	require.NoError(t, err)
+
+	nodeCacheBackend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeCacheBackend.Close()) })
+
+	// this mimics a cache for a node pulling events from the auth server via WatchEvents
+	nodeCache, err := New(ForNode(Config{
+		Events:          p.cache,
+		Trust:           p.cache.trustCache,
+		ClusterConfig:   p.cache.clusterConfigCache,
+		Provisioner:     p.cache.provisionerCache,
+		Users:           p.cache.usersCache,
+		Access:          p.cache.accessCache,
+		DynamicAccess:   p.cache.dynamicAccessCache,
+		Presence:        p.cache.presenceCache,
+		Restrictions:    p.cache.restrictionsCache,
+		Apps:            p.cache.appsCache,
+		Databases:       p.cache.databasesCache,
+		AppSession:      p.cache.appSessionCache,
+		WebSession:      p.cache.webSessionCache,
+		WebToken:        p.cache.webTokenCache,
+		WindowsDesktops: p.cache.windowsDesktopsCache,
+		Backend:         nodeCacheBackend,
+	}))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
+
+	cacheWatcher, err := nodeCache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{{Kind: types.KindCertAuthority}}})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, cacheWatcher.Close()) })
+
+	fetchEvent := func() types.Event {
+		var ev types.Event
+		select {
+		case ev = <-cacheWatcher.Events():
+		case <-time.After(time.Second * 5):
+			t.Fatal("watcher timeout")
+		}
+		return ev
+	}
+	require.Equal(t, types.OpInit, fetchEvent().Type)
+
+	// upsert and delete a local host CA, we expect to see a Put and a Delete event
+	localCA := suite.NewTestCA(types.HostCA, "example.com")
+	require.NoError(t, p.trustS.UpsertCertAuthority(localCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(localCA.GetID()))
+
+	ev := fetchEvent()
+	require.Equal(t, types.OpPut, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.com", ev.Resource.GetName())
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.com", ev.Resource.GetName())
+
+	// upsert and delete a nonlocal host CA, we expect to only see the Delete event
+	nonlocalCA := suite.NewTestCA(types.HostCA, "example.net")
+	require.NoError(t, p.trustS.UpsertCertAuthority(nonlocalCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(nonlocalCA.GetID()))
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.net", ev.Resource.GetName())
+
+	// whereas we expect to see the Put and Delete for a trusted *user* CA
+	trustedUserCA := suite.NewTestCA(types.UserCA, "example.net")
+	require.NoError(t, p.trustS.UpsertCertAuthority(trustedUserCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(trustedUserCA.GetID()))
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpPut, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.net", ev.Resource.GetName())
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.net", ev.Resource.GetName())
 }
 
 func waitForRestart(t *testing.T, eventsC <-chan Event) {
@@ -731,9 +844,9 @@ func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
 	}
 }
 
-// TestListNodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
+// TestListResources_NodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
 // using ttl-based caching works as expected.
-func TestListNodesTTLVariant(t *testing.T) {
+func TestListResources_NodesTTLVariant(t *testing.T) {
 	const nodeCount = 100
 	const pageSize = 10
 	var err error
@@ -780,6 +893,8 @@ func TestListNodesTTLVariant(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, allNodes, nodeCount)
 
+	// DELETE IN 10.0.0 this block with ListNodes is replaced
+	// by the following block with ListResources test.
 	var nodes []types.Server
 	var startKey string
 	for {
@@ -802,23 +917,33 @@ func TestListNodesTTLVariant(t *testing.T) {
 			break
 		}
 	}
-
 	require.Len(t, nodes, nodeCount)
 
 	var resources []types.ResourceWithLabels
 	var listResourcesStartKey string
+	sortBy := types.SortBy{
+		Field:  types.ResourceMetadataName,
+		IsDesc: true,
+	}
 	require.Eventually(t, func() bool {
 		page, nextKey, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
 			Namespace:    apidefaults.Namespace,
 			ResourceType: types.KindNode,
 			StartKey:     listResourcesStartKey,
 			Limit:        int32(pageSize),
+			SortBy:       sortBy,
 		})
 		require.NoError(t, err)
 		resources = append(resources, page...)
 		listResourcesStartKey = nextKey
 		return len(resources) == nodeCount
 	}, 5*time.Second, 100*time.Millisecond)
+
+	servers, err := types.ResourcesWithLabels(resources).AsServers()
+	require.NoError(t, err)
+	fieldVals, err := types.Servers(servers).GetFieldVals(sortBy.Field)
+	require.NoError(t, err)
+	require.IsDecreasing(t, fieldVals)
 }
 
 func initStrategy(t *testing.T) {

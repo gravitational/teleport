@@ -180,6 +180,9 @@ const (
 	// MetricNamespace defines the teleport prometheus namespace
 	MetricNamespace = "teleport"
 
+	// MetricConnectedResources tracks the number and type of resources connected via keepalives
+	MetricConnectedResources = "connected_resources"
+
 	// MetricBuildInfo tracks build information
 	MetricBuildInfo = "build_info"
 

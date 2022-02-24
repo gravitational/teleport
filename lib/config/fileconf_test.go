@@ -278,7 +278,7 @@ func TestAuthenticationSection(t *testing.T) {
 						},
 					},
 					"webauthn": cfgMap{
-						"disabled": true,
+						"disabled": true, // Kept for backwards compatibility, has no effect.
 					},
 				}
 			},

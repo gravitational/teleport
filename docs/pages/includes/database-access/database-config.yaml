@@ -1,0 +1,85 @@
+db_service:
+  # Enables the Database Service.
+  enabled: "yes"
+
+  # Matchers for database resources created with "tctl create" command.
+  resources:
+  - labels:
+      "*": "*"
+
+  # Matchers for registering AWS-hosted databases.
+  aws:
+    # Database types. Valid options are:
+    # 'rds' - discovers and registers AWS RDS and Aurora databases.
+    # 'redshift' - discovers and registers AWS Redshift databases.
+  - types: ["rds", "redshift"]
+    # AWS regions to register databases from.
+    regions: ["us-west-1", "us-east-2"]
+    # AWS resource tags to match when registering databases.
+    tags:
+      "*": "*"
+
+  # Lists statically registered databases proxied by this agent.
+  databases:
+    # Name of the database proxy instance, used to reference in CLI.
+  - name: "prod"
+
+    # Free-form description of the database proxy instance.
+    description: "Production database"
+
+    # Database protocol. Can be: "postgres", "mysql", "mongodb", "cockroachdb", "sqlserver".
+    protocol: "postgres"
+
+    # Database connection endpoint. Must be reachable from Database Service.
+    uri: "postgres.example.com:5432"
+
+    # Optional TLS configuration.
+    tls:
+      # TLS verification mode. Valid options are:
+      # 'verify-full' - performs full certificate validation (default).
+      # 'verify-ca' - the same as `verify-full`, but skips the server name validation.
+      # 'insecure' - accepts any certificate provided by database (not recommended).
+      mode: verify-full
+      # Optional database DNS server name. It allows to override the DNS name on
+      # a client certificate when connecting to a database.
+      # Use only with 'verify-full' mode.
+      server_name: db.example.com
+      # Optional path to the CA used to validate the database certificate.
+      ca_cert_file: /path/to/pem
+
+    # AWS specific configuration, only required for RDS/Aurora/Redshift.
+    aws:
+      # Region the database is deployed in.
+      region: "us-east-1"
+      # Redshift specific configuration.
+      redshift:
+        # Redshift cluster identifier.
+        cluster_id: "redshift-cluster-1"
+
+    # GCP specific configuration for Cloud SQL databases.
+    gcp:
+      # GCP project ID.
+      project_id: "xxx-1234"
+      # Cloud SQL instance ID.
+      instance_id: "example"
+
+    # Settings specific to Active Directory authentication e.g. for SQL Server.
+    ad:
+      # Path to Kerberos keytab file.
+      keytab_file: /path/to/keytab
+      # Active Directory domain name.
+      domain: EXAMPLE.COM
+      # Service Principal Name to obtain Kerberos tickets for.
+      spn: MSSQLSvc/ec2amaz-4kn05du.dbadir.teleportdemo.net:1433
+      # Optional path to Kerberos configuration file. Defaults to /etc/krb5.conf.
+      krb5_file: /etc/krb5.conf
+
+    # Static labels to assign to the database. Used in RBAC.
+    static_labels:
+      env: "prod"
+
+    # Dynamic labels ("commands"). Used in RBAC.
+    dynamic_labels:
+    - name: "hostname"
+      command: ["hostname"]
+      period: 1m0s

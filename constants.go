@@ -224,6 +224,9 @@ const (
 	// ComponentTSH is the "tsh" binary.
 	ComponentTSH = "tsh"
 
+	// ComponentTBot is the "tbot" binary
+	ComponentTBot = "tbot"
+
 	// ComponentKubeClient is the Kubernetes client.
 	ComponentKubeClient = "client:kube"
 
@@ -446,6 +449,12 @@ const (
 	// CertExtensionDisallowReissue is set when a certificate should not be allowed
 	// to request future certificates.
 	CertExtensionDisallowReissue = "disallow-reissue"
+	// CertExtensionRenewable is a flag to indicate the certificate may be
+	// renewed.
+	CertExtensionRenewable = "renewable"
+	// CertExtensionGeneration counts the number of times a certificate has
+	// been renewed.
+	CertExtensionGeneration = "generation"
 )
 
 const (
@@ -464,6 +473,9 @@ const (
 	// RemoteCommandFailure is returned when a command has failed to execute and
 	// we don't have another status code for it.
 	RemoteCommandFailure = 255
+	// HomeDirNotFound is returned when a the "teleport checkhomedir" command cannot
+	// find the user's home directory.
+	HomeDirNotFound = 254
 )
 
 // MaxEnvironmentFileLines is the maximum number of lines in a environment file.
@@ -711,6 +723,10 @@ const (
 	// ForwardSubCommand is the sub-command Teleport uses to re-exec itself
 	// for port forwarding.
 	ForwardSubCommand = "forward"
+
+	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
+	// to check if the user's home directory exists.
+	CheckHomeDirSubCommand = "checkhomedir"
 )
 
 const (

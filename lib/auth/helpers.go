@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -430,6 +429,8 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 			routeToCluster: identity.RouteToCluster,
 			checker:        checker,
 			traits:         user.GetTraits(),
+			renewable:      identity.Renewable,
+			generation:     identity.Generation,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -664,6 +665,8 @@ type TestIdentity struct {
 	TTL            time.Duration
 	AcceptedUsage  []string
 	RouteToCluster string
+	Renewable      bool
+	Generation     uint64
 }
 
 // TestUser returns TestIdentity for local user
@@ -673,6 +676,21 @@ func TestUser(username string) TestIdentity {
 			Username: username,
 			Identity: tlsca.Identity{Username: username},
 		},
+	}
+}
+
+// TestUser returns a TestIdentity for a local user
+// with renewable credentials.
+func TestRenewableUser(username string, generation uint64) TestIdentity {
+	return TestIdentity{
+		I: LocalUser{
+			Username: username,
+			Identity: tlsca.Identity{
+				Username: username,
+			},
+		},
+		Renewable:  true,
+		Generation: generation,
 	}
 }
 
@@ -1050,13 +1068,4 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	}
 
 	return user, role, nil
-}
-
-type testModules struct {
-	modules.Modules
-	features modules.Features
-}
-
-func (m *testModules) Features() modules.Features {
-	return m.features
 }

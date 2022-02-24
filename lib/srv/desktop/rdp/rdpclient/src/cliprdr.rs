@@ -214,7 +214,8 @@ impl Client {
 
         for name in list.format_names {
             match FromPrimitive::from_u32(name.format_id) {
-                Some(ClipboardFormat::CF_TEXT) | Some(ClipboardFormat::CF_OEMTEXT) => {
+                // TODO(zmb3): support CF_TEXT, CF_UNICODETEXT, ...
+                Some(ClipboardFormat::CF_OEMTEXT) => {
                     // request the data by imitating a paste event
                     result.push(encode_message(
                         ClipboardPDUType::CB_FORMAT_DATA_REQUEST,

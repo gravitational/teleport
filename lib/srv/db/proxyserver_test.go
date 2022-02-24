@@ -141,6 +141,7 @@ func TestProxyRateLimiting(t *testing.T) {
 		withSelfHostedPostgres("postgres"),
 		withSelfHostedMySQL("mysql"),
 		withSelfHostedMongo("mongodb"),
+		withSelfHostedRedis("redis"),
 	)
 
 	connLimit, err := limiter.NewLimiter(limiter.Config{
@@ -189,6 +190,15 @@ func TestProxyRateLimiting(t *testing.T) {
 				return mongoClient.Disconnect, err
 			},
 		},
+		{
+			"redis",
+			func() (func(context.Context) error, error) {
+				redisClient, err := testCtx.redisClient(ctx, user, "redis", dbUser)
+				return func(_ context.Context) error {
+					return redisClient.Close()
+				}, err
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -215,9 +225,11 @@ func TestProxyRateLimiting(t *testing.T) {
 
 				require.Error(t, err)
 
-				//TODO(jakule) currently mongodb proxy don't know how to propagate an error,
-				// so this check for mongo is disabled
-				if tt.name != "mongodb" {
+				switch tt.name {
+				case "mongodb", "redis":
+					//TODO(jakule) currently TLS proxy (which is used by mongodb and redis) doesn't know
+					// how to propagate errors, so this check is disabled.
+				default:
 					require.Contains(t, err.Error(), "rate limit exceeded")
 				}
 

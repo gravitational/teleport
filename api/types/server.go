@@ -498,3 +498,76 @@ func LabelsToV2(labels map[string]CommandLabel) map[string]CommandLabelV2 {
 // client side, in the ~/.tsh directory. Restricting characters helps with
 // sneaky cluster names being used for client directory traversal and exploits.
 var validKubeClusterName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
+// Servers represents a list of servers.
+type Servers []Server
+
+// Len returns the slice length.
+func (s Servers) Len() int { return len(s) }
+
+// Less compares servers by name.
+func (s Servers) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName()
+}
+
+// Swap swaps two servers.
+func (s Servers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (s Servers) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetName(), s[j].GetName(), isDesc)
+		})
+	case ResourceSpecHostname:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetHostname(), s[j].GetHostname(), isDesc)
+		})
+	case ResourceSpecAddr:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetAddr(), s[j].GetAddr(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindNode)
+	}
+
+	return nil
+}
+
+// AsResources returns as type resources with labels.
+func (s Servers) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (s Servers) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, 0, len(s))
+	switch field {
+	case ResourceMetadataName:
+		for _, server := range s {
+			vals = append(vals, server.GetName())
+		}
+	case ResourceSpecHostname:
+		for _, server := range s {
+			vals = append(vals, server.GetHostname())
+		}
+	case ResourceSpecAddr:
+		for _, server := range s {
+			vals = append(vals, server.GetAddr())
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindNode)
+	}
+
+	return vals, nil
+}

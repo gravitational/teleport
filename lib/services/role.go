@@ -354,6 +354,18 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 			r.SetDatabaseLabels(condition, applyLabelsTraits(inLabels, traits))
 		}
 
+		options := r.GetOptions()
+		for i, ext := range options.CertExtensions {
+			vals, err := ApplyValueTraits(ext.Value, traits)
+			if err != nil && !trace.IsNotFound(err) {
+				log.Warnf("didnt applying trait to cert_extensions.value: %v", err)
+				continue
+			}
+			if len(vals) != 0 {
+				options.CertExtensions[i].Value = vals[0]
+			}
+		}
+
 		// apply templates to impersonation conditions
 		inCond := r.GetImpersonateConditions(condition)
 		var outCond types.ImpersonateConditions
@@ -711,6 +723,9 @@ type AccessChecker interface {
 	// ExtractConditionForIdentifier returns a restrictive filter expression
 	// for list queries based on the rules' `where` conditions.
 	ExtractConditionForIdentifier(ctx RuleContext, namespace, resource, verb, identifier string) (*types.WhereExpr, error)
+
+	// CertificateExtensions returns the list of extensions for each role in the RoleSet
+	CertificateExtensions() []*types.CertExtension
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1163,7 +1178,7 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 		// but ssh certificates must contain at least one valid principal.
 		// we add a single distinctive value which should be unique, and
 		// will never be a valid unix login (due to leading '-').
-		logins = []string{"-teleport-nologin-" + uuid.New().String()}
+		logins = []string{constants.NoLoginPrefix + uuid.New().String()}
 	}
 
 	if len(logins) == 0 {
@@ -1395,6 +1410,15 @@ func (set RoleSet) LockingMode(defaultMode constants.LockingMode) constants.Lock
 		}
 	}
 	return mode
+}
+
+// CertificateExtensions returns the list of extensions for each role in the RoleSet
+func (set RoleSet) CertificateExtensions() []*types.CertExtension {
+	var exts []*types.CertExtension
+	for _, role := range set {
+		exts = append(exts, role.GetOptions().CertExtensions...)
+	}
+	return exts
 }
 
 func roleNames(roles []types.Role) string {

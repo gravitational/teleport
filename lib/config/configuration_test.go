@@ -1971,6 +1971,34 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
+		{
+			desc: "SQL Server",
+			inFlags: CommandLineFlags{
+				DatabaseName:         "sqlserver",
+				DatabaseProtocol:     defaults.ProtocolSQLServer,
+				DatabaseURI:          "localhost:1433",
+				DatabaseADKeytabFile: "/etc/keytab",
+				DatabaseADDomain:     "EXAMPLE.COM",
+				DatabaseADSPN:        "MSSQLSvc/sqlserver.example.com:1433",
+			},
+			outDatabase: service.Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
+				},
+				AD: service.DatabaseAD{
+					KeytabFile: "/etc/keytab",
+					Krb5File:   defaults.Krb5FilePath,
+					Domain:     "EXAMPLE.COM",
+					SPN:        "MSSQLSvc/sqlserver.example.com:1433",
+				},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
