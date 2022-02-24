@@ -26,9 +26,28 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type SymlinksMode string
+
+const (
+	// SymlinksInsecure does allow resolving symlink paths and does not issue
+	// any symlink-related warnings.
+	SymlinksInsecure SymlinksMode = "insecure"
+
+	// SymlinksTrySecure attempts to write files securely and avoid symlink
+	// attacks, but falls back with a warning if the necessary OS / kernel
+	// support is missing.
+	SymlinksTrySecure SymlinksMode = "try-secure"
+
+	// SymlinksSecure attempts to write files securely and fails with an error
+	// if the operation fails. This should be the default on systems were we
+	// expect it to be supported.
+	SymlinksSecure SymlinksMode = "secure"
+)
+
 // DestinationDirectory is a Destination that writes to the local filesystem
 type DestinationDirectory struct {
-	Path string `yaml:"path,omitempty"`
+	Path     string       `yaml:"path,omitempty"`
+	Symlinks SymlinksMode `yaml:"symlinks,omitempty"`
 }
 
 func (dd *DestinationDirectory) UnmarshalYAML(node *yaml.Node) error {
@@ -56,6 +75,30 @@ func (dd *DestinationDirectory) UnmarshalYAML(node *yaml.Node) error {
 func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 	if dd.Path == "" {
 		return trace.BadParameter("destination path must not be empty")
+	}
+
+	secureSupported, err := botfs.IsCreateSecureSupported()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch dd.Symlinks {
+	case "":
+		if secureSupported {
+			// We expect Openat2 to be available, so try to use it by default.
+			dd.Symlinks = SymlinksSecure
+		} else {
+			// TrySecure will print a warning on fallback.
+			dd.Symlinks = SymlinksTrySecure
+		}
+	case SymlinksInsecure, SymlinksTrySecure:
+		// valid
+	case SymlinksSecure:
+		if !secureSupported {
+			return trace.BadParameter("symlink mode %q not supported on this system", secureSupported)
+		}
+	default:
+		return trace.BadParameter("invalid symlinks mode: %q", dd.Symlinks)
 	}
 
 	return nil

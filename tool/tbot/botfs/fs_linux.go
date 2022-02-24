@@ -1,3 +1,6 @@
+//go:build linux
+// +build linux
+
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -20,12 +23,16 @@ import (
 	"io/fs"
 	"os"
 
+	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/joshlf/go-acl"
 	"golang.org/x/sys/unix"
 )
 
 const DefaultMode fs.FileMode = 0600
+
+const Openat2MinKernel = "5.6.0"
 
 // CreateSecure attempts to create the given file or directory without
 // evaluating symlinks. This is only supported on recent Linux kernel versions
@@ -97,4 +104,26 @@ func ConfigureACL(path string, botUser string) error {
 	}
 
 	return nil
+}
+
+// HasACLSupport determines if this binary / system supports ACLs.
+func HasACLSupport() (bool, error) {
+	// TODO: consider checking for FS support here, for now this just assumes
+	// linux is always supported.
+	return true, nil
+}
+
+// IsCreateSecureSupported determines if `CreateSecure()` should be supported
+// on this OS / kernel version. Note that it just checks the kernel
+func IsCreateSecureSupported() (bool, error) {
+	minKernel := semver.New(Openat2MinKernel)
+	version, err := utils.KernelVersion()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if version.LessThan(*minKernel) {
+		return false, nil
+	}
+
+	return true, nil
 }
