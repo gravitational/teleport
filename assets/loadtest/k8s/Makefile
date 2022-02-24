@@ -131,7 +131,7 @@ install-monitor:
 	@make expand-yaml FILENAME=prometheus
 	kubectl apply -f prometheus-gen.yaml
 
-# deletes grafana, influxdb. and prometheus deployments, services and configmaps
+# deletes grafana, influxdb, and prometheus deployments, services and configmaps
 .PHONY: delete-monitor
 delete-monitor:
 	kubectl delete -f influxdb.yaml --ignore-not-found
