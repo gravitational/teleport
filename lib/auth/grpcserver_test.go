@@ -60,10 +60,6 @@ func TestMFADeviceManagement(t *testing.T) {
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
-		},
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -101,7 +97,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: "fail-dev",
-					DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				},
 				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.NotNil(t, req.TOTP)
@@ -582,10 +578,6 @@ func TestDeleteLastMFADevice(t *testing.T) {
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
-		},
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -686,14 +678,9 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	srv := newTestTLSServer(t)
 	clock := srv.Clock()
 
-	// Enable U2F support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
-		},
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -973,9 +960,8 @@ func TestIsMFARequired(t *testing.T) {
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
+		Webauthn: &types.Webauthn{
+			RPID: "teleport",
 		},
 	})
 	require.NoError(t, err)
@@ -1031,9 +1017,8 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
+		Webauthn: &types.Webauthn{
+			RPID: "teleport",
 		},
 	})
 	require.NoError(t, err)

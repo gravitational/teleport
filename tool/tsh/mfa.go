@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
@@ -47,12 +46,11 @@ import (
 
 const (
 	totpDeviceType     = "TOTP"
-	u2fDeviceType      = "U2F"
 	webauthnDeviceType = "WEBAUTHN"
 )
 
 // defaultDeviceTypes lists the supported device types for `tsh mfa add`.
-var defaultDeviceTypes = []string{totpDeviceType, u2fDeviceType, webauthnDeviceType}
+var defaultDeviceTypes = []string{totpDeviceType, webauthnDeviceType}
 
 type mfaCommands struct {
 	ls  *mfaLSCommand
@@ -187,7 +185,6 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 
 	m := map[string]proto.DeviceType{
 		totpDeviceType:     proto.DeviceType_DEVICE_TYPE_TOTP,
-		u2fDeviceType:      proto.DeviceType_DEVICE_TYPE_U2F,
 		webauthnDeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 	}
 	devType := m[c.devType]
@@ -221,20 +218,15 @@ func deviceTypesFromPreferredMFA(preferredMFA constants.SecondFactorType) []stri
 
 	m := map[constants.SecondFactorType]string{
 		constants.SecondFactorOTP:      totpDeviceType,
-		constants.SecondFactorU2F:      u2fDeviceType,
 		constants.SecondFactorWebauthn: webauthnDeviceType,
 	}
 
-	// Use preferredMFA as a way to choose between Webauthn and U2F, so both don't
-	// appear together in the interactive UI.
-	// We won't attempt to deal with all nuances of second factor configuration
-	// here, just make a sensible choice and let the backend deal with the rest.
 	switch preferredType, ok := m[preferredMFA]; {
 	case !ok: // Empty or unknown suggestion, fallback to defaults.
 		return defaultDeviceTypes
 	case preferredType == totpDeviceType: // OTP only
 		return []string{preferredType}
-	default: // OTP + Webauthn or U2F
+	default: // OTP + MFA
 		return []string{totpDeviceType, preferredType}
 	}
 }
@@ -328,8 +320,6 @@ func promptRegisterChallenge(ctx context.Context, proxyAddr string, c *proto.MFA
 	switch c.Request.(type) {
 	case *proto.MFARegisterChallenge_TOTP:
 		return promptTOTPRegisterChallenge(ctx, c.GetTOTP())
-	case *proto.MFARegisterChallenge_U2F:
-		return promptU2FRegisterChallenge(ctx, proxyAddr, c.GetU2F())
 	case *proto.MFARegisterChallenge_Webauthn:
 		return promptWebauthnRegisterChallenge(ctx, proxyAddr, c.GetWebauthn())
 	default:
@@ -412,32 +402,12 @@ func promptTOTPRegisterChallenge(ctx context.Context, c *proto.TOTPRegisterChall
 	}}, nil
 }
 
-func promptU2FRegisterChallenge(ctx context.Context, proxyAddr string, c *proto.U2FRegisterChallenge) (*proto.MFARegisterResponse, error) {
-	fmt.Println("Tap your *new* security key")
-
-	facet := proxyAddr
-	if !strings.HasPrefix(proxyAddr, "https://") {
-		facet = "https://" + facet
-	}
-	resp, err := u2f.RegisterSignChallenge(ctx, u2f.RegisterChallenge{
-		Challenge: c.Challenge,
-		AppID:     c.AppID,
-	}, facet)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{U2F: &proto.U2FRegisterResponse{
-		RegistrationData: resp.RegistrationData,
-		ClientData:       resp.ClientData,
-	}}}, nil
-}
-
 func promptWebauthnRegisterChallenge(ctx context.Context, proxyAddr string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
 	origin := proxyAddr
 	if !strings.HasPrefix(proxyAddr, "https://") {
 		origin = "https://" + origin
 	}
-	log.Debugf("WebAuthn: prompting U2F devices with origin %q", origin)
+	log.Debugf("WebAuthn: prompting MFA devices with origin %q", origin)
 
 	fmt.Println("Tap your *new* security key")
 
