@@ -126,10 +126,7 @@ type RegistrationFlow struct {
 // As a side effect Begin may assign (and record in storage) a WebAuthn ID for
 // the user.
 func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless bool) (*CredentialCreation, error) {
-	switch {
-	case f.Webauthn.Disabled:
-		return nil, trace.BadParameter("webauthn disabled")
-	case user == "":
+	if user == "" {
 		return nil, trace.BadParameter("user required")
 	}
 
@@ -223,8 +220,6 @@ func upsertOrGetWebID(ctx context.Context, user string, identity RegistrationIde
 // or writing the device to storage (using its Identity interface).
 func (f *RegistrationFlow) Finish(ctx context.Context, user, deviceName string, resp *CredentialCreationResponse) (*types.MFADevice, error) {
 	switch {
-	case f.Webauthn.Disabled:
-		return nil, trace.BadParameter("webauthn disabled")
 	case user == "":
 		return nil, trace.BadParameter("user required")
 	case deviceName == "":

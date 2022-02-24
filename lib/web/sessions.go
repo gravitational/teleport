@@ -583,11 +583,6 @@ func (s *sessionCache) AuthenticateWebUser(req *client.AuthenticateWebUserReques
 	authReq := auth.AuthenticateUserRequest{
 		Username: req.User,
 	}
-	if req.U2FSignResponse != nil {
-		authReq.U2F = &auth.U2FSignResponseCreds{
-			SignResponse: *req.U2FSignResponse,
-		}
-	}
 	if req.WebauthnAssertionResponse != nil {
 		authReq.Webauthn = req.WebauthnAssertionResponse
 	}
@@ -636,11 +631,6 @@ func (s *sessionCache) AuthenticateSSHUser(c client.AuthenticateSSHUserRequest) 
 	}
 	if c.Password != "" {
 		authReq.Pass = &auth.PassCreds{Password: []byte(c.Password)}
-	}
-	if c.U2FSignResponse != nil {
-		authReq.U2F = &auth.U2FSignResponseCreds{
-			SignResponse: *c.U2FSignResponse,
-		}
 	}
 	if c.WebauthnChallengeResponse != nil {
 		authReq.Webauthn = c.WebauthnChallengeResponse
