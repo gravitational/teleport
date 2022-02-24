@@ -48,18 +48,18 @@ const (
 //  * Redis 7.0+ commands are rejected as at the moment of writing Redis 7.0 hasn't been released and go-redis doesn't support it.
 //  * RESP3 commands are rejected as Teleport/go-redis currently doesn't support this version of protocol.
 //  * Subscribe related commands created a new DB connection as they change Redis request-response model to Pub/Sub.
-func (e *Engine) processCmd(ctx context.Context, redisClient redis.UniversalClient, cmd *redis.Cmd) error {
+func (e *Engine) processCmd(ctx context.Context, cmd *redis.Cmd) error {
 	switch strings.ToLower(cmd.Name()) {
 	case helloCmd:
 		return trace.NotImplemented("RESP3 is not supported")
 	case authCmd:
-		return e.processAuth(ctx, redisClient, cmd)
+		return e.processAuth(ctx, cmd)
 	case subscribeCmd:
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
-		return e.subscribeCmd(ctx, redisClient.Subscribe, cmd)
+		return e.subscribeCmd(ctx, e.redisClient.Subscribe, cmd)
 	case psubscribeCmd:
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
-		return e.subscribeCmd(ctx, redisClient.PSubscribe, cmd)
+		return e.subscribeCmd(ctx, e.redisClient.PSubscribe, cmd)
 	case punsubscribeCmd:
 		// TODO(jakub): go-redis doesn't expose any API for this command. Investigate alternative options.
 		return trace.NotImplemented("PUNSUBSCRIBE is not supported by Teleport")
@@ -70,7 +70,7 @@ func (e *Engine) processCmd(ctx context.Context, redisClient redis.UniversalClie
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
 
 		// Here the command is sent to the DB.
-		return redisClient.Process(ctx, cmd)
+		return e.redisClient.Process(ctx, cmd)
 	}
 }
 
@@ -148,7 +148,7 @@ func (e *Engine) processPubSub(ctx context.Context, pubSub *redis.PubSub) error 
 
 // processAuth runs RBAC check on Redis AUTH command if command contains username. Command containing only password
 // is passed to Redis. Commands with incorrect number of arguments are rejected and an error is returned.
-func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalClient, cmd *redis.Cmd) error {
+func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 	// AUTH command may contain only password or login and password. Depends on the version we need to make sure
 	// that the user has permission to connect as the provided db user.
 	// ref: https://redis.io/commands/auth
@@ -180,7 +180,7 @@ func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalCli
 			return trace.Wrap(err)
 		}
 
-		return redisClient.Process(ctx, cmd)
+		return e.redisClient.Process(ctx, cmd)
 	case 3:
 		// Redis 6 version that contains username and password. Check the username against our RBAC before sending to Redis.
 		// ex. AUTH bob my-secret-password
@@ -207,7 +207,17 @@ func (e *Engine) processAuth(ctx context.Context, redisClient redis.UniversalCli
 			return trace.Wrap(err)
 		}
 
-		return redisClient.Process(ctx, cmd)
+		err = e.redisClient.Close()
+		if err != nil {
+			e.Log.Errorf("failed to close Redis connection: %s", err)
+		}
+
+		e.redisClient, err = newClient(ctx, e.connectionOptions, e.tlsConfig, dbUser, cmd.Args()[2].(string))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return e.redisClient.Process(ctx, cmd)
 	default:
 		// Redis returns "syntax error" if AUTH has more than 2 arguments.
 		return trace.BadParameter("syntax error")

@@ -19,6 +19,7 @@ package redis
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"net"
 
@@ -53,6 +54,12 @@ type Engine struct {
 	clientReader *redis.Reader
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
+
+	redisClient redis.UniversalClient
+
+	connectionOptions *ConnectionOptions
+
+	tlsConfig *tls.Config
 }
 
 // InitializeConnection initializes the database connection.
@@ -138,24 +145,23 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
+	e.tlsConfig, err = e.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	connectionOptions, err := ParseRedisAddress(sessionCtx.Database.GetURI())
+	e.connectionOptions, err = ParseRedisAddress(sessionCtx.Database.GetURI())
 	if err != nil {
 		return trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
 	}
 
-	connectionAddr := net.JoinHostPort(connectionOptions.address, connectionOptions.port)
-	redisConn, err := newClient(ctx, connectionOptions.mode, connectionAddr, tlsConfig)
+	e.redisClient, err = newClient(ctx, e.connectionOptions, e.tlsConfig, "", "")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	defer func() {
-		if err := redisConn.Close(); err != nil {
+		if err := e.redisClient.Close(); err != nil {
 			e.Log.Errorf("Failed to close Redis connection: %v.", err)
 		}
 	}()
@@ -163,7 +169,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
-	if err := e.process(ctx, redisConn); err != nil {
+	if err := e.process(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -172,7 +178,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 // process is the main processing function for Redis. It reads commands from connected client and passes them to
 // a Redis instance. This function returns when a server closes a connection or in case of connection error.
-func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient) error {
+func (e *Engine) process(ctx context.Context) error {
 	for {
 		// Read commands from connected client.
 		cmd, err := e.readClientCmd(ctx)
@@ -181,7 +187,7 @@ func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient)
 		}
 
 		// send valid commands to Redis instance/cluster.
-		err = e.processCmd(ctx, redisClient, cmd)
+		err = e.processCmd(ctx, cmd)
 		// go-redis returns some errors as err and some as cmd.Err().
 		// Function below maps errors that should be returned to the
 		// client as value or return them as err if we should terminate

@@ -22,6 +22,7 @@ package redis
 import (
 	"context"
 	"crypto/tls"
+	"net"
 	"strings"
 	"sync"
 
@@ -61,20 +62,25 @@ type clusterClient struct {
 
 // newClient creates a new Redis client based on given ConnectionMode. If connection mode is not supported
 // an error is returned.
-func newClient(ctx context.Context, mode ConnectionMode, addr string, tlsConfig *tls.Config) (redis.UniversalClient, error) {
+func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsConfig *tls.Config, username, password string) (redis.UniversalClient, error) {
+	connectionAddr := net.JoinHostPort(connectionOptions.address, connectionOptions.port)
 	// TODO(jakub): Use system CA bundle if connecting to AWS.
 	// TODO(jakub): Investigate Redis Sentinel.
-	switch mode {
+	switch connectionOptions.mode {
 	case Standalone:
 		return redis.NewClient(&redis.Options{
-			Addr:      addr,
+			Addr:      connectionAddr,
 			TLSConfig: tlsConfig,
+			Username:  username,
+			Password:  password,
 		}), nil
 	case Cluster:
 		client := &clusterClient{
 			ClusterClient: *redis.NewClusterClient(&redis.ClusterOptions{
-				Addrs:     []string{addr},
+				Addrs:     []string{connectionAddr},
 				TLSConfig: tlsConfig,
+				Username:  username,
+				Password:  password,
 			}),
 		}
 		// Load cluster information.
@@ -83,7 +89,7 @@ func newClient(ctx context.Context, mode ConnectionMode, addr string, tlsConfig 
 		return client, nil
 	default:
 		// We've checked that while validating the config, but checking again can help with regression.
-		return nil, trace.BadParameter("incorrect connection mode %s", mode)
+		return nil, trace.BadParameter("incorrect connection mode %s", connectionOptions.mode)
 	}
 }
 
@@ -104,7 +110,7 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 
 	switch cmdName := strings.ToLower(cmd.Name()); cmdName {
 	case multiCmd, execCmd, watchCmd, scanCmd,
-		syncCmd, psyncCmd:
+		syncCmd, psyncCmd, "cluster":
 		// block commands that return incorrect results in Cluster mode
 		return trace.NotImplemented("%s is not supported in the cluster mode", cmdName)
 	case dbsizeCmd:
