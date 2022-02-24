@@ -682,7 +682,7 @@ func (proxy *ProxyClient) ListResources(ctx context.Context, namespace, resource
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	resources, nextKey, err := authClient.ListResources(ctx, proto.ListResourcesRequest{
+	resp, err := authClient.ListResources(ctx, proto.ListResourcesRequest{
 		Namespace:    namespace,
 		ResourceType: resource,
 		StartKey:     startKey,
@@ -691,7 +691,7 @@ func (proxy *ProxyClient) ListResources(ctx context.Context, namespace, resource
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	return resources, nextKey, nil
+	return resp.Resources, resp.NextKey, nil
 }
 
 // CurrentClusterAccessPoint returns cluster access point to the currently
