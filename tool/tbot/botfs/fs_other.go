@@ -19,50 +19,34 @@ limitations under the License.
 
 package botfs
 
-// CreateSecure attempts to create the given file or directory without
+import "github.com/gravitational/trace"
+
+// Create attempts to create the given file or directory without
 // evaluating symlinks. This is only supported on recent Linux kernel versions
 // (5.6+). The resulting file permissions are unspecified; Chmod should be
 // called afterward.
-func CreateSecure(path string, isDir bool) error {
-	if isDir {
-		// We can't specify RESOLVE_NO_SYMLINKS for mkdir. This isn't the end
-		// of the world, though: if an attacker attempts a symlink attack we'll
-		// just open the correct file for read/write later (and error when it
-		// doesn't exist).
-		if err := os.Mkdir(path, DefaultMode); err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		how := unix.OpenHow{
-			// Equivalent to 0600
-			Mode:    unix.O_RDONLY | unix.S_IRUSR | unix.S_IWUSR,
-			Flags:   unix.O_CREAT,
-			Resolve: unix.RESOLVE_NO_SYMLINKS,
-		}
-
-		// TODO: how do we want to handle limited support for Openat2? need a
-		// fallback impl + some UX to enable "paranoid mode"
-		fd, err := unix.Openat2(unix.AT_FDCWD, path, &how)
-		_ = unix.Close(fd)
-		if err == unix.ENOSYS {
-			return trace.Errorf("CreateSecure() failed (kernel may be too old, requires Linux 5.6+)")
-		} else if err != nil {
-			return trace.Wrap(err)
-		}
+func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
+	if symlinksMode == SymlinksSecure {
+		return trace.BadParameter("cannot write with `symlinks: secure` on unsupported platform")
 	}
 
+	return trace.Wrap(createStandard(path, isDir))
+}
+
+// Write stores the given data to the file at the given path.
+func Write(path string, data []byte, symlinksMode SymlinksMode) error {
 	return nil
 }
 
 // HasACLSupport determines if this binary / system supports ACLs. This
 // catch-all implementation just returns false.
 func HasACLSupport() (bool, error) {
-    return false, nil
+	return false, nil
 }
 
-// IsCreateSecureSupported determines if `CreateSecure()` should be supported
+// HasSecureWriteSupport determines if `CreateSecure()` should be supported
 // on this OS / kernel version. This is only supported on Linux, so this
 // catch-all implementation just returns fales.
-func IsCreateSecureSupported() (bool, error) {
+func HasSecureWriteSupport() (bool, error) {
 	return false, nil
 }

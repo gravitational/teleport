@@ -169,7 +169,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 		for key, isDir := range toCreate {
 			path := filepath.Join(destDir.Path, key)
-			if err := botfs.CreateSecure(path, isDir); err != nil {
+			if err := botfs.Create(path, isDir, destDir.Symlinks); err != nil {
 				return trace.Wrap(err)
 			}
 

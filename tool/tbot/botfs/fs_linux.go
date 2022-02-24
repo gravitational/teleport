@@ -20,8 +20,8 @@ limitations under the License.
 package botfs
 
 import (
-	"io/fs"
 	"os"
+	"path/filepath"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport/lib/utils"
@@ -30,15 +30,35 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const DefaultMode fs.FileMode = 0600
-
+// Openat2MinKernel is the kernel release that adds support for the openat2()
+// syscall.
 const Openat2MinKernel = "5.6.0"
 
-// CreateSecure attempts to create the given file or directory without
-// evaluating symlinks. This is only supported on recent Linux kernel versions
-// (5.6+). The resulting file permissions are unspecified; Chmod should be
-// called afterward.
-func CreateSecure(path string, isDir bool) error {
+// openSecure opens the given path for writing (with O_CREAT, mode 0600)
+// with the RESOLVE_NO_SYMLINKS flag set.
+func openSecure(path string) (*os.File, error) {
+	how := unix.OpenHow{
+		// Equivalent to 0600. Unfortunately it's not worth reusing our
+		// default file mode constant here.
+		Mode:    unix.O_RDONLY | unix.S_IRUSR | unix.S_IWUSR,
+		Flags:   unix.O_CREAT,
+		Resolve: unix.RESOLVE_NO_SYMLINKS,
+	}
+
+	fd, err := unix.Openat2(unix.AT_FDCWD, path, &how)
+	if err != nil {
+		// note: returning the original error here for comparison purposes
+		return nil, err
+	}
+
+	// TODO: ensure os.File.Close() closes this properly
+	// (otherwise: unix.Close(fd))
+	return os.NewFile(uintptr(fd), filepath.Base(path)), nil
+}
+
+// createStandard creates an empty file or directory at the given path while
+// attempting to prevent symlink attacks.
+func createSecure(path string, isDir bool) error {
 	if isDir {
 		// We can't specify RESOLVE_NO_SYMLINKS for mkdir. This isn't the end
 		// of the world, though: if an attacker attempts a symlink attack we'll
@@ -48,22 +68,99 @@ func CreateSecure(path string, isDir bool) error {
 			return trace.Wrap(err)
 		}
 	} else {
-		how := unix.OpenHow{
-			// Equivalent to 0600
-			Mode:    unix.O_RDONLY | unix.S_IRUSR | unix.S_IWUSR,
-			Flags:   unix.O_CREAT,
-			Resolve: unix.RESOLVE_NO_SYMLINKS,
-		}
-
-		// TODO: how do we want to handle limited support for Openat2? need a
-		// fallback impl + some UX to enable "paranoid mode"
-		fd, err := unix.Openat2(unix.AT_FDCWD, path, &how)
-		_ = unix.Close(fd)
+		f, err := openSecure(path)
 		if err == unix.ENOSYS {
-			return trace.Errorf("CreateSecure() failed (kernel may be too old, requires Linux 5.6+)")
+			// bubble up the original error for comparison
+			return err
 		} else if err != nil {
 			return trace.Wrap(err)
 		}
+
+		// No writing to do, just close it.
+		// TODO: make sure Close() is sensible for wrapped fds
+		f.Close()
+	}
+
+	return nil
+}
+
+// Create attempts to create the given file or directory with the given
+// symlinks mode.
+func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
+	// Implementation note: paranoid file _creation_ is only really useful for
+	// providing an early warning if openat2() / ACLs are unsupported on the
+	// host system, as it will catch compatibility issues during `tbot init`.
+	// Write() with Symlinks(Try)Secure is the codepath that actually prevents
+	// symlink attacks.
+
+	switch symlinksMode {
+	case SymlinksSecure:
+		if err := createSecure(path, isDir); err != nil {
+			if err == unix.ENOSYS {
+				return trace.Errorf("createSecure(%q) failed due to missing syscall; `symlinks: insecure` may be required for this system", path)
+			} else {
+				return trace.Wrap(err)
+			}
+		}
+	case SymlinksTrySecure:
+		err := createSecure(path, isDir)
+		if err == nil {
+			// All good, move on.
+			return nil
+		}
+
+		if err != unix.ENOSYS {
+			// Something else went wrong, fail.
+			return trace.Wrap(err)
+		}
+
+		// TODO: this will be very noisy on older systems. Maybe flip a global
+		// or something to only log once?
+		log.Warnf("Failed to create %q securely due to missing syscall; falling back to regular file creation. Set `symlinks: insecure` on this destination to disable this warning.")
+
+		return trace.Wrap(createStandard(path, isDir))
+	case SymlinksInsecure:
+		return trace.Wrap(createStandard(path, isDir))
+	}
+
+	return nil
+}
+
+// Write stores the given data to the file at the given path.
+func Write(path string, data []byte, symlinksMode SymlinksMode) error {
+	var file *os.File
+	var err error
+
+	switch symlinksMode {
+	case SymlinksSecure:
+		file, err = openSecure(path)
+		if err == unix.ENOSYS {
+			return trace.Errorf("openSecure(%q) failed due to missing syscall; `symlinks: insecure` may be required for this system", path)
+		} else if err != nil {
+			return trace.Wrap(err)
+		}
+	case SymlinksTrySecure:
+		file, err = openSecure(path)
+		if err == unix.ENOSYS {
+			log.Warnf("Failed to write to %q securely due to missing syscall; falling back to regular file write. Set `symlinks: insecure` on this destination to disable this warning.")
+			file, err = openStandard(path)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		} else if err != nil {
+			return trace.Wrap(err)
+		}
+	case SymlinksInsecure:
+		file, err = openStandard(path)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	defer file.Close()
+
+	if _, err := file.Write(data); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -113,9 +210,9 @@ func HasACLSupport() (bool, error) {
 	return true, nil
 }
 
-// IsCreateSecureSupported determines if `CreateSecure()` should be supported
+// HasSecureWriteSupport determines if `CreateSecure()` should be supported
 // on this OS / kernel version. Note that it just checks the kernel
-func IsCreateSecureSupported() (bool, error) {
+func HasSecureWriteSupport() (bool, error) {
 	minKernel := semver.New(Openat2MinKernel)
 	version, err := utils.KernelVersion()
 	if err != nil {

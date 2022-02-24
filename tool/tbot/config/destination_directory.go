@@ -26,28 +26,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type SymlinksMode string
-
-const (
-	// SymlinksInsecure does allow resolving symlink paths and does not issue
-	// any symlink-related warnings.
-	SymlinksInsecure SymlinksMode = "insecure"
-
-	// SymlinksTrySecure attempts to write files securely and avoid symlink
-	// attacks, but falls back with a warning if the necessary OS / kernel
-	// support is missing.
-	SymlinksTrySecure SymlinksMode = "try-secure"
-
-	// SymlinksSecure attempts to write files securely and fails with an error
-	// if the operation fails. This should be the default on systems were we
-	// expect it to be supported.
-	SymlinksSecure SymlinksMode = "secure"
-)
-
 // DestinationDirectory is a Destination that writes to the local filesystem
 type DestinationDirectory struct {
-	Path     string       `yaml:"path,omitempty"`
-	Symlinks SymlinksMode `yaml:"symlinks,omitempty"`
+	Path     string             `yaml:"path,omitempty"`
+	Symlinks botfs.SymlinksMode `yaml:"symlinks,omitempty"`
 }
 
 func (dd *DestinationDirectory) UnmarshalYAML(node *yaml.Node) error {
@@ -77,7 +59,7 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 		return trace.BadParameter("destination path must not be empty")
 	}
 
-	secureSupported, err := botfs.IsCreateSecureSupported()
+	secureSupported, err := botfs.HasSecureWriteSupport()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -86,14 +68,14 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 	case "":
 		if secureSupported {
 			// We expect Openat2 to be available, so try to use it by default.
-			dd.Symlinks = SymlinksSecure
+			dd.Symlinks = botfs.SymlinksSecure
 		} else {
 			// TrySecure will print a warning on fallback.
-			dd.Symlinks = SymlinksTrySecure
+			dd.Symlinks = botfs.SymlinksTrySecure
 		}
-	case SymlinksInsecure, SymlinksTrySecure:
+	case botfs.SymlinksInsecure, botfs.SymlinksTrySecure:
 		// valid
-	case SymlinksSecure:
+	case botfs.SymlinksSecure:
 		if !secureSupported {
 			return trace.BadParameter("symlink mode %q not supported on this system", secureSupported)
 		}
