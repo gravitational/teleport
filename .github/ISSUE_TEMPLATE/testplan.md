@@ -924,6 +924,14 @@ and non interactive tsh bench loads.
     - [ ] The UI shows a relevant alert and "Clipboard Sharing Disabled" is highlighted in the top bar
   - When a user has a role with clipboard sharing *disabled* and is using a chromium and non-chromium based browser (confirm both)
     - [ ] The live session should show disabled in the top bar and copy/paste should not work between your workstation and the remote desktop.
+- Per-Session MFA (try on each of Chrome, Safari, and Firefox)
+  - [ ] Attempting to start a session no keys registered shows an error message
+  - [ ] Attempting to start a session with a u2f key registered shows an error message
+  - [ ] Attempting to start a session with a webauthn registered pops up the "Verify Your Identity" dialog
+    - [ ] Hitting "Cancel" shows an error message
+    - [ ] Hitting "Verify" causes your browser to prompt you for MFA
+    - [ ] Cancelling that browser MFA prompt shows an error
+    - [ ] Successful MFA verification allows you to connect
 - Session Recording
   - [ ] Verify sessions are not recorded if *all* of a user's roles disable recording
   - [ ] Verify sync recording (`mode: node-sync` or `mode: proy-sync`)
