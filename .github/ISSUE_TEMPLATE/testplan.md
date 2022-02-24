@@ -924,7 +924,7 @@ and non interactive tsh bench loads.
     - [ ] The UI shows a relevant alert and "Clipboard Sharing Disabled" is highlighted in the top bar
   - When a user has a role with clipboard sharing *disabled* and is using a chromium and non-chromium based browser (confirm both)
     - [ ] The live session should show disabled in the top bar and copy/paste should not work between your workstation and the remote desktop.
-- Per-Session MFA (try on each of Chrome, Safari, and Firefox)
+- Per-Session MFA (try webauthn on each of Chrome, Safari, and Firefox; u2f only works with Firefox)
   - [ ] Attempting to start a session no keys registered shows an error message
   - [ ] Attempting to start a session with a u2f key registered shows an error message
   - [ ] Attempting to start a session with a webauthn registered pops up the "Verify Your Identity" dialog
