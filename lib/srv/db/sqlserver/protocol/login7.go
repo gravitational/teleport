@@ -141,17 +141,13 @@ func ReadLogin7Packet(r io.Reader) (*Login7Packet, error) {
 	}, nil
 }
 
-// errInvalidPackage is returned when Login7 package contains invalid data.
-var errInvalidPackage = trace.Errorf("invalid login7 packet")
+// errInvalidPacket is returned when Login7 package contains invalid data.
+var errInvalidPacket = trace.Errorf("invalid login7 packet")
 
 // readUsername reads username from login7 package.
 func readUsername(pkt *Packet, header Login7Header) (string, error) {
 	if len(pkt.Data) < int(header.IbUserName)+int(header.CchUserName)*2 {
-		return "", errInvalidPackage
-	}
-
-	if len(pkt.Data) <= int(header.IbUserName) {
-		return "", errInvalidPackage
+		return "", errInvalidPacket
 	}
 
 	// Decode username and database from the packet. Offset/length are counted
@@ -167,11 +163,7 @@ func readUsername(pkt *Packet, header Login7Header) (string, error) {
 // readDatabase reads database name from login7 package.
 func readDatabase(pkt *Packet, header Login7Header) (string, error) {
 	if len(pkt.Data) < int(header.IbDatabase)+int(header.CchDatabase)*2 {
-		return "", errInvalidPackage
-	}
-
-	if len(pkt.Data) < int(header.IbDatabase) {
-		return "", errInvalidPackage
+		return "", errInvalidPacket
 	}
 
 	database, err := mssql.ParseUCS2String(

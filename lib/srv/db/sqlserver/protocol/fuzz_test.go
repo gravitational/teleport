@@ -24,6 +24,8 @@ package protocol
 import (
 	"bytes"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func FuzzMSSQLLogin(f *testing.F) {
@@ -44,7 +46,9 @@ func FuzzMSSQLLogin(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, packet []byte) {
 		reader := bytes.NewReader(packet)
-		// no assertion, check for panic
-		ReadLogin7Packet(reader)
+
+		require.NotPanics(t, func() {
+			_, _ = ReadLogin7Packet(reader)
+		})
 	})
 }
