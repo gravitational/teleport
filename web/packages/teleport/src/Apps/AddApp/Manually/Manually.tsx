@@ -18,7 +18,7 @@ import React from 'react';
 import { Text, Box, ButtonSecondary, Link } from 'design';
 import { DialogContent, DialogFooter } from 'design/Dialog';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
-import * as links from 'teleport/services/links';
+import DownloadLinks from 'teleport/components/DownloadLinks';
 
 export default function Manually({
   user,
@@ -42,17 +42,7 @@ export default function Manually({
             Step 1
           </Text>{' '}
           - Download Teleport package to your computer
-          <Box>
-            <Link href={links.getMacOS(version)} target="_blank" mr="2">
-              MacOS
-            </Link>
-            <Link href={links.getLinux64(version)} target="_blank" mr="2">
-              Linux 64-bit
-            </Link>
-            <Link href={links.getLinux32(version)} target="_blank">
-              Linux 32-bit
-            </Link>
-          </Box>
+          <DownloadLinks version={version} />
         </Box>
         <Box mb={4}>
           <Text bold as="span">
