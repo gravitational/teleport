@@ -18,9 +18,13 @@ package web
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/trace"
@@ -331,6 +335,120 @@ version: v2`
 	require.Contains(t, tc.Content, "name: test-goodcontent")
 }
 
+func TestListResources(t *testing.T) {
+	t.Parallel()
+
+	// Test unsupported resource kind.
+	m := &mockedResourceAPIGetter{}
+	m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+		return nil, nil
+	}
+	_, err := listResources(m, &http.Request{}, "unsupported")
+	require.True(t, trace.IsNotImplemented(err))
+
+	// Test parsing query params.
+	testCases := []struct {
+		name, url       string
+		wantBadParamErr bool
+		expected        *proto.ListResourcesRequest
+	}{
+		{
+			name: "decode complex query correctly",
+			url:  "https://dev:3080/login?query=(labels%5B%60%22test%22%60%5D%20%3D%3D%20%22%2B%3A'%2C%23*~%25%5E%22%20%26%26%20!exists(labels.tier))%20%7C%7C%20resource.spec.description%20!%3D%20%22weird%20example%20https%3A%2F%2Ffoo.dev%3A3080%3Fbar%3Da%2Cb%26baz%3Dbanana%22",
+			expected: &proto.ListResourcesRequest{
+				ResourceType:        types.KindNode,
+				Namespace:           apidefaults.Namespace,
+				Limit:               defaults.MaxIterationLimit,
+				SearchKeywords:      []string{},
+				PredicateExpression: "(labels[`\"test\"`] == \"+:',#*~%^\" && !exists(labels.tier)) || resource.spec.description != \"weird example https://foo.dev:3080?bar=a,b&baz=banana\"",
+			},
+		},
+		{
+			name: "all query param defined and set",
+			url:  `https://dev:3080/login?query=labels.env%20%3D%3D%20%22prod%22&limit=50&startKey=banana&sort=foo:desc&search=foo%2Bbar+baz+foo%2Cbar+%22some%20phrase%22`,
+			expected: &proto.ListResourcesRequest{
+				ResourceType:        types.KindNode,
+				Namespace:           apidefaults.Namespace,
+				Limit:               50,
+				StartKey:            "banana",
+				SearchKeywords:      []string{"foo+bar", "baz", "foo,bar", "some phrase"},
+				PredicateExpression: `labels.env == "prod"`,
+				SortBy:              types.SortBy{Field: "foo", IsDesc: true},
+			},
+		},
+		{
+			name: "all query param defined but empty",
+			url:  `https://dev:3080/login?query=&startKey=&search=&sort=&limit=&startKey=`,
+			expected: &proto.ListResourcesRequest{
+				ResourceType:   types.KindNode,
+				Namespace:      apidefaults.Namespace,
+				Limit:          defaults.MaxIterationLimit,
+				SearchKeywords: []string{},
+			},
+		},
+		{
+			name: "sort partially defined: fieldName",
+			url:  `https://dev:3080/login?sort=foo`,
+			expected: &proto.ListResourcesRequest{
+				ResourceType:   types.KindNode,
+				Namespace:      apidefaults.Namespace,
+				Limit:          defaults.MaxIterationLimit,
+				SearchKeywords: []string{},
+				SortBy:         types.SortBy{Field: "foo", IsDesc: false},
+			},
+		},
+		{
+			name: "sort partially defined: fieldName with colon",
+			url:  `https://dev:3080/login?sort=foo:`,
+			expected: &proto.ListResourcesRequest{
+				ResourceType:   types.KindNode,
+				Namespace:      apidefaults.Namespace,
+				Limit:          defaults.MaxIterationLimit,
+				SearchKeywords: []string{},
+				SortBy:         types.SortBy{Field: "foo", IsDesc: false},
+			},
+		},
+		{
+			name:            "invalid limit value",
+			wantBadParamErr: true,
+			url:             `https://dev:3080/login?limit=12invalid`,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			req, err := http.NewRequest("", tc.url, nil)
+			require.NoError(t, err)
+
+			m := &mockedResourceAPIGetter{}
+			m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+				if !tc.wantBadParamErr {
+					require.Equal(t, tc.expected.ResourceType, req.ResourceType)
+					require.Equal(t, tc.expected.Namespace, req.Namespace)
+					require.Equal(t, tc.expected.Limit, req.Limit)
+					require.Equal(t, tc.expected.StartKey, req.StartKey)
+					require.Equal(t, tc.expected.SearchKeywords, req.SearchKeywords)
+					require.Equal(t, tc.expected.PredicateExpression, req.PredicateExpression)
+					require.Equal(t, tc.expected.SortBy.Field, req.SortBy.Field)
+					require.Equal(t, tc.expected.SortBy.IsDesc, req.SortBy.IsDesc)
+				}
+				return nil, nil
+			}
+
+			_, err = listResources(m, req, types.KindNode)
+			switch tc.wantBadParamErr {
+			case true:
+				require.True(t, trace.IsBadParameter(err))
+			default:
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 type mockedResourceAPIGetter struct {
 	mockGetRole               func(ctx context.Context, name string) (types.Role, error)
 	mockGetRoles              func(ctx context.Context) ([]types.Role, error)
@@ -343,6 +461,7 @@ type mockedResourceAPIGetter struct {
 	mockGetTrustedCluster     func(ctx context.Context, name string) (types.TrustedCluster, error)
 	mockGetTrustedClusters    func(ctx context.Context) ([]types.TrustedCluster, error)
 	mockDeleteTrustedCluster  func(ctx context.Context, name string) error
+	mockListResources         func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 func (m *mockedResourceAPIGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
@@ -429,4 +548,12 @@ func (m *mockedResourceAPIGetter) DeleteTrustedCluster(ctx context.Context, name
 	}
 
 	return trace.NotImplemented("mockDeleteTrustedCluster not implemented")
+}
+
+func (m *mockedResourceAPIGetter) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if m.mockListResources != nil {
+		return m.mockListResources(ctx, req)
+	}
+
+	return nil, trace.NotImplemented("mockListResources not implemented")
 }

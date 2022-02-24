@@ -18,10 +18,15 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -288,6 +293,55 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 	return &unknownRes, nil
 }
 
+// listResources gets a list of resources depending on the type of resource.
+func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string) (*types.ListResourcesResponse, error) {
+	// Check all valid resource kinds.
+	var namespace string
+	switch resourceKind {
+	case types.KindNode:
+		namespace = apidefaults.Namespace
+	default:
+		return nil, trace.NotImplemented("resource kind %q is not supported", resourceKind)
+	}
+
+	values := r.URL.Query()
+
+	limit, err := queryLimit(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Sort is expected in format `<fieldName>:<asc|desc>` where
+	// index 0 is fieldName and index 1 is direction.
+	// If a direction is not set, or is not recognized, it defaults to ASC.
+	sortParam := values.Get("sort")
+	var sortBy types.SortBy
+	if sortParam != "" {
+		vals := strings.Split(sortParam, ":")
+		if vals[0] != "" {
+			sortBy = types.SortBy{Field: vals[0]}
+			if len(vals) > 1 && vals[1] == "desc" {
+				sortBy.IsDesc = true
+			}
+		}
+	}
+
+	startKey := values.Get("startKey")
+	fmt.Println("--- -startKey: ", startKey, " an: ", startKey == "")
+	req := proto.ListResourcesRequest{
+		ResourceType:        resourceKind,
+		Namespace:           namespace,
+		Limit:               int32(limit),
+		StartKey:            startKey,
+		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
+		PredicateExpression: values.Get("query"),
+		SortBy:              sortBy,
+		NeedTotalCount:      startKey == "",
+	}
+
+	return clt.ListResources(r.Context(), req)
+}
+
 type listResourcesGetResponse struct {
 	// Items is a list of resources retrieved.
 	Items interface{} `json:"items"`
@@ -321,4 +375,6 @@ type resourcesAPIGetter interface {
 	GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error)
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 	DeleteTrustedCluster(ctx context.Context, name string) error
+	// ListResoures returns a paginated list of resources.
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }

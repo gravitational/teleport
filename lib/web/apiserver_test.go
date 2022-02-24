@@ -763,6 +763,17 @@ func TestClusterNodesGet(t *testing.T) {
 	pack := proxy.authPack(t, "test-user@example.com")
 	clusterName := env.server.ClusterName()
 
+	// Insert a few nodes to test pagination later.
+	testValsUnordered := []string{"foozeball", "boo", "aoo", "c"}
+	for _, name := range testValsUnordered {
+		newNode, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{})
+		require.NoError(t, err)
+		_, err = env.server.Auth().UpsertNode(context.Background(), newNode)
+		require.NoError(t, err)
+	}
+
+	// 1 default node is created from newWebpack()
+	totalUpsertedNodes := len(testValsUnordered) + 1
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
 
 	// Get nodes.
@@ -771,7 +782,7 @@ func TestClusterNodesGet(t *testing.T) {
 
 	nodes := clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
-	require.Len(t, nodes.Items, 1)
+	require.Len(t, nodes.Items, totalUpsertedNodes)
 
 	// Get nodes using shortcut.
 	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
@@ -779,8 +790,79 @@ func TestClusterNodesGet(t *testing.T) {
 
 	nodes2 := clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes2))
-	require.Len(t, nodes.Items, 1)
+	require.Len(t, nodes2.Items, totalUpsertedNodes)
 	require.Equal(t, nodes, nodes2)
+
+	t.Run("test limit, sort, startKey param", func(t *testing.T) {
+		t.Parallel()
+
+		// First fetch without filter.
+		query := url.Values{
+			"limit": []string{"3"},
+			"sort":  []string{fmt.Sprintf("%s:desc", types.ResourceMetadataName)},
+		}
+		re, err := pack.clt.Get(context.Background(), endpoint, query)
+		require.NoError(t, err)
+		resp := clusterNodesGetResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 3)
+		require.NotEmpty(t, resp.StartKey)
+		require.Equal(t, totalUpsertedNodes, resp.TotalCount)
+
+		// Test response items are descending.
+		fieldVals := make([]string, len(resp.Items))
+		for i, node := range resp.Items {
+			fieldVals[i] = node.Name
+		}
+		require.IsDecreasing(t, fieldVals)
+
+		// Second fetch without filter, test startKey from previous response.
+		query = url.Values{
+			"startKey": []string{resp.StartKey},
+			"sort":     []string{fmt.Sprintf("%s:desc", types.ResourceMetadataName)},
+		}
+		re, err = pack.clt.Get(context.Background(), endpoint, query)
+		require.NoError(t, err)
+		resp = clusterNodesGetResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, totalUpsertedNodes-3)
+		require.Empty(t, resp.StartKey)
+		require.Empty(t, resp.TotalCount)
+
+		// Test response items are descending.
+		fieldVals = make([]string, len(resp.Items))
+		for i, node := range resp.Items {
+			fieldVals[i] = node.Name
+		}
+		require.IsDecreasing(t, fieldVals)
+	})
+
+	t.Run("test query param", func(t *testing.T) {
+		t.Parallel()
+		query := url.Values{
+			"query": []string{"name == `foozeball`"},
+		}
+		re, err := pack.clt.Get(context.Background(), endpoint, query)
+		require.NoError(t, err)
+		resp := clusterNodesGetResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 1)
+		require.Equal(t, "foozeball", resp.Items[0].Name)
+		require.Equal(t, 1, resp.TotalCount)
+	})
+
+	t.Run("test search param", func(t *testing.T) {
+		t.Parallel()
+		query := url.Values{
+			"search": []string{"oo"},
+		}
+		re, err := pack.clt.Get(context.Background(), endpoint, query)
+		require.NoError(t, err)
+		resp := clusterNodesGetResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 3)
+		require.Equal(t, 3, resp.TotalCount)
+	})
 }
 
 func (s *WebSuite) TestSiteNodeConnectInvalidSessionID(c *C) {
