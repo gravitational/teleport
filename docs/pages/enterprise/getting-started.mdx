@@ -147,7 +147,7 @@ teleport:
   nodename: node.example.com
   auth_token: dogs-are-much-nicer-than-cats
   # you can also use auth server's IP, i.e. "10.1.1.10:3025"
-  auth_servers: [ "auth.example.com:3025" ]
+  auth_servers: [ "auth.example.com:3025" ]x
   # Set the ca_pin value so it can verify the Teleport server
   ca_pin: sha256:58b1c5cb8885d84ce08f3e...
 
@@ -434,7 +434,7 @@ This example command will create a Teleport user called `testuser` which has the
 `access` role. Feel free to change these to suit your needs.
 
 ```code
-$ docker exec teleport tctl users add testuser --roles=access --logins=root,ec2-user=ubuntu
+$ docker exec teleport tctl users add --roles=access --logins=root,ec2-user,ubuntu testuser
 ```
 
 When you run this command, Teleport will output a URL which you must open to complete the user signup process:
