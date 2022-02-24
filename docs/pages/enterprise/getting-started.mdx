@@ -250,7 +250,7 @@ $ sudo tctl create -f role.yaml
 Now, lets create a new Teleport user "joe" with "access" role:
 
 ```bsh
-$ sudo tctl users add --roles=access joe --logins=joe,ubuntu,ec2-user
+$ sudo tctl users add --roles=access --logins=joe,ubuntu,ec2-user joe
 
 Signup token has been created and is valid for 1 hours. Share this URL with the user:
 https://auth.example.com:3080/web/newuser/22e3acb6a0c2cde22f13bdc879ff9d2a
