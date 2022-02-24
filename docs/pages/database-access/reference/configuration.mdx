@@ -24,7 +24,14 @@ The following Proxy service configuration is relevant for Database Access:
   Do not set `--insecure-no-tls` for the proxy Teleport instances as a parameter.  If you are terminating TLS at a
   Application Load Balancer (ALB) or other service that may require enabling a backend protocol of HTTPS for the target address.  
 </Admonition>
-
+<Admonition
+  type="note"
+  title="Database Public Addresses apply only to Separate Proxy Mode"
+>
+   Public addresses for specific port connection types only apply when using the separate `proxy_listener_mode: separate` in the `auth_service` configuration
+  and for Teleport versions prior to 8.0.0.  The [TLS Routing](../../setup/operations/tls-routing.mdx) mode will only use the `public_addr` for all
+  protocols. 
+</Admonition>
 ```yaml
 proxy_service:
   enabled: "yes"
