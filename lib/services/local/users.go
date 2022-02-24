@@ -22,6 +22,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/gokyle/hotp"
@@ -33,11 +34,18 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
+
+// GlobalSessionDataMaxEntries represents the maximum number of in-flight
+// global WebAuthn challenges for a given scope.
+// Attempting to write more instances than the max limit causes an error.
+// The limit is enforced separately by Auth Server instances.
+var GlobalSessionDataMaxEntries = 5000 // arbitrary
 
 // IdentityService is responsible for managing web users and currently
 // user accounts as well
@@ -766,6 +774,48 @@ func sessionDataKey(user, sessionID string) []byte {
 	return backend.Key(webPrefix, usersPrefix, user, webauthnSessionData, sessionID)
 }
 
+// globalSessionDataLimiter keeps a count of in-flight session data challenges
+// over a period of time.
+type globalSessionDataLimiter struct {
+	// Clock is public so it may be overwritten by tests.
+	Clock clockwork.Clock
+	// ResetPeriod is public so it may be overwritten by tests.
+	ResetPeriod time.Duration
+	// mu guards the fields below it.
+	mu         sync.Mutex
+	scopeCount map[string]int
+	lastReset  time.Time
+}
+
+func (l *globalSessionDataLimiter) add(scope string, n int) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	// Reset counters to account for key expiration.
+	now := l.Clock.Now()
+	if now.Sub(l.lastReset) >= l.ResetPeriod {
+		for k := range l.scopeCount {
+			l.scopeCount[k] = 0
+		}
+		l.lastReset = now
+	}
+
+	v := l.scopeCount[scope] + n
+	if v < 0 {
+		v = 0
+	}
+	l.scopeCount[scope] = v
+	return v
+}
+
+var sdLimiter = &globalSessionDataLimiter{
+	Clock: clockwork.NewRealClock(),
+	// Make ResetPeriod larger than the challenge expiration, so we are a bit
+	// more conservative than storage.
+	ResetPeriod: defaults.WebauthnGlobalChallengeTimeout + 10*time.Second,
+	scopeCount:  make(map[string]int),
+}
+
 func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error {
 	switch {
 	case scope == "":
@@ -776,18 +826,27 @@ func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, s
 		return trace.BadParameter("missing parameter sd")
 	}
 
-	// TODO(codingllama): Limit number of in-flight challenges.
-
+	// Marshal before checking limiter, in case this fails.
 	value, err := json.Marshal(sd)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = s.Put(ctx, backend.Item{
+
+	// Are we within the limits for the current time window?
+	if entries := sdLimiter.add(scope, 1); entries > GlobalSessionDataMaxEntries {
+		sdLimiter.add(scope, -1) // Request denied, adjust accordingly
+		return trace.LimitExceeded("too many in-flight challenges")
+	}
+
+	if _, err = s.Put(ctx, backend.Item{
 		Key:     globalSessionDataKey(scope, id),
 		Value:   value,
 		Expires: s.Clock().Now().UTC().Add(defaults.WebauthnGlobalChallengeTimeout),
-	})
-	return trace.Wrap(err)
+	}); err != nil {
+		sdLimiter.add(scope, -1) // Don't count eventual write failures
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error) {
@@ -814,7 +873,12 @@ func (s *IdentityService) DeleteGlobalWebauthnSessionData(ctx context.Context, s
 		return trace.BadParameter("missing parameter id")
 	}
 
-	return trace.Wrap(s.Delete(ctx, globalSessionDataKey(scope, id)))
+	if err := s.Delete(ctx, globalSessionDataKey(scope, id)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	sdLimiter.add(scope, -1)
+	return nil
 }
 
 func globalSessionDataKey(scope, id string) []byte {
