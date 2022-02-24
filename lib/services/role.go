@@ -650,7 +650,7 @@ type AccessChecker interface {
 
 	// CheckKubeGroupsAndUsers check if role can login into kubernetes
 	// and returns two lists of combined allowed groups and users
-	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) (groups []string, users []string, err error)
+	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) (groups []string, users []string, denyAuthenticated bool, err error)
 
 	// CheckAWSRoleARNs returns a list of AWS role ARNs role is allowed to assume.
 	CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error)
@@ -1049,14 +1049,15 @@ func (set RoleSet) AdjustDisconnectExpiredCert(disconnect bool) bool {
 
 // CheckKubeGroupsAndUsers check if role can login into kubernetes
 // and returns two lists of allowed groups and users
-func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error) {
+func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, bool, error) {
 	groups := make(map[string]struct{})
 	users := make(map[string]struct{})
+	denyAuthenticated := false
 	var matchedTTL bool
 	for _, role := range set {
 		ok, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, false, trace.Wrap(err)
 		}
 		if !ok {
 			continue
@@ -1076,25 +1077,29 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, 
 	for _, role := range set {
 		ok, _, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, false, trace.Wrap(err)
 		}
 		if !ok {
 			continue
 		}
 		for _, group := range role.GetKubeGroups(types.Deny) {
+			if group == teleport.KubeSystemAuthenticated {
+				denyAuthenticated = true
+			}
+
 			delete(groups, group)
 		}
 		for _, user := range role.GetKubeUsers(types.Deny) {
 			delete(users, user)
 		}
 	}
-	if !matchedTTL {
-		return nil, nil, trace.AccessDenied("this user cannot request kubernetes access for %v", ttl)
+	if !matchedTTL && !denyAuthenticated {
+		return nil, nil, false, trace.AccessDenied("this user cannot request kubernetes access for %v", ttl)
 	}
-	if len(groups) == 0 && len(users) == 0 {
-		return nil, nil, trace.NotFound("this user cannot request kubernetes access, has no assigned groups or users")
+	if len(groups) == 0 && len(users) == 0 && !denyAuthenticated {
+		return nil, nil, false, trace.NotFound("this user cannot request kubernetes access, has no assigned groups or users")
 	}
-	return utils.StringsSliceFromSet(groups), utils.StringsSliceFromSet(users), nil
+	return utils.StringsSliceFromSet(groups), utils.StringsSliceFromSet(users), denyAuthenticated, nil
 }
 
 // CheckDatabaseNamesAndUsers checks if the role has any allowed database
