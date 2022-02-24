@@ -765,6 +765,7 @@ func TestListResources(t *testing.T) {
 						SortBy:       sortBy,
 					})
 					require.NoError(t, err)
+					require.Empty(t, resp.TotalCount)
 
 					sortedResources = append(sortedResources, resp.Resources...)
 					if len(sortedResources) == totalResources {
@@ -809,6 +810,7 @@ func TestListResources(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, resp.NextKey)
 			require.Empty(t, resp.Resources)
+			require.Empty(t, resp.TotalCount)
 		})
 	}
 }
@@ -910,6 +912,7 @@ func TestListResources_Helpers(t *testing.T) {
 				resp, err := tc.fetch(req)
 				require.NoError(t, err)
 				require.Empty(t, resp.NextKey)
+				require.Empty(t, resp.TotalCount)
 
 				fetchedNodes, err := types.ResourcesWithLabels(resp.Resources).AsServers()
 				require.NoError(t, err)
@@ -931,6 +934,7 @@ func TestListResources_Helpers(t *testing.T) {
 				})
 				require.NoError(t, err)
 				require.Len(t, resp.Resources, 10)
+				require.Empty(t, resp.TotalCount)
 
 				fetchedNodes, err := types.ResourcesWithLabels(resp.Resources).AsServers()
 				require.NoError(t, err)
@@ -946,6 +950,7 @@ func TestListResources_Helpers(t *testing.T) {
 				})
 				require.NoError(t, err)
 				require.Len(t, resp.Resources, 5)
+				require.Empty(t, resp.TotalCount)
 
 				fetchedNodes, err = types.ResourcesWithLabels(resp.Resources).AsServers()
 				require.NoError(t, err)
@@ -961,6 +966,7 @@ func TestListResources_Helpers(t *testing.T) {
 				})
 				require.NoError(t, err)
 				require.Len(t, resp.Resources, 5)
+				require.Empty(t, resp.TotalCount)
 
 				fetchedNodes, err = types.ResourcesWithLabels(resp.Resources).AsServers()
 				require.NoError(t, err)
@@ -988,6 +994,7 @@ func TestListResources_Helpers(t *testing.T) {
 				require.Len(t, resp.Resources, 1)
 				require.Equal(t, targetVal, resp.Resources[0].GetName())
 				require.Empty(t, resp.NextKey)
+				require.Empty(t, resp.TotalCount)
 			})
 		}
 	})
@@ -1066,21 +1073,28 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 					Limit:          int32(tc.limit),
 					NeedTotalCount: true,
 				}
+
+				// First fetch.
 				resp, err := FakePaginate(resources, req)
 				require.NoError(t, err)
 				require.Len(t, resp.Resources, tc.limit)
+				require.Equal(t, resources[0:tc.limit], resp.Resources)
 				require.Equal(t, len(nodes), resp.TotalCount)
 
-				// Next fetch with start key should not return total count.
+				// Next fetch should return same amount of totals.
 				if tc.limit != len(nodes) {
 					require.NotEmpty(t, resp.NextKey)
 
 					req.StartKey = resp.NextKey
 					resp, err = FakePaginate(resources, req)
 					require.NoError(t, err)
-					require.Empty(t, resp.TotalCount)
+					require.Len(t, resp.Resources, tc.limit)
+					require.Equal(t, resources[tc.limit:tc.limit*2], resp.Resources)
+					require.Equal(t, len(nodes), resp.TotalCount)
 				} else {
 					require.Empty(t, resp.NextKey)
+					require.Equal(t, resources, resp.Resources)
+					require.Equal(t, len(nodes), resp.TotalCount)
 				}
 			})
 		}

@@ -1042,7 +1042,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		resources = servers.AsResources()
 
 	default:
-		return nil, trace.NotImplemented("resource type %q is not supported for getResources", req.ResourceType)
+		return nil, trace.NotImplemented("resource type %q is not supported for listResourcesWithSort", req.ResourceType)
 	}
 
 	// Apply request filters and get pagination info.

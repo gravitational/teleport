@@ -1679,21 +1679,30 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 		return nil, trace.Wrap(err)
 	}
 
-	// Trim resources that precede start key.
+	// filterAll is a flag to continue matching even after we found limit,
+	// to determine the total count.
+	filterAll := req.NeedTotalCount
+
+	// Trim resources that precede start key, except when total count
+	// was requested, then we have to filter all to get accurate count.
+	pageStart := 0
 	if req.StartKey != "" {
-		pageStart := 0
 		for i, resource := range resources {
 			if backend.GetPaginationKey(resource) == req.StartKey {
 				pageStart = i
 				break
 			}
 		}
-		resources = resources[pageStart:]
+
+		if !filterAll {
+			resources = resources[pageStart:]
+		}
 	}
 
 	// Iterate and filter resources, finding match up to limit+1 (+1 to determine next key),
 	// and if total count is not required, we halt matching when we reach page limit, else
 	// we continue to match (but not include into list of filtered) to determine the total count.
+	matchCount := 0
 	limit := int(req.Limit)
 	var nextKey string
 	var filtered []types.ResourceWithLabels
@@ -1704,12 +1713,7 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 		PredicateExpression: req.PredicateExpression,
 	}
 
-	// afterMatchCount counts matches after we found the limit.
-	afterMatchCount := 0
-	// filterAll is a flag to continue matching even after we found limit,
-	// to determine the total count. This flag is only enabled on the first fetch.
-	filterAll := req.NeedTotalCount && req.StartKey == ""
-	for _, resource := range resources {
+	for currIndex, resource := range resources {
 		switch match, err := services.MatchResourceByFilters(resource, filter); {
 		case err != nil:
 			return nil, trace.Wrap(err)
@@ -1717,31 +1721,32 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 			continue
 		}
 
-		if len(filtered) == limit {
-			if nextKey == "" {
-				nextKey = backend.GetPaginationKey(resource)
-			}
-
-			if !filterAll {
-				break
-			}
-
-			afterMatchCount++
+		matchCount++
+		if filterAll && nextKey != "" {
 			continue
 		}
 
-		filtered = append(filtered, resource)
+		if len(filtered) == limit {
+			nextKey = backend.GetPaginationKey(resource)
+			if !filterAll {
+				break
+			}
+			continue
+		}
+
+		if !filterAll || currIndex >= pageStart {
+			filtered = append(filtered, resource)
+		}
 	}
 
-	totalMatch := 0
-	if filterAll {
-		totalMatch = len(filtered) + afterMatchCount
+	if !filterAll {
+		matchCount = 0
 	}
 
 	return &types.ListResourcesResponse{
 		Resources:  filtered,
 		NextKey:    nextKey,
-		TotalCount: totalMatch,
+		TotalCount: matchCount,
 	}, nil
 }
 

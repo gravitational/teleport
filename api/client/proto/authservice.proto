@@ -1446,8 +1446,7 @@ message ListResourcesRequest {
     // SortBy describes which resource field and which direction to sort by.
     types.SortBy SortBy = 8
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "sort_by,omitempty" ];
-    // NeedTotalCount is a flag when true, returns total number of resources available after filter.
-    // Only applies on first fetch when StartKey is empty.
+    // NeedTotalCount indicates whether or not the caller also wants the total number of resources after filtering.
     bool NeedTotalCount = 9 [ (gogoproto.jsontag) = "need_total_count,omitempty" ];
 }
 

@@ -361,7 +361,7 @@ func stringCompare(a string, b string, isDesc bool) bool {
 	return a < b
 }
 
-// ListResourcesResponse describes a non proto response to ListResouurces.
+// ListResourcesResponse describes a non proto response to ListResources.
 type ListResourcesResponse struct {
 	// Resources is a list of resource.
 	Resources []ResourceWithLabels

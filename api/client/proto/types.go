@@ -88,5 +88,5 @@ func (req *ListResourcesRequest) CheckAndSetDefaults() error {
 // RequiresFakePagination checks if we need to fallback to GetXXX calls
 // that retrieves entire resources upfront rather than working with subsets.
 func (req *ListResourcesRequest) RequiresFakePagination() bool {
-	return req.SortBy.Field != "" || (req.NeedTotalCount && req.StartKey == "")
+	return req.SortBy.Field != "" || req.NeedTotalCount
 }
