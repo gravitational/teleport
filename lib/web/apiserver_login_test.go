@@ -33,6 +33,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
 func TestWebauthnLogin_ssh(t *testing.T) {
@@ -43,7 +45,6 @@ func TestWebauthnLogin_ssh(t *testing.T) {
 		Webauthn: &types.Webauthn{
 			RPID: env.server.TLS.ClusterName(),
 		},
-		// Use default Webauthn configuration.
 	})
 	user := clusterMFA.User
 	password := clusterMFA.Password
@@ -99,7 +100,6 @@ func TestWebauthnLogin_web(t *testing.T) {
 		Webauthn: &types.Webauthn{
 			RPID: env.server.TLS.ClusterName(),
 		},
-		// Use default Webauthn configuration.
 	})
 	user := clusterMFA.User
 	password := clusterMFA.Password
@@ -136,6 +136,103 @@ func TestWebauthnLogin_web(t *testing.T) {
 	require.NotEmpty(t, createSessionResp.Token)
 	require.NotEmpty(t, createSessionResp.TokenExpiresIn)
 	require.NotEmpty(t, createSessionResp.SessionExpires.Unix())
+}
+
+func TestAuthenticate_passwordless(t *testing.T) {
+	env := newWebPack(t, 1)
+	clusterMFA := configureClusterForMFA(t, env, &types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOn,
+		Webauthn: &types.Webauthn{
+			RPID: env.server.TLS.ClusterName(),
+		},
+	})
+	user := clusterMFA.User
+	device := clusterMFA.WebDev.Key
+
+	// Fake a passwordless device. Typically this would require a separate
+	// registration, but because we use fake devices we can get away with it.
+	// TODO(codingllama): Make this nicer, like device.Passwordless().
+	device.AllowResidentKey = true
+	device.IgnoreAllowedCredentials = true
+	device.SetUV = true
+
+	// Fetch the WebAuthn User Handle. In a real-world scenario the device stores
+	// the handle alongside the credentials during registration.
+	ctx := context.Background()
+	authServer := env.server.Auth()
+	wla, err := authServer.GetWebauthnLocalAuth(ctx, user)
+	require.NoError(t, err)
+	userHandle := wla.UserID
+
+	// Prepare SSH key to be signed.
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	pub, err := ssh.NewPublicKey(&priv.PublicKey)
+	require.NoError(t, err)
+	pubBytes := ssh.MarshalAuthorizedKey(pub)
+
+	clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name  string
+		login func(t *testing.T, assertionResp *wanlib.CredentialAssertionResponse)
+	}{
+		{
+			name: "ssh",
+			login: func(t *testing.T, assertionResp *wanlib.CredentialAssertionResponse) {
+				ep := clt.Endpoint("webapi", "mfa", "login", "finish")
+				sshResp, err := clt.PostJSON(ctx, ep, &client.AuthenticateSSHUserRequest{
+					WebauthnChallengeResponse: assertionResp, // no username
+					PubKey:                    pubBytes,
+					TTL:                       24 * time.Hour,
+				})
+				require.NoError(t, err, "Passwordless authentication failed")
+				loginResp := &auth.SSHLoginResponse{}
+				require.NoError(t, json.Unmarshal(sshResp.Bytes(), loginResp))
+				require.Equal(t, user, loginResp.Username)
+			},
+		},
+		{
+			name: "web",
+			login: func(t *testing.T, assertionResp *wanlib.CredentialAssertionResponse) {
+				ep := clt.Endpoint("webapi", "mfa", "login", "finishsession")
+				sessionResp, err := clt.PostJSON(ctx, ep, &client.AuthenticateWebUserRequest{
+					WebauthnAssertionResponse: assertionResp, // no username
+				})
+				require.NoError(t, err, "Passwordless authentication failed")
+				createSessionResp := &CreateSessionResponse{}
+				require.NoError(t, json.Unmarshal(sessionResp.Bytes(), createSessionResp))
+				require.NotEmpty(t, createSessionResp.TokenType)
+				require.NotEmpty(t, createSessionResp.Token)
+				require.NotEmpty(t, createSessionResp.TokenExpiresIn)
+				require.NotEmpty(t, createSessionResp.SessionExpires.Unix())
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Request passwordless challenge.
+			ep := clt.Endpoint("webapi", "mfa", "login", "begin")
+			beginResp, err := clt.PostJSON(ctx, ep, &client.MFAChallengeRequest{
+				Passwordless: true, // no username and password
+			})
+			require.NoError(t, err, "Failed to create passwordless challenge")
+			mfaChallenge := &client.MFAAuthenticateChallenge{}
+			require.NoError(t, json.Unmarshal(beginResp.Bytes(), mfaChallenge))
+			require.NotNil(t, mfaChallenge.WebauthnChallenge, "Want non-nil WebAuthn challenge")
+
+			// Sign challenge and set user handle.
+			origin := "https://" + env.server.TLS.ClusterName()
+			assertionResp, err := device.SignAssertion(origin, mfaChallenge.WebauthnChallenge)
+			require.NoError(t, err)
+			assertionResp.AssertionResponse.UserHandle = userHandle
+
+			// Complete passwordless login.
+			test.login(t, assertionResp)
+		})
+	}
 }
 
 func TestAuthenticate_rateLimiting(t *testing.T) {

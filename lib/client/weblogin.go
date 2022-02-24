@@ -87,6 +87,9 @@ type SSOLoginConsoleResponse struct {
 type MFAChallengeRequest struct {
 	User string `json:"user"`
 	Pass string `json:"pass"`
+	// Passwordless explicitly request a challenge for passwordless/usernameless
+	// login.
+	Passwordless bool `json:"passwordless"`
 }
 
 // CreateSSHCertReq are passed by web client
