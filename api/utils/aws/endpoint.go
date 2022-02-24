@@ -49,14 +49,14 @@ func IsRedshiftEndpoint(uri string) bool {
 // trimAWSParentDomain removes common AWS endpoint suffixes from the endpoint.
 func trimAWSParentDomain(endpoint string) (string, error) {
 	if strings.HasSuffix(endpoint, AWSEndpointSuffix) {
-		return endpoint[:len(endpoint)-len(AWSEndpointSuffix)], nil
+		return strings.TrimSuffix(endpoint, AWSEndpointSuffix), nil
 	}
 
 	if strings.HasSuffix(endpoint, AWSCNEndpointSuffix) {
-		return endpoint[:len(endpoint)-len(AWSCNEndpointSuffix)], nil
+		return strings.TrimSuffix(endpoint, AWSCNEndpointSuffix), nil
 	}
 
-	return endpoint, trace.BadParameter("endpoint %v is not an AWS endpoint", endpoint)
+	return nil, trace.BadParameter("endpoint %v is not an AWS endpoint", endpoint)
 }
 
 // ParseRDSURI extracts the identifier and region from the provided RDS URI.
@@ -104,8 +104,8 @@ func ParseRDSEndpoint(endpoint string) (id, region string, err error) {
 // URI.
 //
 // Redshift endpoints look like this:
-// redshift-cluster-1.abcdefghijklmnop.us-east-1.rds.amazonaws.com
-// redshift-cluster-2.abcdefghijklmnop.rds.cn-north-1.amazonaws.com.cn
+// redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com
+// redshift-cluster-2.abcdefghijklmnop.redshift.cn-north-2.amazonaws.com.cn
 func ParseRedshiftURI(uri string) (clusterID, region string, err error) {
 	endpoint, _, err := net.SplitHostPort(uri)
 	if err != nil {
