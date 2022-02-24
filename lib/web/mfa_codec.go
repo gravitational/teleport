@@ -22,7 +22,7 @@ import (
 
 	proto "github.com/gogo/protobuf/proto"
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/web/mfajson"
@@ -33,7 +33,7 @@ import (
 // suitable for being sent over a network connection.
 type mfaCodec interface {
 	// encode converts an MFA challenge to wire format
-	encode(chal *auth.MFAAuthenticateChallenge, envelopeType string) ([]byte, error)
+	encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error)
 
 	// decode parses an MFA authentication response
 	decode(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateResponse, error)
@@ -43,7 +43,7 @@ type mfaCodec interface {
 // format used by SSH web sessions
 type protobufMFACodec struct{}
 
-func (protobufMFACodec) encode(chal *auth.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
+func (protobufMFACodec) encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
 	jsonBytes, err := json.Marshal(chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -73,7 +73,7 @@ func (protobufMFACodec) decode(bytes []byte, envelopeType string) (*authproto.MF
 // Protocol (TDP) messages used by Desktop Access web sessions
 type tdpMFACodec struct{}
 
-func (tdpMFACodec) encode(chal *auth.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
+func (tdpMFACodec) encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
 	switch envelopeType {
 	case defaults.WebsocketWebauthnChallenge:
 	default:
