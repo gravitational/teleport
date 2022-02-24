@@ -224,15 +224,6 @@ spec:
     - root
 ```
 
-<Admonition
-  type="note"
-  title="Note"
->
-  Ignore `{{internal.logins}}` "allowed login" for now. It exists for
-  compatibility purposes when upgrading existing open source Teleport
-  clusters.
-</Admonition>
-
 You probably want to replace "root" with something else. Let's assume there will
 be a local UNIX account called "admin" on all hosts. In this case you can
 dump the role definition YAML into a file and update "allow/logins"
@@ -259,7 +250,7 @@ $ sudo tctl create -f role.yaml
 Now, lets create a new Teleport user "joe" with "access" role:
 
 ```bsh
-$ sudo tctl users add --roles=access joe
+$ sudo tctl users add --roles=access joe --logins=joe,ubuntu,ec2-user
 
 Signup token has been created and is valid for 1 hours. Share this URL with the user:
 https://auth.example.com:3080/web/newuser/22e3acb6a0c2cde22f13bdc879ff9d2a
@@ -307,13 +298,13 @@ in Teleport always must to go through an SSH proxy, sometimes called an "SSH bas
   title="Warning"
 >
   For the purposes of this quickstart we are using the `--insecure` flag which allows
-  us to skip configuring the HTTP/TLS certificate for Teleport proxy. Your browser will
+  us to skip configuring the HTTPS/TLS certificate for Teleport proxy. Your browser will
   throw a warning **Your connection is not private**. Click Advanced, and **Proceed to 0.0.0.0 (unsafe)**
   to preview the Teleport UI.
 
   Never use `--insecure` in production unless you terminate SSL at a load balancer. This will
   apply to most cloud providers (AWS, GCP and Azure). You must configure a HTTP/TLS certificate for the Proxy.
-  This process has been made easier with Let's Encrypt. [We've instructions here](https://gravitational.com/blog/letsencrypt-teleport-ssh/).
+  This process has been made easier with Let's Encrypt. [We've instructions here](https://goteleport..com/blog/letsencrypt-teleport-ssh/).
 </Admonition>
 
 If successful, `tsh login` command will receive Joe's user certificate and will
@@ -322,8 +313,8 @@ store it in `~/.tsh/keys/<proxy>` directory.
 With a certificate in place, Joe can now interact with the Teleport cluster:
 
 ```bsh
-# SSH into any host behind the proxy:
-$ tsh ssh node.example.com
+# SSH into any host behind the proxy (joe user should already exist on the node):
+$ tsh ssh joe@node.example.com
 
 # See what hosts are available behind the proxy:
 $ tsh ls
@@ -443,7 +434,7 @@ This example command will create a Teleport user called `testuser` which has the
 `access` role. Feel free to change these to suit your needs.
 
 ```code
-$ docker exec teleport tctl users add testuser --roles=access
+$ docker exec teleport tctl users add testuser --roles=access --logins=root,ec2-user=ubuntu
 ```
 
 When you run this command, Teleport will output a URL which you must open to complete the user signup process:
