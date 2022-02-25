@@ -212,6 +212,8 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 			return trace.BadParameter("password has a wrong type, expected string got %T", cmd.Args()[2])
 		}
 
+		// reconnect with new username and password. go-redis manages those internally and sends AUTH commands
+		// at the beginning of every new connection.
 		e.redisClient, err = e.reconnect(dbUser, password)
 		if err != nil {
 			return trace.Wrap(err)
