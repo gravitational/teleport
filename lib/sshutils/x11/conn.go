@@ -86,5 +86,6 @@ func OpenNewXServerListener(displayOffset int, maxDisplay int, screen uint32) (X
 			return nil, Display{}, trace.Wrap(err)
 		}
 	}
+
 	return nil, Display{}, trace.LimitExceeded("No more X11 sockets are available")
 }
