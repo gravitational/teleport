@@ -5232,6 +5232,9 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 
 	// It's possible to run this test sequentially but it should
 	// be run in parallel to amortize the time since the two tasks can be run in parallel.
+	//
+	// This is also important because it ensures the tests faults if some part of the SSH code
+	// hangs unexpectedly instead of timing out silently.
 	go writeTerm(termA)
 	go writeTerm(termB)
 
