@@ -1,13 +1,10 @@
-The exact set of required permissions depends on whether you're connecting to
-different AWS-hosted databases, as well as the IAM identity your Teleport
-database agent will be using (user or role). The database bootstrap command
-generates custom AWS policies based on your configuration. Bootstrap can be
-performed in two modes:
-- In automatic mode, Teleport will attempt to create appropriate IAM policies and attach
-  them to the specified IAM identity (user or role). This requires IAM permissions to create
-  and attach IAM policies.
-- In manual mode, Teleport will print required IAM policies. You can then
-  create and attach them manually using AWS management console.
+Teleport can bootstrap IAM permissions for the Database Service based on its
+configuration. You can use bootstrap in automatic or manual mode:
+- In automatic mode, Teleport will attempt to create appropriate IAM policies
+  and attach them to the specified IAM identity (user or role). This requires
+  IAM permissions to create and attach IAM policies.
+- In manual mode, Teleport will print required IAM policies. You can then create
+  and attach them manually using AWS management console.
 
 <Admonition type="note" title="AWS credentials">
   AWS Credentials are only required if you’re running the command in "automatic"
@@ -45,8 +42,5 @@ performed in two modes:
   </TabItem>
 </Tabs>
 
-<Admonition type="tip" title="Tip">
-  The bootstrap command support other customizations, such as changing the IAM
-  policy name (`--policy-name`). For more options, check out the [command
-  reference page.](../../database-access/reference/cli.mdx#teleport-db-configure-bootstrap)
-</Admonition>
+See full bootstrap command
+[reference](../../database-access/reference/cli.mdx#teleport-db-configure-bootstrap).

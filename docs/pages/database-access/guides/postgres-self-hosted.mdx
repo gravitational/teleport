@@ -111,10 +111,11 @@ tunnel.
 
 ### Start Database service with config file
 
-Generate configuration file for the Database Service:
+Generate configuration file at `/etc/teleport.yaml` for the Database Service:
 
 ```code
 $ teleport db configure create \
+   -o file \
    --token=/tmp/token \
    --proxy=teleport.example.com:3080 \
    --name=test \
@@ -122,13 +123,6 @@ $ teleport db configure create \
    --uri=postgres.example.com:5432 \
    --labels=env=dev
 ```
-
-<Admonition type="note" title="Note">
-  By default, the command outputs the configuration file to STDOUT. You can
-  change that by providing the `-o/—output` flag. For example, to save the
-  configuration file to `/etc/teleport.yaml`, run the command with the `-o file`
-  flag.
-</Admonition>
 
 <Admonition
   type="tip"
