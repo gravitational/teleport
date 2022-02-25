@@ -25,7 +25,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
 
@@ -179,9 +178,19 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		"failed to authenticate using all MFA devices, rerun the command with '-d' to see error details for each device")
 }
 
+// MFAAuthenticateChallenge is an MFA authentication challenge sent on user
+// login / authentication ceremonies.
+type MFAAuthenticateChallenge struct {
+	// WebauthnChallenge contains a WebAuthn credential assertion used for
+	// login/authentication ceremonies.
+	WebauthnChallenge *wanlib.CredentialAssertion `json:"webauthn_challenge"`
+	// TOTPChallenge specifies whether TOTP is supported for this user.
+	TOTPChallenge bool `json:"totp_challenge"`
+}
+
 // MakeAuthenticateChallenge converts proto to JSON format.
-func MakeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *auth.MFAAuthenticateChallenge {
-	chal := &auth.MFAAuthenticateChallenge{
+func MakeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *MFAAuthenticateChallenge {
+	chal := &MFAAuthenticateChallenge{
 		TOTPChallenge: protoChal.GetTOTP() != nil,
 	}
 	if protoChal.GetWebauthnChallenge() != nil {

@@ -34,8 +34,6 @@ import (
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -344,14 +342,14 @@ func promptMFAChallenge(
 	codec mfaCodec,
 ) client.PromptMFAChallengeHandler {
 	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-		var chal *auth.MFAAuthenticateChallenge
+		var chal *client.MFAAuthenticateChallenge
 		var envelopeType string
 
 		// Convert from proto to JSON types.
 		switch {
 		case c.GetWebauthnChallenge() != nil:
 			envelopeType = defaults.WebsocketWebauthnChallenge
-			chal = &auth.MFAAuthenticateChallenge{
+			chal = &client.MFAAuthenticateChallenge{
 				WebauthnChallenge: wanlib.CredentialAssertionFromProto(c.WebauthnChallenge),
 			}
 		default:

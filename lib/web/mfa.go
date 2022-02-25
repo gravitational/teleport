@@ -159,8 +159,6 @@ func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, 
 	switch req.DeviceType {
 	case "totp":
 		deviceType = proto.DeviceType_DEVICE_TYPE_TOTP
-	case "u2f":
-		deviceType = proto.DeviceType_DEVICE_TYPE_U2F
 	case "webauthn":
 		deviceType = proto.DeviceType_DEVICE_TYPE_WEBAUTHN
 	default:
