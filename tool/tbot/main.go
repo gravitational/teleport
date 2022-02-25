@@ -283,8 +283,8 @@ func renewIdentityViaAuth(
 ) (*identity.Identity, error) {
 	// TODO: enforce expiration > renewal period (by what margin?)
 
-	// If using the IAM join method, repeatedly fetch new certs rather than
-	// renewing.
+	// If using the IAM join method we always go through the initial join flow
+	// and fetch new nonrenewable certs
 	var joinMethod types.JoinMethod
 	if cfg.Onboarding != nil {
 		joinMethod = cfg.Onboarding.JoinMethod
