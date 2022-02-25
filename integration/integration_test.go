@@ -5211,7 +5211,9 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 			Host:    Host,
 			Port:    main.GetPortSSHInt(),
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Errorf("Failed to create client: %v.", err)
+		}
 
 		// Connect terminal to std{in,out} of client.
 		client.Stdout = term
@@ -5220,25 +5222,34 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 		// "Type" a command into the terminal.
 		term.Type(fmt.Sprintf("\a%v\n\r\aexit\n\r\a", lsPath))
 		err = client.SSH(context.Background(), []string{}, false)
-		require.NoError(t, err)
+		if err != nil {
+			t.Errorf("Failed to start SSH session: %v.", err)
+		}
 
 		// Signal that the client has finished the interactive session.
 		doneCh <- true
 	}
-	writeTerm(termA)
-	writeTerm(termB)
+
+	// It's possible to run this test sequentially but it should
+	// be run in parallel to amortize the time since the two tasks can be run in parallel.
+	//
+	// This is also important because it ensures the tests faults if some part of the SSH code
+	// hangs unexpectedly instead of timing out silently.
+	go writeTerm(termA)
+	go writeTerm(termB)
 
 	// Wait 10 seconds for both events to arrive, otherwise timeout.
 	timeout := time.After(10 * time.Second)
-	for i := 0; i < 2; i++ {
+	gotEvents := 0
+	for {
 		select {
 		case <-doneCh:
-			if i == 1 {
-				break
-			}
+			gotEvents++
 		case <-timeout:
-			dumpGoroutineProfile()
 			require.FailNow(t, "Timed out waiting for client to finish interactive session.")
+		}
+		if gotEvents == 2 {
+			break
 		}
 	}
 
