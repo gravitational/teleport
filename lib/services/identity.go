@@ -27,7 +27,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gokyle/hotp"
@@ -111,18 +110,6 @@ type Identity interface {
 
 	// UpsertPassword upserts new password and OTP token
 	UpsertPassword(user string, password []byte) error
-
-	// UpsertU2FRegisterChallenge upserts a U2F challenge for a new user corresponding to the token
-	UpsertU2FRegisterChallenge(token string, u2fChallenge *u2f.Challenge) error
-
-	// GetU2FRegisterChallenge returns a U2F challenge for a new user corresponding to the token
-	GetU2FRegisterChallenge(token string) (*u2f.Challenge, error)
-
-	// UpsertU2FSignChallenge upserts a U2F sign (auth) challenge
-	UpsertU2FSignChallenge(user string, u2fChallenge *u2f.Challenge) error
-
-	// GetU2FSignChallenge returns a U2F sign (auth) challenge
-	GetU2FSignChallenge(user string) (*u2f.Challenge, error)
 
 	// UpsertWebauthnLocalAuth creates or updates the local auth configuration for
 	// Webauthn.

@@ -35,8 +35,8 @@ import (
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
-	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -140,7 +140,7 @@ func TestMFA(t *testing.T) {
 
 	mfaWant := &MFA{
 		Type: defaults.WebsocketWebauthnChallenge[0],
-		MFAAuthenticateChallenge: &auth.MFAAuthenticateChallenge{
+		MFAAuthenticateChallenge: &client.MFAAuthenticateChallenge{
 			WebauthnChallenge: &wanlib.CredentialAssertion{
 				Response: protocol.PublicKeyCredentialRequestOptions{
 					Challenge:      []byte("challenge"),

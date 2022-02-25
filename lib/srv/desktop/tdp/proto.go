@@ -33,8 +33,8 @@ import (
 	"github.com/gravitational/trace"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/web/mfajson"
 )
@@ -460,7 +460,7 @@ type MFA struct {
 	Type byte
 	// MFAAuthenticateChallenge is the challenge we send to the client.
 	// Used for messages from Teleport to the user's browser.
-	*auth.MFAAuthenticateChallenge
+	*client.MFAAuthenticateChallenge
 	// MFAAuthenticateResponse is the response to the MFA challenge,
 	// sent from the browser to Teleport.
 	*authproto.MFAAuthenticateResponse
@@ -583,7 +583,7 @@ func DecodeMFAChallenge(in peekReader) (*MFA, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var req *auth.MFAAuthenticateChallenge
+	var req *client.MFAAuthenticateChallenge
 	if err := json.Unmarshal(b, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}

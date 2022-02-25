@@ -443,9 +443,8 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
+		Webauthn: &types.Webauthn{
+			RPID: "teleport",
 		},
 	})
 	require.NoError(t, err)
@@ -462,16 +461,6 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 				return &proto.CreatePrivilegeTokenRequest{
 					ExistingMFAResponse: &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
 						TOTP: &proto.TOTPResponse{Code: "wrong-otp-token-value"},
-					}},
-				}
-			},
-		},
-		{
-			name: "locked from u2f attempts",
-			getReq: func() *proto.CreatePrivilegeTokenRequest {
-				return &proto.CreatePrivilegeTokenRequest{
-					ExistingMFAResponse: &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{
-						U2F: &proto.U2FResponse{},
 					}},
 				}
 			},
