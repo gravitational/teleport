@@ -599,8 +599,6 @@ const (
 )
 
 const (
-	// U2FChallengeTimeout is hardcoded in the U2F library
-	U2FChallengeTimeout = 5 * time.Minute
 	// WebauthnChallengeTimeout is the timeout for ongoing Webauthn authentication
 	// or registration challenges.
 	WebauthnChallengeTimeout = 5 * time.Minute
