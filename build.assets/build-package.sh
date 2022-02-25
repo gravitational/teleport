@@ -228,7 +228,7 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     NOTARIZE_PKG="true"
     # handle mac client-only builds
     if [[ "${BUILD_MODE}" == "tsh" ]]; then
-        FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tbot"
+        FILE_LIST="${TAR_PATH}/tsh"
         BUNDLE_ID="com.gravitational.teleport.tsh"
         PKG_FILENAME="tsh-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
     else
