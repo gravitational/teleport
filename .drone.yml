@@ -3113,9 +3113,9 @@ steps:
     ARCH: amd64
     BUILDBOX_PASSWORD:
       from_secret: BUILDBOX_PASSWORD
-    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
     OS: darwin
-    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
 - name: Copy Mac pkg artifacts
   commands:
@@ -4838,11 +4838,16 @@ steps:
   # this step exits early and skips all remaining steps in the pipeline if the
   # tag looks like a pre-release, to avoid pushing pre-release RPMs and DEBs to
   # our yum / apt repos.
+  - name: Check if repo is public
+    image: alpine
+    commands:
+      - if [ "${DRONE_REPO}" != "gravitational/teleport" ]; then echo "---> Not publishing ${DRONE_REPO} packages to RPM and DEB repos" && exit 78; fi
+
   - name: Check if tag is prerelease
     image: golang:1.17-alpine
     commands:
       - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
-      - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> Not publishing ${DRONE_REPO} packages to RPM and DEB repos' && exit 78)
+      - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> Not publishing ${DRONE_TAG} packages to RPM and DEB repos' && exit 78)
 
   - name: Download RPM repo contents
     image: amazon/aws-cli
@@ -5035,6 +5040,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 7212c3b6f83e020958e4c90cacee6b2b746c728ee0a22d3ce4605f40273f0115
+hmac: 2fa9a32bf1f8b0fe5ef6abb7b0cdd30df5cd8813ca2bdbc3fdbd9b1d7296f459
 
 ...

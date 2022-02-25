@@ -1812,9 +1812,8 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorOptional,
-				U2F: &types.U2F{
-					AppID:  "teleport",
-					Facets: []string{"teleport"},
+				Webauthn: &types.Webauthn{
+					RPID: "teleport",
 				},
 			})
 			require.NoError(t, err)
