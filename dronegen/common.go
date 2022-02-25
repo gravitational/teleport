@@ -32,11 +32,6 @@ var (
 		Ref:   triggerRef{Include: []string{"refs/tags/v*"}},
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
 	}
-	triggerPushMasterOnly = trigger{
-		Event:  triggerRef{Include: []string{"push"}},
-		Branch: triggerRef{Include: []string{"master"}},
-		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
-	}
 
 	volumeDocker = volume{
 		Name: "dockersock",
@@ -56,8 +51,6 @@ var (
 	}
 )
 
-const branchName string = "branch/v9"
-
 var buildboxVersion value = value{raw: "teleport9"}
 
 var goRuntime value
@@ -70,11 +63,10 @@ func init() {
 	goRuntime = value{raw: string(bytes.TrimSpace(v))}
 }
 
-func pushTriggerMasterAnd(branches ...string) trigger {
+func pushTriggerFor(branches ...string) trigger {
 	t := trigger{
-		Event:  triggerRef{Include: []string{"push"}},
-		Branch: triggerRef{Include: []string{"master"}},
-		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
+		Event: triggerRef{Include: []string{"push"}},
+		Repo:  triggerRef{Include: []string{"gravitational/teleport"}},
 	}
 	t.Branch.Include = append(t.Branch.Include, branches...)
 	return t
