@@ -32,7 +32,7 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-Create the database agent configuration using the database configurator:
+Create the Database Service configuration:
 
 ```code
 $ teleport db configure create -o file --proxy=teleport.example.com:3080 --token=/tmp/token --rds-discovery=us-west-1
@@ -71,7 +71,7 @@ policies for the discovered databases. Keep in mind that AWS IAM changes may
 not propagate immediately and can take a few minutes to come into effect.
 
 <Admonition type="note" title="AWS credentials">
-  Similar to the bootstrap command, the Teleport database agent uses the default
+  Teleport Database Service uses the default
   credential provider chain to find AWS credentials. See [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials) for more information.
 </Admonition>
 

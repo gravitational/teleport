@@ -24,13 +24,13 @@ videoBanner: UFhT52d5bYg
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-Create the database agent configuration using the database configurator:
+Create the Database Service configuration file:
 
 ```code
 $ teleport db configure create -o file --proxy=teleport.example.com:3080 --token=/tmp/token --redshift-discovery=us-west-1
 ```
 
-The command will generate a database agent configuration with Redshift
+The command will generate a Database Service configuration with Redshift
 databases auto-discovery enabled on the `us-west-1` region and place it at the
 `/etc/teleport.yaml` location.
 

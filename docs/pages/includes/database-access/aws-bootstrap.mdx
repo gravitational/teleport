@@ -3,12 +3,11 @@ different AWS-hosted databases, as well as the IAM identity your Teleport
 database agent will be using (user or role). The database bootstrap command
 generates custom AWS policies based on your configuration. Bootstrap can be
 performed in two modes:
-- Automatic: Generates and creates IAM policy and policy boundary and attaches
-  to provided target (user or role). In this command, the command requires AWS
-  credentials set to identity with enough permissions;
-- Manual: Generates IAM policy and boundary and prints to STDOUT. You then can
-  add them to your AWS account manually (for instance, using the AWS management
-  console);
+- In automatic mode, Teleport will attempt to create appropriate IAM policies and attach
+  them to the specified IAM identity (user or role). This requires IAM permissions to create
+  and attach IAM policies.
+- In manual mode, Teleport will print required IAM policies. You can then
+  create and attach them manually using AWS management console.
 
 <Admonition type="note" title="AWS credentials">
   AWS Credentials are only required if you’re running the command in "automatic"
@@ -18,7 +17,7 @@ performed in two modes:
 
 <Tabs>
   <TabItem label="Automatic / IAM User">
-  Use this command if you’re bootstrapping the permissions automatically and
+  Use this command to bootstrap the permissions automatically when
   your Teleport database agent runs as an IAM user (for example, uses AWS
   credentials file).
 
@@ -28,7 +27,7 @@ performed in two modes:
   </TabItem>
 
   <TabItem label="Automatic / IAM Role">
-  Use this command if you’re bootstrapping the permissions automatically and
+  Use this command to bootstrap the permissions automatically when
   your Teleport database agent runs as an IAM role (for example, on an EC2
   instance with attached IAM role).
 
@@ -38,8 +37,7 @@ performed in two modes:
   </TabItem>
 
   <TabItem label="Manual">
-  Use this command if you’re bootstrapping the permissions manually, and attach
-  the generated permissions to your target (user or role).
+  Use this command to display required IAM policies which you will then create in your AWS console:
 
   ```code
   $ teleport db configure bootstrap -c /etc/teleport.yaml --manual
