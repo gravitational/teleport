@@ -102,7 +102,7 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 
 	accountDb.Lock()
 	defer accountDb.Unlock()
-	status := C.uacc_add_utmp_entry(cUtmpPath, cWtmpPath, cUsername, cHostname, &cIP[0], cTtyName, cIDName, secondsElapsed, microsFraction)
+	status, errno := C.uacc_add_utmp_entry(cUtmpPath, cWtmpPath, cUsername, cHostname, &cIP[0], cTtyName, cIDName, secondsElapsed, microsFraction)
 
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
@@ -110,8 +110,7 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	case C.UACC_UTMP_WRITE_ERROR:
 		return trace.AccessDenied("failed to add entry to utmp database")
 	case C.UACC_UTMP_FAILED_OPEN:
-		code := C.get_errno()
-		return trace.AccessDenied("failed to open user account database, code: %d", code)
+		return trace.AccessDenied("failed to open user account database, code: %d", errno)
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
 		return trace.BadParameter("failed to select file")
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
@@ -156,7 +155,7 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 
 	accountDb.Lock()
 	defer accountDb.Unlock()
-	status := C.uacc_mark_utmp_entry_dead(cUtmpPath, cWtmpPath, cTtyName, secondsElapsed, microsFraction)
+	status, errno := C.uacc_mark_utmp_entry_dead(cUtmpPath, cWtmpPath, cTtyName, secondsElapsed, microsFraction)
 
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
@@ -166,8 +165,7 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	case C.UACC_UTMP_READ_ERROR:
 		return trace.AccessDenied("failed to read and search utmp database")
 	case C.UACC_UTMP_FAILED_OPEN:
-		code := C.get_errno()
-		return trace.AccessDenied("failed to open user account database, code: %d", code)
+		return trace.AccessDenied("failed to open user account database, code: %d", errno)
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
 		return trace.BadParameter("failed to select file")
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
@@ -194,12 +192,11 @@ func UserWithPtyInDatabase(utmpPath string, username string) error {
 
 	accountDb.Lock()
 	defer accountDb.Unlock()
-	status := C.uacc_has_entry_with_user(cUtmpPath, cUsername)
+	status, errno := C.uacc_has_entry_with_user(cUtmpPath, cUsername)
 
 	switch status {
 	case C.UACC_UTMP_FAILED_OPEN:
-		code := C.get_errno()
-		return trace.AccessDenied("failed to open user account database, code: %d", code)
+		return trace.AccessDenied("failed to open user account database, code: %d", errno)
 	case C.UACC_UTMP_ENTRY_DOES_NOT_EXIST:
 		return trace.NotFound("user not found")
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
