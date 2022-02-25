@@ -19,7 +19,7 @@ ARCH ?= amd64
 BUILDBOX_VERSION=teleport9
 GOLANG_VERSION ?= go1.17.7
 RUST_VERSION ?= 1.58.1
-BORINGCRYPTO_RUNTIME=$(RUNTIME)b7
+BORINGCRYPTO_RUNTIME=$(GOLANG_VERSION)b7
 LIBBPF_VERSION ?= 0.3.1
 
 UID := $$(id -u)
@@ -117,7 +117,7 @@ buildbox:
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
 			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
-			--build-arg RUNTIME=$(RUNTIME) \
+			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg PROTOC_VER=$(PROTOC_VER) \
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
