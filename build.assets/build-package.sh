@@ -228,11 +228,11 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     NOTARIZE_PKG="true"
     # handle mac client-only builds
     if [[ "${BUILD_MODE}" == "tsh" ]]; then
-        FILE_LIST="${TAR_PATH}/tsh"
+        FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tbot"
         BUNDLE_ID="com.gravitational.teleport.tsh"
         PKG_FILENAME="tsh-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
     else
-        FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport"
+        FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot"
         BUNDLE_ID="com.gravitational.teleport"
         if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
             PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
@@ -241,8 +241,8 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         fi
     fi
 else
-    FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/examples/systemd/teleport.service"
-    LINUX_BINARY_FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport"
+    FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/examples/systemd/teleport.service"
+    LINUX_BINARY_FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/tbot ${TAR_PATH}/teleport"
     LINUX_SYSTEMD_FILE_LIST="${TAR_PATH}/examples/systemd/teleport.service"
     EXTRA_DOCKER_OPTIONS=""
     RPM_SIGN_STANZA=""
