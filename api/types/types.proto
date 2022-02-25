@@ -1043,10 +1043,12 @@ message U2F {
     string AppID = 1 [ (gogoproto.jsontag) = "app_id,omitempty" ];
 
     // Facets returns the facets for universal second factor.
+    // DELETE IN 11.0, time to sunset U2F (codingllama).
     repeated string Facets = 2 [ (gogoproto.jsontag) = "facets,omitempty" ];
 
     // DeviceAttestationCAs contains the trusted attestation CAs for U2F
     // devices.
+    // DELETE IN 11.0, time to sunset U2F (codingllama).
     repeated string DeviceAttestationCAs = 3
         [ (gogoproto.jsontag) = "device_attestation_cas,omitempty" ];
 }
@@ -1960,18 +1962,6 @@ message CreatedBy {
     UserRef User = 3 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "user" ];
 }
 
-// U2FRegistrationData encodes the universal second factor registration payload.
-message U2FRegistrationData {
-    // Raw is the serialized registration data as received from the token
-    bytes Raw = 1 [ (gogoproto.jsontag) = "raw" ];
-
-    // KeyHandle uniquely identifies a key on a device
-    bytes KeyHandle = 2 [ (gogoproto.jsontag) = "key_handle" ];
-
-    // PubKey is an DER encoded ecdsa public key
-    bytes PubKey = 3 [ (gogoproto.jsontag) = "pubkey" ];
-}
-
 // LocalAuthSecrets holds sensitive data used to authenticate a local user.
 message LocalAuthSecrets {
     // PasswordHash encodes a combined salt & hash for password verification.
@@ -1979,8 +1969,8 @@ message LocalAuthSecrets {
 
     // Deprecated 2nd factor fields, use MFA below instead.
     string TOTPKey = 2 [ (gogoproto.jsontag) = "totp_key,omitempty" ];
-    U2FRegistrationData U2FRegistration = 3 [ (gogoproto.jsontag) = "u2f_registration,omitempty" ];
-    uint32 U2FCounter = 4 [ (gogoproto.jsontag) = "u2f_counter,omitempty" ];
+    reserved 3; // U2FRegistrationData U2FRegistration
+    reserved 4; // uint32 U2FCounter
 
     repeated MFADevice MFA = 5 [ (gogoproto.jsontag) = "mfa,omitempty" ];
     // Webauthn holds settings necessary for webauthn local auth.

@@ -29,7 +29,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -595,42 +594,6 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 	return nil
 }
 
-func (s *IdentityService) UpsertU2FRegisterChallenge(token string, u2fChallenge *u2f.Challenge) error {
-	if token == "" {
-		return trace.BadParameter("missing parmeter token")
-	}
-	value, err := json.Marshal(u2fChallenge)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(u2fRegChalPrefix, token),
-		Value:   value,
-		Expires: s.Clock().Now().UTC().Add(defaults.U2FChallengeTimeout),
-	}
-	_, err = s.Put(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (s *IdentityService) GetU2FRegisterChallenge(token string) (*u2f.Challenge, error) {
-	if token == "" {
-		return nil, trace.BadParameter("missing parameter token")
-	}
-	item, err := s.Get(context.TODO(), backend.Key(u2fRegChalPrefix, token))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var u2fChal u2f.Challenge
-	err = json.Unmarshal(item.Value, &u2fChal)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &u2fChal, nil
-}
-
 func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error {
 	switch {
 	case user == "":
@@ -992,42 +955,6 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 		devices = append(devices, &d)
 	}
 	return devices, nil
-}
-
-func (s *IdentityService) UpsertU2FSignChallenge(user string, challenge *u2f.Challenge) error {
-	if user == "" {
-		return trace.BadParameter("missing parameter user")
-	}
-	value, err := json.Marshal(challenge)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, u2fSignChallengePrefix),
-		Value:   value,
-		Expires: s.Clock().Now().UTC().Add(defaults.U2FChallengeTimeout),
-	}
-	_, err = s.Put(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (s *IdentityService) GetU2FSignChallenge(user string) (*u2f.Challenge, error) {
-	if user == "" {
-		return nil, trace.BadParameter("missing parameter user")
-	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, u2fSignChallengePrefix))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var signChallenge u2f.Challenge
-	err = json.Unmarshal(item.Value, &signChallenge)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &signChallenge, nil
 }
 
 // UpsertOIDCConnector upserts OIDC Connector
@@ -1556,11 +1483,9 @@ const (
 	samlPrefix                = "saml"
 	githubPrefix              = "github"
 	requestsPrefix            = "requests"
-	u2fRegChalPrefix          = "adduseru2fchallenges"
 	usedTOTPPrefix            = "used_totp"
 	usedTOTPTTL               = 30 * time.Second
 	mfaDevicePrefix           = "mfa"
-	u2fSignChallengePrefix    = "u2fsignchallenge"
 	webauthnPrefix            = "webauthn"
 	webauthnGlobalSessionData = "sessionData"
 	webauthnLocalAuthPrefix   = "webauthnlocalauth"
