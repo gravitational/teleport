@@ -17,8 +17,8 @@ limitations under the License.
 import React from 'react';
 import { useKubes, State } from './useKubes';
 import Table, { Cell } from 'design/DataTable';
-import { Label, ButtonBorder } from 'design';
-import * as types from 'teleterm/ui/services/clusters/types';
+import { ButtonBorder } from 'design';
+import { renderLabelCell } from '../renderLabelCell';
 
 export default function Container() {
   const state = useKubes();
@@ -69,15 +69,4 @@ export const renderConnectButtonCell = (
       </ButtonBorder>
     </Cell>
   );
-};
-
-const renderLabelCell = ({ labelsList }: types.Kube) => {
-  const labels = labelsList.map(l => `${l.name}:${l.value}`);
-  const $labels = labels.map(label => (
-    <Label mb="1" mr="1" key={label} kind="secondary">
-      {label}
-    </Label>
-  ));
-
-  return <Cell>{$labels}</Cell>;
 };

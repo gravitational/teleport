@@ -124,7 +124,7 @@ function sortAndFilter<T>(
   data: T[] = [],
   searchValue = '',
   sort: State<T>['state']['sort'],
-  columnKeys: string[],
+  columnKeys: (keyof T)[],
   showFirst?: TableProps<T>['showFirst']
 ) {
   const output = data.filter(obj =>
@@ -167,10 +167,10 @@ function sortAndFilter<T>(
   return output;
 }
 
-function searchAndFilterCb(
+function searchAndFilterCb<T>(
   targetValue: any,
   searchValue: string,
-  propName: string
+  propName: keyof T & string
 ) {
   if (propName === 'tags') {
     return targetValue.some(item => {

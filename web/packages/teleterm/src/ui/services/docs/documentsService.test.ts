@@ -1,5 +1,16 @@
 import { DocumentsService } from './documentsService';
-import { Document } from './types';
+import {
+  Document,
+  DocumentGateway,
+  DocumentHome,
+  DocumentTshNode,
+} from './types';
+
+const homeDocument: DocumentHome = {
+  kind: 'doc.home',
+  title: 'Home',
+  uri: '/docs/home',
+};
 
 function getMockedDocuments(): Document[] {
   return [
@@ -15,6 +26,129 @@ function createService(mockDocks: Document[]): DocumentsService {
 
   return service;
 }
+
+test('open the document', () => {
+  const mockedDocks = getMockedDocuments();
+  const service = createService(mockedDocks);
+
+  service.open(mockedDocks[0].uri);
+
+  expect(service.getActive()).toStrictEqual(mockedDocks[0]);
+});
+
+test('get documents should return all documents and doc home', () => {
+  const mockedDocks = getMockedDocuments();
+  const service = createService(mockedDocks);
+
+  expect(service.getDocuments()).toStrictEqual([homeDocument, ...mockedDocks]);
+});
+
+test('get document should return the document', () => {
+  const mockedDocks = getMockedDocuments();
+  const service = createService(mockedDocks);
+
+  expect(service.getDocument(mockedDocks[0].uri)).toStrictEqual(mockedDocks[0]);
+});
+
+describe('document should be added', () => {
+  const mockedDocks = getMockedDocuments();
+  const newDocument: DocumentGateway = {
+    uri: 'new-doc',
+    title: 'New doc',
+    kind: 'doc.gateway',
+    gatewayUri: '',
+    targetUri: '',
+  };
+
+  test('at the specific position', () => {
+    const service = createService(mockedDocks);
+
+    service.add(newDocument);
+
+    expect(
+      service.getDocuments()[service.getDocuments().length - 1]
+    ).toStrictEqual(newDocument);
+  });
+
+  test('at the end if position is not specified', () => {
+    const service = createService(mockedDocks);
+    const newPosition = 2;
+
+    service.add(newDocument, newPosition);
+
+    expect(service.getDocuments()[newPosition]).toStrictEqual(newDocument);
+  });
+});
+
+test('update the document', () => {
+  const mockedDocks = getMockedDocuments();
+  const service = createService(mockedDocks);
+  const newTitle = 'A new title!';
+  service.update(mockedDocks[0].uri, { title: newTitle });
+
+  expect(service.getDocument(mockedDocks[0].uri).title).toBe(newTitle);
+});
+
+test('filter should omit given document', () => {
+  const mockedDocks = getMockedDocuments();
+  const service = createService(mockedDocks);
+
+  expect(service.filter(mockedDocks[0].uri)).toStrictEqual(
+    service.getDocuments().filter(d => d.uri !== mockedDocks[0].uri)
+  );
+});
+
+test('only TSH node documents should be returned', () => {
+  const mockedDocks = getMockedDocuments();
+  const service = createService(mockedDocks);
+
+  const tshNodeDocument: DocumentTshNode = {
+    uri: 'test1',
+    kind: 'doc.terminal_tsh_node',
+    title: 'TSH',
+    serverId: '',
+    login: '',
+    serverUri: '',
+    status: 'connecting',
+    rootClusterId: '',
+  };
+
+  service.add(tshNodeDocument);
+
+  expect(service.getTshNodeDocuments()).toStrictEqual([tshNodeDocument]);
+});
+
+test('only gateway documents should be returned', () => {
+  const mockedDocks = getMockedDocuments();
+  const service = createService(mockedDocks);
+
+  const gatewayDocument: DocumentGateway = {
+    uri: 'test1',
+    kind: 'doc.gateway',
+    title: 'gw',
+    gatewayUri: '',
+    targetUri: '',
+  };
+
+  service.add(gatewayDocument);
+
+  expect(service.getGatewayDocuments()).toStrictEqual([gatewayDocument]);
+});
+
+describe('next URI', () => {
+  const mockedDocks = getMockedDocuments();
+  const service = createService(mockedDocks);
+
+  test('should be next element URI if given URI is not last', () => {
+    expect(service.getNextUri(mockedDocks[1].uri)).toBe(mockedDocks[2].uri);
+  });
+
+  test('should be previous element URI if given URI is last', () => {
+    expect(service.getNextUri(mockedDocks[mockedDocks.length - 1].uri)).toBe(
+      mockedDocks[mockedDocks.length - 2].uri
+    );
+  });
+});
 
 test('close other docs', () => {
   const mockedDocks = getMockedDocuments();

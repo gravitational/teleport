@@ -50,7 +50,7 @@ export class DocumentsService extends ImmutableStore<State> {
   }
 
   open(docUri: string) {
-    if (!this.find(docUri)) {
+    if (!this.getDocument(docUri)) {
       this.add({
         uri: docUri,
         title: docUri,
@@ -143,12 +143,12 @@ export class DocumentsService extends ImmutableStore<State> {
     return this.state.docs;
   }
 
-  getDocument(url: string) {
-    return this.find(url);
+  getDocument(uri: string) {
+    return this.state.docs.find(i => i.uri === uri);
   }
 
   getActive() {
-    return this.find(this.getLocation());
+    return this.getDocument(this.getLocation());
   }
 
   getLocation() {
@@ -248,10 +248,6 @@ export class DocumentsService extends ImmutableStore<State> {
     }
 
     return '/';
-  }
-
-  find(uri: string) {
-    return this.state.docs.find(i => i.uri === uri);
   }
 
   findClusterDocument(clusterUri: string) {

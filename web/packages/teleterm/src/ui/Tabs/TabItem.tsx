@@ -21,7 +21,7 @@ import { space } from 'design/system';
 import { Text } from 'design';
 import { useTabDnD } from './useTabDnD';
 
-export default function TabItem(props: Props) {
+export function TabItem(props: Props) {
   const {
     name,
     active,

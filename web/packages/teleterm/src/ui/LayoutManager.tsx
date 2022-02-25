@@ -21,7 +21,7 @@ import { debounce } from 'lodash';
 import QuickInput from 'teleterm/ui/QuickInput';
 import SplitPane from 'shared/components/SplitPane';
 import { Navigator } from 'teleterm/ui/Navigator';
-import TabHost from 'teleterm/ui/TabHost';
+import { TabHost } from 'teleterm/ui/TabHost';
 import styled from 'styled-components';
 
 export function LayoutManager() {

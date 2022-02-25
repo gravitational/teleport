@@ -19,6 +19,7 @@ import { useServers, State } from './useServers';
 import * as types from 'teleterm/ui/services/clusters/types';
 import Table, { Cell } from 'design/DataTable';
 import { ButtonBorder, Label } from 'design';
+import { renderLabelCell } from '../renderLabelCell';
 
 export default function Container() {
   const state = useServers();
@@ -57,17 +58,6 @@ function ServerList(props: State) {
     />
   );
 }
-
-const renderLabelCell = ({ labelsList }: types.Server) => {
-  const labels = labelsList.map(l => `${l.name}:${l.value}`);
-  const $labels = labels.map(label => (
-    <Label mb="1" mr="1" key={label} kind="secondary">
-      {label}
-    </Label>
-  ));
-
-  return <Cell>{$labels}</Cell>;
-};
 
 const renderConnectCell = (
   serverUri: string,
