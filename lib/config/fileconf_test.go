@@ -453,7 +453,7 @@ func TestX11Config(t *testing.T) {
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
 					"enabled":        "yes",
-					"display_offset": "100",
+					"display_offset": 100,
 				}
 			},
 			expectX11Config: &x11.ServerConfig{
@@ -481,13 +481,13 @@ func TestX11Config(t *testing.T) {
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
 					"enabled":     "yes",
-					"max_display": "100",
+					"max_display": 100,
 				}
 			},
 			expectX11Config: &x11.ServerConfig{
 				Enabled:       true,
 				DisplayOffset: x11.DefaultDisplayOffset,
-				MaxDisplay:    100 + x11.DefaultDisplayOffset,
+				MaxDisplay:    100,
 			},
 		}, {
 			// DELETE IN 10.0.0 (Joerger): yaml typo, use max_display.
@@ -495,13 +495,13 @@ func TestX11Config(t *testing.T) {
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
 					"enabled":      "yes",
-					"max_displays": "100",
+					"max_displays": 100,
 				}
 			},
 			expectX11Config: &x11.ServerConfig{
 				Enabled:       true,
 				DisplayOffset: x11.DefaultDisplayOffset,
-				MaxDisplay:    100 + x11.DefaultDisplayOffset,
+				MaxDisplay:    100,
 			},
 		}, {
 			desc: "max display value capped",
@@ -521,8 +521,8 @@ func TestX11Config(t *testing.T) {
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
 					"enabled":        "maybe",
-					"display_offset": "1000",
-					"max_display":    "100",
+					"display_offset": 1000,
+					"max_display":    100,
 				}
 			},
 			expectConfigError: func(t require.TestingT, err error, i ...interface{}) {
