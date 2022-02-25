@@ -44,7 +44,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -360,14 +359,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
 	h.GET("/webapi/github/callback", h.WithMetaRedirect(h.githubCallback))
 	h.POST("/webapi/github/login/console", httplib.MakeHandler(h.githubLoginConsole))
-
-	// U2F related APIs
-	// DELETE IN 9.x, superseded by /mfa/ endpoints (codingllama)
-	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))                 // replaced with /webapi/mfa/token/:token/registerchallenge
-	h.POST("/webapi/u2f/password/changerequest", h.WithAuth(h.createAuthenticateChallengeWithPassword)) // replaced with /webapi/mfa/authenticatechallenge/password
-	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.mfaLoginBegin))                             // replaced with /webapi/mfa/login/begin
-	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.mfaLoginFinishSession))                        // replaced with /webapi/mfa/login/finishsession
-	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.mfaLoginFinish))                                  // replaced with /webapi/mfa/login/finish
 
 	// MFA public endpoints.
 	h.POST("/webapi/mfa/login/begin", httplib.MakeHandler(h.mfaLoginBegin))
@@ -1518,8 +1509,6 @@ type changeUserAuthenticationRequest struct {
 	TokenID string `json:"token"`
 	// Password is user password string converted to bytes.
 	Password []byte `json:"password"`
-	// U2FRegisterResponse is U2F registration challenge response.
-	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
 	// WebauthnCreationResponse is the signed credential creation response.
 	WebauthnCreationResponse *wanlib.CredentialCreationResponse `json:"webauthnCreationResponse"`
 }
@@ -1541,13 +1530,6 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 				Webauthn: wanlib.CredentialCreationResponseToProto(req.WebauthnCreationResponse),
 			},
 		}
-	case req.U2FRegisterResponse != nil:
-		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
-			U2F: &proto.U2FRegisterResponse{
-				RegistrationData: req.U2FRegisterResponse.RegistrationData,
-				ClientData:       req.U2FRegisterResponse.ClientData,
-			},
-		}}
 	case req.SecondFactorToken != "":
 		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
 			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
@@ -1650,38 +1632,16 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 	}, nil
 }
 
-// u2fRegisterRequest is called to get a U2F challenge for registering a U2F key
-//
-// GET /webapi/u2f/signuptokens/:token
-//
-// Response:
-//
-// {"version":"U2F_V2","challenge":"randombase64string","appId":"https://mycorp.com:3080"}
-//
-func (h *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	res, err := h.auth.proxyClient.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
-		TokenID:    p.ByName("token"),
-		DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	chal := client.MakeRegisterChallenge(res)
-	return chal.U2F, nil
-}
-
 // mfaLoginBegin is the first step in the MFA authentication ceremony, which
 // may be completed either via mfaLoginFinish (SSH) or mfaLoginFinishSession (Web).
 //
-// POST /webapi/u2f/signrequest (deprecated)
 // POST /webapi/mfa/login/begin
 //
 // {"user": "alex", "pass": "abc123"}
 //
 // Successful response:
 //
-// {"webauthn_challenge": {...}, "u2f_challenges": [...], "totp_challenge": true}
+// {"webauthn_challenge": {...}, "totp_challenge": true}
 func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *client.MFAChallengeRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -1703,7 +1663,6 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 // mfaLoginFinish completes the MFA login ceremony, returning a new SSH
 // certificate if successful.
 //
-// POST /v1/webapi/u2f/certs (deprecated)
 // POST /v1/mfa/login/finish
 //
 // { "user": "bob", "password": "pass", "pub_key": "key to sign", "ttl": 1000000000 }                   # password-only
@@ -1728,7 +1687,6 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 // mfaLoginFinishSession completes the MFA login ceremony, returning a new web
 // session if successful.
 //
-// POST /webapi/u2f/session (deprecated)
 // POST /webapi/mfa/login/finishsession
 //
 // {"user": "alex", "webauthn_challenge_response": {...}}
