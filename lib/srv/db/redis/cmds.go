@@ -186,7 +186,7 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 		// ex. AUTH bob my-secret-password
 		dbUser, ok := cmd.Args()[1].(string)
 		if !ok {
-			return trace.BadParameter("username has a wrong type, expected string")
+			return trace.BadParameter("username has a wrong type, expected string got %T", cmd.Args()[1])
 		}
 
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: fmt.Sprintf("AUTH %s ****", dbUser)})
@@ -207,12 +207,12 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 			return trace.Wrap(err)
 		}
 
-		err = e.redisClient.Close()
-		if err != nil {
-			e.Log.Errorf("failed to close Redis connection: %s", err)
+		password, ok := cmd.Args()[2].(string)
+		if !ok {
+			return trace.BadParameter("password has a wrong type, expected string got %T", cmd.Args()[2])
 		}
 
-		e.redisClient, err = newClient(ctx, e.connectionOptions, e.tlsConfig, dbUser, cmd.Args()[2].(string))
+		e.redisClient, err = e.reconnect(dbUser, password)
 		if err != nil {
 			return trace.Wrap(err)
 		}

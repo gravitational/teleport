@@ -44,8 +44,9 @@ const (
 	scriptCmd   = "script"
 
 	// Below are Redis administration commands which
-	syncCmd  = "sync"
-	psyncCmd = "psync"
+	syncCmd    = "sync"
+	psyncCmd   = "psync"
+	clusterCmd = "cluster"
 )
 
 // Overridden subcommands for Redis SCRIPT command.
@@ -110,7 +111,7 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 
 	switch cmdName := strings.ToLower(cmd.Name()); cmdName {
 	case multiCmd, execCmd, watchCmd, scanCmd,
-		syncCmd, psyncCmd, "cluster":
+		syncCmd, psyncCmd, clusterCmd:
 		// block commands that return incorrect results in Cluster mode
 		return trace.NotImplemented("%s is not supported in the cluster mode", cmdName)
 	case dbsizeCmd:
