@@ -176,6 +176,9 @@ func (h *HandlerDecs) handle(ctx context.Context, conn net.Conn, info Connection
 	if h.HandlerWithConnInfo != nil {
 		return h.HandlerWithConnInfo(ctx, conn, info)
 	}
+	if h.Handler == nil {
+		return trace.BadParameter("failed to find ALPN handler for ALPN: %v, SNI %v", info.ALPN, info.SNI)
+	}
 	return h.Handler(ctx, conn)
 }
 
@@ -436,7 +439,7 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 
 func isDBTLSProtocol(protocol common.Protocol) bool {
 	switch protocol {
-	case common.ProtocolMongoDB, common.ProtocolRedisDB:
+	case common.ProtocolMongoDB, common.ProtocolRedisDB, common.ProtocolSQLServer:
 		return true
 	default:
 		return false
