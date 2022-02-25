@@ -23,6 +23,8 @@ package protocol
 import (
 	"bytes"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func FuzzMongoRead(f *testing.F) {
@@ -31,7 +33,9 @@ func FuzzMongoRead(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, msgBytes []byte) {
 		msg := bytes.NewReader(msgBytes)
-		// ignore errors, check for panics
-		_, _ = ReadMessage(msg)
+
+		require.NotPanics(t, func() {
+			_, _ = ReadMessage(msg)
+		})
 	})
 }
