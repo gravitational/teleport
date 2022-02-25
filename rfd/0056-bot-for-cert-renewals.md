@@ -73,7 +73,7 @@ name and one or more roles the bot is allowed to
 [impersonate](https://goteleport.com/docs/access-controls/guides/impersonation/).
 
 ```
-$ tctl bots add --name=jenkins --roles=ci
+$ tctl bots add jenkins --roles=ci
 The invite token: 13b74f49d27536dd5c514073097c197b
 This token will expire in 60 minutes
 
