@@ -5225,21 +5225,21 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 		// Signal that the client has finished the interactive session.
 		doneCh <- true
 	}
-	writeTerm(termA)
-	writeTerm(termB)
+	go writeTerm(termA)
+	go writeTerm(termB)
 
 	// Wait 10 seconds for both events to arrive, otherwise timeout.
 	timeout := time.After(10 * time.Second)
-outer:
-	for i := 0; i < 2; i++ {
+	gotEvents := 0
+	for {
 		select {
 		case <-doneCh:
-			if i == 1 {
-				break outer
-			}
+			gotEvents++
 		case <-timeout:
-			dumpGoroutineProfile()
 			require.FailNow(t, "Timed out waiting for client to finish interactive session.")
+		}
+		if gotEvents == 2 {
+			break
 		}
 	}
 
