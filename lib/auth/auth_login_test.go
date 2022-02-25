@@ -533,9 +533,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	require.NoError(t, err, "Failed to create passwordless registration challenge")
 	pwdKey, err := mocku2f.Create()
 	require.NoError(t, err)
-	pwdKey.AllowResidentKey = true
-	pwdKey.IgnoreAllowedCredentials = true
-	pwdKey.SetUV = true
+	pwdKey.SetPasswordless()
 	const origin = "https://localhost"
 	ccr, err := pwdKey.SignCredentialCreation(origin, wanlib.CredentialCreationFromProto(registerChallenge.GetWebauthn()))
 	require.NoError(t, err)

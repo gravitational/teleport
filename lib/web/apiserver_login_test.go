@@ -152,10 +152,7 @@ func TestAuthenticate_passwordless(t *testing.T) {
 
 	// Fake a passwordless device. Typically this would require a separate
 	// registration, but because we use fake devices we can get away with it.
-	// TODO(codingllama): Make this nicer, like device.Passwordless().
-	device.AllowResidentKey = true
-	device.IgnoreAllowedCredentials = true
-	device.SetUV = true
+	device.SetPasswordless()
 
 	// Fetch the WebAuthn User Handle. In a real-world scenario the device stores
 	// the handle alongside the credentials during registration.

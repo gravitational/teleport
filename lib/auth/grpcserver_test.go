@@ -247,9 +247,7 @@ func TestMFADeviceManagement(t *testing.T) {
 					key, err := mocku2f.Create()
 					require.NoError(t, err)
 					key.PreferRPID = true
-					key.AllowResidentKey = true // passwordless settings
-					key.IgnoreAllowedCredentials = true
-					key.SetUV = true
+					key.SetPasswordless()
 
 					ccr, err := key.SignCredentialCreation(webOrigin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
 					require.NoError(t, err)
