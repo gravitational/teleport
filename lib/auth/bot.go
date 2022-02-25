@@ -161,7 +161,7 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		TokenID:    provisionToken.GetName(),
 		UserName:   resourceName,
 		RoleName:   resourceName,
-		TokenTTL:   proto.Duration(provisionToken.GetMetadata().Expires.Sub(time.Now())),
+		TokenTTL:   proto.Duration(time.Until(*provisionToken.GetMetadata().Expires)),
 		JoinMethod: provisionToken.GetJoinMethod(),
 	}, nil
 }
@@ -251,9 +251,8 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 			if trace.IsNotFound(err) {
 				return nil, trace.NotFound("token with name %q not found, create the token or do not set TokenName: %v",
 					req.TokenID, err)
-			} else {
-				return nil, trace.Wrap(err)
 			}
+			return nil, trace.Wrap(err)
 		}
 		if !provisionToken.GetRoles().Include(types.RoleBot) {
 			return nil, trace.BadParameter("token %q is not valid for role %q",
