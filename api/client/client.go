@@ -1624,17 +1624,41 @@ func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Ser
 
 // GetNodes returns a complete list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-	return GetNodesWithLabels(ctx, c, namespace, nil)
+	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    namespace,
+	})
+	if err != nil {
+		// ListResources for nodes is not available, use fallback.
+		//
+		// DELETE IN 11.0.0
+		if trace.IsNotImplemented(err) {
+			return GetNodesWithLabels(ctx, c, namespace, nil)
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resources).AsServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return servers, nil
 }
 
 // NodeClient is an interface used by GetNodesWithLabels to abstract over implementations of
 // the ListNodes method.
+//
+// DELETE IN 11.0.0 with GetNodesWithLabels (used in both api/client/client.go and lib/auth/httpfallback.go).
 type NodeClient interface {
 	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
 }
 
 // GetNodesWithLabels is a helper for getting a list of nodes with optional label-based filtering.  In addition to
 // iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
+//
+// DELETE IN 11.0.0 replaced by GetResourcesWithFilters.
 func GetNodesWithLabels(ctx context.Context, clt NodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
 	// Retrieve the complete list of nodes in chunks.
 	var (
@@ -1674,6 +1698,54 @@ func GetNodesWithLabels(ctx context.Context, clt NodeClient, namespace string, l
 			return nodes, nil
 		}
 	}
+}
+
+// NodeClient is an interface used by GetResourcesWithFilters to abstract over implementations of
+// the ListResources method.
+type ListResourcesClient interface {
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
+// GetResourcesWithFilters retrieves all pages from ListResources and return all resources.
+func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, error) {
+	var (
+		resources []types.ResourceWithLabels
+		startKey  string
+		chunkSize = int32(defaults.DefaultChunkSize)
+	)
+
+	for {
+		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+			Namespace:           req.Namespace,
+			ResourceType:        req.ResourceType,
+			StartKey:            startKey,
+			Limit:               chunkSize,
+			Labels:              req.Labels,
+			SearchKeywords:      req.SearchKeywords,
+			PredicateExpression: req.PredicateExpression,
+		})
+		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				chunkSize = chunkSize / 2
+				if chunkSize == 0 {
+					return nil, trace.Wrap(trail.FromGRPC(err), "resource is too large to retrieve")
+				}
+
+				continue
+			}
+
+			return nil, trail.FromGRPC(err)
+		}
+
+		startKey = resp.NextKey
+		resources = append(resources, resp.Resources...)
+		if startKey == "" || len(resp.Resources) == 0 {
+			break
+		}
+
+	}
+
+	return resources, nil
 }
 
 // ListNodes returns a paginated list of nodes that the user has access to in the given namespace.

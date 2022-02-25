@@ -581,3 +581,65 @@ func TestGetResources(t *testing.T) {
 		})
 	}
 }
+
+// TestGetResourcesWithFilters tests subset retrievals until end of page
+// to retrieve all resources.
+func TestGetResourcesWithFilters(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	addr := startMockServer(t)
+
+	// Create client
+	clt, err := New(ctx, Config{
+		Addrs: []string{addr},
+		Credentials: []Credentials{
+			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
+		},
+		DialOpts: []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
+		},
+	})
+	require.NoError(t, err)
+
+	testCases := map[string]struct {
+		resourceType string
+	}{
+		"DatabaseServer": {
+			resourceType: types.KindDatabaseServer,
+		},
+		"ApplicationServer": {
+			resourceType: types.KindAppServer,
+		},
+		"Node": {
+			resourceType: types.KindNode,
+		},
+		"KubeService": {
+			resourceType: types.KindKubeService,
+		},
+	}
+
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			expectedResources, err := testResources(test.resourceType, defaults.Namespace)
+			require.NoError(t, err)
+
+			// Test listing everything at once errors with limit exceeded.
+			_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+				Namespace:    defaults.Namespace,
+				Limit:        int32(len(expectedResources)),
+				ResourceType: test.resourceType,
+			})
+			require.Error(t, err)
+			require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+
+			// Test by getting subsets until end of page.
+			resources, err := GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+				Namespace:    defaults.Namespace,
+				ResourceType: test.resourceType,
+			})
+			require.NoError(t, err)
+			require.Len(t, resources, len(expectedResources))
+			require.Empty(t, cmp.Diff(expectedResources, resources))
+		})
+	}
+}
