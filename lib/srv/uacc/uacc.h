@@ -101,11 +101,6 @@ static int check_abs_path_err(const char* buffer) {
     return 0;
 }
 
-// Allow the Go side to read errno.
-static int get_errno() {
-    return errno;
-}
-
 // The max byte length of the C string representing the TTY name.
 static int max_len_tty_name() {
     return UT_LINESIZE;
