@@ -876,22 +876,89 @@ and non interactive tsh bench loads.
 
 ## Desktop Access
 
-- [ ] Can connect to desktop defined in static `hosts` section.
-- [ ] Can connect to desktop discovered via LDAP
-- [ ] Download [Keyboard Key Info](https://dennisbabkin.com/kbdkeyinfo/) and verify all keys are processed correctly in each supported browser. Known issues: F11 cannot be captured by the browser without
-[special configuration](https://social.technet.microsoft.com/Forums/en-US/784b2bbe-353f-412e-ac9a-193d81f306b6/remote-desktop-for-mac-f11-key-not-working-on-macbook-pro-touchbar?forum=winRDc) on MacOS.
-- [ ] Left click and right click register as Windows clicks. (Right click on the
-  desktop should show a Windows menu, not a browser context menu)
-- [ ] Vertical and horizontal scroll work. [Horizontal Scroll Test](https://codepen.io/jaemskyle/pen/inbmB)
-- [ ] All desktops have `teleport.dev/origin` label.
-- [ ] Dynamic desktops have additional `teleport.dev` labels for OS, OS Version,
-  DNS hostname.
-- [ ] Verify that placing a user lock terminates an active desktop session.
-- [ ] Verify desktop session start/end audit events.
-- [ ] Regexp-based host labeling applies across all desktops, regardless of
-  origin.
-- [ ] RBAC denies access to a Windows desktop due to labels
-- [ ] RBAC denies access to a Windows desktop with the wrong OS-login.
-- [ ] Multiple sessions as different users on the same desktop are allowed.
+- Direct mode (set `listen_addr`):
+  - [ ] Can connect to desktop defined in static `hosts` section.
+  - [ ] Can connect to desktop discovered via LDAP
+- IoT mode (reverse tunnel through proxy):
+  - [ ] Can connect to desktop defined in static `hosts` section.
+  - [ ] Can connect to desktop discovered via LDAP
 - [ ] Connect multiple `windows_desktop_service`s to the same Teleport cluster,
-  verify that connections to desktops on different AD domains works.
+  verify that connections to desktops on different AD domains works. (Attempt to
+  connect several times to verify that you are routed to the correct
+  `windows_desktop_service`)
+- Verify user input
+  - [ ] Download [Keyboard Key Info](https://dennisbabkin.com/kbdkeyinfo/) and
+    verify all keys are processed correctly in each supported browser. Known
+    issues: F11 cannot be captured by the browser without
+    [special configuration](https://social.technet.microsoft.com/Forums/en-US/784b2bbe-353f-412e-ac9a-193d81f306b6/remote-desktop-for-mac-f11-key-not-working-on-macbook-pro-touchbar?forum=winRDc)
+    on MacOS.
+  - [ ] Left click and right click register as Windows clicks. (Right click on
+    the desktop should show a Windows menu, not a browser context menu)
+  - [ ] Vertical and horizontal scroll work.
+    [Horizontal Scroll Test](https://codepen.io/jaemskyle/pen/inbmB)
+- Locking
+  - [ ] Verify that placing a user lock terminates an active desktop session.
+  - [ ] Verify that placing a desktop lock terminates an active desktop session.
+  - [ ] Verify that placing a role lock terminates an active desktop session.
+- Labeling
+  - [ ] Set `client_idle_timeout` to a small value and verify that idle sessions
+    are terminated (the session should end and an audit event will confirm it
+    was due to idle connection)
+  - [ ] All desktops have `teleport.dev/origin` label.
+  - [ ] Dynamic desktops have additional `teleport.dev` labels for OS, OS
+    Version, DNS hostname.
+  - [ ] Regexp-based host labeling applies across all desktops, regardless of
+    origin.
+- RBAC
+  - [ ] RBAC denies access to a Windows desktop due to labels
+  - [ ] RBAC denies access to a Windows desktop with the wrong OS-login.
+- Clipboard Support
+  - When a user has a role with clipboard sharing enabled and is using a chromium based browser
+    - [ ] Going to a desktop when clipboard permissions are in "Ask" mode (aka "prompt") causes the browser to show a prompt while the UI shows a spinner
+    - [ ] X-ing out of the prompt (causing the clipboard permission to remain in "Ask" mode) causes the prompt to show up again
+    - [ ] Denying clibpoard permissions brings up a relevant error alert (with "Clipboard Sharing Disabled" in the top bar)
+    - [ ] Allowing clipboard permissions allows you to see the desktop session, with "Clipboard Sharing Enabled" highlighted in the top bar
+    - [ ] Copy text from local workstation, paste into remote desktop
+    - [ ] Copy text from remote desktop, paste into local workstation
+  - When a user has a role with clipboard sharing enabled and is *not* using a chromium based browser
+    - [ ] The UI shows a relevant alert and "Clipboard Sharing Disabled" is highlighted in the top bar
+  - When a user has a role with clipboard sharing *disabled* and is using a chromium and non-chromium based browser (confirm both)
+    - [ ] The live session should show disabled in the top bar and copy/paste should not work between your workstation and the remote desktop.
+- Per-Session MFA (try webauthn on each of Chrome, Safari, and Firefox; u2f only works with Firefox)
+  - [ ] Attempting to start a session no keys registered shows an error message
+  - [ ] Attempting to start a session with a u2f key registered shows an error message
+  - [ ] Attempting to start a session with a webauthn registered pops up the "Verify Your Identity" dialog
+    - [ ] Hitting "Cancel" shows an error message
+    - [ ] Hitting "Verify" causes your browser to prompt you for MFA
+    - [ ] Cancelling that browser MFA prompt shows an error
+    - [ ] Successful MFA verification allows you to connect
+- Session Recording
+  - [ ] Verify sessions are not recorded if *all* of a user's roles disable recording
+  - [ ] Verify sync recording (`mode: node-sync` or `mode: proy-sync`)
+  - [ ] Verify async recording (`mode: node` or `mode: proxy`)
+  - [ ] Sessions show up in session recordings UI with desktop icon
+  - [ ] Sessions can be played back, including play/pause functionality
+  - [ ] RBAC for sessions: ensure users can only see their own recordings when
+    using the RBAC rule from our
+    [docs](../../docs/pages/access-controls/reference.mdx#rbac-for-sessions)
+- Audit Events (check these after performing the above tests)
+  - [ ] `windows.desktop.session.start` (`TDP00I`) emitted on start
+  - [ ] `windows.desktop.session.start` (`TDP00W`) emitted when session fails to
+    start (due to RBAC, for example)
+  - [ ] `windows.desktop.session.end` (`TDP01I`) emitted on end
+  - [ ] `desktop.clipboard.send` (`TDP02I`) emitted for local copy -> remote
+    paste
+  - [ ] `desktop.clipboard.receive` (`TDP03I`) emitted for remote copy -> local
+    paste
+
+## Binaries compatibility
+
+- Verify that teleport/tsh/tctl/tbot run on:
+  - [ ] CentOS 7
+  - [ ] CentOS 8
+  - [ ] Ubuntu 18.04
+  - [ ] Ubuntu 20.04
+  - [ ] Debian 9
+- Verify tsh runs on:
+  - [ ] Windows 10
+  - [ ] MacOS
