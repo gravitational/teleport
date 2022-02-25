@@ -42,11 +42,6 @@ const (
 	flushallCmd = "flushall"
 	flushdbCmd  = "flushdb"
 	scriptCmd   = "script"
-
-	// Below are Redis administration commands which
-	syncCmd    = "sync"
-	psyncCmd   = "psync"
-	clusterCmd = "cluster"
 )
 
 // Overridden subcommands for Redis SCRIPT command.
@@ -54,6 +49,36 @@ const (
 	scriptLoadSubcmd   = "load"
 	scriptExistsSubcmd = "exists"
 	scriptFLushSubcmd  = "flush"
+)
+
+// List of unsupported commands in cluster mode.
+const (
+	aclCmd        = "acl"
+	askingCmd     = "asking"
+	clientCmd     = "client"
+	clusterCmd    = "cluster"
+	configCmd     = "config"
+	debugCmd      = "debug"
+	infoCmd       = "info"
+	latencyCmd    = "latency"
+	memoryCmd     = "memory"
+	migrateCmd    = "migrate"
+	moduleCmd     = "module"
+	monitorCmd    = "monitor"
+	pfdebugCmd    = "pfdebug"
+	pfselftestCmd = "pfselftest"
+	psyncCmd      = "psync"
+	readonlyCmd   = "readonly"
+	readwriteCmd  = "readwrite"
+	replconfCmd   = "replconf"
+	replicaofCmd  = "replicaof"
+	roleCmd       = "role"
+	shutdownCmd   = "shutdown"
+	slaveofCmd    = "slaveof"
+	slowlogCmd    = "slowlog"
+	syncCmd       = "sync"
+	timeCmd       = "time"
+	waitCmd       = "wait"
 )
 
 // clusterClient is a wrapper around redis.ClusterClient
@@ -98,7 +123,7 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 // go-redis `Process()` function which doesn't handel all Cluster commands like for ex. DBSIZE, FLUSHDB, etc.
 // This function provides additional processing for those commands enabling more Redis commands in Cluster mode.
 // Commands are override by a simple rule:
-// * If command work only on a single slot (one shard) without any modifications and returns a CROSSLINK error if executed on
+// * If command work only on a single slot (one shard) without any modifications and returns a CROSSSLOT error if executed on
 //   multiple keys it's send the Redis client as it is, and it's the client responsibility to make sure keys are in a single slot.
 // * If a command returns incorrect result in the Cluster mode (for ex. DBSIZE as it would return only size of one shard not whole cluster)
 //   then it's handled by Teleport or blocked if reasonable processing is not possible.
@@ -110,8 +135,10 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 	}
 
 	switch cmdName := strings.ToLower(cmd.Name()); cmdName {
-	case multiCmd, execCmd, watchCmd, scanCmd,
-		syncCmd, psyncCmd, clusterCmd:
+	case multiCmd, execCmd, watchCmd, scanCmd, aclCmd, askingCmd, clientCmd, clusterCmd, configCmd, debugCmd,
+		infoCmd, latencyCmd, memoryCmd, migrateCmd, moduleCmd, monitorCmd, pfdebugCmd, pfselftestCmd,
+		psyncCmd, readonlyCmd, readwriteCmd, replconfCmd, replicaofCmd, roleCmd, shutdownCmd, slaveofCmd,
+		slowlogCmd, syncCmd, timeCmd, waitCmd:
 		// block commands that return incorrect results in Cluster mode
 		return trace.NotImplemented("%s is not supported in the cluster mode", cmdName)
 	case dbsizeCmd:
