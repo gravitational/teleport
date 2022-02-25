@@ -1,5 +1,5 @@
 ---
-title: Database Access with Redis (Preview)
+title: Database Access with Redis
 description: How to configure Teleport Database Access with Redis.
 ---
 
@@ -12,9 +12,6 @@ description: How to configure Teleport Database Access with Redis.
 >
   Database access for Redis is available starting from Teleport `9.0`.
 </Details>
-<Admonition type="warning" title="Preview">
-  Database access for Redis is currently in a Preview mode.
-</Admonition>
 
 This guide will help you to:
 
@@ -26,6 +23,11 @@ This guide will help you to:
 
 - Teleport version `9.0` or newer.
 - Redis database (standalone or cluster) version `6.0` or newer.
+- `redis-cli` installed and added to your system's `PATH` environment variable.
+
+<Admonition type="note" title="Note">
+  Redis `7.0` is currently not supported.
+</Admonition>
 
 ## Step 1/5. Set up Teleport Auth and Proxy
 
@@ -35,7 +37,7 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/5. Configure Redis.
+## Step 3/5. Create Redis users.
 
 Redis user must be protected by a strong password. We recommend using a password generator built-in in Redis.
 To generate password connect to a Redis instance and call:
@@ -46,23 +48,37 @@ ACL GENPASS
 
 or use OpenSSL if you have it installed on your machine
 
-```
+```shell
 openssl rand -hex 32
 ```
 
-This command generates a string that looks like that `0a49c95a25b0f92787d07a5b6bdc1a25b3a2130a1b338ec524f1b5dcd708bc65`.
+This command generates a password like that `0a49c95a25b0f92787d07a5b6bdc1a25b3a2130a1b338ec524f1b5dcd708bc65`.
 
-Create a new user using generated password.
+Create `users.acl` file with users. File defines Redis users, passwords required to log in as a given user
+and sets of Redis ACL rules. Redis allows providing passwords as a plain text or hashed SHA256 version. For security
+reason we strongly recommend to use SHA256
 
-```
-ACL SETUSER alice on >STRONG_GENERATED_PASSWORD allcommands allkeys
-```
+<Tabs>
+  <TabItem label="Standalone">
+    ```text
+    user alice on #57639ed88a85996453555f22f5aa4147b4c9614056585d931e5d976f610651e9 allcommands allkeys
+    user default off
+    ```
+  </TabItem>
+  <TabItem label="Cluster">
+    Redis in Cluster mode requires a special user created on master nodes to enable master-replica communication.
+    ```text
+    user alice on #57639ed88a85996453555f22f5aa4147b4c9614056585d931e5d976f610651e9 allcommands allkeys
+    user replica-user on #42a9798b99d4afcec9995e47a1d246b98ebc96be7a732323eee39d924006ee1d &* -@all +replconf +ping +psync
+    user default off
+    ```
 
-Now you can log in as a new user using the below command:
+    For more details refer to [Redis documentation](https://redis.io/topics/acl#acl-rules-for-sentinel-and-replicas).
+  </TabItem>
+</Tabs>
 
-```
-AUTH alice STRONG_GENERATED_PASSWORD
-```
+
+
 
 Disable the `default` user.
 
@@ -138,6 +154,8 @@ file and restart the database:
     tls-port 6379
     port 0
 
+    aclfile /usr/local/etc/redis/conf/users.acl
+
     tls-ca-cert-file /path/to/server.cas
     tls-cert-file /path/to/server.crt
     tls-key-file /path/to/server.key
@@ -154,9 +172,15 @@ file and restart the database:
     tls-replication yes
     tls-cluster yes
 
+    aclfile /usr/local/etc/redis/conf/users.acl
+
+    masterauth GENERATED_STRONG_PASSWORD
+    masteruser replica-user
+
     tls-cert-file /usr/local/etc/redis/certs/server.crt
     tls-key-file /usr/local/etc/redis/certs/server.key
     tls-ca-cert-file /usr/local/etc/redis/certs/server.cas
+    tls-protocols "TLSv1.2 TLSv1.3"
     ```
   </TabItem>
 </Tabs>
@@ -171,6 +195,25 @@ from clients that do not present a certificate.
 
 See [Configure TLS/SSL](https://redis.io/topics/encryption)
 in Redis documentation for more details.
+
+<Admonition type="note" title="Redis Cluster Only">
+  If you're configuring Redis Cluster you need to create Redis cluster using `redis-cli`
+
+  `redis-cli --cluster create` accepts only IP addresses
+
+  // TODO
+
+  ```shell
+  export REDISCLI_AUTH=STRONG_GENERATED_PASSWORD
+  export CERTS_DIR=/path/to/certs/
+
+  redis-cli --user alice --cluster-replicas 1 --tls --cluster-yes \
+  --cluster create ${IP1}:7001 ${IP2}:7002 ${IP3}:7003 ${IP4}:7004 ${IP5}:7005 ${IP6}:7006 \
+  --cacert ${CERTS_DIR}/server.cas --key ${CERTS_DIR}/server.key --cert ${CERTS_DIR}/server.crt
+  ```
+
+</Admonition>
+
 
 ## Step 5/5. Connect
 
@@ -217,6 +260,12 @@ $ tsh db connect example-redis
   able to connect.
 </Admonition>
 
+Now you can log in as the previously created user using the below command:
+
+```
+AUTH alice STRONG_GENERATED_PASSWORD
+```
+
 To log out of the database and remove credentials:
 
 ```code
@@ -225,6 +274,50 @@ $ tsh db logout example-redis
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
+
+<Admonition type="note" title="Supported Commands">
+  Redis in cluster mode doesn't support below commands:
+
+  * MULTI
+  * EXEC
+  * WATCH
+  * SCAN
+  * ACL
+  * ASKING
+  * CLIENT
+  * CLUSTER
+  * CONFIG
+  * DEBUG
+  * HELLO
+  * INFO
+  * LATENCY
+  * MEMORY
+  * MIGRATE
+  * MODULE
+  * MONITOR
+  * PFDEBUG
+  * PFSELFTEST
+  * PSUBSCRIBE
+  * PSYNC
+  * PUBSUB ??
+  * PUNSUBSCRIBE
+  * READONLY
+  * READWRITE
+  * REPLCONF
+  * REPLICAOF
+  * ROLE
+  * SCRIPT
+  * SHUTDOWN
+  * SLAVEOF
+  * SLOWLOG
+  * SYNC
+  * TIME
+  * WAIT
+</Admonition>
+
+// TODO add what commends are overriden
+// TODO add unsupported in single mode
+// TODO add how to configure standalone/cluster mode
 
 ## Next steps
 
