@@ -5211,7 +5211,9 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 			Host:    Host,
 			Port:    main.GetPortSSHInt(),
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Errorf("Failed to create client: %v.", err)
+		}
 
 		// Connect terminal to std{in,out} of client.
 		client.Stdout = term
@@ -5220,11 +5222,16 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 		// "Type" a command into the terminal.
 		term.Type(fmt.Sprintf("\a%v\n\r\aexit\n\r\a", lsPath))
 		err = client.SSH(context.Background(), []string{}, false)
-		require.NoError(t, err)
+		if err != nil {
+			t.Errorf("Failed to start SSH session: %v.", err)
+		}
 
 		// Signal that the client has finished the interactive session.
 		doneCh <- true
 	}
+
+	// It's possible to run this test sequentially but it should
+	// be run in parallel to amortize the time since the two tasks can be run in parallel.
 	go writeTerm(termA)
 	go writeTerm(termB)
 
