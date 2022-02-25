@@ -437,6 +437,6 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 			ClusterIdentifier: aws.String("still-creating"),
 		})
 		require.Error(t, err)
-		require.True(t, trace.IsBadParameter(err), fmt.Sprintf("expected trace.BadParameter, got %v", err))
+		require.True(t, trace.IsBadParameter(err), "Expected trace.BadParameter, got %v", err)
 	})
 }
