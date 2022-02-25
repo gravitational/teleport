@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
@@ -134,6 +136,44 @@ func TestWebauthnLogin_web(t *testing.T) {
 	require.NotEmpty(t, createSessionResp.Token)
 	require.NotEmpty(t, createSessionResp.TokenExpiresIn)
 	require.NotEmpty(t, createSessionResp.SessionExpires.Unix())
+}
+
+func TestAuthenticate_rateLimiting(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name  string
+		burst int
+		fn    func(clt *client.WebClient) error
+	}{
+		{
+			name:  "/webapi/mfa/login/begin",
+			burst: defaults.LimiterPasswordlessBurst,
+			fn: func(clt *client.WebClient) error {
+				ep := clt.Endpoint("webapi", "mfa", "login", "begin")
+				_, err := clt.PostJSON(ctx, ep, &client.MFAChallengeRequest{})
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Use a separate webPack per test, so limits won't influence one another.
+			env := newWebPack(t, 1)
+			clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
+			require.NoError(t, err)
+
+			for i := 0; i < test.burst; i++ {
+				err := test.fn(clt)
+				require.False(t, trace.IsLimitExceeded(err), "got err = %v, want non-LimitExceeded", err)
+			}
+
+			err = test.fn(clt)
+			require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+		})
+	}
 }
 
 type configureMFAResp struct {
