@@ -11,6 +11,19 @@ steps:
     id: fetch-history
     args: ['fetch', '--unshallow']
 
+  - name: quay.io/gravitational/teleport-buildbox:go1.17.2
+    id: hack-libbpf
+    dir: /workspace/.cloudbuild/scripts
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        mkdir -p /opt && cd /opt && curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v0.6.1.tar.gz | tar xz && \
+        cd /opt/libbpf-0.6.1/src && \
+        make && \
+        make install
+    timeout: 5m
+
   # Run the unit tests. Actual content of this job depends on the changes 
   # detected in the PR
   - name: quay.io/gravitational/teleport-buildbox:go1.17.2
