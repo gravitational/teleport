@@ -120,6 +120,13 @@ func innerMain() error {
 		return trace.Wrap(err, "failed starting etcd")
 	}
 
+	unameOut, err := exec.Command("uname", "-s").CombinedOutput()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Printf("uname: %s", string(unameOut))
+
 	log.Printf("docker socket info")
 	out, err := exec.Command("stat", "/var/run/docker.sock").CombinedOutput()
 	if err != nil {
