@@ -18,6 +18,8 @@ use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rdp::model::error::*;
 
+pub const MAX_CHUNK_SIZE: usize = 1600;
+
 bitflags! {
     /// Channel control flags, as specified in section 2.2.6.1.1 of MS-RDPBCGR.
     ///
@@ -43,8 +45,8 @@ bitflags! {
 /// It is specified in section 2.2.6.1.1 of MS-RDPBCGR.
 #[derive(Debug)]
 pub struct ChannelPDUHeader {
-    length: u32,
-    flags: ChannelPDUFlags,
+    pub length: u32,
+    pub flags: ChannelPDUFlags,
 }
 
 impl ChannelPDUHeader {

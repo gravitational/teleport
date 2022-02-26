@@ -7,6 +7,8 @@
 
 #define SPECIAL_NO_RESPONSE 4294967295
 
+#define MAX_CHUNK_SIZE 1600
+
 typedef enum CGOPointerButton {
   PointerButtonNone,
   PointerButtonLeft,
