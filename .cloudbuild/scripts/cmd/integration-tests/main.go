@@ -120,7 +120,7 @@ func innerMain() error {
 		return trace.Wrap(err, "failed starting etcd")
 	}
 
-	unameOut, err := exec.Command("uname", "-s").CombinedOutput()
+	unameOut, err := exec.Command("uname", "-a").CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err)
 	}
