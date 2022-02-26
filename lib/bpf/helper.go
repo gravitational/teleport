@@ -20,6 +20,8 @@ limitations under the License.
 package bpf
 
 import (
+	"unsafe"
+
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -102,7 +104,7 @@ func AttachTracepoint(mod *libbpfgo.Module, category, name string) error {
 		return trace.Wrap(err)
 	}
 
-	_, err = prog.AttachTracepoint(category + ":" + name)
+	_, err = prog.AttachTracepoint(category, name)
 	return err
 }
 
@@ -218,7 +220,8 @@ func (c *Counter) Close() {
 
 func (c *Counter) loop() {
 	for _ = range c.doorbellCh {
-		cntBytes, err := c.arr.GetValue(int32(0), 8)
+		var ptr unsafe.Pointer
+		cntBytes, err := c.arr.GetValue(ptr)
 		if err != nil {
 			log.Errorf("Error reading array value at index 0")
 			continue
