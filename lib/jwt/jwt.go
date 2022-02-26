@@ -32,7 +32,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/cryptosigner"
-	"gopkg.in/square/go-jose.v2/jwt"
 	josejwt "gopkg.in/square/go-jose.v2/jwt"
 )
 
@@ -223,7 +222,7 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 	expectedClaims := josejwt.Expected{
 		Issuer:   k.config.ClusterName,
 		Subject:  p.Username,
-		Audience: jwt.Audience{p.URI},
+		Audience: josejwt.Audience{p.URI},
 		Time:     k.config.Clock.Now(),
 	}
 	if err = out.Validate(expectedClaims); err != nil {
