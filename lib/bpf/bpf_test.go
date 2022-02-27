@@ -51,7 +51,7 @@ var _ = check.Suite(&Suite{})
 
 func TestRootBPF(t *testing.T) {
 	if !bpfTestEnabled() {
-		c.Skip("BPF testing is disabled")
+		t.Skip("BPF testing is disabled")
 	}
 
 	check.TestingT(t)
