@@ -27,7 +27,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"unsafe"
 
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/trace"
@@ -61,7 +60,7 @@ func newIPTrie(m *libbpfgo.Module, name string) (ipTrie, error) {
 	}, nil
 }
 
-func (t *ipTrie) toKey(n net.IPNet) unsafe.Pointer {
+func (t *ipTrie) toKey(n net.IPNet) []byte {
 	prefixLen, _ := n.Mask.Size()
 
 	// Key format: Prefix length (4 bytes) followed by prefix
@@ -70,13 +69,12 @@ func (t *ipTrie) toKey(n net.IPNet) unsafe.Pointer {
 	binary.LittleEndian.PutUint32(key[0:4], uint32(prefixLen))
 	copy(key[4:], n.IP)
 
-	return unsafe.Pointer(&key[0])
+	return key
 }
 
 // Add upserts (prefixLen, prefix) -> value entry in BPF trie
 func (t *ipTrie) add(n net.IPNet) error {
-	valPtr := unsafe.Pointer(&unit[0])
-	return t.bpfMap.Update(t.toKey(n), valPtr)
+	return t.bpfMap.Update(t.toKey(n), unit)
 }
 
 // Remove removes the entry for the given network

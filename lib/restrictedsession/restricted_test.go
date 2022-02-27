@@ -480,7 +480,7 @@ func (s *Suite) TestNetwork(c *check.C) {
 	actualAuditEvents := s.emitter.Events()
 	c.Assert(actualAuditEvents, check.DeepEquals, s.expectedAuditEvents)
 
-	// Clear out the expected and actual events
+	// Clear out the expected and actual evetns
 	s.expectedAuditEvents = nil
 	s.emitter.Reset()
 
