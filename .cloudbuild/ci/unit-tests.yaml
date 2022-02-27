@@ -20,6 +20,11 @@ steps:
     args: 
       - -c
       - |
+        mount -t debugfs none /sys/kernel/debug/ &&
+        pushd . && mkdir -p /opt && cd /opt && curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v0.6.1.tar.gz | tar xz && \
+        cd /opt/libbpf-0.6.1/src && \
+        make && \
+        make install && popd && \
         go run ./cmd/unit-tests \
           -target $_BASE_BRANCH \
           -bucket test-logs     \
