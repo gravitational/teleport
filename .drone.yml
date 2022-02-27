@@ -4594,6 +4594,7 @@ trigger:
   branch:
     include:
     - master
+    - branch/*
 workspace:
   path: /go/src/github.com/gravitational/teleport
 clone:
@@ -5055,6 +5056,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 33d120e76ad95952c0cdb3dcc7eec698386d05b70436f0b14075f9e1c936ca15
+hmac: 91c43e2655c4225898f8ba6fc034a0b5ee3de067d2f58979a474fcba342db799
 
 ...
