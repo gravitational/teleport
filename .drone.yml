@@ -4256,7 +4256,7 @@ type: kubernetes
 name: build-docker-images
 
 environment:
-  BUILDBOX_VERSION: "teleport9"
+  BUILDBOX_VERSION: "teleport10"
   RUNTIME: go1.17.7
 
 trigger:
@@ -5055,6 +5055,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 6dc6ca04db76eb7bad450d270d78c72aa5b9f402cddff1970554b6848ae814dc
+hmac: 33d120e76ad95952c0cdb3dcc7eec698386d05b70436f0b14075f9e1c936ca15
 
 ...

@@ -72,7 +72,7 @@ func buildboxPipeline() pipeline {
 	}
 
 	// only on master for now; add the release branch name when forking a new release series.
-	p.Trigger = pushTriggerForBranch("master")
+	p.Trigger = pushTriggerForBranch("master", "branch/*")
 	p.Workspace = workspace{Path: "/go/src/github.com/gravitational/teleport"}
 	p.Volumes = dockerVolumes()
 	p.Services = []service{
