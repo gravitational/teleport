@@ -1,7 +1,7 @@
 ---
-title: SSH Authentication With ADFS How To
-description: How to configure SSH access with Active Directory (ADFS) using Teleport
-h1: Active Directory as an SSO provider for SSH Authentication
+title: SSO with Active Directory Federation Services
+description: How to configure SSH access with Active Directory Federation Services using Teleport
+h1: Single Sign-On with Active Directory Federation Services
 ---
 
 This guide will cover how to configure Active Directory Federation Services
@@ -54,7 +54,7 @@ that can be accessed by other users as well.
 
 - Create a claims aware trust.
 - Enter data about the relying party manually.
-- Set the display name to something along the lines of "Teleport."
+- Set the display name to something along the lines of `Teleport`.
 - Skip the token encryption certificate.
 - Select *"Enable support for SAML 2.0 Web SSO protocol"* and set the URL to `https://localhost:3080/v1/webapi/saml/acs`.
 - Set the relying party trust identifier to `https://localhost:3080/v1/webapi/saml/acs` as well.
@@ -114,9 +114,9 @@ spec:
 
 This role declares:
 
-- Devs are only allowed to log in to nodes labelled with the `access: relaxed` label.
+- Devs are only allowed to log in to nodes labeled `access: relaxed`.
 - Developers can log in as the `ubuntu` user.
-- Developers they will not be able to see or replay past sessions or
+- Developers will not be able to see or replay past sessions or
   re-configure the Teleport cluster.
 
 The login
@@ -178,7 +178,7 @@ automatically in a browser.
   type="note"
   title="IMPORTANT"
 >
-  Teleport only supports sending party initiated flows for SAML 2.0. This means
+  Teleport only supports sending party-initiated flows for SAML 2.0. This means
   that you cannot initiate login from your identity provider, and must do so
   from either the Teleport Web UI or CLI.
   </Admonition>
