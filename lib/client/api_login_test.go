@@ -18,12 +18,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/base32"
-	"encoding/base64"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -33,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -41,12 +38,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 
-	u2flib "github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	log "github.com/sirupsen/logrus"
 )
@@ -82,41 +77,14 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 	cfg.KeysDir = t.TempDir()
 	cfg.InsecureSkipVerify = true
 
-	// Replace (and later reset) user-prompting functions.
-	oldPwd, oldOTP, oldU2F, oldWAN := *client.PasswordFromConsoleFn, *client.PromptOTP, *client.PromptU2F, *client.PromptWebauthn
+	// Reset functions after tests.
+	oldPwd := *client.PasswordFromConsoleFn
 	t.Cleanup(func() {
 		*client.PasswordFromConsoleFn = oldPwd
-		*client.PromptOTP = oldOTP
-		*client.PromptU2F = oldU2F
-		*client.PromptWebauthn = oldWAN
+		client.Prompts.Reset()
 	})
 	*client.PasswordFromConsoleFn = func() (string, error) {
 		return password, nil
-	}
-
-	// The loginMocks setup below is used to avoid data races when reading or
-	// writing client.Prompt* pointers.
-	// Tests are supposed to replace loginMocks functions instead.
-	loginMocks := struct {
-		promptOTP      func(ctx context.Context) (string, error)
-		promptU2F      func(ctx context.Context, facet string, challenges ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error)
-		promptWebauthn func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error)
-	}{}
-	var loginMocksMU sync.RWMutex
-	*client.PromptOTP = func(ctx context.Context, out io.Writer, in *prompt.ContextReader, question string) (string, error) {
-		loginMocksMU.RLock()
-		defer loginMocksMU.RUnlock()
-		return loginMocks.promptOTP(ctx)
-	}
-	*client.PromptU2F = func(ctx context.Context, facet string, challenges ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
-		loginMocksMU.RLock()
-		defer loginMocksMU.RUnlock()
-		return loginMocks.promptU2F(ctx, facet, challenges...)
-	}
-	*client.PromptWebauthn = func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
-		loginMocksMU.RLock()
-		defer loginMocksMU.RUnlock()
-		return loginMocks.promptWebauthn(ctx, origin, assertion)
 	}
 
 	promptOTPNoop := func(ctx context.Context) (string, error) {
@@ -130,15 +98,6 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 
 	solveOTP := func(ctx context.Context) (string, error) {
 		return totp.GenerateCode(otpKey, clock.Now())
-	}
-	solveU2F := func(ctx context.Context, facet string, challenges ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
-		kh := base64.RawURLEncoding.EncodeToString(device.KeyHandle)
-		for _, c := range challenges {
-			if kh == c.KeyHandle {
-				return device.SignResponse(&c)
-			}
-		}
-		return nil, trace.BadParameter("key handle now found")
 	}
 	solveWebauthn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
 		car, err := device.SignAssertion(origin, assertion)
@@ -157,47 +116,34 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 		name          string
 		secondFactor  constants.SecondFactorType
 		solveOTP      func(context.Context) (string, error)
-		solveU2F      func(ctx context.Context, facet string, challenges ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error)
 		solveWebauthn func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error)
 	}{
 		{
-			name:         "OK OTP device login",
-			secondFactor: constants.SecondFactorOptional,
-			solveOTP:     solveOTP,
-			solveU2F: func(context.Context, string, ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
-				panic("unused")
-			},
+			name:          "OK OTP device login",
+			secondFactor:  constants.SecondFactorOptional,
+			solveOTP:      solveOTP,
 			solveWebauthn: promptWebauthnNoop,
 		},
 		{
-			name:         "OK Webauthn device login",
-			secondFactor: constants.SecondFactorOptional,
-			solveOTP:     promptOTPNoop,
-			solveU2F: func(context.Context, string, ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
-				panic("unused")
-			},
+			name:          "OK Webauthn device login",
+			secondFactor:  constants.SecondFactorOptional,
+			solveOTP:      promptOTPNoop,
 			solveWebauthn: solveWebauthn,
-		},
-		{
-			name:         "OK U2F device login",
-			secondFactor: constants.SecondFactorU2F,
-			solveOTP:     promptOTPNoop,
-			solveU2F:     solveU2F,
-			solveWebauthn: func(context.Context, string, *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
-				panic("unused")
-			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(ctx)
+			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 
-			loginMocksMU.Lock()
-			loginMocks.promptOTP = test.solveOTP
-			loginMocks.promptU2F = test.solveU2F
-			loginMocks.promptWebauthn = test.solveWebauthn
-			loginMocksMU.Unlock()
+			client.Prompts.Swap(
+				func(ctx context.Context, out io.Writer, in *prompt.ContextReader, question string) (string, error) {
+					return test.solveOTP(ctx)
+				},
+				func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+					return test.solveWebauthn(ctx, origin, assertion)
+				},
+			)
 
 			authServer := sa.Auth.GetAuthServer()
 			pref, err := authServer.GetAuthPreference(ctx)
@@ -240,7 +186,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 
 	user, err := types.NewUser("llama")
 	require.NoError(t, err)
-	role, err := types.NewRole(user.GetName(), types.RoleSpecV4{
+	role, err := types.NewRole(user.GetName(), types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{user.GetName()},
 		},
@@ -258,9 +204,8 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Auth.Preference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "localhost",
-			Facets: []string{"https://localhost", "localhost"},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)
@@ -300,26 +245,20 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	tokenID := token.GetName()
 	res, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
 		TokenID:    tokenID,
-		DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
+		DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 	})
 	require.NoError(t, err)
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
-	registerResp, err := device.RegisterResponse(&u2f.RegisterChallenge{
-		Version:   res.GetU2F().GetVersion(),
-		Challenge: res.GetU2F().GetChallenge(),
-		AppID:     res.GetU2F().GetAppID(),
-	})
+	const origin = "https://localhost"
+	ccr, err := device.SignCredentialCreation(origin, wanlib.CredentialCreationFromProto(res.GetWebauthn()))
 	require.NoError(t, err)
 	_, err = authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 		TokenID:     tokenID,
 		NewPassword: []byte(password),
 		NewMFARegisterResponse: &proto.MFARegisterResponse{
-			Response: &proto.MFARegisterResponse_U2F{
-				U2F: &proto.U2FRegisterResponse{
-					RegistrationData: registerResp.RegistrationData,
-					ClientData:       registerResp.ClientData,
-				},
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
 			},
 		},
 	})

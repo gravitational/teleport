@@ -206,6 +206,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	}
 
 	srv, err := desktop.NewWindowsService(desktop.WindowsServiceConfig{
+		DataDir:      process.Config.DataDir,
 		Log:          log,
 		Clock:        process.Clock,
 		Authorizer:   authorizer,

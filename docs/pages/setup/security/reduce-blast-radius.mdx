@@ -112,7 +112,7 @@ You can enable some users to review other users' role escalation requests by app
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: reviewer
 spec:
@@ -128,7 +128,7 @@ You can require a user to request access from reviewers by applying a dynamic re
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: reviewee
 spec:
@@ -152,7 +152,7 @@ As an illustration, we have assigned user `myuser` to the `user` role, which we 
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: user
 spec:
@@ -202,7 +202,7 @@ you can prevent analysts who are *not* in the `admins` group from requesting acc
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: analyst
 spec:
@@ -230,7 +230,7 @@ First, define a role with privileged but limited access. In the following exampl
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: editor
 spec:
@@ -244,7 +244,7 @@ Next, we define the general `user` role. Users with this role can review other u
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: user
 spec:

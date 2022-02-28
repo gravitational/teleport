@@ -10,8 +10,7 @@ This guide explains how to use Teleport and Visual Studio Code's remote SSH exte
 
 - [tsh client tool](https://goteleport.com/teleport/download) >= (=teleport.version=).
 - OpenSSH client.
-- Visual Studio Code with [remote SSH client](https://code.visualstudio.com/docs/remote/ssh#_system-requirements)
-for the Remote - SSH extension.
+- Visual Studio Code with the [Remote - SSH extension](https://code.visualstudio.com/docs/remote/ssh#_system-requirements)
 
 <Admonition type="note">
 Linux and MacOS clients should rely on their operating system-provided OpenSSH
@@ -41,6 +40,16 @@ in the path below:
   </TabItem>
   <TabItem label="Windows">
     `%UserProfile%\.ssh\config`
+
+    <Admonition type="warning">
+      If using PowerShell on Windows to write your SSH config, note that normal
+      shell redirection may write the file with the incorrect encoding. To
+      ensure it's written properly, try the following:
+
+      ```code
+      $ tsh.exe config | out-file .ssh\config -encoding utf8 -append
+      ```
+    </Admonition>
   </TabItem>
 </Tabs>
 

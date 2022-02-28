@@ -67,11 +67,12 @@ func (c *ldapClient) readWithFilter(dn string, filter string, attrs []string) ([
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	res, err := c.client.Search(req)
-	if err != nil {
+	if ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
+		return nil, trace.ConnectionProblem(err, "fetching LDAP object %q", dn)
+	} else if err != nil {
 		return nil, trace.Wrap(err, "fetching LDAP object %q: %v", dn, err)
 	}
 	return res.Entries, nil
-
 }
 
 // read fetches an LDAP entry at path and its children, if any. Only
@@ -113,6 +114,8 @@ func (c *ldapClient) create(dn string, class string, attrs map[string][]string) 
 				return trace.BadParameter("object constraint violation on %q: %v", dn, err)
 			case ldap.LDAPResultInsufficientAccessRights:
 				return trace.AccessDenied("insufficient permissions to create %q: %v", dn, err)
+			case ldap.ErrorNetwork:
+				return trace.ConnectionProblem(err, "network error creating %q", dn)
 			}
 		}
 		return trace.Wrap(err, "error creating LDAP object %q: %v", dn, err)
@@ -127,6 +130,8 @@ func (c *ldapClient) createContainer(dn string) error {
 	// Ignore the error if container already exists.
 	if trace.IsAlreadyExists(err) {
 		return nil
+	} else if ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
+		return trace.ConnectionProblem(err, "creating %v", dn)
 	}
 	return trace.Wrap(err)
 }
@@ -148,7 +153,9 @@ func (c *ldapClient) update(dn string, replaceAttrs map[string][]string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if err := c.client.Modify(req); err != nil {
+	if err := c.client.Modify(req); ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
+		return trace.ConnectionProblem(err, "updating %q", dn)
+	} else if err != nil {
 		return trace.Wrap(err, "updating %q: %v", dn, err)
 	}
 	return nil

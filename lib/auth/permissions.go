@@ -309,7 +309,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	}
 	roles, err := services.FromSpec(
 		string(types.RoleRemoteProxy),
-		types.RoleSpecV4{
+		types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Namespaces: []string{types.Wildcard},
 				Rules: []types.Rule{
@@ -364,7 +364,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleAuth:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -373,11 +373,11 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 				},
 			})
 	case types.RoleProvisionToken:
-		return services.FromSpec(role.String(), types.RoleSpecV4{})
+		return services.FromSpec(role.String(), types.RoleSpecV5{})
 	case types.RoleNode:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -406,7 +406,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleApp:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -436,7 +436,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleDatabase:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -467,7 +467,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 		if services.IsRecordAtProxy(recConfig.GetMode()) {
 			return services.FromSpec(
 				role.String(),
-				types.RoleSpecV4{
+				types.RoleSpecV5{
 					Allow: types.RoleConditions{
 						Namespaces:    []string{types.Wildcard},
 						ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -530,7 +530,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 		}
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces:    []string{types.Wildcard},
 					ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -592,7 +592,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleSignup:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -604,7 +604,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleAdmin:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Options: types.RoleOptions{
 					MaxSessionTTL: types.MaxDuration(),
 				},
@@ -622,7 +622,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleNop:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{},
 					Rules:      []types.Rule{},
@@ -631,7 +631,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleKube:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -653,7 +653,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleWindowsDesktop:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces:           []string{types.Wildcard},
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},

@@ -15,6 +15,7 @@
 package x11
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -22,6 +23,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"unicode"
 
 	"github.com/gravitational/trace"
@@ -31,9 +33,9 @@ const (
 	// DefaultDisplayOffset is the default display offset when
 	// searching for an open XServer unix socket.
 	DefaultDisplayOffset = 10
-	// DefaultMaxDisplay is the default maximum display number
+	// DefaultMaxDisplays is the default maximum number of displays
 	// supported when searching for an open XServer unix socket.
-	DefaultMaxDisplay = 1000
+	DefaultMaxDisplays = 1000
 	// MaxDisplay is the theoretical max display value which
 	// X Clients and serverwill be able to parse into a unix socket.
 	MaxDisplayNumber = math.MaxInt32
@@ -86,13 +88,17 @@ func (d *Display) Dial() (XServerConn, error) {
 	return nil, trace.NewAggregate(unixErr, tcpErr)
 }
 
-// Listen opens an XServer listener
+// Listen opens an XServer listener. It will attempt to listen on the display
+// address for both tcp and unix and return an aggregate error, unless one
+// results in an addr in use error.
 func (d *Display) Listen() (XServerListener, error) {
 	unixSock, unixErr := d.unixSocket()
 	if unixErr == nil {
 		var l *net.UnixListener
 		if l, unixErr = net.ListenUnix("unix", unixSock); unixErr == nil {
 			return &xserverUnixListener{l}, nil
+		} else if errors.Is(unixErr, syscall.EADDRINUSE) {
+			return nil, trace.Wrap(unixErr)
 		}
 	}
 
@@ -101,7 +107,10 @@ func (d *Display) Listen() (XServerListener, error) {
 		var l *net.TCPListener
 		if l, tcpErr = net.ListenTCP("tcp", tcpSock); tcpErr == nil {
 			return &xserverTCPListener{l}, nil
+		} else if errors.Is(tcpErr, syscall.EADDRINUSE) {
+			return nil, trace.Wrap(tcpErr)
 		}
+
 	}
 
 	return nil, trace.NewAggregate(unixErr, tcpErr)

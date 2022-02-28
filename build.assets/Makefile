@@ -36,7 +36,6 @@ GOGO_PROTO_TAG ?= v1.3.2
 
 BUILDBOX=quay.io/gravitational/teleport-buildbox:$(RUNTIME)
 BUILDBOX_FIPS=quay.io/gravitational/teleport-buildbox-fips:$(RUNTIME)
-BUILDBOX_CENTOS6=quay.io/gravitational/teleport-buildbox-centos6:$(RUNTIME)
 BUILDBOX_CENTOS7=quay.io/gravitational/teleport-buildbox-centos7:$(RUNTIME)
 BUILDBOX_CENTOS7_FIPS=quay.io/gravitational/teleport-buildbox-centos7-fips:$(RUNTIME)
 BUILDBOX_ARM=quay.io/gravitational/teleport-buildbox-arm:$(RUNTIME)
@@ -140,22 +139,6 @@ buildbox-fips:
 			--cache-from $(BUILDBOX_FIPS) \
 			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \
 	fi
-
-#
-# Builds a Docker buildbox for CentOS 6 builds
-#
-.PHONY:buildbox-centos6
-buildbox-centos6:
-	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS6) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS6) || true; fi;
-	docker build \
-		--build-arg UID=$(UID) \
-		--build-arg GID=$(GID) \
-		--build-arg RUNTIME=$(RUNTIME) \
-		--cache-from $(BUILDBOX_CENTOS6) \
-		--tag $(BUILDBOX_CENTOS6) -f Dockerfile-centos6 .
-
-# CentOS 6 FIPS builds were removed in Teleport 7.0
-# https://github.com/gravitational/teleport/issues/7207
 
 #
 # Builds a Docker buildbox for CentOS 7 builds
@@ -323,10 +306,6 @@ release-arm: buildbox-arm
 release-arm64: buildbox-arm
 	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
 
-.PHONY: release-amd64-centos6
-release-amd64-centos6: buildbox-centos6
-	$(MAKE) release-centos6 ARCH=amd64
-
 .PHONY: release-amd64-centos7
 release-amd64-centos7: buildbox-centos7
 	$(MAKE) release-centos7 ARCH=amd64
@@ -345,15 +324,6 @@ release-fips: buildbox-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_FIPS_NAME) \
 		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=yes
-
-#
-# Create a Teleport package for CentOS 6 using the build container.
-# DELETE IN 9.0 (zmb3)
-#
-.PHONY:release-centos6
-release-centos6: buildbox-centos6
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS6) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) REPRODUCIBLE=no
 
 #
 # Create a Teleport package for CentOS 7 using the build container.
@@ -399,14 +369,6 @@ docsbox:
 test-docs: docsbox
 	docker run --platform=linux/amd64 -i $(NOROOT) -v $$(pwd)/..:/src/content $(DOCSBOX) \
 		/bin/sh -c "yarn markdown-lint-external-links"
-
-#
-# Builds assets needed by CentOS 6 in a container.
-#
-.PHONY:build-centos6-assets
-build-centos6-assets:
-	docker build -t buildbox-centos6-assets -f Dockerfile-centos6-assets .
-	docker run -v $$(pwd):/centos6.assets -it buildbox-centos6-assets cp /centos6-assets.tar.gz /centos6.assets
 
 #
 # Print the Go version used to build Teleport.

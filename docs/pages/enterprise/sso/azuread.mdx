@@ -4,81 +4,84 @@ description: How to configure SSH access with Active Directory (AD) on Azure usi
 h1: SSH Authentication with Azure Active Directory (AD)
 ---
 
-This guide will cover how to configure [Microsoft Azure Active Directory](https://azure.microsoft.com/en-us/services/active-directory/) to issue
-SSH credentials to specific groups of users with a SAML Authentication Connector. When used in combination with role
-based access control (RBAC) it allows SSH administrators to define policies
-like:
+This guide will cover how to configure Microsoft Azure Active Directory to issue
+SSH credentials to specific groups of users with a SAML Authentication Connector. When used in combination with role-based access control (RBAC), it allows SSH administrators to define policies like:
 
-- Only members of "DBA" Azure AD group can SSH into machines running PostgreSQL.
+- Only members of the "DBA" Azure AD group can SSH into machines running PostgreSQL.
 - Developers must never SSH into production servers.
 
-The following steps configure an example SAML authentication connector matching AzureAD groups with security roles.  You can choose to configure other options.
+The following steps configure an example SAML authentication connector matching Azure AD groups with security roles.  You can choose to configure other options.
 
 <Admonition
   type="warning"
   title="Version Warning"
 >
-  This guide requires an Enterprise version of Teleport.
+  This guide requires either an Enterprise version of Teleport or a Teleport Cloud account.
 </Admonition>
 
 ## Prerequisites
 
 Before you get started you’ll need:
 
-- An Enterprise version of Teleport (=teleport.version=) or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/login).
+- Either an Enterprise version of Teleport (downloaded via the [Enterprise dashboard](https://dashboard.gravitational.com/web/login)) or a Teleport Cloud account (sign up for a [free trial](https://goteleport.com/signup/)).
 - An Azure AD admin account with access to creating non-gallery applications (P2 License)
 - To register one or more users in the directory
-- To create at least two security groups in AzureAD and assign one or more users to each group
+- To create at least two security groups in Azure AD and assign one or more users to each group
 
 ## Configure Azure AD
 
-1. Select AzureAD -> Enterprise Applications
+1. Select **Azure AD -> Enterprise Applications**
 
    ![Select Enterprise Applications From Manage](../../../img/azuread/azuread-1-home.png)
 
-2. Select New application
+2. Select **New application**
 
    ![Select New Applications From Manage](../../../img/azuread/azuread-2-newapp.png)
 
-3. Select a "Create your own application"
+3. Select a **Non-gallery application**
 
    ![Select Non-gallery application](../../../img/azuread/azuread-3-selectnongalleryapp.png)
 
-4. Enter the display name (Ex: Teleport)
+4. Enter the display name (e.g, Teleport)
 
    ![Enter application name](../../../img/azuread/azuread-4-enterappname.png)
 
-5.Select properties under Manage and turn off User assignment required
+5. Select **Properties** under **Manage** and set **User assignment required?** to **No**
 
 ![Turn off user assignment](../../../img/azuread/azuread-5-turnoffuserassign.png)
 
-6. Select Single Sign-on under Manage and choose SAML
+6. Select **Single sign-on** under **Manage** and choose **SAML**
 
    ![Select SAML](../../../img/azuread/azuread-6-selectsaml.png)
 
-7. Select to edit Basic SAML Configuration
+7. Edit the **Basic SAML Configuration**
 
    ![Edit Basic SAML Configuration](../../../img/azuread/azuread-7-editbasicsaml.png)
 
-8. Put in the Entity ID and Reply URL the same proxy URL [https://teleport.example.com:3080/v1/webapi/saml/acs](https://teleport.example.com:3080/v1/webapi/saml/acs)
+8. For **Entity ID** and **Reply URL**, enter the same proxy URL.
+  
+   For self-hosted deployments, the URL will be similar to `https://teleport.example.com:3080/v1/webapi/saml/acs`.
+
+   For Teleport Cloud users, the URL will be similar to `https://mytenant.teleport.sh`.
 
    ![Put in Entity ID and Reply URL](../../../img/azuread/azuread-8-entityandreplyurl.png)
 
-9. Edit User Attributes & Claims
+9. Edit **User Attributes & Claims**
 
-   - Edit the Claim Name.  Change the name identifier format to Default. Make sure the source attribute is user.userprincipalname.
+   - Edit the claim name.
+   - Change the name identifier format to **Default**. Make sure the source attribute is `user.userprincipalname`.
 
    ![Confirm Name Identifier](../../../img/azuread/azuread-9a-nameidentifier.png)
 
-   - Add a group Claim to have user security groups available to the connector
+   - Add a group claim to make user security groups available to the connector
 
    ![Put in Security group claim](../../../img/azuread/azuread-9b-groupclaim.png)
 
-   - Add a Claim to pass the username from transforming the AzureAD User name.
+   - Add a claim that transforms an Azure AD username in order to pass it to Teleport.
 
    ![Add a transformed username](../../../img/azuread/azuread-9c-usernameclaim.png)
 
-10. On the SAML Signing Certificate select to download SAML Download the Federation Metadata XML.
+10. In **SAML Signing Certificate**, click the link to download the **Federation Metadata XML**.
 
     ![Download Federation Metadata XML](../../../img/azuread/azuread-10-fedmeatadataxml.png)
 
@@ -91,8 +94,7 @@ Before you get started you’ll need:
 
 ## Create a SAML Connector
 
-Now, create a SAML connector [resource](../../setup/reference/resources.mdx).  Replace the acs element with your Teleport address, update the group IDs with the actual AzureAD group ID values, and insert the downloaded Federation Metadata XML into the entity_descriptor resource.
-Write down this template as `azure-connector.yaml`:
+Now, create a SAML connector resource. Write the following to `azure-connector.yaml`:
 
 ```yaml
 kind: saml
@@ -112,7 +114,10 @@ spec:
     <federationmedata.xml contents>
 ```
 
-Create the connector using `tctl` tool:
+Replace the `acs` field with your Teleport address, update the group IDs in the `attributes_to_roles` field with the actual Azure AD group ID values, and insert the downloaded Federation Metadata XML into the `entity_descriptor` field.
+
+
+Create the connector using `tctl`:
 
 ```code
 $ tctl create azure-connector.yaml
@@ -120,9 +125,9 @@ $ tctl create azure-connector.yaml
 
 <Admonition
   type="tip"
-  title="Automatic signing keypair"
+  title="Automatic signing key pair"
 >
-  Teleport will generate a signing key pair and update SAML connector with `signing_key_pair`
+  Teleport will generate a signing key pair and update the SAML connector with the `signing_key_pair`
   property.
 
   ![Sample Connector Transform](../../../img/azuread/azuread-12-sampleconnector.png)
@@ -134,19 +139,16 @@ $ tctl create azure-connector.yaml
   ```
 </Admonition>
 
-## Create a new Teleport Role
+## Create a new Teleport role
 
-We are going to create a new that'll use external username data from Azure
-to map to a host linux login. 
+Create a Teleport role resource that will use external username data from the Azure AD connector to determine which Linux logins to allow on a host.
 
-In the below role, Devs are only allowed to login to nodes labelled with `access: relaxed`
-Teleport label. Developers can log in as either `ubuntu` to a username that
-arrives in their assertions. Developers also do not have any rules needed to
-obtain admin access to Teleport.
+Users with the following `dev` role are only allowed to log in to nodes with the `access: relaxed` Teleport label. They can log in as either `ubuntu` or a username that
+arrives via the Azure AD connector. Users with this role cannot obtain admin access to Teleport.
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: dev
 spec:
@@ -158,7 +160,7 @@ spec:
       access: relaxed
 ```
 
-**Notice:** Replace `ubuntu` with linux login available on your servers!
+Replace `ubuntu` with the Linux login available on your servers.
 
 ```code
 $ tctl create dev.yaml
@@ -166,25 +168,45 @@ $ tctl create dev.yaml
 
 ## Testing
 
-Update the Teleport settings to use the SAML settings to make this the default.
+Update your Teleport configuration to make SAML the default authentication method.
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self Hosted">
+In your Teleport configuration file, include the following:
 
 ```yaml
 auth_service:
   authentication:
     type: saml
 ```
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+Apply the following `cluster_auth_preference` resource via `tctl create`.
+
+```yaml
+    kind: cluster_auth_preference
+    version: v2
+    metadata:
+      name: cluster-auth-preference
+    spec:
+      type: "saml"
+```
+</TabItem>
+</Tabs>
+
+The Web UI will now present the option to log in via Microsoft.
 
 ![Login with Microsoft](../../../img/azuread/azure-11-loginwithmsft.png)
 
-The Web UI will now contain a new button: "Login with Microsoft". The CLI is
-the same as before:
 
+
+The CLI is the same as before:
 ```code
 $ tsh --proxy=proxy.example.com login
 ```
 
-This command will print the SSO login URL (and will try to open it
-automatically in a browser).
+This command will print the SSO login URL and will try to open it
+automatically in a browser.
 
 <Admonition
   type="tip"
@@ -194,34 +216,34 @@ automatically in a browser).
   can be passed via `tsh login --auth=connector_name`
 </Admonition>
 
-## Token Encryption
+## Token encryption
 
-AzureAD's SAML token encryption encrypts the SAML assertions sent to Teleport during SSO redirect.
+Azure AD's SAML token encryption encrypts the SAML assertions sent to Teleport during SSO redirect.
 
 <Admonition
   type="tip"
   title="Tip"
 >
   This is Azure Active Directory Premium feature and requires a separate license.
-  You can read more about it [here](https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/howto-saml-token-encryption)
+  You can read more about it [here](https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/howto-saml-token-encryption).
 </Admonition>
 
-### Setup Teleport Token Encryption
+### Set up Teleport token encryption
 
-Start with generating a public/private key and a certificate. You will setup the public
-certificate with AzureAD and the private key with Teleport.
+Start with generating a public/private key and a certificate. You will set up the public
+certificate with Azure AD and the private key with Teleport.
 
 ```code
 $ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
 ```
 
-If you are modifying the existing connector, first, save it to YAML:
+If you are modifying the existing connector, write the YAML to a file first:
 
 ```code
 $ tctl get saml --with-secrets > azure-out.yaml
 ```
 
-You will spot that Teleport has generated a `signing_key_pair`. This key pair
+You will notice that Teleport has generated a `signing_key_pair`. This key pair
 is used to sign responses.
 
 ```yaml
@@ -355,7 +377,7 @@ $ tctl create -f azure-out.yaml
 
 ### Activate token encryption
 
-- Navigate to Token Encryption section
+- Navigate to **Token Encryption**
 
 ![Navigate to token encryption](../../../img/azuread/azuread-token-encryption-0.png)
 
@@ -371,40 +393,57 @@ If the SSO login with this connector is successful, the encryption works.
 
 ## Troubleshooting
 
-**Access denied**
+### Access denied
 
-If you get "access denied" errors the number one place to check is the audit
-log on the Teleport auth server. It is located in `/var/lib/teleport/log` by
-default and it will contain the detailed reason why a user's login was denied.
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self Hosted">
+If you get "access denied" errors, the number one place to check is the audit
+log on the Teleport Auth Server. It is located in `/var/lib/teleport/log` by
+default and will contain a detailed reason why a user's login was denied.
 
-Example of a user being denied due as the role `clusteradmin` wasn't setup.
+Example of a user being denied because the role `clusteradmin` wasn't set up:
 
 ```json
 {"code":"T1001W","error":"role clusteradmin is not found","event":"user.login","method":"saml","success":false,"time":"2019-06-15T19:38:07Z","uid":"cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"}
 ```
 
-Some errors (like file-system permissions or misconfigured network) can be
+Some errors (like file-system permissions or a misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
 ```code
 $ sudo journalctl -fu teleport
 ```
 
-If you wish to increase the verbosity of Teleport's syslog, you can pass the
-[`--debug`](../../setup/reference/cli.mdx#teleport-start) flag to `teleport start` command.
+If you wish to increase the verbosity of Teleport's logs, you can pass the
+[`--debug`](../../setup/reference/cli.mdx#teleport-start) flag to the `teleport start` command.
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+If you get "access denied" errors, the number one place to check is the audit
+log on the Teleport Auth Server. You can find it in the **Activity** tab of the Teleport Web UI.
 
-**Failed to process SAML callback**
+Example of a user being denied because the role `clusteradmin` wasn't set up:
 
-If you encounter "Failed to process SAML callback", take a look at the logs.
+```json
+{"code":"T1001W","error":"role clusteradmin is not found","event":"user.login","method":"saml","success":false,"time":"2019-06-15T19:38:07Z","uid":"cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"}
+```
+</TabItem>
+</Tabs>
+
+### Failed to process SAML callback
+
+If you encounter a "Failed to process SAML callback" error, take a look at the audit log.
 
 ```
 Special characters are not allowed in resource names, please use name composed only from characters,
 hyphens and dots: /web/users/ops_example.com#EXT#@opsexample.onmicrosoft.com/params
 ```
 
-The error above is caused by nameid format that is not compatible with Teleport's naming
-conventions.
+The error above is caused by a Name ID format that is not compatible with Teleport's naming conventions.
 
-Change nameid format to use email instead:
+Change the Name ID format to use email instead:
 
-![Change NameID format to use email](../../../img/azuread/azuread-1-home.png)
+![Change NameID format to use email](../../../img/azuread/azuread-nameid.png)
+
+
+## Further reading
+- [Teleport Configuration Resources Reference](../../setup/reference/resources.mdx)

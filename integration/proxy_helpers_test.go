@@ -200,7 +200,7 @@ func (p *ProxySuite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config C
 		nextIterWaitTime = time.Millisecond * 100
 	)
 
-	tc, err := p.root.NewClient(t, config)
+	tc, err := p.root.NewClient(config)
 	require.NoError(t, err)
 
 	output := &bytes.Buffer{}
@@ -277,7 +277,7 @@ func withLeafClusterPorts(ports *InstancePorts) proxySuiteOptionsFunc {
 }
 
 func newRole(t *testing.T, roleName string, username string) types.Role {
-	role, err := types.NewRole(roleName, types.RoleSpecV4{
+	role, err := types.NewRole(roleName, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},

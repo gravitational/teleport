@@ -40,15 +40,17 @@ pub struct Client {
     uuid: Uuid,
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
+    pin: String,
 }
 
 impl Client {
-    pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>) -> Self {
+    pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>, pin: String) -> Self {
         Self {
             contexts: Contexts::new(),
             uuid: Uuid::new_v4(),
             cert_der,
             key_der,
+            pin,
         }
     }
 
@@ -177,7 +179,13 @@ impl Client {
             .contexts
             .get(req.common.context.value)
             .ok_or_else(|| invalid_data_error("unknown context ID"))?;
-        let handle = ctx.connect(req.common.context, self.uuid, &self.cert_der, &self.key_der)?;
+        let handle = ctx.connect(
+            req.common.context,
+            self.uuid,
+            &self.cert_der,
+            &self.key_der,
+            self.pin.clone(),
+        )?;
 
         let resp = Connect_Return::new(ReturnCode::SCARD_S_SUCCESS, handle);
         debug!("sending {:?}", resp);
@@ -510,13 +518,13 @@ impl RPCETypeHeader {
 #[derive(Debug)]
 #[allow(non_camel_case_types, dead_code)]
 struct ScardAccessStartedEvent_Call {
-    unused: u32,
+    _unused: u32,
 }
 
 impl ScardAccessStartedEvent_Call {
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         Ok(Self {
-            unused: payload.read_u32::<LittleEndian>()?,
+            _unused: payload.read_u32::<LittleEndian>()?,
         })
     }
 }
@@ -612,7 +620,7 @@ impl Long_Return {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types, dead_code)]
+#[allow(dead_code, non_camel_case_types)]
 struct EstablishContext_Call {
     scope: Scope,
 }
@@ -731,7 +739,7 @@ fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<u32> {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types, dead_code)]
+#[allow(dead_code, non_camel_case_types)]
 struct ListReaders_Call {
     context: Context,
     groups_length: u32,
@@ -903,7 +911,7 @@ impl Context_Call {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types, dead_code)]
+#[allow(dead_code, non_camel_case_types)]
 struct GetStatusChange_Call {
     context: Context,
     timeout: u32,
@@ -1110,7 +1118,7 @@ impl GetStatusChange_Return {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types, dead_code)]
+#[allow(dead_code, non_camel_case_types)]
 struct Connect_Call {
     reader: String,
     common: Connect_Common,
@@ -1143,7 +1151,7 @@ bitflags! {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types, dead_code)]
+#[allow(dead_code, non_camel_case_types)]
 struct Connect_Common {
     context: Context,
     share_mode: u32,
@@ -1251,7 +1259,7 @@ impl Handle {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types, dead_code)]
+#[allow(dead_code, non_camel_case_types)]
 struct HCardAndDisposition_Call {
     handle: Handle,
     disposition: u32,
@@ -1274,7 +1282,7 @@ impl HCardAndDisposition_Call {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types, dead_code)]
+#[allow(dead_code, non_camel_case_types)]
 struct Status_Call {
     handle: Handle,
     reader_names_is_null: bool,
@@ -1373,7 +1381,7 @@ impl Status_Return {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types, dead_code)]
+#[allow(dead_code, non_camel_case_types)]
 struct Transmit_Call {
     handle: Handle,
     send_pci: SCardIO_Request,
@@ -1427,7 +1435,7 @@ impl Transmit_Call {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types, dead_code)]
+#[allow(dead_code, non_camel_case_types)]
 struct SCardIO_Request {
     protocol: CardProtocol,
     extra_bytes_length: u32,
@@ -1486,7 +1494,7 @@ impl Transmit_Return {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types, dead_code)]
+#[allow(dead_code, non_camel_case_types)]
 struct GetDeviceTypeId_Call {
     context: Context,
     reader_name: String,
@@ -1565,7 +1573,7 @@ impl ReadCache_Call {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types, dead_code)]
+#[allow(dead_code, non_camel_case_types)]
 struct ReadCache_Common {
     context: Context,
     card_uuid: Vec<u8>,
@@ -1696,7 +1704,7 @@ impl WriteCache_Common {
 }
 
 #[derive(Debug)]
-#[allow(non_camel_case_types, dead_code)]
+#[allow(dead_code, non_camel_case_types)]
 struct GetReaderIcon_Call {
     context: Context,
     reader_name: String,
@@ -1798,8 +1806,9 @@ impl ContextInternal {
         uuid: Uuid,
         cert_der: &[u8],
         key_der: &[u8],
+        pin: String,
     ) -> RdpResult<Handle> {
-        let card = piv::Card::new(uuid, cert_der, key_der)?;
+        let card = piv::Card::new(uuid, cert_der, key_der, pin)?;
         let id = self.next_id;
         self.next_id += 1;
         let handle = Handle::new(ctx, id);

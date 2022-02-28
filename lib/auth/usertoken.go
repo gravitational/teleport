@@ -358,6 +358,7 @@ func (s *Server) newUserToken(req CreateUserTokenRequest) (types.UserToken, erro
 	token.SetUser(req.Name)
 	token.SetCreated(s.clock.Now().UTC())
 	token.SetURL(url)
+
 	return token, nil
 }
 
@@ -510,7 +511,7 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 
 	default:
 		if err := s.WithUserLock(username, func() error {
-			_, err := s.validateMFAAuthResponse(ctx, username, req.GetExistingMFAResponse(), s.Identity)
+			_, err := s.validateMFAAuthResponse(ctx, username, req.GetExistingMFAResponse())
 			return err
 		}); err != nil {
 			return nil, trace.Wrap(err)

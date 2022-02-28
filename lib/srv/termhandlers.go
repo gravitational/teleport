@@ -136,6 +136,11 @@ func (t *TermHandlers) HandleWinChange(ch ssh.Channel, req *ssh.Request, ctx *Se
 	return nil
 }
 
+func (t *TermHandlers) HandleForceTerminate(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+	err := t.SessionRegistry.ForceTerminate(ctx)
+	return trace.Wrap(err)
+}
+
 func parseExecRequest(req *ssh.Request, ctx *ServerContext) (Exec, error) {
 	var err error
 

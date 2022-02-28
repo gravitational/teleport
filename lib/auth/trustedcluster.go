@@ -452,7 +452,7 @@ func (a *Server) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remo
 	return remoteClusters, nil
 }
 
-func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (resp *ValidateTrustedClusterResponse, err error) {
+func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (resp *ValidateTrustedClusterResponse, err error) {
 	defer func() {
 		if err != nil {
 			log.WithError(err).Info("Trusted cluster validation failed")
@@ -467,7 +467,7 @@ func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterR
 	}
 
 	// validate that we generated the token
-	tokenLabels, err := a.validateTrustedClusterToken(validateRequest.Token)
+	tokenLabels, err := a.validateTrustedClusterToken(ctx, validateRequest.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -526,17 +526,17 @@ func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterR
 	return &validateResponse, nil
 }
 
-func (a *Server) validateTrustedClusterToken(token string) (map[string]string, error) {
-	roles, labels, err := a.ValidateToken(token)
+func (a *Server) validateTrustedClusterToken(ctx context.Context, tokenName string) (map[string]string, error) {
+	provisionToken, err := a.ValidateToken(ctx, tokenName)
 	if err != nil {
 		return nil, trace.AccessDenied("the remote server denied access: invalid cluster token")
 	}
 
-	if !roles.Include(types.RoleTrustedCluster) {
+	if !provisionToken.GetRoles().Include(types.RoleTrustedCluster) {
 		return nil, trace.AccessDenied("role does not match")
 	}
 
-	return labels, nil
+	return provisionToken.GetMetadata().Labels, nil
 }
 
 func (a *Server) sendValidateRequestToProxy(host string, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {

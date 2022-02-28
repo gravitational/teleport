@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // NewSigningService creates a new instance of SigningService.
@@ -187,7 +188,7 @@ func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *h
 // resolveEndpoint extracts the aws-service on and aws-region from the request authorization header
 // and resolves the aws-service and aws-region to AWS endpoint.
 func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
-	awsAuthHeader, err := ParseSigV4(r.Header.Get(authorizationHeader))
+	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(awsutils.AuthorizationHeader))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -201,7 +202,7 @@ func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 // prepareSignedRequest creates a new HTTP request and rewrites the header from the original request and returns a new
 // HTTP request signed by STS AWS API.
 func (s *SigningService) prepareSignedRequest(r *http.Request, re *endpoints.ResolvedEndpoint, identity *tlsca.Identity) (*http.Request, error) {
-	payload, err := GetAndReplaceReqBody(r)
+	payload, err := awsutils.GetAndReplaceReqBody(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

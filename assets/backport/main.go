@@ -74,21 +74,21 @@ func main() {
 	fmt.Println("Backporting complete.")
 }
 
-// Config is used to unmarshal the Github 
+// Config is used to unmarshal the Github
 // CLI config.
 type Config struct {
-	// Host is the host name of the 
-	// server. 
+	// Host is the host name of the
+	// server.
 	Host Host `yaml:"github.com"`
 }
 
 type Host struct {
-	// Token is Github token. 
+	// Token is Github token.
 	Token string `yaml:"oauth_token"`
 }
 
-// githubConfigPath is the default config path 
-// (relative to user's home directory) for the 
+// githubConfigPath is the default config path
+// (relative to user's home directory) for the
 // Github CLI tool.
 const githubConfigPath = ".config/gh/hosts.yml"
 
@@ -105,8 +105,7 @@ func getGithubToken() (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	var config *Config = new(Config)
-
+	config := new(Config)
 	if err = yaml.Unmarshal(yamlFile, config); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -146,7 +145,7 @@ func parseBranches(branchesInput string) ([]string, error) {
 	branches := strings.Split(branchesInput, ",")
 	for _, branch := range branches {
 		if branch == "" {
-			return nil, trace.BadParameter("recieved an empty branch name.")
+			return nil, trace.BadParameter("received an empty branch name.")
 		}
 		backportBranches = append(backportBranches, strings.TrimSpace(branch))
 	}

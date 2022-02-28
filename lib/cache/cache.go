@@ -31,20 +31,45 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
+)
+
+var (
+	cacheEventsReceived = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricCacheEventsReceived,
+			Help:      "Number of events received by a Teleport service cache. Teleport's Auth Service, Proxy Service, and other services cache incoming events related to their service.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
+	cacheStaleEventsReceived = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricStaleCacheEventsReceived,
+			Help:      "Number of stale events received by a Teleport service cache. A high percentage of stale events can indicate a degraded backend.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
+
+	cacheCollectors = []prometheus.Collector{cacheEventsReceived, cacheStaleEventsReceived}
 )
 
 func tombstoneKey() []byte {
 	return backend.Key("cache", teleport.Version, "tombstone", "ok")
 }
 
+const cacheTargetAuth string = "auth"
+
 // ForAuth sets up watch configuration for the auth server
 func ForAuth(cfg Config) Config {
-	cfg.target = "auth"
+	cfg.target = cacheTargetAuth
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindClusterName},
@@ -176,9 +201,19 @@ func ForOldRemoteProxy(cfg Config) Config {
 
 // ForNode sets up watch configuration for node
 func ForNode(cfg Config) Config {
+	var caFilter map[string]string
+	if cfg.ClusterConfig != nil {
+		clusterName, err := cfg.ClusterConfig.GetClusterName()
+		if err == nil {
+			caFilter = types.CertAuthorityFilter{
+				types.HostCA: clusterName.GetClusterName(),
+				types.UserCA: types.Wildcard,
+			}.IntoMap()
+		}
+	}
 	cfg.target = "node"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, Filter: caFilter},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -238,6 +273,7 @@ func ForApps(cfg Config) Config {
 
 // ForDatabases sets up watch configuration for database proxy servers.
 func ForDatabases(cfg Config) Config {
+	cfg.target = "db"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
@@ -520,6 +556,10 @@ type Config struct {
 	// CacheInitTimeout is the maximum amount of time that cache.New
 	// will block, waiting for initialization (default=20s).
 	CacheInitTimeout time.Duration
+	// RelativeExpiryCheckInterval determines how often the cache performs special
+	// "relative expiration" checks which are used to compensate for real backends
+	// that have suffer from overly lazy ttl'ing of resources.
+	RelativeExpiryCheckInterval time.Duration
 	// EventsC is a channel for event notifications,
 	// used in tests
 	EventsC chan Event
@@ -561,6 +601,12 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.CacheInitTimeout == 0 {
 		c.CacheInitTimeout = time.Second * 20
 	}
+	if c.RelativeExpiryCheckInterval == 0 {
+		// TODO(fspmarshall): change this to 1/2 offline threshold once that becomes
+		// a configurable value. This will likely be a dynamic configuration, and
+		// therefore require lazy initialization after the cache has become healthy.
+		c.RelativeExpiryCheckInterval = apidefaults.ServerAnnounceTTL / 2
+	}
 	if c.Component == "" {
 		c.Component = teleport.ComponentCache
 	}
@@ -589,10 +635,16 @@ const (
 	// Reloading is emitted when an error occurred watching events
 	// and the cache is waiting to create a new watcher
 	Reloading = "reloading_cache"
+	// RelativeExpiry notifies that relative expiry operations have
+	// been run.
+	RelativeExpiry = "relative_expiry"
 )
 
 // New creates a new instance of Cache
 func New(config Config) (*Cache, error) {
+	if err := utils.RegisterPrometheusCollectors(cacheCollectors...); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -901,6 +953,13 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 
 	retry.Reset()
 
+	relativeExpiryInterval := interval.New(interval.Config{
+		Duration:      c.Config.RelativeExpiryCheckInterval,
+		FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
+		Jitter:        utils.NewSeventhJitter(),
+	})
+	defer relativeExpiryInterval.Stop()
+
 	c.notify(c.ctx, Event{Type: WatcherStarted})
 
 	var lastStalenessWarning time.Time
@@ -911,6 +970,11 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 		case <-c.ctx.Done():
 			return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
+		case <-relativeExpiryInterval.Next():
+			if err := c.performRelativeNodeExpiry(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+			c.notify(ctx, Event{Type: RelativeExpiry})
 		case event := <-watcher.Events():
 			// check for expired resources in OpPut events and log them periodically. stale OpPut events
 			// may be an indicator of poor performance, and can lead to confusing and inconsistent state
@@ -928,8 +992,10 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			// than pruning the resources that we think *might* have been removed from the real backend.
 			// TODO(fspmarshall): ^^^
 			//
+			cacheEventsReceived.WithLabelValues(c.target).Inc()
 			if event.Type == types.OpPut && !event.Resource.Expiry().IsZero() {
 				if now := c.Clock.Now(); now.After(event.Resource.Expiry()) {
+					cacheStaleEventsReceived.WithLabelValues(c.target).Inc()
 					staleEventCount++
 					if now.After(lastStalenessWarning.Add(time.Minute)) {
 						kind := event.Resource.GetKind()
@@ -950,6 +1016,113 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			c.notify(c.ctx, Event{Event: event, Type: EventProcessed})
 		}
 	}
+}
+
+// performRelativeNodeExpiry performs a special kind of active expiration where we remove nodes
+// which are clearly stale relative to their more recently heartbeated counterparts as well as
+// the current time. This strategy lets us side-step issues of clock drift or general cache
+// staleness by only removing items which are stale from within the cache's own "frame of
+// reference".
+//
+// to better understand why we use this expiry strategy, its important to understand the two
+// distinct scenarios that we're trying to accommodate:
+//
+// 1. Expiry events are being emitted very lazily by the real backend (*hours* after the time
+// at which the resource was supposed to expire).
+//
+// 2. The event stream itself is stale (i.e. all events show up late, not just expiry events).
+//
+// In the first scenario, removing items from the cache after they have passed some designated
+// threshold of staleness seems reasonable.  In the second scenario, your best option is to
+// faithfully serve the delayed, but internally consistent, view created by the event stream and
+// not expire any items.
+//
+// Relative expiry is the compromise between the two above scenarios. We calculate a staleness
+// threshold after which items would be removed, but we calculate it relative to the most recent
+// expiry *or* the current time, depending on which is earlier. The result is that nodes are
+// removed only if they are both stale from the perspective of the current clock, *and* stale
+// relative to our current view of the world.
+//
+// *note*: this function is only sane to call when the cache and event stream are healthy, and
+// cannot run concurrently with event processing. this function injects additional events into
+// the outbound event stream.
+func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
+	if c.target != cacheTargetAuth {
+		// if we are not the auth cache, we are a downstream cache and can rely upon the
+		// upstream auth cache to perform relative expiry and propagate the changes.
+		return nil
+	}
+
+	// TODO(fspmarshall): Start using dynamic value once it is implemented.
+	gracePeriod := apidefaults.ServerAnnounceTTL
+
+	// latestExp will be the value that we choose to consider the most recent "expired"
+	// timestamp.  This will either end up being the most recently seen node expiry, or
+	// the current time (whichever is earlier).
+	var latestExp time.Time
+
+	nodes, err := c.GetNodes(ctx, apidefaults.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// iterate nodes and determine the most recent expiration value.
+	for _, node := range nodes {
+		if node.Expiry().IsZero() {
+			continue
+		}
+
+		if node.Expiry().After(latestExp) || latestExp.IsZero() {
+			// this node's expiry is more recent than the previously
+			// recorded value.
+			latestExp = node.Expiry()
+		}
+	}
+
+	if latestExp.IsZero() {
+		return nil
+	}
+
+	// if the most recent expiration value is still in the future, we use the current time
+	// as the most recent expiration value instead. Unless the event stream is unhealthy, or
+	// all nodes were recently removed, this should always be true.
+	if now := c.Clock.Now(); latestExp.After(now) {
+		latestExp = now
+	}
+
+	// we subtract gracePeriod from our most recent expiry value to get the retention
+	// threshold. nodes which expired earlier than the retention threshold will be
+	// removed, as we expect well-behaved backends to have emitted an expiry event
+	// within the grace period.
+	retentionThreshold := latestExp.Add(-gracePeriod)
+
+	var removed int
+	for _, node := range nodes {
+		if node.Expiry().IsZero() || node.Expiry().After(retentionThreshold) {
+			continue
+		}
+
+		// event stream processing is paused while this function runs.  we perform the
+		// actual expiry by constructing a fake delete event for the resource which both
+		// updates this cache, and all downstream caches.
+		err = c.processEvent(ctx, types.Event{
+			Type: types.OpDelete,
+			Resource: &types.ResourceHeader{
+				Kind:     types.KindNode,
+				Metadata: node.GetMetadata(),
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		removed++
+	}
+
+	if removed > 0 {
+		c.Debugf("Removed %d nodes via relative expiry (retentionThreshold=%s).", removed, retentionThreshold)
+	}
+
+	return nil
 }
 
 func (c *Cache) watchKinds() []types.WatchKind {
@@ -1332,6 +1505,8 @@ func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespac
 }
 
 // ListNodes is a part of auth.Cache implementation
+//
+// DELETE IN 10.0.0 in favor of ListResources.
 func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1352,6 +1527,8 @@ func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]ty
 // of TTL-based caching rather than caching individual page calls (very messy).
 // It relies on caching the result of the `GetNodes` endpoint and then "faking"
 // pagination.
+//
+// DELETE IN 10.0.0 in favor of ListResources.
 func (c *Cache) listNodesFromTTLCache(ctx context.Context, rg readGuard, namespace, startKey string, labels map[string]string, limit int) ([]types.Server, string, error) {
 	if limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive limit value")
@@ -1735,24 +1912,24 @@ func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsD
 	return rg.presence.GetWindowsDesktopServices(ctx)
 }
 
-// GetWindowsDesktops returns all registered Windows desktop hosts.
-func (c *Cache) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
+// GetWindowsDesktopService returns a registered Windows desktop service by name.
+func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.windowsDesktops.GetWindowsDesktops(ctx)
+	return rg.presence.GetWindowsDesktopService(ctx, name)
 }
 
-// GetWindowsDesktop returns a registered Windows desktop host.
-func (c *Cache) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
+// GetWindowsDesktops returns all registered Windows desktop hosts.
+func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.windowsDesktops.GetWindowsDesktop(ctx, name)
+	return rg.windowsDesktops.GetWindowsDesktops(ctx, filter)
 }
 
 // ListResources is a part of auth.Cache implementation
@@ -1766,18 +1943,48 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 	// Cache is not healthy, but right now, only `Node` kind has an
 	// implementation that falls back to TTL cache.
 	if !rg.IsCacheRead() && req.ResourceType == types.KindNode {
-		nodes, nextKey, err := c.listNodesFromTTLCache(ctx, rg, req.Namespace, req.StartKey, req.Labels, int(req.Limit))
+		return c.listResourcesFromTTLCache(ctx, rg, req)
+	}
+
+	return rg.presence.ListResources(ctx, req)
+}
+
+// listResourcesFromTTLCache used when the cache is not healthy. It takes advantage
+// of TTL-based caching rather than caching individual page calls (very messy).
+// It relies on caching the result of the `GetXXXs` endpoint and then "faking"
+// pagination.
+//
+// Since TTLCaching falls back to retrieving all resources upfront, we also support
+// sorting.
+//
+// NOTE: currently only types.KindNode supports TTL caching.
+func (c *Cache) listResourcesFromTTLCache(ctx context.Context, rg readGuard, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+	var resources []types.ResourceWithLabels
+	switch req.ResourceType {
+	case types.KindNode:
+		// Retrieve all nodes.
+		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, req.Namespace)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
-		resources := make([]types.ResourceWithLabels, len(nodes))
-		for i, node := range nodes {
-			resources[i] = node
+		// Nodes returned from the TTL caching layer
+		// must be cloned to avoid concurrent modification.
+		clonedNodes := make([]types.Server, 0, len(cachedNodes))
+		for _, node := range cachedNodes {
+			clonedNodes = append(clonedNodes, node.DeepCopy())
 		}
 
-		return resources, nextKey, nil
+		servers := types.Servers(clonedNodes)
+		if err := servers.SortByCustom(req.SortBy); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		resources = servers.AsResources()
+
+	default:
+		return nil, "", trace.NotImplemented("resource type %q does not support TTL caching", req.ResourceType)
 	}
 
-	return rg.presence.ListResources(ctx, req)
+	return local.FakePaginate(resources, req)
 }

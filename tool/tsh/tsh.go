@@ -262,6 +262,10 @@ type CLIConf struct {
 
 	// LocalProxyPort is a port used by local proxy listener.
 	LocalProxyPort string
+	// LocalProxyCertFile is the client certificate used by local proxy.
+	LocalProxyCertFile string
+	// LocalProxyKeyFile is the client key used by local proxy.
+	LocalProxyKeyFile string
 
 	// ConfigProxyTarget is the node which should be connected to in `tsh config-proxy`.
 	ConfigProxyTarget string
@@ -270,6 +274,15 @@ type CLIConf struct {
 	AWSRole string
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
 	AWSCommandArgs []string
+
+	// Reason is the reason for starting an ssh or kube session.
+	Reason string
+
+	// Invited is a list of invited users to an ssh or kube session.
+	Invited []string
+
+	// JoinMode is the participant mode someone is joining a session as.
+	JoinMode string
 }
 
 // Stdout returns the stdout writer.
@@ -426,6 +439,11 @@ func Run(args []string, opts ...cliOption) error {
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode")
 	proxyDB.Arg("db", "The name of the database to start local proxy for").Required().StringVar(&cf.DatabaseService)
 	proxyDB.Flag("port", " Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").StringVar(&cf.LocalProxyCertFile)
+	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").StringVar(&cf.LocalProxyKeyFile)
+	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode")
+	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
+	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -455,6 +473,9 @@ func Run(args []string, opts ...cliOption) error {
 	// join
 	join := app.Command("join", "Join the active SSH session")
 	join.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
+	join.Flag("mode", "Mode of joining the session, valid modes are observer and moderator").Short('m').Default("peer").StringVar(&cf.JoinMode)
+	join.Flag("reason", "The purpose of the session.").StringVar(&cf.Reason)
+	join.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringsVar(&cf.Invited)
 	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
 	// play
 	play := app.Command("play", "Replay the recorded SSH session")
@@ -666,11 +687,19 @@ func Run(args []string, opts ...cliOption) error {
 		err = kube.ls.run(&cf)
 	case kube.login.FullCommand():
 		err = kube.login.run(&cf)
+	case kube.sessions.FullCommand():
+		err = kube.sessions.run(&cf)
+	case kube.exec.FullCommand():
+		err = kube.exec.run(&cf)
+	case kube.join.FullCommand():
+		err = kube.join.run(&cf)
 
 	case proxySSH.FullCommand():
 		err = onProxyCommandSSH(&cf)
 	case proxyDB.FullCommand():
 		err = onProxyCommandDB(&cf)
+	case proxyApp.FullCommand():
+		err = onProxyCommandApp(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
@@ -1731,6 +1760,10 @@ func onBenchmark(cf *CLIConf) error {
 
 // onJoin executes 'ssh join' command
 func onJoin(cf *CLIConf) error {
+	if err := validateParticipantMode(types.SessionParticipantMode(cf.JoinMode)); err != nil {
+		return trace.Wrap(err)
+	}
+
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1740,7 +1773,7 @@ func onJoin(cf *CLIConf) error {
 		return trace.BadParameter("'%v' is not a valid session ID (must be GUID)", cf.SessionID)
 	}
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.Join(context.TODO(), cf.Namespace, *sid, nil)
+		return tc.Join(context.TODO(), types.SessionParticipantMode(cf.JoinMode), cf.Namespace, *sid, nil)
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2053,6 +2086,8 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		}
 	}
 
+	tc.Config.Reason = cf.Reason
+	tc.Config.Invited = cf.Invited
 	return tc, nil
 }
 
@@ -2525,4 +2560,13 @@ func handleUnimplementedError(ctx context.Context, perr error, cf CLIConf) error
 		return trace.WrapWithMessage(perr, errMsgFormat, unknownServerVersion, teleport.Version)
 	}
 	return trace.WrapWithMessage(perr, errMsgFormat, pr.ServerVersion, teleport.Version)
+}
+
+func validateParticipantMode(mode types.SessionParticipantMode) error {
+	switch mode {
+	case types.SessionPeerMode, types.SessionObserverMode, types.SessionModeratorMode:
+		return nil
+	default:
+		return trace.BadParameter("invalid participant mode %v", mode)
+	}
 }

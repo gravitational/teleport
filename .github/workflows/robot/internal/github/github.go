@@ -31,48 +31,21 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// Client implements the GitHub API.
-type Client interface {
-	// RequestReviewers is used to assign reviewers to a PR.
-	RequestReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error
-
-	// ListReviews is used to list all submitted reviews for a PR.
-	ListReviews(ctx context.Context, organization string, repository string, number int) (map[string]*Review, error)
-
-	// ListPullRequests returns a list of Pull Requests.
-	ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]PullRequest, error)
-
-	// ListFiles is used to list all the files within a PR.
-	ListFiles(ctx context.Context, organization string, repository string, number int) ([]string, error)
-
-	// AddLabels will add labels to an Issue or Pull Request.
-	AddLabels(ctx context.Context, organization string, repository string, number int, labels []string) error
-
-	// ListWorkflows lists all workflows within a repository.
-	ListWorkflows(ctx context.Context, organization string, repository string) ([]Workflow, error)
-
-	// ListWorkflowRuns is used to list all workflow runs for an ID.
-	ListWorkflowRuns(ctx context.Context, organization string, repository string, branch string, workflowID int64) ([]Run, error)
-
-	// DeleteWorkflowRun is used to delete a workflow run.
-	DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error
-}
-
-type client struct {
+type Client struct {
 	client *go_github.Client
 }
 
-// New returns a new GitHub client.
-func New(ctx context.Context, token string) (*client, error) {
+// New returns a new GitHub Client.
+func New(ctx context.Context, token string) (*Client, error) {
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)
-	return &client{
+	return &Client{
 		client: go_github.NewClient(oauth2.NewClient(ctx, ts)),
 	}, nil
 }
 
-func (c *client) RequestReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error {
+func (c *Client) RequestReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error {
 	_, _, err := c.client.PullRequests.RequestReviewers(ctx,
 		organization,
 		repository,
@@ -96,7 +69,7 @@ type Review struct {
 	SubmittedAt time.Time
 }
 
-func (c *client) ListReviews(ctx context.Context, organization string, repository string, number int) (map[string]*Review, error) {
+func (c *Client) ListReviews(ctx context.Context, organization string, repository string, number int) (map[string]*Review, error) {
 	reviews := map[string]*Review{}
 
 	opt := &go_github.ListOptions{
@@ -152,7 +125,7 @@ type PullRequest struct {
 	Fork bool
 }
 
-func (c *client) ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]PullRequest, error) {
+func (c *Client) ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]PullRequest, error) {
 	var pulls []PullRequest
 
 	opt := &go_github.PullRequestListOptions{
@@ -188,7 +161,7 @@ func (c *client) ListPullRequests(ctx context.Context, organization string, repo
 	return pulls, nil
 }
 
-func (c *client) ListFiles(ctx context.Context, organization string, repository string, number int) ([]string, error) {
+func (c *Client) ListFiles(ctx context.Context, organization string, repository string, number int) ([]string, error) {
 	var files []string
 
 	opt := &go_github.ListOptions{
@@ -219,7 +192,7 @@ func (c *client) ListFiles(ctx context.Context, organization string, repository 
 }
 
 // AddLabels will add labels to an Issue or Pull Request.
-func (c *client) AddLabels(ctx context.Context, organization string, repository string, number int, labels []string) error {
+func (c *Client) AddLabels(ctx context.Context, organization string, repository string, number int, labels []string) error {
 	_, _, err := c.client.Issues.AddLabelsToIssue(ctx,
 		organization,
 		repository,
@@ -242,7 +215,7 @@ type Workflow struct {
 	Path string
 }
 
-func (c *client) ListWorkflows(ctx context.Context, organization string, repository string) ([]Workflow, error) {
+func (c *Client) ListWorkflows(ctx context.Context, organization string, repository string) ([]Workflow, error) {
 	var workflows []Workflow
 
 	opt := &go_github.ListOptions{
@@ -287,7 +260,7 @@ type Run struct {
 	CreatedAt time.Time
 }
 
-func (c *client) ListWorkflowRuns(ctx context.Context, organization string, repository string, branch string, workflowID int64) ([]Run, error) {
+func (c *Client) ListWorkflowRuns(ctx context.Context, organization string, repository string, branch string, workflowID int64) ([]Run, error) {
 	var runs []Run
 
 	opt := &go_github.ListWorkflowRunsOptions{
@@ -330,7 +303,7 @@ func (c *client) ListWorkflowRuns(ctx context.Context, organization string, repo
 // DeleteWorkflowRun is directly implemented because it is missing from go-github.
 //
 // https://docs.github.com/en/rest/reference/actions#delete-a-workflow-run
-func (c *client) DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error {
+func (c *Client) DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error {
 	url := url.URL{
 		Scheme: "https",
 		Host:   "api.github.com",

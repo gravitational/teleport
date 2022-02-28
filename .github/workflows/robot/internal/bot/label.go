@@ -87,26 +87,26 @@ func deduplicate(s []string) []string {
 	}
 
 	var out []string
-	for k, _ := range m {
+	for k := range m {
 		out = append(out, k)
 	}
 
 	return out
 }
 
-var prefixes map[string][]string = map[string][]string{
-	"bpf/":                []string{"bpf"},
-	"docs/":               []string{"documentation"},
-	"rfd/":                []string{"rfd"},
-	"examples/chart":      []string{"helm"},
-	"lib/bpf/":            []string{"bpf"},
-	"lib/events":          []string{"audit-log"},
-	"lib/kube":            []string{"kubernetes"},
-	"lib/srv/desktop":     []string{"desktop-access"},
-	"lib/srv/desktop/rdp": []string{"desktop-access", "rdp"},
-	"lib/srv/app/":        []string{"application-access"},
-	"lib/srv/db":          []string{"database-access"},
-	"lib/web/desktop.go":  []string{"desktop-access"},
-	"tool/tctl/":          []string{"tctl"},
-	"tool/tsh/":           []string{"tsh"},
+var prefixes = map[string][]string{
+	"bpf/":                {"bpf"},
+	"docs/":               {"documentation"},
+	"rfd/":                {"rfd"},
+	"examples/chart":      {"helm"},
+	"lib/bpf/":            {"bpf"},
+	"lib/events":          {"audit-log"},
+	"lib/kube":            {"kubernetes"},
+	"lib/srv/desktop":     {"desktop-access"},
+	"lib/srv/desktop/rdp": {"desktop-access", "rdp"},
+	"lib/srv/app/":        {"application-access"},
+	"lib/srv/db":          {"database-access"},
+	"lib/web/desktop.go":  {"desktop-access"},
+	"tool/tctl/":          {"tctl"},
+	"tool/tsh/":           {"tsh"},
 }
