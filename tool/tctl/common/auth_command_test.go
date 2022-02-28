@@ -405,6 +405,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 		outKey         []byte
 		outCert        []byte
 		outCA          []byte
+		genKeyErrMsg   string
 	}{
 		{
 			name:           "database certificate",
@@ -463,6 +464,29 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outCert:        certBytes,
 			outCA:          caBytes,
 		},
+		{
+			name:           "redis certificate",
+			inFormat:       identityfile.FormatRedis,
+			inHost:         "localhost,redis1,172.0.0.1",
+			inOutDir:       t.TempDir(),
+			inOutFile:      "db",
+			outSubject:     pkix.Name{CommonName: "localhost"},
+			outServerNames: []string{"localhost", "redis1", "172.0.0.1"},
+			outKeyFile:     "db.key",
+			outCertFile:    "db.crt",
+			outCAFile:      "db.cas",
+			outKey:         key.Priv,
+			outCert:        certBytes,
+			outCA:          caBytes,
+		},
+		{
+			name:         "missing host",
+			inFormat:     identityfile.FormatRedis,
+			inOutDir:     t.TempDir(),
+			inHost:       "", // missing host
+			inOutFile:    "db",
+			genKeyErrMsg: "at least one hostname must be specified",
+		},
 	}
 
 	for _, test := range tests {
@@ -476,7 +500,13 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			}
 
 			err = ac.generateDatabaseKeysForKey(authClient, key)
-			require.NoError(t, err)
+			if test.genKeyErrMsg == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), test.genKeyErrMsg)
+				return
+			}
 
 			require.NotNil(t, authClient.dbCertsReq)
 			csr, err := tlsca.ParseCertificateRequestPEM(authClient.dbCertsReq.CSR)
