@@ -25,3 +25,9 @@ export type Desktop = {
   // Labels.
   tags: string[];
 };
+
+export type DesktopsResponse = {
+  desktops: Desktop[];
+  startKey?: string;
+  totalCount?: number;
+};

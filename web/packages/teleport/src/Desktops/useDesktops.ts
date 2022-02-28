@@ -34,7 +34,11 @@ export default function useDesktops(ctx: Ctx) {
     makeOptions(clusterId, desktopName, windowsLogins);
 
   useEffect(() => {
-    run(() => ctx.desktopService.fetchDesktops(clusterId).then(setDesktops));
+    run(() =>
+      ctx.desktopService
+        .fetchDesktops(clusterId)
+        .then(res => setDesktops(res.desktops))
+    );
   }, [clusterId]);
 
   const openRemoteDesktopTab = (username: string, desktopName: string) => {

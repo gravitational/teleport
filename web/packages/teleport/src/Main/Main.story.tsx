@@ -64,12 +64,12 @@ function useMainStory() {
     ctx.auditService.fetchEvents = () =>
       Promise.resolve({ events, startKey: '' });
     ctx.clusterService.fetchClusters = () => Promise.resolve(clusters);
-    ctx.nodeService.fetchNodes = () => Promise.resolve(nodes);
+    ctx.nodeService.fetchNodes = () => Promise.resolve({ nodes });
     ctx.sshService.fetchSessions = () => Promise.resolve(sessions);
-    ctx.appService.fetchApps = () => Promise.resolve(apps);
-    ctx.kubeService.fetchKubernetes = () => Promise.resolve(kubes);
-    ctx.databaseService.fetchDatabases = () => Promise.resolve(databases);
-    ctx.desktopService.fetchDesktops = () => Promise.resolve(desktops);
+    ctx.appService.fetchApps = () => Promise.resolve({ apps });
+    ctx.kubeService.fetchKubernetes = () => Promise.resolve({ kubes });
+    ctx.databaseService.fetchDatabases = () => Promise.resolve({ databases });
+    ctx.desktopService.fetchDesktops = () => Promise.resolve({ desktops });
     ctx.storeUser.setState(userContext);
     getFeatures().forEach(f => f.register(ctx));
     return ctx;

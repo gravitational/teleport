@@ -33,13 +33,17 @@ export default function useDatabases(ctx: Ctx) {
   const [isAddDialogVisible, setIsAddDialogVisible] = useState(false);
 
   useEffect(() => {
-    run(() => ctx.databaseService.fetchDatabases(clusterId).then(setDatabases));
+    run(() =>
+      ctx.databaseService
+        .fetchDatabases(clusterId)
+        .then(res => setDatabases(res.databases))
+    );
   }, [clusterId]);
 
   const fetchDatabases = () => {
     return ctx.databaseService
       .fetchDatabases(clusterId)
-      .then(setDatabases)
+      .then(res => setDatabases(res.databases))
       .catch((err: Error) =>
         setAttempt({ status: 'failed', statusText: err.message })
       );

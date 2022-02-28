@@ -23,15 +23,19 @@ test('correct formatting of database fetch response', async () => {
   const database = new DatabaseService();
   const response = await database.fetchDatabases('im-a-cluster');
 
-  expect(response).toEqual([
-    {
-      name: 'aurora',
-      desc: 'PostgreSQL 11.6: AWS Aurora',
-      title: 'RDS PostgreSQL',
-      protocol: 'postgres',
-      tags: ['cluster: root', 'env: aws'],
-    },
-  ]);
+  expect(response).toEqual({
+    databases: [
+      {
+        name: 'aurora',
+        desc: 'PostgreSQL 11.6: AWS Aurora',
+        title: 'RDS PostgreSQL',
+        protocol: 'postgres',
+        tags: ['cluster: root', 'env: aws'],
+      },
+    ],
+    startKey: mockResponse.startKey,
+    totalCount: mockResponse.totalCount,
+  });
 });
 
 test('null response from database fetch', async () => {
@@ -40,7 +44,11 @@ test('null response from database fetch', async () => {
   const database = new DatabaseService();
   const response = await database.fetchDatabases('im-a-cluster');
 
-  expect(response).toEqual([]);
+  expect(response).toEqual({
+    databases: [],
+    startKey: undefined,
+    totalCount: undefined,
+  });
 });
 
 describe('correct formatting of all type and protocol combos', () => {
@@ -56,36 +64,39 @@ describe('correct formatting of all type and protocol combos', () => {
   `(
     'should combine type: $type and protocol: $protocol correctly',
     async ({ type, protocol, combined }) => {
-      jest.spyOn(api, 'get').mockResolvedValue([{ type, protocol }]);
+      jest.spyOn(api, 'get').mockResolvedValue({ items: [{ type, protocol }] });
 
       const database = new DatabaseService();
       const response = await database.fetchDatabases('im-a-cluster');
 
-      expect(response[0].title).toBe(combined);
+      expect(response.databases[0].title).toBe(combined);
     }
   );
 });
 
 test('null labels field in database fetch response', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue([{ labels: null }]);
+  jest.spyOn(api, 'get').mockResolvedValue({ items: [{ labels: null }] });
 
   const database = new DatabaseService();
   const response = await database.fetchDatabases('im-a-cluster');
 
-  expect(response[0].tags).toEqual([]);
+  expect(response.databases[0].tags).toEqual([]);
 });
 
-const mockResponse = [
-  {
-    name: 'aurora',
-    desc: 'PostgreSQL 11.6: AWS Aurora',
-    protocol: 'postgres',
-    type: 'rds',
-    uri:
-      'postgres-aurora-instance-1.c1xpjrob56xs.us-west-1.rds.amazonaws.com:5432',
-    labels: [
-      { name: 'cluster', value: 'root' },
-      { name: 'env', value: 'aws' },
-    ],
-  },
-];
+const mockResponse = {
+  items: [
+    {
+      name: 'aurora',
+      desc: 'PostgreSQL 11.6: AWS Aurora',
+      protocol: 'postgres',
+      type: 'rds',
+      uri: 'postgres-aurora-instance-1.c1xpjrob56xs.us-west-1.rds.amazonaws.com:5432',
+      labels: [
+        { name: 'cluster', value: 'root' },
+        { name: 'env', value: 'aws' },
+      ],
+    },
+  ],
+  startKey: 'mockKey',
+  totalCount: 100,
+};

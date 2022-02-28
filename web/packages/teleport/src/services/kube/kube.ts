@@ -14,16 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { map } from 'lodash';
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import makeKube from './makeKube';
+import { KubesResponse } from './types';
 
 class KubeService {
-  fetchKubernetes(clusterId) {
-    return api
-      .get(cfg.getKubernetesUrl(clusterId))
-      .then(json => map(json, makeKube));
+  fetchKubernetes(clusterId): Promise<KubesResponse> {
+    return api.get(cfg.getKubernetesUrl(clusterId)).then(json => {
+      const items = json?.items || [];
+
+      return {
+        kubes: items.map(makeKube),
+        startKey: json?.startKey,
+        totalCount: json?.totalCount,
+      };
+    });
   }
 }
 

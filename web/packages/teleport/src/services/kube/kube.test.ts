@@ -23,12 +23,16 @@ test('correct processed fetch response formatting', async () => {
   const kubeService = new KubeService();
   const response = await kubeService.fetchKubernetes('clusterId');
 
-  expect(response).toEqual([
-    {
-      name: 'tele.logicoma.dev-prod',
-      tags: ['kernal: 4.15.0-51-generic', 'env: prod'],
-    },
-  ]);
+  expect(response).toEqual({
+    kubes: [
+      {
+        name: 'tele.logicoma.dev-prod',
+        tags: ['kernal: 4.15.0-51-generic', 'env: prod'],
+      },
+    ],
+    startKey: mockApiResponse.startKey,
+    totalCount: mockApiResponse.totalCount,
+  });
 });
 
 test('handling of null fetch response', async () => {
@@ -37,24 +41,34 @@ test('handling of null fetch response', async () => {
   const kubeService = new KubeService();
   const response = await kubeService.fetchKubernetes('clusterId');
 
-  expect(response).toEqual([]);
+  expect(response).toEqual({
+    kubes: [],
+    startKey: undefined,
+    totalCount: undefined,
+  });
 });
 
 test('handling of null labels', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue([{ name: 'test', labels: null }]);
+  jest
+    .spyOn(api, 'get')
+    .mockResolvedValue({ items: [{ name: 'test', labels: null }] });
 
   const kubeService = new KubeService();
   const response = await kubeService.fetchKubernetes('clusterId');
 
-  expect(response).toEqual([{ name: 'test', tags: [] }]);
+  expect(response.kubes).toEqual([{ name: 'test', tags: [] }]);
 });
 
-const mockApiResponse = [
-  {
-    name: 'tele.logicoma.dev-prod',
-    labels: [
-      { name: 'kernal', value: '4.15.0-51-generic' },
-      { name: 'env', value: 'prod' },
-    ],
-  },
-];
+const mockApiResponse = {
+  items: [
+    {
+      name: 'tele.logicoma.dev-prod',
+      labels: [
+        { name: 'kernal', value: '4.15.0-51-generic' },
+        { name: 'env', value: 'prod' },
+      ],
+    },
+  ],
+  startKey: 'mockKey',
+  totalCount: 100,
+};

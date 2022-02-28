@@ -14,16 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { map } from 'lodash';
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import makeDatabase from './makeDatabase';
+import { DatabasesResponse } from './types';
 
 class DatabaseService {
-  fetchDatabases(clusterId?: string) {
-    return api
-      .get(cfg.getDatabasesUrl(clusterId))
-      .then(json => map(json, makeDatabase));
+  fetchDatabases(clusterId?: string): Promise<DatabasesResponse> {
+    return api.get(cfg.getDatabasesUrl(clusterId)).then(json => {
+      const items = json?.items || [];
+
+      return {
+        databases: items.map(makeDatabase),
+        startKey: json?.startKey,
+        totalCount: json?.totalCount,
+      };
+    });
   }
 }
 

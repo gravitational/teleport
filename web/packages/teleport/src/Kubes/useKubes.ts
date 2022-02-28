@@ -28,7 +28,11 @@ export default function useKubes(ctx: TeleportContext) {
   const [kubes, setKubes] = useState([] as Kube[]);
 
   useEffect(() => {
-    run(() => ctx.kubeService.fetchKubernetes(clusterId).then(setKubes));
+    run(() =>
+      ctx.kubeService
+        .fetchKubernetes(clusterId)
+        .then(res => setKubes(res.kubes))
+    );
   }, [clusterId]);
 
   return {

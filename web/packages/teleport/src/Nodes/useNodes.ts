@@ -31,7 +31,9 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
   const logins = ctx.storeUser.getSshLogins();
 
   useEffect(() => {
-    run(() => ctx.nodeService.fetchNodes(clusterId).then(setNodes));
+    run(() =>
+      ctx.nodeService.fetchNodes(clusterId).then(res => setNodes(res.nodes))
+    );
   }, [clusterId]);
 
   const getNodeLoginOptions = (serverId: string) =>
@@ -50,7 +52,7 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
   const fetchNodes = () => {
     return ctx.nodeService
       .fetchNodes(clusterId)
-      .then(setNodes)
+      .then(res => setNodes(res.nodes))
       .catch((err: Error) =>
         setAttempt({ status: 'failed', statusText: err.message })
       );

@@ -31,7 +31,7 @@ export default function useApps(ctx: Ctx) {
   function refresh() {
     return ctx.appService
       .fetchApps(clusterId)
-      .then(setApps)
+      .then(res => setApps(res.apps))
       .catch((err: Error) =>
         setAttempt({ status: 'failed', statusText: err.message })
       );
@@ -47,7 +47,9 @@ export default function useApps(ctx: Ctx) {
   };
 
   useEffect(() => {
-    run(() => ctx.appService.fetchApps(clusterId).then(setApps));
+    run(() =>
+      ctx.appService.fetchApps(clusterId).then(res => setApps(res.apps))
+    );
   }, [clusterId]);
 
   return {

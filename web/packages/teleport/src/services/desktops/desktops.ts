@@ -14,16 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { map } from 'lodash';
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import makeDesktop from './makeDesktop';
+import { DesktopsResponse } from './types';
 
 class DesktopService {
-  fetchDesktops(clusterId: string) {
-    return api
-      .get(cfg.getDesktopsUrl(clusterId))
-      .then(json => map(json, makeDesktop));
+  fetchDesktops(clusterId: string): Promise<DesktopsResponse> {
+    return api.get(cfg.getDesktopsUrl(clusterId)).then(json => {
+      const items = json?.items || [];
+
+      return {
+        desktops: items.map(makeDesktop),
+        startKey: json?.startKey,
+        totalCount: json?.totalCount,
+      };
+    });
   }
 
   fetchDesktop(clusterId: string, desktopPath: string) {

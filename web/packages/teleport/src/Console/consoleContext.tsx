@@ -146,10 +146,10 @@ export default class ConsoleContext {
       serviceUser.fetchUserContext(),
       serviceNodes.fetchNodes(clusterId),
     ]).then(values => {
-      const [user, nodes] = values;
+      const [user, nodesRes] = values;
       return {
         logins: user.acl.sshLogins,
-        nodes,
+        nodes: nodesRes.nodes,
       };
     });
   }

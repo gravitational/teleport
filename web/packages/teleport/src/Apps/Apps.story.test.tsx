@@ -40,7 +40,7 @@ test('useApps hook returns expected props', async () => {
   const acl = makeAcl(sample.acl);
   ctx.isEnterprise = true;
   ctx.storeUser.setState({ acl });
-  ctx.appService.fetchApps = () => Promise.resolve(apps);
+  ctx.appService.fetchApps = () => Promise.resolve({ apps });
 
   let hook;
 
