@@ -23,6 +23,7 @@ export default {
 
 export const Add = () => (
   <Component
+    isEnterprise={false}
     username="yassine"
     version="6.1.3"
     onClose={() => null}
