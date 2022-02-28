@@ -19,7 +19,7 @@ import (
 	"strings"
 )
 
-func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
+func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string, extraQualifications []string) pipeline {
 	b := buildType{
 		arch: "amd64",
 		os:   "darwin",
@@ -87,7 +87,7 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
 		},
 		{
 			Name:     "Register artifacts",
-			Commands: tagCreateReleaseAssetCommands(b, ".pkg installer"),
+			Commands: tagCreateReleaseAssetCommands(b, ".pkg installer", extraQualifications),
 			Failure:  "ignore",
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
@@ -102,11 +102,11 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
 }
 
 func darwinTeleportPkgPipeline() pipeline {
-	return darwinPkgPipeline("build-darwin-amd64-pkg", "pkg", []string{"build/teleport*.pkg", "e/build/teleport-ent*.pkg"})
+	return darwinPkgPipeline("build-darwin-amd64-pkg", "pkg", []string{"build/teleport*.pkg", "e/build/teleport-ent*.pkg"}, nil)
 }
 
 func darwinTshPkgPipeline() pipeline {
-	return darwinPkgPipeline("build-darwin-amd64-pkg-tsh", "pkg-tsh", []string{"build/tsh*.pkg"})
+	return darwinPkgPipeline("build-darwin-amd64-pkg-tsh", "pkg-tsh", []string{"build/tsh*.pkg"}, []string{"tsh client only"})
 }
 
 func darwinTagDownloadArtifactCommands() []string {

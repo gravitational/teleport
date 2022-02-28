@@ -228,6 +228,11 @@ func tagPipeline(b buildType) pipeline {
 		tagEnvironment["WINDOWS_SIGNING_CERT"] = value{fromSecret: "WINDOWS_SIGNING_CERT"}
 	}
 
+	var extraQualifications []string
+	if b.os == "windows" {
+		extraQualifications = []string{"tsh client only"}
+	}
+
 	p := newKubePipeline(pipelineName)
 	p.Environment = map[string]value{
 		"RUNTIME": goRuntime,
@@ -269,7 +274,7 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:     "Register artifacts",
 			Image:    "docker",
-			Commands: tagCreateReleaseAssetCommands(b, ""),
+			Commands: tagCreateReleaseAssetCommands(b, "", extraQualifications),
 			Failure:  "ignore",
 			Environment: map[string]value{
 				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
@@ -317,7 +322,7 @@ func tagCopyPackageArtifactCommands(b buildType, packageType string) []string {
 }
 
 // createReleaseAssetCommands generates a set of commands to create release & asset in release management service
-func tagCreateReleaseAssetCommands(b buildType, packageType string) []string {
+func tagCreateReleaseAssetCommands(b buildType, packageType string, extraQualifications []string) []string {
 	commands := []string{
 		`WORKSPACE_DIR=$${WORKSPACE_DIR:-/}`,
 		`VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")`,
@@ -353,7 +358,7 @@ for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
     curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
   done
 done`,
-			b.Description(packageType), b.os, b.arch),
+			b.Description(packageType, extraQualifications...), b.os, b.arch),
 	}
 	return commands
 }
@@ -472,7 +477,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		{
 			Name:     "Register artifacts",
 			Image:    "docker",
-			Commands: tagCreateReleaseAssetCommands(b, strings.ToUpper(packageType)),
+			Commands: tagCreateReleaseAssetCommands(b, strings.ToUpper(packageType), nil),
 			Failure:  "ignore",
 			Environment: map[string]value{
 				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
