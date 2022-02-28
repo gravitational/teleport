@@ -23,6 +23,8 @@ import (
 	"bytes"
 	"embed"
 	"encoding/binary"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/gravitational/teleport"
@@ -92,6 +94,11 @@ func New(config *Config, wc RestrictionsWatcherClient) (Manager, error) {
 	if !config.Enabled {
 		log.Debugf("Restricted session is not enabled, skipping.")
 		return &NOP{}, nil
+	}
+
+	// Before proceeding, check that eBPF based LSM is enabled in the kernel
+	if err = checkBpfLsm(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	log.Debugf("Starting restricted session.")
@@ -296,6 +303,27 @@ func (l *auditEventLoop) close() {
 	l.lost.Close()
 
 	l.wg.Wait()
+}
+
+// checkBpfLsm checks that eBPF is one of the enabled
+// LSM "modules".
+func checkBpfLsm() error {
+	const lsmInfo = "/sys/kernel/security/lsm"
+
+	csv, err := os.ReadFile(lsmInfo)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, mod := range strings.Split(string(csv), ",") {
+		if mod == "bpf" {
+			return nil
+		}
+	}
+
+	return trace.Errorf(`%s does not contain bpf entry, indicating that the kernel
+is not enabled for eBPF based LSM enforcement. Make sure the kernel is compiled with
+CONFIG_BPF_LSM=y and enabled via CONFIG_LSM or lsm= boot option`, lsmInfo)
 }
 
 // attachLSM attaches the LSM programs in the module to
