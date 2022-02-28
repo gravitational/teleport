@@ -31,6 +31,7 @@ import {
 } from 'teleport/services/databases/makeDatabase';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import DownloadLinks from 'teleport/components/DownloadLinks';
+import useTeleport from 'teleport/useTeleport';
 
 export default function AddDatabase({
   username,
@@ -40,6 +41,9 @@ export default function AddDatabase({
 }: Props) {
   const { hostname, port } = window.document.location;
   const host = `${hostname}:${port || '443'}`;
+
+  const ctx = useTeleport();
+  const isEnterprise = ctx.isEnterprise;
 
   const [dbOptions] = useState<Option<DatabaseInfo>[]>(() =>
     options.map(dbOption => {
@@ -78,7 +82,7 @@ export default function AddDatabase({
             Step 1
           </Text>
           {' - Download Teleport package to your computer '}
-          <DownloadLinks version={version} />
+          <DownloadLinks isEnterprise={isEnterprise} version={version} />
         </Box>
         <Box mb={4}>
           <Text bold as="span">

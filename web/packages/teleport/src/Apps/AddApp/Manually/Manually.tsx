@@ -19,6 +19,7 @@ import { Text, Box, ButtonSecondary, Link } from 'design';
 import { DialogContent, DialogFooter } from 'design/Dialog';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import DownloadLinks from 'teleport/components/DownloadLinks';
+import useTeleport from 'teleport/useTeleport';
 
 export default function Manually({
   user,
@@ -29,6 +30,9 @@ export default function Manually({
   const { hostname, port } = window.document.location;
   const host = `${hostname}:${port || '443'}`;
   let tshLoginCmd = `tsh login --proxy=${host}`;
+
+  const ctx = useTeleport();
+  const isEnterprise = ctx.isEnterprise;
 
   if (isAuthTypeLocal) {
     tshLoginCmd = `${tshLoginCmd} --auth=local --user=${user}`;
@@ -42,7 +46,7 @@ export default function Manually({
             Step 1
           </Text>{' '}
           - Download Teleport package to your computer
-          <DownloadLinks version={version} />
+          <DownloadLinks isEnterprise={isEnterprise} version={version} />
         </Box>
         <Box mb={4}>
           <Text bold as="span">

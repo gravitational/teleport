@@ -17,12 +17,8 @@
 import React from 'react';
 import { Box, Link } from 'design';
 import getDownloadLink from 'teleport/services/links';
-import useTeleport from 'teleport/useTeleport';
 
-export default function DownloadLinks({ version }: Props) {
-  const ctx = useTeleport();
-  const isEnterprise = ctx.isEnterprise;
-
+export default function DownloadLinks({ isEnterprise, version }: Props) {
   return (
     <Box>
       <Link
@@ -50,5 +46,6 @@ export default function DownloadLinks({ version }: Props) {
 }
 
 type Props = {
+  isEnterprise: boolean;
   version: string;
 };
