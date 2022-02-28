@@ -119,7 +119,7 @@ For quick restarts, that restarts all processes and `tsh` daemon, press `F6`.
 
 ```sh
 $ cd teleport
-$ make grpc
+$ make grpc-teleterm
 ```
 
 Resulting files both `nodejs` and `golang` can be found in `/teleport/lib/teleterm/api/protogen/` directory.

@@ -20,11 +20,7 @@ import { typography } from 'design/system';
 import { Box, ButtonIcon, Flex } from 'design';
 import * as Icons from 'design/Icon';
 import { Document } from 'teleterm/ui/services/docs/types';
-import TabItem from './TabItem';
-
-export default function TabsContainer(props: Props) {
-  return <Tabs {...props} />;
-}
+import { TabItem } from './TabItem';
 
 export function Tabs(props: Props) {
   const {
@@ -40,8 +36,7 @@ export function Tabs(props: Props) {
   } = props;
 
   const $items = items
-    .map((item, index) => ({ item, index }))
-    .map(({ item, index }) => {
+    .map((item, index) => {
       const active = item.uri === activeTab;
       return (
         <TabItem

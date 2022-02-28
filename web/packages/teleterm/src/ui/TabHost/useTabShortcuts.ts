@@ -20,8 +20,10 @@ import {
   KeyboardShortcutHandlers,
   useKeyboardShortcuts,
 } from 'teleterm/ui/services/keyboardShortcuts';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-export default function useTabShortcuts(ctx: AppContext) {
+export function useTabShortcuts() {
+  const ctx = useAppContext();
   const tabsShortcuts = useMemo(() => buildTabsShortcuts(ctx), [ctx]);
   useKeyboardShortcuts(tabsShortcuts);
 }

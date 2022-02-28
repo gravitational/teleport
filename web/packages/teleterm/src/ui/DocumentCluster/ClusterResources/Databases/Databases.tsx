@@ -16,9 +16,9 @@ limitations under the License.
 
 import React from 'react';
 import { useDatabases, State } from './useDatabases';
-import * as types from 'teleterm/ui/services/clusters/types';
-import { Label, ButtonBorder } from 'design';
+import { ButtonBorder } from 'design';
 import Table, { Cell } from 'design/DataTable';
+import { renderLabelCell } from '../renderLabelCell';
 
 export default function Container() {
   const state = useDatabases();
@@ -38,7 +38,7 @@ function DatabaseList(props: State) {
         {
           key: 'labelsList',
           headerText: 'Labels',
-          render: renderLabels,
+          render: renderLabelCell,
         },
         {
           altKey: 'connect-btn',
@@ -50,17 +50,6 @@ function DatabaseList(props: State) {
     />
   );
 }
-
-const renderLabels = ({ labelsList }: types.Kube) => {
-  const labels = labelsList.map(l => `${l.name}:${l.value}`);
-  const $labels = labels.map(label => (
-    <Label mb="1" mr="1" key={label} kind="secondary">
-      {label}
-    </Label>
-  ));
-
-  return <Cell>{$labels}</Cell>;
-};
 
 function renderConnectButton(uri: string, connect: (uri: string) => void) {
   return (

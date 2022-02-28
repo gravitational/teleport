@@ -19,56 +19,56 @@ import styled from 'styled-components';
 import { Flex } from 'design';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/docs/types';
-import Tabs from 'teleterm/ui/Tabs';
+import { Tabs } from 'teleterm/ui/Tabs';
 import Document from 'teleterm/ui/Document';
 import DocumentHome from 'teleterm/ui/DocumentHome';
 import DocumentGateway from 'teleterm/ui/DocumentGateway';
 import DocumentTerminal from 'teleterm/ui/DocumentTerminal';
 import DocumentCluster from 'teleterm/ui/DocumentCluster';
-import useTabShortcuts from './useTabShortcuts';
+import { useTabShortcuts } from './useTabShortcuts';
 
-export default function TabHost(props: Props) {
+export function TabHost() {
   const ctx = useAppContext();
-  const { docsService: serviceDocs } = ctx;
-  const documents = serviceDocs.getDocuments();
-  const docActive = serviceDocs.getActive();
+  const { docsService } = ctx;
+  const documents = docsService.getDocuments();
+  const docActive = docsService.getActive();
 
   // enable keyboard shortcuts
-  useTabShortcuts(ctx);
+  useTabShortcuts();
 
   // subscribe
-  serviceDocs.useState();
+  docsService.useState();
 
   function handleTabClick(doc: types.Document) {
-    serviceDocs.open(doc.uri);
+    docsService.open(doc.uri);
   }
 
   function handleTabClose(doc: types.Document) {
-    serviceDocs.close(doc.uri);
+    docsService.close(doc.uri);
   }
 
   function handleTabMoved(oldIndex: number, newIndex: number) {
-    serviceDocs.swapPosition(oldIndex, newIndex);
+    docsService.swapPosition(oldIndex, newIndex);
   }
 
   function handleTabNew() {
-    serviceDocs.openNewTerminal();
+    docsService.openNewTerminal();
   }
 
   function handleTabContextMenu(doc: types.Document) {
     ctx.mainProcessClient.openTabContextMenu({
       documentKind: doc.kind,
       onClose: () => {
-        serviceDocs.close(doc.uri);
+        docsService.close(doc.uri);
       },
       onCloseOthers: () => {
-        serviceDocs.closeOthers(doc.uri);
+        docsService.closeOthers(doc.uri);
       },
       onCloseToRight: () => {
-        serviceDocs.closeToRight(doc.uri);
+        docsService.closeToRight(doc.uri);
       },
       onDuplicatePty: () => {
-        serviceDocs.duplicatePtyAndActivate(doc.uri);
+        docsService.duplicatePtyAndActivate(doc.uri);
       },
     });
   }
@@ -79,7 +79,7 @@ export default function TabHost(props: Props) {
   });
 
   return (
-    <StyledTabHost {...props}>
+    <StyledTabHost>
       <Flex bg="terminalDark" height="32px">
         <Tabs
           flex="1"
@@ -132,7 +132,3 @@ const StyledTabHost = styled.div`
   left: 0;
   right: 0;
 `;
-
-type Props = {
-  [key: string]: any;
-};

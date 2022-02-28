@@ -1,7 +1,7 @@
 import { tsh, SyncStatus } from 'teleterm/ui/services/clusters/types';
 import { ClustersService } from './clustersService';
 
-const clusterUri = 'testId';
+const clusterUri = '/clusters/test';
 
 const clusterMock: tsh.Cluster = {
   uri: clusterUri,
@@ -30,24 +30,57 @@ const gatewayMock: tsh.Gateway = {
   insecure: true,
 };
 
-const databaseMock: tsh.Database = {
-  uri: '/clusters/test/dbs/databaseTestUri',
+const dbMock: tsh.Database = {
+  uri: `${clusterUri}/dbs/databaseTestUri`,
   desc: 'Desc',
   name: 'Name',
   addr: 'addr',
   protocol: 'psql',
   type: '',
   hostname: 'localhost',
-  labelsList: [],
+  labelsList: [{ name: 'type', value: 'postgres' }],
 };
 
 const serverMock: tsh.Server = {
-  uri: '/clusters/test/servers/serverTestUri',
+  uri: `${clusterUri}/servers/serverTestUri`,
   addr: 'addr',
   name: 'Name',
   hostname: 'localhost',
-  labelsList: [],
-  tunnel: false,
+  labelsList: [
+    {
+      name: 'Type',
+      value: 'Unknown',
+    },
+  ],
+  tunnel: true,
+};
+
+const kubeMock: tsh.Kube = {
+  uri: `${clusterUri}/kubes/kubeTestUri`,
+  name: 'TestKube',
+  labelsList: [
+    {
+      name: 'Type',
+      value: 'K8',
+    },
+  ],
+};
+
+const appMock: tsh.Application = {
+  uri: `${clusterUri}/apps/appTestUri`,
+  name: 'TestApp',
+  labelsList: [
+    {
+      name: 'Type',
+      value: 'OnDemand',
+    },
+  ],
+  appUri: 'appTestUri',
+  awsConsole: false,
+  awsRolesList: [],
+  description: '',
+  fqdn: '',
+  publicAddr: 'app.test',
 };
 
 function createService(client: Partial<tsh.TshClient>): ClustersService {
@@ -63,7 +96,7 @@ function getClientMocks(): Partial<tsh.TshClient> {
     getCluster: jest.fn().mockResolvedValueOnce(clusterMock),
     listLeafClusters: jest.fn().mockResolvedValueOnce([]),
     listGateways: jest.fn().mockResolvedValueOnce([gatewayMock]),
-    listDatabases: jest.fn().mockResolvedValueOnce([databaseMock]),
+    listDatabases: jest.fn().mockResolvedValueOnce([dbMock]),
     listServers: jest.fn().mockResolvedValueOnce([serverMock]),
     createGateway: jest.fn().mockResolvedValueOnce(gatewayMock),
     removeGateway: jest.fn().mockResolvedValueOnce(undefined),
@@ -233,7 +266,7 @@ test('sync databases', async () => {
   await service.syncDbs(clusterUri);
 
   expect(listDatabases).toHaveBeenCalledWith(clusterUri);
-  expect(service.getDbs()).toStrictEqual([databaseMock]);
+  expect(service.getDbs()).toStrictEqual([dbMock]);
   const readySyncStatus: SyncStatus = { status: 'ready' };
   expect(service.getClusterSyncStatus(clusterUri).dbs).toStrictEqual(
     readySyncStatus
@@ -259,34 +292,53 @@ test('sync servers', async () => {
   );
 });
 
-test.skip('find servers by uri', () => {
+test('find servers by cluster uri', () => {
   const service = createService({});
   service.setState(draftState => {
     draftState.servers.set(serverMock.uri, serverMock);
-    draftState.servers.set('secondUri', { ...serverMock, uri: 'secondUri' });
   });
 
-  const foundServers = service.findServers(serverMock.uri);
+  const foundServers = service.findServers(clusterUri);
   expect(foundServers).toStrictEqual([serverMock]);
 });
 
-test.skip('find databases by uri', () => {
+test('find databases by cluster uri', () => {
   const service = createService({});
   service.setState(draftState => {
-    draftState.dbs.set(databaseMock.uri, databaseMock);
-    draftState.dbs.set('secondUri', { ...databaseMock, uri: 'secondUri' });
+    draftState.dbs.set(dbMock.uri, dbMock);
   });
 
-  const foundDbs = service.findDbs(databaseMock.uri);
+  const foundDbs = service.findDbs(clusterUri);
 
-  expect(foundDbs).toStrictEqual([databaseMock]);
+  expect(foundDbs).toStrictEqual([dbMock]);
 });
 
-test.skip('find cluster by resource uri', () => {
+test('find kubes by cluster uri', () => {
+  const service = createService({});
+  service.setState(draftState => {
+    draftState.kubes.set(kubeMock.uri, kubeMock);
+  });
+
+  const foundKubes = service.findKubes(clusterUri);
+
+  expect(foundKubes).toStrictEqual([kubeMock]);
+});
+
+test('find apps by cluster uri', () => {
+  const service = createService({});
+  service.setState(draftState => {
+    draftState.apps.set(appMock.uri, appMock);
+  });
+
+  const foundApps = service.findApps(clusterUri);
+
+  expect(foundApps).toStrictEqual([appMock]);
+});
+
+test('find cluster by resource uri', () => {
   const service = createService({});
   service.setState(draftState => {
     draftState.clusters.set(clusterUri, clusterMock);
-    draftState.clusters.set('secondUri', { ...clusterMock, uri: 'secondUri' });
   });
 
   const foundClusters = service.findClusterByResource(
@@ -294,4 +346,76 @@ test.skip('find cluster by resource uri', () => {
   );
 
   expect(foundClusters).toStrictEqual(clusterMock);
+});
+
+test.each([
+  { prop: 'name', value: dbMock.name },
+  { prop: 'desc', value: dbMock.desc },
+  { prop: 'labelsList', value: dbMock.labelsList[0].value },
+])('search dbs by prop: $prop', ({ value }) => {
+  const service = createService({});
+  service.setState(draftState => {
+    draftState.dbs.set(dbMock.uri, dbMock);
+  });
+
+  const foundDbs = service.searchDbs(clusterUri, {
+    search: value.toLocaleLowerCase(),
+  });
+
+  expect(foundDbs).toStrictEqual([dbMock]);
+});
+
+test.each([
+  { prop: 'name', value: appMock.name },
+  { prop: 'publicAddr', value: appMock.publicAddr },
+  { prop: 'description', value: appMock.description },
+  { prop: 'labelsList', value: appMock.labelsList[0].value },
+])('search apps by prop: $prop', ({ value }) => {
+  const service = createService({});
+  service.setState(draftState => {
+    draftState.apps.set(appMock.uri, appMock);
+  });
+
+  const foundApps = service.searchApps(clusterUri, {
+    search: value.toLocaleLowerCase(),
+  });
+
+  expect(foundApps).toStrictEqual([appMock]);
+});
+
+test.each([
+  { prop: 'name', value: kubeMock.name },
+  { prop: 'labelsList', value: kubeMock.labelsList[0].value },
+])('search kubes by prop: $prop', ({ value }) => {
+  const service = createService({});
+  service.setState(draftState => {
+    draftState.kubes.set(kubeMock.uri, kubeMock);
+  });
+
+  const foundKubes = service.searchKubes(clusterUri, {
+    search: value.toLocaleLowerCase(),
+  });
+
+  expect(foundKubes).toStrictEqual([kubeMock]);
+});
+
+test.each([
+  { prop: 'hostname', value: serverMock.hostname },
+  { prop: 'addr', value: serverMock.addr },
+  { prop: 'tunnel', value: 'TUNNEL' },
+  {
+    prop: 'labelsList',
+    value: serverMock.labelsList[0].value,
+  },
+])('search servers by prop: $prop', ({ value }) => {
+  const service = createService({});
+  service.setState(draftState => {
+    draftState.servers.set(serverMock.uri, serverMock);
+  });
+
+  const foundServers = service.searchServers(clusterUri, {
+    search: value.toLocaleLowerCase(),
+  });
+
+  expect(foundServers).toStrictEqual([serverMock]);
 });

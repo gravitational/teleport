@@ -10,6 +10,8 @@ import {
 import { ImmutableStore } from '../immutableStore';
 import { routing } from 'teleterm/ui/uri';
 import isMatch from 'design/utils/match';
+import { makeLabelTag } from 'teleport/components/formatters';
+import { Label } from 'teleport/types';
 
 export function createClusterServiceState(): ClustersServiceState {
   return {
@@ -411,37 +413,29 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
   }
 
   searchDbs(clusterUri: string, query: SearchQuery) {
-    function cb(targetValue: any[], searchValue: string, propName: string) {
-      if (propName === 'tags') {
-        return targetValue.some(item => {
-          return item.toLocaleUpperCase().indexOf(searchValue) !== -1;
-        });
-      }
-    }
-
     const databases = this.findDbs(clusterUri);
     return databases.filter(obj =>
       isMatch(obj, query.search, {
-        searchableProps: ['name', 'desc', 'title', 'tags'],
-        cb: cb,
+        searchableProps: ['name', 'desc', 'labelsList'],
+        cb: (targetValue, searchValue, propName) => {
+          if (propName === 'labelsList') {
+            return this._isIncludedInTagTargetValue(targetValue, searchValue);
+          }
+        },
       })
     );
   }
 
   searchApps(clusterUri: string, query: SearchQuery) {
-    function cb(targetValue: any[], searchValue: string, propName: string) {
-      if (propName === 'tags') {
-        return targetValue.some(item => {
-          return item.toLocaleUpperCase().indexOf(searchValue) !== -1;
-        });
-      }
-    }
-
     const apps = this.findApps(clusterUri);
     return apps.filter(obj =>
       isMatch(obj, query.search, {
-        searchableProps: ['name', 'publicAddr', 'description', 'tags'],
-        cb,
+        searchableProps: ['name', 'publicAddr', 'description', 'labelsList'],
+        cb: (targetValue, searchValue, propName) => {
+          if (propName === 'labelsList') {
+            return this._isIncludedInTagTargetValue(targetValue, searchValue);
+          }
+        },
       })
     );
   }
@@ -454,42 +448,43 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
   }
 
   searchKubes(clusterUri: string, query: SearchQuery) {
-    function cb(targetValue: any[], searchValue: string, propName: string) {
-      if (propName === 'tags') {
-        return targetValue.some(item => {
-          return item.toLocaleUpperCase().indexOf(searchValue) !== -1;
-        });
-      }
-    }
-
     const kubes = this.findKubes(clusterUri);
     return kubes.filter(obj =>
       isMatch(obj, query.search, {
         searchableProps: ['name', 'labelsList'],
-        cb,
+        cb: (targetValue, searchValue, propName) => {
+          if (propName === 'labelsList') {
+            return this._isIncludedInTagTargetValue(targetValue, searchValue);
+          }
+        },
       })
     );
   }
 
   searchServers(clusterUri: string, query: SearchQuery) {
-    function cb(targetValue: any[], searchValue: string, propName: string) {
-      if (propName === 'tunnel') {
-        return 'TUNNEL'.indexOf(searchValue) !== -1;
-      }
-
-      if (propName === 'tags') {
-        return targetValue.some(item => {
-          return item.toLocaleUpperCase().indexOf(searchValue) !== -1;
-        });
-      }
-    }
-
     const servers = this.findServers(clusterUri);
     return servers.filter(obj =>
       isMatch(obj, query.search, {
-        searchableProps: ['hostname', 'addr', 'tags', 'tunnel'],
-        cb,
+        searchableProps: ['hostname', 'addr', 'labelsList', 'tunnel'],
+        cb: (targetValue, searchValue, propName) => {
+          if (propName === 'tunnel') {
+            return 'TUNNEL'.includes(searchValue);
+          }
+
+          if (propName === 'labelsList') {
+            return this._isIncludedInTagTargetValue(targetValue, searchValue);
+          }
+        },
       })
+    );
+  }
+
+  private _isIncludedInTagTargetValue(
+    targetValue: Label[],
+    searchValue: string
+  ) {
+    return targetValue.some(item =>
+      makeLabelTag(item).toLocaleUpperCase().includes(searchValue)
     );
   }
 }

@@ -6,16 +6,15 @@ import {
 } from './types';
 
 export function useKeyboardShortcuts(handlers: KeyboardShortcutHandlers): void {
-  const { keyboardShortcutsService: serviceKeyboardShortcuts } =
-    useAppContext();
+  const { keyboardShortcutsService } = useAppContext();
 
   useEffect(() => {
     const handleShortcutEvent: KeyboardShortcutEventSubscriber = event => {
       handlers[event.type]?.();
     };
 
-    serviceKeyboardShortcuts.subscribeToEvents(handleShortcutEvent);
+    keyboardShortcutsService.subscribeToEvents(handleShortcutEvent);
     return () =>
-      serviceKeyboardShortcuts.unsubscribeFromEvents(handleShortcutEvent);
+      keyboardShortcutsService.unsubscribeFromEvents(handleShortcutEvent);
   }, [handlers]);
 }

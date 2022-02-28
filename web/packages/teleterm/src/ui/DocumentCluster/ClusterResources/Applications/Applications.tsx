@@ -32,6 +32,7 @@ import {
 import Table, { Cell } from 'design/DataTable';
 import * as types from 'teleterm/ui/services/clusters/types';
 import { useApps, State } from './useApps';
+import { renderLabelCell } from '../renderLabelCell';
 
 export default function Container() {
   const state = useApps();
@@ -66,9 +67,9 @@ export function AppList(props: State) {
           isSortable: true,
         },
         {
-          key: 'tags',
+          key: 'labelsList',
           headerText: 'Labels',
-          render: renderLabels,
+          render: renderLabelCell,
         },
         {
           altKey: 'launch-btn',
@@ -106,17 +107,6 @@ const renderAppIcon = (app: types.Application) => {
       </Flex>
     </Cell>
   );
-};
-
-const renderLabels = ({ labelsList }: types.Kube) => {
-  const labels = labelsList.map(l => `${l.name}:${l.value}`);
-  const $labels = labels.map(label => (
-    <Label mb="1" mr="1" key={label} kind="secondary">
-      {label}
-    </Label>
-  ));
-
-  return <Cell>{$labels}</Cell>;
 };
 
 const renderAddress = (app: types.Application) => {
