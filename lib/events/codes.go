@@ -500,4 +500,7 @@ const (
 	// RenewableCertificateGenerationMismatchCode is the renewable cert
 	// generation mismatch code.
 	RenewableCertificateGenerationMismatchCode = "TCB00W"
+
+	// UnknownCode is used when an event of unknown type is encountered.
+	UnknownCode = "TCC00E"
 )

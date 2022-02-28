@@ -353,6 +353,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_RenewableCertificateGenerationMismatch{
 			RenewableCertificateGenerationMismatch: e,
 		}
+	case *Unknown:
+		out.Event = &OneOf_Unknown{
+			Unknown: e,
+		}
 	default:
 		return nil, trace.BadParameter("event type %T is not supported", in)
 	}
