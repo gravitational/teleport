@@ -750,29 +750,37 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 	}
 }
 
-type getSiteNodeResponse struct {
-	Items []ui.Server `json:"items"`
+type clusterNodesGetResponse struct {
+	Items      []ui.Server `json:"items"`
+	StartKey   string      `json:"startKey"`
+	TotalCount int         `json:"totalCount"`
 }
 
-func (s *WebSuite) TestGetSiteNodes(c *C) {
-	pack := s.authPack(c, "foo")
+func TestClusterNodesGet(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com")
+	clusterName := env.server.ClusterName()
 
-	// get site nodes
-	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "nodes"), url.Values{})
-	c.Assert(err, IsNil)
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
 
-	nodes := getSiteNodeResponse{}
-	c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
-	c.Assert(len(nodes.Items), Equals, 1)
+	// Get nodes.
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
 
-	// get site nodes using shortcut
+	nodes := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
+	require.Len(t, nodes.Items, 1)
+
+	// Get nodes using shortcut.
 	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
-	nodes2 := getSiteNodeResponse{}
-	c.Assert(json.Unmarshal(re.Bytes(), &nodes2), IsNil)
-	c.Assert(len(nodes.Items), Equals, 1)
-	c.Assert(nodes2, DeepEquals, nodes)
+	nodes2 := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes2))
+	require.Len(t, nodes.Items, 1)
+	require.Equal(t, nodes, nodes2)
 }
 
 func (s *WebSuite) TestSiteNodeConnectInvalidSessionID(c *C) {
@@ -1465,44 +1473,48 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	}
 }
 
-func (s *WebSuite) TestCreateSession(c *C) {
-	pack := s.authPack(c, "foo")
+func TestCreateSession(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	user := "test-user@example.com"
+	pack := proxy.authPack(t, user)
 
 	// get site nodes
-	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "nodes"), url.Values{})
-	c.Assert(err, IsNil)
+	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "nodes"), url.Values{})
+	require.NoError(t, err)
 
-	nodes := getSiteNodeResponse{}
-	c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
+	nodes := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
 	node := nodes.Items[0]
 
 	sess := session.Session{
 		TerminalParams: session.TerminalParams{W: 300, H: 120},
-		Login:          s.user,
+		Login:          user,
 	}
 
 	// test using node UUID
 	sess.ServerID = node.Name
 	re, err = pack.clt.PostJSON(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"),
+		pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "sessions"),
 		siteSessionGenerateReq{Session: sess},
 	)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	var created *siteSessionGenerateResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &created), IsNil)
-	c.Assert(created.Session.ID, Not(Equals), "")
-	c.Assert(created.Session.ServerHostname, Equals, node.Hostname)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &created))
+	require.NotEmpty(t, created.Session.ID)
+	require.Equal(t, node.Hostname, created.Session.ServerHostname)
 
 	// test empty serverID (older version does not supply serverID)
 	sess.ServerID = ""
 	_, err = pack.clt.PostJSON(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"),
+		pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "sessions"),
 		siteSessionGenerateReq{Session: sess},
 	)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 }
 
 func (s *WebSuite) TestPlayback(c *C) {
@@ -1958,10 +1970,14 @@ func TestClusterDatabasesGet(t *testing.T) {
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
+	type testResponse struct {
+		Items []ui.Database `json:"items"`
+	}
+
 	// No db registered.
-	dbs := []ui.Database{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &dbs))
-	require.Len(t, dbs, 0)
+	resp := testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 0)
 
 	// Register a database.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
@@ -1982,16 +1998,16 @@ func TestClusterDatabasesGet(t *testing.T) {
 	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
-	dbs = []ui.Database{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &dbs))
-	require.Len(t, dbs, 1)
+	resp = testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 1)
 	require.EqualValues(t, ui.Database{
 		Name:     "test-db-name",
 		Desc:     "test-description",
 		Protocol: "test-protocol",
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
-	}, dbs[0])
+	}, resp.Items[0])
 }
 
 func TestClusterKubesGet(t *testing.T) {
@@ -2004,10 +2020,14 @@ func TestClusterKubesGet(t *testing.T) {
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
+	type testResponse struct {
+		Items []ui.Kube `json:"items"`
+	}
+
 	// No kube registered.
-	kbs := []ui.Kube{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &kbs))
-	require.Len(t, kbs, 0)
+	resp := testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 0)
 
 	// Register a kube service.
 	_, err = env.server.Auth().UpsertKubeServiceV2(context.Background(), &types.ServerV2{
@@ -2033,13 +2053,13 @@ func TestClusterKubesGet(t *testing.T) {
 	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
-	kbs = []ui.Kube{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &kbs))
-	require.Len(t, kbs, 1)
+	resp = testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 1)
 	require.EqualValues(t, ui.Kube{
 		Name:   "test-kube-name",
 		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
-	}, kbs[0])
+	}, resp.Items[0])
 }
 
 // TestApplicationAccessDisabled makes sure application access can be disabled
