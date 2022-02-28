@@ -230,10 +230,7 @@ const (
 )
 
 const (
-	// MetricProxyPeerClientDialError counts the number of failed grpc dial attempts.
-	MetricProxyPeerClientDialError = "proxy_peer_client_dial_error"
-
-	// MetricProxyPeerClientTunnelError counts the number of errors encountered fetching existing grpc connections.
+	// MetricProxyPeerClientTunnelError counts the number of errors encountered dialing peer proxies.
 	MetricProxyPeerClientTunnelError = "proxy_peer_client_tunnel_error"
 
 	// MetricProxyPeerClientRequest counts the number of grpc client requests.

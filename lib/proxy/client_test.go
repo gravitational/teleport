@@ -15,7 +15,6 @@
 package proxy
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
@@ -30,44 +29,91 @@ func TestClientConn(t *testing.T) {
 	require.NoError(t, err)
 
 	client, _ := setupClient(t, ca, ca, types.RoleProxy)
-	server1, _ := setupServer(t, ca, ca, types.RoleProxy)
-	server2, _ := setupServer(t, ca, ca, types.RoleProxy)
+	_, _, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy)
+	server2, _, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
 
-	// start with a fresh client
-	require.Equal(t, len(client.conns), 0)
+	// simulate watcher finding two servers
+	err = client.updateConnections([]types.Server{def1, def2})
+	require.NoError(t, err)
+	require.Len(t, client.conns, 2)
 
 	// dial first server and send a test data frame
-	stream, cached, err := client.dial(context.TODO(), server1.config.Listener.Addr().String())
+	stream, cached, err := client.dial([]string{"s1"})
 	require.NoError(t, err)
-	require.False(t, cached)
+	require.True(t, cached)
 	require.NotNil(t, stream)
-	require.Equal(t, len(client.conns), 1)
 	require.NoError(t, sendMsg(stream))
 	stream.CloseSend()
 
 	// dial second server
-	stream, cached, err = client.dial(context.TODO(), server2.config.Listener.Addr().String())
-	require.NoError(t, err)
-	require.False(t, cached)
-	require.NotNil(t, stream)
-	require.Equal(t, len(client.conns), 2)
-	stream.CloseSend()
-
-	// redial second server
-	stream, cached, err = client.dial(context.TODO(), server2.config.Listener.Addr().String())
+	stream, cached, err = client.dial([]string{"s2"})
 	require.NoError(t, err)
 	require.True(t, cached)
 	require.NotNil(t, stream)
-	require.Equal(t, len(client.conns), 2)
+	stream.CloseSend()
+
+	// redial second server
+	stream, cached, err = client.dial([]string{"s2"})
+	require.NoError(t, err)
+	require.True(t, cached)
+	require.NotNil(t, stream)
 	stream.CloseSend()
 
 	// close second server
 	// and attempt to redial it
 	server2.Shutdown()
-	stream, cached, err = client.dial(context.TODO(), server2.config.Listener.Addr().String())
+	stream, cached, err = client.dial([]string{"s2"})
 	require.Error(t, err)
+	require.False(t, cached)
 	require.Nil(t, stream)
-	require.Equal(t, len(client.conns), 1)
+
+	// simulate cleanup
+	err = client.cleanup()
+	require.Error(t, err) // Error reports that server2 couldn't be reached
+	require.Len(t, client.conns, 1)
+}
+
+// TestClientUpdate checks the client's watcher update behaviour
+func TestClientUpdate(t *testing.T) {
+	ca, err := newSelfSignedCA()
+	require.NoError(t, err)
+
+	client, _ := setupClient(t, ca, ca, types.RoleProxy)
+	_, _, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy)
+	server2, _, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
+
+	// watcher finds two servers
+	err = client.updateConnections([]types.Server{def1, def2})
+	require.NoError(t, err)
+	require.Len(t, client.conns, 2)
+	require.Contains(t, client.conns, "s1")
+	require.Contains(t, client.conns, "s2")
+
+	s1, _, err := client.dial([]string{"s1"})
+	require.NoError(t, err)
+	require.NotNil(t, s1)
+	require.NoError(t, sendMsgS(s1, "s1-1"))
+	s2, _, err := client.dial([]string{"s2"})
+	require.NoError(t, err)
+	require.NotNil(t, s2)
+	require.NoError(t, sendMsgS(s2, "s2-1"))
+
+	// watcher finds one of the two servers
+	err = client.updateConnections([]types.Server{def1})
+	require.NoError(t, err)
+	require.NoError(t, err)
+	require.Len(t, client.conns, 1)
+	require.Contains(t, client.conns, "s1")
+	require.NoError(t, sendMsgS(s1, "s1-2")) // stream is not broken across updates
+	require.Error(t, sendMsgS(s2, "s2-2"))   // stream fails because connection got closed
+
+	// watcher finds two servers with one broken connection
+	server2.Shutdown()
+	err = client.updateConnections([]types.Server{def1, def2})
+	require.Error(t, err) // Error reports that server2 couldn't be reached
+	require.Len(t, client.conns, 1)
+	require.Contains(t, client.conns, "s1")
+	require.NoError(t, sendMsgS(s1, "s1-3")) // stream is still going strong
 }
 
 func TestCAChange(t *testing.T) {
@@ -78,15 +124,19 @@ func TestCAChange(t *testing.T) {
 	require.NoError(t, err)
 
 	client, clientTLSConfig := setupClient(t, clientCA, serverCA, types.RoleProxy)
-	server, serverTLSConfig := setupServer(t, serverCA, clientCA, types.RoleProxy)
+	server, serverTLSConfig, serverDef := setupServer(t, "s1", serverCA, clientCA, types.RoleProxy)
+
+	err = client.updateConnections([]types.Server{serverDef})
+	require.NoError(t, err)
+	require.Len(t, client.conns, 1)
 
 	// dial server and send a test data frame
-	stream1, cached, err := client.dial(context.TODO(), server.config.Listener.Addr().String())
+	ogStream, cached, err := client.dial([]string{"s1"})
 	require.NoError(t, err)
-	require.False(t, cached)
-	require.NotNil(t, stream1)
+	require.True(t, cached)
+	require.NotNil(t, ogStream)
 
-	require.NoError(t, sendMsg(stream1))
+	require.NoError(t, sendMsg(ogStream))
 
 	// server ca rotated
 	newServerCA, err := newSelfSignedCA()
@@ -99,28 +149,32 @@ func TestCAChange(t *testing.T) {
 	*serverTLSConfig = *newServerTLSConfig
 
 	// existing connection should still be working
-	stream1, cached, err = client.dial(context.TODO(), server.config.Listener.Addr().String())
+	ogStream, cached, err = client.dial([]string{"s1"})
 	require.NoError(t, err)
 	require.True(t, cached)
-	require.NotNil(t, stream1)
-	require.NoError(t, sendMsg(stream1))
+	require.NotNil(t, ogStream)
+	require.NoError(t, sendMsg(ogStream))
 
 	// new connection should fail because client tls config still references old
 	// RootCAs.
-	stream2, err := client.newConnection(context.TODO(), server.config.Listener.Addr().String())
+	conn, err := client.connect("s1", server.config.Listener.Addr().String())
+	require.NoError(t, err)
+	require.NotNil(t, conn)
+	stream, err := client.startStream(conn)
 	require.Error(t, err)
-	require.Nil(t, stream2)
+	require.Nil(t, stream)
 
 	// new connection should succeed because client references new RootCAs
 	*serverCA = *newServerCA
-	stream3, err := client.newConnection(context.TODO(), server.config.Listener.Addr().String())
+	conn, err = client.connect("s1", server.config.Listener.Addr().String())
 	require.NoError(t, err)
-	require.NotNil(t, stream3)
-	require.NoError(t, sendMsg(stream3))
-	stream3.CloseSend()
+	require.NotNil(t, conn)
+	stream, err = client.startStream(conn)
+	require.NoError(t, err)
+	require.NoError(t, sendMsg(stream))
 
 	// for good measure, original stream should still be working
-	require.NoError(t, sendMsg(stream1))
+	require.NoError(t, sendMsg(ogStream))
 
 	// client ca rotated
 	newClientCA, err := newSelfSignedCA()
@@ -134,19 +188,22 @@ func TestCAChange(t *testing.T) {
 
 	// new connection should fail because server tls config still references old
 	// ClientCAs.
-	stream4, err := client.newConnection(context.TODO(), server.config.Listener.Addr().String())
+	conn, err = client.connect("s1", server.config.Listener.Addr().String())
+	require.NoError(t, err)
+	require.NotNil(t, conn)
+	stream, err = client.startStream(conn)
 	require.Error(t, err)
-	require.Nil(t, stream4)
+	require.Nil(t, stream)
 
 	// new connection should succeed because client references new RootCAs
 	*clientCA = *newClientCA
-	stream5, err := client.newConnection(context.TODO(), server.config.Listener.Addr().String())
+	conn, err = client.connect("s1", server.config.Listener.Addr().String())
 	require.NoError(t, err)
-	require.NotNil(t, stream5)
-	require.NoError(t, sendMsg(stream5))
-	stream5.CloseSend()
+	require.NotNil(t, conn)
+	stream, err = client.startStream(conn)
+	require.NoError(t, err)
+	require.NoError(t, sendMsg(stream))
 
 	// and one final time, original stream should still be working
-	require.NoError(t, sendMsg(stream1))
-	stream1.CloseSend()
+	require.NoError(t, sendMsgS(ogStream, "heheh"))
 }

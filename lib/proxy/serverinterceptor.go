@@ -87,7 +87,7 @@ func toGRPCError(err error) error {
 		return nil
 	}
 	if errors.Is(err, io.EOF) {
-		return status.Error(codes.OK, err.Error())
+		return err
 	}
 	if trace.IsNotFound(err) {
 		return status.Error(codes.NotFound, err.Error())
@@ -100,7 +100,7 @@ func toGRPCError(err error) error {
 
 func checkError(err error) error {
 	var callError error
-	if status.Code(err) != codes.OK {
+	if status.Code(err) != codes.OK && !errors.Is(err, io.EOF) {
 		callError = err
 	}
 	return callError
