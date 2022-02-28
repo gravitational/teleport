@@ -247,8 +247,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		}
 
 		// establish new connections
-		// TODO naji: repace this with proxy.GetPeerAddr()
-		conn, err := c.connect(id, proxy.GetAddr())
+		conn, err := c.connect(id, proxy.GetPeerAddr())
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -415,8 +414,7 @@ func (c *Client) dial(proxyIDs []string) (clientapi.ProxyService_DialNodeClient,
 			continue
 		}
 
-		// TODO naji: repace this with proxy.GetPeerAddr()
-		conn, err := c.connect(id, proxy.GetAddr())
+		conn, err := c.connect(id, proxy.GetPeerAddr())
 		if err != nil {
 			errs = append(errs, err)
 			continue
