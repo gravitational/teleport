@@ -27,8 +27,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// signingNameToHostnames is a map of signing names to their hostnames.
-var signingNameToHostnames = map[string]string{
+// signingNameToHostname is a map of AWS services' signing names to their
+// hostnames.
+var signingNameToHostname = map[string]string{
 	"a4b":                                   "a4b.us-east-1.amazonaws.com",
 	"access-analyzer":                       "access-analyzer.us-east-1.amazonaws.com",
 	"account":                               "account.us-east-1.amazonaws.com",
@@ -343,7 +344,7 @@ func TestResolveEndpoints(t *testing.T) {
 	region := "us-east-1"
 	now := time.Now()
 
-	for signingName := range signingNameToHostnames {
+	for signingName := range signingNameToHostname {
 		signingName := signingName
 
 		t.Run(signingName, func(t *testing.T) {
@@ -358,7 +359,7 @@ func TestResolveEndpoints(t *testing.T) {
 			endpoint, err := resolveEndpoint(req)
 			require.NoError(t, err)
 			require.Equal(t, signingName, endpoint.SigningName)
-			require.Equal(t, "https://"+signingNameToHostnames[signingName], endpoint.URL)
+			require.Equal(t, "https://"+signingNameToHostname[signingName], endpoint.URL)
 		})
 	}
 }

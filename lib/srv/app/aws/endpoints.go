@@ -56,19 +56,33 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// resolveEndpoint extracts the aws-service on and aws-region from the request authorization header
-// and resolves the aws-service and aws-region to AWS endpoint.
+// resolveEndpoint extracts the aws-service and aws-region from the request
+// authorization header and resolves the aws-service and aws-region to AWS
+// endpoint.
 func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(awsutils.AuthorizationHeader))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// EndpointFor expects an endpoints ID which can be different from the
-	// signing name.
+	// aws-sdk-go maintains a mapping of service endpoints which can be looked
+	// up by calling `endpoints.DefaultResolver().EndpointFor`. This mapping
+	// can be found at:
+	// https://github.com/aws/aws-sdk-go/blob/main/aws/endpoints/defaults.go
+	//
+	// The json equivalent can be found in botocore source code at:
+	// https://github.com/boto/botocore/blob/develop/botocore/data/endpoints.json
+	//
+	// The keys used for lookups are endpoints IDs, which can be different from
+	// the signing names. We have to translate the signing name received from
+	// the header back to the endpoints ID.
+	//
+	// In addition, many services are NOT found in aws-sdk-go's endpoints
+	// mapping. How aws-sdk-go resolves endpoints for these services is to
+	// allow ResolveUnknownService when creating the client sessions, which in
+	// turn generates the endpoint by using the endpoints ID and some default
+	// suffixes. We allow ResolveUnknownService here for the same purpose.
 	endpointsID := endpointsIDFromSigningName(awsAuthHeader.Service)
-
-	// Allow ResolveUnknownService to resolve services not in the defaults mapping.
 	opts := func(opts *endpoints.Options) {
 		opts.ResolveUnknownService = true
 	}
@@ -85,12 +99,13 @@ func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 }
 
 // endpointsIDFromSigningName returns the endpoints ID used for endpoint
-// lookups by calling endpoints.DefaultResolver().EndpointFor.
-//
-// A "services" map with supported endpoints IDs as the keys can be found at:
-// https://github.com/aws/aws-sdk-go/blob/v1.43.2/aws/endpoints/defaults.go
+// lookups when calling endpoints.DefaultResolver().EndpointFor.
 func endpointsIDFromSigningName(signingName string) string {
-	if endpointsID, ok := endpointsIDMapping[strings.ToLower(signingName)]; ok {
+	// Some clients may sign some services with upper case letters. We use all
+	// lower cases in our mapping.
+	signingName = strings.ToLower(signingName)
+
+	if endpointsID, ok := signingNameToEndpointsID[signingName]; ok {
 		return endpointsID
 	}
 
@@ -99,9 +114,20 @@ func endpointsIDFromSigningName(signingName string) string {
 	return signingName
 }
 
-// endpointsIDMapping is a mapping of services' signing names to their
+// signingNameToEndpointsID is a map of AWS services' signing names to their
 // endpoints IDs.
-var endpointsIDMapping = map[string]string{
+//
+// This mapping was created by the following process:
+// 1. Compile a mapping of all signing names to their hostnames (e.g. grep/awk
+// keywords in "aws-sdk-go-v2/services/")
+// 2. Create unit test "TestResolveEndpoints" to test each signing name.
+// 3. Investigate the test failures, and update this mapping to fix them.
+//
+// TODO Many services may sign with same names but use different hostnames.
+// Will need a way to differentiate them. For now, either make the best guess
+// in this mapping or use the default signing names. See signingNameToHostname
+// in endpoints_test.go for conflicting services.
+var signingNameToEndpointsID = map[string]string{
 	"appstream":                             appstream.EndpointsID,
 	"aws-marketplace":                       marketplacecatalog.EndpointsID,
 	"awsiottwinmaker":                       iottwinmaker.EndpointsID,
@@ -132,8 +158,3 @@ var endpointsIDMapping = map[string]string{
 	"sms-voice":                             pinpointsmsvoice.EndpointsID,
 	"timestream":                            timestreamquery.EndpointsID,
 }
-
-// TODO(greedy52) Many services may sign with same names but use different
-// hostnames. Will need a way to differentiate them. For now, either make the
-// best guess in the mapping above or use the default signing names. See
-// signingNameToHostnames in endpoints_test.go for conflicting services.
