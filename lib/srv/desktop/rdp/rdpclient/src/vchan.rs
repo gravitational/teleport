@@ -45,6 +45,11 @@ bitflags! {
 /// It is specified in section 2.2.6.1.1 of MS-RDPBCGR.
 #[derive(Debug)]
 pub struct ChannelPDUHeader {
+    /// The total length of the uncompressed PDU data,
+    /// excluding the length of this header.
+    /// Note: the data can span multiple PDUs, in which
+    /// case each PDU in the series contains the same
+    /// length field.
     pub length: u32,
     pub flags: ChannelPDUFlags,
 }
