@@ -33,7 +33,6 @@ export default function useTdpClientCanvas(props: Props) {
   } = props;
   const [tdpClient, setTdpClient] = useState<TdpClient | null>(null);
   const initialTdpConnectionSucceeded = useRef(false);
-  const latestClipboardData = useRef<string>(null);
 
   useEffect(() => {
     const { width, height } = getDisplaySize();
@@ -70,17 +69,8 @@ export default function useTdpClientCanvas(props: Props) {
 
   // Default TdpClientEvent.TDP_CLIPBOARD_DATA handler.
   const onClipboardData = (clipboardData: ClipboardData) => {
-    if (
-      enableClipboardSharing &&
-      document.hasFocus() &&
-      clipboardData.data !== latestClipboardData.current
-    ) {
-      navigator.clipboard.writeText(clipboardData.data).then(() => {
-        // Set latestClipboardText.current to whatever we got, so that
-        // next time onMouseEnter fires we don't try to send it back to
-        // the remote machine.
-        latestClipboardData.current = clipboardData.data;
-      });
+    if (enableClipboardSharing && document.hasFocus()) {
+      navigator.clipboard.writeText(clipboardData.data);
     }
   };
 
@@ -150,27 +140,11 @@ export default function useTdpClientCanvas(props: Props) {
 
   const sendLocalClipboardToRemote = (cli: TdpClient) => {
     // We must check that the DOM is focused or navigator.clipboard.readText throws an error.
-    // We check that initialTdpConnectionSucceeded so that we don't mistakenly send clipboard data
-    // to a backend that isn't ready for it yet, which would fail silently.
-    if (
-      enableClipboardSharing &&
-      document.hasFocus() &&
-      initialTdpConnectionSucceeded.current
-    ) {
+    if (enableClipboardSharing && document.hasFocus()) {
       navigator.clipboard.readText().then(text => {
-        if (text != latestClipboardData.current) {
-          // Wrap in try catch so that lastCopiedClipboardText is only
-          // updated if sendClipboardData succeeds.
-          // eslint-disable-next-line no-useless-catch
-          try {
-            cli.sendClipboardData({
-              data: text,
-            });
-            latestClipboardData.current = text;
-          } catch (e) {
-            throw e;
-          }
-        }
+        cli.sendClipboardData({
+          data: text,
+        });
       });
     }
   };
@@ -178,6 +152,13 @@ export default function useTdpClientCanvas(props: Props) {
   // Syncs the browser-side's clipboard. See the note about mouseenter in the relevant RFD for why this makes sense:
   // https://github.com/gravitational/teleport/blob/master/rfd/0049-desktop-clipboard.md#local-copy-remote-paste
   const onMouseEnter = (cli: TdpClient, e: MouseEvent) => {
+    e.preventDefault();
+    sendLocalClipboardToRemote(cli);
+  };
+
+  // onMouseEnter does not fire in certain situations, so ensure we cover all of our bases by adding a window level
+  // onfocus handler. See https://github.com/gravitational/webapps/issues/626 for further details.
+  const windowOnFocus = (cli: TdpClient, e: FocusEvent) => {
     e.preventDefault();
     sendLocalClipboardToRemote(cli);
   };
@@ -197,6 +178,7 @@ export default function useTdpClientCanvas(props: Props) {
     onMouseWheelScroll,
     onContextMenu,
     onMouseEnter,
+    windowOnFocus,
   };
 }
 

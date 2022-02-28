@@ -123,6 +123,7 @@ function Session(props: PropsWithChildren<State>) {
     onMouseWheelScroll,
     onContextMenu,
     onMouseEnter,
+    windowOnFocus,
   } = props;
 
   const clipboardSharingActive =
@@ -193,6 +194,7 @@ function Session(props: PropsWithChildren<State>) {
         onMouseWheelScroll={onMouseWheelScroll}
         onContextMenu={onContextMenu}
         onMouseEnter={onMouseEnter}
+        windowOnFocus={windowOnFocus}
       />
     </Flex>
   );

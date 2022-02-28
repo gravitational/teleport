@@ -65,6 +65,7 @@ const props: State = {
   onContextMenu: () => false,
   onMouseEnter: () => {},
   onClipboardData: () => {},
+  windowOnFocus: () => {},
   webauthn: {
     errorText: '',
     requested: false,
