@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { Label, Flex, Text, ButtonBorder } from 'design';
+import { Flex, Text, ButtonBorder } from 'design';
 import {
   pink,
   teal,
