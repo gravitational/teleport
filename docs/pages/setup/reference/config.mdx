@@ -96,11 +96,11 @@ teleport:
 
     # Logging configuration. Possible output values to disk via 
     # '/var/lib/teleport/teleport.log',
-    # 'stdout', 'stderr' and 'syslog'. Possible severity values are INFO, WARN
-    # and ERROR (default).
+    # 'stdout', 'stderr' and 'syslog'. Possible severity values are DEBUG, INFO (default), WARN,
+    # and ERROR.
     log:
         output: /var/lib/teleport/teleport.log
-        severity: ERROR
+        severity: INFO
 
         # Log format configuration
         # Possible output values are 'json' and 'text' (default).
