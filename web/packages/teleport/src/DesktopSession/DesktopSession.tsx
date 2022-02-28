@@ -61,7 +61,7 @@ export function DesktopSession(props: State) {
   } else if (clipboardError) {
     alertText = clipboardState.errorText || 'clipboard sharing failed';
   } else if (unknownConnectionError) {
-    alertText = 'Session disconnected for an unkown reason';
+    alertText = 'Session disconnected for an unknown reason';
   } else {
     alertText = '';
   }

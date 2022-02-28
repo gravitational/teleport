@@ -1383,7 +1383,7 @@ exports[`unintended disconnect 1`] = `
       class="c12"
       kind="danger"
     >
-      Session disconnected for an unkown reason
+      Session disconnected for an unknown reason
     </div>
     <canvas
       style="display: none; flex: 1;"

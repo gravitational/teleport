@@ -90,7 +90,7 @@ function useClipboardPermission(
                 setPermission({
                   state: 'error',
                   errorText:
-                    'unkown error reading browser clibpoard permissions',
+                    'unknown error reading browser clibpoard permissions',
                 });
               }
             }
