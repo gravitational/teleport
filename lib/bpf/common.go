@@ -126,17 +126,17 @@ func (c *Config) CheckAndSetDefaults() error {
 type NOP struct {
 }
 
-// Close will close the NOP service. Note this function does nothing.
+// Close closes the NOP service. Note this function does nothing.
 func (s *NOP) Close() error {
 	return nil
 }
 
-// OpenSession will open a NOP session. Note this function does nothing.
+// OpenSession opens a NOP session. Note this function does nothing.
 func (s *NOP) OpenSession(ctx *SessionContext) (uint64, error) {
 	return 0, nil
 }
 
-// OpenSession will open a NOP session. Note this function does nothing.
+// CloseSession closes a NOP session. Note this function does nothing.
 func (s *NOP) CloseSession(ctx *SessionContext) error {
 	return nil
 }
