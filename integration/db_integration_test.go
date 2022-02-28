@@ -212,6 +212,45 @@ func TestDatabaseAccessMongoRootCluster(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestDatabaseAccessMongoConnectionCount tests if mongo service releases
+// resource after a mongo client disconnect.
+func TestDatabaseAccessMongoConnectionCount(t *testing.T) {
+	pack := setupDatabaseTest(t)
+
+	connectMongoClient := func(t *testing.T) {
+		// Connect to the database service in root cluster.
+		client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+			AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+			AuthServer: pack.root.cluster.Process.GetAuthServer(),
+			Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()),
+			Cluster:    pack.root.cluster.Secrets.SiteName,
+			Username:   pack.root.user.GetName(),
+			RouteToDatabase: tlsca.RouteToDatabase{
+				ServiceName: pack.root.mongoService.Name,
+				Protocol:    pack.root.mongoService.Protocol,
+				Username:    "admin",
+			},
+		})
+		require.NoError(t, err)
+		// Execute a query.
+		_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+		require.NoError(t, err)
+		// Disconnect.
+		err = client.Disconnect(context.Background())
+		require.NoError(t, err)
+	}
+	connectMongoClient(t)
+
+	// Get connection count after mongo driver indicated the connection pool.
+	initialConnectionCount := pack.root.mongo.GetActiveConnectionsCount()
+	clientCount := 8
+	for i := 0; i < clientCount; i++ {
+		connectMongoClient(t)
+	}
+	// Check if active connections count is not growing over time when new clients connect to the mongo server.
+	require.Equal(t, initialConnectionCount, pack.root.mongo.GetActiveConnectionsCount())
+}
+
 // TestDatabaseAccessMongoLeafCluster tests a scenario where a user connects
 // to a Mongo database running in a leaf cluster.
 func TestDatabaseAccessMongoLeafCluster(t *testing.T) {
