@@ -15,11 +15,16 @@
  */
 
 import React from 'react';
-import { Text, Box, Link } from 'design';
+import { Text, Box } from 'design';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
-import * as links from 'teleport/services/links';
+import DownloadLinks from 'teleport/components/DownloadLinks';
 
-export default function Manually({ user, version, isAuthTypeLocal }: Props) {
+export default function Manually({
+  isEnterprise,
+  user,
+  version,
+  isAuthTypeLocal,
+}: Props) {
   const { hostname, port } = window.document.location;
   const host = `${hostname}:${port || '443'}`;
   let tshLoginCmd = `tsh login --proxy=${host}`;
@@ -35,17 +40,7 @@ export default function Manually({ user, version, isAuthTypeLocal }: Props) {
           Step 1
         </Text>{' '}
         - Download Teleport package to your computer
-        <Box>
-          <Link href={links.getMacOS(version)} target="_blank" mr="2">
-            MacOS
-          </Link>
-          <Link href={links.getLinux64(version)} target="_blank" mr="2">
-            Linux 64-bit
-          </Link>
-          <Link href={links.getLinux32(version)} target="_blank">
-            Linux 32-bit
-          </Link>
-        </Box>
+        <DownloadLinks isEnterprise={isEnterprise} version={version} />
       </Box>
       <Box mb={4}>
         <Text bold as="span">
@@ -76,6 +71,7 @@ export default function Manually({ user, version, isAuthTypeLocal }: Props) {
 }
 
 type Props = {
+  isEnterprise: boolean;
   user: string;
   version: string;
   isAuthTypeLocal: boolean;

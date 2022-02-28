@@ -18,7 +18,7 @@ import React from 'react';
 import { useServers, State } from './useServers';
 import * as types from 'teleterm/ui/services/clusters/types';
 import Table, { Cell } from 'design/DataTable';
-import { ButtonBorder, Label } from 'design';
+import { ButtonBorder } from 'design';
 import { renderLabelCell } from '../renderLabelCell';
 
 export default function Container() {
