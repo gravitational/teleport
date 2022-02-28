@@ -23,10 +23,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRDSURI(t *testing.T) {
+func TestParseRDSEndpoint(t *testing.T) {
 	tests := []struct {
 		name                string
-		uri                 string
+		endpoint            string
 		expectIsRDSEndpoint bool
 		expectInstanceID    string
 		expectRegion        string
@@ -34,27 +34,27 @@ func TestRDSURI(t *testing.T) {
 	}{
 		{
 			name:                "standard",
-			uri:                 "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+			endpoint:            "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
 			expectIsRDSEndpoint: true,
 			expectInstanceID:    "aurora-instance-1",
 			expectRegion:        "us-west-1",
 		},
 		{
 			name:                "cn-north-1",
-			uri:                 "aurora-instance-2.abcdefghijklmnop.rds.cn-north-1.amazonaws.com.cn:5432",
+			endpoint:            "aurora-instance-2.abcdefghijklmnop.rds.cn-north-1.amazonaws.com.cn",
 			expectIsRDSEndpoint: true,
 			expectInstanceID:    "aurora-instance-2",
 			expectRegion:        "cn-north-1",
 		},
 		{
-			name:                "localhost",
-			uri:                 "localhost:5432",
+			name:                "localhost:5432",
+			endpoint:            "localhost",
 			expectIsRDSEndpoint: false,
 			expectParseErrorIs:  trace.IsBadParameter,
 		},
 		{
-			name:                "Redshift URI fails",
-			uri:                 "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com:5432",
+			name:                "Redshift endpoint fails",
+			endpoint:            "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com",
 			expectIsRDSEndpoint: false,
 			expectParseErrorIs:  trace.IsBadParameter,
 		},
@@ -65,9 +65,9 @@ func TestRDSURI(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, test.expectIsRDSEndpoint, IsRDSEndpoint(test.uri))
+			require.Equal(t, test.expectIsRDSEndpoint, IsRDSEndpoint(test.endpoint))
 
-			instanceID, region, err := ParseRDSURI(test.uri)
+			instanceID, region, err := ParseRDSEndpoint(test.endpoint)
 			if test.expectParseErrorIs != nil {
 				require.Error(t, err)
 				require.True(t, test.expectParseErrorIs(err))
@@ -80,10 +80,10 @@ func TestRDSURI(t *testing.T) {
 	}
 }
 
-func TestRedshiftURI(t *testing.T) {
+func TestParseRedshiftEndpoint(t *testing.T) {
 	tests := []struct {
 		name                     string
-		uri                      string
+		endpoint                 string
 		expectIsRedshiftEndpoint bool
 		expectClusterID          string
 		expectRegion             string
@@ -91,27 +91,27 @@ func TestRedshiftURI(t *testing.T) {
 	}{
 		{
 			name:                     "standard",
-			uri:                      "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com:5432",
+			endpoint:                 "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com:5432",
 			expectClusterID:          "redshift-cluster-1",
 			expectRegion:             "us-east-1",
 			expectIsRedshiftEndpoint: true,
 		},
 		{
 			name:                     "cn-north-1",
-			uri:                      "redshift-cluster-2.abcdefghijklmnop.redshift.cn-north-1.amazonaws.com.cn:5432",
+			endpoint:                 "redshift-cluster-2.abcdefghijklmnop.redshift.cn-north-1.amazonaws.com.cn",
 			expectClusterID:          "redshift-cluster-2",
 			expectRegion:             "cn-north-1",
 			expectIsRedshiftEndpoint: true,
 		},
 		{
-			name:                     "localhost",
-			uri:                      "localhost:5432",
+			name:                     "localhost:5432",
+			endpoint:                 "localhost",
 			expectIsRedshiftEndpoint: false,
 			expectParseErrorIs:       trace.IsBadParameter,
 		},
 		{
-			name:                     "RDS URI fails",
-			uri:                      "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+			name:                     "RDS endpoint fails",
+			endpoint:                 "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com",
 			expectIsRedshiftEndpoint: false,
 			expectParseErrorIs:       trace.IsBadParameter,
 		},
@@ -122,9 +122,9 @@ func TestRedshiftURI(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, test.expectIsRedshiftEndpoint, IsRedshiftEndpoint(test.uri))
+			require.Equal(t, test.expectIsRedshiftEndpoint, IsRedshiftEndpoint(test.endpoint))
 
-			clusterID, region, err := ParseRedshiftURI(test.uri)
+			clusterID, region, err := ParseRedshiftEndpoint(test.endpoint)
 			if test.expectParseErrorIs != nil {
 				require.Error(t, err)
 				require.True(t, test.expectParseErrorIs(err))
