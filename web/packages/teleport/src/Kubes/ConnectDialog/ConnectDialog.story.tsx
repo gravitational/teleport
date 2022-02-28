@@ -28,6 +28,7 @@ export const Local = () => {
       username={'sam'}
       authType={'local'}
       kubeConnectName={'tele.logicoma.dev-prod'}
+      clusterId={'some-cluster-name'}
     />
   );
 };
@@ -39,6 +40,7 @@ export const Sso = () => {
       username={'sam'}
       authType={'sso'}
       kubeConnectName={'tele.logicoma.dev-prod'}
+      clusterId={'some-cluster-name'}
     />
   );
 };

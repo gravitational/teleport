@@ -22,7 +22,7 @@ import { AuthType } from 'teleport/services/user';
 import ConnectDialog from '../ConnectDialog';
 
 function KubeList(props: Props) {
-  const { kubes = [], pageSize = 100, username, authType } = props;
+  const { kubes = [], pageSize = 100, username, authType, clusterId } = props;
 
   const [kubeConnectName, setKubeConnectName] = useState('');
 
@@ -56,6 +56,7 @@ function KubeList(props: Props) {
           username={username}
           authType={authType}
           kubeConnectName={kubeConnectName}
+          clusterId={clusterId}
         />
       )}
     </>
@@ -80,6 +81,7 @@ type Props = {
   pageSize?: number;
   username: string;
   authType: AuthType;
+  clusterId: string;
 };
 
 export default KubeList;

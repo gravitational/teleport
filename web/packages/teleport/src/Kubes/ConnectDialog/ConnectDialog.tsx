@@ -26,12 +26,12 @@ import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { AuthType } from 'teleport/services/user';
 
 function ConnectDialog(props: Props) {
-  const { onClose, username, authType, kubeConnectName } = props;
+  const { onClose, username, authType, kubeConnectName, clusterId } = props;
   const { hostname, port } = window.document.location;
   const host = `${hostname}:${port || '443'}`;
-  const text = `tsh login --proxy=${host} ${
-    authType === 'local' ? `--auth=${authType} --user=${username}` : ''
-  }`;
+  const authSpec =
+    authType === 'local' ? `--auth=${authType} --user=${username} ` : '';
+  const text = `tsh login --proxy=${host} ${authSpec}${clusterId}`;
 
   return (
     <Dialog
@@ -87,6 +87,7 @@ type Props = {
   username: string;
   authType: AuthType;
   kubeConnectName: string;
+  clusterId: string;
 };
 
 const dialogCss = () => `
