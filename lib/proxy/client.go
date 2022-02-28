@@ -494,10 +494,14 @@ func (c *Client) startStream(conn *clientConn) (clientapi.ProxyService_DialNodeC
 // testConnection opens a new stream to the provided connection and
 // immediately closes it.
 func (c *Client) testConnection(conn *clientConn) error {
-	stream, err := c.startStream(conn)
+	client := clientapi.NewProxyServiceClient(conn.ClientConn)
+
+	stream, err := client.DialNode(conn.ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		c.metrics.reportTunnelError(errorStreamStart)
+		return trace.Wrap(err, "Error opening stream to proxy %+v", conn.id)
 	}
+
 	if err := stream.CloseSend(); err != nil {
 		return trace.Wrap(err)
 	}
