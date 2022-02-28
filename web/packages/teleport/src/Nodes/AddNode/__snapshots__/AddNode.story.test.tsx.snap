@@ -991,7 +991,7 @@ exports[`render manual tab with local user 1`] = `
             >
               <a
                 class="c14"
-                href="https://get.gravitational.com/teleport-v5.0.0-dev-darwin-amd64-bin.tar.gz"
+                href="https://get.gravitational.com/teleport-ent-v5.0.0-dev-darwin-amd64-bin.tar.gz"
                 rel="noreferrer"
                 target="_blank"
               >
@@ -999,7 +999,7 @@ exports[`render manual tab with local user 1`] = `
               </a>
               <a
                 class="c14"
-                href="https://get.gravitational.com/teleport-v5.0.0-dev-linux-amd64-bin.tar.gz"
+                href="https://get.gravitational.com/teleport-ent-v5.0.0-dev-linux-amd64-bin.tar.gz"
                 rel="noreferrer"
                 target="_blank"
               >
@@ -1007,7 +1007,7 @@ exports[`render manual tab with local user 1`] = `
               </a>
               <a
                 class="c15"
-                href="https://get.gravitational.com/teleport-v5.0.0-dev-linux-386-bin.tar.gz"
+                href="https://get.gravitational.com/teleport-ent-v5.0.0-dev-linux-386-bin.tar.gz"
                 rel="noreferrer"
                 target="_blank"
               >
@@ -1468,7 +1468,7 @@ exports[`render manual tab with sso user 1`] = `
             >
               <a
                 class="c14"
-                href="https://get.gravitational.com/teleport-v5.0.0-dev-darwin-amd64-bin.tar.gz"
+                href="https://get.gravitational.com/teleport-ent-v5.0.0-dev-darwin-amd64-bin.tar.gz"
                 rel="noreferrer"
                 target="_blank"
               >
@@ -1476,7 +1476,7 @@ exports[`render manual tab with sso user 1`] = `
               </a>
               <a
                 class="c14"
-                href="https://get.gravitational.com/teleport-v5.0.0-dev-linux-amd64-bin.tar.gz"
+                href="https://get.gravitational.com/teleport-ent-v5.0.0-dev-linux-amd64-bin.tar.gz"
                 rel="noreferrer"
                 target="_blank"
               >
@@ -1484,7 +1484,7 @@ exports[`render manual tab with sso user 1`] = `
               </a>
               <a
                 class="c15"
-                href="https://get.gravitational.com/teleport-v5.0.0-dev-linux-386-bin.tar.gz"
+                href="https://get.gravitational.com/teleport-ent-v5.0.0-dev-linux-386-bin.tar.gz"
                 rel="noreferrer"
                 target="_blank"
               >

@@ -27,7 +27,7 @@ import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import DatabaseList from './DatabaseList';
 import useDatabases, { State } from './useDatabases';
 import ButtonAdd from './ButtonAdd';
-import AddDialog from './AddDatabase';
+import AddDatabase from './AddDatabase';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -44,6 +44,7 @@ export function Databases(props: State) {
     showAddDialog,
     hideAddDialog,
     isAddDialogVisible,
+    isEnterprise,
     username,
     version,
     clusterId,
@@ -88,7 +89,8 @@ export function Databases(props: State) {
         />
       )}
       {isAddDialogVisible && (
-        <AddDialog
+        <AddDatabase
+          isEnterprise={isEnterprise}
           username={username}
           version={version}
           authType={authType}

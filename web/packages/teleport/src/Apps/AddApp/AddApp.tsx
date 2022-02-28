@@ -85,10 +85,11 @@ export function AddApp({
         )}
         {!automatic && (
           <Manually
-            user={user}
-            onClose={onClose}
-            version={version}
             isAuthTypeLocal={isAuthTypeLocal}
+            isEnterprise={isEnterprise}
+            onClose={onClose}
+            user={user}
+            version={version}
           />
         )}
       </Flex>
