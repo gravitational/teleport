@@ -44,7 +44,12 @@ type ServerConfig struct {
 	Log           logrus.FieldLogger
 
 	// getConfigForClient gets the client tls config.
+	// configurable for testing purposes.
 	getConfigForClient func(*tls.ClientHelloInfo) (*tls.Config, error)
+
+	// getService returns a custom ProxyServiceServer
+	// configurable for testing purposes.
+	getService func() proto.ProxyServiceServer
 }
 
 // checkAndSetDefaults checks and sets default values
@@ -104,11 +109,6 @@ func NewServer(config ServerConfig) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	service := &proxyService{
-		config.ClusterDialer,
-		config.Log,
-	}
-
 	transportCreds := newProxyCredentials(credentials.NewTLS(config.TLSConfig))
 	server := grpc.NewServer(
 		grpc.Creds(transportCreds),
@@ -122,7 +122,16 @@ func NewServer(config ServerConfig) (*Server, error) {
 			PermitWithoutStream: true,
 		}),
 	)
-	proto.RegisterProxyServiceServer(server, service)
+
+	if config.getService != nil {
+		proto.RegisterProxyServiceServer(server, config.getService())
+	} else {
+		service := &proxyService{
+			config.ClusterDialer,
+			config.Log,
+		}
+		proto.RegisterProxyServiceServer(server, service)
+	}
 
 	return &Server{
 		config:  config,

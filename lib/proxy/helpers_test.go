@@ -38,12 +38,45 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+type mockAuthClient struct {
+	auth.ClientI
+}
+
+func (c mockAuthClient) GetProxies() ([]types.Server, error) {
+	return []types.Server{}, nil
+}
+
 type mockAccessCache struct {
 	auth.AccessCache
 }
 
 type mockProxyAccessPoint struct {
 	auth.ProxyAccessPoint
+}
+
+type mockProxyService struct{}
+
+func (s *mockProxyService) DialNode(stream clientapi.ProxyService_DialNodeServer) error {
+	errChan := make(chan error)
+	defer close(errChan)
+
+	go func() {
+		for {
+			if _, err := stream.Recv(); err != nil {
+				errChan <- err
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-stream.Context().Done():
+		<-errChan
+		return stream.Context().Err()
+	case err := <-errChan:
+		return err
+	}
+	return nil
 }
 
 // newSelfSignedCA creates a new CA for testing.
@@ -112,9 +145,13 @@ func setupClient(t *testing.T, clientCA, serverCA *tlsca.CertAuthority, role typ
 	}
 
 	client, err := NewClient(ClientConfig{
-		AccessCache:        &mockProxyAccessPoint{},
+		ID:                 "client-proxy",
+		AuthClient:         mockAuthClient{},
+		AccessPoint:        &mockProxyAccessPoint{},
 		TLSConfig:          tlsConf,
+		Clock:              clockwork.NewFakeClock(),
 		getConfigForServer: getConfigForServer,
+		sync:               func() {},
 	})
 	require.NoError(t, err)
 
@@ -126,7 +163,7 @@ func setupClient(t *testing.T, clientCA, serverCA *tlsca.CertAuthority, role typ
 }
 
 // setupServer return a Server object.
-func setupServer(t *testing.T, serverCA, clientCA *tlsca.CertAuthority, role types.SystemRole) (*Server, *tls.Config) {
+func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthority, role types.SystemRole) (*Server, *tls.Config, types.Server) {
 	tlsConf := certFromIdentity(t, serverCA, tlsca.Identity{
 		Groups: []string{string(role)},
 	})
@@ -149,21 +186,36 @@ func setupServer(t *testing.T, serverCA, clientCA *tlsca.CertAuthority, role typ
 		TLSConfig:          tlsConf,
 		ClusterDialer:      &mockClusterDialer{},
 		getConfigForClient: getConfigForClient,
+		getService:         func() clientapi.ProxyServiceServer { return &mockProxyService{} },
 	})
+	require.NoError(t, err)
+
+	ts, err := types.NewServer(
+		name, types.KindProxy,
+		types.ServerSpecV2{Addr: listener.Addr().String()},
+	)
 	require.NoError(t, err)
 
 	go server.Serve()
 	t.Cleanup(func() {
-		server.Shutdown()
+		server.Close()
 	})
 
-	return server, tlsConf
+	return server, tlsConf, ts
 }
 
 func sendMsg(stream clientapi.ProxyService_DialNodeClient) error {
 	return stream.Send(&clientapi.Frame{
 		Message: &clientapi.Frame_Data{
 			&clientapi.Data{Bytes: []byte("test")},
+		},
+	})
+}
+
+func sendMsgS(stream clientapi.ProxyService_DialNodeClient, m string) error {
+	return stream.Send(&clientapi.Frame{
+		Message: &clientapi.Frame_Data{
+			&clientapi.Data{Bytes: []byte(m)},
 		},
 	})
 }

@@ -24,7 +24,6 @@ import (
 
 // clientMetrics represents a collection of metrics for a proxy peer client
 type clientMetrics struct {
-	dialErrorCounter   prometheus.Counter
 	tunnelErrorCounter *prometheus.CounterVec
 
 	requestCounter           *prometheus.CounterVec
@@ -39,16 +38,10 @@ type clientMetrics struct {
 // newClientMetrics inits and registers client metrics prometheus collectors.
 func newClientMetrics() (*clientMetrics, error) {
 	cm := &clientMetrics{
-		dialErrorCounter: prometheus.NewCounter(
-			prometheus.CounterOpts{
-				Name: teleport.MetricProxyPeerClientDialError,
-				Help: "Counts the number of failed dial attempts.",
-			},
-		),
 		tunnelErrorCounter: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: teleport.MetricProxyPeerClientTunnelError,
-				Help: "counts the number of errors encountered fetching existing grpc connections.",
+				Help: "counts the number of errors encountered dialing peer proxies.",
 			},
 			[]string{"error_type"},
 		),
@@ -113,7 +106,6 @@ func newClientMetrics() (*clientMetrics, error) {
 	}
 
 	if err := utils.RegisterPrometheusCollectors(
-		cm.dialErrorCounter,
 		cm.tunnelErrorCounter,
 		cm.requestCounter,
 		cm.handledCounter,
@@ -127,11 +119,6 @@ func newClientMetrics() (*clientMetrics, error) {
 	}
 
 	return cm, nil
-}
-
-// reportDialError reports errors encountered dialing a new peer tunnel.
-func (c *clientMetrics) reportDialError() {
-	c.dialErrorCounter.Inc()
 }
 
 // reportTunnelError reports errors encountered dialing an existing peer tunnel.
