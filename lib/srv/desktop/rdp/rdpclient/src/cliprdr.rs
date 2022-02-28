@@ -223,7 +223,7 @@ impl Client {
             }
             .encode()?,
         )?;
-        result.extend_from_slice(&encode_message(
+        result.extend(encode_message(
             ClipboardPDUType::CB_FORMAT_LIST,
             FormatListPDU::<LongFormatName> {
                 format_names: vec![LongFormatName::id(0)],
@@ -261,7 +261,7 @@ impl Client {
                 // TODO(zmb3): support CF_TEXT, CF_UNICODETEXT, ...
                 Some(ClipboardFormat::CF_OEMTEXT) => {
                     // request the data by imitating a paste event
-                    result.extend_from_slice(&encode_message(
+                    result.extend(encode_message(
                         ClipboardPDUType::CB_FORMAT_DATA_REQUEST,
                         FormatDataRequestPDU::for_id(name.format_id).encode()?,
                     )?);
@@ -325,7 +325,7 @@ impl Client {
 
         // trim the null-terminator, if it exists
         // (but don't worry about CRLF conversion, most non-Windows systems can handle CRLF well enough)
-        if !resp.data.is_empty() && *resp.data.last().unwrap() == 0x00 {
+        if let Some(0x00) = resp.data.last() {
             resp.data.truncate(resp.data.len() - 1);
         }
 
@@ -530,7 +530,7 @@ impl<T: FormatName> FormatListPDU<T> {
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = Vec::new();
         for name in &self.format_names {
-            w.extend_from_slice(&name.encode()?);
+            w.extend(name.encode()?);
         }
 
         Ok(w)
@@ -778,7 +778,7 @@ fn encode_message(msg_type: ClipboardPDUType, payload: Vec<u8>) -> RdpResult<Vec
         _ => ClipboardHeaderFlags::from_bits_truncate(0),
     };
     let mut inner = ClipboardPDUHeader::new(msg_type, msg_flags, payload.len() as u32).encode()?;
-    inner.extend_from_slice(&payload);
+    inner.extend(payload);
     let total_len = inner.len() as u32;
 
     let mut result = Vec::new();
@@ -809,7 +809,7 @@ fn encode_message(msg_type: ClipboardPDUType, payload: Vec<u8>) -> RdpResult<Vec
         // even if it has to be split into multpile chunks:
         // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/a542bf19-1c86-4c80-ab3e-61449653abf6
         let mut outer = vchan::ChannelPDUHeader::new(total_len, channel_flags).encode()?;
-        outer.extend_from_slice(&inner);
+        outer.extend(inner);
         result.push(outer);
 
         inner = leftover;
@@ -1097,7 +1097,9 @@ mod tests {
     #[test]
     fn update_clipboard_returns_format_list_pdu() {
         let mut c: Client = Default::default();
-        let messages = c.update_clipboard(String::rom("abc").into_bytes()).unwrap();
+        let messages = c
+            .update_clipboard(String::from("abc").into_bytes())
+            .unwrap();
         let bytes = messages[0].clone();
 
         // verify that it returns a properly encoded format list PDU
