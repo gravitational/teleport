@@ -104,7 +104,7 @@ func ParseRedshiftEndpoint(endpoint string) (clusterID, region string, err error
 	return parseRedshiftEndpoint(endpoint)
 }
 
-// ParseRedshiftEndpoint extracts cluster ID and region from the provided
+// parseRedshiftEndpoint extracts cluster ID and region from the provided
 // Redshift endpoint for standard regions.
 //
 // Redshift endpoints look like this:
@@ -117,7 +117,7 @@ func parseRedshiftEndpoint(endpoint string) (clusterID, region string, err error
 	return parts[0], parts[2], nil
 }
 
-// ParseRedshiftEndpoint extracts cluster ID and region from the provided
+// parseRedshiftCNEndpoint extracts cluster ID and region from the provided
 // Redshift endpoint for AWS China regions.
 //
 // Redshift endpoints look like this for AWS China regions:
