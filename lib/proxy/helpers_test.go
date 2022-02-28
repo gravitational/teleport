@@ -192,7 +192,7 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 
 	ts, err := types.NewServer(
 		name, types.KindProxy,
-		types.ServerSpecV2{Addr: listener.Addr().String()},
+		types.ServerSpecV2{PeerAddr: listener.Addr().String()},
 	)
 	require.NoError(t, err)
 
