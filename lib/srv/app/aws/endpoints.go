@@ -56,7 +56,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// resolveEndpoint extracts the aws-service and aws-region from the request
+// resolveEndpoint extracts the aws-service on and aws-region from the request
 // authorization header and resolves the aws-service and aws-region to AWS
 // endpoint.
 func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
@@ -109,8 +109,8 @@ func endpointsIDFromSigningName(signingName string) string {
 		return endpointsID
 	}
 
-	// If not found in mapping, endpoints ID is expected to be the same as the
-	// signing name.
+	// If not found in the mapping, endpoints ID is expected to be the same as
+	// the signing name.
 	return signingName
 }
 
@@ -118,10 +118,10 @@ func endpointsIDFromSigningName(signingName string) string {
 // endpoints IDs.
 //
 // This mapping was created by the following process:
-// 1. Compile a mapping of all signing names to their hostnames (e.g. grep/awk
+// 1. Compiled a mapping of all signing names to their hostnames (e.g. grep/awk
 // keywords in "aws-sdk-go-v2/services/")
-// 2. Create unit test "TestResolveEndpoints" to test each signing name.
-// 3. Investigate the test failures, and update this mapping to fix them.
+// 2. Created unit test "TestResolveEndpoints" to test each signing name.
+// 3. Investigated the test failures, and updated this mapping to fix them.
 //
 // TODO Many services may sign with same names but use different hostnames.
 // Will need a way to differentiate them. For now, either make the best guess
