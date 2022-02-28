@@ -784,7 +784,7 @@ fn encode_message(msg_type: ClipboardPDUType, payload: Vec<u8>) -> RdpResult<Vec
     let mut result = Vec::new();
     let mut first = true;
     while !inner.is_empty() {
-        let i = std::cmp::min(inner.len(), vchan::MAX_CHUNK_SIZE);
+        let i = std::cmp::min(inner.len(), vchan::CHANNEL_CHUNK_LEGNTH);
         let leftover = inner.split_off(i);
 
         let mut channel_flags = match msg_type {
@@ -1018,7 +1018,7 @@ mod tests {
     #[test]
     fn encodes_large_format_data_response() {
         let mut data = Vec::new();
-        data.resize(vchan::MAX_CHUNK_SIZE + 2, 0);
+        data.resize(vchan::CHANNEL_CHUNK_LEGNTH + 2, 0);
         for (i, item) in data.iter_mut().enumerate() {
             *item = (i % 256) as u8;
         }
