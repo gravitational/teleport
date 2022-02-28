@@ -23,7 +23,14 @@ test('search filter works', () => {
   const expectedToBeVisible = /env: prod/i;
   const notExpectedToBeVisible = /env: staging/i;
 
-  render(<KubeList username="joe" authType="local" kubes={kubes} />);
+  render(
+    <KubeList
+      username="joe"
+      authType="local"
+      kubes={kubes}
+      clusterId={'some-cluster-name'}
+    />
+  );
 
   fireEvent.change(screen.getByPlaceholderText(/SEARCH.../i), {
     target: { value: searchValue },

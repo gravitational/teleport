@@ -257,7 +257,7 @@ exports[`kube connect dialogue local 1`] = `
                   $
                 </div>
                 <div>
-                  tsh login --proxy=localhost:443 --auth=local --user=sam
+                  tsh login --proxy=localhost:443 --auth=local --user=sam some-cluster-name
                 </div>
               </div>
               <button
@@ -640,7 +640,7 @@ exports[`kube connect dialogue sso 1`] = `
                   $
                 </div>
                 <div>
-                  tsh login --proxy=localhost:443 
+                  tsh login --proxy=localhost:443 some-cluster-name
                 </div>
               </div>
               <button

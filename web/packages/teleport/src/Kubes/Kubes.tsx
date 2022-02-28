@@ -71,7 +71,12 @@ export function Kubes(props: State) {
       )}
       {hasKubes && (
         <>
-          <KubeList kubes={kubes} username={username} authType={authType} />
+          <KubeList
+            kubes={kubes}
+            username={username}
+            authType={authType}
+            clusterId={clusterId}
+          />
         </>
       )}
       {isEmpty && (
