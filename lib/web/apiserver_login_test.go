@@ -57,7 +57,7 @@ func TestWebauthnLogin_ssh(t *testing.T) {
 		Pass: password,
 	})
 	require.NoError(t, err)
-	authChallenge := &auth.MFAAuthenticateChallenge{}
+	authChallenge := &client.MFAAuthenticateChallenge{}
 	require.NoError(t, json.Unmarshal(beginResp.Bytes(), authChallenge))
 	require.NotNil(t, authChallenge.WebauthnChallenge)
 
@@ -113,7 +113,7 @@ func TestWebauthnLogin_web(t *testing.T) {
 		Pass: password,
 	})
 	require.NoError(t, err)
-	authChallenge := &auth.MFAAuthenticateChallenge{}
+	authChallenge := &client.MFAAuthenticateChallenge{}
 	require.NoError(t, json.Unmarshal(beginResp.Bytes(), authChallenge))
 	require.NotNil(t, authChallenge.WebauthnChallenge)
 

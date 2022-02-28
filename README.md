@@ -208,17 +208,6 @@ Run `make update-webassets` to update the `webassets` repo and create a PR for
 You will need to have the `gh` utility installed on your system for the script
 to work. For installation instructions, read the [GitHub CLI installation](https://github.com/cli/cli/releases/latest) documentation.
 
-### Updating Documentation
-
-TL;DR version:
-
-```bash
-make docs
-make run-docs
-```
-
-For more details, read the [docs/README](docs/README.md) file.
-
 ### Managing dependencies
 
 All dependencies are managed using [Go modules](https://blog.golang.org/using-go-modules). Here are the instructions for some common tasks:

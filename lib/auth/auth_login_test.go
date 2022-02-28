@@ -22,12 +22,10 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"github.com/tstranex/u2f"
-
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 )
 
 func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
@@ -53,7 +51,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
-				require.Empty(t, challenge.GetU2F())
 				require.Empty(t, challenge.GetWebauthnChallenge())
 			},
 		},
@@ -65,7 +62,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.NotNil(t, challenge.GetTOTP())
-				require.Empty(t, challenge.GetU2F())
 				require.Empty(t, challenge.GetWebauthnChallenge())
 			},
 		},
@@ -81,7 +77,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
-				require.Empty(t, challenge.GetU2F())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 			},
 		},
@@ -96,7 +91,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
-				require.Empty(t, challenge.GetU2F())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 			},
 		},
@@ -118,7 +112,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
-				require.Empty(t, challenge.GetU2F())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 				require.Equal(t, "myexplicitid", challenge.GetWebauthnChallenge().GetPublicKey().GetRpId())
 			},
@@ -222,14 +215,6 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 				switch {
 				case resp.GetWebauthn() != nil:
 					authReq.Webauthn = wanlib.CredentialAssertionResponseFromProto(resp.GetWebauthn())
-				case resp.GetU2F() != nil:
-					authReq.U2F = &U2FSignResponseCreds{
-						SignResponse: u2f.SignResponse{
-							KeyHandle:     resp.GetU2F().KeyHandle,
-							SignatureData: resp.GetU2F().Signature,
-							ClientData:    resp.GetU2F().ClientData,
-						},
-					}
 				case resp.GetTOTP() != nil:
 					authReq.OTP = &OTPCreds{
 						Password: []byte(password),
@@ -276,7 +261,7 @@ func TestCreateAuthenticateChallenge_WithAuth(t *testing.T) {
 	// TODO(codingllama): Use a public endpoint to verify?
 	mfaResp, err := u.webDev.SolveAuthn(res)
 	require.NoError(t, err)
-	_, err = srv.Auth().validateMFAAuthResponse(ctx, u.username, mfaResp, nil /* u2fStorage */)
+	_, err = srv.Auth().validateMFAAuthResponse(ctx, u.username, mfaResp)
 	require.NoError(t, err)
 }
 

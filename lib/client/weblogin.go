@@ -367,7 +367,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	challenge := &auth.MFAAuthenticateChallenge{}
+	challenge := &MFAAuthenticateChallenge{}
 	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
