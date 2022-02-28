@@ -863,24 +863,31 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 		return cfg, nil
 	}
 
-	cfg.MaxDisplay = x11.DefaultMaxDisplay
-	if ssh.X11.MaxDisplay != nil {
-		cfg.MaxDisplay = int(*ssh.X11.MaxDisplay)
-		// If set, max display must not be greater than the
-		// max display number supported by X Server
-		if cfg.MaxDisplay > x11.MaxDisplayNumber {
+	cfg.DisplayOffset = x11.DefaultDisplayOffset
+	if ssh.X11.DisplayOffset != nil {
+		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
+
+		if cfg.DisplayOffset > x11.MaxDisplayNumber {
 			cfg.DisplayOffset = x11.MaxDisplayNumber
 		}
 	}
 
-	cfg.DisplayOffset = x11.DefaultDisplayOffset
-	if ssh.X11.DisplayOffset != nil {
-		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
-		// If set, display offset must not be greater than the
-		// max display number
-		if cfg.DisplayOffset > cfg.MaxDisplay {
-			cfg.DisplayOffset = cfg.MaxDisplay
+	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
+	if ssh.X11.MaxDisplays != nil && ssh.X11.MaxDisplay == nil {
+		ssh.X11.MaxDisplay = ssh.X11.MaxDisplays
+	}
+
+	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays
+	if ssh.X11.MaxDisplay != nil {
+		cfg.MaxDisplay = int(*ssh.X11.MaxDisplay)
+
+		if cfg.MaxDisplay < cfg.DisplayOffset {
+			return nil, trace.BadParameter("x11.MaxDisplay cannot be smaller than x11.DisplayOffset")
 		}
+	}
+
+	if cfg.MaxDisplay > x11.MaxDisplayNumber {
+		cfg.MaxDisplay = x11.MaxDisplayNumber
 	}
 
 	return cfg, nil
@@ -985,9 +992,11 @@ type X11 struct {
 	// DisplayOffset tells the server what X11 display number to start from when
 	// searching for an open X11 unix socket for XServer proxies.
 	DisplayOffset *uint `yaml:"display_offset,omitempty"`
-	// DisplayOffset tells the server what X11 display number to stop at when
+	// MaxDisplay tells the server what X11 display number to stop at when
 	// searching for an open X11 unix socket for XServer proxies.
-	MaxDisplay *uint `yaml:"max_displays,omitempty"`
+	MaxDisplay *uint `yaml:"max_display,omitempty"`
+	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
+	MaxDisplays *uint `yaml:"max_displays,omitempty"`
 }
 
 // Databases represents the database proxy service configuration.
