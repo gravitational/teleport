@@ -178,7 +178,7 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 	})
 }
 
-// TestProxyRouteToDatabase tests  db connection with no user cert with protocol registered without any handler.
+// TestProxyRouteToDatabase tests db connection with protocol registered without any handler.
 // ALPN router leverages empty handler to route the connection to DBHandler
 // based on TLS RouteToDatabase identity entry.
 func TestProxyRouteToDatabase(t *testing.T) {
@@ -220,7 +220,6 @@ func TestProxyRouteToDatabase(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		defer conn.Close()
 		mustReadFromConnection(t, conn, databaseHandleResponse)
 		mustCloseConnection(t, conn)
 	})
@@ -232,7 +231,9 @@ func TestProxyRouteToDatabase(t *testing.T) {
 			ServerName: "localhost",
 		})
 		require.NoError(t, err)
-		defer conn.Close()
+		t.Cleanup(func() {
+			require.NoError(t, conn.Close())
+		})
 	})
 }
 

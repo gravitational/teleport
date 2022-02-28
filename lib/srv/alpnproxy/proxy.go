@@ -437,15 +437,6 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, info))
 }
 
-func isDBTLSProtocol(protocol common.Protocol) bool {
-	switch protocol {
-	case common.ProtocolMongoDB, common.ProtocolRedisDB, common.ProtocolSQLServer:
-		return true
-	default:
-		return false
-	}
-}
-
 func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDecs, error) {
 	if shouldRouteToKubeService(clientHelloInfo.ServerName) {
 		if p.cfg.Router.kubeHandler == nil {
@@ -467,7 +458,7 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 
 	for _, v := range clientProtocols {
 		protocol := common.Protocol(v)
-		if isDBTLSProtocol(protocol) {
+		if common.IsDBTLSProtocol(protocol) {
 			return &HandlerDecs{
 				MatchFunc:           MatchByProtocol(protocol),
 				HandlerWithConnInfo: p.databaseHandlerWithTLSTermination,
