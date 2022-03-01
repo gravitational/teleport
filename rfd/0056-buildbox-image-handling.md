@@ -91,7 +91,7 @@ That is:
 #### 2. CI and releases are configured to use an _exact_ version of the buildbox
 
 CI & release proccesses refer to _exact_ versions of the buildbox they use, either 
-by tag (if we can guarantee tag immutability_ or by hash (if we can't).
+by tag (if we can guarantee tag immutability) or by hash (if we can't).
 
  * This allows us to reproduce a build with the _exact same tooling_ that it was 
    built with previously. We _cannot_ make this guarantee with floating tags
