@@ -113,8 +113,7 @@ var artifacts []Artifact = []Artifact{
 	},
 	{
 		// The token hash is used to detect changes to the token and
-		// automatically purge existing identity documents when changes are
-		// detected.
+		// request a new identity when changes are detected.
 		Key:  TokenHashKey,
 		Kind: KindBotInternal,
 		ToBytes: func(i *Identity) []byte {

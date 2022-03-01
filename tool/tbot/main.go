@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -147,9 +148,14 @@ func onStart(botConfig *config.BotConfig) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	cliTokenHashBytes := []byte{}
+	if botConfig.Onboarding != nil && botConfig.Onboarding.Token != "" {
+		cliTokenHashBytes = []byte(fmt.Sprintf("%x", sha256.Sum256([]byte(botConfig.Onboarding.Token))))
+	}
+
 	// First, attempt to load an identity from storage.
 	ident, err := identity.LoadIdentity(dest, identity.BotKinds()...)
-	if err == nil {
+	if err == nil && bytes.Equal(ident.TokenHashBytes, cliTokenHashBytes) {
 		identStr, err := describeTLSIdentity(ident)
 		if err != nil {
 			return trace.Wrap(err)
@@ -172,6 +178,11 @@ func onStart(botConfig *config.BotConfig) error {
 	} else {
 		// If the identity can't be loaded, assume we're starting fresh and
 		// need to generate our initial identity from a token
+
+		if ident != nil {
+			// If ident is set here, we detected a token change above.
+			log.Warnf("Detected a token change, will attempt to fetch a new identity.")
+		}
 
 		// TODO: validate that errors from LoadIdentity are sanely typed; we
 		// actually only want to ignore NotFound errors
