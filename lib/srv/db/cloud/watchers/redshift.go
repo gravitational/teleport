@@ -87,7 +87,7 @@ func (f *redshiftFetcher) Get(ctx context.Context) (types.Databases, error) {
 	var databases types.Databases
 	for _, cluster := range clusters {
 		if !services.IsRedshiftClusterAvailable(cluster) {
-			f.log.Debugf("The current availability status of Redshift cluster %q is %v. Skipping.",
+			f.log.Debugf("The current status of Redshift cluster %q is %q. Skipping.",
 				aws.StringValue(cluster.ClusterIdentifier),
 				aws.StringValue(cluster.ClusterAvailabilityStatus))
 			continue

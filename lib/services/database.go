@@ -432,14 +432,14 @@ func IsRDSClusterAvailable(cluster *rds.DBCluster) bool {
 
 // IsRedshiftClusterAvailable checks if the Redshift cluster is available.
 func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
-	// For a full list of availability status values, see SDK documentation on
-	// redshift.Cluster.ClusterAvailabilityStatus.
-	//
-	// Note that status "Maintenance" and "Modifying" are classified as
-	// "intermittently available" in the SDK documentation. "true" is returned
-	// for these statuses.
-	switch aws.StringValue(cluster.ClusterAvailabilityStatus) {
-	case "Failed", "Unavailable":
+	// For a full list of status values, see:
+	// https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-clusters.html#rs-mgmt-cluster-status
+	switch aws.StringValue(cluster.ClusterStatus) {
+	case "creating", "deleting", "hardware-failure", "paused":
+		return false
+	}
+
+	if strings.HasSuffix(aws.StringValue(cluster.ClusterAvailabilityStatus), "incompatible-") {
 		return false
 	}
 

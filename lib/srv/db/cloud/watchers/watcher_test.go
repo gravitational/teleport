@@ -54,7 +54,7 @@ func TestWatcher(t *testing.T) {
 
 	redshiftUse1Prod, redshiftDatabaseUse1Prod := makeRedshiftCluster(t, "us-east-1", "prod")
 	redshiftUse1Dev, _ := makeRedshiftCluster(t, "us-east-1", "dev")
-	redshiftUse1Unavailable, _ := makeRedshiftCluster(t, "us-east-1", "qa", redshiftClusterStatus("Unavailable"))
+	redshiftUse1Unavailable, _ := makeRedshiftCluster(t, "us-east-1", "qa", redshiftClusterStatus("paused"))
 
 	tests := []struct {
 		name              string
@@ -257,9 +257,9 @@ func makeRDSCluster(t *testing.T, name, region string, labels map[string]string,
 
 func makeRedshiftCluster(t *testing.T, region, env string, opts ...func(*redshift.Cluster)) (*redshift.Cluster, types.Database) {
 	cluster := &redshift.Cluster{
-		ClusterIdentifier:         aws.String(env),
-		ClusterNamespaceArn:       aws.String(fmt.Sprintf("arn:aws:redshift:%s:1234567890:namespace:%s", region, env)),
-		ClusterAvailabilityStatus: aws.String("Available"),
+		ClusterIdentifier:   aws.String(env),
+		ClusterNamespaceArn: aws.String(fmt.Sprintf("arn:aws:redshift:%s:1234567890:namespace:%s", region, env)),
+		ClusterStatus:       aws.String("available"),
 		Endpoint: &redshift.Endpoint{
 			Address: aws.String("localhost"),
 			Port:    aws.Int64(5439),
@@ -333,7 +333,7 @@ func rdsClusterStatus(status string) func(*rds.DBCluster) {
 // redshiftClusterStatus returns an option function for makeRedshiftCluster to overwrite status.
 func redshiftClusterStatus(status string) func(*redshift.Cluster) {
 	return func(cluster *redshift.Cluster) {
-		cluster.ClusterAvailabilityStatus = aws.String(status)
+		cluster.ClusterStatus = aws.String(status)
 	}
 }
 
