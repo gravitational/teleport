@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// ErrCmdNotSupported is returned when an unsupported Redis command is sent to Teleport proxy.
 var ErrCmdNotSupported = trace.NotImplemented("command not supported")
 
 // WriteCmd writes Redis commands passed as vals to Redis wire form.

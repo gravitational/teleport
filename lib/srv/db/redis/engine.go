@@ -147,7 +147,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 
 	// Initialize newClient factory function with current connection state.
-	e.newClient, err = e.getNewClientFn(ctx, sessionCtx, err)
+	e.newClient, err = e.getNewClientFn(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -175,7 +175,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 }
 
 // getNewClientFn returns a partial Redis client factory function.
-func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session, err error) (redisClientFactoryFn, error) {
+func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session) (redisClientFactoryFn, error) {
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
