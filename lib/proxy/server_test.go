@@ -40,9 +40,11 @@ func TestServerTLS(t *testing.T) {
 	stream.CloseSend()
 
 	// trusted certificates with incorrect server role.
-	client2, _ := setupClient(t, ca1, ca1, types.RoleAdmin)
+	client2, _ := setupClient(t, ca1, ca1, types.RoleNode)
 	_, _, serverDef2 := setupServer(t, "s2", ca1, ca1, types.RoleProxy)
 	err = client2.updateConnections([]types.Server{serverDef2})
+	require.NoError(t, err) // connection succeeds but is in transient failure state
+	_, _, err = client2.dial([]string{"s2"})
 	require.Error(t, err)
 
 	// certificates with correct role from different CAs

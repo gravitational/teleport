@@ -66,11 +66,6 @@ func TestClientConn(t *testing.T) {
 	require.Error(t, err)
 	require.False(t, cached)
 	require.Nil(t, stream)
-
-	// simulate cleanup
-	err = client.cleanup()
-	require.Error(t, err) // Error reports that server2 couldn't be reached
-	require.Len(t, client.conns, 1)
 }
 
 // TestClientUpdate checks the client's watcher update behaviour
@@ -101,7 +96,6 @@ func TestClientUpdate(t *testing.T) {
 	// watcher finds one of the two servers
 	err = client.updateConnections([]types.Server{def1})
 	require.NoError(t, err)
-	require.NoError(t, err)
 	require.Len(t, client.conns, 1)
 	require.Contains(t, client.conns, "s1")
 	require.NoError(t, sendMsgS(s1, "s1-2")) // stream is not broken across updates
@@ -110,10 +104,24 @@ func TestClientUpdate(t *testing.T) {
 	// watcher finds two servers with one broken connection
 	server2.Shutdown()
 	err = client.updateConnections([]types.Server{def1, def2})
-	require.Error(t, err) // Error reports that server2 couldn't be reached
-	require.Len(t, client.conns, 1)
+	require.NoError(t, err) // server2 is in a transient failure state but not reported as an error
+	require.Len(t, client.conns, 2)
 	require.Contains(t, client.conns, "s1")
 	require.NoError(t, sendMsgS(s1, "s1-3")) // stream is still going strong
+	_, _, err = client.dial([]string{"s2"})
+	require.Error(t, err) // can't dial server2, obviously
+
+	// peer address change
+	_, _, def3 := setupServer(t, "s1", ca, ca, types.RoleProxy)
+	err = client.updateConnections([]types.Server{def3})
+	require.NoError(t, err)
+	require.Len(t, client.conns, 1)
+	require.Contains(t, client.conns, "s1")
+	require.Error(t, sendMsgS(s1, "s1-2")) // original stream is closed
+	s3, _, err := client.dial([]string{"s1"})
+	require.NoError(t, err)
+	require.NotNil(t, s3)
+	require.NoError(t, sendMsgS(s3, "s1-1")) // new stream is working
 }
 
 func TestCAChange(t *testing.T) {

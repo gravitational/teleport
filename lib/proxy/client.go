@@ -26,13 +26,13 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 )
@@ -42,6 +42,7 @@ const (
 	errorExistingTunnelInvalid  = "EXISTING_TUNNEL_INVALID"
 	errorNewTunnelDial          = "NEW_TUNNEL_DIAL"
 	errorStreamStart            = "STREAM_START"
+	errorTransientFailure       = "TRANSIENT_FAILURE"
 	errorAuthClient             = "AUTH_CLIENT_ERROR"
 	errorProxiesUnavailable     = "PROXIES_NOT_AVAILABLE"
 )
@@ -173,11 +174,8 @@ func NewClient(config ClientConfig) (*Client, error) {
 	return c, nil
 }
 
-// sync runs the proxy watcher and cleanup functionalities.
+// sync runs the proxy watcher functionality.
 func (c *Client) sync() {
-	ticker := c.config.Clock.NewTicker(defaults.ResyncInterval)
-	defer ticker.Stop()
-
 	proxyWatcher, err := services.NewProxyWatcher(c.ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.Component(teleport.ComponentProxyPeer),
@@ -200,17 +198,12 @@ func (c *Client) sync() {
 			if err := c.updateConnections(proxies); err != nil {
 				c.config.Log.Errorf("Error syncing peer proxies: %+v.", err)
 			}
-		case <-ticker.Chan():
-			if err := c.cleanup(); err != nil {
-				c.config.Log.Errorf("Error cleaning up peer proxies: %+v.", err)
-			}
 		}
 	}
 }
 
 func (c *Client) updateConnections(proxies []types.Server) error {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
 	var errs []error
 
 	toDial := make(map[string]types.Server)
@@ -218,21 +211,31 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		toDial[proxy.GetName()] = proxy
 	}
 
+	toDelete := make([]string, 0)
+	toKeep := make(map[string]*clientConn)
 	for id, conn := range c.conns {
-		_, ok := toDial[id]
+		proxy, ok := toDial[id]
 
 		// delete nonexistent connections
 		if !ok {
-			c.closeConn(conn)
+			toDelete = append(toDelete, id)
+			continue
+		}
+
+		// peer address changed
+		if conn.addr != proxy.GetPeerAddr() {
+			toDelete = append(toDelete, id)
 			continue
 		}
 
 		// test existing connections
 		if err := c.testConnection(conn); err != nil {
 			errs = append(errs, err)
-			c.closeConn(conn)
+			toDelete = append(toDelete, id)
 			continue
 		}
+
+		toKeep[id] = conn
 	}
 
 	for id, proxy := range toDial {
@@ -242,7 +245,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		}
 
 		// skip existing connection. they've been tested above.
-		if _, ok := c.conns[id]; ok {
+		if _, ok := toKeep[id]; ok {
 			continue
 		}
 
@@ -255,39 +258,23 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 
 		if err := c.testConnection(conn); err != nil {
 			errs = append(errs, err)
-			c.closeConn(conn)
+			conn.Close()
 			continue
 		}
 
-		c.conns[id] = conn
+		toKeep[id] = conn
 	}
-
-	return trace.NewAggregate(errs...)
-}
-
-func (c *Client) cleanup() error {
-	c.RLock()
-	var errs []error
-	toDelete := make(map[string]struct{})
-	for id, conn := range c.conns {
-		err := c.testConnection(conn)
-		if err == nil {
-			continue
-		}
-		errs = append(errs, err)
-		toDelete[id] = struct{}{}
-	}
-
 	c.RUnlock()
-	if len(toDelete) == 0 {
-		return nil
-	}
 
 	c.Lock()
 	defer c.Unlock()
-	for id := range toDelete {
-		c.closeConn(c.conns[id])
+
+	for _, id := range toDelete {
+		if conn, ok := c.conns[id]; ok {
+			c.closeConn(conn)
+		}
 	}
+	c.conns = toKeep
 
 	return trace.NewAggregate(errs...)
 }
@@ -498,6 +485,10 @@ func (c *Client) testConnection(conn *clientConn) error {
 
 	stream, err := client.DialNode(conn.ctx)
 	if err != nil {
+		if conn.GetState() == connectivity.TransientFailure {
+			c.metrics.reportTunnelError(errorTransientFailure)
+			return nil
+		}
 		c.metrics.reportTunnelError(errorStreamStart)
 		return trace.Wrap(err, "Error opening stream to proxy %+v", conn.id)
 	}
