@@ -379,11 +379,10 @@ func describeSSHIdentity(ident *identity.Identity) (string, error) {
 		return "", trace.BadParameter("attempted to describe SSH identity without SSH credentials")
 	}
 
-	// TODO: pending #10098 (renewable flag not added to SSH certs)
-	//renewable := false
-	//if _, ok := cert.Extensions[teleport.CertExtensionRenewable]; ok {
-	//	renewable = true
-	//}
+	renewable := false
+	if _, ok := cert.Extensions[teleport.CertExtensionRenewable]; ok {
+		renewable = true
+	}
 
 	disallowReissue := false
 	if _, ok := cert.Extensions[teleport.CertExtensionDisallowReissue]; ok {
@@ -406,10 +405,11 @@ func describeSSHIdentity(ident *identity.Identity) (string, error) {
 
 	duration := time.Second * time.Duration(cert.ValidBefore-cert.ValidAfter)
 	return fmt.Sprintf(
-		"valid: after=%v, before=%v, duration=%s | kind=ssh, disallow-reissue=%v, roles=%v, principals=%v",
+		"valid: after=%v, before=%v, duration=%s | kind=ssh, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v",
 		time.Unix(int64(cert.ValidAfter), 0).Format(time.RFC3339),
 		time.Unix(int64(cert.ValidBefore), 0).Format(time.RFC3339),
 		duration,
+		renewable,
 		disallowReissue,
 		roles,
 		principals,

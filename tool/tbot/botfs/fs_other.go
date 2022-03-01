@@ -35,7 +35,37 @@ func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 
 // Write stores the given data to the file at the given path.
 func Write(path string, data []byte, symlinksMode SymlinksMode) error {
+	switch symlinksMode {
+	case SymlinksSecure:
+		return trace.BadParameter("cannot write with `symlinks: secure` on unsupported platform")
+	case SymlinksTrySecure:
+		log.Warn("Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message", path)
+	}
+
+	file, err := openStandard(path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer file.Close()
+
+	if _, err := file.Write(data); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
+}
+
+// VerifyACL verifies whether the ACL of the given file allows writes from the
+// bot user.
+func VerifyACL(path string, botUserId string) error {
+	return trace.NotImplemented("ACLs not supported on this platform")
+}
+
+// ConfigureACL configures ACLs of the given file to allow writes from the bot
+// user.
+func ConfigureACL(path string, botUserId string) error {
+	return trace.NotImplemented("ACLs not supported on this platform")
 }
 
 // HasACLSupport determines if this binary / system supports ACLs. This

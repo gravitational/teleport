@@ -30,6 +30,7 @@ import (
 type DestinationDirectory struct {
 	Path     string             `yaml:"path,omitempty"`
 	Symlinks botfs.SymlinksMode `yaml:"symlinks,omitempty"`
+	ACLs     botfs.ACLMode      `yaml:"acls,omitempty"`
 }
 
 func (dd *DestinationDirectory) UnmarshalYAML(node *yaml.Node) error {
@@ -64,6 +65,11 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	aclsSupported, err := botfs.HasACLSupport()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	switch dd.Symlinks {
 	case "":
 		if secureSupported {
@@ -77,10 +83,32 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 		// valid
 	case botfs.SymlinksSecure:
 		if !secureSupported {
-			return trace.BadParameter("symlink mode %q not supported on this system", secureSupported)
+			return trace.BadParameter("symlink mode %q not supported on this system", dd.Symlinks)
 		}
 	default:
 		return trace.BadParameter("invalid symlinks mode: %q", dd.Symlinks)
+	}
+
+	switch dd.ACLs {
+	case "":
+		if aclsSupported {
+			// Unlike openat2(), we can't ever depend on ACLs being available.
+			// We'll only ever try to use them, end users can opt-in to a hard
+			// ACL check if they wish.
+			dd.ACLs = botfs.ACLTry
+		} else {
+			// if aclsSupported == false here, we know it will never work, so
+			// don't bother trying.
+			dd.ACLs = botfs.ACLOff
+		}
+	case botfs.ACLOff, botfs.ACLTry:
+		// valid
+	case botfs.ACLOn:
+		if !aclsSupported {
+			return trace.BadParameter("acls mode %q not supported on this system", dd.ACLs)
+		}
+	default:
+		return trace.BadParameter("invalid acls mode: %q", dd.ACLs)
 	}
 
 	return nil

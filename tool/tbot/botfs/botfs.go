@@ -29,6 +29,7 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTBot,
 })
 
+// SymlinksMode is an enum type listing various symlink behavior modes.
 type SymlinksMode string
 
 const (
@@ -47,8 +48,36 @@ const (
 	SymlinksSecure SymlinksMode = "secure"
 )
 
-// DefaultMode is the preferred permissions mode for bot files.
-const DefaultMode fs.FileMode = 0600
+// ACLMode is an enum type listing various ACL behavior modes.
+type ACLMode string
+
+const (
+	// ACLOff disables ACLs
+	ACLOff ACLMode = "off"
+
+	// ACLTry attempts to use ACLs but falls back to no ACLs with a warning if
+	// unavailable.
+	ACLTry ACLMode = "try"
+
+	// ACLOn enables ACL support and fails if ACLs are unavailable.
+	ACLOn ACLMode = "on"
+)
+
+const (
+	// DefaultMode is the preferred permissions mode for bot files.
+	DefaultMode fs.FileMode = 0600
+
+	// DefaultModeACL is the preferred permissions mode for bot files when ACLs
+	// are in use. Our preferred ACL mask overwrites the group bits and so
+	// appears to be 0670 when the true permissions are owner r/w + bot user
+	// r/w.
+	DefaultModeACL fs.FileMode = 0670
+
+	// DefaultDirMode is the preferred permissions mode for bot directories.
+	// Directories need the execute bit set for most operations on their
+	// contents to succeed.
+	DefaultDirMode fs.FileMode = 0700
+)
 
 // openStandard attempts to open the given path for writing with O_CREATE set.
 func openStandard(path string) (*os.File, error) {

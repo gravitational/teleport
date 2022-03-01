@@ -34,6 +34,10 @@ import (
 // syscall.
 const Openat2MinKernel = "5.6.0"
 
+// modeACLReadWrite is the lower 3 bytes of a UNIX file mode for permission
+// bits, i.e. just one r/w/x.
+const modeACLReadWrite = 06
+
 // openSecure opens the given path for writing (with O_CREAT, mode 0600)
 // with the RESOLVE_NO_SYMLINKS flag set.
 func openSecure(path string) (*os.File, error) {
@@ -90,8 +94,8 @@ func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 	// Implementation note: paranoid file _creation_ is only really useful for
 	// providing an early warning if openat2() / ACLs are unsupported on the
 	// host system, as it will catch compatibility issues during `tbot init`.
-	// Write() with Symlinks(Try)Secure is the codepath that actually prevents
-	// symlink attacks.
+	// Read() and Write() with Symlinks(Try)Secure are the codepaths that
+	// actually prevents symlink attacks.
 
 	switch symlinksMode {
 	case SymlinksSecure:
@@ -166,41 +170,34 @@ func Write(path string, data []byte, symlinksMode SymlinksMode) error {
 	return nil
 }
 
-func VerifyACL(path string, botUser string) error {
-	stat, err := os.Stat(path)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+// VerifyACL verifies whether the ACL of the given file allows writes from the
+// bot user.
+func VerifyACL(path string, botUserId string) error {
 	current, err := acl.Get(path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	log.Infof("current acl for %s: %+v", path, current)
+	log.Debugf("Current acl for path %q: %+v", path, current)
 
-	if stat.IsDir() {
-
-	} else {
-
+	for _, entry := range current {
+		log.Infof("    entry: %+v", entry)
 	}
 
 	return nil
 }
 
-func ConfigureACL(path string, botUser string) error {
-	stat, err := os.Stat(path)
-	if err != nil {
-		return trace.Wrap(err)
+// ConfigureACL configures ACLs of the given file to allow writes from the bot
+// user.
+func ConfigureACL(path string, botUserId string) error {
+	entry := acl.Entry{
+		Tag:       acl.TagUser,
+		Qualifier: botUserId,
+		Perms:     modeACLReadWrite,
 	}
 
-	if stat.IsDir() {
-
-	} else {
-
-	}
-
-	return nil
+	log.Debugf("Configuring ACL for user %q on path %q: %v", botUserId, path, entry)
+	return acl.Add(path, entry)
 }
 
 // HasACLSupport determines if this binary / system supports ACLs.
@@ -211,7 +208,8 @@ func HasACLSupport() (bool, error) {
 }
 
 // HasSecureWriteSupport determines if `CreateSecure()` should be supported
-// on this OS / kernel version. Note that it just checks the kernel
+// on this OS / kernel version. Note that it just checks the kernel version,
+// so this should be treated as a fallible hint.
 func HasSecureWriteSupport() (bool, error) {
 	minKernel := semver.New(Openat2MinKernel)
 	version, err := utils.KernelVersion()
