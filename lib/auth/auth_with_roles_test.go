@@ -2295,3 +2295,108 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 	require.Len(t, resp.Resources, 0)
 	require.Empty(t, cmp.Diff([]types.ResourceWithLabels{}, resp.Resources))
 }
+
+func TestListResources_KindKubernetesCluster(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, TestBuiltin(types.RoleProxy).I))
+	require.NoError(t, err)
+
+	s := &ServerWithRoles{
+		authServer: srv.AuthServer,
+		sessions:   srv.SessionServer,
+		alog:       srv.AuditLog,
+		context:    *authContext,
+	}
+
+	testNames := []string{"a", "b", "c", "d"}
+
+	// Add some kube services.
+	kubeService, err := types.NewServer("bar", types.KindKubeService, types.ServerSpecV2{
+		KubernetesClusters: []*types.KubernetesCluster{{Name: "d"}, {Name: "b"}, {Name: "a"}},
+	})
+	require.NoError(t, err)
+	_, err = s.UpsertKubeServiceV2(ctx, kubeService)
+	require.NoError(t, err)
+
+	// Include a duplicate cluster name to test deduplicate.
+	kubeService, err = types.NewServer("foo", types.KindKubeService, types.ServerSpecV2{
+		KubernetesClusters: []*types.KubernetesCluster{{Name: "a"}, {Name: "c"}},
+	})
+	require.NoError(t, err)
+	_, err = s.UpsertKubeServiceV2(ctx, kubeService)
+	require.NoError(t, err)
+
+	// Test upsert.
+	kubeservices, err := s.GetKubeServices(ctx)
+	require.NoError(t, err)
+	require.Len(t, kubeservices, 2)
+
+	t.Run("fetch all", func(t *testing.T) {
+		t.Parallel()
+
+		res, err := s.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindKubernetesCluster,
+			Limit:        10,
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Resources, len(testNames))
+		require.Empty(t, res.NextKey)
+		require.Empty(t, res.TotalCount)
+
+		clusters, err := types.ResourcesWithLabels(res.Resources).AsKubeClusters()
+		require.NoError(t, err)
+		names, err := types.KubeClusters(clusters).GetFieldVals(types.ResourceMetadataName)
+		require.NoError(t, err)
+		require.ElementsMatch(t, names, testNames)
+	})
+
+	t.Run("start keys", func(t *testing.T) {
+		t.Parallel()
+
+		// First fetch.
+		res, err := s.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindKubernetesCluster,
+			Limit:        1,
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Resources, 1)
+		require.Equal(t, kubeservices[0].GetKubernetesClusters()[1].Name, res.NextKey)
+
+		// Second fetch.
+		res, err = s.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindKubernetesCluster,
+			Limit:        1,
+			StartKey:     res.NextKey,
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Resources, 1)
+		require.Equal(t, kubeservices[0].GetKubernetesClusters()[2].Name, res.NextKey)
+	})
+
+	t.Run("fetch with sort and total count", func(t *testing.T) {
+		t.Parallel()
+		res, err := s.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindKubernetesCluster,
+			Limit:        10,
+			SortBy: types.SortBy{
+				IsDesc: true,
+				Field:  types.ResourceMetadataName,
+			},
+			NeedTotalCount: true,
+		})
+		require.NoError(t, err)
+		require.Empty(t, res.NextKey)
+		require.Len(t, res.Resources, len(testNames))
+		require.Equal(t, res.TotalCount, len(testNames))
+
+		clusters, err := types.ResourcesWithLabels(res.Resources).AsKubeClusters()
+		require.NoError(t, err)
+		names, err := types.KubeClusters(clusters).GetFieldVals(types.ResourceMetadataName)
+		require.NoError(t, err)
+		require.IsDecreasing(t, names)
+	})
+}
