@@ -455,12 +455,12 @@
               "slug": "/database-access/guides/sql-server-ad/"
             },
             {
-              "title": "Database GUI Clients",
-              "slug": "/database-access/guides/gui-clients/"
+              "title": "Self-Hosted Redis",
+              "slug": "/database-access/guides/redis/"
             },
             {
-              "title": "Redis",
-              "slug": "/database-access/guides/redis/"
+              "title": "Database GUI Clients",
+              "slug": "/database-access/guides/gui-clients/"
             },
             {
               "title": "Dynamic Registration",
