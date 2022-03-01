@@ -5017,8 +5017,8 @@ steps:
   - name: Check if tag is prerelease
     image: golang:1.17-alpine
     commands:
-      - cd /go/src/github.com/gravitational/teleport/build.assets/version-check
-      - go run . -tag ${DRONE_TAG} -check prerelease || (echo '---> Not publishing ${DRONE_TAG} packages to RPM and DEB repos' && exit 78)
+      - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
+      - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> Not publishing ${DRONE_TAG} packages to RPM and DEB repos' && exit 78)
 
   - name: "RPM: Download RPM repository"
     image: amazon/aws-cli
@@ -5107,8 +5107,8 @@ steps:
   - name: Check if tag is latest
     image: golang:1.17-alpine
     commands:
-      - cd /go/src/github.com/gravitational/teleport/build.assets/version-check
-      - go run . -tag ${DRONE_TAG} -check latest || (echo '---> Not publishing ${DRONE_REPO} packages to DEB repo' && exit 78)
+      - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
+      - go run ./cmd/check -tag ${DRONE_TAG} -check latest || (echo '---> Not publishing ${DRONE_TAG} packages to DEB repo' && exit 78)
 
   - name: Download DEB repo contents
     image: amazon/aws-cli
@@ -5220,6 +5220,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 0486432e47dfd079f2ac8d8a11c82482df07258dfd2d19d6ae02228c25a9e746
+hmac: 3acbcbdb643d0819a97430b05c46591ce9ea72e14f8cb9591d8b13ee96e89ef6
 
 ...
