@@ -25,11 +25,18 @@ package tdp
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"image"
 	"image/png"
 	"io"
 
 	"github.com/gravitational/trace"
+
+	authproto "github.com/gravitational/teleport/api/client/proto"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/web/mfajson"
 )
 
 // MessageType identifies the type of the message.
@@ -47,6 +54,7 @@ const (
 	TypeClientUsername   = MessageType(7)
 	TypeMouseWheel       = MessageType(8)
 	TypeError            = MessageType(9)
+	TypeMFA              = MessageType(10)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -97,6 +105,8 @@ func decode(in peekReader) (Message, error) {
 		return decodeClipboardData(in, maxClipboardDataLength)
 	case TypeError:
 		return decodeError(in)
+	case TypeMFA:
+		return DecodeMFA(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", t)
 	}
@@ -441,6 +451,150 @@ func decodeClipboardData(in peekReader, maxLen uint32) (ClipboardData, error) {
 	}
 
 	return ClipboardData(b), nil
+}
+
+const maxMFADataLength = 1024 * 1024
+
+type MFA struct {
+	// Type should be defaults.WebsocketWebauthnChallenge
+	Type byte
+	// MFAAuthenticateChallenge is the challenge we send to the client.
+	// Used for messages from Teleport to the user's browser.
+	*client.MFAAuthenticateChallenge
+	// MFAAuthenticateResponse is the response to the MFA challenge,
+	// sent from the browser to Teleport.
+	*authproto.MFAAuthenticateResponse
+}
+
+func (m MFA) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeMFA))
+	buf.WriteByte(m.Type)
+	var buff []byte
+	var err error
+
+	if m.MFAAuthenticateChallenge != nil {
+		buff, err = json.Marshal(m.MFAAuthenticateChallenge)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else if m.MFAAuthenticateResponse != nil {
+		switch t := m.MFAAuthenticateResponse.Response.(type) {
+		case *authproto.MFAAuthenticateResponse_Webauthn:
+			buff, err = json.Marshal(wanlib.CredentialAssertionResponseFromProto(m.MFAAuthenticateResponse.GetWebauthn()))
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		default:
+			return nil, trace.BadParameter("unsupported type %T", t)
+		}
+	} else {
+		return nil, trace.BadParameter("got nil MFAAuthenticateChallenge and MFAAuthenticateResponse fields")
+	}
+
+	if len(buff) > maxMFADataLength {
+		return nil, trace.BadParameter("mfa challenge data exceeds maximum length")
+	}
+	binary.Write(buf, binary.BigEndian, uint32(len(buff)))
+	buf.Write(buff)
+	return buf.Bytes(), nil
+}
+
+func DecodeMFA(in peekReader) (*MFA, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if t != byte(TypeMFA) {
+		return nil, trace.BadParameter("got message type %v, expected TypeMFA(%v)", t, TypeMFA)
+	}
+
+	mt, err := in.ReadByte()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s := string(mt)
+	switch s {
+	case defaults.WebsocketWebauthnChallenge:
+	default:
+		return nil, trace.BadParameter(
+			"got mfa type %v, expected %v (WebAuthn)", mt, defaults.WebsocketWebauthnChallenge)
+	}
+
+	var length uint32
+	if err := binary.Read(in, binary.BigEndian, &length); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if length > maxMFADataLength {
+		return nil, trace.BadParameter("mfa challenge data exceeds maximum length")
+	}
+
+	b := make([]byte, int(length))
+	if _, err := io.ReadFull(in, b); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mfaResp, err := mfajson.Decode(b, s)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &MFA{
+		Type:                    mt,
+		MFAAuthenticateResponse: mfaResp,
+	}, nil
+}
+
+// DecodeMFAChallenge is a helper function used in test purpose to decode MFA challenge payload because in
+// real flow this logic is invoked by a fronted client.
+func DecodeMFAChallenge(in peekReader) (*MFA, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if t != byte(TypeMFA) {
+		return nil, trace.BadParameter("got message type %v, expected TypeMFAJson(%v)", t, TypeMFA)
+	}
+
+	mt, err := in.ReadByte()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s := string(mt)
+	switch s {
+	case defaults.WebsocketWebauthnChallenge:
+	default:
+		return nil, trace.BadParameter(
+			"got mfa type %v, expected %v (WebAuthn)", mt, defaults.WebsocketWebauthnChallenge)
+	}
+
+	var length uint32
+	if err := binary.Read(in, binary.BigEndian, &length); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if length > maxMFADataLength {
+		return nil, trace.BadParameter("mfa challenge data exceeds maximum length")
+	}
+
+	b := make([]byte, int(length))
+	if _, err := io.ReadFull(in, b); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var req *client.MFAAuthenticateChallenge
+	if err := json.Unmarshal(b, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &MFA{
+		Type:                     mt,
+		MFAAuthenticateChallenge: req,
+	}, nil
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with

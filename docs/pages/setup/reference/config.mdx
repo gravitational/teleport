@@ -11,8 +11,15 @@ By default, it is stored in `/etc/teleport.yaml`.
 
 (!docs/pages/includes/backup-warning.mdx!)
 
-This document aims to be a reference rather than a starting point for a real cluster. To
-get a good starting file, run `teleport configure -o teleport.yaml`.
+This document aims to be a reference rather than a starting point for a real cluster. 
+
+<Admonition type="danger" title="Before using this reference">
+You must edit your configuration file to meet the needs of your environment. Using a copy of the reference configuration will have unintended effects. To create a configuration file that you can use as a starting point, run the following command:
+
+```code
+$ teleport configure -o file
+```
+</Admonition>
 
 ```yaml
 # By default, this file should be stored in /etc/teleport.yaml
@@ -89,11 +96,11 @@ teleport:
 
     # Logging configuration. Possible output values to disk via 
     # '/var/lib/teleport/teleport.log',
-    # 'stdout', 'stderr' and 'syslog'. Possible severity values are INFO, WARN
-    # and ERROR (default).
+    # 'stdout', 'stderr' and 'syslog'. Possible severity values are DEBUG, INFO (default), WARN,
+    # and ERROR.
     log:
         output: /var/lib/teleport/teleport.log
-        severity: ERROR
+        severity: INFO
 
         # Log format configuration
         # Possible output values are 'json' and 'text' (default).
@@ -689,70 +696,7 @@ kubernetes_service:
       period: 1m0s
 
 # This section configures the 'database service'.
-db_service:
-  # Enables the database service. Default is "no".
-  enabled: "yes"
-
-  # Matchers for registering AWS-hosted databases.
-  aws:
-    # Database types. Valid options are:
-    # 'rds' - discovers and registers AWS RDS and Aurora databases.
-    # 'redshift' - discovers and registers AWS Redshift databases.
-  - types: ["rds", "redshift"]
-    # AWS regions to register databases from.
-    regions: ["us-west-1", "us-east-2"]
-    # AWS resource tags to match when registering databases.
-    tags:
-      "*": "*"
-
-  # This section contains definitions of all databases proxied by this
-  # service, it can contain multiple database instances.
-  databases:
-    # Name of the database proxy instance used to reference in CLI.
-  - name: "prod"
-    # Free-form description of the database proxy instance.
-    description: "Production database"
-    # Database protocol. Can be "postgres", "mysql", or "mongodb".
-    protocol: "postgres"
-    # Database connection endpoint. Must be reachable from Database Service.
-    uri: "postgres.example.com:5432"
-    # Optional TLS configuration.
-    tls:
-      # TLS verification mode. Valid options are:
-      # 'verify-full' - performs full certificate validation (default).
-      # 'verify-ca' - the same as `verify-full`, but skips the server name 
-      # validation.
-      # 'insecure' - accepts any certificate provided by database (not 
-      # recommended).
-      mode: verify-full
-      # Optional database DNS server name. It allows to override the DNS name 
-      # on a client certificate when connecting to a database.
-      # Use only with 'verify-full' mode.
-      server_name: db.example.com
-      # Optional path to the CA used to validate the database certificate.
-      ca_cert_file: /path/to/pem
-    # AWS specific configuration, only required for RDS/Aurora/Redshift.
-    aws:
-      # Region the database is deployed in.
-      region: "us-east-1"
-      # Redshift specific configuration.
-      redshift:
-        # Redshift cluster identifier.
-        cluster_id: "redshift-cluster-1"
-    # GCP specific configuration for Cloud SQL databases.
-    gcp:
-      # GCP project ID.
-      project_id: "xxx-1234"
-      # Cloud SQL instance ID.
-      instance_id: "example"
-    # Static labels to assign to the database. Used in RBAC.
-    static_labels:
-      env: "prod"
-    # Dynamic labels ("commands"). Used in RBAC.
-    dynamic_labels:
-    - name: "hostname"
-      command: ["hostname"]
-      period: 1m0s
+(!docs/pages/includes/database-access/database-config.yaml!)
 
 # This section configures the windows desktop service
 (!docs/pages/includes/desktop-access/desktop-config.yaml!)

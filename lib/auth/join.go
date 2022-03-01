@@ -22,6 +22,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 )
 
@@ -38,22 +40,22 @@ func (a *Server) tokenJoinMethod(ctx context.Context, tokenName string) types.Jo
 
 // checkTokenJoinRequestCommon checks all token join rules that are common to
 // all join methods, including token existence, token TTL, and allowed roles.
-func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
+func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.RegisterUsingTokenRequest) (types.ProvisionToken, error) {
 	// make sure the token is valid
-	roles, _, err := a.ValidateToken(ctx, req.Token)
+	provisionToken, err := a.ValidateToken(ctx, req.Token)
 	if err != nil {
 		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %v", req.NodeName, req.HostID, req.Role, err)
-		return trace.AccessDenied(fmt.Sprintf("%q [%v] can not join the cluster with role %s, the token is not valid", req.NodeName, req.HostID, req.Role))
+		return nil, trace.AccessDenied(fmt.Sprintf("%q [%v] can not join the cluster with role %s, the token is not valid", req.NodeName, req.HostID, req.Role))
 	}
 
 	// make sure the caller is requesting a role allowed by the token
-	if !roles.Include(req.Role) {
+	if !provisionToken.GetRoles().Include(req.Role) {
 		msg := fmt.Sprintf("node %q [%v] can not join the cluster, the token does not allow %q role", req.NodeName, req.HostID, req.Role)
 		log.Warn(msg)
-		return trace.BadParameter(msg)
+		return nil, trace.BadParameter(msg)
 	}
 
-	return nil
+	return provisionToken, nil
 }
 
 // RegisterUsingToken returns credentials for a new node to join the Teleport
@@ -93,10 +95,55 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	}
 
 	// perform common token checks
-	if err := a.checkTokenJoinRequestCommon(ctx, req); err != nil {
+	provisionToken, err := a.checkTokenJoinRequestCommon(ctx, req)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	certs, err := a.generateCerts(ctx, provisionToken, req)
+	return certs, trace.Wrap(err)
+}
+
+func (a *Server) generateCerts(ctx context.Context, provisionToken types.ProvisionToken, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+	if req.Role == types.RoleBot {
+		// bots use this endpoint but get a user cert
+		// botResourceName must be set, enforced in CheckAndSetDefaults
+		botResourceName := provisionToken.GetBotName()
+		expires := a.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
+
+		joinMethod := provisionToken.GetJoinMethod()
+
+		// certs for IAM method should not be renewable
+		var renewable bool
+		switch joinMethod {
+		case types.JoinMethodToken:
+			renewable = true
+		case types.JoinMethodIAM:
+			renewable = false
+		default:
+			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)
+		}
+		certs, err := a.generateInitialBotCerts(ctx, botResourceName, req.PublicSSHKey, expires, renewable)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		switch joinMethod {
+		case types.JoinMethodToken:
+			// delete ephemeral bot join tokens so they can't be re-used
+			if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
+				log.WithError(err).Warnf("Could not delete bot provision token %q after generating certs",
+					string(backend.MaskKeyName(provisionToken.GetName())))
+			}
+		case types.JoinMethodIAM:
+			// don't delete long-lived IAM join tokens
+		default:
+			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)
+		}
+
+		log.Infof("Bot %q has joined the cluster.", botResourceName)
+		return certs, nil
+	}
 	// generate and return host certificate and keys
 	certs, err := a.GenerateHostCerts(ctx,
 		&proto.HostCertsRequest{

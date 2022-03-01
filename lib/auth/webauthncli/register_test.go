@@ -48,6 +48,7 @@ func TestRegister(t *testing.T) {
 			RPID: rpID,
 		},
 		Identity: &fakeIdentity{
+			User:    user,
 			Devices: []*types.MFADevice{registeredKey.mfaDevice},
 		},
 	}
@@ -79,7 +80,7 @@ func TestRegister(t *testing.T) {
 			ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 			defer cancel()
 
-			cc, err := webRegistration.Begin(ctx, user)
+			cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
 			require.NoError(t, err)
 
 			// Reset/set presence indicator.
@@ -117,7 +118,7 @@ func TestRegister_errors(t *testing.T) {
 		},
 		Identity: &fakeIdentity{},
 	}
-	okCC, err := webRegistration.Begin(ctx, "llama" /* user */)
+	okCC, err := webRegistration.Begin(ctx, "llama" /* user */, false /* passwordless */)
 	require.NoError(t, err)
 
 	tests := []struct {

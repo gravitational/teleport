@@ -178,7 +178,7 @@ func parseU2FRegistrationResponse(resp []byte) (*u2fRegistrationResponse, error)
 	// above.
 	buf := resp
 	if buf[0] != 0x05 {
-		return nil, trace.BadParameter("invalid reserved byte")
+		return nil, trace.BadParameter("invalid reserved byte: %v", buf[0])
 	}
 	buf = buf[1:]
 

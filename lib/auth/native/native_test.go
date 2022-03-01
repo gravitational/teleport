@@ -224,13 +224,20 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 		comment := check.Commentf("Test %v", i)
 
 		userCertificateBytes, err := s.suite.A.GenerateUserCert(services.UserCertParams{
-			CASigner:              caSigner,
-			CASigningAlg:          defaults.CASignatureAlgorithm,
-			PublicUserKey:         pub,
-			Username:              "user",
-			AllowedLogins:         []string{"centos", "root"},
-			TTL:                   time.Hour,
-			Roles:                 []string{"foo"},
+			CASigner:      caSigner,
+			CASigningAlg:  defaults.CASignatureAlgorithm,
+			PublicUserKey: pub,
+			Username:      "user",
+			AllowedLogins: []string{"centos", "root"},
+			TTL:           time.Hour,
+			Roles:         []string{"foo"},
+			CertificateExtensions: []*types.CertExtension{{
+				Type:  types.CertExtensionType_SSH,
+				Mode:  types.CertExtensionMode_EXTENSION,
+				Name:  "login@github.com",
+				Value: "hello",
+			},
+			},
 			CertificateFormat:     tt.inCompatibility,
 			PermitAgentForwarding: true,
 			PermitPortForwarding:  true,
@@ -244,5 +251,8 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 		// check if we added the roles extension
 		_, ok := userCertificate.Extensions[teleport.CertExtensionTeleportRoles]
 		c.Assert(ok, check.Equals, tt.outHasRoles, comment)
+		// check if users custom extension was added
+		extVal := userCertificate.Extensions["login@github.com"]
+		c.Assert(extVal, check.Equals, "hello")
 	}
 }

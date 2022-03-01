@@ -30,6 +30,11 @@ No specific permissions or IAM policy is required: an IAM role with no attached
 policies is sufficient.
 No IAM credentials at all are required on the Teleport Auth server.
 
+<Admonition type="warning">
+The IAM join method is not compatible with the `--insecure-no-tls` flag, and is
+currently not supported in the AWS China or GovCloud partitions.
+</Admonition>
+
 ## Prerequisites
 
 - Teleport v(=teleport.version=) Cloud, Open Source, or Enterprise. (Cloud does
@@ -123,6 +128,9 @@ spec:
   # use the minimal set of roles required
   roles: [Node]
 
+  # set the join method allowed for this token
+  join_method: iam
+
   allow:
   # specify the AWS account which nodes may join from
   - aws_account: "111111111111"
@@ -166,6 +174,9 @@ metadata:
 spec:
   # use the minimal set of roles required
   roles: [Node]
+
+  # set the join method allowed for this token
+  join_method: ec2
 
   # aws_iid_ttl is the amount of time after the EC2 instance is launched during
   # which it should be allowed to join the cluster. Use a short TTL to decrease

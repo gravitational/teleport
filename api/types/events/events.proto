@@ -1769,6 +1769,19 @@ message CertificateCreate {
     Identity Identity = 3 [ (gogoproto.jsontag) = "identity" ];
 }
 
+// RenewableCertificateGenerationMismatch is emitted when a renewable
+// certificiate's generation counter fails to validate, possibly indicating a
+// stolen certificate and an invalid renewal attempt.
+message RenewableCertificateGenerationMismatch {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // UserMetadata is a common user event metadata.
+    UserMetadata UserMetadata = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
     // Event is one of the audit events
@@ -1851,6 +1864,7 @@ message OneOf {
         events.MySQLStatementReset MySQLStatementReset = 76;
         events.MySQLStatementFetch MySQLStatementFetch = 77;
         events.MySQLStatementBulkExecute MySQLStatementBulkExecute = 78;
+        events.RenewableCertificateGenerationMismatch RenewableCertificateGenerationMismatch = 79;
     }
 }
 

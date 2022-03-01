@@ -97,18 +97,18 @@ func compareServers(a, b types.Server) int {
 	if !cmp.Equal(a.GetCmdLabels(), b.GetCmdLabels()) {
 		return Different
 	}
-	if !a.Expiry().Equal(b.Expiry()) {
-		return OnlyTimestampsDifferent
-	}
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
-
 	if !cmp.Equal(a.GetApps(), b.GetApps()) {
 		return Different
 	}
 	if !cmp.Equal(a.GetKubernetesClusters(), b.GetKubernetesClusters()) {
 		return Different
+	}
+	// OnlyTimestampsDifferent check must be after all Different checks.
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
 	}
 	return Equal
 }
@@ -133,6 +133,7 @@ func compareApplicationServers(a, b types.AppServer) int {
 	if !cmp.Equal(a.GetApp(), b.GetApp()) {
 		return Different
 	}
+	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
 	}
@@ -159,6 +160,7 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !cmp.Equal(a.GetDatabase(), b.GetDatabase()) {
 		return Different
 	}
+	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
 	}
@@ -178,6 +180,7 @@ func compareWindowsDesktopServices(a, b types.WindowsDesktopService) int {
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
+	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
 	}

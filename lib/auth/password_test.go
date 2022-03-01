@@ -30,8 +30,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -250,11 +250,6 @@ func TestServer_ChangePassword(t *testing.T) {
 			device:  mfa.TOTPDev,
 		},
 		{
-			name:    "OK U2F-based change",
-			newPass: "llamasarecool12",
-			device:  mfa.U2FDev,
-		},
-		{
 			name:    "OK Webauthn-based change",
 			newPass: "llamasarecool13",
 			device:  mfa.WebDev,
@@ -291,12 +286,6 @@ func TestServer_ChangePassword(t *testing.T) {
 			switch {
 			case mfaResp.GetTOTP() != nil:
 				req.SecondFactorToken = mfaResp.GetTOTP().Code
-			case mfaResp.GetU2F() != nil:
-				req.U2FSignResponse = &u2f.AuthenticateChallengeResponse{
-					KeyHandle:     mfaResp.GetU2F().KeyHandle,
-					SignatureData: mfaResp.GetU2F().GetSignature(),
-					ClientData:    mfaResp.GetU2F().ClientData,
-				}
 			case mfaResp.GetWebauthn() != nil:
 				req.WebauthnResponse = wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn())
 			}
@@ -368,48 +357,14 @@ func TestChangeUserAuthentication(t *testing.T) {
 					}},
 				}
 			},
-			// Invalid u2f fields when auth settings set to only otp.
+			// Invalid MFA fields when auth settings set to only otp.
 			getInvalidReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				return &proto.ChangeUserAuthenticationRequest{
-					TokenID:                resetTokenID,
-					NewPassword:            []byte("password2"),
-					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{}},
-				}
-			},
-		},
-		{
-			name: "with second factor u2f",
-			setAuthPreference: func() {
-				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorU2F,
-					U2F: &types.U2F{
-						AppID:  "https://localhost",
-						Facets: []string{"https://localhost"},
-					},
-				})
-				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, authPreference)
-				require.NoError(t, err)
-			},
-			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				u2fRegResp, _, err := getLegacyMockedU2FAndRegisterRes(srv.Auth(), resetTokenID)
-				require.NoError(t, err)
-
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:     resetTokenID,
-					NewPassword: []byte("password3"),
-					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
-						U2F: u2fRegResp,
+					NewPassword: []byte("password2"),
+					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_Webauthn{
+						Webauthn: &wantypes.CredentialCreationResponse{},
 					}},
-				}
-			},
-			// Invalid totp fields when auth settings set to only u2f.
-			getInvalidReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				return &proto.ChangeUserAuthenticationRequest{
-					TokenID:                resetTokenID,
-					NewPassword:            []byte("password3"),
-					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{}},
 				}
 			},
 		},
@@ -485,9 +440,8 @@ func TestChangeUserAuthentication(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOn,
-					U2F: &types.U2F{
-						AppID:  "https://localhost",
-						Facets: []string{"https://localhost"},
+					Webauthn: &types.Webauthn{
+						RPID: "localhost",
 					},
 				})
 				require.NoError(t, err)
@@ -495,15 +449,13 @@ func TestChangeUserAuthentication(t *testing.T) {
 				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				u2fRegResp, _, err := getLegacyMockedU2FAndRegisterRes(srv.Auth(), resetTokenID)
+				_, mfaResp, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID)
 				require.NoError(t, err)
 
 				return &proto.ChangeUserAuthenticationRequest{
-					TokenID:     resetTokenID,
-					NewPassword: []byte("password4"),
-					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
-						U2F: u2fRegResp,
-					}},
+					TokenID:                resetTokenID,
+					NewPassword:            []byte("password4"),
+					NewMFARegisterResponse: mfaResp,
 				}
 			},
 			// Empty register response, when auth settings requires second factors.
@@ -520,9 +472,8 @@ func TestChangeUserAuthentication(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOptional,
-					U2F: &types.U2F{
-						AppID:  "https://localhost",
-						Facets: []string{"https://localhost"},
+					Webauthn: &types.Webauthn{
+						RPID: "localhost",
 					},
 				})
 				require.NoError(t, err)
