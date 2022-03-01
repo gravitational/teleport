@@ -362,8 +362,8 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
 		unknown := &Unknown{}
-		unknown.Type = "unknown"
-		unknown.Code = "TCC00E"
+		unknown.Type = UnknownEvent
+		unknown.Code = UnknownCode
 		unknown.Time = in.GetTime()
 		unknown.ClusterName = in.GetClusterName()
 		unknown.UnknownType = in.GetType()

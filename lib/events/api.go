@@ -504,7 +504,7 @@ const (
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
-	UnknownEvent = "unknown"
+	UnknownEvent = apievents.UnknownEvent
 )
 
 const (
