@@ -1789,10 +1789,10 @@ message Unknown {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
     // UnknownType is the event type extracted from the unknown event.
-    string UnknownType = 2 [ (gogoproto.jsontag) = "event" ];
+    string UnknownType = 2 [ (gogoproto.jsontag) = "unknown_event" ];
 
     // UnknownCode is the event code extracted from the unknown event.
-    string UnknownCode = 3 [ (gogoproto.jsontag) = "code,omitempty" ];
+    string UnknownCode = 3 [ (gogoproto.jsontag) = "unknown_code,omitempty" ];
 
     // Data is the serialized JSON data of the unknown event.
     string Data = 4 [ (gogoproto.jsontag) = "data" ];
