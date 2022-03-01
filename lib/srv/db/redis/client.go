@@ -33,11 +33,7 @@ import (
 
 // Commands with additional processing in Teleport when using cluster mode.
 const (
-	multiCmd    = "multi"
-	execCmd     = "exec"
-	watchCmd    = "watch"
 	dbsizeCmd   = "dbsize"
-	scanCmd     = "scan"
 	keysCmd     = "keys"
 	mgetCmd     = "mget"
 	flushallCmd = "flushall"
@@ -60,12 +56,14 @@ const (
 	clusterCmd    = "cluster"
 	configCmd     = "config"
 	debugCmd      = "debug"
+	execCmd       = "exec"
 	infoCmd       = "info"
 	latencyCmd    = "latency"
 	memoryCmd     = "memory"
 	migrateCmd    = "migrate"
 	moduleCmd     = "module"
 	monitorCmd    = "monitor"
+	multiCmd      = "multi"
 	pfdebugCmd    = "pfdebug"
 	pfselftestCmd = "pfselftest"
 	psyncCmd      = "psync"
@@ -74,12 +72,14 @@ const (
 	replconfCmd   = "replconf"
 	replicaofCmd  = "replicaof"
 	roleCmd       = "role"
+	scanCmd       = "scan"
 	shutdownCmd   = "shutdown"
 	slaveofCmd    = "slaveof"
 	slowlogCmd    = "slowlog"
 	syncCmd       = "sync"
 	timeCmd       = "time"
 	waitCmd       = "wait"
+	watchCmd      = "watch"
 )
 
 // clusterClient is a wrapper around redis.ClusterClient
