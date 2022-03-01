@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -37,6 +38,16 @@ func TestNewInsecureWebClientHTTPProxy(t *testing.T) {
 	require.Contains(t, err.Error(), "no such host")
 }
 
+func TestNewInsecureWebClientNoProxy(t *testing.T) {
+	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
+	t.Setenv("NO_PROXY", "example.com")
+	client := NewInsecureWebClient()
+	resp, err := client.Get("https://example.com")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
 func TestNewClientWithPoolHTTPProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
 	client := newClientWithPool(nil)
@@ -50,4 +61,14 @@ func TestNewClientWithPoolHTTPProxy(t *testing.T) {
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.Contains(t, err.Error(), "proxyconnect")
 	require.Contains(t, err.Error(), "no such host")
+}
+
+func TestNewClientWithPoolNoProxy(t *testing.T) {
+	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
+	t.Setenv("NO_PROXY", "example.com")
+	client := newClientWithPool(nil)
+	resp, err := client.Get("https://example.com")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }

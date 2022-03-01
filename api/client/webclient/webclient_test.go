@@ -304,3 +304,13 @@ func TestNewWebClientRespectHTTPProxy(t *testing.T) {
 	require.Contains(t, err.Error(), "proxyconnect")
 	require.Contains(t, err.Error(), "no such host")
 }
+
+func TestNewWebClientNoProxy(t *testing.T) {
+	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
+	t.Setenv("NO_PROXY", "example.com")
+	client := newWebClient(false /* insecure */, nil /* pool */)
+	resp, err := client.Get("https://example.com")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
