@@ -195,7 +195,33 @@ Click OK to connect.
 
 ## Redis Insight
 
+<Admonition type="note">
+  Teleport's Redis Insight integration only supports Redis standalone instances.
+</Admonition>
+
+After opening Redis Insight click `ADD REDIS DATABASE`.
+
 ![Redis Insight Startup Screen](../../../img/database-access/guides/redis/redisinsight-startup.png)
+
+Click `Add Database Manually`. Use `127.0.0.1` as the `Host` and port printed by `tsh proxy db`.
+
+<Admonition type="note">
+  Remember to login to your Redis instance with Redis user first by using:
+
+  `tsh db login --db-user=alice redis-db-name`.
+</Admonition>
+
+Provide your Redis username as `Username` and password as `Password`.
+
 ![Redis Insight Configuration](../../../img/database-access/guides/redis/redisinsight-add-config.png)
+
+Next tick `Use TLS` and `Verify TLS Certificates` boxes and copy the CA certificate returned by `tsh proxy db`.
+Copy the private key and certificate to corresponding fields.
+
+Click `Add Redis Database`.
+
 ![Redis Insight TLS Configuration](../../../img/database-access/guides/redis/redisinsight-tls-config.png)
+
+Congratulation. You have just connected to your Redis instance.
+
 ![Redis Insight Connected](../../../img/database-access/guides/redis/redisinsight-connected.png)

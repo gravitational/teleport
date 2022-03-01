@@ -26,7 +26,7 @@ This guide will help you to:
 - `redis-cli` installed and added to your system's `PATH` environment variable.
 
 <Admonition type="note" title="Note">
-  Redis `7.0` is currently not supported.
+  Redis `7.0` and RESP3 (REdis Serialization Protocol) are currently not supported.
 </Admonition>
 
 ## Step 1/5. Set up Teleport Auth and Proxy
@@ -55,8 +55,8 @@ openssl rand -hex 32
 This command generates a password like that `0a49c95a25b0f92787d07a5b6bdc1a25b3a2130a1b338ec524f1b5dcd708bc65`.
 
 Create `users.acl` file with users. File defines Redis users, passwords required to log in as a given user
-and sets of Redis ACL rules. Redis allows providing passwords as a plain text or hashed SHA256 version. For security
-reason we strongly recommend to use SHA256
+and sets of Redis ACL rules. Redis allows providing passwords as a plain text or SHA256 checksum version. For security
+reason we strongly recommend to use SHA256 checksum instead of plain text password.
 
 <Tabs>
   <TabItem label="Standalone">
@@ -64,6 +64,8 @@ reason we strongly recommend to use SHA256
     user alice on #57639ed88a85996453555f22f5aa4147b4c9614056585d931e5d976f610651e9 allcommands allkeys
     user default off
     ```
+
+    For more ACL examples refer to [Redis documentation](https://redis.io/topics/acl).
   </TabItem>
   <TabItem label="Cluster">
     Redis in Cluster mode requires a special user created on master nodes to enable master-replica communication.
@@ -77,24 +79,9 @@ reason we strongly recommend to use SHA256
   </TabItem>
 </Tabs>
 
-
-
-
-Disable the `default` user.
-
-```
-ACL SETUSER default off
-```
-
-Alternatively, you can set a password for the `default` user by adding below line to your `redis.conf` file:
-
-```
-requirepass STRONG_GENERATED_PASSWORD
-```
-
 <Admonition type="warning">
   It's very important to either disable or protect with password the `default` user. Otherwise, everyone with access
-  ot the database can login as the `default` user which by default has administrator privileges.
+  to the database can login as the `default` user which by default has administrator privileges.
 </Admonition>
 
 ## Step 4/5.
@@ -154,7 +141,7 @@ file and restart the database:
     tls-port 6379
     port 0
 
-    aclfile /usr/local/etc/redis/conf/users.acl
+    aclfile /path/to/users.acl
 
     tls-ca-cert-file /path/to/server.cas
     tls-cert-file /path/to/server.crt
@@ -172,7 +159,7 @@ file and restart the database:
     tls-replication yes
     tls-cluster yes
 
-    aclfile /usr/local/etc/redis/conf/users.acl
+    aclfile /path/to/users.acl
 
     masterauth GENERATED_STRONG_PASSWORD
     masteruser replica-user
@@ -196,12 +183,12 @@ from clients that do not present a certificate.
 See [Configure TLS/SSL](https://redis.io/topics/encryption)
 in Redis documentation for more details.
 
-<Admonition type="note" title="Redis Cluster Only">
-  If you're configuring Redis Cluster you need to create Redis cluster using `redis-cli`
+<Admonition type="note" title="Create Redis Cluster">
+  When you're configuring Redis Cluster you need to create the cluster using `redis-cli`
 
-  `redis-cli --cluster create` accepts only IP addresses
+  `redis-cli --cluster create` accepts only IP addresses, so the
 
-  // TODO
+  Use below command to create the cluster:
 
   ```shell
   export REDISCLI_AUTH=STRONG_GENERATED_PASSWORD
@@ -214,6 +201,17 @@ in Redis documentation for more details.
 
 </Admonition>
 
+<Admonition type="note" title="Redis Cluster Only">
+
+  To enable Redis cluster mode in Teleport add `mode=cluster` parameter to connection uri in teleport config file.
+
+  ```yaml
+  databases:
+    - name: "redis-cluster"
+      uri: "rediss://redis.example.com:6379?mode=cluster"
+  ```
+
+</Admonition>
 
 ## Step 5/5. Connect
 
@@ -275,49 +273,82 @@ $ tsh db logout example-redis
 $ tsh db logout
 ```
 
-<Admonition type="note" title="Supported Commands">
-  Redis in cluster mode doesn't support below commands:
+### Supported Redis commands
 
-  * MULTI
-  * EXEC
-  * WATCH
-  * SCAN
-  * ACL
-  * ASKING
-  * CLIENT
-  * CLUSTER
-  * CONFIG
-  * DEBUG
-  * HELLO
-  * INFO
-  * LATENCY
-  * MEMORY
-  * MIGRATE
-  * MODULE
-  * MONITOR
-  * PFDEBUG
-  * PFSELFTEST
-  * PSUBSCRIBE
-  * PSYNC
-  * PUBSUB ??
-  * PUNSUBSCRIBE
-  * READONLY
-  * READWRITE
-  * REPLCONF
-  * REPLICAOF
-  * ROLE
-  * SCRIPT
-  * SHUTDOWN
-  * SLAVEOF
-  * SLOWLOG
-  * SYNC
-  * TIME
-  * WAIT
-</Admonition>
+  <Tabs>
+    <TabItem label="Standalone">
 
-// TODO add what commends are overriden
-// TODO add unsupported in single mode
-// TODO add how to configure standalone/cluster mode
+      Redis in standalone mode doesn't support below commands.
+
+      * HELLO
+      * PUNSUBSCRIBE
+      * SSUBSCRIBE
+      * SUNSUBSCRIBE
+
+      If one of the listed commands is called Teleport returns `ERR Teleport: not supported by Teleport` error.
+
+    </TabItem>
+    <TabItem label="Cluster">
+
+      Redis in cluster mode doesn't support below commands:
+
+      * ACL
+      * ASKING
+      * CLIENT
+      * CLUSTER
+      * CONFIG
+      * DEBUG
+      * EXEC
+      * HELLO
+      * HELLO
+      * INFO
+      * LATENCY
+      * MEMORY
+      * MIGRATE
+      * MODULE
+      * MONITOR
+      * MULTI
+      * PFDEBUG
+      * PFSELFTEST
+      * PSUBSCRIBE
+      * PSYNC
+      * PUBSUB //TODO(jakub)
+      * PUNSUBSCRIBE
+      * PUNSUBSCRIBE
+      * READONLY
+      * READWRITE
+      * REPLCONF
+      * REPLICAOF
+      * ROLE
+      * SCAN
+      * SCRIPT
+      * SHUTDOWN
+      * SLAVEOF
+      * SLOWLOG
+      * SSUBSCRIBE
+      * SUNSUBSCRIBE
+      * SYNC
+      * TIME
+      * WAIT
+      * WATCH
+
+      If one of the listed commands above is called Teleport returns `ERR Teleport: command not supported` error.
+
+      Teleport also adds additional processing to:
+
+      * AUTH - it's used by Teleport to verify user identity before it's send to Redis.
+      * DBSIZE - sends the query to all nodes and returns the number of keys in the whole cluster.
+      * KEYS - sends the query to all nodes and returns a list of all keys in the whole cluster.
+      * MGET - translates the commands to multiple GETs and sends them to multiple nodes. Result is merged in Teleport
+      and returned back to the client. If Teleport fails to fetch at least one key an error is returned.
+      * FLUSHDB - sends the query to all nodes.
+      * FLUSHALL - works the same as FLUSHDB.
+      * SCRIPT EXISTS - sends the query to all nodes. `1` is returned only if script exists on all nodes.
+      * SCRIPT LOAD - sends the script to all nodes.
+      * SCRIPT FLUSH - sends the query to all nodes. ASYNC parameter is ignored.
+
+    </TabItem>
+  </Tabs>
 
 ## Next steps
 
