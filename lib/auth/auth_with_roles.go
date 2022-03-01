@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -877,14 +878,33 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 }
 
 // ListResources returns a paginated list of resources filtered by user access.
-func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	// ListResources request coming through this auth layer gets request filters
+	// stripped off and saved to be applied later after items go through rbac checks.
+	// The list that gets returned from the backend comes back unfiltered and as
+	// we apply request filters, we might make multiple trips to get more subsets to
+	// reach our limit, which is fine b/c we can start query with our next key.
+	//
+	// But since sorting and counting totals requires us to work with entire list upfront,
+	// special handling is needed in this layer b/c if we try to mimic the "subset" here,
+	// we will be making unnecessary trips and doing needless work of deserializing every
+	// item for every subset.
+	if req.RequiresFakePagination() {
+		resp, err := a.listResourcesWithSort(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return resp, nil
+	}
+
+	// Start real pagination.
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	limit := int(req.Limit)
 	actionVerbs := []string{types.VerbList, types.VerbRead}
-
 	switch req.ResourceType {
 	case types.KindNode:
 		// We are checking list only for Nodes to keep backwards compatibility.
@@ -897,11 +917,11 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService:
 
 	default:
-		return nil, "", trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 	}
 
 	if err := a.action(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Perform the label/search/expr filtering here (instead of at the backend
@@ -918,7 +938,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	req.PredicateExpression = ""
 
 	var resources []types.ResourceWithLabels
-	nextKey, err := a.authServer.IterateResourcePages(ctx, req, func(nextPage []types.ResourceWithLabels) (bool, error) {
+	resp, err := a.authServer.IterateResourcePages(ctx, req, func(nextPage []types.ResourceWithLabels) (bool, error) {
 		for _, resource := range nextPage {
 			if len(resources) == limit {
 				break
@@ -943,10 +963,13 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		return len(resources) == limit, nil
 	})
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return resources, nextKey, nil
+	return &types.ListResourcesResponse{
+		Resources: resources,
+		NextKey:   resp.NextKey,
+	}, nil
 }
 
 func (a *ServerWithRoles) checkAccessToResource(resource types.Resource) error {
@@ -971,6 +994,64 @@ func (a *ServerWithRoles) checkAccessToResource(resource types.Resource) error {
 	default:
 		return trace.BadParameter("could not check access to resource type %T", r)
 	}
+}
+
+// listResourcesWithSort retrieves all resources of a certain resource type with rbac applied
+// then afterwards applies request sorting and filtering.
+func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var resources []types.ResourceWithLabels
+	switch req.ResourceType {
+	case types.KindNode:
+		nodes, err := a.GetNodes(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		servers := types.Servers(nodes)
+		if err := servers.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = servers.AsResources()
+
+	case types.KindAppServer:
+		appservers, err := a.GetApplicationServers(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		servers := types.AppServers(appservers)
+		if err := servers.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = servers.AsResources()
+
+	case types.KindDatabaseServer:
+		dbservers, err := a.GetDatabaseServers(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		servers := types.DatabaseServers(dbservers)
+		if err := servers.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = servers.AsResources()
+
+	default:
+		return nil, trace.NotImplemented("resource type %q is not supported for listResourcesWithSort", req.ResourceType)
+	}
+
+	// Apply request filters and get pagination info.
+	resp, err := local.FakePaginate(resources, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
 }
 
 // ListNodes returns a paginated list of nodes filtered by user access.

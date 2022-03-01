@@ -45,6 +45,7 @@ type BotsCommand struct {
 
 	botName  string
 	botRoles string
+	tokenID  string
 	tokenTTL time.Duration
 
 	botsList   *kingpin.CmdClause
@@ -64,7 +65,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.botsAdd.Arg("name", "A name to uniquely identify this bot in the cluster.").Required().StringVar(&c.botName)
 	c.botsAdd.Flag("roles", "Roles the bot is able to assume.").Required().StringVar(&c.botRoles)
 	c.botsAdd.Flag("ttl", "TTL for the bot join token.").DurationVar(&c.tokenTTL)
-	// TODO: --token for optionally specifying the join token to use?
+	c.botsAdd.Flag("token", "Name of an existing token to use.").StringVar(&c.tokenID)
 	// TODO: --ttl for setting a ttl on the join token
 
 	c.botsRemove = bots.Command("rm", "Permanently remove a certificate renewal bot from the cluster.")
@@ -143,7 +144,8 @@ Run this on the new bot node to join the cluster:
    --destination-dir=./tbot-user \
    --token={{.token}} \{{range .ca_pins}}
    --ca-pin={{.}} \{{end}}
-   --auth-server={{.auth_server}}
+   --auth-server={{.auth_server}}{{if .join_method}} \
+   --join-method={{.join_method}}{{end}}
 
 Please note:
 
@@ -154,9 +156,10 @@ Please note:
 // AddBot adds a new certificate renewal bot to the cluster.
 func (c *BotsCommand) AddBot(client auth.ClientI) error {
 	response, err := client.CreateBot(context.Background(), &proto.CreateBotRequest{
-		Name:  c.botName,
-		TTL:   proto.Duration(c.tokenTTL),
-		Roles: splitRoles(c.botRoles),
+		Name:    c.botName,
+		TTL:     proto.Duration(c.tokenTTL),
+		Roles:   splitRoles(c.botRoles),
+		TokenID: c.tokenID,
 	})
 	if err != nil {
 		return trace.WrapWithMessage(err, "error while creating bot")
@@ -186,11 +189,21 @@ func (c *BotsCommand) AddBot(client auth.ClientI) error {
 		addr = authServers[0].GetAddr()
 	}
 
+	joinMethod := response.JoinMethod
+	// omit join method output for the token method
+	switch joinMethod {
+	case types.JoinMethodUnspecified, types.JoinMethodToken:
+		// the template will omit an empty string
+		joinMethod = ""
+	default:
+	}
+
 	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
 		"token":       response.TokenID,
 		"minutes":     int(time.Duration(response.TokenTTL).Minutes()),
 		"ca_pins":     caPins,
 		"auth_server": addr,
+		"join_method": joinMethod,
 	})
 }
 
