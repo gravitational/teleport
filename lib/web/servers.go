@@ -41,7 +41,9 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeKubes(h.auth.clusterName, kubeServers), nil
+	return listResourcesGetResponse{
+		Items: ui.MakeKubes(h.auth.clusterName, kubeServers),
+	}, nil
 }
 
 // clusterDatabasesGet returns a list of db servers in a form the UI can present.
@@ -63,11 +65,13 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 		databases = append(databases, server.GetDatabase())
 	}
 
-	return ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)), nil
+	return listResourcesGetResponse{
+		Items: ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)),
+	}, nil
 }
 
-// getDesktopsHandle returns a list of desktops in a form the UI can present.
-func (h *Handler) getDesktopsHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+// clusterDesktopsGet returns a list of desktops in a form the UI can present.
+func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -79,7 +83,9 @@ func (h *Handler) getDesktopsHandle(w http.ResponseWriter, r *http.Request, p ht
 	}
 	windowsDesktops = types.DeduplicateDesktops(windowsDesktops)
 
-	return ui.MakeDesktops(windowsDesktops), nil
+	return listResourcesGetResponse{
+		Items: ui.MakeDesktops(windowsDesktops),
+	}, nil
 }
 
 // getDesktopHandle returns a desktop.
