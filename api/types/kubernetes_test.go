@@ -39,12 +39,12 @@ func TestKubeClustersSorter(t *testing.T) {
 	}
 
 	testValsUnordered := []string{"d", "b", "a", "c"}
-	clusters := KubeClusters(makeClusters(testValsUnordered, ResourceMetadataName))
 
 	t.Run("desc", func(t *testing.T) {
 		t.Parallel()
 
 		sortBy := SortBy{Field: ResourceMetadataName, IsDesc: true}
+		clusters := KubeClusters(makeClusters(testValsUnordered, ResourceMetadataName))
 		require.NoError(t, clusters.SortByCustom(sortBy))
 		targetVals, err := clusters.GetFieldVals(ResourceMetadataName)
 		require.NoError(t, err)
@@ -55,6 +55,7 @@ func TestKubeClustersSorter(t *testing.T) {
 		t.Parallel()
 
 		sortBy := SortBy{Field: ResourceMetadataName}
+		clusters := KubeClusters(makeClusters(testValsUnordered, ResourceMetadataName))
 		require.NoError(t, clusters.SortByCustom(sortBy))
 		targetVals, err := clusters.GetFieldVals(ResourceMetadataName)
 		require.NoError(t, err)
@@ -65,7 +66,8 @@ func TestKubeClustersSorter(t *testing.T) {
 		t.Parallel()
 
 		sortBy := SortBy{Field: "unsupported"}
-		require.True(t, trace.IsNotImplemented(KubeClusters(clusters).SortByCustom(sortBy)))
+		clusters := KubeClusters(makeClusters(testValsUnordered, ResourceMetadataName))
+		require.True(t, trace.IsNotImplemented(clusters.SortByCustom(sortBy)))
 	})
 }
 
