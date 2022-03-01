@@ -12,7 +12,7 @@ options:
 steps:
   # Run the unit tests. Actual content of this job depends on the changes 
   # detected in the PR
-  - name: quay.io/gravitational/teleport-buildbox:go1.17.2
+  - name: quay.io/gravitational/teleport-buildbox:teleport10
     id: run-tests
     dir: /workspace/.cloudbuild/scripts
     entrypoint: bash 
