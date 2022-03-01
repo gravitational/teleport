@@ -366,6 +366,8 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		unknown.Code = "TCC00E"
 		unknown.Time = in.GetTime()
 		unknown.ClusterName = in.GetClusterName()
+		unknown.UnknownType = in.GetType()
+		unknown.UnknownCode = in.GetCode()
 		data, err := json.Marshal(in)
 		if err != nil {
 			return nil, trace.Wrap(err)

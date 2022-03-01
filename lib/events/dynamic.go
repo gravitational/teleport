@@ -225,6 +225,8 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 
 		unknown.Type = UnknownEvent
 		unknown.Code = UnknownCode
+		unknown.UnknownType = eventType
+		unknown.UnknownCode = fields.GetString(EventCode)
 		unknown.Data = string(data)
 		return unknown, nil
 	}
