@@ -44,14 +44,17 @@ func TestWatcher(t *testing.T) {
 	rdsInstance2, _ := makeRDSInstance(t, "instance-2", "us-east-2", map[string]string{"env": "prod"})
 	rdsInstance3, _ := makeRDSInstance(t, "instance-3", "us-east-1", map[string]string{"env": "dev"})
 	rdsInstance4, rdsDatabase4 := makeRDSInstance(t, "instance-4", "us-west-1", nil)
+	rdsInstanceUnavailable, _ := makeRDSInstance(t, "instance-5", "us-west-1", nil, rdsInstanceStatus("stopped"))
 
-	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
+	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", map[string]string{"env": "prod"})
 	auroraCluster2, auroraDatabases2 := makeRDSClusterWithExtraEndpoints(t, "cluster-2", "us-east-2", map[string]string{"env": "dev"})
-	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", services.RDSEngineModeProvisioned, map[string]string{"env": "prod"})
-	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", services.RDSEngineModeServerless, map[string]string{"env": "prod"})
+	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", map[string]string{"env": "prod"})
+	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", nil, rdsClusterEngineMode("serverless"))
+	auroraClusterUnavailable, _ := makeRDSCluster(t, "serverless", "us-east-1", nil, rdsClusterStatus("creating"))
 
 	redshiftUse1Prod, redshiftDatabaseUse1Prod := makeRedshiftCluster(t, "us-east-1", "prod")
 	redshiftUse1Dev, _ := makeRedshiftCluster(t, "us-east-1", "dev")
+	redshiftUse1Unavailable, _ := makeRedshiftCluster(t, "us-east-1", "qa", redshiftClusterStatus("Unavailable"))
 
 	tests := []struct {
 		name              string
@@ -60,7 +63,7 @@ func TestWatcher(t *testing.T) {
 		expectedDatabases types.Databases
 	}{
 		{
-			name: "rds labels matching",
+			name: "RDS labels matching",
 			awsMatchers: []services.AWSMatcher{
 				{
 					Types:   []string{services.AWSMatcherRDS},
@@ -88,7 +91,7 @@ func TestWatcher(t *testing.T) {
 			expectedDatabases: append(types.Databases{rdsDatabase1, auroraDatabase1}, auroraDatabases2...),
 		},
 		{
-			name: "rds aurora unsupported",
+			name: "RDS unsupported databases are skipped",
 			awsMatchers: []services.AWSMatcher{{
 				Types:   []string{services.AWSMatcherRDS},
 				Regions: []string{"us-east-1"},
@@ -102,6 +105,21 @@ func TestWatcher(t *testing.T) {
 				},
 			},
 			expectedDatabases: types.Databases{auroraDatabase1},
+		},
+		{
+			name: "RDS unavailable databases are skipped",
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRDS},
+				Regions: []string{"us-east-1"},
+				Tags:    types.Labels{"*": []string{"*"}},
+			}},
+			clients: &common.TestCloudClients{
+				RDS: &cloud.RDSMock{
+					DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstanceUnavailable},
+					DBClusters:  []*rds.DBCluster{auroraCluster1, auroraClusterUnavailable},
+				},
+			},
+			expectedDatabases: types.Databases{rdsDatabase1, auroraDatabase1},
 		},
 		{
 			name: "skip access denied errors",
@@ -126,7 +144,7 @@ func TestWatcher(t *testing.T) {
 			expectedDatabases: types.Databases{rdsDatabase4, auroraDatabase1},
 		},
 		{
-			name: "redshift",
+			name: "Redshift labels matching",
 			awsMatchers: []services.AWSMatcher{
 				{
 					Types:   []string{services.AWSMatcherRedshift},
@@ -137,6 +155,22 @@ func TestWatcher(t *testing.T) {
 			clients: &common.TestCloudClients{
 				Redshift: &cloud.RedshiftMock{
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Dev},
+				},
+			},
+			expectedDatabases: types.Databases{redshiftDatabaseUse1Prod},
+		},
+		{
+			name: "Redshift unavailable databases are skipped",
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{services.AWSMatcherRedshift},
+					Regions: []string{"us-east-1"},
+					Tags:    types.Labels{"*": []string{"*"}},
+				},
+			},
+			clients: &common.TestCloudClients{
+				Redshift: &cloud.RedshiftMock{
+					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Unavailable},
 				},
 			},
 			expectedDatabases: types.Databases{redshiftDatabaseUse1Prod},
@@ -178,43 +212,54 @@ func TestWatcher(t *testing.T) {
 	}
 }
 
-func makeRDSInstance(t *testing.T, name, region string, labels map[string]string) (*rds.DBInstance, types.Database) {
+func makeRDSInstance(t *testing.T, name, region string, labels map[string]string, opts ...func(*rds.DBInstance)) (*rds.DBInstance, types.Database) {
 	instance := &rds.DBInstance{
 		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:db:%v", region, name)),
 		DBInstanceIdentifier: aws.String(name),
 		DbiResourceId:        aws.String(uuid.New().String()),
 		Engine:               aws.String(services.RDSEnginePostgres),
+		DBInstanceStatus:     aws.String(services.RDSStatusAvailable),
 		Endpoint: &rds.Endpoint{
 			Address: aws.String("localhost"),
 			Port:    aws.Int64(5432),
 		},
 		TagList: labelsToTags(labels),
 	}
+	for _, opt := range opts {
+		opt(instance)
+	}
+
 	database, err := services.NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
 	return instance, database
 }
 
-func makeRDSCluster(t *testing.T, name, region, engineMode string, labels map[string]string) (*rds.DBCluster, types.Database) {
+func makeRDSCluster(t *testing.T, name, region string, labels map[string]string, opts ...func(*rds.DBCluster)) (*rds.DBCluster, types.Database) {
 	cluster := &rds.DBCluster{
 		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:cluster:%v", region, name)),
 		DBClusterIdentifier: aws.String(name),
 		DbClusterResourceId: aws.String(uuid.New().String()),
 		Engine:              aws.String(services.RDSEngineAuroraMySQL),
-		EngineMode:          aws.String(engineMode),
+		EngineMode:          aws.String(services.RDSEngineModeProvisioned),
+		Status:              aws.String(services.RDSStatusAvailable),
 		Endpoint:            aws.String("localhost"),
 		Port:                aws.Int64(3306),
 		TagList:             labelsToTags(labels),
 	}
+	for _, opt := range opts {
+		opt(cluster)
+	}
+
 	database, err := services.NewDatabaseFromRDSCluster(cluster)
 	require.NoError(t, err)
 	return cluster, database
 }
 
-func makeRedshiftCluster(t *testing.T, region, env string) (*redshift.Cluster, types.Database) {
+func makeRedshiftCluster(t *testing.T, region, env string, opts ...func(*redshift.Cluster)) (*redshift.Cluster, types.Database) {
 	cluster := &redshift.Cluster{
-		ClusterIdentifier:   aws.String(env),
-		ClusterNamespaceArn: aws.String(fmt.Sprintf("arn:aws:redshift:%s:1234567890:namespace:%s", region, env)),
+		ClusterIdentifier:         aws.String(env),
+		ClusterNamespaceArn:       aws.String(fmt.Sprintf("arn:aws:redshift:%s:1234567890:namespace:%s", region, env)),
+		ClusterAvailabilityStatus: aws.String(services.RedshiftStatusAvailable),
 		Endpoint: &redshift.Endpoint{
 			Address: aws.String("localhost"),
 			Port:    aws.Int64(5439),
@@ -224,6 +269,10 @@ func makeRedshiftCluster(t *testing.T, region, env string) (*redshift.Cluster, t
 			Value: aws.String(env),
 		}},
 	}
+	for _, opt := range opts {
+		opt(cluster)
+	}
+
 	database, err := services.NewDatabaseFromRedshiftCluster(cluster)
 	require.NoError(t, err)
 	return cluster, database
@@ -236,6 +285,7 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 		DbClusterResourceId: aws.String(uuid.New().String()),
 		Engine:              aws.String(services.RDSEngineAuroraMySQL),
 		EngineMode:          aws.String(services.RDSEngineModeProvisioned),
+		Status:              aws.String(services.RDSStatusAvailable),
 		Endpoint:            aws.String("localhost"),
 		ReaderEndpoint:      aws.String("reader.host"),
 		Port:                aws.Int64(3306),
@@ -257,6 +307,34 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 	require.NoError(t, err)
 
 	return cluster, append(types.Databases{primaryDatabase, readerDatabase}, customDatabases...)
+}
+
+// rdsInstanceStatus returns an option function for makeRDSInstance to overwrite status.
+func rdsInstanceStatus(status string) func(*rds.DBInstance) {
+	return func(instance *rds.DBInstance) {
+		instance.DBInstanceStatus = aws.String(status)
+	}
+}
+
+// rdsClusterEngineMode returns an option function for makeRDSCluster to overwrite engine mode.
+func rdsClusterEngineMode(mode string) func(*rds.DBCluster) {
+	return func(cluster *rds.DBCluster) {
+		cluster.EngineMode = aws.String(mode)
+	}
+}
+
+// rdsClusterStatus returns an option function for makeRDSCluster to overwrite status.
+func rdsClusterStatus(status string) func(*rds.DBCluster) {
+	return func(cluster *rds.DBCluster) {
+		cluster.Status = aws.String(status)
+	}
+}
+
+// redshiftClusterStatus returns an option function for makeRedshiftCluster to overwrite status.
+func redshiftClusterStatus(status string) func(*redshift.Cluster) {
+	return func(cluster *redshift.Cluster) {
+		cluster.ClusterAvailabilityStatus = aws.String(status)
+	}
 }
 
 func labelsToTags(labels map[string]string) (tags []*rds.Tag) {

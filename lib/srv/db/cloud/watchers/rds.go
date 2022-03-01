@@ -106,6 +106,13 @@ func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Data
 	}
 	databases := make(types.Databases, 0, len(instances))
 	for _, instance := range instances {
+		if !services.IsRDSInstanceAvailable(instance) {
+			f.log.Debugf("The current status of RDS instance %q is %v. Skipping.",
+				aws.StringValue(instance.DBInstanceIdentifier),
+				aws.StringValue(instance.DBInstanceStatus))
+			continue
+		}
+
 		database, err := services.NewDatabaseFromRDSInstance(instance)
 		if err != nil {
 			f.log.Warnf("Could not convert RDS instance %q to database resource: %v.",
@@ -192,6 +199,13 @@ func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (type
 				aws.StringValue(cluster.DBClusterIdentifier),
 				aws.StringValue(cluster.EngineMode),
 				aws.StringValue(cluster.EngineVersion))
+			continue
+		}
+
+		if !services.IsRDSClusterAvailable(cluster) {
+			f.log.Debugf("The current status of Aurora cluster %q is %v. Skipping.",
+				aws.StringValue(cluster.DBClusterIdentifier),
+				aws.StringValue(cluster.Status))
 			continue
 		}
 

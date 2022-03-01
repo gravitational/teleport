@@ -390,6 +390,33 @@ func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 	return true
 }
 
+// IsRDSInstanceAvailable checks if the RDS instance is available.
+func IsRDSInstanceAvailable(instance *rds.DBInstance) bool {
+	// For a full list of status values, see:
+	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/accessing-monitoring.html
+	return aws.StringValue(instance.DBInstanceStatus) == RDSStatusAvailable
+}
+
+// IsRDSClusterAvailable checks if the RDS cluster is available.
+func IsRDSClusterAvailable(cluster *rds.DBCluster) bool {
+	// For a full list of status values, see:
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/accessing-monitoring.html
+	return aws.StringValue(cluster.Status) == RDSStatusAvailable
+}
+
+// IsRedshiftClusterAvailable checks if the Redshift cluster is available.
+func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
+	// For a full list of availability status values, see SDK documentation on
+	// redshift.Cluster.ClusterAvailabilityStatus.
+	//
+	// Note that status "Maintenance" and "Modifying" are classified as
+	// "intermittently available" in the SDK documentation. "false" is returned
+	// for these statuses to be conservative. Also these statuses should be
+	// transient so the cluster is expected to be "Available" within a period
+	// of time.
+	return aws.StringValue(cluster.ClusterAvailabilityStatus) == RedshiftStatusAvailable
+}
+
 // auroraMySQLVersion extracts aurora mysql version from engine version
 func auroraMySQLVersion(cluster *rds.DBCluster) string {
 	// version guide: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Updates.Versions.html
@@ -469,4 +496,14 @@ const (
 	RDSEngineModeGlobal = "global"
 	// RDSEngineModeMultiMaster is the RDS engine mode for Multi-master clusters
 	RDSEngineModeMultiMaster = "multimaster"
+)
+
+const (
+	// RDSStatusAvailable is the status when the RDS instance/cluster is
+	// healthy and available.
+	RDSStatusAvailable = "available"
+
+	// RedshiftStatusAvailable is the status when the Redshift cluster is
+	// available for queries.
+	RedshiftStatusAvailable = "Available"
 )
