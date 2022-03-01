@@ -58,7 +58,7 @@ func buildboxPipelineStep(buildboxName string, fips bool) step {
 			`chown -R $UID:$GID /go`,
 			`docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io`,
 			fmt.Sprintf(`make -C build.assets %s`, buildboxName),
-			fmt.Sprintf(`docker push quay.io/gravitational/teleport-%s:$RUNTIME`, buildboxName),
+			fmt.Sprintf(`docker push quay.io/gravitational/teleport-%s:$BUILDBOX_VERSION`, buildboxName),
 		},
 	}
 }
@@ -66,11 +66,11 @@ func buildboxPipelineStep(buildboxName string, fips bool) step {
 func buildboxPipeline() pipeline {
 	p := newKubePipeline("build-buildboxes")
 	p.Environment = map[string]value{
-		"RUNTIME": goRuntime,
-		"UID":     {raw: "1000"},
-		"GID":     {raw: "1000"},
+		"BUILDBOX_VERSION": buildboxVersion,
+		"UID":              {raw: "1000"},
+		"GID":              {raw: "1000"},
 	}
-	p.Trigger = triggerPushMasterOnly
+	p.Trigger = pushTriggerFor("master", "branch/v9")
 	p.Workspace = workspace{Path: "/go/src/github.com/gravitational/teleport"}
 	p.Volumes = dockerVolumes()
 	p.Services = []service{
