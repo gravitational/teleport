@@ -79,12 +79,80 @@ On the other hand:
 
 ### Suggested changes
 
-* Independently versioned buildboxes, so we can deal with things like Go and 
-  Rust being updated independently
-* Buildbox source extracted from Teleport repo into it's own space
-* Images get build on a tag as per releases, after code review & CI as per
-  general software.
-* Images being pushed to a repository with immutable tags, so we have a guarantee
-  that the image is what we think it is
-* Everything (including releases) uses the same set of images
-* Enforce strong validation of components on the buildbox as far as possible
+#### 1. Immutable, independently-versioned buildboxes.
+
+That is:
+ * each buildbox image should be an immutable, versioned collection of tools required
+   to build Teleport. 
+ * The version of the overall  _collection_ should not be tied to the version of any
+   of the compenents inside it.
+ * Modifiying the contents of a buildbox implies creating a new version tag.
+
+#### 2. CI and releases are configured to use an _exact_ version of the buildbox
+
+CI & release proccesses refer to _exact_ versions of the buildbox they use, either 
+by tag (if we can guarantee tag immutability_ or by hash (if we can't).
+
+ * This allows us to reproduce a build with the _exact same tooling_ that it was 
+   built with previously. We _cannot_ make this guarantee with floating tags
+ * We _certianly_ can't guarantee it with the build-at-time-of-use scheme currently
+   in use.
+ * Makes changes to the buildbox _opt-in_ for consuming tasks. For example: say 
+   somebody breaks the buildbox? No big deal - CI on your branch just keeps using the
+   old one until you're ready to upgrade.
+
+Ideally we should _also_ have some sort of developer-friendly floating tags so that
+people can experiment locally without having to sweat multiple release/update cycles.
+
+#### 3. Images being pushed to a repository with immutable tags
+
+This is in order to guarantee that the image is what we think it is. This is a developer
+affordance, as all this can be accomplished with hashes, but it's cumbersome and 
+unfriendly.
+
+#### 4. Images get built on a tag update and after code review & CI
+
+This imposes the same release mechanism on the tooling as on the main software. The idea 
+is to turn the process of spinning a new buildbox version into a rare(-r) event, rather 
+than happening on every merge.
+
+#### 5. Everything (including releases) uses the same set of images
+
+A release process should refernce an _exact_ buildbox image it will use and commit that
+to `git` prior to building the release. We should be able to see which buildbox was used
+for any given release just by examining the Teleport source.
+
+#### 6. Enforce strong validation of components on the buildbox as far as possible
+
+Currently we implicitly trust that _none_ of the following have been compromsed when
+constructing our buildbox:
+ - The Ubuntu debian package repositories
+ - The `go` package download package
+ - The `rustup` tool download package
+ - The `etcd` download package
+ - The Google `addlicense` repository
+ - The `libbpf` download site
+ - The Google Cloud Platform SDK download site
+ - The `golangci-lint` download site
+ - and a few others, but you get the idea...
+
+At minimum, we should create SHAs of known-good versions of the downloaded artefacts 
+and verify that they have not changed, to ensure that we are not surprosed by any 
+changes after the fact.
+
+#### 7. Buildbox source extracted from Teleport repo into it's own repo
+
+(This is controversial)
+
+The whole `build.assets` directory is a murky part of the Teleport repo that I don't
+think people understand, so removing it from the teleport repo and having appropriate
+READMEs & so forth wouldbring it out into the open
+
+While this would require a 2-step shuffle where any buildbox image is built and released 
+prior to use by CI and Releases, this is also true for _any_  scenario that requires the 
+use of pre-built images for CI, as you can't build the image internally and then run a 
+build on it without requiring DinD or the like.
+
+Author's Note:  This is how I've done it in the past, so it feels natural to me. 
+Reasonable people can differ on this, I accept that this rationale may not scale 
+to the rest of the team:-)
