@@ -85,7 +85,7 @@ func Run(args []string) error {
 
 	configCmd := app.Command("config", "Parse and dump a config file").Hidden()
 
-	watchCmd := app.Command("watch", "Watch a destination directory for changes.")
+	watchCmd := app.Command("watch", "Watch a destination directory for changes.").Hidden()
 
 	command, err := app.Parse(args)
 	if err != nil {
