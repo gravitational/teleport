@@ -425,7 +425,6 @@ func IsRDSClusterAvailable(cluster *rds.DBCluster) bool {
 	// Statuses marked as "Billed for storage" in the above guide.
 	case "starting", "stopped", "stopping":
 		return false
-
 	}
 
 	return true
