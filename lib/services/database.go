@@ -439,11 +439,7 @@ func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
 		return false
 	}
 
-	if strings.HasSuffix(aws.StringValue(cluster.ClusterAvailabilityStatus), "incompatible-") {
-		return false
-	}
-
-	return true
+	return !strings.HasSuffix(aws.StringValue(cluster.ClusterAvailabilityStatus), "incompatible-")
 }
 
 // auroraMySQLVersion extracts aurora mysql version from engine version
