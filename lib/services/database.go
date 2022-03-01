@@ -394,14 +394,41 @@ func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 func IsRDSInstanceAvailable(instance *rds.DBInstance) bool {
 	// For a full list of status values, see:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/accessing-monitoring.html
-	return aws.StringValue(instance.DBInstanceStatus) == RDSStatusAvailable
+	switch aws.StringValue(instance.DBInstanceStatus) {
+
+	// Statues marked as "Not billed" in the above guide.
+	case "creating", "deleting", "failed",
+		"inaccessible-encryption-credentials", "incompatible-network",
+		"incompatible-restore":
+		return false
+
+	// Statuses marked as "Billed for storage" in the above guide.
+	case "inaccessible-encryption-credentials-recoverable", "starting",
+		"stopped", "stopping":
+		return false
+	}
+
+	return true
 }
 
 // IsRDSClusterAvailable checks if the RDS cluster is available.
 func IsRDSClusterAvailable(cluster *rds.DBCluster) bool {
 	// For a full list of status values, see:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/accessing-monitoring.html
-	return aws.StringValue(cluster.Status) == RDSStatusAvailable
+	switch aws.StringValue(cluster.Status) {
+
+	// Statues marked as "Not billed" in the above guide.
+	case "cloning-failed", "creating", "deleting",
+		"inaccessible-encryption-credentials", "migration-failed":
+		return false
+
+	// Statuses marked as "Billed for storage" in the above guide.
+	case "starting", "stopped", "stopping":
+		return false
+
+	}
+
+	return true
 }
 
 // IsRedshiftClusterAvailable checks if the Redshift cluster is available.
@@ -410,11 +437,14 @@ func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
 	// redshift.Cluster.ClusterAvailabilityStatus.
 	//
 	// Note that status "Maintenance" and "Modifying" are classified as
-	// "intermittently available" in the SDK documentation. "false" is returned
-	// for these statuses to be conservative. Also these statuses should be
-	// transient so the cluster is expected to be "Available" within a period
-	// of time.
-	return aws.StringValue(cluster.ClusterAvailabilityStatus) == RedshiftStatusAvailable
+	// "intermittently available" in the SDK documentation. "true" is returned
+	// for these statuses.
+	switch aws.StringValue(cluster.ClusterAvailabilityStatus) {
+	case "Failed", "Unavailable":
+		return false
+	}
+
+	return true
 }
 
 // auroraMySQLVersion extracts aurora mysql version from engine version
@@ -496,14 +526,4 @@ const (
 	RDSEngineModeGlobal = "global"
 	// RDSEngineModeMultiMaster is the RDS engine mode for Multi-master clusters
 	RDSEngineModeMultiMaster = "multimaster"
-)
-
-const (
-	// RDSStatusAvailable is the status when the RDS instance/cluster is
-	// healthy and available.
-	RDSStatusAvailable = "available"
-
-	// RedshiftStatusAvailable is the status when the Redshift cluster is
-	// available for queries.
-	RedshiftStatusAvailable = "Available"
 )
