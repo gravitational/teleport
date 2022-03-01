@@ -153,6 +153,13 @@ prior to use by CI and Releases, this is also true for _any_  scenario that requ
 use of pre-built images for CI, as you can't build the image internally and then run a 
 build on it without requiring DinD or the like.
 
-Author's Note:  This is how I've done it in the past, so it feels natural to me. 
-Reasonable people can differ on this, I accept that this rationale may not scale 
-to the rest of the team:-)
+_Author's Note:_ This is how I've managed buildbox vs. project code it in the past, so
+it feels natural to me. Reasonable people can differ on this,  and I accept that this
+rationale may not scale to the rest of the team. 😉
+
+### Open Questions
+
+#### Can we use Nix to do this for us?
+Don't know yet.
+
+---
