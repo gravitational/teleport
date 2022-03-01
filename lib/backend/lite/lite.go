@@ -143,7 +143,44 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 			return nil, trace.ConvertSystemError(err)
 		}
 		fullPath := filepath.Join(cfg.Path, defaultDBFile)
-		connectorURL = fmt.Sprintf("file:%v?_busy_timeout=%v&_sync=%v", fullPath, cfg.BusyTimeout, cfg.Sync)
+		// The _txlock parameter is parsed by go-sqlite to determine if (all)
+		// transactions should be started with `BEGIN DEFERRED` (the default,
+		// same as `BEGIN`), `BEGIN IMMEDIATE` or `BEGIN EXCLUSIVE`.
+		//
+		// The way we use sqlite relies entirely on the busy timeout handler
+		// (also configured through the connection URL, with the _busy_timeout
+		// parameter) to address concurrency problems, and treats any
+		// SQLITE_BUSY errors as a fatal issue with the database; however, in
+		// scenarios with multiple readwriters it is possible to still get a
+		// busy error even with a generous busy timeout handler configured, as
+		// two transactions that both start off with a SELECT - thus acquiring a
+		// SHARED lock, see
+		// https://www.sqlite.org/lockingv3.html#transaction_control - then
+		// attempt to upgrade to a RESERVED lock to upsert or delete something
+		// can end up requiring one of the two transactions to forcibly rollback
+		// to avoid a deadlock, which is signaled by the sqlite engine with a
+		// SQLITE_BUSY error returned to one of the two. When that happens, a
+		// concurrent-aware program can just try the transaction again a few
+		// times - making sure to disregard what was read before the transaction
+		// actually committed.
+		//
+		// As we're not really interested in concurrent sqlite access (process
+		// storage has very little written to, sharing a sqlite database as the
+		// backend between two auths is not really supported, and caches
+		// shouldn't ever run on the same underlying sqlite backend) we instead
+		// start every transaction with `BEGIN IMMEDIATE`, which grabs a
+		// RESERVED lock immediately (waiting for the busy timeout in case some
+		// other connection to the database has the lock) at the beginning of
+		// the transaction, thus avoiding any spurious SQLITE_BUSY error that
+		// can happen halfway through a transaction.
+		//
+		// If we end up requiring better concurrent access to sqlite in the
+		// future we should consider enabling Write-Ahead Logging mode, to
+		// actually allow for reads to happen at the same time as writes, adding
+		// some amount of retries to inTransaction, and double-checking that all
+		// uses of it correctly handle the possibility of the transaction being
+		// restarted.
+		connectorURL = fmt.Sprintf("file:%v?_busy_timeout=%v&_sync=%v&_txlock=immediate", fullPath, cfg.BusyTimeout, cfg.Sync)
 	} else {
 		connectorURL = fmt.Sprintf("file:%v?mode=memory", cfg.MemoryName)
 	}
