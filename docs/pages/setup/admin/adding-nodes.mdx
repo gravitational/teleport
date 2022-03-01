@@ -47,9 +47,8 @@ An invite token also defines which role a new host can assume within a cluster:
 Administrators can generate tokens as they are needed. A token can be used
 multiple times until its time to live (TTL) expires.
 
-Use the `tctl` tool to register a new invitation token or generate a new token
-for you. In the following example, a new token is created with a TTL of five
-minutes:
+Use the `tctl` tool to generate a new token. In the following example, a new
+token is created with a TTL of five minutes:
 
 ```code
 # Generate a short-lived invitation token for a new node:
@@ -65,6 +64,15 @@ $ tctl tokens ls
 # ... or revoke an invitation token before it's used:
 $ tctl tokens rm (=presets.tokens.first=)
 ```
+
+If you want to provide your own token, you can do so using the `--token` flag:
+
+```code
+$ tctl nodes add --ttl=5m --roles=node,proxy --token=secret-value
+# The invite token: secret-value
+```
+
+
 
 <Details scope={["oss","enterprise"]} title="An insecure alternative: static tokens" scopeOnly={true} opened>
 <Admonition type="warning">
