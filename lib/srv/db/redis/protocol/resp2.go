@@ -102,7 +102,7 @@ func WriteCmd(wr *redis.Writer, vals interface{}) error {
 		var err error
 		v := reflect.ValueOf(val)
 
-		if v.Kind() == reflect.Pointer {
+		if v.Kind() == reflect.Ptr {
 			v = v.Elem()
 		}
 
