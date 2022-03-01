@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/trace"
 )
 
@@ -140,7 +141,7 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 		psyncCmd, readonlyCmd, readwriteCmd, replconfCmd, replicaofCmd, roleCmd, shutdownCmd, slaveofCmd,
 		slowlogCmd, syncCmd, timeCmd, waitCmd:
 		// block commands that return incorrect results in Cluster mode
-		return trace.NotImplemented("%s is not supported in the cluster mode", cmdName)
+		return protocol.ErrCmdNotSupported
 	case dbsizeCmd:
 		// use go-redis dbsize implementation. It returns size of all keys in the whole cluster instead of
 		// just currently connected instance.
@@ -281,7 +282,7 @@ func (c *clusterClient) handleScriptCmd(ctx context.Context, cmd *redis.Cmd) err
 
 		return nil
 	default:
-		// default SCRIPT KILL and DEBUG
-		return c.ClusterClient.Process(ctx, cmd)
+		// SCRIPT KILL and SCRIPT DEBUG
+		return protocol.ErrCmdNotSupported
 	}
 }

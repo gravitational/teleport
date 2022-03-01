@@ -29,16 +29,19 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/trace"
 )
 
 // List of commands that Teleport handles in a special way by Redis standalone and cluster.
 const (
-	helloCmd        = "hello"
-	authCmd         = "auth"
-	subscribeCmd    = "subscribe"
-	psubscribeCmd   = "psubscribe"
+	helloCmd      = "hello"
+	authCmd       = "auth"
+	subscribeCmd  = "subscribe"
+	psubscribeCmd = "psubscribe"
+	// TODO(jakub): go-redis doesn't expose any API for this command. Investigate alternative options.
 	punsubscribeCmd = "punsubscribe"
+	// go-redis doesn't support Redis 7+ commands yet.
 	ssubscribeCmd   = "ssubscribe"
 	sunsubscribeCmd = "sunsubscribe"
 )
@@ -50,8 +53,8 @@ const (
 //  * Subscribe related commands created a new DB connection as they change Redis request-response model to Pub/Sub.
 func (e *Engine) processCmd(ctx context.Context, cmd *redis.Cmd) error {
 	switch strings.ToLower(cmd.Name()) {
-	case helloCmd:
-		return trace.NotImplemented("RESP3 is not supported")
+	case helloCmd, punsubscribeCmd, ssubscribeCmd, sunsubscribeCmd:
+		return protocol.ErrCmdNotSupported
 	case authCmd:
 		return e.processAuth(ctx, cmd)
 	case subscribeCmd:
@@ -60,12 +63,6 @@ func (e *Engine) processCmd(ctx context.Context, cmd *redis.Cmd) error {
 	case psubscribeCmd:
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
 		return e.subscribeCmd(ctx, e.redisClient.PSubscribe, cmd)
-	case punsubscribeCmd:
-		// TODO(jakub): go-redis doesn't expose any API for this command. Investigate alternative options.
-		return trace.NotImplemented("PUNSUBSCRIBE is not supported by Teleport")
-	case ssubscribeCmd, sunsubscribeCmd:
-		// go-redis doesn't support Redis 7+ commands yet.
-		return trace.NotImplemented("Redis 7.0+ is not yet supported")
 	default:
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
 
