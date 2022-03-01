@@ -163,10 +163,10 @@ func onStart(botConfig *config.BotConfig) error {
 
 		log.Infof("Successfully loaded bot identity, %s", identStr)
 
-		// TODO: we should cache the token; if --token is provided but
-		// different, assume the user is attempting to start with a new
-		// identity. (May want to store a sha256 has to avoid storing the
-		// token directly.)
+		if err := checkIdentity(ident); err != nil {
+			return trace.Wrap(err)
+		}
+
 		if botConfig.Onboarding != nil {
 			log.Warn("Note: onboarding config ignored as identity was loaded from persistent storage")
 		}
@@ -221,12 +221,6 @@ func onStart(botConfig *config.BotConfig) error {
 		}
 	}
 
-	// TODO: handle cases where an identity exists on disk but we might _not_
-	// want to use it:
-	//  - identity has expired
-	//  - user provided a new token (can now compare to the stored tokenhash)
-	//  - ???
-
 	watcher, err := authClient.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindCertAuthority,
@@ -271,6 +265,40 @@ func checkDestinations(cfg *config.BotConfig) error {
 		if err := destImpl.Init(); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	return nil
+}
+
+// checkIdentity performs basic startup checks on an identity and loudly warns
+// end users if it is unlikely to work.
+func checkIdentity(ident *identity.Identity) error {
+	var validAfter time.Time
+	var validBefore time.Time
+
+	if ident.X509Cert != nil {
+		validAfter = ident.X509Cert.NotBefore
+		validBefore = ident.X509Cert.NotAfter
+	} else if ident.SSHCert != nil {
+		validAfter = time.Unix(int64(ident.SSHCert.ValidAfter), 0)
+		validBefore = time.Unix(int64(ident.SSHCert.ValidBefore), 0)
+	} else {
+		return trace.BadParameter("identity is invalid and contains no certificates")
+	}
+
+	now := time.Now().UTC()
+	if now.After(validBefore) {
+		log.Errorf(
+			"Identity appears to have expired. The renewal is likely to fail. (expires: %s, current time: %s)",
+			validBefore.Format(time.RFC3339),
+			now.Format(time.RFC3339),
+		)
+	} else if now.Before(validAfter) {
+		log.Warnf(
+			"Identity is not yet valid. Confirm that the system time is correct. (valid after: %s, current time: %s)",
+			validAfter.Format(time.RFC3339),
+			now.Format(time.RFC3339),
+		)
 	}
 
 	return nil
