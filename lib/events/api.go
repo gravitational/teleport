@@ -298,6 +298,9 @@ const (
 	// session.
 	SessionNetworkEvent = "session.network"
 
+	// SessionProcessExitEvent is emitted when a process exits
+	SessionProcessExitEvent = "session.process_exit"
+
 	// PID is the ID of the process.
 	PID = "pid"
 

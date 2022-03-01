@@ -272,7 +272,7 @@ func (w *PlaybackWriter) writeEvent(event apievents.AuditEvent) error {
 
 	// Playback does not use enhanced events at the moment,
 	// so they are skipped
-	case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent:
+	case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent, SessionProcessExitEvent:
 		return nil
 
 	// PlaybackWriter is not used for desktop playback, so we should never see

@@ -355,6 +355,35 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 
 		// Now that the event has been processed, remove from cache.
 		s.argsCache.Remove(strconv.FormatUint(event.PID, 10))
+	// The process has exited, emit an event
+	case eventExit:
+		// Emit "process_exit" event.
+		sessionProcessExitEvent := &apievents.SessionProcessExit{
+			Metadata: apievents.Metadata{
+				Type: events.SessionProcessExitEvent,
+				Code: events.SessionProcessExitCode,
+			},
+			ServerMetadata: apievents.ServerMetadata{
+				ServerID:        ctx.ServerID,
+				ServerNamespace: ctx.Namespace,
+			},
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID: ctx.SessionID,
+			},
+			UserMetadata: apievents.UserMetadata{
+				User:  ctx.User,
+				Login: ctx.Login,
+			},
+			BPFMetadata: apievents.BPFMetadata{
+				CgroupID: event.CgroupID,
+				Program:  ConvertString(unsafe.Pointer(&event.Command)),
+				PID:      event.PID,
+			},
+			ExitStatus: event.ReturnCode,
+		}
+		if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionProcessExitEvent); err != nil {
+			log.WithError(err).Warn("Failed to emit process_exit event.")
+		}
 	}
 }
 

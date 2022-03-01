@@ -107,6 +107,8 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		e = &events.SessionDisk{}
 	case SessionNetworkEvent:
 		e = &events.SessionNetwork{}
+	case SessionProcessExitEvent:
+		e = &events.SessionProcessExit{}
 	case RoleCreatedEvent:
 		e = &events.RoleCreate{}
 	case RoleDeletedEvent:

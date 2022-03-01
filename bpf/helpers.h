@@ -1,6 +1,11 @@
 #ifndef HELPERS_H
 #define HELPERS_H
 
+// Can't include stddef.h due to conflicts with vmlinux.h
+#ifndef NULL
+#    define NULL 0
+#endif
+
 #define BPF_ARRAY(name, val_type, size) \
     struct { \
         __uint(type, BPF_MAP_TYPE_ARRAY); \
@@ -17,16 +22,17 @@
         __uint(max_entries, size); \
         __type(key, key_type); \
         __type(value, val_type); \
+        __uint(map_flags, BPF_F_NO_PREALLOC); \
     } name SEC(".maps")
 
 #define BPF_LPM_TRIE(name, key_type, val_type, size) \
-	struct { \
-		__uint(type, BPF_MAP_TYPE_LPM_TRIE); \
-		__uint(max_entries, size); \
-		__type(key, key_type); \
-		__type(value, val_type); \
-		__uint(map_flags, BPF_F_NO_PREALLOC); \
-	} name SEC(".maps")
+    struct { \
+        __uint(type, BPF_MAP_TYPE_LPM_TRIE); \
+        __uint(max_entries, size); \
+        __type(key, key_type); \
+        __type(value, val_type); \
+        __uint(map_flags, BPF_F_NO_PREALLOC); \
+    } name SEC(".maps")
 
 #define BPF_RING_BUF(name, size) \
     struct { \

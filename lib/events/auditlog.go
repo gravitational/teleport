@@ -543,9 +543,10 @@ func readSessionIndex(dataDir string, authServers []string, namespace string, si
 		dataDir:   dataDir,
 		namespace: namespace,
 		enhancedEvents: map[string][]indexEntry{
-			SessionCommandEvent: {},
-			SessionDiskEvent:    {},
-			SessionNetworkEvent: {},
+			SessionCommandEvent:     {},
+			SessionDiskEvent:        {},
+			SessionNetworkEvent:     {},
+			SessionProcessExitEvent: {},
 		},
 	}
 	for _, authServer := range authServers {
@@ -571,7 +572,7 @@ func readSessionIndex(dataDir string, authServers []string, namespace string, si
 			case fileTypeChunks:
 				index.chunks = append(index.chunks, entry)
 			// Enhanced events.
-			case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent:
+			case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent, SessionProcessExitEvent:
 				index.enhancedEvents[entry.Type] = append(index.enhancedEvents[entry.Type], entry)
 			default:
 				return nil, trace.BadParameter("found unknown event type: %q", entry.Type)

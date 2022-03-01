@@ -486,6 +486,33 @@ message SessionCommand {
     int32 ReturnCode = 9 [ (gogoproto.jsontag) = "return_code" ];
 }
 
+// SessionProcessExit is a process exit event
+message SessionProcessExit {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // User is a common user event metadata
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // SessionMetadata is a common event session metadata
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ServerMetadata is a common server metadata
+    ServerMetadata Server = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // BPFMetadata is a common BPF subsystem metadata
+    BPFMetadata BPF = 5
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ExitStatus is the exit status of the process. If the process was terminated by
+    // a signal N, the ExitStatus will be -N.
+    int32 ExitStatus = 6 [ (gogoproto.jsontag) = "exit_status" ];
+}
+
 // SessionDisk is a session disk access event
 message SessionDisk {
     // Metadata is a common event metadata
@@ -1865,6 +1892,7 @@ message OneOf {
         events.MySQLStatementFetch MySQLStatementFetch = 77;
         events.MySQLStatementBulkExecute MySQLStatementBulkExecute = 78;
         events.RenewableCertificateGenerationMismatch RenewableCertificateGenerationMismatch = 79;
+        events.SessionProcessExit SessionProcessExit = 80;
     }
 }
 

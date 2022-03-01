@@ -65,11 +65,11 @@ func ResizeMap(mod *libbpfgo.Module, mapName string, value uint32) error {
 	return nil
 }
 
-// AttachKprobe attaches both a kprobe and kretprobe for the
+// AttachKprobeEntry attaches a kprobe (but not retprobe)
 // function identified by "name". The BPF C functions must be
-// called "kprobe__NAME" and "kretprobe__NAME" where NAME
+// called "kprobe__NAME" where NAME
 // the name of the kernel function to be hooked.
-func AttachKprobe(mod *libbpfgo.Module, name string) error {
+func AttachKprobeEntry(mod *libbpfgo.Module, name string) error {
 	prog, err := mod.GetProgram(kprobeProgPrefix + name)
 	if err != nil {
 		return trace.Wrap(err)
@@ -80,13 +80,36 @@ func AttachKprobe(mod *libbpfgo.Module, name string) error {
 		return trace.Wrap(err)
 	}
 
-	prog, err = mod.GetProgram(kretprobeProgPrefix + name)
+	return nil
+}
+
+// AttachKprobeReturn attaches a kretprobe function identified by "name".
+// The BPF C functions must be called "kretprobe__NAME" where NAME
+// the name of the kernel function to be hooked.
+func AttachKprobeReturn(mod *libbpfgo.Module, name string) error {
+	prog, err := mod.GetProgram(kretprobeProgPrefix + name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = prog.AttachKretprobe(name)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// AttachKprobe attaches both a kprobe and kretprobe for the
+// function identified by "name". The BPF C functions must be
+// called "kprobe__NAME" and "kretprobe__NAME" where NAME
+// the name of the kernel function to be hooked.
+func AttachKprobe(mod *libbpfgo.Module, name string) error {
+	if err := AttachKprobeEntry(mod, name); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := AttachKprobeReturn(mod, name); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -250,6 +273,9 @@ const (
 
 	// eventRet holds the return value and other data about about an event.
 	eventRet = 1
+
+	// eventRet holds the exit code and other data about about an event.
+	eventExit = 2
 
 	// chanSize is the size of the event channels.
 	chanSize = 1024

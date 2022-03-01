@@ -115,6 +115,10 @@ func startExec(bufferSize int) (*exec, error) {
 		}
 	}
 
+	if err = AttachKprobeEntry(e.module, "do_exit"); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	e.eventBuf, err = NewRingBuffer(e.module, commandEventsBuffer)
 	if err != nil {
 		return nil, trace.Wrap(err)

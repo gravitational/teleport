@@ -87,9 +87,10 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		ForwarderConfig: cfg,
 		sessionLogger:   diskLogger,
 		enhancedIndexes: map[string]int64{
-			SessionCommandEvent: 0,
-			SessionDiskEvent:    0,
-			SessionNetworkEvent: 0,
+			SessionCommandEvent:     0,
+			SessionDiskEvent:        0,
+			SessionNetworkEvent:     0,
+			SessionProcessExitEvent: 0,
 		},
 	}, nil
 }
@@ -182,7 +183,7 @@ func (l *Forwarder) setupSlice(slice *SessionSlice) ([]*SessionChunk, error) {
 		switch chunk.EventType {
 		case "":
 			return nil, trace.BadParameter("missing event type")
-		case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent:
+		case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent, SessionProcessExitEvent:
 			chunk.EventIndex = l.enhancedIndexes[chunk.EventType]
 			l.enhancedIndexes[chunk.EventType]++
 
