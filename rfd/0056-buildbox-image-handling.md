@@ -65,7 +65,7 @@ This process meets several of the goals set above:
 On the other hand:
 
  * We do no validation of the components installed onto the buildbox image, so 
-   the every image created (including at build time for releases) is vulnerable
+   **_every_** image created (including at build time for releases) is vulnerable
    to downloaded artifacts being subverted.
  * We tag _every_ revision of the buildbox with the current go version, meaning
    that we cannot uniquely identify any revision of the buildbox image.
