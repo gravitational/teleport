@@ -68,8 +68,10 @@ func UpdateAuthPreferenceWithLegacyClusterConfig(cc types.ClusterConfig, authPre
 	if !ok {
 		return trace.BadParameter("unexpected ClusterConfig type %T", cc)
 	}
-	authPref.SetDisconnectExpiredCert(ccV3.Spec.DisconnectExpiredCert.Value())
-	authPref.SetAllowLocalAuth(ccV3.Spec.AllowLocalAuth.Value())
+    if ccV3.Spec.LegacyClusterConfigAuthFields != nil {
+        authPref.SetDisconnectExpiredCert(ccV3.Spec.DisconnectExpiredCert.Value())
+        authPref.SetAllowLocalAuth(ccV3.Spec.AllowLocalAuth.Value())
+    }
 	return nil
 }
 
