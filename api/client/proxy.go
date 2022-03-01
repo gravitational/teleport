@@ -30,6 +30,7 @@ import (
 	"github.com/siddontang/go/log"
 )
 
+// DialProxy creates a connection to a server via an HTTP Proxy.
 func DialProxy(ctx context.Context, proxyAddr, addr string, dialer ContextDialer) (net.Conn, error) {
 	if dialer == nil {
 		dialer = &net.Dialer{}
@@ -83,6 +84,7 @@ func DialProxy(ctx context.Context, proxyAddr, addr string, dialer ContextDialer
 	}, nil
 }
 
+// GetProxyAddress gets the HTTP proxy address to use for a given address, if any.
 func GetProxyAddress(addr string) string {
 	envs := []string{
 		teleport.HTTPSProxy,
