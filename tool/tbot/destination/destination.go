@@ -18,6 +18,11 @@ package destination
 
 // Destination can persist renewable certificates.
 type Destination interface {
+	// Init attempts to initialize this destination for writing. Init should be
+	// idempotent and may write informational log messages if resources are
+	// created.
+	Init() error
+
 	// Write stores data to the destination with the given name.
 	Write(name string, data []byte) error
 

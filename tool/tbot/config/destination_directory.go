@@ -114,6 +114,24 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 	return nil
 }
 
+func (dd *DestinationDirectory) Init() error {
+	// Create the directory if needed.
+	stat, err := os.Stat(dd.Path)
+	if trace.IsNotFound(err) {
+		err = os.MkdirAll(dd.Path, botfs.DefaultDirMode)
+		log.Infof("Created directory %q", dd.Path)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else if err != nil {
+		return trace.Wrap(err)
+	} else if !stat.IsDir() {
+		return trace.BadParameter("Path %q already exists and is not a directory")
+	}
+
+	return nil
+}
+
 func (dd *DestinationDirectory) Write(name string, data []byte) error {
 	if err := os.WriteFile(filepath.Join(dd.Path, name), data, botfs.DefaultMode); err != nil {
 		return trace.Wrap(err)

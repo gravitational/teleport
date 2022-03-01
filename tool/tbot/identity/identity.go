@@ -58,6 +58,10 @@ const (
 
 	// TokenHashKey is the storage where a hash of the onboarding token will be stored.
 	TokenHashKey = "tokenhash"
+
+	// WriteTestKey is the key for a file used to check that the destination is
+	// writable.
+	WriteTestKey = ".write-test"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -101,6 +105,8 @@ type LoadIdentityParams struct {
 	TokenHashBytes  []byte
 }
 
+// Params returns the LoadIdentityParams for this Identity, which are the
+// local-only parameters to be carried over to a renewed identity.
 func (i *Identity) Params() *LoadIdentityParams {
 	return &LoadIdentityParams{
 		PrivateKeyBytes: i.PrivateKeyBytes,
@@ -368,6 +374,13 @@ func ReadSSHIdentityFromKeyPair(identity *Identity, keyBytes, publicKeyBytes, ce
 	identity.SSHCert = cert
 
 	return nil
+}
+
+// VerifyWrite attempts to write to the .write-test artifact inside the given
+// destination. It should be called before attempting a renewal to help ensure
+// we won't then fail to save the identity.
+func VerifyWrite(dest destination.Destination) error {
+	return trace.Wrap(dest.Write(WriteTestKey, []byte{}))
 }
 
 // SaveIdentity saves a bot identity to a destination.

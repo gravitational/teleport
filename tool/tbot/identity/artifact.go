@@ -112,6 +112,9 @@ var artifacts []Artifact = []Artifact{
 		},
 	},
 	{
+		// The token hash is used to detect changes to the token and
+		// automatically purge existing identity documents when changes are
+		// detected.
 		Key:  TokenHashKey,
 		Kind: KindBotInternal,
 		ToBytes: func(i *Identity) []byte {
@@ -119,6 +122,19 @@ var artifacts []Artifact = []Artifact{
 		},
 		FromBytes: func(c *proto.Certs, p *LoadIdentityParams, b []byte) {
 			p.TokenHashBytes = b
+		},
+	},
+	{
+		// The write test is used to ensure the destination is writable before
+		// attempting a renewal.
+		Key:  WriteTestKey,
+		Kind: KindAlways,
+		ToBytes: func(i *Identity) []byte {
+			// always empty
+			return []byte{}
+		},
+		FromBytes: func(c *proto.Certs, p *LoadIdentityParams, b []byte) {
+			// nothing to do
 		},
 	},
 }

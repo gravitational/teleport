@@ -50,6 +50,11 @@ func (dm *DestinationMemory) CheckAndSetDefaults() error {
 	return nil
 }
 
+func (dm *DestinationMemory) Init() error {
+	// Nothing to do.
+	return nil
+}
+
 func (dm *DestinationMemory) Write(name string, data []byte) error {
 	dm.store[name] = data
 

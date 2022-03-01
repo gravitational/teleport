@@ -255,17 +255,9 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	log.Infof("Initializing destination: %s", destImpl)
 
 	// Create the directory if needed.
-	stat, err := os.Stat(destDir.Path)
-	if trace.IsNotFound(err) {
-		err = os.MkdirAll(destDir.Path, botfs.DefaultDirMode)
-		log.Infof("Created directory %q", destDir.Path)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else if err != nil {
+	// TODO: verify ownership of this directory matches current user
+	if err := destDir.Init(); err != nil {
 		return trace.Wrap(err)
-	} else if !stat.IsDir() {
-		return trace.BadParameter("Path %q already exists and is not a directory")
 	}
 
 	// Next, test if we have ACL support

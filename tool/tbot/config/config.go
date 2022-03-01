@@ -34,6 +34,7 @@ import (
 const (
 	DefaultCertificateTTL = 60 * time.Minute
 	DefaultRenewInterval  = 20 * time.Minute
+	DefaultJoinMethod     = "token"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -233,7 +234,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	// merging)
 	if cf.Token != "" || len(cf.CAPins) > 0 || cf.JoinMethod != "" {
 		onboarding := config.Onboarding
-		if onboarding != nil && (onboarding.Token != "" || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || cf.JoinMethod != "" {
+		if onboarding != nil && (onboarding.Token != "" || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || cf.JoinMethod != DefaultJoinMethod {
 			// To be safe, warn about possible confusion.
 			log.Warnf("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
 		}

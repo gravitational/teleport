@@ -75,7 +75,7 @@ func Run(args []string) error {
 	startCmd.Flag("destination-dir", "Directory to write generated certificates").StringVar(&cf.DestinationDir)
 	startCmd.Flag("certificate-ttl", "TTL of generated certificates").Default("60m").DurationVar(&cf.CertificateTTL)
 	startCmd.Flag("renew-interval", "Interval at which certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewInterval)
-	startCmd.Flag("join-method", "Method to use to join the cluster.").Default("token").EnumVar(&cf.JoinMethod, "token", "iam")
+	startCmd.Flag("join-method", "Method to use to join the cluster.").Default(config.DefaultJoinMethod).EnumVar(&cf.JoinMethod, "token", "iam")
 
 	initCmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
 	initCmd.Flag("destination-dir", "Destination directory to initialize.").StringVar(&cf.DestinationDir)
@@ -130,6 +130,11 @@ func onWatch(botConfig *config.BotConfig) error {
 }
 
 func onStart(botConfig *config.BotConfig) error {
+	// First, try to make sure all destinations are usable.
+	if err := checkDestinations(botConfig); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Start by loading the bot's primary destination.
 	dest, err := botConfig.Storage.GetDestination()
 	if err != nil {
@@ -170,6 +175,11 @@ func onStart(botConfig *config.BotConfig) error {
 
 		// TODO: validate that errors from LoadIdentity are sanely typed; we
 		// actually only want to ignore NotFound errors
+
+		// Verify we can write to the destination.
+		if err := identity.VerifyWrite(dest); err != nil {
+			return trace.Wrap(err, "Could not write to destination %s, aborting.", dest)
+		}
 
 		// Get first identity
 		ident, err = getIdentityFromToken(botConfig)
@@ -222,6 +232,39 @@ func onStart(botConfig *config.BotConfig) error {
 	return renewLoop(ctx, botConfig, authClient, ident)
 }
 
+// checkDestinations checks all destinations and tries to create any that
+// don't already exist.
+func checkDestinations(cfg *config.BotConfig) error {
+	// Note: This is vaguely problematic as we don't recommend that users
+	// store renewable certs under the same user as end-user certs. That said,
+	//  - if the destination was properly created via tbot init this is a no-op
+	//  - if users intend to follow that advice but miss a step, it should fail
+	//    due to lack of permissions
+	storage, err := cfg.Storage.GetDestination()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO: consider warning if ownership of all destintions is not expected.
+
+	if err := storage.Init(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, dest := range cfg.Destinations {
+		destImpl, err := dest.GetDestination()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := destImpl.Init(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 func watchCARotations(watcher types.Watcher) {
 	for {
 		select {
@@ -254,7 +297,7 @@ func getIdentityFromToken(cfg *config.BotConfig) (*identity.Identity, error) {
 		return nil, trace.WrapWithMessage(err, "unable to generate new keypairs")
 	}
 
-	log.Info("attempting to generate new identity from token")
+	log.Info("Attempting to generate new identity from token")
 	params := auth.RegisterParams{
 		Token: cfg.Onboarding.Token,
 		ID: auth.IdentityID{
@@ -443,6 +486,11 @@ func renewLoop(ctx context.Context, cfg *config.BotConfig, client auth.ClientI, 
 	ticker := time.NewTicker(cfg.RenewInterval)
 	defer ticker.Stop()
 	for {
+		// Make sure we can still write to the bot's destination.
+		if err := identity.VerifyWrite(botDestination); err != nil {
+			return trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
+		}
+
 		log.Debug("Attempting to renew bot certificates...")
 		newIdentity, err := renewIdentityViaAuth(ctx, client, ident, cfg)
 		if err != nil {
@@ -497,6 +545,12 @@ func renewLoop(ctx context.Context, cfg *config.BotConfig, client auth.ClientI, 
 			destImpl, err := dest.GetDestination()
 			if err != nil {
 				return trace.Wrap(err)
+			}
+
+			// Ensure this destination is also writable.
+			// TODO: consider not making these a hard error?
+			if err := identity.VerifyWrite(destImpl); err != nil {
+				return trace.Wrap(err, "Could not write to destination %s, aborting.", destImpl)
 			}
 
 			var desiredRoles []string
