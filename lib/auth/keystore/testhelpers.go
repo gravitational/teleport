@@ -109,3 +109,7 @@ func (t TestModules) Features() modules.Features {
 func (t TestModules) BuildType() string {
 	return modules.BuildEnterprise
 }
+
+func (t TestModules) IsBoringBinary() bool {
+	return false
+}

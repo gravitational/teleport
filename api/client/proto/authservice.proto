@@ -358,6 +358,8 @@ message PingResponse {
     Features ServerFeatures = 3 [ (gogoproto.jsontag) = "server_features" ];
     // ProxyPublicAddr is the server's public proxy address.
     string ProxyPublicAddr = 4 [ (gogoproto.jsontag) = "proxy_public_addr" ];
+    // IsBoring signals whether or not the server was compiled with BoringCrypto.
+    bool IsBoring = 5 [ (gogoproto.jsontag) = "is_boring" ];
 }
 
 // Features are auth server features.
