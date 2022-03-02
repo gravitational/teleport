@@ -426,7 +426,7 @@ func (a *AuthCommand) generateDatabaseKeys(clusterAPI auth.ClientI) error {
 // for database access.
 func (a *AuthCommand) generateDatabaseKeysForKey(clusterAPI auth.ClientI, key *client.Key) error {
 	principals := strings.Split(a.genHost, ",")
-	if len(principals) == 0 {
+	if len(principals) == 1 && principals[0] == "" {
 		return trace.BadParameter("at least one hostname must be specified via --host flag")
 	}
 	// For CockroachDB node certificates, CommonName must be "node":
