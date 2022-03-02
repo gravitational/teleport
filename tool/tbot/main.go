@@ -79,8 +79,9 @@ func Run(args []string) error {
 	startCmd.Flag("join-method", "Method to use to join the cluster.").Default(config.DefaultJoinMethod).EnumVar(&cf.JoinMethod, "token", "iam")
 
 	initCmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
-	initCmd.Flag("destination-dir", "Destination directory to initialize.").StringVar(&cf.DestinationDir)
-	initCmd.Flag("init-dir", "If multiple destinations are configured, specify which to initialize").StringVar(&cf.InitDir)
+	initCmd.Flag("auth-server", "Specify the Teleport auth server host").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
+	initCmd.Flag("destination-dir", "If NOT using a config file, specify the destination directory.").StringVar(&cf.DestinationDir)
+	initCmd.Flag("init-dir", "If using a config file and multiple destinations are configured, specify which to initialize").StringVar(&cf.InitDir)
 	initCmd.Flag("clean", "If set, remove unexpected files and directories from the destination").BoolVar(&cf.Clean)
 	initCmd.Arg("bot-user", "Name of the bot Unix user which should have write access to the destination.").Required().StringVar(&cf.BotUser)
 
