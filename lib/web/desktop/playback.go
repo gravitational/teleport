@@ -19,13 +19,16 @@ package desktop
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
+	"os"
 	"sync"
 	"time"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
 )
@@ -205,12 +208,21 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 		case err := <-errC:
 			if err != nil && !errors.Is(err, context.Canceled) {
 				pp.log.WithError(err).Errorf("streaming session %v", pp.sID)
+				var errorText string
+				if os.IsNotExist(err) || trace.IsNotFound(err) {
+					errorText = "session not found"
+				} else {
+					errorText = "server error"
+				}
+				if _, err := pp.ws.Write([]byte(fmt.Sprintf(`{"message": "error", "errorText": "%v"}`, errorText))); err != nil {
+					pp.log.WithError(err).Error("failed to write \"error\" message over websocket")
+				}
 			}
 			return
 		case evt := <-eventsC:
 			if evt == nil {
 				pp.log.Debug("reached end of playback")
-				if _, err := pp.ws.Write([]byte(`{"message":"end"}`)); err != nil {
+				if _, err := pp.ws.Write([]byte(`{"message": "end"}`)); err != nil {
 					pp.log.WithError(err).Error("failed to write \"end\" message over websocket")
 				}
 				return
