@@ -22,13 +22,12 @@ import (
 	"github.com/gravitational/trace"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // Decode parses a JSON-encoded MFA authentication response.
-// Is either webauthn (type="n") or u2f (type="u").
+// Only webauthn (type="n") is currently supported.
 func Decode(b []byte, typ string) (*authproto.MFAAuthenticateResponse, error) {
 	var resp *authproto.MFAAuthenticateResponse
 
@@ -45,19 +44,8 @@ func Decode(b []byte, typ string) (*authproto.MFAAuthenticateResponse, error) {
 		}
 
 	default:
-		var u2fResponse u2f.AuthenticateChallengeResponse
-		if err := json.Unmarshal(b, &u2fResponse); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resp = &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_U2F{
-				U2F: &authproto.U2FResponse{
-					KeyHandle:  u2fResponse.KeyHandle,
-					ClientData: u2fResponse.ClientData,
-					Signature:  u2fResponse.SignatureData,
-				},
-			},
-		}
+		return nil, trace.BadParameter(
+			"received type %v, expected %v (WebAuthn)", typ, defaults.WebsocketWebauthnChallenge)
 	}
 
 	return resp, nil

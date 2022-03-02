@@ -33,9 +33,8 @@ import (
 	"github.com/gravitational/trace"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/web/mfajson"
 )
@@ -457,11 +456,11 @@ func decodeClipboardData(in peekReader, maxLen uint32) (ClipboardData, error) {
 const maxMFADataLength = 1024 * 1024
 
 type MFA struct {
-	// Type should be one of defaults.WebsocketU2FChallenge or defaults.WebsocketWebauthnChallenge
+	// Type should be defaults.WebsocketWebauthnChallenge
 	Type byte
 	// MFAAuthenticateChallenge is the challenge we send to the client.
 	// Used for messages from Teleport to the user's browser.
-	*auth.MFAAuthenticateChallenge
+	*client.MFAAuthenticateChallenge
 	// MFAAuthenticateResponse is the response to the MFA challenge,
 	// sent from the browser to Teleport.
 	*authproto.MFAAuthenticateResponse
@@ -481,17 +480,6 @@ func (m MFA) Encode() ([]byte, error) {
 		}
 	} else if m.MFAAuthenticateResponse != nil {
 		switch t := m.MFAAuthenticateResponse.Response.(type) {
-		case *authproto.MFAAuthenticateResponse_U2F:
-			msg := m.MFAAuthenticateResponse.GetU2F()
-			resp := u2f.AuthenticateChallengeResponse{
-				KeyHandle:     msg.KeyHandle,
-				SignatureData: msg.Signature,
-				ClientData:    msg.ClientData,
-			}
-			buff, err = json.Marshal(resp)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 		case *authproto.MFAAuthenticateResponse_Webauthn:
 			buff, err = json.Marshal(wanlib.CredentialAssertionResponseFromProto(m.MFAAuthenticateResponse.GetWebauthn()))
 			if err != nil {
@@ -527,10 +515,10 @@ func DecodeMFA(in peekReader) (*MFA, error) {
 	}
 	s := string(mt)
 	switch s {
-	case defaults.WebsocketWebauthnChallenge, defaults.WebsocketU2FChallenge:
+	case defaults.WebsocketWebauthnChallenge:
 	default:
-		return nil, trace.BadParameter("got mfa type %v, expected %v (WebAuthn) or %v (U2F)",
-			mt, defaults.WebsocketWebauthnChallenge, defaults.WebsocketU2FChallenge)
+		return nil, trace.BadParameter(
+			"got mfa type %v, expected %v (WebAuthn)", mt, defaults.WebsocketWebauthnChallenge)
 	}
 
 	var length uint32
@@ -575,10 +563,10 @@ func DecodeMFAChallenge(in peekReader) (*MFA, error) {
 	}
 	s := string(mt)
 	switch s {
-	case defaults.WebsocketWebauthnChallenge, defaults.WebsocketU2FChallenge:
+	case defaults.WebsocketWebauthnChallenge:
 	default:
-		return nil, trace.BadParameter("got mfa type %v, expected %v (WebAuthn) or %v (U2F)",
-			mt, defaults.WebsocketWebauthnChallenge, defaults.WebsocketU2FChallenge)
+		return nil, trace.BadParameter(
+			"got mfa type %v, expected %v (WebAuthn)", mt, defaults.WebsocketWebauthnChallenge)
 	}
 
 	var length uint32
@@ -595,7 +583,7 @@ func DecodeMFAChallenge(in peekReader) (*MFA, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var req *auth.MFAAuthenticateChallenge
+	var req *client.MFAAuthenticateChallenge
 	if err := json.Unmarshal(b, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}

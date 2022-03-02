@@ -27,14 +27,16 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/u2f"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -135,15 +137,26 @@ func loadBitmaps(b *testing.B) []PNGFrame {
 func TestMFA(t *testing.T) {
 	var buff bytes.Buffer
 	c := NewConn(&buff)
+
 	mfaWant := &MFA{
-		Type: defaults.WebsocketU2FChallenge[0],
-		MFAAuthenticateChallenge: &auth.MFAAuthenticateChallenge{
-			U2FChallenges: []u2f.AuthenticateChallenge{
-				{
-					Version:   "version",
-					Challenge: "challenge",
-					KeyHandle: "key_handle",
-					AppID:     "app_id",
+		Type: defaults.WebsocketWebauthnChallenge[0],
+		MFAAuthenticateChallenge: &client.MFAAuthenticateChallenge{
+			WebauthnChallenge: &wanlib.CredentialAssertion{
+				Response: protocol.PublicKeyCredentialRequestOptions{
+					Challenge:      []byte("challenge"),
+					Timeout:        10,
+					RelyingPartyID: "teleport",
+					AllowedCredentials: []protocol.CredentialDescriptor{
+						{
+							Type:         "public-key",
+							CredentialID: []byte("credential id"),
+							Transport:    []protocol.AuthenticatorTransport{protocol.USB},
+						},
+					},
+					UserVerification: "discouraged",
+					Extensions: protocol.AuthenticationExtensions{
+						"ext1": "value1",
+					},
 				},
 			},
 		},
@@ -155,13 +168,21 @@ func TestMFA(t *testing.T) {
 	require.Equal(t, mfaWant, mfaGot)
 
 	respWant := &MFA{
-		Type: defaults.WebsocketU2FChallenge[0],
+		Type: defaults.WebsocketWebauthnChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_U2F{
-				U2F: &authproto.U2FResponse{
-					KeyHandle:  "key_handler",
-					ClientData: "client_data",
-					Signature:  "signature",
+			Response: &authproto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: &wantypes.CredentialAssertionResponse{
+					Type:  "public-key",
+					RawId: []byte("credential id"),
+					Response: &wantypes.AuthenticatorAssertionResponse{
+						ClientDataJson:    []byte("client data json"),
+						AuthenticatorData: []byte("authenticator data"),
+						Signature:         []byte("signature"),
+						UserHandle:        []byte("user handle"),
+					},
+					Extensions: &wantypes.AuthenticationExtensionsClientOutputs{
+						AppId: true,
+					},
 				},
 			},
 		},

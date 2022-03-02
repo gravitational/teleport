@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -1813,18 +1812,13 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *proto.DeleteRoleReques
 // related GRPC API endpoints.
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream proto.AuthService_MaintainSessionPresenceServer, challengeReq *proto.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
-	u2fStorage, err := u2f.InMemoryAuthenticationStorage(actx.authServer.Identity)
+
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, u2fStorage)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if len(authChallenge.U2F) == 0 && authChallenge.WebauthnChallenge == nil {
-		return trace.BadParameter("no U2F or WebAuthn devices registered for %q", user)
+	if authChallenge.WebauthnChallenge == nil {
+		return trace.BadParameter("no MFA devices registered for %q", user)
 	}
 
 	if err := stream.Send(authChallenge); err != nil {
@@ -1841,7 +1835,7 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream proto
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", challengeResp)
 	}
 
-	if _, err := actx.authServer.validateMFAAuthResponse(ctx, user, challengeResp, u2fStorage); err != nil {
+	if _, err := actx.authServer.validateMFAAuthResponse(ctx, user, challengeResp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1968,13 +1962,9 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_AddMF
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 	ctx := stream.Context()
-	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Identity)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	// Note: authChallenge may be empty if this user has no existing MFA devices.
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user, u2fStorage)
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1993,8 +1983,8 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_AddMF
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req)
 	}
 	// Only validate if there was a challenge.
-	if authChallenge.TOTP != nil || len(authChallenge.U2F) > 0 {
-		if _, err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage); err != nil {
+	if authChallenge.TOTP != nil || authChallenge.WebauthnChallenge != nil {
+		if _, err := auth.validateMFAAuthResponse(ctx, user, authResp); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2005,33 +1995,17 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 	ctx := stream.Context()
-	u2fStorage, err := u2f.InMemoryRegistrationStorage(auth.Identity)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	// Keep Webauthn session data in memory, we can afford that for the streaming
 	// RPCs.
 	webIdentity := wanlib.WithInMemorySessionData(auth.Identity)
-
-	devType := initReq.DeviceType
-	if devType == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
-		// Try and convert from legacy type.
-		// Keep conversion until 9.x, when the field is marked for deletion.
-		m := map[proto.AddMFADeviceRequestInit_LegacyDeviceType]proto.DeviceType{
-			proto.AddMFADeviceRequestInit_TOTP:     proto.DeviceType_DEVICE_TYPE_TOTP,
-			proto.AddMFADeviceRequestInit_U2F:      proto.DeviceType_DEVICE_TYPE_U2F,
-			proto.AddMFADeviceRequestInit_Webauthn: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-		}
-		devType = m[initReq.LegacyType]
-	}
 
 	// Send registration challenge for the requested device type.
 	regChallenge := new(proto.MFARegisterChallenge)
 
 	res, err := auth.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
 		username:            user,
-		deviceType:          devType,
-		u2fStorageOverride:  u2fStorage,
+		deviceType:          initReq.DeviceType,
 		webIdentityOverride: webIdentity,
 	})
 	if err != nil {
@@ -2060,7 +2034,6 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 		username:            user,
 		newDeviceName:       initReq.DeviceName,
 		totpSecret:          regChallenge.GetTOTP().GetSecret(),
-		u2fStorage:          u2fStorage,
 		webIdentityOverride: webIdentity,
 	})
 
@@ -2108,19 +2081,14 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 	return trace.Wrap(stream.Send(&proto.DeleteMFADeviceResponse{
 		Response: &proto.DeleteMFADeviceResponse_Ack{Ack: &proto.DeleteMFADeviceResponseAck{}},
 	}))
-
 }
 
 func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_DeleteMFADeviceServer) error {
 	ctx := stream.Context()
 	auth := gctx.authServer
 	user := gctx.User.GetName()
-	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Identity)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user, u2fStorage)
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2139,7 +2107,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_De
 	if authResp == nil {
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req)
 	}
-	if _, err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage); err != nil {
+	if _, err := auth.validateMFAAuthResponse(ctx, user, authResp); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -2282,16 +2250,12 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	ctx := stream.Context()
 	auth := gctx.authServer
 	user := gctx.User.GetName()
-	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Identity)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	challenge, err := auth.mfaAuthChallenge(ctx, user, u2fStorage)
+	challenge, err := auth.mfaAuthChallenge(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if challenge.TOTP == nil && len(challenge.U2F) == 0 && challenge.WebauthnChallenge == nil {
+	if challenge.TOTP == nil && challenge.WebauthnChallenge == nil {
 		return nil, trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
 	}
 	if err := stream.Send(&proto.UserSingleUseCertsResponse{
@@ -2308,7 +2272,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	if authResp == nil {
 		return nil, trace.BadParameter("expected MFAAuthenticateResponse, got %T", req.Request)
 	}
-	mfaDev, err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage)
+	mfaDev, err := auth.validateMFAAuthResponse(ctx, user, authResp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3712,17 +3676,18 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 		return nil, trace.Wrap(err)
 	}
 
-	resources, nextKey, err := auth.ListResources(ctx, *req)
+	resp, err := auth.ListResources(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp := &proto.ListResourcesResponse{
-		NextKey:   nextKey,
-		Resources: make([]*proto.PaginatedResource, len(resources)),
+	protoResp := &proto.ListResourcesResponse{
+		NextKey:    resp.NextKey,
+		Resources:  make([]*proto.PaginatedResource, len(resp.Resources)),
+		TotalCount: int32(resp.TotalCount),
 	}
 
-	for i, resource := range resources {
+	for i, resource := range resp.Resources {
 		var protoResource *proto.PaginatedResource
 		switch req.ResourceType {
 		case types.KindDatabaseServer:
@@ -3757,10 +3722,10 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			return nil, trace.NotImplemented("resource type %s doesn't support pagination", req.ResourceType)
 		}
 
-		resp.Resources[i] = protoResource
+		protoResp.Resources[i] = protoResource
 	}
 
-	return resp, nil
+	return protoResp, nil
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.

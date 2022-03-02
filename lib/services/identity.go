@@ -27,7 +27,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gokyle/hotp"
@@ -112,27 +111,22 @@ type Identity interface {
 	// UpsertPassword upserts new password and OTP token
 	UpsertPassword(user string, password []byte) error
 
-	// UpsertU2FRegisterChallenge upserts a U2F challenge for a new user corresponding to the token
-	UpsertU2FRegisterChallenge(token string, u2fChallenge *u2f.Challenge) error
-
-	// GetU2FRegisterChallenge returns a U2F challenge for a new user corresponding to the token
-	GetU2FRegisterChallenge(token string) (*u2f.Challenge, error)
-
-	// UpsertU2FSignChallenge upserts a U2F sign (auth) challenge
-	UpsertU2FSignChallenge(user string, u2fChallenge *u2f.Challenge) error
-
-	// GetU2FSignChallenge returns a U2F sign (auth) challenge
-	GetU2FSignChallenge(user string) (*u2f.Challenge, error)
-
 	// UpsertWebauthnLocalAuth creates or updates the local auth configuration for
 	// Webauthn.
 	// WebauthnLocalAuth is a component of LocalAuthSecrets.
+	// Automatically indexes the WebAuthn user ID for lookup by
+	// GetTeleportUserByWebauthnID.
 	UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error
 
 	// GetWebauthnLocalAuth retrieves the existing local auth configuration for
 	// Webauthn, if any.
 	// WebauthnLocalAuth is a component of LocalAuthSecrets.
 	GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error)
+
+	// GetTeleportUserByWebauthnID reads a Teleport username from a WebAuthn user
+	// ID (aka user handle).
+	// See UpsertWebauthnLocalAuth and types.WebauthnLocalAuth.
+	GetTeleportUserByWebauthnID(ctx context.Context, webID []byte) (string, error)
 
 	// UpsertWebauthnSessionData creates or updates WebAuthn session data in
 	// storage, for the purpose of later verifying an authentication or
