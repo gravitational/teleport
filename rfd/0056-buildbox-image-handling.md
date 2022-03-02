@@ -160,6 +160,12 @@ rationale may not scale to the rest of the team. 😉
 ### Open Questions
 
 #### Can we use Nix to do this for us?
-Don't know yet.
+Don't know yet. A quick experiment suggests that using `nix` _would_ help repeatability 
+and automation, **_but_**:
+
+ * The generated images were _massive_ (~5GB for only a few of our dependencies), and
+ * The selection of versions available for any given package at a given time is quite 
+   limited. This may be fixable depensing on the version of `nixpkgs` we pin for any 
+   given branch, but it's a complication that needs to be consider.
 
 ---
