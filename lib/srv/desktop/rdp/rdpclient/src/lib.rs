@@ -404,10 +404,17 @@ pub unsafe extern "C" fn update_clipboard(
 
     match lock.cliprdr {
         Some(ref mut clip) => match clip.update_clipboard(data) {
-            Ok(message) => match lock.mcs.write(&cliprdr::CHANNEL_NAME.to_string(), message) {
-                Ok(()) => CGO_OK,
-                Err(e) => to_cgo_error(format!("failed writing cliprdr format list: {:?}", e)),
-            },
+            Ok(messages) => {
+                for message in messages {
+                    if let Err(e) = lock.mcs.write(&cliprdr::CHANNEL_NAME.to_string(), message) {
+                        return to_cgo_error(format!(
+                            "failed writing cliprdr format list: {:?}",
+                            e
+                        ));
+                    }
+                }
+                CGO_OK
+            }
             Err(e) => to_cgo_error(format!("failed updating clipboard: {:?}", e)),
         },
         None => CGO_OK,
