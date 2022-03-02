@@ -31,6 +31,12 @@ windows_desktop_service:
     insecure_skip_verify: false
     # DER encoded LDAP CA certificate.
     der_ca_file: /path/to/cert
+  # (optional) hosts is a list of hostnames to register as WindowsDesktop
+  # objects in Teleport.
+  hosts:
+  - win1.example.com
+  - win2.example.com
+  - ...
   # (optional) settings for enabling automatic desktop discovery via LDAP
   discovery:
     # The wildcard '*' character tells Teleport to discover all the hosts in
