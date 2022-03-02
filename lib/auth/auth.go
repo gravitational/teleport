@@ -2706,25 +2706,25 @@ func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesReques
 type ResourcePageFunc func(next []types.ResourceWithLabels) (stop bool, err error)
 
 // IterateResourcePages can be used to iterate over pages of resources.
-func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (string, error) {
+func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (*types.ListResourcesResponse, error) {
 	for {
-		nextPage, nextKey, err := a.ListResources(ctx, req)
+		resp, err := a.ListResources(ctx, req)
 		if err != nil {
-			return "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
-		stop, err := f(nextPage)
+		stop, err := f(resp.Resources)
 		if err != nil {
-			return "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		// Iterator stopped before end of pages or
 		// there are no more pages, return nextKey
-		if stop || nextKey == "" {
-			return nextKey, nil
+		if stop || resp.NextKey == "" {
+			return resp, nil
 		}
 
-		req.StartKey = nextKey
+		req.StartKey = resp.NextKey
 	}
 }
 
@@ -3004,7 +3004,7 @@ func (a *Server) GetDatabase(ctx context.Context, name string) (types.Database, 
 }
 
 // GetDatabases returns all database resources.
-func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	return a.GetCache().ListResources(ctx, req)
 }
 
