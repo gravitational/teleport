@@ -22,6 +22,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"encoding/json"
 )
@@ -458,8 +459,22 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &e, nil
+		e = &events.CertificateCreate{}
+	case UnknownEvent:
+		e = &events.Unknown{}
 	default:
-		return nil, trace.BadParameter("unknown event type: %q", eventType)
+		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", eventType)
+		unknown := &events.Unknown{}
+		if err := utils.FastUnmarshal(data, unknown); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		unknown.Type = UnknownEvent
+		unknown.Code = UnknownCode
+		unknown.UnknownType = eventType
+		unknown.UnknownCode = fields.GetString(EventCode)
+		unknown.Data = string(data)
+		return unknown, nil
 	}
 }
 
