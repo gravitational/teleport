@@ -11,10 +11,12 @@ Teleport supports U2F authentication on every SSH and Kubernetes "connection"
 that protects users against compromises of their on-disk Teleport certificates.
 
 <Admonition type="note">
-  Per-session U2F checks don't apply to regular Teleport logins (`tsh login` or
-  logging into the Web UI). We encourage you to enable login MFA in your SSO
-  provider and/or for all [local Teleport
-  users](../../setup/reference/authentication.mdx#local).
+
+  In addition to per-session MFA, enable login MFA in your SSO provider and/or
+  for all [local Teleport
+  users](../../setup/reference/authentication.mdx#local-no-authentication-connector)
+  to improve security.
+
 </Admonition>
 
 <Admonition type="warning">

@@ -7,7 +7,10 @@ Commercial Teleport subscriptions require a valid license. The license file can
 be downloaded from the [Teleport Customer
 Portal](https://dashboard.gravitational.com/web/login).
 
-The Teleport license file contains a X.509 certificate and the corresponding private key in PEM format. Place the downloaded file on Auth servers and set the `license_file` configuration parameter of your `teleport.yaml` to point to the file location:
+The Teleport license file contains an X.509 certificate and the corresponding
+private key in PEM format. Place the downloaded file on your Teleport Auth
+Servers and set the `license_file` configuration parameter of your
+`teleport.yaml` to point to the file location:
 
 ```yaml
 auth_service:
@@ -22,5 +25,5 @@ The `license_file` path can be either absolute or relative to the configured
   type="tip"
   title="NOTE"
 >
-  Only Auth servers require the license. Proxies and Nodes that do not also have Auth role enabled do not need the license.
+  Only Auth Servers require the license. Proxies and Nodes that do not also have Auth role enabled do not need the license.
 </Admonition>
