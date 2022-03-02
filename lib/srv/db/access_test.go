@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -1518,6 +1517,12 @@ func (c *testContext) Close() error {
 	return trace.NewAggregate(errors...)
 }
 
+func init() {
+	// Override database agents shuffle behavior to ensure they're always
+	// tried in the same order during tests. Used for HA tests.
+	SetShuffleFunc(ShuffleSort)
+}
+
 func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDatabaseOption) *testContext {
 	testCtx := &testContext{
 		clusterName: "root.example.com",
@@ -1630,11 +1635,6 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		Emitter:     testCtx.emitter,
 		Clock:       testCtx.clock,
 		ServerID:    "proxy-server",
-		Shuffle: func(servers []types.DatabaseServer) []types.DatabaseServer {
-			// To ensure predictability in tests, sort servers instead of shuffling.
-			sort.Sort(types.DatabaseServers(servers))
-			return servers
-		},
 		LockWatcher: proxyLockWatcher,
 	})
 	require.NoError(t, err)
