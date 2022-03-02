@@ -1,5 +1,30 @@
 # Changelog
 
+## 7.3.17
+
+This release of Teleport contains a security fix and multiple improvements and fixes.
+
+### Trusted Clusters security fix
+
+An attacker in possession of a valid Trusted Cluster join token could inject a
+malicious CA into a Teleport cluster that would allow them to bypass root
+cluster authorization and potentially connect to any node within the root
+cluster.
+
+For customers using Trusted Clusters, we recommend upgrading to one of the
+patched releases listed below then revoking and rotating all Trusted Cluster
+tokens. As a best practice, make sure that Trusted Cluster tokens have short
+time-to-live and ideally are removed after being used once.
+
+### Other fixes
+
+* Fix potential panic in the audit log writer. [#10299](https://github.com/gravitational/teleport/pull/10299)
+* Introduce `cert.create` audit event. [#10255](https://github.com/gravitational/teleport/pull/10225)
+* Active node inventory cleanup improvements. [#10311](https://github.com/gravitational/teleport/pull/10311)
+* Fix database proxy reconnect after CA rotation. [#10307](https://github.com/gravitational/teleport/pull/10307)
+* Fix dynamic labeling for Kubernetes agents. [#10468](https://github.com/gravitational/teleport/pull/10468)
+* Reduced network utilization by propagating only necessary CAs when using Trusted Clusters. [#10020](https://github.com/gravitational/teleport/pull/10020)
+
 ## 7.3.13
 
 This release of Teleport contains improvements, fixes and a security fix.
