@@ -736,11 +736,10 @@ These flags are available for all commands `--debug, --config`. Run
 
 ```code
 # Adds teleport user "joe" with mappings to
-# OS users "joe" and "root"
-$ tctl users add joe joe,root
-# Adds teleport user "joe" with mappings to
-# OS users "joe" only
-$ tctl users add joe
+# OS users and {{ internal.logins }} to "joe" and "ubuntu"
+$ tctl users add joe --roles=access joe,ubuntu
+# Adds teleport user "joe" with mappings to editor role
+$ tctl users add joe --roles=editor
 ```
 
 ### tctl users update
@@ -953,7 +952,7 @@ $ tctl tokens add --type=TYPE [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--type` | none | `trusted_cluster`, `node`, `proxy` | Type of token to add |
+| `--type` | none | `trusted_cluster`, `node`, `proxy`, `app`, `windowsdesktop`, `db`,`kube` | Type of token to add |
 | `--value` | none | **string** token value | Value of token to add |
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token |
 
@@ -972,6 +971,8 @@ $ tctl tokens add --type=trusted_cluster --labels=env=prod
 # Generate an invite token for a node
 # This is equivalent to `tctl nodes add`
 $ tctl tokens add --type=node
+# Generate a join token for both a node and database service
+$ tctl tokens add --type=node,db
 # Generate an invite token for a kubernetes_service
 $ tctl tokens add --type=kube
 # Generate an invite token for an app_service
