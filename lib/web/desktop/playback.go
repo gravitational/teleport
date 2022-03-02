@@ -237,6 +237,10 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 				msg, err := utils.FastMarshal(e)
 				if err != nil {
 					pp.log.WithError(err).Errorf("failed to marshal DesktopRecording event into JSON: %v", e)
+					if _, err := pp.ws.Write([]byte(`{"message": "error", "errorText": "server error"}`)); err != nil {
+						pp.log.WithError(err).Error("failed to write \"error\" message over websocket")
+					}
+					return
 				}
 				if _, err := pp.ws.Write(msg); err != nil {
 					// We expect net.ErrClosed to arise when another goroutine returns before
