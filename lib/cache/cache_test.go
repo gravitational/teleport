@@ -926,7 +926,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		IsDesc: true,
 	}
 	require.Eventually(t, func() bool {
-		page, nextKey, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+		resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
 			Namespace:    apidefaults.Namespace,
 			ResourceType: types.KindNode,
 			StartKey:     listResourcesStartKey,
@@ -934,8 +934,8 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 			SortBy:       sortBy,
 		})
 		require.NoError(t, err)
-		resources = append(resources, page...)
-		listResourcesStartKey = nextKey
+		resources = append(resources, resp.Resources...)
+		listResourcesStartKey = resp.NextKey
 		return len(resources) == nodeCount
 	}, 5*time.Second, 100*time.Millisecond)
 

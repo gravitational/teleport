@@ -808,7 +808,7 @@ type Cache interface {
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 
 	// ListResources returns a paginated list of resources.
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.ResourceWithLabels, nextKey string, err error)
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 type NodeWrapper struct {

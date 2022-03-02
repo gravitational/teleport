@@ -60,10 +60,6 @@ func TestMFADeviceManagement(t *testing.T) {
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
-		},
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -101,7 +97,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: "fail-dev",
-					DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				},
 				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.NotNil(t, req.TOTP)
@@ -582,10 +578,6 @@ func TestDeleteLastMFADevice(t *testing.T) {
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
-		},
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -686,14 +678,9 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	srv := newTestTLSServer(t)
 	clock := srv.Clock()
 
-	// Enable U2F support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
-		},
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -973,9 +960,8 @@ func TestIsMFARequired(t *testing.T) {
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
+		Webauthn: &types.Webauthn{
+			RPID: "teleport",
 		},
 	})
 	require.NoError(t, err)
@@ -1031,9 +1017,8 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
+		Webauthn: &types.Webauthn{
+			RPID: "teleport",
 		},
 	})
 	require.NoError(t, err)
@@ -1928,14 +1913,14 @@ func TestListResources(t *testing.T) {
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
-			resources, nextKey, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+			resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 				ResourceType: test.resourceType,
 				Namespace:    apidefaults.Namespace,
 				Limit:        100,
 			})
 			require.NoError(t, err)
-			require.Len(t, resources, 0)
-			require.Empty(t, nextKey)
+			require.Len(t, resp.Resources, 0)
+			require.Empty(t, resp.NextKey)
 
 			// create two resources
 			err = test.createResource("foo")
@@ -1943,19 +1928,33 @@ func TestListResources(t *testing.T) {
 			err = test.createResource("bar")
 			require.NoError(t, err)
 
-			resources, nextKey, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+			resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 				ResourceType: test.resourceType,
 				Namespace:    apidefaults.Namespace,
 				Limit:        100,
 			})
 			require.NoError(t, err)
-			require.Len(t, resources, 2)
-			require.Empty(t, nextKey)
+			require.Len(t, resp.Resources, 2)
+			require.Empty(t, resp.NextKey)
+			require.Empty(t, resp.TotalCount)
+
+			// Test listing with NeedTotalCount flag.
+			if test.resourceType != types.KindKubeService {
+				resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType:   test.resourceType,
+					Limit:          100,
+					NeedTotalCount: true,
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 2)
+				require.Empty(t, resp.NextKey)
+				require.Equal(t, 2, resp.TotalCount)
+			}
 		})
 	}
 
 	t.Run("InvalidResourceType", func(t *testing.T) {
-		_, _, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+		_, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType: "",
 			Namespace:    apidefaults.Namespace,
 			Limit:        100,
