@@ -15,12 +15,14 @@ limitations under the License.
 */
 
 import { useState, useEffect } from 'react';
-import TeleportContext from 'teleport/teleportContext';
+import { formatDistanceStrict } from 'date-fns';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import cfg from 'teleport/config';
+import TeleportContext from 'teleport/teleportContext';
+import { BashCommand, NodeToken } from 'teleport/services/nodes';
 
 export default function useAddNode(ctx: TeleportContext) {
   const { attempt, run } = useAttempt('processing');
-  const canCreateToken = ctx.storeUser.getTokenAccess().create;
   const isEnterprise = ctx.isEnterprise;
   const version = ctx.storeUser.state.cluster.authVersion;
   const user = ctx.storeUser.state.username;
@@ -28,6 +30,7 @@ export default function useAddNode(ctx: TeleportContext) {
   const [automatic, setAutomatic] = useState(true);
   const [script, setScript] = useState('');
   const [expiry, setExpiry] = useState('');
+  const [token, setToken] = useState('');
 
   useEffect(() => {
     createJoinToken();
@@ -35,16 +38,29 @@ export default function useAddNode(ctx: TeleportContext) {
 
   function createJoinToken() {
     return run(() =>
-      ctx.nodeService.createNodeBashCommand().then(cmd => {
+      ctx.nodeService.fetchJoinToken().then(token => {
+        const cmd = createNodeBashCommand(token);
         setExpiry(cmd.expires);
         setScript(cmd.text);
+        setToken(token.id);
       })
     );
   }
 
+  function createNodeBashCommand(node: NodeToken): BashCommand {
+    const { expiry, id } = node;
+
+    const expires = formatDistanceStrict(new Date(), new Date(expiry));
+    const text = `sudo bash -c "$(curl -fsSL ${cfg.getNodeScriptUrl(id)})"`;
+
+    return {
+      text,
+      expires,
+    };
+  }
+
   return {
     isEnterprise,
-    canCreateToken,
     createJoinToken,
     automatic,
     setAutomatic,
@@ -54,6 +70,7 @@ export default function useAddNode(ctx: TeleportContext) {
     version,
     user,
     isAuthTypeLocal,
+    token,
   };
 }
 

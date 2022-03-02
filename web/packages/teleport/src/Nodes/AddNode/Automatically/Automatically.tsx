@@ -20,7 +20,7 @@ import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { Alert, Text, Indicator, Box, ButtonLink } from 'design';
 
 export default function Automatically(props: Props) {
-  const { script, expiry, createJoinToken, attempt, ...style } = props;
+  const { script, expiry, createJoinToken, attempt } = props;
 
   if (attempt.status === 'processing') {
     return (
@@ -36,7 +36,7 @@ export default function Automatically(props: Props) {
 
   return (
     <>
-      <Text {...style}>
+      <Text>
         Use below script to add a server to your cluster. This script will
         install the Teleport agent to provide secure access to your server.
         <Text mt="3">
@@ -46,7 +46,7 @@ export default function Automatically(props: Props) {
           </Text>
         </Text>
       </Text>
-      <TextSelectCopy text={script} mb={2} />
+      <TextSelectCopy text={script} mt={2} />
       <Box>
         <ButtonLink onClick={createJoinToken}>Regenerate Script</ButtonLink>
       </Box>
@@ -59,5 +59,4 @@ type Props = {
   expiry: State['expiry'];
   createJoinToken: State['createJoinToken'];
   attempt: State['attempt'];
-  mb: string | number;
 };

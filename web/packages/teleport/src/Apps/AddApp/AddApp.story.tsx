@@ -57,7 +57,6 @@ const props = {
   createJoinToken: () => Promise.resolve(null),
   version: '5.0.0-dev',
   cmd: `sudo bash -c "$(curl -fsSL 'http://localhost/scripts/86/install-app.sh?name=test&uri=http://myapp/')"`,
-  canCreateToken: true,
   expires: '1 hour',
   reset: () => null,
   attempt: {
