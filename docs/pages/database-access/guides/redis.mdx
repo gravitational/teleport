@@ -84,7 +84,7 @@ We strongly recommend to use SHA256 checksum instead of plain text password.
   to the database can login as the `default` user which by default has administrator privileges.
 </Admonition>
 
-## Step 4/5.
+## Step 4/5
 
 ### Set up mutual TLS
 
@@ -277,10 +277,10 @@ $ tsh db logout
 
       Redis in standalone mode doesn't support below commands.
 
-      * HELLO
-      * PUNSUBSCRIBE
-      * SSUBSCRIBE
-      * SUNSUBSCRIBE
+      - HELLO
+      - PUNSUBSCRIBE
+      - SSUBSCRIBE
+      - SUNSUBSCRIBE
 
       If one of the listed commands is called Teleport returns `ERR Teleport: not supported by Teleport` error.
 
@@ -289,58 +289,58 @@ $ tsh db logout
 
       Redis in cluster mode doesn't support below commands:
 
-      * ACL
-      * ASKING
-      * CLIENT
-      * CLUSTER
-      * CONFIG
-      * DEBUG
-      * EXEC
-      * HELLO
-      * INFO
-      * LATENCY
-      * MEMORY
-      * MIGRATE
-      * MODULE
-      * MONITOR
-      * MULTI
-      * PFDEBUG
-      * PFSELFTEST
-      * PSUBSCRIBE
-      * PSYNC
-      * PUNSUBSCRIBE
-      * PUNSUBSCRIBE
-      * READONLY
-      * READWRITE
-      * REPLCONF
-      * REPLICAOF
-      * ROLE
-      * SCAN
-      * SCRIPT DEBUG
-      * SCRIPT KILL
-      * SHUTDOWN
-      * SLAVEOF
-      * SLOWLOG
-      * SSUBSCRIBE
-      * SUNSUBSCRIBE
-      * SYNC
-      * TIME
-      * WAIT
-      * WATCH
+      - ACL
+      - ASKING
+      - CLIENT
+      - CLUSTER
+      - CONFIG
+      - DEBUG
+      - EXEC
+      - HELLO
+      - INFO
+      - LATENCY
+      - MEMORY
+      - MIGRATE
+      - MODULE
+      - MONITOR
+      - MULTI
+      - PFDEBUG
+      - PFSELFTEST
+      - PSUBSCRIBE
+      - PSYNC
+      - PUNSUBSCRIBE
+      - PUNSUBSCRIBE
+      - READONLY
+      - READWRITE
+      - REPLCONF
+      - REPLICAOF
+      - ROLE
+      - SCAN
+      - SCRIPT DEBUG
+      - SCRIPT KILL
+      - SHUTDOWN
+      - SLAVEOF
+      - SLOWLOG
+      - SSUBSCRIBE
+      - SUNSUBSCRIBE
+      - SYNC
+      - TIME
+      - WAIT
+      - WATCH
 
       If one of the listed commands above is called Teleport returns `ERR Teleport: command not supported` error.
 
       Teleport also adds additional processing to:
 
-      * DBSIZE - sends the query to all nodes and returns the number of keys in the whole cluster.
-      * KEYS - sends the query to all nodes and returns a list of all keys in the whole cluster.
-      * MGET - translates the commands to multiple GETs and sends them to multiple nodes. Result is merged in Teleport
+      - DBSIZE - sends the query to all nodes and returns the number of keys in the whole cluster.
+      - KEYS - sends the query to all nodes and returns a list of all keys in the whole cluster.
+      - MGET - translates the commands to multiple GETs and sends them to multiple nodes. Result is merged in Teleport
       and returned back to the client. If Teleport fails to fetch at least one key an error is returned.
-      * FLUSHDB - sends the query to all nodes.
-      * FLUSHALL - works the same as FLUSHDB.
-      * SCRIPT EXISTS - sends the query to all nodes. `1` is returned only if script exists on all nodes.
-      * SCRIPT LOAD - sends the script to all nodes.
-      * SCRIPT FLUSH - sends the query to all nodes. ASYNC parameter is ignored.
+      - FLUSHDB - sends the query to all nodes.
+      - FLUSHALL - works the same as FLUSHDB.
+      - SCRIPT EXISTS - sends the query to all nodes. `1` is returned only if script exists on all nodes.
+      - SCRIPT LOAD - sends the script to all nodes.
+      - SCRIPT FLUSH - sends the query to all nodes. ASYNC parameter is ignored.
 
     </TabItem>
   </Tabs>
