@@ -229,28 +229,6 @@ certutil –dspublish –f <PathToCertFile.cer> RootCA
 
 This step enables the domain controllers to trust the Teleport CA, which will allow smart card logons via Teleport to succeed.
 
-### Publish the Teleport CA to the NTAuth Store
-
-In order for authentication with Teleport-issued certificates to succeed, the
-Teleport CA needs to be published to the enterprise NTAuth store. Teleport will
-periodically publish its CA after it is able to authenticate, but this step
-needs to be performed manually the first time in order for Teleport to have LDAP
-access.
-
-1. Publish the CA to LDAP:
-
-```
-$ certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
-```
-
-2. Force the retrieval of the CA from LDAP. While this step is not required, it
-   speeds up the process and allows you to proceed to the next steps without
-   waiting for the certificate to propagate.
-
-```
-$ certutil -pulse
-```
-
 ### Enable the Smart Card service
 
 Teleport performs certificate based authentication by emulating a smart card.
