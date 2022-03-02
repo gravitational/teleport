@@ -11,10 +11,13 @@ description: How to rotate Teleport's certificate authority
 (!docs/pages/includes/tctl.mdx!)
 
 <Admonition type="note">
-  For cloud, login with a teleport user with editor privileges: ```code # tsh
-  logs you in and receives short-lived certificates $ tsh login
-  --proxy=myinstance.teleport.sh --user=email@example.com # try out the
-  connection $ tctl get nodes ```
+  For Cloud, log in with a Teleport user with editor privileges:
+  ```code
+  # tsh logs you in and receives short-lived certificates
+  $ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
+  # try out the connection
+  $ tctl get nodes
+  ```
 </Admonition>
 
 ## Certificate Authority rotation
@@ -250,7 +253,7 @@ This will trigger a rotation process for both hosts and users with a default
 grace period of 48 hours. During the grace period, certificates issued both by
 old and new certificate authority work.
 
-You can customize grace period and CA with additional flags:
+You can customize grace period and CA type with additional flags:
 
 ```code
 # Rotate only user certificates with a grace period of 200 hours:
@@ -333,6 +336,4 @@ authority is made active.
 
 ## Further reading
 
-- How the
-  [Teleport Certificate Authority](../../architecture/authentication.mdx#authentication-in-teleport)
-  works
+How the [Teleport Certificate Authority](../../architecture/authentication.mdx#authentication-in-teleport) works.
