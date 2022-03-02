@@ -24,27 +24,31 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
-## Step 2/7. Create Teleport user
+## Step 2/7. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/7. Create database agent configuration
+## Step 3/7. Create a database agent configuration
 
 (!docs/pages/includes/database-access/token.mdx!)
 
 Create the Database Service configuration:
 
 ```code
-$ teleport db configure create -o file --proxy=teleport.example.com:3080 --token=/tmp/token --rds-discovery=us-west-1
+$ teleport db configure create \
+   -o file \
+   --proxy=teleport.example.com:3080 \
+   --token=/tmp/token \
+   --rds-discovery=us-west-1
 ```
 
 The command will generate a database agent configuration with RDS/Aurora
-databases auto-discovery enabled on the `us-west-1` region and place it at the
+database auto-discovery enabled on the `us-west-1` region and place it at the
 `/etc/teleport.yaml` location.
 
 ## Step 4/7. Configure IAM
 
-### Create IAM policy for Teleport
+### Create an IAM policy for Teleport
 
 Teleport needs AWS IAM permissions to be able to:
 
@@ -53,7 +57,7 @@ Teleport needs AWS IAM permissions to be able to:
 
 (!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
-## Step 5/7. Start database agent
+## Step 5/7. Start the database agent
 
 Start the database agent:
 
@@ -71,11 +75,11 @@ policies for the discovered databases. Keep in mind that AWS IAM changes may
 not propagate immediately and can take a few minutes to come into effect.
 
 <Admonition type="note" title="AWS credentials">
-  Teleport Database Service uses the default
+  The Teleport Database Service uses the default
   credential provider chain to find AWS credentials. See [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials) for more information.
 </Admonition>
 
-## Step 6/7. Create database IAM user
+## Step 6/7. Create a database IAM user
 
 Database users must allow IAM authentication in order to be used with Database
 Access for RDS. See below how to enable it for your database engine.

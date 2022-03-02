@@ -55,11 +55,11 @@ $ teleport db configure create \
 
 | Flag | Description |
 | - | - |
-| `--proxy` | Teleport proxy address to connect to [0.0.0.0:3080]. |
-| `--token` | Invitation token to register with an auth server [none]. |
+| `--proxy` | Teleport proxy address to connect to. Default: 0.0.0.0:3080. |
+| `--token` | Invitation token to register with the Auth Service. Default: none. |
 | `--rds-discovery` | List of AWS regions the agent will discover for RDS/Aurora instances. |
 | `--redshift-discovery` | List of AWS regions the agent will discover for Redshift instances. |
-| `--ca-pin` | CA pin to validate the auth server (can be repeated for multiple pins). |
+| `--ca-pin` | CA pin to validate the Auth Service (can be repeated for multiple pins). |
 | `--name` | Name of the proxied database. |
 | `--protocol` | Proxied database protocol. Supported are: [postgres mysql mongodb cockroachdb redis sqlserver]. |
 | `--uri` | Address the proxied database is reachable at. |
@@ -81,9 +81,9 @@ $ teleport db configure bootstrap -c /etc/teleport.yaml --manual
 | `-c/--config` | Path to a configuration file [/etc/teleport.yaml]. |
 | `--manual` | When executed in "manual" mode, it will print the instructions to complete the configuration instead of applying them directly. |
 | `--policy-name` | Name of the Teleport Database agent policy. Default: "DatabaseAccess" |
-| `--confirm` | Do not prompt user and auto-confirm all actions. |
-| `--attach-to-role` | Role name to attach policy to. Mutually exclusive with --attach-to-user. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials. |
-| `--attach-to-user` | User name to attach policy to. Mutually exclusive with --attach-to-role. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials. |
+| `--confirm` | Do not prompt the user and auto-confirm all actions. |
+| `--attach-to-role` | Role name to attach the policy to. Mutually exclusive with --attach-to-user. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials. |
+| `--attach-to-user` | User name to attach the policy to. Mutually exclusive with --attach-to-role. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials. |
 
 ## tctl auth sign
 

@@ -1,5 +1,6 @@
 Teleport can bootstrap IAM permissions for the Database Service based on its
-configuration. You can use bootstrap in automatic or manual mode:
+configuration using the `teleport db configure bootstrap` command. You can use
+this command in automatic or manual mode:
 - In automatic mode, Teleport will attempt to create appropriate IAM policies
   and attach them to the specified IAM identity (user or role). This requires
   IAM permissions to create and attach IAM policies.
@@ -15,7 +16,7 @@ configuration. You can use bootstrap in automatic or manual mode:
 <Tabs>
   <TabItem label="Automatic / IAM User">
   Use this command to bootstrap the permissions automatically when
-  your Teleport database agent runs as an IAM user (for example, uses AWS
+  your Teleport database agent runs as an IAM user (for example, uses an AWS
   credentials file).
 
   ```code
@@ -26,7 +27,7 @@ configuration. You can use bootstrap in automatic or manual mode:
   <TabItem label="Automatic / IAM Role">
   Use this command to bootstrap the permissions automatically when
   your Teleport database agent runs as an IAM role (for example, on an EC2
-  instance with attached IAM role).
+  instance with an attached IAM role).
 
   ```code
   $ teleport db configure bootstrap -c /etc/teleport.yaml --attach-to-role TeleportRole
@@ -42,5 +43,5 @@ configuration. You can use bootstrap in automatic or manual mode:
   </TabItem>
 </Tabs>
 
-See full bootstrap command
+See the full `bootstrap` command
 [reference](../../database-access/reference/cli.mdx#teleport-db-configure-bootstrap).

@@ -27,16 +27,20 @@ videoBanner: UFhT52d5bYg
 Create the Database Service configuration file:
 
 ```code
-$ teleport db configure create -o file --proxy=teleport.example.com:3080 --token=/tmp/token --redshift-discovery=us-west-1
+$ teleport db configure create \
+   -o file \
+   --proxy=teleport.example.com:3080 \
+   --token=/tmp/token \
+   --redshift-discovery=us-west-1
 ```
 
 The command will generate a Database Service configuration with Redshift
-databases auto-discovery enabled on the `us-west-1` region and place it at the
+database auto-discovery enabled on the `us-west-1` region and place it at the
 `/etc/teleport.yaml` location.
 
 ## Step 4/6. Configure IAM
 
-### Create IAM policy for Teleport
+### Create an IAM policy for Teleport
 
 Teleport needs AWS IAM permissions to be able to:
 
