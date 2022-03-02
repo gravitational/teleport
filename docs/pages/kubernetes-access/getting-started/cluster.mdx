@@ -340,7 +340,7 @@ To create a connector, we are going to run Teleport's admin tool `tctl` from the
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise"  scope={["enterprise"]}>
     ```code
     # To create an Okta connector, we are going to run Teleport's admin tool tctl from the pod.
     $ POD=$(kubectl get po -l app=teleport-cluster-ent -o jsonpath='{.items[0].metadata.name}')
@@ -361,7 +361,7 @@ the default one in case there is a problem.
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise" scope={["enterprise"]}>
     ```code
     $ KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com --auth=okta
     ```
