@@ -801,12 +801,13 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		ServerVersion: teleport.Version,
 	}
 
+	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
 	if connectorName == constants.Local {
-		as, err := localSettings(cap)
+		response.Auth, err = localSettings(cap)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		response.Auth = as
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -814,6 +815,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	oidcConnector, err := authClient.GetOIDCConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = oidcSettings(oidcConnector, cap)
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -821,6 +823,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	samlConnector, err := authClient.GetSAMLConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = samlSettings(samlConnector, cap)
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -828,6 +831,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	githubConnector, err := authClient.GetGithubConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = githubSettings(githubConnector, cap)
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
