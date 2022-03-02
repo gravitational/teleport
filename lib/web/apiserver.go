@@ -311,7 +311,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
 
 	// get nodes
-	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.siteNodesGet))
+	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
 
 	// Get applications.
 	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.clusterAppsGet))
@@ -403,7 +403,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/apps/:fqdnHint/:clusterName/:publicAddr", h.WithAuth(h.getAppFQDN))
 
 	// Desktop access endpoints.
-	h.GET("/webapi/sites/:site/desktops", h.WithClusterAuth(h.getDesktopsHandle))
+	h.GET("/webapi/sites/:site/desktops", h.WithClusterAuth(h.clusterDesktopsGet))
 	h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
 	// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
 	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.desktopConnectHandle))
@@ -1779,12 +1779,8 @@ func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ ht
 	}, nil
 }
 
-/* siteNodesGet returns a list of nodes for a given site and namespace
-
-GET /v1/webapi/sites/:site/namespaces/:namespace/nodes
-
-*/
-func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+// clusterNodesGet returns a list of nodes for a given cluster site.
+func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of nodes.
 	clt, err := ctx.GetUserClient(site)
@@ -1796,8 +1792,9 @@ func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	uiServers := ui.MakeServers(site.GetName(), servers)
-	return makeResponse(uiServers)
+	return listResourcesGetResponse{
+		Items: ui.MakeServers(site.GetName(), servers),
+	}, nil
 }
 
 // siteNodeConnect connect to the site node
@@ -2577,14 +2574,6 @@ func message(msg string) interface{} {
 // OK is a response that indicates request was successful.
 func OK() interface{} {
 	return message("ok")
-}
-
-type responseData struct {
-	Items interface{} `json:"items"`
-}
-
-func makeResponse(items interface{}) (interface{}, error) {
-	return responseData{Items: items}, nil
 }
 
 // makeTeleportClientConfig creates default teleport client configuration

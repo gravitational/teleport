@@ -1913,14 +1913,14 @@ func TestListResources(t *testing.T) {
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
-			resources, nextKey, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+			resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 				ResourceType: test.resourceType,
 				Namespace:    apidefaults.Namespace,
 				Limit:        100,
 			})
 			require.NoError(t, err)
-			require.Len(t, resources, 0)
-			require.Empty(t, nextKey)
+			require.Len(t, resp.Resources, 0)
+			require.Empty(t, resp.NextKey)
 
 			// create two resources
 			err = test.createResource("foo")
@@ -1928,19 +1928,33 @@ func TestListResources(t *testing.T) {
 			err = test.createResource("bar")
 			require.NoError(t, err)
 
-			resources, nextKey, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+			resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 				ResourceType: test.resourceType,
 				Namespace:    apidefaults.Namespace,
 				Limit:        100,
 			})
 			require.NoError(t, err)
-			require.Len(t, resources, 2)
-			require.Empty(t, nextKey)
+			require.Len(t, resp.Resources, 2)
+			require.Empty(t, resp.NextKey)
+			require.Empty(t, resp.TotalCount)
+
+			// Test listing with NeedTotalCount flag.
+			if test.resourceType != types.KindKubeService {
+				resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType:   test.resourceType,
+					Limit:          100,
+					NeedTotalCount: true,
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 2)
+				require.Empty(t, resp.NextKey)
+				require.Equal(t, 2, resp.TotalCount)
+			}
 		})
 	}
 
 	t.Run("InvalidResourceType", func(t *testing.T) {
-		_, _, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+		_, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType: "",
 			Namespace:    apidefaults.Namespace,
 			Limit:        100,
