@@ -59,7 +59,7 @@ Let's start with a single-pod Teleport using persistent volume as a backend.
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise" scope={["enterprise"]}>
     ```code
     $ helm repo add teleport https://charts.releases.teleport.dev
 
@@ -106,7 +106,7 @@ to create a public IP for Teleport.
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise" scope={["enterprise"]}>
     ```code
     # Set kubectl context to the namespace to set some typing
     $ kubectl config set-context --current --namespace=teleport-cluster-ent
@@ -134,19 +134,6 @@ Set up two `A` DNS records - `tele.example.com` for UI and `*.tele.example.com`
 for web apps using [application access](../../application-access/introduction.mdx).
 
 <Tabs>
-  <TabItem label="GCP Cloud DNS">
-    ```code
-    $ MYZONE="myzone"
-    $ MYDNS="tele.example.com"
-
-    $ gcloud dns record-sets transaction start --zone="${MYZONE?}"
-    $ gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
-    $ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
-    $ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
-    $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
-    ```
-  </TabItem>
-
   <TabItem label="AWS Route 53">
     ```code
     # Tip for finding AWS zone id by the domain name.
@@ -169,6 +156,18 @@ for web apps using [application access](../../application-access/introduction.md
     # Verify that change has been applied
     $ aws route53 get-change --id ${CHANGEID?} | jq '.ChangeInfo.Status'
     # "INSYNC"
+    ```
+  </TabItem>
+  <TabItem label="GCP Cloud DNS">
+    ```code
+    $ MYZONE="myzone"
+    $ MYDNS="tele.example.com"
+
+    $ gcloud dns record-sets transaction start --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
     ```
   </TabItem>
 </Tabs>
@@ -233,7 +232,7 @@ For other install options, check out [install guide](../../installation.mdx)
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise" scope={["enterprise"]}>
     ```code
     $ curl -L -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
     $ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
@@ -302,7 +301,7 @@ We are going to setup Github connector for OSS and Okta for Enterprise version.
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise" scope={["enterprise"]}>
     Follow [SAML Okta Guide](../../enterprise/sso/okta.mdx#configure-okta) to create a SAML app.
     Check out [OIDC guides](../../enterprise/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
     Save the file below as `okta.yaml` and update the `acs` field.
