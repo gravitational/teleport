@@ -383,14 +383,10 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 
 func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []byte, limit int) (*getResult, error) {
 	var result getResult
-	limitRemaining := limit
 	// this code is being extra careful here not to introduce endless loop
 	// by some unfortunate series of events
 	for i := 0; i < backend.DefaultRangeLimit/100; i++ {
-		if limit > 0 {
-			limitRemaining = limit - len(result.records)
-		}
-		re, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), limitRemaining, result.lastEvaluatedKey)
+		re, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), limit, result.lastEvaluatedKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -748,12 +744,12 @@ func (b *Backend) getRecords(ctx context.Context, startKey, endKey string, limit
 
 // isExpired returns 'true' if the given object (record) has a TTL and
 // it's due.
-func (r *record) isExpired() bool {
+func (r *record) isExpired(now time.Time) bool {
 	if r.Expires == nil {
 		return false
 	}
 	expiryDateUTC := time.Unix(*r.Expires, 0).UTC()
-	return time.Now().UTC().After(expiryDateUTC)
+	return now.UTC().After(expiryDateUTC)
 }
 
 func removeDuplicates(elements []record) []record {
@@ -872,7 +868,7 @@ func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
 		return nil, trace.WrapWithMessage(err, "failed to unmarshal dynamo item %q", string(key))
 	}
 	// Check if key expired, if expired delete it
-	if r.isExpired() {
+	if r.isExpired(b.clock.Now()) {
 		if err := b.deleteKey(ctx, key); err != nil {
 			b.Warnf("Failed deleting expired key %q: %v", key, err)
 		}
