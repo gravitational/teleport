@@ -23,10 +23,6 @@
             {
               "title": "Docker Compose",
               "slug": "/getting-started/docker-compose/"
-            },
-            {
-              "title": "DigitalOcean",
-              "slug": "/getting-started/digitalocean/"
             }
           ]
         },
@@ -369,10 +365,6 @@
             {
               "title": "Google Cloud GKE Cluster",
               "slug": "/kubernetes-access/helm/guides/gcp/"
-            },
-            {
-              "title": "DigitalOcean Kubernetes Cluster",
-              "slug": "/kubernetes-access/helm/guides/digitalocean/"
             },
             {
               "title": "Customize Deployment Config",
