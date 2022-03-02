@@ -93,6 +93,7 @@ func NewSessionRegistry(srv Server, auth auth.ClientI) (*SessionRegistry, error)
 		}),
 		srv:      srv,
 		sessions: make(map[rsession.ID]*session),
+		auth:     auth,
 	}, nil
 }
 
