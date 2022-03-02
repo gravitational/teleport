@@ -83,7 +83,7 @@ func parseRDSEndpoint(endpoint string) (id, region string, err error) {
 func parseRDSCNEndpoint(endpoint string) (id, region string, err error) {
 	parts := strings.Split(endpoint, ".")
 	if !strings.HasSuffix(endpoint, AWSCNEndpointSuffix) || len(parts) != 7 || parts[2] != RDSServiceName {
-		return "", "", trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
+		return "", "", trace.BadParameter("failed to parse %v as RDS CN endpoint", endpoint)
 	}
 	return parts[0], parts[3], nil
 }
@@ -125,7 +125,7 @@ func parseRedshiftEndpoint(endpoint string) (clusterID, region string, err error
 func parseRedshiftCNEndpoint(endpoint string) (clusterID, region string, err error) {
 	parts := strings.Split(endpoint, ".")
 	if !strings.HasSuffix(endpoint, AWSCNEndpointSuffix) || len(parts) != 7 || parts[2] != RedshiftServiceName {
-		return "", "", trace.BadParameter("failed to parse %v as Redshift endpoint", endpoint)
+		return "", "", trace.BadParameter("failed to parse %v as Redshift CN endpoint", endpoint)
 	}
 	return parts[0], parts[3], nil
 }
