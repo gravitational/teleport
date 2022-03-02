@@ -21,6 +21,7 @@ time-to-live and ideally are removed after being used once.
 * Fix potential panic in the audit log writer. [#10299](https://github.com/gravitational/teleport/pull/10299)
 * Introduce `cert.create` audit event. [#10255](https://github.com/gravitational/teleport/pull/10225)
 * Active node inventory cleanup improvements. [#10311](https://github.com/gravitational/teleport/pull/10311)
+* Improved performance for clusters with >20,000 SSH nodes. [#9521](https://github.com/gravitational/teleport/pull/9521)
 * Fix database proxy reconnect after CA rotation. [#10307](https://github.com/gravitational/teleport/pull/10307)
 * Fix dynamic labeling for Kubernetes agents. [#10468](https://github.com/gravitational/teleport/pull/10468)
 * Reduced network utilization by propagating only necessary CAs when using Trusted Clusters. [#10020](https://github.com/gravitational/teleport/pull/10020)
