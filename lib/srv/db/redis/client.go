@@ -186,8 +186,13 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 		var resultsKeys []interface{}
 
 		keys := cmd.Args()[1:]
-		for _, k := range keys {
-			result := c.Get(ctx, k.(string))
+		for _, key := range keys {
+			k, ok := key.(string)
+			if !ok {
+				return trace.BadParameter("wrong key type, expected string, got %T", key)
+			}
+
+			result := c.Get(ctx, k)
 			if result.Err() == redis.Nil {
 				resultsKeys = append(resultsKeys, redis.Nil)
 				continue
