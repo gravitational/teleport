@@ -391,13 +391,17 @@ func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []b
 			return nil, trace.Wrap(err)
 		}
 		result.records = append(result.records, re.records...)
-		if len(result.records) >= limit || len(re.lastEvaluatedKey) == 0 {
+		if limit != 0 && len(result.records) >= limit {
 			if len(result.records) == backend.DefaultRangeLimit {
 				b.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
 			}
+			return &result, nil
+		}
+		if len(re.lastEvaluatedKey) == 0 {
 			result.lastEvaluatedKey = nil
 			return &result, nil
 		}
+
 		result.lastEvaluatedKey = re.lastEvaluatedKey
 	}
 	return nil, trace.BadParameter("backend entered endless loop")
