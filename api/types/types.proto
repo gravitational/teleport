@@ -2778,8 +2778,11 @@ message WindowsDesktopServiceSpecV3 {
     string TeleportVersion = 2 [ (gogoproto.jsontag) = "teleport_version" ];
 }
 
+// WindowsDesktopFilter are filters to apply when searching for windows desktops.
 message WindowsDesktopFilter {
+    // HostID is the ID of the host the Windows Desktop Service proxying the desktop.
     string HostID = 1 [ (gogoproto.jsontag) = "host_id" ];
+    // Name is the name of the desktop.
     string Name = 2 [ (gogoproto.jsontag) = "name" ];
 }
 

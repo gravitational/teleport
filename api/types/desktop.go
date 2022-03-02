@@ -17,6 +17,8 @@ limitations under the License.
 package types
 
 import (
+	"sort"
+
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
@@ -217,4 +219,85 @@ func (f *WindowsDesktopFilter) Match(req WindowsDesktop) bool {
 		return false
 	}
 	return true
+}
+
+// WindowsDesktops represents a list of windows desktops.
+type WindowsDesktops []WindowsDesktop
+
+// Len returns the slice length.
+func (s WindowsDesktops) Len() int { return len(s) }
+
+// Less compares desktops by name and host ID.
+func (s WindowsDesktops) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
+}
+
+// Swap swaps two windows desktops.
+func (s WindowsDesktops) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (s WindowsDesktops) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetName(), s[j].GetName(), isDesc)
+		})
+	case ResourceSpecAddr:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetAddr(), s[j].GetAddr(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindWindowsDesktop)
+	}
+
+	return nil
+}
+
+// AsResources returns windows desktops as type resources with labels.
+func (s WindowsDesktops) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (s WindowsDesktops) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, 0, len(s))
+	switch field {
+	case ResourceMetadataName:
+		for _, server := range s {
+			vals = append(vals, server.GetName())
+		}
+	case ResourceSpecAddr:
+		for _, server := range s {
+			vals = append(vals, server.GetAddr())
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindWindowsDesktop)
+	}
+
+	return vals, nil
+}
+
+// ListWindowsDesktopsResponse is a response type to ListWindowsDesktops.
+type ListWindowsDesktopsResponse struct {
+	Desktops []WindowsDesktop
+	NextKey  string
+}
+
+// ListWindowsDesktopsRequest is a request type to ListWindowsDesktops.
+type ListWindowsDesktopsRequest struct {
+	WindowsDesktopFilter
+	Limit                         int
+	StartKey, PredicateExpression string
+	Labels                        map[string]string
+	SearchKeywords                []string
+	SortBy                        SortBy
 }
