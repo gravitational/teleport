@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -155,6 +156,10 @@ func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
 
 	t.Run("Mirror", func(t *testing.T) {
 		testMirror(t, newBackend)
+	})
+
+	t.Run("FetchLimit", func(t *testing.T) {
+		testFetchLimit(t, newBackend)
 	})
 }
 
@@ -548,7 +553,7 @@ func testEvents(t *testing.T, newBackend Constructor) {
 	item = &backend.Item{
 		Key:     prefix("c"),
 		Value:   []byte("val"),
-		Expires: clock.Now().Add(1 * time.Second),
+		Expires: clock.Now().Add(3 * time.Second),
 	}
 	_, err = uut.Put(ctx, *item)
 	require.NoError(t, err)
@@ -561,15 +566,39 @@ func testEvents(t *testing.T, newBackend Constructor) {
 	e = requireEvent(t, watcher, types.OpPut, item.Key, eventTimeout)
 	require.Equal(t, item.Value, e.Item.Value)
 
-	// Wait a few seconds for the item to expire.
-	clock.Advance(3 * time.Second)
-
 	// Make sure item has been removed.
-	_, err = uut.Get(ctx, item.Key)
-	require.Error(t, err)
+	require.Eventually(t, func() bool {
+		_, err = uut.Get(ctx, item.Key)
+		return trace.IsNotFound(err)
+	}, time.Second*4, time.Millisecond*200, "Failed to ensure that item %q has been deleted", item.Key)
 
 	// Make sure a DELETE event is emitted.
 	requireEvent(t, watcher, types.OpDelete, item.Key, 2*time.Second)
+}
+
+// testFetchLimit tests fetch max items size limit.
+func testFetchLimit(t *testing.T, newBackend Constructor) {
+	uut, _, err := newBackend()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uut.Close()) }()
+
+	prefix := MakePrefix()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Allocate 4KB buffer.
+	buff := make([]byte, 1<<16)
+	itemsCount := 20
+	// Fill the backend with events that total size is greater than 1MB (4KB * 20 > 1MB).
+	for i := 0; i < itemsCount; i++ {
+		item := &backend.Item{Key: prefix(fmt.Sprintf("/db/database%d", i)), Value: buff}
+		_, err = uut.Put(ctx, *item)
+		require.NoError(t, err)
+	}
+
+	result, err := uut.GetRange(ctx, prefix("/db"), backend.RangeEnd(prefix("/db")), backend.NoLimit)
+	require.NoError(t, err)
+	require.Equal(t, itemsCount, len(result.Items))
 }
 
 // requireEvent asserts that a given event type with the given key is emitted
