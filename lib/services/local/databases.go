@@ -111,7 +111,11 @@ func (s *DatabaseService) UpdateDatabase(ctx context.Context, database types.Dat
 	}
 	_, err = s.Update(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		_, errPut := s.Put(ctx, item)
+		if errPut == nil {
+			return nil
+		}
+		return trace.NewAggregate(err, errPut)
 	}
 	return nil
 }
