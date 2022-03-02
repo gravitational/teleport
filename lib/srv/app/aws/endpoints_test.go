@@ -345,21 +345,15 @@ func TestResolveEndpoints(t *testing.T) {
 	now := time.Now()
 
 	for signingName := range signingNameToHostname {
-		signingName := signingName
+		req, err := http.NewRequest("GET", "http://localhost", nil)
+		require.NoError(t, err)
 
-		t.Run(signingName, func(t *testing.T) {
-			t.Parallel()
+		_, err = signer.Sign(req, bytes.NewReader(nil), signingName, region, now)
+		require.NoError(t, err)
 
-			req, err := http.NewRequest("GET", "http://localhost", nil)
-			require.NoError(t, err)
-
-			_, err = signer.Sign(req, bytes.NewReader(nil), signingName, region, now)
-			require.NoError(t, err)
-
-			endpoint, err := resolveEndpoint(req)
-			require.NoError(t, err)
-			require.Equal(t, signingName, endpoint.SigningName)
-			require.Equal(t, "https://"+signingNameToHostname[signingName], endpoint.URL)
-		})
+		endpoint, err := resolveEndpoint(req)
+		require.NoError(t, err)
+		require.Equal(t, signingName, endpoint.SigningName)
+		require.Equal(t, "https://"+signingNameToHostname[signingName], endpoint.URL, "for signing name %q", signingName)
 	}
 }
