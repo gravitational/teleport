@@ -70,7 +70,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 
 	closeFn := func() {
 		if err := top.Disconnect(ctx); err != nil {
-			e.Log.WithError(err).Warn("Failed to close topology: %v")
+			e.Log.WithError(err).Warn("Failed to close topology")
 		}
 		if err := conn.Close(); err != nil {
 			e.Log.WithError(err).Error("Failed to close server connection.")
