@@ -586,7 +586,7 @@ func testFetchLimit(t *testing.T, newBackend Constructor) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Allocate 4KB buffer.
+	// Allocate 65KB buffer.
 	buff := make([]byte, 1<<16)
 	itemsCount := 20
 	// Fill the backend with events that total size is greater than 1MB (4KB * 20 > 1MB).
