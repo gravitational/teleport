@@ -155,7 +155,7 @@ for security and usability reasons.
 Each broadcast message is prefixed with `Teleport > ` to indicate that this message
 is injected by Teleport and not from the originating shell.
 
-There are x kinds of broadcast messages:
+There are 9 kinds of broadcast messages:
 - `Creating session with uuid <example-uuid>...`: Sent on session creation.
 - `User <user> joined the session.`: Sent when a user joins the session.
 - `User <user> left the session.`: Sent when a user leaves the session.
