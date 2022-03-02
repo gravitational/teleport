@@ -60,7 +60,7 @@ type Props = {
   placeholder?: string;
   autoFocus?: boolean;
   autoComplete?: 'off' | 'on';
-  type?: 'email' | 'text' | 'password' | 'number' | 'date' | 'week';
+  type?: 'email' | 'text' | 'password' | 'number' | 'date' | 'week' | 'tel';
   rule?: (options: unknown) => () => unknown;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onKeyPress?: (e: React.KeyboardEvent<HTMLInputElement>) => void;

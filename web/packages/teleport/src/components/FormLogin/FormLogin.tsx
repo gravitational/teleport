@@ -190,6 +190,7 @@ export default function LoginForm(props: Props) {
                         autoComplete="off"
                         value={token}
                         onChange={e => setToken(e.target.value)}
+                        type="tel"
                         placeholder="123 456"
                         mb={0}
                       />

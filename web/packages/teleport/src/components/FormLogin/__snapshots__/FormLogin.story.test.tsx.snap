@@ -914,7 +914,7 @@ exports[`auth2faType: otp rendering 1`] = `
             class="c5"
             color="text.onLight"
             placeholder="123 456"
-            type="text"
+            type="tel"
             value=""
           />
         </div>
