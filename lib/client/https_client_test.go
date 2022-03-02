@@ -26,12 +26,9 @@ import (
 func TestNewInsecureWebClientHTTPProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
 	client := NewInsecureWebClient()
+	// resp should be nil, so there will be no body to close.
+	//nolint:bodyclose
 	resp, err := client.Get("https://example.com")
-	defer func() {
-		if resp != nil {
-			resp.Body.Close()
-		}
-	}()
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.Contains(t, err.Error(), "proxyconnect")
@@ -51,12 +48,9 @@ func TestNewInsecureWebClientNoProxy(t *testing.T) {
 func TestNewClientWithPoolHTTPProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
 	client := newClientWithPool(nil)
+	// resp should be nil, so there will be no body to close.
+	//nolint:bodyclose
 	resp, err := client.Get("https://example.com")
-	defer func() {
-		if resp != nil {
-			resp.Body.Close()
-		}
-	}()
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.Contains(t, err.Error(), "proxyconnect")
