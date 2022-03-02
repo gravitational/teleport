@@ -96,9 +96,6 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 
 // CompleteUpload completes the upload
 func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
-	if len(parts) == 0 {
-		return trace.BadParameter("need at least one part to complete the upload")
-	}
 	if err := checkUpload(upload); err != nil {
 		return trace.Wrap(err)
 	}

@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/events"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -137,28 +136,43 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if len(parts) == 0 {
-			continue
-		}
-		u.log.Debugf("Upload %v grace period is over. Trying to complete.", upload)
+
+		u.log.Debugf("Upload %v grace period is over. Trying to complete.", upload.ID)
 		if err := u.cfg.Uploader.CompleteUpload(ctx, upload, parts); err != nil {
 			return trace.Wrap(err)
 		}
 		u.log.Debugf("Completed upload %v.", upload)
 		completed++
-		uploadData := u.cfg.Uploader.GetUploadMetadata(upload.SessionID)
-		err = u.ensureSessionEndEvent(ctx, uploadData)
-		if err != nil {
-			return trace.Wrap(err)
+
+		if len(parts) == 0 {
+			continue
 		}
+
+		uploadData := u.cfg.Uploader.GetUploadMetadata(upload.SessionID)
+
+		// Schedule a background operation to check for (and emit) a session end event.
+		// This is necessary because we'll need to download the session in order to
+		// enumerate its events, and the S3 API takes a little while after the upload
+		// is completed before version metadata becomes available.
+		go func() {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(2 * time.Minute):
+				u.log.Debugf("checking for session end event for session %v", upload.SessionID)
+				if err := u.ensureSessionEndEvent(ctx, uploadData); err != nil {
+					u.log.WithError(err).Warningf("failed to ensure session end event")
+				}
+			}
+		}()
 		session := &events.SessionUpload{
-			Metadata: apievents.Metadata{
+			Metadata: events.Metadata{
 				Type:  SessionUploadEvent,
 				Code:  SessionUploadCode,
 				ID:    uuid.New().String(),
 				Index: SessionUploadIndex,
 			},
-			SessionMetadata: apievents.SessionMetadata{
+			SessionMetadata: events.SessionMetadata{
 				SessionID: string(uploadData.SessionID),
 			},
 			SessionURL: uploadData.URL,
