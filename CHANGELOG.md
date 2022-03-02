@@ -1,5 +1,25 @@
 # Changelog
 
+## 6.2.31
+
+This release of Teleport contains a security fix and an improvement.
+
+### Trusted Clusters security fix
+
+An attacker in possession of a valid Trusted Cluster join token could inject a
+malicious CA into a Teleport cluster that would allow them to bypass root
+cluster authorization and potentially connect to any node within the root
+cluster.
+
+For customers using Trusted Clusters, we recommend upgrading to one of the
+patched releases listed below then revoking and rotating all Trusted Cluster
+tokens. As a best practice, make sure that Trusted Cluster tokens have short
+time-to-live and ideally are removed after being used once.
+
+### Other fixes
+
+* Introduce `cert.create` audit event. [#10226](https://github.com/gravitational/teleport/pull/10226)
+
 ## 6.2.28
 
 This release of Teleport contains multiple fixes and improvements.
