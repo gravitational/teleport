@@ -144,18 +144,38 @@ If tap is made after the alert, the follwing message is shown:
 Teleport >> MFA tap received.
 ```
 
+#### Broadcast messages
+
+For TTY-enabled SSH and Kubernetes sessions that require additional participants as per a require policy, Teleport will now inject broadcast messages into the session to notify participants
+about the state of the session. No messages will be shown in sessions that do not require additional participants.
+
+This is needed so that participants are aware of what is currently happening in the session
+for security and usability reasons.
+
+Each broadcast message is prefixed with `Teleport > ` to indicate that this message
+is injected by Teleport and not from the originating shell.
+
+There are x kinds of broadcast messages:
+- `Creating session with uuid <example-uuid>...`: Sent on session creation.
+- `User <user> joined the session.`: Sent when a user joins the session.
+- `User <user> left the session.`: Sent when a user leaves the session.
+- `Lanching session...`: Sent when the session is launched and thus tranferred to a normal shell.
+- `Session closed.`: Sent when the session is closed due to the termination of the shell.
+- `Session forcefully terminated`: Sent when moderator forcefully terminates a session.
+- `Session paused, waiting for additional participants...`: Sent when a session is paused due to lack of required participants.
+- `Session resumed.`: Sent when a session has the required participants and is resumed.
+- `Please tap your MFA key within 15 seconds.` and `Teleport >> MFA tap received.` are messages shown to moderators in sessions which are MFA-presence enabled.
+
 ##### Example
 
-This example illustrates how a group 3 users of which Alice is the initiator and Eve and Ben are two observers
-start a multiparty session. Below is a a series of events that happen that include what each user sees and what
-they do.
+This example illustrates how a group 3 users of which Alice is the initiator and Eve and Ben are two observers start a multiparty session. Below is a a series of events that happen that include what each user sees and actions taken.
 
 - Alice initiates an interactive session to a pod: `tsh kube exec -st --invite=ben@foo.net,eve@foo.net,alice@foo.net database_pod /bin/bash`
 - Alice sees:
 ```
-Creating session with uuid <example-uuid>...
-This session requires moderator. Waiting for others to join:
-- role: auditor-role x2
+Teleport > Creating session with uuid <example-uuid>...
+Telport > User Alice joined the session.
+Teleport > This session requires additional participants to start...
 ```
 - Eve joins the session with `tsh kube join <example-uuid>` and sees:
 ```
@@ -164,11 +184,10 @@ Please tap MFA key to continue...
 - Eve taps MFA
 - Alice and Eve sees:
 ```
-Creating session with uuid <example-uuid>...
-This session requires moderator. Waiting for others to join:
-- role: auditor-role x1
-Events:
-- User Eve joined the session.
+Teleport > Creating session with uuid <example-uuid>...
+Telport > User Alice joined the session.
+Teleport > This session requires additional participants to start...
+Teleport > User Eve joined the session.
 ```
 - Ben joins the session with `tsh kube join <example-uuid>` and sees:
 ```
@@ -177,11 +196,13 @@ Please tap MFA key to continue...
 - Ben taps MFA
 - Alice, Eve and Ben sees
 ```
-Creating session with uuid <example-uuid>...
-Session starting...
-Events:
-- User Eve joined the session.
-- User Ben joined the session
+Teleport > Creating session with uuid <example-uuid>...
+Telport > User Alice joined the session.
+Teleport > This session requires additional participants to start...
+Teleport > User Eve joined the session.
+Teleport > User Ben joined the session.
+Teleport > Launching session...
+ubuntu@localhost $
 ```
 - The connection to the pod is made and each the session turns into a normal shell.
 
