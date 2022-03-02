@@ -23,6 +23,11 @@ type Destination interface {
 	// created.
 	Init() error
 
+	// Verify is run before renewals to check for any potential problems with
+	// the destination. These errors may be informational (logged warnings) or
+	// return an error that may potentially terminate the process.
+	Verify(keys []string) error
+
 	// Write stores data to the destination with the given name.
 	Write(name string, data []byte) error
 

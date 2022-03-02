@@ -58,13 +58,13 @@ func Write(path string, data []byte, symlinksMode SymlinksMode) error {
 
 // VerifyACL verifies whether the ACL of the given file allows writes from the
 // bot user.
-func VerifyACL(path string, botUserId string) error {
+func VerifyACL(path string, botUserID string) error {
 	return trace.NotImplemented("ACLs not supported on this platform")
 }
 
 // ConfigureACL configures ACLs of the given file to allow writes from the bot
 // user.
-func ConfigureACL(path string, botUserId string) error {
+func ConfigureACL(path string, botUserID string) error {
 	return trace.NotImplemented("ACLs not supported on this platform")
 }
 
@@ -76,7 +76,7 @@ func HasACLSupport() (bool, error) {
 
 // HasSecureWriteSupport determines if `CreateSecure()` should be supported
 // on this OS / kernel version. This is only supported on Linux, so this
-// catch-all implementation just returns fales.
+// catch-all implementation just returns false.
 func HasSecureWriteSupport() (bool, error) {
 	return false, nil
 }

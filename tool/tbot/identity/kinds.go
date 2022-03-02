@@ -43,7 +43,7 @@ const (
 )
 
 // allConfigKinds is a list of all ArtifactKinds allowed in config files.
-var allConfigKinds []string = []string{string(KindSSH), string(KindTLS)}
+var allConfigKinds = []string{string(KindSSH), string(KindTLS)}
 
 func (ac *ArtifactKind) UnmarshalYAML(node *yaml.Node) error {
 	var kind string
@@ -60,7 +60,7 @@ func (ac *ArtifactKind) UnmarshalYAML(node *yaml.Node) error {
 	default:
 		return trace.BadParameter(
 			"invalid kind %q, expected one of: %s",
-			kind, strings.Join([]string(allConfigKinds), ", "),
+			kind, strings.Join(allConfigKinds, ", "),
 		)
 	}
 

@@ -140,6 +140,30 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// GetDestinationByPath attempts to fetch a destination by its filesystem path.
+// Only valid for filesystem destinations; returns nil if no matching
+// destination exists.
+func (conf *BotConfig) GetDestinationByPath(path string) (*DestinationConfig, error) {
+	for _, dest := range conf.Destinations {
+		destImpl, err := dest.GetDestination()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		destDir, ok := destImpl.(*DestinationDirectory)
+		if !ok {
+			continue
+		}
+
+		// TODO: consider comparing via filepath.Abs()?
+		if destDir.Path == path {
+			return dest, nil
+		}
+	}
+
+	return nil, nil
+}
+
 // NewDefaultConfig creates a new minimal bot configuration from defaults.
 // CheckAndSetDefaults() will be called.
 func NewDefaultConfig(authServer string) (*BotConfig, error) {
@@ -275,28 +299,4 @@ func ReadConfig(reader io.Reader) (*BotConfig, error) {
 	}
 
 	return &config, nil
-}
-
-// GetDestinationByPath attempts to fetch a destination by its filesystem path.
-// Only valid for filesystem destinations; returns nil if no matching
-// destination exists.
-func (c *BotConfig) GetDestinationByPath(path string) (*DestinationConfig, error) {
-	for _, dest := range c.Destinations {
-		destImpl, err := dest.GetDestination()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		destDir, ok := destImpl.(*DestinationDirectory)
-		if !ok {
-			continue
-		}
-
-		// TODO: consider comparing via filepath.Abs()?
-		if destDir.Path == path {
-			return dest, nil
-		}
-	}
-
-	return nil, nil
 }

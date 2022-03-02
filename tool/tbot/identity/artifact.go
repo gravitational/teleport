@@ -45,7 +45,7 @@ func (a *Artifact) Matches(kinds ...ArtifactKind) bool {
 	return false
 }
 
-var artifacts []Artifact = []Artifact{
+var artifacts = []Artifact{
 	// SSH artifacts
 	{
 		Key:  SSHCertKey,

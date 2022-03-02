@@ -383,6 +383,21 @@ func VerifyWrite(dest destination.Destination) error {
 	return trace.Wrap(dest.Write(WriteTestKey, []byte{}))
 }
 
+// ListKeys returns a list of artifact keys that will be written given a list
+// of artifacts.
+func ListKeys(kinds ...ArtifactKind) []string {
+	keys := []string{}
+	for _, artifact := range GetArtifacts() {
+		if !artifact.Matches(kinds...) {
+			continue
+		}
+
+		keys = append(keys, artifact.Key)
+	}
+
+	return keys
+}
+
 // SaveIdentity saves a bot identity to a destination.
 func SaveIdentity(id *Identity, d destination.Destination, kinds ...ArtifactKind) error {
 	for _, artifact := range GetArtifacts() {

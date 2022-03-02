@@ -19,8 +19,13 @@ package botfs
 import (
 	"io/fs"
 	"os"
+	"os/user"
+	"runtime"
+	"strconv"
+	"syscall"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
@@ -106,4 +111,20 @@ func createStandard(path string, isDir bool) error {
 	}
 
 	return nil
+}
+
+// IsOwnedBy checks that the file at the given path is owned by the given user.
+func IsOwnedBy(fileInfo fs.FileInfo, user *user.User) (bool, error) {
+	if runtime.GOOS == constants.WindowsOS {
+		// no-op on windows
+		return true, nil
+	}
+
+	info, ok := fileInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return false, trace.NotImplemented("Cannot verify file ownership on this platform")
+	}
+
+	// Our files are 0600, so don't bother checking gid.
+	return strconv.Itoa(int(info.Uid)) == user.Uid, nil
 }

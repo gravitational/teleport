@@ -19,6 +19,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 
 	"github.com/gravitational/teleport/tool/tbot/botfs"
@@ -126,7 +127,54 @@ func (dd *DestinationDirectory) Init() error {
 	} else if err != nil {
 		return trace.Wrap(err)
 	} else if !stat.IsDir() {
-		return trace.BadParameter("Path %q already exists and is not a directory")
+		return trace.BadParameter("Path %q already exists and is not a directory", dd.Path)
+	}
+
+	return nil
+}
+
+func (dd *DestinationDirectory) Verify(keys []string) error {
+	aclsSupported, err := botfs.HasACLSupport()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	currentUser, err := user.Current()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	stat, err := os.Stat(dd.Path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ownedByBot, err := botfs.IsOwnedBy(stat, currentUser)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Make sure it's worth warning about ACLs for this destination. If ACLs
+	// are disabled, unsupported, or the destination is owned by the bot
+	// (implying the user is not trying to use ACLs), just bail.
+	if dd.ACLs == botfs.ACLOff || !aclsSupported || ownedByBot {
+		return nil
+	}
+
+	errors := []error{}
+	for _, key := range keys {
+		path := filepath.Join(dd.Path, key)
+		errors = append(errors, botfs.VerifyACL(path, currentUser.Uid))
+	}
+
+	aggregate := trace.NewAggregate(errors...)
+	if dd.ACLs == botfs.ACLOn {
+		// Hard fail if ACLs are specifically requested and there are errors.
+		return aggregate
+	}
+
+	if aggregate != nil {
+		log.Warnf("Destination %q has unexpected ACLs: %v", dd.Path, aggregate)
 	}
 
 	return nil

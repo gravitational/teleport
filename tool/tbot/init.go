@@ -17,16 +17,11 @@ limitations under the License.
 package main
 
 import (
-	"io/fs"
 	"os"
 	"os/user"
 	"path/filepath"
-	"runtime"
-	"strconv"
-	"syscall"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/tool/tbot/botfs"
 	"github.com/gravitational/teleport/tool/tbot/config"
 	"github.com/gravitational/teleport/tool/tbot/identity"
@@ -93,22 +88,6 @@ func diffArtifacts(a, b map[string]bool) map[string]bool {
 	return diff
 }
 
-// isOwnedBy checks that the file at the given path is owned by the given user.
-func isOwnedBy(fileInfo fs.FileInfo, user *user.User) bool {
-	if runtime.GOOS == constants.WindowsOS {
-		// no-op on windows
-		return true
-	}
-
-	info, ok := fileInfo.Sys().(*syscall.Stat_t)
-	if !ok {
-		log.Debug("Cannot verify file ownership on the current platform.")
-	}
-
-	// Our files are 0600, so don't bother checking gid.
-	return strconv.Itoa(int(info.Uid)) == user.Uid
-}
-
 // testACL creates a temporary file and attempts to apply an ACL to it. If the
 // ACL is successfully applied, returns nil; otherwise, returns the error.
 func testACL(directory string, botUser *user.User) error {
@@ -140,7 +119,12 @@ func testACL(directory string, botUser *user.User) error {
 
 // ensurePermissions verifies permissions on the given path and, when
 // possible, attempts to fix permissions / ACLs on any misconfigured paths.
-func ensurePermissions(path string, isDir bool, botUser *user.User, symlinksMode botfs.SymlinksMode, useACLs bool) error {
+func ensurePermissions(
+	dirPath string, key string, isDir bool, botUser *user.User,
+	symlinksMode botfs.SymlinksMode, useACLs bool, toCreate map[string]bool,
+) error {
+	path := filepath.Join(dirPath, key)
+
 	stat, err := os.Stat(path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -170,9 +154,9 @@ func ensurePermissions(path string, isDir bool, botUser *user.User, symlinksMode
 
 	// A few conditions we won't try to handle...
 	if isDir && !stat.IsDir() {
-		return trace.BadParameter("File %s is expected to be a directory but is a file")
+		return trace.BadParameter("File %s is expected to be a directory but is a file", path)
 	} else if !isDir && stat.IsDir() {
-		return trace.BadParameter("File %s is expected to be a file but is a directory")
+		return trace.BadParameter("File %s is expected to be a file but is a directory", path)
 	}
 
 	currentUser, err := user.Current()
@@ -180,9 +164,31 @@ func ensurePermissions(path string, isDir bool, botUser *user.User, symlinksMode
 		return trace.Wrap(err)
 	}
 
-	// Note: it's unlikely we can chown(), so we'll just warn if ownership is wrong.
-	if !isOwnedBy(stat, currentUser) {
-		log.Warnf("File %q is not owned by the current user, permission operations are likely to fail.")
+	// Note: it's unlikely we can chown(), so we'll just warn if ownership is
+	// wrong.
+	ownedByCurrentUser, err := botfs.IsOwnedBy(stat, currentUser)
+	if err == nil && !ownedByCurrentUser {
+		log.Warnf("File %q is not owned by the current user, permission operations are likely to fail.", path)
+	}
+
+	if useACLs && botUser.Uid != currentUser.Uid {
+		// Only bother noting specific problems if the file already existed.
+		_, newlyCreated := toCreate[key]
+		if key != "" && !newlyCreated {
+			if err := botfs.VerifyACL(path, botUser.Uid); err != nil {
+				log.Warnf("ACL for %q is not correct and will be corrected: %v", path, err)
+			}
+		}
+
+		// Regardless of whether there are problems with the ACL, will set it
+		// anyway.
+		return trace.Wrap(botfs.ConfigureACL(path, botUser.Uid))
+	} else if useACLs && botUser.Uid == currentUser.Uid {
+		// Admittedly ugly control flow, but ACLs are useless in this case, so just warn.
+		log.Warn("Bot user is the current user so ACLs will not be set. " +
+			"If this is intentional, be aware it will reduce security of " +
+			"stored certificates. Set `acls: off` in the destination config " +
+			"to disable this warning.")
 	}
 
 	// Attempt to correct the file mode.
@@ -192,19 +198,6 @@ func ensurePermissions(path string, isDir bool, botUser *user.User, symlinksMode
 		}
 
 		log.Infof("Corrected permissions on %q from %#o to %#o", path, stat.Mode().Perm(), botfs.DefaultMode)
-	}
-
-	if useACLs {
-		if botUser.Uid == currentUser.Uid {
-			// ACLs are useless in this case, so just warn and bail.
-			log.Warn("Bot user is the current user. If this is intentional, " +
-				"be aware it will reduce security of stored certificates.")
-			return nil
-		}
-
-		if err := botfs.VerifyACL(path, botUser.Uid); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	return nil
@@ -233,7 +226,8 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 			// TODO: in the future if/when other backends are supported,
 			// destination might be nil because the user tried to enter a non
 			// filesystem path, so this error message could be misleading.
-			return trace.NotFound("Cannot initialize destination %q because it has not been configured.")
+			return trace.NotFound("Cannot initialize destination %q because "+
+				"it has not been configured.", cf.InitDir)
 		}
 	}
 
@@ -266,15 +260,15 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	case botfs.ACLOn, botfs.ACLTry:
 		useACLs = true
 
-		log.Info("Testing for ACL support...")
+		log.Debug("Testing for ACL support...")
 		err := testACL(destDir.Path, botUser)
 		if err != nil {
 			if destDir.ACLs == botfs.ACLOn {
 				return trace.Wrap(err, aclTestFailedMessage, destImpl)
-			} else {
-				log.WithError(err).Warnf(aclTestFailedMessage, destImpl)
-				useACLs = false
 			}
+
+			log.WithError(err).Warnf(aclTestFailedMessage, destImpl)
+			useACLs = false
 		}
 	default:
 		log.Info("ACLs disabled for this destination.")
@@ -329,10 +323,14 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		log.Info("Nothing to remove.")
 	}
 
+	// Check and set permissions on the directory itself.
+	if err := ensurePermissions(destDir.Path, "", true, botUser, destDir.Symlinks, useACLs, toCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Lastly, set and check permissions on all the desired files.
 	for key, isDir := range desired {
-		path := filepath.Join(destDir.Path, key)
-		if err := ensurePermissions(path, isDir, botUser, destDir.Symlinks, useACLs); err != nil {
+		if err := ensurePermissions(destDir.Path, key, isDir, botUser, destDir.Symlinks, useACLs, toCreate); err != nil {
 			return trace.Wrap(err)
 		}
 	}

@@ -55,6 +55,11 @@ func (dm *DestinationMemory) Init() error {
 	return nil
 }
 
+func (dm *DestinationMemory) Verify(keys []string) error {
+	// Nothing to do.
+	return nil
+}
+
 func (dm *DestinationMemory) Write(name string, data []byte) error {
 	dm.store[name] = data
 

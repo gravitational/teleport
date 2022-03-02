@@ -586,8 +586,17 @@ func renewLoop(ctx context.Context, cfg *config.BotConfig, client auth.ClientI, 
 				return trace.Wrap(err)
 			}
 
-			// Ensure this destination is also writable.
-			// TODO: consider not making these a hard error?
+			// Check the ACLs. We can't fix them, but we can warn if they're
+			// misconfigured. We'll need to precompute a list of keys to check.
+			// Note: This may only log a warning, depending on configuration.
+			if err := destImpl.Verify(identity.ListKeys(dest.Kinds...)); err != nil {
+				return trace.Wrap(err)
+			}
+
+			// Ensure this destination is also writable. This is a hard fail if
+			// ACLs are misconfigured, regardless of configuration.
+			// TODO: consider not making these a hard error? e.g. write other
+			// destinations even if this one is broken?
 			if err := identity.VerifyWrite(destImpl); err != nil {
 				return trace.Wrap(err, "Could not write to destination %s, aborting.", destImpl)
 			}
