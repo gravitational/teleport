@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -68,5 +69,75 @@ func TestFanoutInit(t *testing.T) {
 	case e := <-w.Events():
 		t.Fatalf("Unexpected second event: %+v", e)
 	default:
+	}
+}
+
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/services
+cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
+BenchmarkFanoutRegistration-16       	       1	118856478045 ns/op
+*/
+// NOTE: this benchmark exists primarily to "contrast" with the set registration
+// benchmark below, and demonstrate why the set-based strategy is necessary.
+func BenchmarkFanoutRegistration(b *testing.B) {
+	const iterations = 100_000
+	ctx := context.Background()
+
+	for n := 0; n < b.N; n++ {
+		f := NewFanout()
+		f.SetInit()
+
+		var wg sync.WaitGroup
+
+		for i := 0; i < iterations; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				w, err := f.NewWatcher(ctx, types.Watch{
+					Name:  "test",
+					Kinds: []types.WatchKind{{Name: "spam"}, {Name: "eggs"}},
+				})
+				require.NoError(b, err)
+				w.Close()
+			}()
+		}
+
+		wg.Wait()
+	}
+}
+
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/services
+cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
+BenchmarkFanoutSetRegistration-16    	       3	 394211563 ns/op
+*/
+func BenchmarkFanoutSetRegistration(b *testing.B) {
+	const iterations = 100_000
+	ctx := context.Background()
+
+	for n := 0; n < b.N; n++ {
+		f := NewFanoutSet()
+		f.SetInit()
+
+		var wg sync.WaitGroup
+
+		for i := 0; i < iterations; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				w, err := f.NewWatcher(ctx, types.Watch{
+					Name:  "test",
+					Kinds: []types.WatchKind{{Name: "spam"}, {Name: "eggs"}},
+				})
+				require.NoError(b, err)
+				w.Close()
+			}()
+		}
+
+		wg.Wait()
 	}
 }

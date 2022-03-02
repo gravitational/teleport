@@ -61,7 +61,12 @@ func buildboxPipeline() pipeline {
 		"UID":     {raw: "1000"},
 		"GID":     {raw: "1000"},
 	}
-	p.Trigger = triggerPushMasterOnly
+	p.Trigger = trigger{
+		Event:  triggerRef{Include: []string{"push"}},
+		Branch: triggerRef{Include: []string{"branch/v7"}},
+		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
+	}
+
 	p.Workspace = workspace{Path: "/go/src/github.com/gravitational/teleport"}
 	p.Volumes = dockerVolumes()
 	p.Services = []service{

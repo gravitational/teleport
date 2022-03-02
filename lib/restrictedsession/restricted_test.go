@@ -140,7 +140,13 @@ type Suite struct {
 
 var _ = check.Suite(&Suite{})
 
-func TestRootRestrictedSession(t *testing.T) { check.TestingT(t) }
+func TestRootRestrictedSession(t *testing.T) {
+	if !bpfTestEnabled() {
+		t.Skip("BPF testing is disabled")
+	}
+
+	check.TestingT(t)
+}
 
 func mustParseIPSpec(cidr string) *net.IPNet {
 	ipnet, err := ParseIPSpec(cidr)
@@ -169,6 +175,7 @@ func (_ *mockClient) DeleteNetworkRestrictions(context.Context) error {
 
 func (s *Suite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
+
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
 	if !isRoot() {
@@ -498,4 +505,10 @@ func (s *Suite) TestNetwork(c *check.C) {
 // for this package must be run as root.
 func isRoot() bool {
 	return os.Geteuid() == 0
+}
+
+// bpfTestEnabled returns true if BPF tests should run. Tests can be enabled by
+// setting TELEPORT_BPF_TEST environment variable to any value.
+func bpfTestEnabled() bool {
+	return os.Getenv("TELEPORT_BPF_TEST") != ""
 }

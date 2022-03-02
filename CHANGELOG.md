@@ -1,5 +1,22 @@
 # Changelog
 
+## 7.3.13
+
+This release of Teleport contains improvements, fixes and a security fix.
+
+### Kubernetes Access security fix
+
+* Fixed issue where labels of the target Kubernetes Service were ignored when calculating `kubernetes_users` and `kubernetes_groups`. [#9956](https://github.com/gravitational/teleport/pull/9956)
+
+We recommend all Kubernetes Access users to upgrade their Proxies and Kubernetes Services.
+
+### Other improvements and fixes
+
+* Added support for canned AWS S3 ACLs. [#10006](https://github.com/gravitational/teleport/pull/10006)
+* Improved ACME support to automatically renew certificates affected by the Let's Encrypt TLS-ALPN-01 issues. [#10016](https://github.com/gravitational/teleport/pull/10016)
+* Improved network utilization by replacing cluster periodics with watchers. [#9999](https://github.com/gravitational/teleport/pull/9999)
+* Gracefully handle 401 responses from OIDC UserInfo endpoints. [#9951](https://github.com/gravitational/teleport/pull/9951)
+
 ## 7.3.12
 
 This release of Teleport contains a feature and a fix.
@@ -551,7 +568,7 @@ To learn more about configuring role-based access control for Database Access, c
 
 See [Reference](https://goteleport.com/teleport/docs/database-access/reference/) for an overview of Database Access related configuration and CLI commands.
 
-Finally, check out [Frequently Asked Questions](./database-access/faq/).
+Finally, check out [Frequently Asked Questions](./database-access/faq.mdx).
 
 #### OSS RBAC
 
@@ -1116,7 +1133,7 @@ This release of Teleport contains multiple bug fixes.
 
 ## 4.3.0
 
-This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.3 closed issues](https://github.com/gravitational/teleport/milestone/37?closed=1) on Github for details of all items. We would love your feedback - please pick a [time slot for a remote UX feedback session](https://calendly.com/benarent-gravitational/teleport-4-3-feedback-session?month=2020-06) if you’re interested.
+This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.3 closed issues](https://github.com/gravitational/teleport/milestone/37?closed=1) on Github for details of all items.
 
 #### New Features
 
@@ -1325,10 +1342,10 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 ### Improvements
 
-* Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [Read the docs](https://gravitational.com/teleport/docs/ver/4.2/features/enhanced_session_recording/). [#2948](https://github.com/gravitational/teleport/issues/2948)
-* Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](https://gravitational.com/teleport/docs/ver/4.2/enterprise/#approval-workflows). [#3006](https://github.com/gravitational/teleport/issues/3006)
-* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](https://gravitational.com/teleport/docs/ver/4.2/gcp_guide/). [#2821](https://github.com/gravitational/teleport/pull/2821)
-* Remote tctl execution is now possible. [Read the docs](https://gravitational.com/teleport/docs/ver/4.2/cli-docs/#tctl). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
+* Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [#2948](https://github.com/gravitational/teleport/issues/2948)
+* Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](./enterprise/workflow). [#3006](https://github.com/gravitational/teleport/issues/3006)
+* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](./setup/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
+* Remote tctl execution is now possible. [Read the docs](./setup/reference/cli.mdx#tctl). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
 
 ### Fixes
 
@@ -1336,8 +1353,8 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 ### Documentation
 
-* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](https://gravitational.com/teleport/docs/ver/4.2/trustedclusters/).
-* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](https://gravitational.com/teleport/docs/ver/4.2/enterprise/ssh_fips/).
+* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](./setup/admin/trustedclusters.mdx).
+* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](./enterprise/fedramp.mdx).
 
 ## 4.1.11
 
@@ -1568,7 +1585,7 @@ With this release of Teleport, we have built out the foundation to help Teleport
 
 ### Improvements
 
-* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](https://gravitational.com/teleport/faq/#whats-teleport-scalability-and-hardware-recommendations)
+* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](./setup/operations/scaling.mdx#hardware-recommendations)
 * Added ability to delete node using `tctl rm`. [#2685](https://github.com/gravitational/teleport/pull/2685)
 * Output of `tsh ls` is now sorted by node name. [#2534](https://github.com/gravitational/teleport/pull/2534)
 
@@ -2052,7 +2069,7 @@ available Teleport clusters with ease.
 #### Configuration Changes
 
 * Role templates (depreciated in Teleport 2.3) were fully removed. We recommend
-  migrating to role variables which are documented [here](https://gravitational.com/teleport/docs/ssh_rbac/#roles)
+  migrating to role variables which are documented [here](./access-controls/guides/role-templates.mdx)
 
 * Resource names (like roles, connectors, trusted clusters) can no longer
   contain unicode or other special characters. Update the names of all user

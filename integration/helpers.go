@@ -696,20 +696,6 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// if user keys are not present, auto-generate keys:
-		if user.Key == nil || len(user.Key.Pub) == 0 {
-			priv, pub, _ := tconf.Keygen.GenerateKeyPair("")
-			user.Key = &client.Key{
-				Priv: priv,
-				Pub:  pub,
-			}
-		}
-		// sign user's keys:
-		ttl := 24 * time.Hour
-		user.Key.Cert, user.Key.TLSCert, err = auth.GenerateUserTestCerts(user.Key.Pub, teleUser.GetName(), ttl, constants.CertificateFormatStandard, "")
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -842,6 +828,8 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
+	conf.Apps.Enabled = false
+	conf.SSH.Enabled = false
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -856,6 +844,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	expectedEvents := []string{
 		service.DatabasesIdentityEvent,
 		service.DatabasesReady,
+		service.TeleportReadyEvent,
 	}
 
 	// Start the process and block until the expected events have arrived.
@@ -1111,6 +1100,9 @@ func (i *TeleInstance) Start() error {
 	if i.Config.Apps.Enabled {
 		expectedEvents = append(expectedEvents, service.AppsReady)
 	}
+	if i.Config.Databases.Enabled {
+		expectedEvents = append(expectedEvents, service.DatabasesReady)
+	}
 
 	// Start the process and block until the expected events have arrived.
 	receivedEvents, err := startAndWait(i.Process, expectedEvents)
@@ -1233,30 +1225,30 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 }
 
 // NewClient returns a fully configured and pre-authenticated client
-// (pre-authenticated with server CAs and signed session key)
+// (pre-authenticated with server CAs and signed session key).
 func (i *TeleInstance) NewClient(t *testing.T, cfg ClientConfig) (*client.TeleportClient, error) {
 	tc, err := i.NewUnauthenticatedClient(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// configures the client authenticate using the keys from 'secrets':
-	user, ok := i.Secrets.Users[cfg.Login]
-	if !ok {
-		return nil, trace.BadParameter("unknown login %q", cfg.Login)
-	}
-	if user.Key == nil {
-		return nil, trace.BadParameter("user %q has no key", cfg.Login)
-	}
-	_, err = tc.AddKey(user.Key)
+	// Generate certificates for the user simulating login.
+	creds, err := GenerateUserCreds(UserCredsRequest{
+		Process:  i.Process,
+		Username: cfg.Login,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// tell the client to trust given CAs (from secrets). this is the
-	// equivalent of 'known hosts' in openssh
-	cas := i.Secrets.GetCAs(t)
-	for i := range cas {
-		err = tc.AddTrustedCA(cas[i])
+
+	// Add key to client and update CAs that will be trusted (equivalent to
+	// updating "known hosts" with OpenSSH.
+	_, err = tc.AddKey(&creds.Key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, ca := range i.Secrets.GetCAs(t) {
+		err = tc.AddTrustedCA(ca)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

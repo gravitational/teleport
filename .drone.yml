@@ -10,7 +10,7 @@ type: kubernetes
 name: push-build-linux-amd64
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
   UID: "1000"
 trigger:
   event:
@@ -112,7 +112,7 @@ type: kubernetes
 name: push-build-linux-386
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
   UID: "1000"
 trigger:
   event:
@@ -214,7 +214,7 @@ type: kubernetes
 name: push-build-linux-amd64-fips
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
   UID: "1000"
 trigger:
   event:
@@ -320,7 +320,7 @@ type: kubernetes
 name: push-build-windows-amd64
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
   UID: "1000"
 trigger:
   event:
@@ -519,7 +519,7 @@ type: kubernetes
 name: push-build-linux-arm
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
   UID: "1000"
 trigger:
   event:
@@ -621,7 +621,7 @@ type: kubernetes
 name: push-build-linux-arm64
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
   UID: "1000"
 trigger:
   event:
@@ -977,7 +977,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
 trigger:
   event:
     include:
@@ -1115,7 +1115,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
 trigger:
   event:
     include:
@@ -1253,7 +1253,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos6
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
 trigger:
   event:
     include:
@@ -2024,7 +2024,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-386
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
 trigger:
   event:
     include:
@@ -2961,7 +2961,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
 trigger:
   event:
     include:
@@ -3099,7 +3099,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm64
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
 trigger:
   event:
     include:
@@ -3873,7 +3873,7 @@ kind: pipeline
 type: kubernetes
 name: build-windows-amd64
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
 trigger:
   event:
     include:
@@ -4334,7 +4334,7 @@ type: kubernetes
 name: build-buildboxes
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
   UID: "1000"
 trigger:
   event:
@@ -4345,7 +4345,7 @@ trigger:
     - gravitational/teleport
   branch:
     include:
-    - master
+    - branch/v7
 workspace:
   path: /go/src/github.com/gravitational/teleport
 clone:
@@ -4801,6 +4801,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 76d65dcd8e0a16c1ee51ca69cb617d12c25c1be1e868ab5393840df08caef410
+hmac: a5b1fe1c18ae5ca0f8052214786e9d8a49786933bc28d5933883e40e2f146555
 
 ...

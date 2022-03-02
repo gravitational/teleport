@@ -1199,10 +1199,6 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	require.NoError(t, teleport.Start())
 	defer teleport.StopAll()
 
-	// get a reference to site obj:
-	site := teleport.GetSiteAPI(Site)
-	require.NotNil(t, site)
-
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
@@ -1218,7 +1214,12 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 
 		openSession := func() {
 			defer cancel()
-			cl, err := teleport.NewClient(t, ClientConfig{Login: username, Cluster: Site, Host: Host, Port: teleport.GetPortSSHInt()})
+			cl, err := teleport.NewClient(t, ClientConfig{
+				Login:   username,
+				Cluster: Site,
+				Host:    Host,
+				Port:    teleport.GetPortSSHInt(),
+			})
 			require.NoError(t, err)
 			cl.Stdout = person
 			cl.Stdin = person
@@ -2738,11 +2739,15 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 			teleport := suite.newTeleportWithConfig(makeConfig())
 			defer teleport.StopAll()
 
+			// Generate certificates for the user simulating login.
+			creds, err := GenerateUserCreds(UserCredsRequest{
+				Process:  teleport.Process,
+				Username: suite.me.Username,
+			})
+			require.NoError(t, err)
+
 			// Start (and defer close) a agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := createAgent(
-				suite.me,
-				teleport.Secrets.Users[suite.me.Username].Key.Priv,
-				teleport.Secrets.Users[suite.me.Username].Key.Cert)
+			teleAgent, socketDirPath, socketPath, err := createAgent(suite.me, creds.Key.Priv, creds.Key.Cert)
 			require.NoError(t, err)
 			defer closeAgent(teleAgent, socketDirPath)
 
@@ -2830,11 +2835,15 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 		teleport := suite.newTeleportWithConfig(makeConfig())
 		defer teleport.StopAll()
 
+		// Generate certificates for the user simulating login.
+		creds, err := GenerateUserCreds(UserCredsRequest{
+			Process:  teleport.Process,
+			Username: suite.me.Username,
+		})
+		require.NoError(t, err)
+
 		// Start (and defer close) a agent that runs during this integration test.
-		teleAgent, socketDirPath, socketPath, err := createAgent(
-			suite.me,
-			teleport.Secrets.Users[suite.me.Username].Key.Priv,
-			teleport.Secrets.Users[suite.me.Username].Key.Cert)
+		teleAgent, socketDirPath, socketPath, err := createAgent(suite.me, creds.Key.Priv, creds.Key.Cert)
 		require.NoError(t, err)
 		defer closeAgent(teleAgent, socketDirPath)
 
@@ -4933,6 +4942,9 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	userRole, err := types.NewRole(userRoleName, types.RoleSpecV4{
 		Options: types.RoleOptions{},
 		Allow: types.RoleConditions{
+			Logins: []string{
+				suite.me.Username,
+			},
 			Request: &types.AccessRequestConditions{
 				Roles: []string{requestedRoleName},
 			},

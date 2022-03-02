@@ -403,6 +403,12 @@ const (
 	LockCreatedEvent = "lock.created"
 	// LockDeletedEvent fires when a lock is deleted.
 	LockDeletedEvent = "lock.deleted"
+
+	// CertificateCreateEvent is emitted when a certificate is issued.
+	CertificateCreateEvent = "cert.create"
+
+	// CertificateTypeUser is the CertificateType for certificate events pertaining to user certificates.
+	CertificateTypeUser = "user"
 )
 
 const (
