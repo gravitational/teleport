@@ -18,10 +18,10 @@ package events
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -158,7 +158,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(2 * time.Minute):
+			case <-u.cfg.Clock.After(2 * time.Minute):
 				u.log.Debugf("checking for session end event for session %v", upload.SessionID)
 				if err := u.ensureSessionEndEvent(ctx, uploadData); err != nil {
 					u.log.WithError(err).Warningf("failed to ensure session end event")
@@ -195,91 +195,104 @@ func (u *UploadCompleter) Close() error {
 }
 
 func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData UploadMetadata) error {
-	var serverID, clusterName, user, login, hostname, namespace, serverAddr string
-	var interactive bool
+	// at this point, we don't know whether we'll need to emit a session.end or a
+	// windows.desktop.session.end, but as soon as we see the session start we'll
+	// be able to start filling in the details
+	var sshSessionEnd events.SessionEnd
+	var desktopSessionEnd events.WindowsDesktopSessionEnd
 
-	// Get session events to find fields for constructed session end
-	sessionEvents, err := u.cfg.AuditLog.GetSessionEvents(apidefaults.Namespace, uploadData.SessionID, 0, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(sessionEvents) == 0 {
-		return nil
-	}
+	first := true
 
-	// Return if session.end event already exists
-	for _, event := range sessionEvents {
-		if event.GetType() == SessionEndEvent {
-			return nil
+	// We use the streaming events API to search through the session events, because it works
+	// for both Desktop and SSH sessions, where as the GetSessionEvents API relies on downloading
+	// a copy of the session and using the SSH-specific index to iterate through events.
+	var lastEvent events.AuditEvent
+	evts, errors := u.cfg.AuditLog.StreamSessionEvents(ctx, uploadData.SessionID, 0)
+
+loop:
+	for {
+		select {
+		case evt, more := <-evts:
+			if !more {
+				break loop
+			}
+
+			if first {
+				u.log.Infof("got first event %T", evt)
+				first = false
+			}
+
+			lastEvent = evt
+
+			switch e := evt.(type) {
+			// Return if session end event already exists
+			case *events.SessionEnd, *events.WindowsDesktopSessionEnd:
+				return nil
+
+			case *events.WindowsDesktopSessionStart:
+				desktopSessionEnd.Type = WindowsDesktopSessionEndEvent
+				desktopSessionEnd.Code = DesktopSessionEndCode
+				desktopSessionEnd.ClusterName = e.ClusterName
+				desktopSessionEnd.StartTime = e.Time
+				desktopSessionEnd.Participants = append(desktopSessionEnd.Participants, e.User)
+				desktopSessionEnd.Recorded = true
+				desktopSessionEnd.UserMetadata = e.UserMetadata
+				desktopSessionEnd.SessionMetadata = e.SessionMetadata
+				desktopSessionEnd.WindowsDesktopService = e.WindowsDesktopService
+				desktopSessionEnd.Domain = e.Domain
+				desktopSessionEnd.DesktopAddr = e.DesktopAddr
+				desktopSessionEnd.DesktopLabels = e.DesktopLabels
+				desktopSessionEnd.DesktopName = fmt.Sprintf("%v (recovered)", e.DesktopName)
+
+			case *events.SessionStart:
+				sshSessionEnd.Type = SessionEndEvent
+				sshSessionEnd.Code = SessionEndCode
+				sshSessionEnd.ClusterName = e.ClusterName
+				sshSessionEnd.StartTime = e.Time
+				sshSessionEnd.UserMetadata = e.UserMetadata
+				sshSessionEnd.SessionMetadata = e.SessionMetadata
+				sshSessionEnd.ServerMetadata = e.ServerMetadata
+				sshSessionEnd.ConnectionMetadata = e.ConnectionMetadata
+				sshSessionEnd.KubernetesClusterMetadata = e.KubernetesClusterMetadata
+				sshSessionEnd.KubernetesPodMetadata = e.KubernetesPodMetadata
+				sshSessionEnd.InitialCommand = e.InitialCommand
+				sshSessionEnd.SessionRecording = e.SessionRecording
+				sshSessionEnd.Interactive = e.TerminalSize != ""
+				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.User)
+
+			case *events.SessionJoin:
+				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.User)
+			}
+
+		case err := <-errors:
+			return trace.Wrap(err)
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 	}
 
-	// Session start event is the first of session events
-	sessionStart := sessionEvents[0]
-	if sessionStart.GetType() != SessionStartEvent {
-		return trace.BadParameter("invalid session, session start is not the first event")
+	sshSessionEnd.Participants = apiutils.Deduplicate(sshSessionEnd.Participants)
+	sshSessionEnd.EndTime = lastEvent.GetTime()
+	desktopSessionEnd.EndTime = lastEvent.GetTime()
+
+	var sessionEndEvent events.AuditEvent
+	switch {
+	case sshSessionEnd.Code != "":
+		sessionEndEvent = &sshSessionEnd
+	case desktopSessionEnd.Code != "":
+		sessionEndEvent = &desktopSessionEnd
+	default:
+		return trace.BadParameter("invalid session, could not find session start")
 	}
 
-	// Set variables
-	serverID = sessionStart.GetString(SessionServerHostname)
-	clusterName = sessionStart.GetString(SessionClusterName)
-	hostname = sessionStart.GetString(SessionServerHostname)
-	namespace = sessionStart.GetString(EventNamespace)
-	serverAddr = sessionStart.GetString(SessionServerAddr)
-	user = sessionStart.GetString(EventUser)
-	login = sessionStart.GetString(EventLogin)
-	if terminalSize := sessionStart.GetString(TerminalSize); terminalSize != "" {
-		interactive = true
-	}
-
-	// Get last event to get session end time
-	lastEvent := sessionEvents[len(sessionEvents)-1]
-
-	participants := getParticipants(sessionEvents)
-
-	sessionEndEvent := &events.SessionEnd{
-		Metadata: events.Metadata{
-			Type:        SessionEndEvent,
-			Code:        SessionEndCode,
-			ClusterName: clusterName,
-		},
-		ServerMetadata: events.ServerMetadata{
-			ServerID:        serverID,
-			ServerNamespace: namespace,
-			ServerHostname:  hostname,
-			ServerAddr:      serverAddr,
-		},
-		SessionMetadata: events.SessionMetadata{
-			SessionID: string(uploadData.SessionID),
-		},
-		UserMetadata: events.UserMetadata{
-			User:  user,
-			Login: login,
-		},
-		Participants: participants,
-		Interactive:  interactive,
-		StartTime:    sessionStart.GetTime(EventTime),
-		EndTime:      lastEvent.GetTime(EventTime),
-	}
+	u.log.Infof("emitting %T event for completed session %v", sessionEndEvent, uploadData.SessionID)
 
 	// Check and set event fields
-	if err = checkAndSetEventFields(sessionEndEvent, u.cfg.Clock, utils.NewRealUID(), clusterName); err != nil {
+	if err := checkAndSetEventFields(sessionEndEvent, u.cfg.Clock, utils.NewRealUID(), sessionEndEvent.GetClusterName()); err != nil {
 		return trace.Wrap(err)
 	}
-	if err = u.cfg.AuditLog.EmitAuditEvent(ctx, sessionEndEvent); err != nil {
+	if err := u.cfg.AuditLog.EmitAuditEvent(ctx, sessionEndEvent); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-func getParticipants(sessionEvents []EventFields) []string {
-	var participants []string
-	for _, event := range sessionEvents {
-		if event.GetType() == SessionJoinEvent || event.GetType() == SessionStartEvent {
-			participant := event.GetString(EventUser)
-			participants = append(participants, participant)
-
-		}
-	}
-	return apiutils.Deduplicate(participants)
 }
