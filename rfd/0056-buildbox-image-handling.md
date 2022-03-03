@@ -45,7 +45,7 @@ Any workable solution must satisfy the following goals
 Currently the buildbox images are constructed by Drone in response to a commits
 being pushed onto `gravitational/teleport:master`. The drone pipeline constructs 
 updated buildbox images from the latest source in `build.assets/Dockerfile` (and 
-it's siblings), tags them with the version of `go` installed on the image and 
+its siblings), tags them with the version of `go` installed on the image and 
 then pushed them to the repository at `quay.io`. These builds are then used for CI.
 
 For _releases_, the release pipelines in Drone construct a buildbox image at 
@@ -72,7 +72,7 @@ On the other hand:
  * Using the version of Go as the image tag means we have no mechanism to 
    independently upgrade other software in the image, or identify which images 
    contain what versions of, for example, Rust.
- * Updating the buildbox image automatically forces and CI jobs using the 
+ * Updating the buildbox image automatically forces any CI jobs using the 
    buildbox to accept the new changes. This has recently caused issues where 
    updating the buildbox `go1.17.2` image to build Teleport 9 broke CI for 
    Teleport 8, as there is no way to differentiate the images they require.
