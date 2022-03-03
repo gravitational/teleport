@@ -363,6 +363,10 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	if len(endKey) == 0 {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
+	if limit <= 0 {
+		limit = backend.DefaultRangeLimit
+	}
+
 	result, err := b.getAllRecords(ctx, startKey, endKey, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -383,6 +387,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 
 func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []byte, limit int) (*getResult, error) {
 	var result getResult
+
 	// this code is being extra careful here not to introduce endless loop
 	// by some unfortunate series of events
 	for i := 0; i < backend.DefaultRangeLimit/100; i++ {
@@ -391,6 +396,8 @@ func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []b
 			return nil, trace.Wrap(err)
 		}
 		result.records = append(result.records, re.records...)
+		// If the limit was exceeded or there are no more records to fetch return the current result
+		// otherwise updated lastEvaluatedKey and proceed with obtaining new records.
 		if (limit != 0 && len(result.records) >= limit) || len(re.lastEvaluatedKey) == 0 {
 			if len(result.records) == backend.DefaultRangeLimit {
 				b.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
