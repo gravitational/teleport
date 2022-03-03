@@ -17,12 +17,15 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -174,7 +177,11 @@ func TestOIDCLogin(t *testing.T) {
 
 	connector := mockConnector(t)
 
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(populist, dictator, connector, alice))
+	motd := "MESSAGE_OF_THE_DAY_OIDC"
+	authProcess, proxyProcess := makeTestServers(t,
+		withBootstrap(populist, dictator, connector, alice),
+		withMOTD(t, motd),
+	)
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -212,6 +219,8 @@ func TestOIDCLogin(t *testing.T) {
 		}
 	}()
 
+	buf := bytes.NewBuffer([]byte{})
+	sc := bufio.NewScanner(buf)
 	err = Run([]string{
 		"login",
 		"--insecure",
@@ -222,6 +231,7 @@ func TestOIDCLogin(t *testing.T) {
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.SiteName = "localhost"
+		cf.overrideStderr = buf
 		return nil
 	}))
 
@@ -230,9 +240,20 @@ func TestOIDCLogin(t *testing.T) {
 	// verify that auto-request happened
 	require.True(t, didAutoRequest.Load())
 
+	findMOTD(t, sc, motd)
 	// if we got this far, then tsh successfully registered name change from `alice` to
 	// `alice@example.com`, since the correct name needed to be used for the access
 	// request to be generated.
+}
+
+func findMOTD(t *testing.T, sc *bufio.Scanner, motd string) {
+	t.Helper()
+	for sc.Scan() {
+		if strings.Contains(sc.Text(), motd) {
+			return
+		}
+	}
+	require.Fail(t, "Failed to find %q MOTD in the logs", motd)
 }
 
 // TestLoginIdentityOut makes sure that "tsh login --out <ident>" command
@@ -282,7 +303,11 @@ func TestRelogin(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access"})
 
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
+	motd := "RELOGIN MOTD PRESENT"
+	authProcess, proxyProcess := makeTestServers(t,
+		withBootstrap(connector, alice),
+		withMOTD(t, motd),
+	)
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -290,6 +315,8 @@ func TestRelogin(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
+	buf := bytes.NewBuffer([]byte{})
+	sc := bufio.NewScanner(buf)
 	err = Run([]string{
 		"login",
 		"--insecure",
@@ -298,9 +325,11 @@ func TestRelogin(t *testing.T) {
 		"--proxy", proxyAddr.String(),
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		cf.overrideStderr = buf
 		return nil
 	}))
 	require.NoError(t, err)
+	findMOTD(t, sc, motd)
 
 	err = Run([]string{
 		"login",
@@ -308,10 +337,20 @@ func TestRelogin(t *testing.T) {
 		"--debug",
 		"--proxy", proxyAddr.String(),
 		"localhost",
-	}, setHomePath(tmpHomePath))
+	}, setHomePath(tmpHomePath),
+		cliOption(func(cf *CLIConf) error {
+			cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+			cf.overrideStderr = buf
+			return nil
+		}))
 	require.NoError(t, err)
+	findMOTD(t, sc, motd)
 
-	err = Run([]string{"logout"}, setHomePath(tmpHomePath))
+	err = Run([]string{"logout"}, setHomePath(tmpHomePath),
+		cliOption(func(cf *CLIConf) error {
+			cf.overrideStderr = buf
+			return nil
+		}))
 	require.NoError(t, err)
 
 	err = Run([]string{
@@ -323,8 +362,10 @@ func TestRelogin(t *testing.T) {
 		"localhost",
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		cf.overrideStderr = buf
 		return nil
 	}))
+	findMOTD(t, sc, motd)
 	require.NoError(t, err)
 }
 
@@ -1194,8 +1235,8 @@ func TestSetX11Config(t *testing.T) {
 }
 
 type testServersOpts struct {
-	bootstrap      []types.Resource
-	authConfigFunc func(cfg *service.AuthConfig)
+	bootstrap       []types.Resource
+	authConfigFuncs []func(cfg *service.AuthConfig)
 }
 
 type testServerOptFunc func(o *testServersOpts)
@@ -1208,7 +1249,11 @@ func withBootstrap(bootstrap ...types.Resource) testServerOptFunc {
 
 func withAuthConfig(fn func(cfg *service.AuthConfig)) testServerOptFunc {
 	return func(o *testServersOpts) {
-		o.authConfigFunc = fn
+		if o.authConfigFuncs == nil {
+			o.authConfigFuncs = []func(cfg *service.AuthConfig){}
+		}
+
+		o.authConfigFuncs = append(o.authConfigFuncs, fn)
 	}
 }
 
@@ -1220,6 +1265,17 @@ func withClusterName(t *testing.T, n string) testServerOptFunc {
 			})
 		require.NoError(t, err)
 		cfg.ClusterName = clusterName
+	})
+}
+
+func withMOTD(t *testing.T, motd string) testServerOptFunc {
+	oldpass := client.PasswordFromConsoleFn
+	*client.PasswordFromConsoleFn = func() (string, error) {
+		return "", nil
+	}
+	t.Cleanup(func() { *client.PasswordFromConsoleFn = *oldpass })
+	return withAuthConfig(func(cfg *service.AuthConfig) {
+		cfg.Preference.SetMessageOfTheDay(motd)
 	})
 }
 
@@ -1255,8 +1311,8 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Proxy.Enabled = false
 	cfg.Log = utils.NewLoggerForTests()
 
-	if options.authConfigFunc != nil {
-		options.authConfigFunc(&cfg.Auth)
+	for _, fn := range options.authConfigFuncs {
+		fn(&cfg.Auth)
 	}
 
 	auth, err = service.NewTeleport(cfg)
