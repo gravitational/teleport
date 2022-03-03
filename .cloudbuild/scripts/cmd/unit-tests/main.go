@@ -143,11 +143,13 @@ func run() error {
 	}
 
 	log.Printf("Starting etcd...")
-	cancelCtx, cancel := context.WithCancel(context.Background())
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := etcd.Start(cancelCtx, args.workspace, 0, 0); err != nil {
+	etcdSvc, err := etcd.Start(timeoutCtx, args.workspace)
+	if err != nil {
 		return trace.Wrap(err, "failed starting etcd")
 	}
+	defer etcdSvc.Stop()
 
 	// From this point on, whatever happens we want to upload any artifacts
 	// produced by the build
