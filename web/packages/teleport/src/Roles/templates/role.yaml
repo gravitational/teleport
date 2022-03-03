@@ -10,7 +10,9 @@ spec:
     kubernetes_labels:
       '*': '*'
     # This role is mapped to Kubernetes 'developer' group.
-    kubernetes_groups: [developer]
+    kubernetes_groups:
+    - '{{internal.kubernetes_groups}}'
+    - developer
 
     # List of allowed SSH logins
     logins: [ubuntu, debian]
