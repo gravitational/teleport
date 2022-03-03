@@ -1,0 +1,51 @@
+---
+title: Machine ID
+description: Teleport Machine ID introduction, demo and resources.
+---
+
+# Machine ID
+
+Machine ID is a fully automated Certificate Authority designed to
+programmatically issue and renew short-lived certificates to any service
+accounts, with fine-grained role-based access controls and audit built in.
+
+Some of the things you can do with Machine ID:
+
+* Machines can retrieve short-lived certificates for CI/CD pipelines.
+* Machines hsort lived certs for db in applications.
+* Configure role-based access controls and locking for machines.
+* Capture database access events as well as query activity in the audit log.
+
+## Demo
+
+Let's create a bot and use the machine identity to connect to a server.
+
+<video
+  autoPlay
+  loop
+  muted
+  playsInline
+  controls
+>
+  <source
+    src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4"
+    type="video/mp4"
+  />
+
+  <source
+    src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm"
+    type="video/webm"
+  />
+
+  Your browser does not support the video tag.
+</video>
+
+## Getting started
+
+<TileSet>
+  <Tile icon="database" title="Getting started" href="./getting-started.mdx">
+    Getting started with Teleport Machine ID
+  </Tile>
+</TileSet>
+
+(!docs/pages/includes/database-access/guides.mdx!)

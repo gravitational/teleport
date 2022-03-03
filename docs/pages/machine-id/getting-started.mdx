@@ -1,0 +1,120 @@
+---
+title: Machine ID Getting Started Guide
+description: Getting started with Teleport Machine ID
+---
+
+# Getting Started
+
+In this getting started guide we will use Machine ID to create an identity for a machine and use that identity to connect to a SSH server.
+
+Here's an overview of what we will do:
+
+1. Download and install Teleport (=teleport.version=).
+2. Create Bot User
+3. Start Machine ID
+4. Use Machine ID
+
+## Prerequisites
+
+Before using Machine ID, you will need an existing Teleport cluster.
+
+If you have not setup a Teleport cluster before, follow the [Getting started on a Linux Server](https://goteleport.com/docs/getting-started/linux-server/) guide for instructions.
+
+## Step 1/4. Download and install Teleport (=teleport.version=).
+
+Machine ID is available starting from `9.0.0` release.
+
+Download the appropriate version of Teleport for your platform from
+our [downloads page](https://goteleport.com/teleport/download).
+
+You will be using the `tbot` binary to from the package you download and install.
+
+## Step 2/4. Create Bot User
+
+Before you create a bot user, you need to determine which role you want to assign to the bot user. You can use `tctl` to examine what roles exist on your system.
+
+```bash
+$ tctl get roles --format=text
+Role    Allowed to login as                           Node Labels Access to resources                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
+------- --------------------------------------------- ----------- -----------------------------------------
+access  {{internal.logins}}                           <all nodes> event:list,read,session:read,list                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+auditor no-login-6566121f-b602-47f1-a118-c9c618ee5aec             session:list,read,event:list,read                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+editor                                                            user:list,create,read,update,delete,...
+```
+
+The above output is from a fresh install of Teleport with the default roles, your cluster may have additional roles. In our example, let’s assume you want to give the bot `access` role to allow it to connect to SSH servers within your cluster.
+
+```bash
+$ tctl bots add robot --roles=access
+```
+
+## Step 3/4. Start Machine ID
+
+Now start Machine ID using the `tbot` binary.
+
+```
+$ tbot start \
+   --data-dr=/var/lib/teleport
+   --destination-dir=./machine-id \
+   --token=00000000000000000000000000000000 \
+   --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+   --auth-server=auth.example.com:3025
+```
+
+Replace the following fields with values from your own cluster.
+
+* `token`: Replace this with the token that was output by the `tctl bots add` command
+* `ca-pin` Replace this with the CA Pin that was output by the `tctl bots add` command
+* `auth-server`: Replace this with the address of your Teleport Auth server.
+<Details scope={["cloud"]} scopeOnly={true}>
+* `auth-server`: Replace this with the address of your Teleport auth server server.
+</Details>
+<Details scope={["oss","enterprise"]} scopeOnly={true}>
+* `auth-server`: Replace this with the address of your Teleport Cloud proxy server.
+</Details>
+
+Once Machine ID is successfully started, let’s investigate the `machine-id` directory to see what was written to disk.
+
+```
+$ tree ./machine-id
+machine-id
+├── key
+├── key.pub
+├── known_hosts
+├── ssh_config
+├── sshcacerts
+├── sshcert
+├── tlscacerts
+└── tlscert
+
+0 directories, 8 files
+```
+
+This directory contains private key material, SSH certificates, x509 certificates, and OpenSSH configuration to make it easy to integrate Machine ID with external tooling.
+
+## Step 4/4. Use Machine ID
+
+To use Machine ID, find a host that is registered within your cluster to connect to using `tsh ls`. You might see output like the following on your own system.
+
+
+```bash
+$ tsh ls
+Node Name Address        Labels                        
+--------- -------------- ----------------------------- 
+node-name  127.0.0.1:3022 arch=x86_64,group=api-servers 
+```
+
+To use Machine ID with OpenSSH integration, simply run the following command to connect to `node-name`.
+
+```
+ssh -F ~/machine-id/ssh_config root@node-name
+```
+
+Now you can replace any invocations of `ssh` with the above command for automation to use Machine ID.
+
+## Next Steps
+
+For the next steps, dive deeper into the topics relevant to your Machine ID use-case, for example:
+
+* Check out configuration [guides](./guides.mdx).
+* See [frequently asked questions](./faq.mdx).
