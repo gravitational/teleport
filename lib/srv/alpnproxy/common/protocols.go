@@ -17,9 +17,10 @@ limitations under the License.
 package common
 
 import (
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/acme"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // Protocol is the TLS ALPN protocol type.
@@ -103,5 +104,19 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolSQLServer, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
+	}
+}
+
+// IsDBTLSProtocol returns if DB protocol has supported native TLS protocol.
+// where connection can be TLS terminated on ALPN proxy side.
+// For protocol like MySQL or Postgres where custom TLS implementation is used the incoming
+// connection needs to be forwarded to proxy database service where custom TLS handler is invoked
+// to terminated DB connection.
+func IsDBTLSProtocol(protocol Protocol) bool {
+	switch protocol {
+	case ProtocolMongoDB, ProtocolRedisDB, ProtocolSQLServer:
+		return true
+	default:
+		return false
 	}
 }
