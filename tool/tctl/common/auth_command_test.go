@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -238,6 +239,7 @@ type mockClient struct {
 	remoteClusters []types.RemoteCluster
 	kubeServices   []types.Server
 	appServices    []types.AppServer
+	dbServices     []types.DatabaseServer
 	appSession     types.WebSession
 }
 
@@ -271,6 +273,10 @@ func (c *mockClient) GetApplicationServers(context.Context, string) ([]types.App
 
 func (c *mockClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
 	return c.appSession, nil
+}
+
+func (c *mockClient) GetDatabaseServers(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error) {
+	return c.dbServices, nil
 }
 
 func TestCheckKubeCluster(t *testing.T) {
@@ -628,6 +634,89 @@ func TestGenerateAppCertificates(t *testing.T) {
 			require.Equal(t, expectedRouteToApp, authClient.userCertsReq.RouteToApp)
 
 			certBytes, err := ioutil.ReadFile(filepath.Join(tc.outDir, tc.outFileBase+".crt"))
+			require.NoError(t, err)
+			require.Equal(t, authClient.userCerts.TLS, certBytes, "certificates match")
+		})
+	}
+}
+
+func TestGenerateDatabaseUserCertificates(t *testing.T) {
+	tests := map[string]struct {
+		clusterName string
+		dbName      string
+		dbServices  []types.DatabaseServer
+		withError   bool
+	}{
+		"DatabaseExists": {
+			clusterName: "example.com",
+			dbName:      "db-1",
+			dbServices: []types.DatabaseServer{
+				&types.DatabaseServerV3{
+					Metadata: types.Metadata{
+						Name: "db-1",
+					},
+					Spec: types.DatabaseServerSpecV3{
+						Hostname: "example.com",
+						Database: &types.DatabaseV3{
+							Spec: types.DatabaseSpecV3{
+								Protocol: defaults.ProtocolPostgres,
+							},
+						},
+					},
+				},
+			},
+		},
+		"DatabaseNotFound": {
+			clusterName: "example.com",
+			dbName:      "db-2",
+			dbServices:  []types.DatabaseServer{},
+			withError:   true,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			clusterName, err := services.NewClusterNameWithRandomID(
+				types.ClusterNameSpecV2{
+					ClusterName: test.clusterName,
+				})
+			require.NoError(t, err)
+
+			authClient := &mockClient{
+				clusterName: clusterName,
+				userCerts: &proto.Certs{
+					SSH: []byte("SSH cert"),
+					TLS: []byte("TLS cert"),
+				},
+				dbServices: test.dbServices,
+			}
+
+			certsDir := t.TempDir()
+			output := filepath.Join(certsDir, test.dbName)
+			ac := AuthCommand{
+				output:        output,
+				outputFormat:  identityfile.FormatTLS,
+				signOverwrite: true,
+				genTTL:        time.Hour,
+				dbName:        test.dbName,
+			}
+
+			err = ac.generateUserKeys(authClient)
+			if test.withError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			expectedRouteToDatabase := proto.RouteToDatabase{
+				ServiceName: test.dbName,
+				Protocol:    defaults.ProtocolPostgres,
+			}
+			require.Equal(t, proto.UserCertsRequest_Database, authClient.userCertsReq.Usage)
+			require.Equal(t, expectedRouteToDatabase, authClient.userCertsReq.RouteToDatabase)
+
+			certBytes, err := ioutil.ReadFile(filepath.Join(certsDir, test.dbName+".crt"))
 			require.NoError(t, err)
 			require.Equal(t, authClient.userCerts.TLS, certBytes, "certificates match")
 		})

@@ -68,6 +68,7 @@ type AuthCommand struct {
 	leafCluster                string
 	kubeCluster                string
 	appName                    string
+	dbName                     string
 	signOverwrite              bool
 
 	rotateGracePeriod time.Duration
@@ -120,6 +121,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("leaf-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.leafCluster)
 	a.authSign.Flag("kube-cluster-name", `Kubernetes cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.kubeCluster)
 	a.authSign.Flag("app-name", `Application to generate identity file for`).StringVar(&a.appName)
+	a.authSign.Flag("db-name", `Database to generate identity file for`).StringVar(&a.dbName)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
 	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to relogin and nodes to re-register.").
@@ -593,10 +595,14 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	var routeToApp proto.RouteToApp
-	var certUsage proto.UserCertsRequest_CertUsage
+	var (
+		routeToApp      proto.RouteToApp
+		routeToDatabase proto.RouteToDatabase
+		certUsage       proto.UserCertsRequest_CertUsage
+	)
 
-	if a.appName != "" {
+	switch {
+	case a.appName != "":
 		server, err := getApplicationServer(context.TODO(), clusterAPI, a.appName)
 		if err != nil {
 			return trace.Wrap(err)
@@ -618,6 +624,17 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 			SessionID:   appSession.GetName(),
 		}
 		certUsage = proto.UserCertsRequest_App
+	case a.dbName != "":
+		server, err := getDatabaseServer(context.TODO(), clusterAPI, a.dbName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		routeToDatabase = proto.RouteToDatabase{
+			ServiceName: a.dbName,
+			Protocol:    server.GetDatabase().GetProtocol(),
+		}
+		certUsage = proto.UserCertsRequest_Database
 	}
 
 	reqExpiry := time.Now().UTC().Add(a.genTTL)
@@ -631,6 +648,7 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		KubernetesCluster: a.kubeCluster,
 		RouteToApp:        routeToApp,
 		Usage:             certUsage,
+		RouteToDatabase:   routeToDatabase,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -816,4 +834,19 @@ func getApplicationServer(ctx context.Context, clusterAPI auth.ClientI, appName 
 		}
 	}
 	return nil, trace.NotFound("app %q not found", appName)
+}
+
+func getDatabaseServer(ctx context.Context, clientAPI auth.ClientI, dbName string) (types.DatabaseServer, error) {
+	servers, err := clientAPI.GetDatabaseServers(ctx, apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, server := range servers {
+		if server.GetName() == dbName {
+			return server, nil
+		}
+	}
+
+	return nil, trace.NotFound("database %q not found", dbName)
 }
