@@ -2234,21 +2234,27 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 }
 
 func makeProxySSHClient(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
-	var opts []proxy.DialerOptionFunc
-	addr := tc.Config.SSHProxyAddr
 	if tc.Config.TLSRoutingEnabled {
-		tlsConfig, err := tc.loadTLSConfig()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
-		tlsConfig.InsecureSkipVerify = tc.Config.InsecureSkipVerify
-		addr = tc.Config.WebProxyAddr
-		opts = append(opts, proxy.WithALPNDialer(), proxy.WithTLSConfig(tlsConfig))
+		return makeProxySSHClientWithTLSWrapper(tc, sshConfig)
 	}
-	dialer := proxy.DialerFromEnvironment(addr, opts...)
-	client, err := dialer.Dial("tcp", addr, sshConfig)
-	return client, trace.Wrap(err, "failed to authenticate with proxy %v", tc.Config.SSHProxyAddr)
+	return makeProxySSHClientDirect(tc, sshConfig)
+}
+
+func makeProxySSHClientDirect(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+	dialer := proxy.DialerFromEnvironment(tc.Config.SSHProxyAddr)
+	return dialer.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
+}
+
+func makeProxySSHClientWithTLSWrapper(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+	tlsConfig, err := tc.loadTLSConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
+	tlsConfig.InsecureSkipVerify = tc.Config.InsecureSkipVerify
+
+	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(), proxy.WithTLSConfig(tlsConfig))
+	return dialer.Dial("tcp", tc.Config.WebProxyAddr, sshConfig)
 }
 
 func (tc *TeleportClient) rootClusterName() (string, error) {

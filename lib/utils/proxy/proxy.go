@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -200,7 +199,7 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 		if conf == nil {
 			conf = &tls.Config{
 				NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
-				InsecureSkipVerify: lib.IsInsecureDevMode(),
+				InsecureSkipVerify: d.insecure,
 			}
 		}
 		conf.ServerName = address.Host()
