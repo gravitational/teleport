@@ -3,8 +3,8 @@ title: Authentication options
 description: A reference for Teleport's authentication connectors
 ---
 
-Teleport authenticates users with an identity provider via **authentication
-connectors**. There are three types of authentication connectors.
+Teleport authenticates users either via the Proxy Service or with an identity
+provider via **authentication connectors**.
 
 ## Local (no authentication connector)
 
@@ -27,44 +27,143 @@ connector. There are several possible values (types) of 2FA:
   the value to `on`.
 - `off` turns off second-factor authentication.
 
-You can modify these settings in the static config `teleport.yaml` or using dynamic configuration resources:
+<Admonition type="note">
+  If you are using Teleport with a Single Sign-On solution, users can also register 2FA devices, but Teleport will not prompt them for 2FA during login. 2FA for SSO users should be handled by the SSO provider.
+</Admonition>
 
 <Tabs>
-  <TabItem label="Static Config (self-hosted)">
+<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
+
+You can modify these settings either using a static configuration file or
+dynamic configuration resources.
+
+### Static configuration
+
+Add the following to your Teleport configuration file, which is stored in
+`/etc/teleport.yaml` by default.
+
   ```yaml
   auth_service:
     authentication:
       type: local
       second_factor: off
   ```
-  </TabItem>
-  <TabItem label="Dynamic resources (all editions)">
-  Create a file `cap.yaml`:
-  ```yaml
-  kind: cluster_auth_preference
-  metadata:
-    name: cluster-auth-preference
-  spec:
-    type: local
-    second_factor: "on"
-    webauthn:
-      rp_id: 'example.teleport.sh'
-  version: v2
-  ```
+ 
 
-  Create a resource:
+### Dynamic resource
 
-  ```code
-  $ tctl create -f cap.yaml
-  ```
-  </TabItem>
+Create a file called `cap.yaml` to define your `cluster_auth_preference`:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: local
+  second_factor: "on"
+  webauthn:
+    rp_id: 'example.teleport.sh'
+version: v2
+```
+
+Create the `cluster_auth_preference` resource via `tctl`:
+
+```code
+$ tctl create -f cap.yaml
+```
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+You can modify these settings using dynamic configuration resources.
+
+Log in to Teleport from your local machine so you can use the Enterprise
+edition of the `tctl` admin tool:
+
+```code
+$ tsh login --proxy=myinstance.teleport.sh
+$ tctl status
+```
+
+Create a file called `cap.yaml` to define your `cluster_auth_preference`:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: local
+  second_factor: "on"
+  webauthn:
+    rp_id: 'example.teleport.sh'
+version: v2
+```
+
+Create the `cluster_auth_preference` resource via `tctl`:
+
+```code
+$ tctl create -f cap.yaml
+```
+</TabItem>
 </Tabs>
-  
-<Admonition type="note">
-  SSO users can also register 2FA devices, but Teleport will not prompt them for 2FA during login. Login 2FA for SSO users should be handled by the SSO provider.
-</Admonition>
 
-## GitHub
+
+## Authentication connectors
+
+<Tabs>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+### GitHub
+
+This connector implements GitHub's OAuth 2.0 authentication flow. Please refer to GitHub's documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
+to learn how to create and register an OAuth app.
+
+Here is an example of this setting in a `cluster_auth_preference` resource:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: github
+version: v2
+```
+
+See [Github OAuth 2.0](../admin/github-sso.mdx) for details on how to configure it.
+
+### SAML
+
+This connector type implements SAML authentication. It can be configured against any external identity manager like Okta or Auth0.
+
+Here is an example of this setting in a `cluster_auth_preference` resource:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: saml
+version: v2
+```
+
+### OIDC
+
+Teleport implements OpenID Connect (OIDC) authentication, which is similar to SAML in principle.
+
+Here is an example of this setting in a `cluster_auth_preference` resource:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: oidc
+version: v2
+```
+
+</TabItem>
+<TabItem scope={["enterprise"]} label="Enterprise">
+
+### GitHub
 
 This connector implements GitHub's OAuth 2.0 authentication flow. Please refer to GitHub's documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
 to learn how to create and register an OAuth app.
@@ -79,13 +178,9 @@ auth_service:
 
 See [Github OAuth 2.0](../admin/github-sso.mdx) for details on how to configure it.
 
-## SAML
+### SAML
 
-<Notice type="note">
-You need the Enterprise edition of Teleport for this option.
-</Notice>
-
-This connector type implements SAML authentication. It can be configured against any external identity manager like Okta or Auth0. This feature is only available for Teleport Enterprise.
+This connector type implements SAML authentication. It can be configured against any external identity manager like Okta or Auth0.
 
 Here is an example of this setting in the `teleport.yaml` :
 
@@ -97,10 +192,6 @@ auth_service:
 
 ### OIDC
 
-<Notice type="note">
-You need the Enterprise edition of Teleport for this option.
-</Notice>
-
 Teleport implements OpenID Connect (OIDC) authentication, which is similar to SAML in principle.
 
 Here is an example of this setting in the `teleport.yaml` :
@@ -110,3 +201,24 @@ auth_service:
   authentication:
     type: oidc
 ```
+
+</TabItem>
+<TabItem scope={["oss"]} label="Open Source">
+
+### GitHub
+
+This connector implements GitHub's OAuth 2.0 authentication flow. Please refer to GitHub's documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
+to learn how to create and register an OAuth app.
+
+Here is an example of this setting in the `teleport.yaml` :
+
+```yaml
+auth_service:
+  authentication:
+    type: github
+```
+
+See [Github OAuth 2.0](../admin/github-sso.mdx) for details on how to configure it.
+
+</TabItem>
+</Tabs> 

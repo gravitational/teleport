@@ -5,87 +5,93 @@ description: How to upgrade Teleport components
 
 ## Production releases
 
-<Admonition type="warning">
+<Notice type="warning">
 Avoid running pre-releases (release candidates) in production environments.
-</Admonition>
+</Notice>
 
-The Teleport development team uses [Semantic Versioning](https://semver.org/) which makes it easy to tell if a specific
-version is recommended for production use.
+The Teleport development team uses [Semantic Versioning](https://semver.org/),
+which makes it easy to tell if a specific version is recommended for production
+use.
 
 ## Component compatibility
 
-When running multiple binaries of Teleport within a cluster (nodes, proxies,
-clients, etc), the following rules apply:
+<Details 
+scope={["cloud"]} 
+scopeOnly 
+opened 
+title="Auth Service and Proxy Service versions">
 
-**Before 5.0.0**
+In Teleport Cloud, we manage the Auth and Proxy Services for you. You can
+determine the current version of these services by running the following
+command, where `mytenant` is the name of your Teleport Cloud tenant:
 
-- **Only patch** versions are always compatible, for example, any 4.0.1 component will work with any 4.0.3 component.
-- Minor versions are always compatible with the **previous** minor release. This means you must not attempt to upgrade from 4.1.x straight to 4.3.x. You must upgrade to 4.2.x first.
-- Teleport clients [`tsh`](../reference/cli.mdx#tsh) for users and [`tctl`](../reference/cli.mdx#tctl) for admins
-  may not be compatible with different versions of the `teleport` service.
+```code
+$ curl -s https://mytenant.teleport.sh/webapi/ping | jq '.server_version'
+```
 
-**After 5.0.0**
+Read the following rules to ensure that your Teleport Nodes are compatible with
+the Teleport Auth and Proxy Services. You should check the version of the Auth
+and Proxy Services regularly to make sure that your Teleport Nodes are
+compatible.
+
+</Details>
+
+When running multiple binaries of Teleport within a cluster, the following rules apply:
+
+### After 5.0.0
 
 - **Patch and minor** versions are always compatible, for example, any 5.0.1 component will work with any 5.0.3 component and 6.1.0 component will work with any 6.7.0 component.
 - Major versions are always compatible with the **previous** major release. This means you must not attempt to upgrade from 5.x.x straight to 7.x.x. You must upgrade to 6.x.x first.
-- The above applies to both clients and servers. For example, a 6.x.x proxy is
-  compatible with 5.x.x nodes and 5.x.x `tsh`. But we don't guarantee that a
-  7.x.x `tsh` will work with a 5.x.x proxy.
+- The above applies to both clients and servers. For example, a 6.x.x Proxy Service is
+  compatible with 5.x.x Nodes and 5.x.x `tsh`. But we don't guarantee that a
+  7.x.x `tsh` will work with a 5.x.x Proxy Service.
+
+### Before 5.0.0
+
+- **Only patch** versions are always compatible. For example, any 4.0.1 component will work with any 4.0.3 component.
+- Minor versions are always compatible with the **previous** minor release. This means you must not attempt to upgrade from 4.1.x straight to 4.3.x. You must upgrade to 4.2.x first.
+- Teleport clients ([`tsh`](../reference/cli.mdx#tsh) for users and [`tctl`](../reference/cli.mdx#tctl) for admins)
+  may not be compatible with different versions of the `teleport` service.
 
 ## Backup
 
-Backup before upgrading. We have more instructions in [Backing up Teleport](./backup-restore.mdx).
+Back up before upgrading. We have more instructions in [Backing up Teleport](./backup-restore.mdx).
 
 ## Upgrade Sequence
 
+<Tabs>
+<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 When upgrading a single Teleport cluster:
 
-1. **Upgrade the auth server first**. The auth server keeps the cluster state and if there are data format changes introduced in the new version this will perform necessary migrations.
-2. Then, upgrade the proxy servers. The proxy servers are stateless and can be upgraded in any sequence or at the same time.
-3. Finally, upgrade the SSH nodes in any sequence or at the same time.
+1. **Upgrade the Auth Service first**. The Auth Service keeps the cluster state and, if there are data format changes introduced in the new version, will perform necessary migrations.
+2. Upgrade Proxy Service instances. These are stateless and can be upgraded in any sequence or at the same time.
+3. Finally, upgrade your Teleport Nodes in any sequence or at the same time.
 
 <Admonition
   type="warning"
   title="Warning"
 >
-  If several auth servers are running in High Availability configuration
-  (for example, in AWS auto-scaling group) you have to shrink the group to
-  **just one auth server** before performing an upgrade. While Teleport will attempt to perform any necessary migrations, we recommend users create a backup of their backend before upgrading the Auth Server, as a
+  If several Auth Service instances are running in the High Availability configuration
+  (for example, in an AWS Auto Scaling group), you must shrink the group to
+  **just one Auth Service** before performing an upgrade. 
+  
+  While Teleport will attempt to perform any necessary migrations, we recommend users create a backup of their backend before upgrading the Auth Server as a
   precaution. This allows for a safe rollback in case the migration itself fails.
 </Admonition>
 
 When upgrading multiple clusters:
 
-1. First, upgrade the main cluster, i.e. the one which other clusters trust.
-2. Upgrade the trusted clusters.
+1. First, upgrade the root cluster, i.e. the one that other clusters trust.
+2. Upgrade the Trusted Clusters.
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
 
-## Upgrading to Teleport 4.0+
+The Teleport Auth Service and Proxy Service are upgraded automatically. When
+upgrading Nodes, you may upgrade in any sequence or at the same time.
 
-Teleport 4.0+ switched to GRPC and HTTP/2 as an API protocol. The HTTP/2 spec bans
-two previously recommended ciphers. `tls-rsa-with-aes-128-gcm-sha256` & `tls-rsa-with-aes-256-gcm-sha384`, make sure these are removed from `teleport.yaml`
+When upgrading multiple clusters:
 
-Whenever Teleport is using those cipher suites, it will experience connectivity issues between components starting 4.0+.
-
-```yaml
-    # remove those two ciphersuites from the 
-    ciphersuites:
-       - tls-rsa-with-aes-128-gcm-sha256
-       - tls-rsa-with-aes-256-gcm-sha384
-```
-
-
-Rotate CA to `SHA-256` or `SHA-512` for RSA SSH certificate signatures.
-
-The previous default was `SHA-1`, which is now considered weak against brute-force attacks.
-`SHA-1` certificate signatures are also no longer accepted by `OpenSSH` versions `8.2` and above.
-
-All new Teleport clusters will default to `SHA-512` based signatures.
-
-To upgrade an existing cluster, set the following in auth server's `teleport.yaml`:
-
-```yaml
-teleport:
-  ca_signature_algo: "rsa-sha2-512"
-```
-
-Finally, rotate the cluster CA [following these docs](./ca-rotation.mdx).
+1. First, upgrade the root cluster, i.e. the one that other clusters trust.
+2. Upgrade the Trusted Clusters.
+</TabItem>
+</Tabs>
