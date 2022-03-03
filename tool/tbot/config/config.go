@@ -23,10 +23,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -65,6 +67,10 @@ type CLIConf struct {
 	// CertificateTTL is the requested TTL of certificates. It should be some
 	// multiple of the renewal interval to allow for failed renewals.
 	CertificateTTL time.Duration
+
+	// JoinMethod is the method the bot should use to exchange a token for the
+	// initial certificate
+	JoinMethod string
 }
 
 // OnboardingConfig contains values only required on first connect.
@@ -78,6 +84,10 @@ type OnboardingConfig struct {
 	// CAPins is a list of certificate authority pins, used to validate the
 	// connection to the Teleport auth server.
 	CAPins []string `yaml:"ca_pins"`
+
+	// JoinMethod is the method the bot should use to exchange a token for the
+	// initial certificate
+	JoinMethod types.JoinMethod `yaml:"join_method"`
 }
 
 // BotConfig is the bot's root config object.
@@ -210,16 +220,17 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	// (CAPath, CAPins, etc follow different codepaths so we don't want a
 	// situation where different fields become set weirdly due to struct
 	// merging)
-	if cf.Token != "" || len(cf.CAPins) > 0 {
+	if cf.Token != "" || len(cf.CAPins) > 0 || cf.JoinMethod != "" {
 		onboarding := config.Onboarding
-		if onboarding != nil && (onboarding.Token != "" || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) {
+		if onboarding != nil && (onboarding.Token != "" || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || cf.JoinMethod != "" {
 			// To be safe, warn about possible confusion.
 			log.Warnf("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
 		}
 
 		config.Onboarding = &OnboardingConfig{
-			Token:  cf.Token,
-			CAPins: cf.CAPins,
+			Token:      cf.Token,
+			CAPins:     cf.CAPins,
+			JoinMethod: types.JoinMethod(cf.JoinMethod),
 		}
 	}
 
