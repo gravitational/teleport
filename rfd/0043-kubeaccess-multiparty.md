@@ -348,7 +348,7 @@ spec:
       - name: Senior dev oversight
         filter: 'contains(observer.roles,"senior-dev")'
         kinds: ['k8s', 'ssh']
-        modes: ['moderator']
+        modes: ['moderator','peer']
         count: 1
       - name: Dual dev oversight
         filter: 'contains(observer.roles,"dev")'
@@ -366,7 +366,7 @@ spec:
       - name: Senior dev oversight
         roles : ['prod-access', 'training']
         kinds: ['k8s', 'ssh', 'db']
-        modes: ['moderator']
+        modes: ['moderator','peer']
 ```
 
 ```yaml
@@ -379,7 +379,7 @@ spec:
       - name: Maintenance oversight
         filter: 'contains(observer.roles, "maintenance-observer")'
         kinds: ['ssh']
-        modes: ['moderator']
+        modes: ['peer']
         count: 1
 ```
 
