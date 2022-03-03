@@ -145,9 +145,9 @@ var startMessageTemplate = template.Must(template.New("node").Funcs(template.Fun
 }).Parse(`The bot token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
-If running the bot under an isolated user account, first initialize the data
-directory by running the following command {{ bold "as the user who will be using the" }}
-{{ bold "certificates" }}:
+Optionally, if running the bot under an isolated user account, first initialize
+the data directory by running the following command {{ bold "as the user who will be " }}
+{{ bold "using the certificates" }}:
 
 > tbot init \
    --auth-server={{.auth_server}} \

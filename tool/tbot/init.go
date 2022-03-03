@@ -248,8 +248,8 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 	log.Infof("Initializing destination: %s", destImpl)
 
-	// Create the directory if needed.
-	// TODO: verify ownership of this directory matches current user
+	// Create the directory if needed. We haven't checked directory ownership,
+	// but it will fail when the ACLs are created if anything is misconfigured.
 	if err := destDir.Init(); err != nil {
 		return trace.Wrap(err)
 	}

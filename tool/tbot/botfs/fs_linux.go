@@ -67,8 +67,8 @@ func openSecure(path string) (*os.File, error) {
 		return nil, err
 	}
 
-	// TODO: ensure os.File.Close() closes this properly
-	// (otherwise: unix.Close(fd))
+	// os.File.Close() appears to close wrapped files sanely, so rely on that
+	// rather than relying on callers to use unix.Close(fd)
 	return os.NewFile(uintptr(fd), filepath.Base(path)), nil
 }
 
@@ -93,7 +93,6 @@ func createSecure(path string, isDir bool) error {
 		}
 
 		// No writing to do, just close it.
-		// TODO: make sure Close() is sensible for wrapped fds
 		f.Close()
 	}
 
