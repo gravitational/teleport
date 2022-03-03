@@ -38,6 +38,8 @@ $ docker run -d -p 3000:3000 grafana/grafana
 
 ## Step 2/3. Install and configure Teleport
 
+(!docs/pages/includes/permission-warning.mdx!)
+
 On your Application Service host, download the latest version of Teleport for
 your platform from our
 [downloads page](https://goteleport.com/teleport/download).
@@ -57,9 +59,6 @@ $ tctl tokens add \
 
 ### Start Teleport
 
-On the host where you will run the Teleport Application Service, download the latest version of Teleport for your platform from our
-[downloads page](https://goteleport.com/teleport/download).
-
 Now start Teleport and point it to the application endpoint:
 
 ```code
@@ -77,7 +76,6 @@ Make sure to update `--app-name` and `--app-uri` accordingly if you're using you
 The `--token` flag points to the file on the Application Service host where we stored the token that we generated earlier.
 
 ### Create a user
-
 Next, let's create a user to access the application we've just connected. Teleport has a built-in role called `access` that allows users to access cluster resources. Create a local user assigned this role:
 
 ```code
