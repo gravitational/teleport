@@ -3,15 +3,15 @@ metadata:
   # insert the name of your role here:
   name: new_role_name
 spec:
-  # This example defines an administrative role. It maps to Kubernetes "admin"
-  # group and allows SSH to every node.
+  # This example defines a typical role. It allows listing all resources
+  # with typical developer credentials.
   allow:
     # List of Kubernetes cluster users can access the k8s API
     kubernetes_labels:
       '*': '*'
-    # This role is mapped to Kubernetes 'admin' group.
-    kubernetes_groups: [admin]
-    
+    # This role is mapped to Kubernetes 'developer' group.
+    kubernetes_groups: [developer]
+
     # List of allowed SSH logins
     logins: [ubuntu, debian]
 
@@ -31,15 +31,14 @@ spec:
      - '*'
     # List of database users allowed to open database connections with
     db_users:
-    - dba-admin
+    - developer
     
     # List of windows desktop access labels that users can open desktop sessions to
     windows_desktop_labels:
       '*': '*'
     # Windows logins a user is allowed to use for desktop sessions.
     windows_desktop_logins:
-    - '{{internal.windows_logins}}'
-    - Administrator
+    - developer
 
     # RBAC rules for various resources within a cluster. This
     # example provides access to the Audit Log and replaying a user's own sessions.
