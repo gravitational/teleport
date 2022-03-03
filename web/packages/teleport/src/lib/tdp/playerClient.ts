@@ -24,6 +24,7 @@ export enum PlayerClientEvent {
   TOGGLE_PLAY_PAUSE = 'play/pause',
   UPDATE_CURRENT_TIME = 'time',
   SESSION_END = 'end',
+  PLAYBACK_ERROR = 'playback error',
 }
 
 export class PlayerClient extends Client {
@@ -42,13 +43,16 @@ export class PlayerClient extends Client {
   // Overrides Client implementation.
   processMessage(buffer: ArrayBuffer) {
     const json = JSON.parse(this.textDecoder.decode(buffer));
+
     if (json.message === 'end') {
       this.emit(PlayerClientEvent.SESSION_END);
-      return;
+    } else if (json.message === 'error') {
+      this.emit(PlayerClientEvent.PLAYBACK_ERROR, new Error(json.errorText));
+    } else {
+      const ms = json.ms;
+      this.emit(PlayerClientEvent.UPDATE_CURRENT_TIME, ms);
+      super.processMessage(base64ToArrayBuffer(json.message));
     }
-    const ms = json.ms;
-    super.processMessage(base64ToArrayBuffer(json.message));
-    this.emit(PlayerClientEvent.UPDATE_CURRENT_TIME, ms);
   }
 
   // Overrides Client implementation.

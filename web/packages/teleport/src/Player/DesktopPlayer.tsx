@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import styled from 'styled-components';
 
-import { Indicator, Box } from 'design';
+import { Indicator, Box, Alert } from 'design';
+
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
-import { PlayerClient } from 'teleport/lib/tdp';
+import { PlayerClient, PlayerClientEvent } from 'teleport/lib/tdp';
 import { PngFrame, ClientScreenSpec } from 'teleport/lib/tdp/codec';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
@@ -25,44 +27,53 @@ export const DesktopPlayer = ({
     playerClient,
     tdpCliOnPngFrame,
     tdpCliOnClientScreenSpec,
-    showCanvas,
+    tdpCliOnWsClose,
+    tdpCliOnTdpError,
+    attempt,
   } = useDesktopPlayer({
     sid,
     clusterId,
   });
 
-  return (
-    <>
-      <StyledPlayer>
-        {!showCanvas && (
-          <Box textAlign="center" m={10}>
-            <Indicator />
-          </Box>
-        )}
+  const displayCanvas = attempt.status === 'success' || attempt.status === '';
+  const displayProgressBar = attempt.status !== 'processing';
 
-        <TdpClientCanvas
-          tdpCli={playerClient}
-          tdpCliOnPngFrame={tdpCliOnPngFrame}
-          tdpCliOnClientScreenSpec={tdpCliOnClientScreenSpec}
-          onContextMenu={() => true}
-          // overflow: 'hidden' is needed to prevent the canvas from outgrowing the container due to some weird css flex idiosyncracy.
-          // See https://gaurav5430.medium.com/css-flex-positioning-gotchas-child-expands-to-more-than-the-width-allowed-by-the-parent-799c37428dd6.
-          style={{
-            alignSelf: 'center',
-            overflow: 'hidden',
-            display: showCanvas ? 'flex' : 'none',
-          }}
-        />
-        <ProgressBarDesktop
-          playerClient={playerClient}
-          durationMs={durationMs}
-          style={{
-            display: showCanvas ? 'flex' : 'none',
-          }}
-          id="progressBarDesktop"
-        />
-      </StyledPlayer>
-    </>
+  return (
+    <StyledPlayer>
+      {attempt.status === 'processing' && (
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      )}
+
+      {attempt.status === 'failed' && (
+        <DesktopPlayerAlert my={4} children={attempt.statusText} />
+      )}
+
+      <TdpClientCanvas
+        tdpCli={playerClient}
+        tdpCliOnPngFrame={tdpCliOnPngFrame}
+        tdpCliOnClientScreenSpec={tdpCliOnClientScreenSpec}
+        tdpCliOnWsClose={tdpCliOnWsClose}
+        tdpCliOnTdpError={tdpCliOnTdpError}
+        onContextMenu={() => true}
+        // overflow: 'hidden' is needed to prevent the canvas from outgrowing the container due to some weird css flex idiosyncracy.
+        // See https://gaurav5430.medium.com/css-flex-positioning-gotchas-child-expands-to-more-than-the-width-allowed-by-the-parent-799c37428dd6.
+        style={{
+          alignSelf: 'center',
+          overflow: 'hidden',
+          display: displayCanvas ? 'flex' : 'none',
+        }}
+      />
+      <ProgressBarDesktop
+        playerClient={playerClient}
+        durationMs={durationMs}
+        style={{
+          display: displayProgressBar ? 'flex' : 'none',
+        }}
+        id="progressBarDesktop"
+      />
+    </StyledPlayer>
   );
 };
 
@@ -73,15 +84,21 @@ const useDesktopPlayer = ({
   sid: string;
   clusterId: string;
 }) => {
-  const playerClient = new PlayerClient(
-    cfg.api.desktopPlaybackWsAddr
-      .replace(':fqdn', getHostName())
-      .replace(':clusterId', clusterId)
-      .replace(':sid', sid)
-      .replace(':token', getAccessToken())
-  );
+  const [playerClient, setPlayerClient] = useState<PlayerClient | null>(null);
+  // attempt.status === '' means the playback ended gracefully
+  const { attempt, setAttempt } = useAttempt('processing');
 
-  const [showCanvas, setShowCanvas] = useState(false);
+  useEffect(() => {
+    setPlayerClient(
+      new PlayerClient(
+        cfg.api.desktopPlaybackWsAddr
+          .replace(':fqdn', getHostName())
+          .replace(':clusterId', clusterId)
+          .replace(':sid', sid)
+          .replace(':token', getAccessToken())
+      )
+    );
+  }, [clusterId, sid]);
 
   const tdpCliOnPngFrame = (
     ctx: CanvasRenderingContext2D,
@@ -113,14 +130,61 @@ const useDesktopPlayer = ({
     canvas.width = spec.width;
     canvas.height = spec.height;
 
-    setShowCanvas(true);
+    setAttempt({ status: 'success' });
+  };
+
+  useEffect(() => {
+    if (playerClient) {
+      playerClient.addListener(PlayerClientEvent.SESSION_END, () => {
+        setAttempt({ status: '' });
+      });
+
+      playerClient.addListener(
+        PlayerClientEvent.PLAYBACK_ERROR,
+        (err: Error) => {
+          setAttempt({
+            status: 'failed',
+            statusText: `There was an error while playing this session: ${err.message}`,
+          });
+        }
+      );
+
+      return () => {
+        playerClient.nuke();
+      };
+    }
+  }, [playerClient]);
+
+  // If the websocket closed for some reason other than the session playback ending,
+  // as signaled by the server (which sets prevAttempt.status = '' in
+  // the PlayerClientEvent.SESSION_END event handler), or a TDP message from the server
+  // signalling an error, assume some sort of network or playback error and alert the user.
+  const tdpCliOnWsClose = () => {
+    setAttempt(prevAttempt => {
+      if (prevAttempt.status !== '' && prevAttempt.status !== 'failed') {
+        return {
+          status: 'failed',
+          statusText: 'connection to the server failed for an unknown reason',
+        };
+      }
+      return prevAttempt;
+    });
+  };
+
+  const tdpCliOnTdpError = (err: Error) => {
+    setAttempt({
+      status: 'failed',
+      statusText: err.message,
+    });
   };
 
   return {
     playerClient,
     tdpCliOnPngFrame,
     tdpCliOnClientScreenSpec,
-    showCanvas,
+    tdpCliOnWsClose,
+    tdpCliOnTdpError,
+    attempt,
   };
 };
 
@@ -130,4 +194,13 @@ const StyledPlayer = styled.div`
   justify-content: center;
   width: 100%;
   height: 100%;
+`;
+
+const DesktopPlayerAlert = styled(Alert)`
+  align-self: center;
+  min-width: 450px;
+
+  // Overrides StyledPlayer container's justify-content
+  // https://stackoverflow.com/a/34063808/6277051
+  margin-bottom: auto;
 `;

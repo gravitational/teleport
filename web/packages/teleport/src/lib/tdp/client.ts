@@ -228,6 +228,8 @@ export default class Client extends EventEmitterWebAuthnSender {
   // Ensures full cleanup of this object.
   // Note that it removes all listeners first and then cleans up the socket,
   // so don't call this if your calling object is relying on listeners.
+  // It's safe to call this multiple times, calls subsequent to the first call
+  // will simply do nothing.
   nuke() {
     this.removeAllListeners();
     this.socket?.close();

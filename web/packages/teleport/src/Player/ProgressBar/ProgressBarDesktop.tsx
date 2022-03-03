@@ -4,7 +4,11 @@ import { throttle } from 'lodash';
 import { dateToUtc } from 'shared/services/loc';
 import { format } from 'date-fns';
 
-import { PlayerClient, PlayerClientEvent } from 'teleport/lib/tdp';
+import {
+  PlayerClient,
+  PlayerClientEvent,
+  TdpClientEvent,
+} from 'teleport/lib/tdp';
 
 import ProgressBar from './ProgressBar';
 
@@ -29,47 +33,57 @@ export const ProgressBarDesktop = (props: {
   });
 
   useEffect(() => {
-    playerClient.addListener(PlayerClientEvent.TOGGLE_PLAY_PAUSE, () => {
-      // setState({...state, isPlaying: !state.isPlaying}) doesn't work because
-      // the listener is added when state == initialState, and that initialState
-      // value is effectively hardcoded into its logic.
-      setState(prevState => {
-        return { ...prevState, isPlaying: !prevState.isPlaying };
-      });
-    });
-
-    const throttledUpdateCurrentTime = throttle(
-      currentTimeMs => {
+    if (playerClient) {
+      playerClient.addListener(PlayerClientEvent.TOGGLE_PLAY_PAUSE, () => {
+        // setState({...state, isPlaying: !state.isPlaying}) doesn't work because
+        // the listener is added when state == initialState, and that initialState
+        // value is effectively hardcoded into its logic.
         setState(prevState => {
-          return {
-            ...prevState,
-            current: currentTimeMs,
-            time: toHuman(currentTimeMs),
-          };
+          return { ...prevState, isPlaying: !prevState.isPlaying };
         });
-      },
-      // Magic number to throttle progress bar updates so that the playback is smoother.
-      50
-    );
-
-    playerClient.addListener(
-      PlayerClientEvent.UPDATE_CURRENT_TIME,
-      currentTimeMs => throttledUpdateCurrentTime(currentTimeMs)
-    );
-
-    playerClient.addListener(PlayerClientEvent.SESSION_END, () => {
-      throttledUpdateCurrentTime.cancel();
-      // TODO(isaiah): Make this smoother
-      // https://github.com/gravitational/webapps/issues/579
-      setState(prevState => {
-        return { ...prevState, current: durationMs };
       });
-    });
 
-    return () => {
-      throttledUpdateCurrentTime.cancel();
-      playerClient.nuke();
-    };
+      const throttledUpdateCurrentTime = throttle(
+        currentTimeMs => {
+          setState(prevState => {
+            return {
+              ...prevState,
+              current: currentTimeMs,
+              time: toHuman(currentTimeMs),
+            };
+          });
+        },
+        // Magic number to throttle progress bar updates so that the playback is smoother.
+        50
+      );
+
+      playerClient.addListener(
+        PlayerClientEvent.UPDATE_CURRENT_TIME,
+        currentTimeMs => throttledUpdateCurrentTime(currentTimeMs)
+      );
+
+      const progressToEnd = () => {
+        throttledUpdateCurrentTime.cancel();
+        // TODO(isaiah): Make this smoother
+        // https://github.com/gravitational/webapps/issues/579
+        setState(prevState => {
+          return { ...prevState, current: durationMs };
+        });
+      };
+
+      playerClient.addListener(PlayerClientEvent.SESSION_END, () => {
+        progressToEnd();
+      });
+
+      playerClient.addListener(TdpClientEvent.TDP_ERROR, () => {
+        progressToEnd();
+      });
+
+      return () => {
+        throttledUpdateCurrentTime.cancel();
+        playerClient.nuke();
+      };
+    }
   }, [playerClient]);
 
   return (
