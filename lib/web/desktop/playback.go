@@ -216,7 +216,7 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 				} else {
 					errorText = "server error"
 				}
-				if _, err := pp.ws.Write([]byte(fmt.Sprintf(`{"message": "error", "errorText": "%v"}`, errorText))); err != nil {
+				if _, err := pp.ws.Write([]byte(fmt.Sprintf(`{"message":"error","errorText":"%v"}`, errorText))); err != nil {
 					pp.log.WithError(err).Error("failed to write \"error\" message over websocket")
 				}
 			}
@@ -231,9 +231,48 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 			}
 			switch e := evt.(type) {
 			case *apievents.DesktopRecording:
-				if e.DelayMilliseconds > lastDelay {
+				delayTilNextEvent := e.DelayMilliseconds - lastDelay
+				if delayTilNextEvent > 0 {
+					// maxDelay is (roughly) the maximum amount of time we're willing to wait before
+					// updating the client with a new value for time-elapsed of the playback.
+					var maxDelay int64 = 50
+
+					// If there's a long delay until the next event is to be sent, send a series of
+					// {"message":"tick","ms": <time-elapsed>} messages to the client in the interim.
+					if delayTilNextEvent > maxDelay*2 {
+						lastTime := time.Now()
+						ticker := time.NewTicker(time.Duration(maxDelay) * time.Millisecond)
+						for {
+							delayTilNextEvent = e.DelayMilliseconds - lastDelay
+							if delayTilNextEvent < maxDelay {
+								break
+							}
+
+							select {
+							case <-ticker.C:
+								// According to the time.NewTicker documentation:
+								// "The ticker will adjust the time interval or drop
+								// ticks to make up for slow receivers."
+								// Ergo we can't simply add maxDelay to the lastDelay,
+								// we instead need to calculate precisely
+								// how much time has passed since the last update.
+								now := time.Now()
+								add := now.Sub(lastTime)
+								lastDelay += add.Milliseconds()
+								lastTime = now
+								if _, err := pp.ws.Write([]byte(fmt.Sprintf(`{"message":"tick","ms": %v}`, lastDelay))); err != nil {
+									if !utils.IsOKNetworkError(err) {
+										pp.log.WithError(err).Error("failed to write \"tick\" message over websocket")
+									}
+									return
+								}
+							}
+						}
+						ticker.Stop()
+					}
+
 					// TODO(zmb3): replace with time.After so we can cancel
-					time.Sleep(time.Duration(e.DelayMilliseconds-lastDelay) * time.Millisecond)
+					time.Sleep(time.Duration(delayTilNextEvent) * time.Millisecond)
 					lastDelay = e.DelayMilliseconds
 				}
 				msg, err := utils.FastMarshal(e)
