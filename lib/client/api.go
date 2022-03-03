@@ -2441,7 +2441,7 @@ func (tc *TeleportClient) LogoutAll() error {
 	return nil
 }
 
-// PingAndShowMOTD pings the Teleport Proxy and displays the MOTD if it's available.
+// PingAndShowMOTD pings the Teleport Proxy and displays the Message Of The Day if it's available.
 func (tc *TeleportClient) PingAndShowMOTD(ctx context.Context) (*webclient.PingResponse, error) {
 	pr, err := tc.Ping(ctx)
 	if err != nil {
@@ -2660,7 +2660,7 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 		// use might enter at the prompt. Whatever the user enters will
 		// be simply discarded, and the user can still CTRL+C out if they
 		// disagree.
-		_, err := passwordFromConsole()
+		_, err := passwordFromConsoleFn()
 		if err != nil {
 			return trace.Wrap(err)
 		}
