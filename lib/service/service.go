@@ -3219,7 +3219,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var grpcServer *grpc.Server
 	if alpnRouter != nil {
-		grpcServer := grpc.NewServer(
+		grpcServer = grpc.NewServer(
 			grpc.ChainUnaryInterceptor(
 				utils.ErrorConvertUnaryInterceptor,
 				proxyLimiter.UnaryServerInterceptor(),
