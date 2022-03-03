@@ -156,7 +156,7 @@ func (conf *BotConfig) GetDestinationByPath(path string) (*DestinationConfig, er
 		}
 
 		// Note: this compares only paths as written in the config file. We
-		// might want to comapre .Abs() if that proves to be confusing (though
+		// might want to compare .Abs() if that proves to be confusing (though
 		// this may have its own problems)
 		if destDir.Path == path {
 			return dest, nil
