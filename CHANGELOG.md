@@ -1,5 +1,30 @@
 # Changelog
 
+## 8.3.3
+
+This release of Teleport contains a security fix and multiple improvements and fixes.
+
+### Trusted Clusters security fix
+
+An attacker in possession of a valid Trusted Cluster join token could inject a
+malicious CA into a Teleport cluster that would allow them to bypass root
+cluster authorization and potentially connect to any node within the root
+cluster.
+
+For customers using Trusted Clusters, we recommend upgrading to one of the
+patched releases listed below then revoking and rotating all Trusted Cluster
+tokens. As a best practice, make sure that Trusted Cluster tokens have short
+time-to-live and ideally are removed after being used once.
+
+### Other fixes
+
+* Fixed dynamic labeling for Kubernetes agents. [#10464](https://github.com/gravitational/teleport/pull/10464)
+* Added `teleport_audit_emit_event` and `teleport_connected_resources` Prometheus metrics. [#10462](https://github.com/gravitational/teleport/pull/10462), [#10461](https://github.com/gravitational/teleport/pull/10461)
+* Fixed an issue with serving multiple concurrent X11 forwarding sessions. [#10473](https://github.com/gravitational/teleport/pull/10473)
+* Fixed a misnaming in the X11 forwarding configuration file options. [#10758](https://github.com/gravitational/teleport/pull/10758)
+* Fixed an issue with MongoDB connections not being properly closed. [#10730](https://github.com/gravitational/teleport/pull/10730)
+* Clear terminal at the end of the session in FIPS mode. [#10533](https://github.com/gravitational/teleport/pull/10533)
+
 ## 8.3.1
 
 This release of Teleport contains an improvement and fix.

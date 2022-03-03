@@ -697,7 +697,7 @@ func TestX11Forward(t *testing.T) {
 	f.ssh.srv.x11 = &x11.ServerConfig{
 		Enabled:       true,
 		DisplayOffset: x11.DefaultDisplayOffset,
-		MaxDisplay:    x11.DefaultMaxDisplay,
+		MaxDisplay:    x11.DefaultMaxDisplays,
 	}
 
 	ctx := context.Background()
