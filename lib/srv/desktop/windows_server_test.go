@@ -285,13 +285,8 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 
 func TestEmitsClipboardSendEvents(t *testing.T) {
 	s, id, emitter := setup()
-
-	// clipboard events go straight to the audit log,
-	// not the session recording, so they use s.cfg.Emitter
-	// rather than the emitter passed in here
-	var recordingStreamer events.Emitter /* = nil */
 	handler := s.makeTDPReceiveHandler(context.Background(),
-		recordingStreamer, func() int64 { return 0 },
+		emitter, func() int64 { return 0 },
 		id, "session-0", "windows.example.com")
 
 	fakeClipboardData := make([]byte, 1024)
@@ -314,13 +309,8 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 
 func TestEmitsClipboardReceiveEvents(t *testing.T) {
 	s, id, emitter := setup()
-
-	// clipboard events go straight to the audit log,
-	// not the session recording, so they use s.cfg.Emitter
-	// rather than the emitter passed in here
-	var recordingStreamer events.Emitter /* = nil */
 	handler := s.makeTDPSendHandler(context.Background(),
-		recordingStreamer, func() int64 { return 0 },
+		emitter, func() int64 { return 0 },
 		id, "session-0", "windows.example.com")
 
 	fakeClipboardData := make([]byte, 512)
