@@ -6,15 +6,40 @@ spec:
   # This example defines an administrative role. It maps to Kubernetes "admin"
   # group and allows SSH to every node.
   allow:
+    # List of Kubernetes cluster users can access the k8s API
+    kubernetes_labels:
+      '*': '*'
     # This role is mapped to Kubernetes 'admin' group.
     kubernetes_groups: [admin]
-
+    
     # List of allowed SSH logins
-    logins: [root]
+    logins: [ubuntu, debian]
 
     # List of node labels that users can SSH into
     node_labels:
       '*': '*'
+      
+    # List of application labels users can access
+    app_labels:    
+      '*': '*'
+      
+    # List of database labels users can access
+    db_labels:
+      '*': '*'
+    # List of databases on the database server users can access
+    db_names:
+     - '*'
+    # List of database users allowed to open database connections
+    db_users:
+    - dba-admin
+    
+    # List of windows desktop access labels that users can open desktop sessions to
+    windows_desktop_labels:
+      '*': '*'
+    # Windows logins a user is allowed to use for desktop sessions.
+    windows_desktop_logins:
+    - '{{internal.windows_logins}}'
+    - Administrator
 
     # RBAC rules for various resources within a cluster. This
     # example provides access to the Audit Log and replaying a user's own sessions.
