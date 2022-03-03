@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -49,7 +50,7 @@ type Databases interface {
 	DatabaseGetter
 	// CreateDatabase creates a new database resource.
 	CreateDatabase(context.Context, types.Database) error
-	// UpdateDatabse updates an existing database resource.
+	// UpdateDatabase updates an existing database resource.
 	UpdateDatabase(context.Context, types.Database) error
 	// DeleteDatabase removes the specified database resource.
 	DeleteDatabase(ctx context.Context, name string) error
@@ -367,6 +368,27 @@ func rdsTagsToLabels(tags []*rds.Tag) map[string]string {
 		}
 	}
 	return labels
+}
+
+// IsRDSInstanceSupported returns true if database supports IAM authentication.
+// Currently, only MariaDB is being checked as all other RDS databases supports
+// IAM authentication in all configurations.
+func IsRDSInstanceSupported(instance *rds.DBInstance) bool {
+	if aws.StringValue(instance.Engine) != RDSEngineMariaDB {
+		return true
+	}
+
+	// MariaDB follows semver schema: https://mariadb.org/about/
+	ver, err := semver.NewVersion(aws.StringValue(instance.EngineVersion))
+	if err != nil {
+		log.Errorf("Failed to parse RDS MariaDB version: %s", aws.StringValue(instance.EngineVersion))
+		return false
+	}
+
+	// Min supported MariaDB version that supports IAM is 10.6
+	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html
+	minIAMSupportedVer := semver.New("10.6.0")
+	return ver.Compare(*minIAMSupportedVer) >= 0
 }
 
 // IsRDSClusterSupported checks whether the aurora cluster is supported and logs

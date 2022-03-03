@@ -364,6 +364,54 @@ func TestIsRDSClusterSupported(t *testing.T) {
 	}
 }
 
+func TestIsRDSInstanceSupported(t *testing.T) {
+	tests := []struct {
+		name          string
+		engine        string
+		engineVersion string
+		isSupported   bool
+	}{
+		{
+			name:          "non-MariaDB engine",
+			engine:        RDSEnginePostgres,
+			engineVersion: "13.3",
+			isSupported:   true,
+		},
+		{
+			name:          "unsupported MariaDB",
+			engine:        RDSEngineMariaDB,
+			engineVersion: "10.3.28",
+			isSupported:   false,
+		},
+		{
+			name:          "min supported version",
+			engine:        RDSEngineMariaDB,
+			engineVersion: "10.6.2",
+			isSupported:   true,
+		},
+		{
+			name:          "supported version",
+			engine:        RDSEngineMariaDB,
+			engineVersion: "10.8.0",
+			isSupported:   true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cluster := &rds.DBInstance{
+				DBInstanceArn:       aws.String("arn:aws:rds:us-east-1:1234567890:instance:test"),
+				DBClusterIdentifier: aws.String(test.name),
+				DbiResourceId:       aws.String(uuid.New().String()),
+				Engine:              aws.String(test.engine),
+				EngineVersion:       aws.String(test.engineVersion),
+			}
+
+			require.Equal(t, test.isSupported, IsRDSInstanceSupported(cluster))
+		})
+	}
+}
+
 func TestRDSTagsToLabels(t *testing.T) {
 	rdsTags := []*rds.Tag{
 		&rds.Tag{
