@@ -111,20 +111,34 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 		botResourceName := provisionToken.GetBotName()
 		expires := a.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
 
-		certs, err := a.generateInitialRenewableUserCerts(ctx, botResourceName, req.PublicSSHKey, expires)
+		joinMethod := provisionToken.GetJoinMethod()
+
+		// certs for IAM method should not be renewable
+		var renewable bool
+		switch joinMethod {
+		case types.JoinMethodToken:
+			renewable = true
+		case types.JoinMethodIAM:
+			renewable = false
+		default:
+			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)
+		}
+		certs, err := a.generateInitialBotCerts(ctx, botResourceName, req.PublicSSHKey, expires, renewable)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		switch provisionToken.GetJoinMethod() {
-		case types.JoinMethodEC2, types.JoinMethodIAM:
-			// don't delete long-lived AWS join tokens
-		default:
-			// delete bot join tokens so they can't be re-used
+		switch joinMethod {
+		case types.JoinMethodToken:
+			// delete ephemeral bot join tokens so they can't be re-used
 			if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
 				log.WithError(err).Warnf("Could not delete bot provision token %q after generating certs",
 					string(backend.MaskKeyName(provisionToken.GetName())))
 			}
+		case types.JoinMethodIAM:
+			// don't delete long-lived IAM join tokens
+		default:
+			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)
 		}
 
 		log.Infof("Bot %q has joined the cluster.", botResourceName)
