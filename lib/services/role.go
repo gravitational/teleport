@@ -778,9 +778,11 @@ func ExtractFromCertificate(cert *ssh.Certificate) ([]string, wrappers.Traits, e
 // which Teleport passes along as a *tlsca.Identity. If roles and traits do not
 // exist in the certificates, they are extracted from the backend.
 func ExtractFromIdentity(access UserGetter, identity tlsca.Identity) ([]string, wrappers.Traits, error) {
-	// For legacy certificates, fetch roles and traits from the services.User
-	// object in the backend.
-	if missingIdentity(identity) {
+	// Legacy certs are not encoded with roles or traits,
+	// so we fallback to the traits and roles in the backend.
+	// empty traits are a valid use case in standard certs,
+	// so we only check for whether roles are empty.
+	if len(identity.Groups) == 0 {
 		u, err := access.GetUser(identity.Username, false)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -821,15 +823,6 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 		return nil, trace.Wrap(err)
 	}
 	return NewRoleSet(roles...), nil
-}
-
-// missingIdentity returns true if the identity is missing or the identity
-// has no roles or traits.
-func missingIdentity(identity tlsca.Identity) bool {
-	if len(identity.Groups) == 0 || len(identity.Traits) == 0 {
-		return true
-	}
-	return false
 }
 
 // ExtractRolesFromCert extracts roles from certificate metadata extensions.
