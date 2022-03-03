@@ -40,35 +40,26 @@ func TestKubeClustersSorter(t *testing.T) {
 
 	testValsUnordered := []string{"d", "b", "a", "c"}
 
-	t.Run("desc", func(t *testing.T) {
-		t.Parallel()
+	// Test descending.
+	sortBy := SortBy{Field: ResourceMetadataName, IsDesc: true}
+	clusters := KubeClusters(makeClusters(testValsUnordered, ResourceMetadataName))
+	require.NoError(t, clusters.SortByCustom(sortBy))
+	targetVals, err := clusters.GetFieldVals(ResourceMetadataName)
+	require.NoError(t, err)
+	require.IsDecreasing(t, targetVals)
 
-		sortBy := SortBy{Field: ResourceMetadataName, IsDesc: true}
-		clusters := KubeClusters(makeClusters(testValsUnordered, ResourceMetadataName))
-		require.NoError(t, clusters.SortByCustom(sortBy))
-		targetVals, err := clusters.GetFieldVals(ResourceMetadataName)
-		require.NoError(t, err)
-		require.IsDecreasing(t, targetVals)
-	})
+	// Test ascending.
+	sortBy = SortBy{Field: ResourceMetadataName}
+	clusters = KubeClusters(makeClusters(testValsUnordered, ResourceMetadataName))
+	require.NoError(t, clusters.SortByCustom(sortBy))
+	targetVals, err = clusters.GetFieldVals(ResourceMetadataName)
+	require.NoError(t, err)
+	require.IsIncreasing(t, targetVals)
 
-	t.Run("asc", func(t *testing.T) {
-		t.Parallel()
-
-		sortBy := SortBy{Field: ResourceMetadataName}
-		clusters := KubeClusters(makeClusters(testValsUnordered, ResourceMetadataName))
-		require.NoError(t, clusters.SortByCustom(sortBy))
-		targetVals, err := clusters.GetFieldVals(ResourceMetadataName)
-		require.NoError(t, err)
-		require.IsIncreasing(t, targetVals)
-	})
-
-	t.Run("error unsupported kind", func(t *testing.T) {
-		t.Parallel()
-
-		sortBy := SortBy{Field: "unsupported"}
-		clusters := KubeClusters(makeClusters(testValsUnordered, ResourceMetadataName))
-		require.True(t, trace.IsNotImplemented(clusters.SortByCustom(sortBy)))
-	})
+	// Test error.
+	sortBy = SortBy{Field: "unsupported"}
+	clusters = KubeClusters(makeClusters(testValsUnordered, ResourceMetadataName))
+	require.True(t, trace.IsNotImplemented(clusters.SortByCustom(sortBy)))
 }
 
 func TestDeduplicateKubeClusters(t *testing.T) {
