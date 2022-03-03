@@ -27,11 +27,11 @@ Machine ID is available starting from `9.0.0` release.
 Download the appropriate version of Teleport for your platform from
 our [downloads page](https://goteleport.com/teleport/download).
 
-You will be using the `tbot` binary to from the package you download and install.
+You will be using the `tbot` binary from the package you download and install.
 
 ## Step 2/4. Create Bot User
 
-Before you create a bot user, you need to determine which role you want to assign to the bot user. You can use `tctl` to examine what roles exist on your system.
+Before you create a bot user, you need to determine which role you want to assign to it. You can use `tctl` to examine what roles exist on your system.
 
 ```bash
 $ tctl get roles --format=text
@@ -54,7 +54,7 @@ Now start Machine ID using the `tbot` binary.
 
 ```
 $ tbot start \
-   --data-dr=/var/lib/teleport
+   --data-dir=/var/lib/teleport
    --destination-dir=./machine-id \
    --token=00000000000000000000000000000000 \
    --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
@@ -67,10 +67,10 @@ Replace the following fields with values from your own cluster.
 * `ca-pin` Replace this with the CA Pin that was output by the `tctl bots add` command
 * `auth-server`: Replace this with the address of your Teleport Auth server.
 <Details scope={["cloud"]} scopeOnly={true}>
-* `auth-server`: Replace this with the address of your Teleport auth server server.
+* `auth-server`: Replace this with the address of your Teleport Auth Server.
 </Details>
 <Details scope={["oss","enterprise"]} scopeOnly={true}>
-* `auth-server`: Replace this with the address of your Teleport Cloud proxy server.
+* `auth-server`: Replace this with the address of your Teleport Cloud Proxy Server.
 </Details>
 
 Once Machine ID is successfully started, let’s investigate the `machine-id` directory to see what was written to disk.
@@ -90,7 +90,7 @@ machine-id
 0 directories, 8 files
 ```
 
-This directory contains private key material, SSH certificates, x509 certificates, and OpenSSH configuration to make it easy to integrate Machine ID with external tooling.
+This directory contains private key material, SSH certificates, X.509 certificates, and OpenSSH configuration to make it easy to integrate Machine ID with external tooling.
 
 ## Step 4/4. Use Machine ID
 
