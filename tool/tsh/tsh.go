@@ -259,6 +259,8 @@ type CLIConf struct {
 
 	// overrideStdout allows to switch standard output source for resource command. Used in tests.
 	overrideStdout io.Writer
+	// overrideStderr allows to switch standard error source for resource command. Used in tests.
+	overrideStderr io.Writer
 
 	// mockSSOLogin used in tests to override sso login handler in teleport client.
 	mockSSOLogin client.SSOLoginFunc
@@ -300,6 +302,14 @@ func (c *CLIConf) Stdout() io.Writer {
 		return c.overrideStdout
 	}
 	return os.Stdout
+}
+
+// Stderr returns the stderr writer.
+func (c *CLIConf) Stderr() io.Writer {
+	if c.overrideStderr != nil {
+		return c.overrideStderr
+	}
+	return os.Stderr
 }
 
 func main() {
@@ -2130,6 +2140,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	tc.Config.Stderr = cf.Stderr()
+	tc.Config.Stdout = cf.Stdout()
 
 	tc.Config.Reason = cf.Reason
 	tc.Config.Invited = cf.Invited
