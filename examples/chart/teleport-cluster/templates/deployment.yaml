@@ -190,7 +190,7 @@ spec:
         configMap:
           name: {{ .Release.Name }}
       - name: "data"
-        {{- if eq .Values.chartMode "standalone" }}
+        {{- if or (eq .Values.chartMode "standalone") (and (eq .Values.chartMode "custom") (.Values.standalone.existingClaimName) )}}
         persistentVolumeClaim:
           claimName: {{ if .Values.standalone.existingClaimName }}{{ .Values.standalone.existingClaimName }}{{ else }}{{ .Release.Name }}{{ end }}
         {{- else }}
