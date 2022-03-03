@@ -69,7 +69,7 @@ export default function useTdpClientCanvas(props: Props) {
 
   // Default TdpClientEvent.TDP_CLIPBOARD_DATA handler.
   const onClipboardData = (clipboardData: ClipboardData) => {
-    if (enableClipboardSharing && document.hasFocus()) {
+    if (enableClipboardSharing && document.hasFocus() && clipboardData.data) {
       navigator.clipboard.writeText(clipboardData.data);
     }
   };
@@ -142,9 +142,11 @@ export default function useTdpClientCanvas(props: Props) {
     // We must check that the DOM is focused or navigator.clipboard.readText throws an error.
     if (enableClipboardSharing && document.hasFocus()) {
       navigator.clipboard.readText().then(text => {
-        cli.sendClipboardData({
-          data: text,
-        });
+        if (text) {
+          cli.sendClipboardData({
+            data: text,
+          });
+        }
       });
     }
   };
