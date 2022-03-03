@@ -34,6 +34,8 @@ import (
 	"time"
 	"unicode"
 
+	stdlog "log"
+
 	"golang.org/x/crypto/ssh"
 
 	"github.com/go-ldap/ldap/v3"
@@ -281,18 +283,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// apply logger settings
-	logger := utils.NewLogger()
-	err = applyLogConfig(fc.Logger, logger)
+	err = applyLogConfig(fc.Logger, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cfg.Log = logger
-
-	// Apply logging configuration for the global logger instance
-	// DELETE this when global logger instance is no longer in use.
-	//
-	// Logging configuration has already been validated above
-	_ = applyLogConfig(fc.Logger, log.StandardLogger())
 
 	if fc.CachePolicy.TTL != "" {
 		log.Warnf("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
@@ -419,19 +413,43 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	return nil
 }
 
-func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
+func applyLogConfig(loggerConfig Log, cfg *service.Config) error {
+	logger := utils.NewLogger()
+	defaultLogger := log.StandardLogger() // DELETE this when global logger instance is no longer in use.
+	loggers := []*log.Logger{logger, defaultLogger}
+
+	setOutput := func(file *os.File) {
+		for _, l := range loggers {
+			l.SetOutput(file)
+		}
+	}
+
+	setLevel := func(level log.Level) {
+		for _, l := range loggers {
+			l.SetLevel(level)
+		}
+	}
+
+	setFormatter := func(formatter log.Formatter) {
+		for _, l := range loggers {
+			l.SetFormatter(formatter)
+		}
+	}
+
 	switch loggerConfig.Output {
 	case "":
 		break // not set
 	case "stderr", "error", "2":
-		logger.SetOutput(os.Stderr)
+		setOutput(os.Stderr)
 	case "stdout", "out", "1":
-		logger.SetOutput(os.Stdout)
+		setOutput(os.Stdout)
 	case teleport.Syslog:
-		err := utils.SwitchLoggerToSyslog(logger)
-		if err != nil {
-			// this error will go to stderr
-			log.Errorf("Failed to switch logging to syslog: %v.", err)
+		for _, l := range loggers {
+			err := utils.SwitchLoggerToSyslog(l)
+			if err != nil {
+				// this error will go to stderr
+				log.Errorf("Failed to switch logging to syslog: %v.", err)
+			}
 		}
 	default:
 		// assume it's a file path:
@@ -439,18 +457,18 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		if err != nil {
 			return trace.Wrap(err, "failed to create the log file")
 		}
-		logger.SetOutput(logFile)
+		setOutput(logFile)
 	}
 
 	switch strings.ToLower(loggerConfig.Severity) {
 	case "", "info":
-		logger.SetLevel(log.InfoLevel)
+		setLevel(log.InfoLevel)
 	case "err", "error":
-		logger.SetLevel(log.ErrorLevel)
+		setLevel(log.ErrorLevel)
 	case teleport.DebugLevel:
-		logger.SetLevel(log.DebugLevel)
+		setLevel(log.DebugLevel)
 	case "warn", "warning":
-		logger.SetLevel(log.WarnLevel)
+		setLevel(log.WarnLevel)
 	default:
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
@@ -468,7 +486,7 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 			return trace.Wrap(err)
 		}
 
-		logger.SetFormatter(formatter)
+		setFormatter(formatter)
 	case "json":
 		formatter := &utils.JSONFormatter{
 			ExtraFields: loggerConfig.Format.ExtraFields,
@@ -478,11 +496,15 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 			return trace.Wrap(err)
 		}
 
-		logger.SetFormatter(formatter)
+		setFormatter(formatter)
+		cfg.Console = ioutil.Discard     // disable console printing
+		stdlog.SetOutput(ioutil.Discard) // disable the standard logger used by external dependencies
+		stdlog.SetFlags(0)
 	default:
 		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
 	}
 
+	cfg.Log = logger
 	return nil
 }
 
