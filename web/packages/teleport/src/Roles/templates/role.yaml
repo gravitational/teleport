@@ -17,7 +17,7 @@ spec:
     - '{{internal.kubernetes_users}}'
     - 'dev'
     # List of allowed SSH logins
-    logins: [ubuntu, debian]
+    logins: ['{{internal.logins}}', ubuntu, debian]
 
     # List of node labels that users can SSH into
     node_labels:
@@ -32,9 +32,11 @@ spec:
       '*': '*'
     # List of databases on the database server users can access
     db_names:
-     - '*'
+    - '{{internal.db_names}}'
+    - '*'
     # List of database users allowed to open database connections with
     db_users:
+    - '{{internal.db_users}}'
     - developer
     
     # List of windows desktop access labels that users can open desktop sessions to
