@@ -224,7 +224,7 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 		case evt := <-eventsC:
 			if evt == nil {
 				pp.log.Debug("reached end of playback")
-				if _, err := pp.ws.Write([]byte(`{"message": "end"}`)); err != nil {
+				if _, err := pp.ws.Write([]byte(`{"message":"end"}`)); err != nil {
 					pp.log.WithError(err).Error("failed to write \"end\" message over websocket")
 				}
 				return
@@ -239,7 +239,7 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 				msg, err := utils.FastMarshal(e)
 				if err != nil {
 					pp.log.WithError(err).Errorf("failed to marshal DesktopRecording event into JSON: %v", e)
-					if _, err := pp.ws.Write([]byte(`{"message": "error", "errorText": "server error"}`)); err != nil {
+					if _, err := pp.ws.Write([]byte(`{"message":"error","errorText":"server error"}`)); err != nil {
 						pp.log.WithError(err).Error("failed to write \"error\" message over websocket")
 					}
 					return
