@@ -105,7 +105,7 @@ type OnboardingConfig struct {
 // BotConfig is the bot's root config object.
 type BotConfig struct {
 	Onboarding   *OnboardingConfig    `yaml:"onboarding,omitempty"`
-	Storage      StorageConfig        `yaml:"storage,omitempty"`
+	Storage      *StorageConfig       `yaml:"storage,omitempty"`
 	Destinations []*DestinationConfig `yaml:"destinations,omitempty"`
 
 	Debug          bool          `yaml:"debug"`
@@ -117,6 +117,10 @@ type BotConfig struct {
 func (conf *BotConfig) CheckAndSetDefaults() error {
 	if conf.AuthServer == "" {
 		return trace.BadParameter("an auth server address must be configured")
+	}
+
+	if conf.Storage == nil {
+		conf.Storage = &StorageConfig{}
 	}
 
 	if err := conf.Storage.CheckAndSetDefaults(); err != nil {
@@ -228,7 +232,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 			log.Warnf("CLI parameters are overriding storage location from %s", cf.ConfigPath)
 		}
 
-		config.Storage = StorageConfig{
+		config.Storage = &StorageConfig{
 			DestinationMixin: DestinationMixin{
 				Directory: &DestinationDirectory{
 					Path: cf.DataDir,

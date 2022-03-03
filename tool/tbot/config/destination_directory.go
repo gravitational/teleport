@@ -185,18 +185,16 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 }
 
 func (dd *DestinationDirectory) Write(name string, data []byte) error {
-	if err := os.WriteFile(filepath.Join(dd.Path, name), data, botfs.DefaultMode); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(botfs.Write(filepath.Join(dd.Path, name), data, dd.Symlinks))
 }
 
 func (dd *DestinationDirectory) Read(name string) ([]byte, error) {
-	b, err := os.ReadFile(filepath.Join(dd.Path, name))
+	data, err := botfs.Read(filepath.Join(dd.Path, name), dd.Symlinks)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return b, nil
+
+	return data, nil
 }
 
 func (dd *DestinationDirectory) String() string {
