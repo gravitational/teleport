@@ -468,6 +468,17 @@ const (
 	LimiterMaxConcurrentSignatures = 10
 )
 
+// Default rate limits for unauthenticated passwordless endpoints.
+const (
+	// LimiterPasswordlessPeriod is the default period for passwordless limiters.
+	LimiterPasswordlessPeriod = 1 * time.Minute
+	// LimiterPasswordlessAverage is the default average for passwordless
+	// limiters.
+	LimiterPasswordlessAverage = 10
+	// LimiterPasswordlessBurst is the default burst for passwordless limiters.
+	LimiterPasswordlessBurst = 20
+)
+
 const (
 	// HostCertCacheSize is the number of host certificates to cache at any moment.
 	HostCertCacheSize = 4000

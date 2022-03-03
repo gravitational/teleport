@@ -73,7 +73,8 @@ func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResources
 	}
 
 	resp := &proto.ListResourcesResponse{
-		Resources: make([]*proto.PaginatedResource, 0),
+		Resources:  make([]*proto.PaginatedResource, 0),
+		TotalCount: int32(len(resources)),
 	}
 
 	var (
@@ -494,18 +495,18 @@ func TestListResources(t *testing.T) {
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
-			resources, nextKey, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+			resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 				Namespace:    defaults.Namespace,
 				Limit:        10,
 				ResourceType: test.resourceType,
 			})
 			require.NoError(t, err)
-			require.NotEmpty(t, nextKey)
-			require.Len(t, resources, 10)
-			require.IsType(t, test.resourceStruct, resources[0])
+			require.NotEmpty(t, resp.NextKey)
+			require.Len(t, resp.Resources, 10)
+			require.IsType(t, test.resourceStruct, resp.Resources[0])
 
 			// exceed the limit
-			_, _, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+			_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 				Namespace:    defaults.Namespace,
 				Limit:        50,
 				ResourceType: test.resourceType,
@@ -514,6 +515,15 @@ func TestListResources(t *testing.T) {
 			require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
 		})
 	}
+
+	// Test a list with total count returned.
+	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType:   types.KindNode,
+		Limit:          10,
+		NeedTotalCount: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 50, resp.TotalCount)
 }
 
 func TestGetResources(t *testing.T) {
@@ -556,7 +566,7 @@ func TestGetResources(t *testing.T) {
 			require.NoError(t, err)
 
 			// listing everything at once breaks the ListResource.
-			_, _, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+			_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 				Namespace:    defaults.Namespace,
 				Limit:        int32(len(expectedResources)),
 				ResourceType: test.resourceType,
