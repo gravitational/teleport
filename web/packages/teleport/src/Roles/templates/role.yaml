@@ -42,6 +42,7 @@ spec:
       '*': '*'
     # Windows logins a user is allowed to use for desktop sessions.
     windows_desktop_logins:
+    - '{{internal.windows_logins}}'
     - developer
 
     # RBAC rules for various resources within a cluster. This
