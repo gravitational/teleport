@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -441,7 +440,7 @@ func (p *transport) directDial(servers []string, serverID string) (net.Conn, err
 	for _, addr := range servers {
 		conn, err := net.Dial("tcp", addr)
 		if err == nil {
-			return newEmitConn(p.closeContext, conn, p.emitter, strings.Split(serverID, ".")[0]), nil
+			return conn, nil
 		}
 
 		errors = append(errors, err)
