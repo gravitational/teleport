@@ -30,6 +30,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -319,6 +320,7 @@ func (a *Middleware) Wrap(h http.Handler) {
 
 func getCustomRate(endpoint string) *ratelimit.RateSet {
 	switch endpoint {
+	// Account recovery RPCs.
 	case
 		"/proto.AuthService/ChangeUserAuthentication",
 		"/proto.AuthService/GetAccountRecoveryToken",
@@ -331,8 +333,18 @@ func getCustomRate(endpoint string) *ratelimit.RateSet {
 			return nil
 		}
 		return rates
+	// Passwordless RPCs (potential unauthenticated challenge generation).
+	case "/proto.AuthService/CreateAuthenticateChallenge":
+		const period = defaults.LimiterPasswordlessPeriod
+		const average = defaults.LimiterPasswordlessAverage
+		const burst = defaults.LimiterPasswordlessBurst
+		rates := ratelimit.NewRateSet()
+		if err := rates.Add(period, average, burst); err != nil {
+			log.WithError(err).Debugf("Failed to define a custom rate for rpc method %q, using default rate", endpoint)
+			return nil
+		}
+		return rates
 	}
-
 	return nil
 }
 
