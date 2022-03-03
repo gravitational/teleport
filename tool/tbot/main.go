@@ -83,7 +83,7 @@ func Run(args []string) error {
 	initCmd.Flag("destination-dir", "If NOT using a config file, specify the destination directory.").StringVar(&cf.DestinationDir)
 	initCmd.Flag("init-dir", "If using a config file and multiple destinations are configured, specify which to initialize").StringVar(&cf.InitDir)
 	initCmd.Flag("clean", "If set, remove unexpected files and directories from the destination").BoolVar(&cf.Clean)
-	initCmd.Arg("bot-user", "Name of the bot Unix user which should have write access to the destination.").Required().StringVar(&cf.BotUser)
+	initCmd.Flag("bot-user", "Name of the bot Unix user which should have write access to the destination.").Required().StringVar(&cf.BotUser)
 
 	configCmd := app.Command("config", "Parse and dump a config file").Hidden()
 

@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -135,10 +136,28 @@ func (c *BotsCommand) ListBots(client auth.ClientI) error {
 	return nil
 }
 
-var startMessageTemplate = template.Must(template.New("node").Parse(`The bot token: {{.token}}
+func bold(text string) string {
+	return utils.Color(utils.Bold, text)
+}
+
+var startMessageTemplate = template.Must(template.New("node").Funcs(template.FuncMap{
+	"bold": bold,
+}).Parse(`The bot token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
-Run this on the new bot node to join the cluster:
+If running the bot under an isolated user account, first initialize the data
+directory by running the following command {{ bold "as the user who will be using the" }}
+{{ bold "certificates" }}:
+
+> tbot init \
+   --auth-server={{.auth_server}} \
+   --destination-dir=./tbot-user \
+   --bot-user=tbot
+
+... where "tbot" is the username of the bot's UNIX user.
+
+Then, run this {{ bold "as the bot user" }} to begin continuously fetching
+certificates:
 
 > tbot start \
    --destination-dir=./tbot-user \
@@ -149,6 +168,9 @@ Run this on the new bot node to join the cluster:
 
 Please note:
 
+  - The ./tbot-user destination directory can be changed as desired.
+  - /var/lib/teleport/bot must be accessible to the bot user, or --data-dir
+    must point to another accessible directory to store internal bot data.
   - This invitation token will expire in {{.minutes}} minutes
   - {{.auth_server}} must be reachable from the new node
 `))

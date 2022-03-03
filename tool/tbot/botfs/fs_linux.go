@@ -206,7 +206,7 @@ func desiredPerms(path string) (userMode fs.FileMode, botMode fs.FileMode, err e
 		botMode = modeACLReadExecute
 	}
 
-	return userMode, botMode, nil
+	return
 }
 
 // VerifyACL verifies whether the ACL of the given file allows writes from the

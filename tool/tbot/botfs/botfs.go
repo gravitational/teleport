@@ -114,15 +114,16 @@ func createStandard(path string, isDir bool) error {
 }
 
 // IsOwnedBy checks that the file at the given path is owned by the given user.
+// Returns a trace.NotImplemented() on unsupported platforms.
 func IsOwnedBy(fileInfo fs.FileInfo, user *user.User) (bool, error) {
 	if runtime.GOOS == constants.WindowsOS {
 		// no-op on windows
-		return true, nil
+		return false, trace.NotImplemented("Cannot verify file ownership on this platform.")
 	}
 
 	info, ok := fileInfo.Sys().(*syscall.Stat_t)
 	if !ok {
-		return false, trace.NotImplemented("Cannot verify file ownership on this platform")
+		return false, trace.NotImplemented("Cannot verify file ownership on this platform.")
 	}
 
 	// Our files are 0600, so don't bother checking gid.

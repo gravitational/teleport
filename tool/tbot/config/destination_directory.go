@@ -150,7 +150,11 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	}
 
 	ownedByBot, err := botfs.IsOwnedBy(stat, currentUser)
-	if err != nil {
+	if trace.IsNotImplemented(err) {
+		// If file owners aren't supported, ACLs certainly aren't. Just bail.
+		// (Subject to change if we ever try to support Windows ACLs.)
+		return nil
+	} else if err != nil {
 		return trace.Wrap(err)
 	}
 
