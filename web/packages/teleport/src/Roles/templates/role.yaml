@@ -16,10 +16,20 @@ spec:
     node_labels:
       '*': '*'
 
-    # RBAC rules for various resources within a cluster.
+    # RBAC rules for various resources within a cluster. This
+    # example provides access to the Audit Log and replaying a user's own sessions.
     rules:
-    - resources: ['*']
-      verbs: ['*']
+    - resources:
+      - event
+      verbs:
+      - list
+      - read
+    - resources:
+      - session
+      verbs:
+      - read
+      - list
+      where: contains(session.participants, user.metadata.name)
 
   # The 'deny' section can have settings that override their 'allow' counterparts
   # It uses the same format as the 'allow' section
@@ -30,4 +40,4 @@ spec:
       # Limits user credentials to 8 hours. After the time to live (TTL) expires,
       # users must re-login
       max_session_ttl: 8h0m0s
-version: v3
+version: v5
