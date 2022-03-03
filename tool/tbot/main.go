@@ -149,14 +149,14 @@ func onStart(botConfig *config.BotConfig) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cliTokenHashBytes := []byte{}
+	configTokenHashBytes := []byte{}
 	if botConfig.Onboarding != nil && botConfig.Onboarding.Token != "" {
-		cliTokenHashBytes = []byte(fmt.Sprintf("%x", sha256.Sum256([]byte(botConfig.Onboarding.Token))))
+		configTokenHashBytes = []byte(fmt.Sprintf("%x", sha256.Sum256([]byte(botConfig.Onboarding.Token))))
 	}
 
 	// First, attempt to load an identity from storage.
 	ident, err := identity.LoadIdentity(dest, identity.BotKinds()...)
-	if err == nil && bytes.Equal(ident.TokenHashBytes, cliTokenHashBytes) {
+	if err == nil && !hasTokenChanged(ident.TokenHashBytes, configTokenHashBytes) {
 		identStr, err := describeTLSIdentity(ident)
 		if err != nil {
 			return trace.Wrap(err)
@@ -236,6 +236,14 @@ func onStart(botConfig *config.BotConfig) error {
 	defer watcher.Close()
 
 	return renewLoop(ctx, botConfig, authClient, ident)
+}
+
+func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {
+	if len(configTokenBytes) == 0 || len(identityBytes) == 0 {
+		return false
+	}
+
+	return !bytes.Equal(identityBytes, configTokenBytes)
 }
 
 // checkDestinations checks all destinations and tries to create any that
