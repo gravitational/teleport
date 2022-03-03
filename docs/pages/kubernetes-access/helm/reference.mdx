@@ -75,9 +75,10 @@ This reference details available values for the `teleport-cluster` chart.
 | - | - | - | - | - |
 | `string` | `otp` | Yes | `auth_service.authentication.second_factor` | ❌ |
 
-`authenticationSecondFactor.secondFactor` controls the second factor used for local user authentication. Possible values are `off` (not recommended), `on`, `otp`, `optional` and `webauthn`.
+`authenticationSecondFactor.secondFactor` controls the second factor used for local user authentication. Possible values supported by this chart
+are `off` (not recommended), `on`, `otp`, `optional` and `webauthn`.
 
-When set to `on` or `webauthn`, the `authenticationSecondFactor.webauthn` section must also be set.
+When set to `on`, `optional` or `webauthn`, the `authenticationSecondFactor.webauthn` section must also be set.
 
 ### `authenticationSecondFactor.webauthn`
 
