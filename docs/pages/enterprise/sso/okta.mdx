@@ -22,40 +22,7 @@ like:
   This guide requires a commercial edition of Teleport.
 </Admonition>
 
-## Enable SAML Authentication
-
-First, configure Teleport auth server to use Okta authentication via SAML instead of the local
-user database. For self-hosted update `/etc/teleport.yaml` and restart the teleport daemon.  
-Use the Dynamic resources for Teleport Cloud and any other deployments.
-
-<Tabs>
-  <TabItem label="Static Config (self-hosted)">
-  ```yaml
-  auth_service:
-    authentication:
-      type: saml
-      
-  ```
-  </TabItem>
-  <TabItem label="Dynamic resources (all editions)">
-  Create a file `cap.yaml`:
-  ```yaml
-  kind: cluster_auth_preference
-  metadata:
-    name: cluster-auth-preference
-  spec:
-    authentication:
-      type: saml
-  version: v2
-  ```
-
-  Create a resource:
-
-  ```bash
-  $ tctl create -f cap.yaml
-  ```
-  </TabItem>
-</Tabs>
+(!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
 ## Configure Okta
 

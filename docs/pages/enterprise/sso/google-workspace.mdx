@@ -33,6 +33,8 @@ Before you get started you’ll need:
    This might require signing up to GCP, but the created project will not require using any paid services. It’s just a side effect of Google Workspace and GCP being closely related.
 - Ability to setup Google Workspace groups.
 
+(!docs/pages/includes/enterprise/oidcauthentication.mdx!)
+
 ## Configuring Google Workspace
 
 The setup will consist of creating a new project on Google Cloud Platform,
@@ -181,39 +183,6 @@ version before 8.1.2. Before such a downgrade, follow the above instructions and
 change the version number back to `v2`.
 
 ## Testing
-
-Configure Teleport auth server to use Google workspace authentication via OIDC instead of the local
-user database. For self-hosted update `/etc/teleport.yaml` and restart the teleport daemon.  
-Use the Dynamic resources for Teleport Cloud and any other deployments.
-
-<Tabs>
-  <TabItem label="Static Config (self-hosted)">
-  ```yaml
-  auth_service:
-    authentication:
-      type: oidc
-      
-  ```
-  </TabItem>
-  <TabItem label="Dynamic resources (all editions)">
-  Create a file `cap.yaml`:
-  ```yaml
-  kind: cluster_auth_preference
-  metadata:
-    name: cluster-auth-preference
-  spec:
-    authentication:
-      type: oidc
-  version: v2
-  ```
-
-  Create a resource:
-
-  ```bash
-  $ tctl create -f cap.yaml
-  ```
-  </TabItem>
-</Tabs>
 
 The Web UI will now contain a new button: "Login with Google". The CLI is
 the same as before:
