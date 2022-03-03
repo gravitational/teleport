@@ -872,7 +872,7 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypePNGFrame):
+		case byte(tdp.TypePNGFrame), byte(tdp.TypeError):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
