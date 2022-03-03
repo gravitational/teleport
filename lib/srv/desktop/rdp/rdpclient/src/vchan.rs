@@ -18,6 +18,17 @@ use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rdp::model::error::*;
 
+/// The default maximum chunk size for virtual channel data.
+///
+/// If an RDP server supports larger chunks, it will advertise
+/// the larger chunk size in the `VCChunkSize` field of the
+/// virtual channel capability set.
+///
+/// See also:
+/// - https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/6c074267-1b32-4ceb-9496-2eb941a23e6b
+/// - https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/a8593178-80c0-4b80-876c-cb77e62cecfc
+pub const CHANNEL_CHUNK_LEGNTH: usize = 1600;
+
 bitflags! {
     /// Channel control flags, as specified in section 2.2.6.1.1 of MS-RDPBCGR.
     ///
@@ -43,8 +54,13 @@ bitflags! {
 /// It is specified in section 2.2.6.1.1 of MS-RDPBCGR.
 #[derive(Debug)]
 pub struct ChannelPDUHeader {
-    length: u32,
-    flags: ChannelPDUFlags,
+    /// The total length of the uncompressed PDU data,
+    /// excluding the length of this header.
+    /// Note: the data can span multiple PDUs, in which
+    /// case each PDU in the series contains the same
+    /// length field.
+    pub length: u32,
+    pub flags: ChannelPDUFlags,
 }
 
 impl ChannelPDUHeader {
