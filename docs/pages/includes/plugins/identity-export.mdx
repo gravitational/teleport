@@ -1,0 +1,29 @@
+Teleport's plugins use the `access-plugin` role and user to approve access requests. We export the identity files to this plugin using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign).
+
+<Tabs>
+  <TabItem label="Self Hosted" scope={["oss","enterprise"]}>
+```code
+$ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=2190h
+# ...
+```
+
+The above sequence should result in three PEM encoded files being generated: `auth.crt`, `auth.key`, and `auth.cas` (certificate, private key, and CA certs respectively).
+</TabItem>
+  <TabItem label="Cloud" scope={["cloud"]}>
+```code
+$ tctl auth sign --user=access-plugin --out=auth.pem --ttl=2190h
+# ...
+```
+
+The above sequence should result in one PEM encoded file: `auth.pem`.
+
+  </TabItem>
+
+</Tabs>
+
+<Admonition
+  type="note"
+  title="Certificate Lifetime"
+>
+  By default, [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
+</Admonition>

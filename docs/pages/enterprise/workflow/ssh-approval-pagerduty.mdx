@@ -7,9 +7,9 @@ videoBanner: RzTB4Lsm09M
 
 ## Teleport PagerDuty Plugin Setup
 
-This guide will talk through how to setup Teleport with PagerDuty. Teleport to
-PagerDuty integration  allows you to treat Teleport access and permission
-requests as PagerDuty incidents — notifying the appropriate team, and approve
+This guide will talk through how to setup Teleport with PagerDuty. Teleport's
+PagerDuty integration allows you to treat Teleport access and permission
+requests as PagerDuty incidents, notify the appropriate team, and approve
 or deny the requests via PagerDuty special action.
 
 ## Setup
@@ -21,60 +21,19 @@ This guide assumes that you have:
 - A running Teleport Cluster
 - Admin privileges with access to `tctl`
 - A PagerDuty account, with access to creating a new API token
-- A node to run the plugin, we recommend running it alongside the Teleport Proxy for convenience
+- A node to run the plugin. We recommend running it alongside the Teleport Proxy for convenience
 
-#### Create User and Role for access
+Teleport Cloud requires that plugins connect through the proxy service (`mytenant.teleport.sh:443`). Open Source and Enterprise installations can connect to the auth service (`auth.example.com:3025`) directly.
 
-Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a
-new user and role that only has API access to the `access_request` API. The below script
-will create a yaml resource file for a new user and role.
 
-```yaml
-# This command will create two Teleport Yaml resources, a new Teleport user and a
-# Role for that users that can only approve / list requests.
-$ cat > rscs.yaml <<EOF
-kind: user
-metadata:
-  name: access-plugin-pagerduty
-spec:
-  roles: ['access-plugin-pagerduty']
-version: v2
----
-kind: role
-metadata:
-  name: access-plugin-pagerduty
-spec:
-  allow:
-    rules:
-      - resources: ['access_request']
-        verbs: ['list','read','update']
-    # teleport currently refuses to issue certs for a user with 0 logins,
-    # this restriction may be lifted in future versions.
-    logins: ['access-plugin-pagerduty']
-version: v5
-EOF
+### Create User and Role for access
+(!docs/pages/includes/plugins/rbac.mdx!)
 
-# Run this to create the user and role in Teleport.
-$ tctl create -f rscs.yaml
-```
+### Export access-plugin Certificate
+(!docs/pages/includes/plugins/identity-export.mdx!)
 
-#### Export access-plugin Certificate
+We'll reference these files later when [configuring the plugins](#config-file).
 
-Teleport Plugin use the `access-plugin-pagerduty` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign).
-
-```code
-$ tctl auth sign --format=tls --user=access-plugin-pagerduty --out=auth --ttl=2190h
-# ...
-```
-
-The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#editing-the-config-file).
-
-<Admonition
-  type="note"
-  title="Certificate Lifetime"
->
-  By default, [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
-</Admonition>
 
 ### Setting up PagerDuty API key
 
@@ -88,9 +47,9 @@ In your PagerDuty dashboard, go to **Configuration → API Access → Create New
 
 ## Downloading and installing the plugin
 
-We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal
+We recommend installing Teleport plugins alongside the Teleport Proxy. This is an ideal
 location as plugins have a low memory footprint, and will require both public internet access
-and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
+and Teleport Auth access. We currently only provide linux-amd64 binaries, you can also
 compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty).
 
 ```bash
@@ -106,7 +65,7 @@ Run `./install` in from 'teleport-pagerduty' or place the executable in the appr
 
 ### Config file
 
-Teleport PagerDuty plugin has its own configuration file in TOML format. Before starting the plugin for the first time, you'll need to generate and edit that config file.
+Teleport's PagerDuty plugin has its own configuration file in TOML format. Before starting the plugin for the first time, you'll need to generate and edit that config file.
 
 ```code
 $ teleport-pagerduty configure > teleport-pagerduty.toml
@@ -117,10 +76,18 @@ $ sudo mv teleport-pagerduty.toml /etc
 
 After generating the config, edit it as follows:
 
-```toml
-# Example PagerDuty config file
-(!examples/resources/plugins/teleport-pagerduty.toml!)
+<Tabs>
+<TabItem scopes={["oss", "enterprise"]} label="Self Hosted">
+```yaml
+(!examples/resources/plugins/teleport-pagerduty-self.toml!)
 ```
+</TabItem>
+<TabItem scopes={["cloud"]} label="Cloud">
+```yaml
+(!examples/resources/plugins/teleport-pagerduty-cloud.toml!)
+```
+</TabItem>
+</Tabs>
 
 ### Testing the Plugin
 
@@ -172,7 +139,7 @@ Save this as `teleport-pagerduty.service`.
 ## On-call Auto Approval
 
 The PagerDuty plugin has an option to auto-approve access requests. This
-feature will map external SSO identity to PagerDuty on call email addresses.
+feature will map external SSO identity to PagerDuty on-call email addresses.
 If the user requesting matches the person on call the request will be
 automatically approved.
 
