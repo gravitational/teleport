@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity, startTime time.Time, windowsUser, sessionID string, desktop types.WindowsDesktop, err error) {
+func (s *WindowsService) onSessionStart(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, startTime time.Time, windowsUser, sessionID string, desktop types.WindowsDesktop, err error) {
 	userMetadata := id.GetUserMetadata()
 	userMetadata.Login = windowsUser
 
@@ -52,6 +52,7 @@ func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity,
 			Success: err == nil,
 		},
 		WindowsDesktopService: s.cfg.Heartbeat.HostUUID,
+		DesktopName:           desktop.GetName(),
 		DesktopAddr:           desktop.GetAddr(),
 		Domain:                desktop.GetDomain(),
 		WindowsUser:           windowsUser,
@@ -62,10 +63,10 @@ func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity,
 		event.Error = trace.Unwrap(err).Error()
 		event.UserMessage = err.Error()
 	}
-	s.emit(ctx, event)
+	s.emit(ctx, emitter, event)
 }
 
-func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, startedAt time.Time, recorded bool, windowsUser, sessionID string, desktop types.WindowsDesktop) {
+func (s *WindowsService) onSessionEnd(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, startedAt time.Time, recorded bool, windowsUser, sessionID string, desktop types.WindowsDesktop) {
 	userMetadata := id.GetUserMetadata()
 	userMetadata.Login = windowsUser
 
@@ -93,10 +94,10 @@ func (s *WindowsService) onSessionEnd(ctx context.Context, id *tlsca.Identity, s
 		// There can only be 1 participant, desktop sessions are not join-able.
 		Participants: []string{userMetadata.User},
 	}
-	s.emit(ctx, event)
+	s.emit(ctx, emitter, event)
 }
 
-func (s *WindowsService) onClipboardSend(ctx context.Context, id *tlsca.Identity, sessionID string, desktopAddr string, length int32) {
+func (s *WindowsService) onClipboardSend(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, sessionID string, desktopAddr string, length int32) {
 	event := &events.DesktopClipboardSend{
 		Metadata: events.Metadata{
 			Type:        libevents.DesktopClipboardSendEvent,
@@ -117,10 +118,10 @@ func (s *WindowsService) onClipboardSend(ctx context.Context, id *tlsca.Identity
 		DesktopAddr: desktopAddr,
 		Length:      length,
 	}
-	s.emit(ctx, event)
+	s.emit(ctx, emitter, event)
 }
 
-func (s *WindowsService) onClipboardReceive(ctx context.Context, id *tlsca.Identity, sessionID string, desktopAddr string, length int32) {
+func (s *WindowsService) onClipboardReceive(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, sessionID string, desktopAddr string, length int32) {
 	event := &events.DesktopClipboardReceive{
 		Metadata: events.Metadata{
 			Type:        libevents.DesktopClipboardReceiveEvent,
@@ -141,11 +142,11 @@ func (s *WindowsService) onClipboardReceive(ctx context.Context, id *tlsca.Ident
 		DesktopAddr: desktopAddr,
 		Length:      length,
 	}
-	s.emit(ctx, event)
+	s.emit(ctx, emitter, event)
 }
 
-func (s *WindowsService) emit(ctx context.Context, event events.AuditEvent) {
-	if err := s.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
+func (s *WindowsService) emit(ctx context.Context, emitter events.Emitter, event events.AuditEvent) {
+	if err := emitter.EmitAuditEvent(ctx, event); err != nil {
 		s.cfg.Log.WithError(err).Errorf("Failed to emit audit event %v", event)
 	}
 }
