@@ -136,7 +136,7 @@ type InitConfig struct {
 	StaticTokens types.StaticTokens
 
 	// AuthPreference defines the authentication type (local, oidc) and second
-	// factor (off, otp, u2f) passed in from a configuration file.
+	// factor passed in from a configuration file.
 	AuthPreference types.AuthPreference
 
 	// AuditLog is used for emitting events to audit log.
