@@ -23,13 +23,13 @@ spec:
     app_labels:    
       '*': '*'
       
-    # List of database labels users can access
+    # List of database labels users can access database servers
     db_labels:
       '*': '*'
     # List of databases on the database server users can access
     db_names:
      - '*'
-    # List of database users allowed to open database connections
+    # List of database users allowed to open database connections with
     db_users:
     - dba-admin
     
