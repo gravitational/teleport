@@ -78,7 +78,8 @@ This reference details available values for the `teleport-cluster` chart.
 `authenticationSecondFactor.secondFactor` controls the second factor used for local user authentication. Possible values supported by this chart
 are `off` (not recommended), `on`, `otp`, `optional` and `webauthn`.
 
-When set to `on`, `optional` or `webauthn`, the `authenticationSecondFactor.webauthn` section must also be set.
+When set to `on`, `optional` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used. The configured `rp_id` defaults to
+the FQDN which is used to access the Teleport cluster.
 
 ### `authenticationSecondFactor.webauthn`
 
