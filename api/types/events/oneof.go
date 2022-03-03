@@ -351,6 +351,8 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 		return e, nil
 	} else if e := in.GetAccessRequestDelete(); e != nil {
 		return e, nil
+	} else if e := in.GetCertificateCreate(); e != nil {
+		return e, nil
 	} else {
 		if in.Event == nil {
 			return nil, trace.BadParameter("failed to parse event, session record is corrupted")
