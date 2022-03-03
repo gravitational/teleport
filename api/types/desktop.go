@@ -229,7 +229,14 @@ func (s WindowsDesktops) Len() int { return len(s) }
 
 // Less compares desktops by name and host ID.
 func (s WindowsDesktops) Less(i, j int) bool {
-	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
+	switch {
+	case s[i].GetName() < s[j].GetName():
+		return true
+	case s[i].GetName() > s[j].GetName():
+		return false
+	default:
+		return s[i].GetHostID() < s[j].GetHostID()
+	}
 }
 
 // Swap swaps two windows desktops.
