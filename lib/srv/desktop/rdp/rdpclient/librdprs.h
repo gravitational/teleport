@@ -7,6 +7,19 @@
 
 #define SPECIAL_NO_RESPONSE 4294967295
 
+/**
+ * The default maximum chunk size for virtual channel data.
+ *
+ * If an RDP server supports larger chunks, it will advertise
+ * the larger chunk size in the `VCChunkSize` field of the
+ * virtual channel capability set.
+ *
+ * See also:
+ * - https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/6c074267-1b32-4ceb-9496-2eb941a23e6b
+ * - https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/a8593178-80c0-4b80-876c-cb77e62cecfc
+ */
+#define CHANNEL_CHUNK_LEGNTH 1600
+
 typedef enum CGOPointerButton {
   PointerButtonNone,
   PointerButtonLeft,

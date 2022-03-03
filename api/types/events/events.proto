@@ -1782,6 +1782,22 @@ message RenewableCertificateGenerationMismatch {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
+// Unknown is a fallback event used when we don't recognize an event from the backend.
+message Unknown {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // UnknownType is the event type extracted from the unknown event.
+    string UnknownType = 2 [ (gogoproto.jsontag) = "unknown_event" ];
+
+    // UnknownCode is the event code extracted from the unknown event.
+    string UnknownCode = 3 [ (gogoproto.jsontag) = "unknown_code,omitempty" ];
+
+    // Data is the serialized JSON data of the unknown event.
+    string Data = 4 [ (gogoproto.jsontag) = "data" ];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
     // Event is one of the audit events
@@ -1865,6 +1881,7 @@ message OneOf {
         events.MySQLStatementFetch MySQLStatementFetch = 77;
         events.MySQLStatementBulkExecute MySQLStatementBulkExecute = 78;
         events.RenewableCertificateGenerationMismatch RenewableCertificateGenerationMismatch = 79;
+        events.Unknown Unknown = 80;
     }
 }
 
