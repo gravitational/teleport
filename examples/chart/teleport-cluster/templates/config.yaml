@@ -59,16 +59,18 @@ data:
     {{- if .Values.authenticationSecondFactor.secondFactor }}
         second_factor: {{ .Values.authenticationSecondFactor.secondFactor }}
     {{- end }}
-    {{- if .Values.authenticationSecondFactor.webauthn }}
+    {{- if not (or (eq .Values.authenticationSecondFactor.secondFactor "off") (eq .Values.authenticationSecondFactor.secondFactor "otp")) }}
         webauthn:
           rp_id: {{ required "clusterName is required in chart values" .Values.clusterName }}
-      {{- if .Values.authenticationSecondFactor.webauthn.attestationAllowedCas }}
+      {{- if .Values.authenticationSecondFactor.webauthn }}
+        {{- if .Values.authenticationSecondFactor.webauthn.attestationAllowedCas }}
           attestation_allowed_cas:
           {{- toYaml .Values.authenticationSecondFactor.webauthn.attestationAllowedCas | nindent 12 }}
-      {{- end }}
-      {{- if .Values.authenticationSecondFactor.webauthn.attestationDeniedCas }}
+        {{- end }}
+        {{- if .Values.authenticationSecondFactor.webauthn.attestationDeniedCas }}
           attestation_denied_cas:
           {{- toYaml .Values.authenticationSecondFactor.webauthn.attestationDeniedCas | nindent 12 }}
+        {{- end }}
       {{- end }}
     {{- end }}
   {{- end }}
