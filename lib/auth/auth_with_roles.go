@@ -199,7 +199,7 @@ func (a *ServerWithRoles) actionForKindSession(namespace, verb string, sid sessi
 	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, verb, extendContext))
 }
 
-// actionForKindSSHSession is a special checker that grants access to active
+// actionForKindSSHSession is a special checker that grants access to active SSH
 // sessions.  It can allow access to a specific session based on the `where`
 // section of the user's access rule for kind `ssh_session`.
 func (a *ServerWithRoles) actionForKindSSHSession(namespace, verb string, sid session.ID) error {
@@ -2575,23 +2575,22 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 	return a.alog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
 }
 
-func (a *ServerWithRoles) findSessionEndEvent(namespace string, sid session.ID) (*apievents.SessionEnd, error) {
-	sessionEvents, err := a.alog.GetSessionEvents(namespace, sid, 0, false)
+func (a *ServerWithRoles) findSessionEndEvent(namespace string, sid session.ID) (apievents.AuditEvent, error) {
+	sessionEvents, _, err := a.alog.SearchSessionEvents(time.Time{}, a.authServer.clock.Now().UTC(),
+		defaults.EventsIterationLimit, types.EventOrderAscending, "",
+		&types.WhereExpr{Equals: types.WhereExpr2{
+			L: &types.WhereExpr{Field: events.SessionEventID},
+			R: &types.WhereExpr{Literal: sid.String()},
+		}},
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	for _, ef := range sessionEvents {
-		if ef.GetType() == events.SessionEndEvent {
-			event, err := events.FromEventFields(ef)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if sessionEnd, ok := event.(*apievents.SessionEnd); ok {
-				return sessionEnd, nil
-			}
-		}
+	if len(sessionEvents) == 1 {
+		return sessionEvents[0], nil
 	}
-	return nil, trace.NotFound("session.end event not found for session ID %q", sid)
+
+	return nil, trace.NotFound("session end event not found for session ID %q", sid)
 }
 
 // GetNamespaces returns a list of namespaces

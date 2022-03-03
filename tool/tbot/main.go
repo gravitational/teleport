@@ -74,6 +74,7 @@ func Run(args []string) error {
 	startCmd.Flag("destination-dir", "Directory to write generated certificates").StringVar(&cf.DestinationDir)
 	startCmd.Flag("certificate-ttl", "TTL of generated certificates").Default("60m").DurationVar(&cf.CertificateTTL)
 	startCmd.Flag("renew-interval", "Interval at which certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewInterval)
+	startCmd.Flag("join-method", "Method to use to join the cluster.").Default("token").EnumVar(&cf.JoinMethod, "token", "iam")
 
 	configCmd := app.Command("config", "Parse and dump a config file").Hidden()
 
@@ -134,11 +135,6 @@ func onStart(botConfig *config.BotConfig) error {
 		return trace.Wrap(err, "could not read bot storage destination from config")
 	}
 
-	addr, err := utils.ParseAddr(botConfig.AuthServer)
-	if err != nil {
-		return trace.Wrap(err, "invalid auth server address %+v", botConfig.AuthServer)
-	}
-
 	var authClient auth.ClientI
 
 	// TODO: graceful shutdown via signal; see #7066
@@ -174,39 +170,8 @@ func onStart(botConfig *config.BotConfig) error {
 		// TODO: validate that errors from LoadIdentity are sanely typed; we
 		// actually only want to ignore NotFound errors
 
-		onboarding := botConfig.Onboarding
-		if onboarding == nil {
-			return trace.BadParameter("onboarding config required on first start via CLI or YAML")
-		}
-
-		// If no token is present, we can't continue.
-		if onboarding.Token == "" {
-			return trace.Errorf("unable to start: no identity could be loaded and no token present")
-		}
-
-		tlsPrivateKey, sshPublicKey, tlsPublicKey, err := generateKeys()
-		if err != nil {
-			return trace.Wrap(err, "unable to generate new keypairs")
-		}
-
-		log.Info("Attempting to generate new identity from token")
-		params := auth.RegisterParams{
-			Token: onboarding.Token,
-			ID: auth.IdentityID{
-				Role: types.RoleBot,
-			},
-			Servers:            []utils.NetAddr{*addr},
-			PublicTLSKey:       tlsPublicKey,
-			PublicSSHKey:       sshPublicKey,
-			CAPins:             onboarding.CAPins,
-			CAPath:             onboarding.CAPath,
-			GetHostCredentials: client.HostCredentials,
-		}
-		certs, err := auth.Register(params)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		ident, err = identity.ReadIdentityFromKeyPair(tlsPrivateKey, sshPublicKey, certs)
+		// Get first identity
+		ident, err = getIdentityFromToken(botConfig)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -271,20 +236,72 @@ func watchCARotations(watcher types.Watcher) {
 	}
 }
 
+func getIdentityFromToken(cfg *config.BotConfig) (*identity.Identity, error) {
+	if cfg.Onboarding == nil {
+		return nil, trace.BadParameter("onboarding config required via CLI or YAML")
+	}
+	if cfg.Onboarding.Token == "" {
+		return nil, trace.BadParameter("unable to start: no token present")
+	}
+	addr, err := utils.ParseAddr(cfg.AuthServer)
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "invalid auth server address %+v", cfg.AuthServer)
+	}
+
+	tlsPrivateKey, sshPublicKey, tlsPublicKey, err := generateKeys()
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "unable to generate new keypairs")
+	}
+
+	log.Info("attempting to generate new identity from token")
+	params := auth.RegisterParams{
+		Token: cfg.Onboarding.Token,
+		ID: auth.IdentityID{
+			Role: types.RoleBot,
+		},
+		Servers:            []utils.NetAddr{*addr},
+		PublicTLSKey:       tlsPublicKey,
+		PublicSSHKey:       sshPublicKey,
+		CAPins:             cfg.Onboarding.CAPins,
+		CAPath:             cfg.Onboarding.CAPath,
+		GetHostCredentials: client.HostCredentials,
+		JoinMethod:         cfg.Onboarding.JoinMethod,
+	}
+	certs, err := auth.Register(params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ident, err := identity.ReadIdentityFromKeyPair(tlsPrivateKey, sshPublicKey, certs)
+	return ident, trace.Wrap(err)
+}
+
 func renewIdentityViaAuth(
 	ctx context.Context,
 	client auth.ClientI,
 	currentIdentity *identity.Identity,
-	certTTL time.Duration,
+	cfg *config.BotConfig,
 ) (*identity.Identity, error) {
 	// TODO: enforce expiration > renewal period (by what margin?)
+
+	// If using the IAM join method we always go through the initial join flow
+	// and fetch new nonrenewable certs
+	var joinMethod types.JoinMethod
+	if cfg.Onboarding != nil {
+		joinMethod = cfg.Onboarding.JoinMethod
+	}
+	switch joinMethod {
+	case types.JoinMethodIAM:
+		ident, err := getIdentityFromToken(cfg)
+		return ident, trace.Wrap(err)
+	default:
+	}
 
 	// Ask the auth server to generate a new set of certs with a new
 	// expiration date.
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		PublicKey: currentIdentity.SSHPublicKeyBytes,
 		Username:  currentIdentity.XCert.Subject.CommonName,
-		Expires:   time.Now().Add(certTTL),
+		Expires:   time.Now().Add(cfg.CertificateTTL),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -371,7 +388,7 @@ func renewLoop(ctx context.Context, cfg *config.BotConfig, client auth.ClientI, 
 	defer ticker.Stop()
 	for {
 		log.Debug("Attempting to renew bot certificates...")
-		newIdentity, err := renewIdentityViaAuth(ctx, client, ident, cfg.CertificateTTL)
+		newIdentity, err := renewIdentityViaAuth(ctx, client, ident, cfg)
 		if err != nil {
 			return trace.Wrap(err)
 		}

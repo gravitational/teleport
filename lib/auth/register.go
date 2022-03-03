@@ -111,11 +111,11 @@ type RegisterParams struct {
 	// for TLS certificate verification.
 	// Defaults to real clock if unspecified
 	Clock clockwork.Clock
-	// EC2IdentityDocument is used for Simplified Node Joining to prove the
-	// identity of a joining EC2 instance.
-	EC2IdentityDocument []byte
 	// JoinMethod is the joining method used for this register request.
 	JoinMethod types.JoinMethod
+	// ec2IdentityDocument is used for Simplified Node Joining to prove the
+	// identity of a joining EC2 instance.
+	ec2IdentityDocument []byte
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -140,6 +140,14 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 	token, err := utils.ReadToken(params.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// add EC2 Identity Document to params if required for given join method
+	if params.JoinMethod == types.JoinMethodEC2 {
+		params.ec2IdentityDocument, err = utils.GetEC2IdentityDocument()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	log.WithField("auth-servers", params.Servers).Debugf("Registering node to the cluster.")
@@ -218,7 +226,7 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 				DNSNames:             params.DNSNames,
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
-				EC2IdentityDocument:  params.EC2IdentityDocument,
+				EC2IdentityDocument:  params.ec2IdentityDocument,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -264,7 +272,7 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 				DNSNames:             params.DNSNames,
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
-				EC2IdentityDocument:  params.EC2IdentityDocument,
+				EC2IdentityDocument:  params.ec2IdentityDocument,
 			})
 	}
 	return certs, trace.Wrap(err)
