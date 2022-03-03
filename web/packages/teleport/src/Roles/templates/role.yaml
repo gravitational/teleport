@@ -13,7 +13,9 @@ spec:
     kubernetes_groups:
     - '{{internal.kubernetes_groups}}'
     - developer
-
+    kubernetes_users:
+    - '{{internal.kubernetes_users}}'
+    - 'dev'
     # List of allowed SSH logins
     logins: [ubuntu, debian]
 
