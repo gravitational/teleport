@@ -51,7 +51,13 @@ var counterTestBPF []byte
 
 var _ = check.Suite(&Suite{})
 
-func TestRootBPF(t *testing.T) { check.TestingT(t) }
+func TestRootBPF(t *testing.T) {
+	if !bpfTestEnabled() {
+		t.Skip("BPF testing is disabled")
+	}
+
+	check.TestingT(t)
+}
 
 func (s *Suite) TestWatch(c *check.C) {
 	// This test must be run as root and the host has to be capable of running
@@ -494,4 +500,10 @@ func isRoot() bool {
 		return false
 	}
 	return true
+}
+
+// bpfTestEnabled returns true if BPF tests should run. Tests can be enabled by
+// setting TELEPORT_BPF_TEST environment variable to any value.
+func bpfTestEnabled() bool {
+	return os.Getenv("TELEPORT_BPF_TEST") != ""
 }
