@@ -362,13 +362,17 @@ func (c *Client) start() {
 					return
 				}
 			case tdp.ClipboardData:
-				if err := cgoError(C.update_clipboard(
-					c.rustClient,
-					(*C.uint8_t)(unsafe.Pointer(&m[0])),
-					C.uint32_t(len(m)),
-				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP clipboard data: %v", err)
-					return
+				if len(m) > 0 {
+					if err := cgoError(C.update_clipboard(
+						c.rustClient,
+						(*C.uint8_t)(unsafe.Pointer(&m[0])),
+						C.uint32_t(len(m)),
+					)); err != nil {
+						c.cfg.Log.Warningf("Failed forwarding RDP clipboard data: %v", err)
+						return
+					}
+				} else {
+					c.cfg.Log.Warning("Recieved an empty clipboard message")
 				}
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
