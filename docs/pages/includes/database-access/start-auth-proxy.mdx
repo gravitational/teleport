@@ -6,7 +6,7 @@ issue a TLS certificate for the Teleport Proxy host's domain, the ACME protocol
 must verify that an HTTPS server is reachable on port 443 of the host.  
 
 We will assume that you have configured DNS records for `teleport.example.com`
-and `*.teleport.example.com` to point to your Teleport node.
+and `*.teleport.example.com` to point to your Teleport Node.
 
 <Admonition type="note" title="Web Proxy Port">
 To support the ACME protocol, Teleport Proxy must listen on port 443, rather
@@ -17,13 +17,13 @@ Download the latest version of Teleport for your platform from our
 [downloads page](https://goteleport.com/teleport/download) and follow the
 installation [instructions](../../installation.mdx).
 
-Generate a Teleport configuration file with ACME enabled:
+Teleport requires a valid TLS certificate to operate and can fetch one automatically
+using Let's Encrypt. 
+We will assume that you have configured DNS records for `teleport.example.com` and `*.teleport.example.com` to point to the Teleport Node.
 
-```code
-$ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
-```
+(!docs/pages/includes/acme.mdx!)
 
-Start the Teleport Auth and Proxy services:
+Next, start the Teleport Auth and Proxy Services:
 
 ```code
 $ sudo teleport start
