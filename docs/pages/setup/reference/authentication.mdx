@@ -3,11 +3,10 @@ title: Authentication options
 description: A reference for Teleport's authentication connectors
 ---
 
-Teleport uses the concept of **authentication connectors** to authenticate users
-when they execute the [`tsh login`](./cli.mdx#tsh-login) command. There are three
-types of authentication connectors.
+Teleport authenticates users with an identity provider via **authentication
+connectors**. There are three types of authentication connectors.
 
-## Local
+## Local (no authentication connector)
 
 Local authentication is used to authenticate against a local Teleport user
 database. This database is managed by the [`tctl users`](./cli.mdx#tctl-users-add)
