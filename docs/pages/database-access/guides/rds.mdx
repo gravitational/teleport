@@ -1,6 +1,6 @@
 ---
-title: Database Access with AWS RDS and Aurora for PostgreSQL and MySQL
-description: How to configure Teleport Database Access with AWS RDS and Aurora for PostgreSQL and MySQL.
+title: Database Access with AWS RDS and Aurora for PostgreSQL, MySQL and MariaDB.
+description: How to configure Teleport Database Access with AWS RDS and Aurora for PostgreSQL, MySQL and MariaDB.
 ---
 
 This guide will help you to:
@@ -12,6 +12,11 @@ This guide will help you to:
 <Admonition type="note" title="Aurora Serverless">
   Aurora Serverless does not support IAM authentication at the time of this
   writing so it can't be used with Database Access.
+</Admonition>
+
+<Admonition type="note" title="MariaDB supported versions">
+  The minimum supported version of MariaDB is 10.6. Older versions don't support
+  IAM authentication and they can't be used with Database Access.
 </Admonition>
 
 ## Prerequisites
@@ -318,8 +323,8 @@ Access for RDS. See below how to enable it for your database engine.
   GRANT rds_iam TO alice;
   ```
   </TabItem>
-  <TabItem label="MySQL">
-  MySQL users must have RDS authentication plugin enabled:
+  <TabItem label="MySQL/MariaDB">
+  MySQL and MariaDB users must have RDS authentication plugin enabled:
 
   ```sql
   CREATE USER alice IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
