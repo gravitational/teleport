@@ -28,6 +28,8 @@ for each discovery type are shown below.
   <TabItem label="RDS / IAM user">
   Use this policy if you're connecting to RDS instances and your Teleport
   database agent runs as an IAM user (for example, uses an AWS credentials file).
+
+  Replace `{account-id}` with your AWS Account ID.
   ```json
   {
       "Version": "2012-10-17",
@@ -36,12 +38,18 @@ for each discovery type are shown below.
               "Effect": "Allow",
               "Action": [
                   "rds:DescribeDBInstances",
-                  "rds:ModifyDBInstance",
+                  "rds:ModifyDBInstance"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
                   "iam:GetUserPolicy",
                   "iam:PutUserPolicy",
                   "iam:DeleteUserPolicy"
               ],
-              "Resource": "*"
+              "Resource": "arn:aws:iam::{account-id}:user/sample-user"
           }
       ]
   }
@@ -51,6 +59,8 @@ for each discovery type are shown below.
   Use this policy if you're connecting to RDS instances and your Teleport
   database agent runs as an IAM role (for example, on an EC2 instance with
   an attached IAM role).
+
+  Replace `{account-id}` with your AWS Account ID.
   ```json
   {
       "Version": "2012-10-17",
@@ -59,12 +69,18 @@ for each discovery type are shown below.
               "Effect": "Allow",
               "Action": [
                   "rds:DescribeDBInstances",
-                  "rds:ModifyDBInstance",
+                  "rds:ModifyDBInstance"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
                   "iam:GetRolePolicy",
                   "iam:PutRolePolicy",
                   "iam:DeleteRolePolicy"
               ],
-              "Resource": "*"
+              "Resource": "arn:aws:iam::{account-id}:role/sample-role"
           }
       ]
   }
@@ -73,6 +89,8 @@ for each discovery type are shown below.
   <TabItem label="Aurora / IAM user">
   Use this policy if you're connecting to Aurora clusters and your Teleport
   database agent runs as an IAM user (for example, uses an AWS credentials file).
+
+  Replace `{account-id}` with your AWS Account ID.
   ```json
   {
       "Version": "2012-10-17",
@@ -81,12 +99,18 @@ for each discovery type are shown below.
               "Effect": "Allow",
               "Action": [
                   "rds:DescribeDBClusters",
-                  "rds:ModifyDBCluster",
+                  "rds:ModifyDBCluster"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
                   "iam:GetUserPolicy",
                   "iam:PutUserPolicy",
                   "iam:DeleteUserPolicy"
               ],
-              "Resource": "*"
+              "Resource": "arn:aws:iam::{account-id}:user/sample-user"
           }
       ]
   }
@@ -96,6 +120,8 @@ for each discovery type are shown below.
   Use this policy if you're connecting to Aurora clusters and your Teleport
   database agent runs as an IAM role (for example, on an EC2 instance with
   an attached IAM role).
+
+  Replace `{account-id}` with your AWS Account ID.
   ```json
   {
       "Version": "2012-10-17",
@@ -104,12 +130,18 @@ for each discovery type are shown below.
               "Effect": "Allow",
               "Action": [
                   "rds:DescribeDBClusters",
-                  "rds:ModifyDBCluster",
+                  "rds:ModifyDBCluster"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
                   "iam:GetRolePolicy",
                   "iam:PutRolePolicy",
                   "iam:DeleteRolePolicy"
               ],
-              "Resource": "*"
+              "Resource": "arn:aws:iam::{account-id}:role/sample-role"
           }
       ]
   }
@@ -123,6 +155,8 @@ for each discovery type are shown below.
   <TabItem label="IAM user">
   Use this permission boundary if your Teleport database agent runs as an IAM
   user (for example, it uses an AWS credentials file).
+
+  Replace `{account-id}` with your AWS Account ID.
   ```json
   {
       "Version": "2012-10-17",
@@ -131,12 +165,18 @@ for each discovery type are shown below.
               "Effect": "Allow",
               "Action": [
                   "redshift:DescribeClusters",
-                  "redshift:GetClusterCredentials",
+                  "redshift:GetClusterCredentials"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
                   "iam:GetUserPolicy",
                   "iam:PutUserPolicy",
                   "iam:DeleteUserPolicy"
               ],
-              "Resource": "*"
+              "Resource": "arn:aws:iam::{account-id}:user/sample-user"
           }
       ]
   }
@@ -145,6 +185,8 @@ for each discovery type are shown below.
   <TabItem label="IAM role">
   Use this permission boundary if your Teleport database agent runs as an IAM
   role (for example, on an EC2 instance with an attached IAM role).
+
+  Replace `{account-id}` with your AWS Account ID.
   ```json
   {
       "Version": "2012-10-17",
@@ -154,11 +196,17 @@ for each discovery type are shown below.
               "Action": [
                   "redshift:DescribeClusters",
                   "redshift:GetClusterCredentials",
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
                   "iam:GetRolePolicy",
                   "iam:PutRolePolicy",
                   "iam:DeleteRolePolicy"
               ],
-              "Resource": "*"
+              "Resource": "arn:aws:iam::{account-id}:role/sample-role"
           }
       ]
   }
