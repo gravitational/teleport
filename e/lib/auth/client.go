@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"net/url"
 
 	"github.com/gravitational/teleport/lib/auth"
@@ -12,7 +13,7 @@ import (
 // ProClient describes an auth client for Teleport Pro methods
 type ProClient interface {
 	// GetLicenseCheckResult returns the last license check result
-	GetLicenseCheckResult() (*types.Heartbeat, error)
+	GetLicenseCheckResult(ctx context.Context) (*types.Heartbeat, error)
 }
 
 // client is the Teleport Pro auth client
@@ -29,8 +30,8 @@ func NewProClient(clt *auth.Client) (ProClient, error) {
 }
 
 // GetLicenseCheckResult returns the last license check result
-func (c *proClient) GetLicenseCheckResult() (*types.Heartbeat, error) {
-	out, err := c.Get(c.Endpoint("license", "status"), url.Values{})
+func (c *proClient) GetLicenseCheckResult(ctx context.Context) (*types.Heartbeat, error) {
+	out, err := c.Get(ctx, c.Endpoint("license", "status"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

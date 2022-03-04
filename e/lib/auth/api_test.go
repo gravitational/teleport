@@ -82,7 +82,7 @@ func (s *APISuite) TestHeartbeat(c *check.C) {
 	err = s.enforcer.SetLicenseCheckHeartbeat(*needed)
 	c.Assert(err, check.IsNil)
 
-	retrieved, err := client.GetLicenseCheckResult()
+	retrieved, err := client.GetLicenseCheckResult(context.Background())
 	c.Assert(err, check.IsNil)
 	c.Assert(retrieved, check.DeepEquals, needed)
 }
