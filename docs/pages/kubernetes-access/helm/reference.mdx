@@ -73,9 +73,13 @@ This reference details available values for the `teleport-cluster` chart.
 
 | Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
 | - | - | - | - | - |
-| `string` | `on` | Yes | `auth_service.authentication.second_factor` | ❌ |
+| `string` | `otp` | Yes | `auth_service.authentication.second_factor` | ❌ |
 
-`authenticationSecondFactor.secondFactor` controls the second factor used for local user authentication. Possible values are `on`, `optional` and `webauthn`.
+`authenticationSecondFactor.secondFactor` controls the second factor used for local user authentication. Possible values supported by this chart
+are `off` (not recommended), `on`, `otp`, `optional` and `webauthn`.
+
+When set to `on`, `optional` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used. The configured `rp_id` defaults to
+the FQDN which is used to access the Teleport cluster.
 
 ### `authenticationSecondFactor.webauthn`
 
