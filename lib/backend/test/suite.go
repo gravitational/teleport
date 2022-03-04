@@ -21,6 +21,7 @@ package test
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -830,4 +831,61 @@ func verifyExpireTimestampsIncreasing(c *check.C, obtained, expected []backend.E
 			)
 		}
 	}
+}
+
+func (s *BackendSuite) FetchLimit(c *check.C) {
+	prefix := MakePrefix()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Allocate 65KB buffer.
+	buff := make([]byte, 1<<16)
+	itemsCount := 20
+	// Fill the backend with events that total size is greater than 1MB (65KB * 20 > 1MB).
+	for i := 0; i < itemsCount; i++ {
+		item := &backend.Item{Key: prefix(fmt.Sprintf("/db/database%d", i)), Value: buff}
+		_, err := s.B.Put(ctx, *item)
+		c.Assert(err, check.IsNil)
+	}
+
+	result, err := s.B.GetRange(ctx, prefix("/db"), backend.RangeEnd(prefix("/db")), backend.NoLimit)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(result.Items), check.Equals, 20)
+}
+
+// Limit tests limit.
+func (s *BackendSuite) Limit(c *check.C) {
+	prefix := MakePrefix()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	item := &backend.Item{
+		Key:     prefix("/db/database_tail_item"),
+		Value:   []byte("data"),
+		Expires: s.Clock.Now().Add(time.Minute),
+	}
+	_, err := s.B.Put(ctx, *item)
+	c.Assert(err, check.IsNil)
+	for i := 0; i < 10; i++ {
+		item := &backend.Item{
+			Key:     prefix(fmt.Sprintf("/db/database%d", i)),
+			Value:   []byte("data"),
+			Expires: s.Clock.Now().Add(time.Second * 10),
+		}
+		_, err = s.B.Put(ctx, *item)
+		c.Assert(err, check.IsNil)
+	}
+	s.Clock.Advance(time.Second * 20)
+
+	item = &backend.Item{
+		Key:     prefix("/db/database_head_item"),
+		Value:   []byte("data"),
+		Expires: s.Clock.Now().Add(time.Minute),
+	}
+	_, err = s.B.Put(ctx, *item)
+	c.Assert(err, check.IsNil)
+
+	result, err := s.B.GetRange(ctx, prefix("/db"), backend.RangeEnd(prefix("/db")), 2)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(result.Items), check.Equals, 2)
 }
