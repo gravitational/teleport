@@ -41,12 +41,6 @@ $ tctl get roles
 
 A role definition looks like this:
 
-<Details title="Role Versioning" min="8.3" opened>
-  The role example below uses `version: v4` for compatability reasons. Note that
-  the `join_sessions` and `require_session_join` fields are only supported on `version: v5` roles,
-  which are otherwise identical to `version: v4`.
-</Details>
-
 ```yaml
 kind: role
 version: v4
@@ -87,7 +81,7 @@ spec:
     logins: [root, '{{internal.logins}}']
     # Windows logins a user is allowed to use for desktop sessions.
     windows_desktop_logins: [Administrator, '{{internal.logins}}']
-    # If kubernetes integration is enabled, this setting configures which 
+    # If kubernetes integration is enabled, this setting configures which
     # kubernetes groups the users of this role will be assigned to.
     # Note that you can refer to a SAML/OIDC trait via the "external" property bag.
     # This allows you to specify Kubernetes group membership in an identity manager:
@@ -135,35 +129,6 @@ spec:
       verbs: [list,create,read,update,delete]
     - resources: [token]
       verbs: [list,create,read,update,delete]
-
-    # Moderated Sessions policy that dictates requirements for starting a session.
-    require_session_join:
-      # Defines the name of the policy. The name serves only as an
-      # identifier in logs and for organisation/categorisation.
-      - name: Auditor oversight
-        # Specifies an RBAC predicate that is used to define
-        # which users count against the required user count of the policy.
-        filter: 'contains(user.roles, "auditor")'
-        # The different session kinds this policy applies to.
-        kinds: ['k8s', 'ssh']
-        # A list of session participant modes that a participant must have
-        # one of in order to count against the policy.
-        modes: ['moderator']
-        # The minimum amount of users that need to match the filter expression
-        # in order to satisfy the policy.
-        count: 1
-     
-    # Moderated Sessions policy that dictates the ability to join sessions
-    join_sessions:
-      # Defines the name of the policy. The name serves only as an
-      # identifier in logs and for organisation/categorisation.
-      - name: Auditor oversight
-        # Allows one to join sessions created by other users with these roles
-        roles : ['prod-access']
-        # The different session kinds this policy applies to.
-        kinds: ['k8s', 'ssh']
-        # The list of session participant modes the role may join the session as.
-        modes: ['moderator', 'observer']
 
   # The deny section uses the identical format as the 'allow' section.
   # The deny rules always override allow rules.
@@ -220,10 +185,10 @@ Teleport provides several pre-defined roles out-of-the-box:
 | Role | Description |
 | --- | --- |
 | `editor` | Allows editing of cluster configuration settings. |
-| `auditor`| Allows reading cluster events, audit logs, and playing back session records. | 
+| `auditor`| Allows reading cluster events, audit logs, and playing back session records. |
 | `access`| Allows access to cluster resources. |
 
-<Details title="Version Warning: Before 8.0" opened={false}> 
+<Details title="Version Warning: Before 8.0" opened={false}>
 Teleport versions prior to 8.0 also included a default `admin` role. This role
 has been deprecated in favor of smaller, more fine-grained roles like the
 presets mentioned above.
@@ -236,16 +201,10 @@ that are more appropriately scoped.
 
 ### Role versions
 
-There are currently three supported role versions: `v3`, `v4` and `v5`. `v4` roles are
-completely backwards-compatible with `v3`. The only difference lies in the
-default allow labels, which will be applied to the role if they are not
+There are currently two supported role versions: `v3` and `v4`. `v4` roles are
+completely backwards-compatible with `v3`, the only difference lies in the
+default allow labels which will be applied to the role if they are not
 explicitly set.
-
-`v5` roles are also backwards compatible with `v4`. They add
-the `join_sessions` and `require_session_join` fields related to [Moderated Sessions](./guides/moderated-sessions.mdx).
-
-Upon upgrading to Telport 8.3.0 or later, new roles will be created with `version: v5` and old roles
-will be migrated as they are edited but not automatically.
 
 Label              | `v3` Default   | `v4` Default
 ------------------ | -------------- | ---------------
@@ -374,10 +333,19 @@ The examples below illustrate how to restrict session access only for the user
 who created the session.
 
 <Details title="Version Warning: Before 8.1" opened={false}>
-Teleport versions prior to 8.1 don't support the roles exemplified below.
-You may to create such roles after an upgrade, but in the event of a cluster
+Teleport versions prior to 8.1 don't support the roles shown below.
+You may create these roles after upgrading, but in the event of a cluster
 downgrade they will become invalid.
 </Details>
+
+<Admonition
+  type="warning"
+  title="Preset Auditor Role"
+>
+In order for these roles to take effect, you must ensure your user doesn't also
+have a more permissive role, like the preset `auditor` role, which allows access
+to all events, sessions, and session recordings.
+</Admonition>
 
 Role for restricted access to session recordings:
 

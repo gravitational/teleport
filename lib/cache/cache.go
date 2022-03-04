@@ -34,8 +34,30 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
+)
+
+var (
+	cacheEventsReceived = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricCacheEventsReceived,
+			Help:      "Number of events received by a Teleport service cache. Teleport's Auth Service, Proxy Service, and other services cache incoming events related to their service.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
+	cacheStaleEventsReceived = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricStaleCacheEventsReceived,
+			Help:      "Number of stale events received by a Teleport service cache. A high percentage of stale events can indicate a degraded backend.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
+
+	cacheCollectors = []prometheus.Collector{cacheEventsReceived, cacheStaleEventsReceived}
 )
 
 func tombstoneKey() []byte {
@@ -238,6 +260,7 @@ func ForApps(cfg Config) Config {
 
 // ForDatabases sets up watch configuration for database proxy servers.
 func ForDatabases(cfg Config) Config {
+	cfg.target = "db"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
@@ -593,6 +616,9 @@ const (
 
 // New creates a new instance of Cache
 func New(config Config) (*Cache, error) {
+	if err := utils.RegisterPrometheusCollectors(cacheCollectors...); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -928,8 +954,10 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			// than pruning the resources that we think *might* have been removed from the real backend.
 			// TODO(fspmarshall): ^^^
 			//
+			cacheEventsReceived.WithLabelValues(c.target).Inc()
 			if event.Type == types.OpPut && !event.Resource.Expiry().IsZero() {
 				if now := c.Clock.Now(); now.After(event.Resource.Expiry()) {
+					cacheStaleEventsReceived.WithLabelValues(c.target).Inc()
 					staleEventCount++
 					if now.After(lastStalenessWarning.Add(time.Minute)) {
 						kind := event.Resource.GetKind()

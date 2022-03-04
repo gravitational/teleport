@@ -1,5 +1,50 @@
 # Changelog
 
+## 8.3.4
+
+This release of Teleport contains multiple improvements and fixes.
+
+* Fixed utmp accounting on some systems. [#10617](https://github.com/gravitational/teleport/pull/10617)
+* Fixed an issue with DynamoDB pagination when result set exceeds 1MB. [#10847](https://github.com/gravitational/teleport/pull/10847)
+* Improved join instructions printed by `tctl` when using Teleport Cloud. [#10749](https://github.com/gravitational/teleport/pull/10749)
+* Improved HA behavior of database agents in leaf clusters. [#10770](https://github.com/gravitational/teleport/pull/10770)
+* Fixed an issue with .deb packages not being published. [#10806](https://github.com/gravitational/teleport/pull/10806)
+* Fixed an issue with session uploader leaving empty directories behind in some cases. [#10793](https://github.com/gravitational/teleport/pull/10793)
+
+## 8.3.3
+
+This release of Teleport contains a security fix and multiple improvements and fixes.
+
+### Trusted Clusters security fix
+
+An attacker in possession of a valid Trusted Cluster join token could inject a
+malicious CA into a Teleport cluster that would allow them to bypass root
+cluster authorization and potentially connect to any node within the root
+cluster.
+
+For customers using Trusted Clusters, we recommend upgrading to one of the
+patched releases listed below then revoking and rotating all Trusted Cluster
+tokens. As a best practice, make sure that Trusted Cluster tokens have short
+time-to-live and ideally are removed after being used once.
+
+### Other fixes
+
+* Fixed dynamic labeling for Kubernetes agents. [#10464](https://github.com/gravitational/teleport/pull/10464)
+* Added `teleport_audit_emit_event` and `teleport_connected_resources` Prometheus metrics. [#10462](https://github.com/gravitational/teleport/pull/10462), [#10461](https://github.com/gravitational/teleport/pull/10461)
+* Fixed an issue with serving multiple concurrent X11 forwarding sessions. [#10473](https://github.com/gravitational/teleport/pull/10473)
+* Fixed a misnaming in the X11 forwarding configuration file options. [#10758](https://github.com/gravitational/teleport/pull/10758)
+* Fixed an issue with MongoDB connections not being properly closed. [#10730](https://github.com/gravitational/teleport/pull/10730)
+* Clear terminal at the end of the session in FIPS mode. [#10533](https://github.com/gravitational/teleport/pull/10533)
+
+## 8.3.1
+
+This release of Teleport contains an improvement and fix.
+
+* Added additional Prometheus metrics for cache and event monitoring. [#9826](https://github.com/gravitational/teleport/pull/9826)
+* Fixed an issue with user home directory checking. [#10321](https://github.com/gravitational/teleport/pull/10321)
+
+## 8.3.0
+
 This release of Teleport contains new features, improvements, and fixes.
 
 * Added IAM support for [Joining Nodes and Proxies in AWS](https://goteleport.com/docs/setup/guides/joining-nodes-aws/). [#8690](https://github.com/gravitational/teleport/pull/8690) [#10085](https://github.com/gravitational/teleport/pull/10085) [#10087](https://github.com/gravitational/teleport/pull/10087)

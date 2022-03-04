@@ -1,0 +1,15 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: db
+awsDatabases:
+- types: ["rds"]
+  regions: ["us-east-1"]
+  tags:
+    "*": "*"
+- types: ["rds"]
+  regions: ["us-west-2"]
+  tags:
+    "env": "development"
+annotations:
+  serviceAccount:
+    eks.amazonaws.com/role-arn: arn:aws:iam::1234567890:role/my-rds-autodiscovery-role

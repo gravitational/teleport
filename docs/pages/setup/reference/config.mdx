@@ -11,8 +11,15 @@ By default, it is stored in `/etc/teleport.yaml`.
 
 (!docs/pages/includes/backup-warning.mdx!)
 
-This document aims to be a reference rather than a starting point for a real cluster. To
-get a good starting file, run `teleport configure -o teleport.yaml`.
+This document aims to be a reference rather than a starting point for a real cluster. 
+
+<Admonition type="danger" title="Before using this reference">
+You must edit your configuration file to meet the needs of your environment. Using a copy of the reference configuration will have unintended effects. To create a configuration file that you can use as a starting point, run the following command:
+
+```code
+$ teleport configure -o file
+```
+</Admonition>
 
 ```yaml
 # By default, this file should be stored in /etc/teleport.yaml
@@ -77,11 +84,11 @@ teleport:
         max_users: 250
 
     # Logging configuration. Possible output values to disk via '/var/lib/teleport/teleport.log',
-    # 'stdout', 'stderr' and 'syslog'. Possible severity values are INFO, WARN
-    # and ERROR (default).
+    # 'stdout', 'stderr' and 'syslog'. Possible severity values are DEBUG, INFO (default), WARN,
+    # and ERROR.
     log:
         output: /var/lib/teleport/teleport.log
-        severity: ERROR
+        severity: INFO
 
         # Log format configuration
         # Possible output values are 'json' and 'text' (default).

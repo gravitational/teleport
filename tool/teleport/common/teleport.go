@@ -74,8 +74,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump := app.Command("configure", "Generate a simple config file to get started.")
 	ver := app.Command("version", "Print the version.")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
-	exec := app.Command("exec", "Used internally by Teleport to re-exec itself to run a command.").Hidden()
-	forward := app.Command("forward", "Used internally by Teleport to re-exec itself to port forward.").Hidden()
+	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
+	forward := app.Command(teleport.ForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
+	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
@@ -277,6 +278,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onExec()
 	case forward.FullCommand():
 		err = onForward()
+	case checkHomeDir.FullCommand():
+		err = onCheckHome()
 	case ver.FullCommand():
 		utils.PrintVersion()
 	}
@@ -485,6 +488,14 @@ func onExec() error {
 // Used with "direct-tcpip" channel on Teleport nodes.
 func onForward() error {
 	srv.RunAndExit(teleport.ForwardSubCommand)
+	return nil
+}
+
+// onCheckHome is a subcommand used to re-execute Teleport to check for the
+// existence of the user's home dir. This is needed in cases where the user's
+// home dir isn't visible to the parent process's user.
+func onCheckHome() error {
+	srv.RunAndExit(teleport.CheckHomeDirSubCommand)
 	return nil
 }
 

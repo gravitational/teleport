@@ -461,6 +461,9 @@ const (
 	// RemoteCommandFailure is returned when a command has failed to execute and
 	// we don't have another status code for it.
 	RemoteCommandFailure = 255
+	// HomeDirNotFound is returned when a the "teleport checkhomedir" command cannot
+	// find the user's home directory.
+	HomeDirNotFound = 254
 )
 
 // MaxEnvironmentFileLines is the maximum number of lines in a environment file.
@@ -693,6 +696,10 @@ const (
 	// ForwardSubCommand is the sub-command Teleport uses to re-exec itself
 	// for port forwarding.
 	ForwardSubCommand = "forward"
+
+	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
+	// to check if the user's home directory exists.
+	CheckHomeDirSubCommand = "checkhomedir"
 )
 
 const (
