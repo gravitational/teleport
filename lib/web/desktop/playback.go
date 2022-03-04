@@ -19,13 +19,16 @@ package desktop
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
+	"os"
 	"sync"
 	"time"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
 )
@@ -207,6 +210,15 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 			// otherwise it just sits at the player UI
 			if err != nil && !errors.Is(err, context.Canceled) {
 				pp.log.WithError(err).Errorf("streaming session %v", pp.sID)
+				var errorText string
+				if os.IsNotExist(err) || trace.IsNotFound(err) {
+					errorText = "session not found"
+				} else {
+					errorText = "server error"
+				}
+				if _, err := pp.ws.Write([]byte(fmt.Sprintf(`{"message": "error", "errorText": "%v"}`, errorText))); err != nil {
+					pp.log.WithError(err).Error("failed to write \"error\" message over websocket")
+				}
 			}
 			return
 		case evt := <-eventsC:
@@ -227,6 +239,10 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 				msg, err := utils.FastMarshal(e)
 				if err != nil {
 					pp.log.WithError(err).Errorf("failed to marshal DesktopRecording event into JSON: %v", e)
+					if _, err := pp.ws.Write([]byte(`{"message":"error","errorText":"server error"}`)); err != nil {
+						pp.log.WithError(err).Error("failed to write \"error\" message over websocket")
+					}
+					return
 				}
 				if _, err := pp.ws.Write(msg); err != nil {
 					// We expect net.ErrClosed to arise when another goroutine returns before
