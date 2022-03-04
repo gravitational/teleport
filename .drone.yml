@@ -1,4 +1,33 @@
 ---
+kind: pipeline
+type: kubernetes
+name: update-docs-webhook
+
+trigger:
+  event:
+    include:
+      - push
+    exclude:
+      - pull_request
+  branch:
+    include:
+      - master
+      - branch/*
+  repo:
+    include:
+      - gravitational/teleport
+
+clone:
+  disable: true
+
+steps:
+  - name: Trigger docs deployment
+    image: plugins/webhook
+    settings:
+      urls:
+        from_secret: DOCS_DEPLOY_HOOK
+        
+---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
@@ -3124,9 +3153,9 @@ steps:
     ARCH: amd64
     BUILDBOX_PASSWORD:
       from_secret: BUILDBOX_PASSWORD
-    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
     OS: darwin
-    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
 - name: Copy Mac pkg artifacts
   commands:
@@ -5055,6 +5084,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 85f206a2cb1cb44bc8ee0118fed464578af3cf117ca7d418f44293dbf0b44109
+hmac: 50bcc305de81551bda8426a4c9c92ef50a08fea24dbd7f6b616197647d18269e
 
 ...
