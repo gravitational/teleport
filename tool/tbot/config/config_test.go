@@ -30,7 +30,7 @@ func TestConfigDefaults(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, DefaultCertificateTTL, cfg.CertificateTTL)
-	require.Equal(t, DefaultRenewInterval, cfg.RenewInterval)
+	require.Equal(t, DefaultRenewInterval, cfg.RenewalInterval)
 
 	storageDest, err := cfg.Storage.GetDestination()
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestConfigFile(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "auth.example.com", cfg.AuthServer)
-	require.Equal(t, time.Minute*5, cfg.RenewInterval)
+	require.Equal(t, time.Minute*5, cfg.RenewalInterval)
 
 	require.NotNil(t, cfg.Onboarding)
 	require.Equal(t, "foo", cfg.Onboarding.Token)
