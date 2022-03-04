@@ -120,8 +120,8 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("kube-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).Hidden().StringVar(&a.leafCluster)
 	a.authSign.Flag("leaf-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.leafCluster)
 	a.authSign.Flag("kube-cluster-name", `Kubernetes cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.kubeCluster)
-	a.authSign.Flag("app-name", `Application to generate identity file for`).StringVar(&a.appName)
-	a.authSign.Flag("db-name", `Database to generate identity file for`).StringVar(&a.dbName)
+	a.authSign.Flag("app-name", `Application to generate identity file for. Mutually exclusive with "--db-name".`).StringVar(&a.appName)
+	a.authSign.Flag("db-name", `Database to generate identity file for. Mutually exclusive with "--app-name".`).StringVar(&a.dbName)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
 	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to relogin and nodes to re-register.").
@@ -600,6 +600,11 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		routeToDatabase proto.RouteToDatabase
 		certUsage       proto.UserCertsRequest_CertUsage
 	)
+
+	// `appName` and `dbName` are mutually exclusive.
+	if a.appName != "" && a.dbName != "" {
+		return trace.BadParameter("only --app-name or --db-name can be set, not both")
+	}
 
 	switch {
 	case a.appName != "":
