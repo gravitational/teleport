@@ -1672,8 +1672,8 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 
 	mfaReq := &proto.CreateAuthenticateChallengeRequest{}
 	if req.Passwordless {
-		mfaReq.Request = &proto.CreateAuthenticateChallengeRequest_Passwordless_{
-			Passwordless: &proto.CreateAuthenticateChallengeRequest_Passwordless{},
+		mfaReq.Request = &proto.CreateAuthenticateChallengeRequest_Passwordless{
+			Passwordless: &proto.Passwordless{},
 		}
 	} else {
 		mfaReq.Request = &proto.CreateAuthenticateChallengeRequest_UserCredentials{

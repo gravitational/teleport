@@ -1332,10 +1332,10 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 
 		username = token.GetUser()
 
-	case *proto.CreateAuthenticateChallengeRequest_Passwordless_:
+	case *proto.CreateAuthenticateChallengeRequest_Passwordless:
 		passwordless = true // Allows empty username.
 
-	default: // unset or CreateAuthenticateChallengeRequest_ContextUser_.
+	default: // unset or CreateAuthenticateChallengeRequest_ContextUser.
 		var err error
 		username, err = GetClientUsername(ctx)
 		if err != nil {

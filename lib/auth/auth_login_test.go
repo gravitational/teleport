@@ -512,8 +512,8 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	// Acquire a privilege token so we can register a passwordless device
 	// synchronously.
 	mfaChallenge, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser_{
-			ContextUser: &proto.CreateAuthenticateChallengeRequest_ContextUser{}, // already authenticated
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{}, // already authenticated
 		},
 	})
 	require.NoError(t, err)
@@ -604,8 +604,8 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 
 			// Create a passwordless challenge.
 			mfaChallenge, err := proxyClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-				Request: &proto.CreateAuthenticateChallengeRequest_Passwordless_{
-					Passwordless: &proto.CreateAuthenticateChallengeRequest_Passwordless{},
+				Request: &proto.CreateAuthenticateChallengeRequest_Passwordless{
+					Passwordless: &proto.Passwordless{},
 				},
 			})
 			require.NoError(t, err, "Failed to create passwordless challenge")
@@ -662,8 +662,8 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mfaChallenge, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser_{
-					ContextUser: &proto.CreateAuthenticateChallengeRequest_ContextUser{},
+				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+					ContextUser: &proto.ContextUser{},
 				},
 			})
 			require.NoError(t, err)
