@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -375,9 +374,13 @@ func (p *transport) getConn(servers []string, r *sshutils.DialReq) (net.Conn, bo
 			return nil, false, trace.Wrap(err)
 		}
 
-		// Connections to applications should never occur over a direct dial, return right away.
-		if r.ConnType == types.AppTunnel {
-			return nil, false, trace.ConnectionProblem(err, "failed to connect to application")
+		// Connections to applications and databases should never occur over
+		// a direct dial, return right away.
+		switch r.ConnType {
+		case types.AppTunnel:
+			return nil, false, trace.ConnectionProblem(err, NoApplicationTunnel)
+		case types.DatabaseTunnel:
+			return nil, false, trace.ConnectionProblem(err, NoDatabaseTunnel)
 		}
 
 		errTun := err
@@ -437,7 +440,7 @@ func (p *transport) directDial(servers []string, serverID string) (net.Conn, err
 	for _, addr := range servers {
 		conn, err := net.Dial("tcp", addr)
 		if err == nil {
-			return newEmitConn(p.closeContext, conn, p.emitter, strings.Split(serverID, ".")[0]), nil
+			return conn, nil
 		}
 
 		errors = append(errors, err)
