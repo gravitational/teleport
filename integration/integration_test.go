@@ -809,11 +809,7 @@ func testSSHTracker(t *testing.T, suite *integrationTestSuite) {
 	cl.Stdout = personA
 	cl.Stdin = personA
 	personA.Type("\aecho hi\n\r")
-
-	errC := make(chan error)
-	go func() {
-		errC <- cl.SSH(ctx, []string{}, false)
-	}()
+	go cl.SSH(ctx, []string{}, false)
 
 	// wait for the tracker to be created
 	time.Sleep(5 * time.Second)
