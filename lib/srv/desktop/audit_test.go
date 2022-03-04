@@ -99,6 +99,7 @@ func TestSessionStartEvent(t *testing.T) {
 			Success: true,
 		},
 		WindowsDesktopService: s.cfg.Heartbeat.HostUUID,
+		DesktopName:           "test-desktop",
 		DesktopAddr:           desktop.GetAddr(),
 		Domain:                desktop.GetDomain(),
 		WindowsUser:           "Administrator",
@@ -131,6 +132,7 @@ func TestSessionStartEvent(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			s.onSessionStart(
 				context.Background(),
+				s.cfg.Emitter,
 				id,
 				s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 				"Administrator",
@@ -173,6 +175,7 @@ func TestSessionEndEvent(t *testing.T) {
 
 	s.onSessionEnd(
 		context.Background(),
+		s.cfg.Emitter,
 		id,
 		startTime,
 		true,
