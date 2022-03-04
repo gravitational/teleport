@@ -642,14 +642,17 @@ func TestGenerateAppCertificates(t *testing.T) {
 
 func TestGenerateDatabaseUserCertificates(t *testing.T) {
 	tests := map[string]struct {
-		clusterName string
-		dbName      string
-		dbServices  []types.DatabaseServer
-		withError   bool
+		clusterName        string
+		dbName             string
+		dbUser             string
+		expectedDbProtocol string
+		dbServices         []types.DatabaseServer
+		withError          bool
 	}{
 		"DatabaseExists": {
-			clusterName: "example.com",
-			dbName:      "db-1",
+			clusterName:        "example.com",
+			dbName:             "db-1",
+			expectedDbProtocol: defaults.ProtocolPostgres,
 			dbServices: []types.DatabaseServer{
 				&types.DatabaseServerV3{
 					Metadata: types.Metadata{
@@ -660,6 +663,27 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 						Database: &types.DatabaseV3{
 							Spec: types.DatabaseSpecV3{
 								Protocol: defaults.ProtocolPostgres,
+							},
+						},
+					},
+				},
+			},
+		},
+		"DatabaseWithUserExists": {
+			clusterName:        "example.com",
+			dbName:             "db-user-1",
+			dbUser:             "mongo-user",
+			expectedDbProtocol: defaults.ProtocolMongoDB,
+			dbServices: []types.DatabaseServer{
+				&types.DatabaseServerV3{
+					Metadata: types.Metadata{
+						Name: "db-user-1",
+					},
+					Spec: types.DatabaseServerSpecV3{
+						Hostname: "example.com",
+						Database: &types.DatabaseV3{
+							Spec: types.DatabaseSpecV3{
+								Protocol: defaults.ProtocolMongoDB,
 							},
 						},
 					},
@@ -699,6 +723,7 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 				signOverwrite: true,
 				genTTL:        time.Hour,
 				dbName:        test.dbName,
+				dbUser:        test.dbUser,
 			}
 
 			err = ac.generateUserKeys(authClient)
@@ -711,7 +736,8 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 
 			expectedRouteToDatabase := proto.RouteToDatabase{
 				ServiceName: test.dbName,
-				Protocol:    defaults.ProtocolPostgres,
+				Protocol:    test.expectedDbProtocol,
+				Username:    test.dbUser,
 			}
 			require.Equal(t, proto.UserCertsRequest_Database, authClient.userCertsReq.Usage)
 			require.Equal(t, expectedRouteToDatabase, authClient.userCertsReq.RouteToDatabase)

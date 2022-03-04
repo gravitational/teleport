@@ -69,6 +69,7 @@ type AuthCommand struct {
 	kubeCluster                string
 	appName                    string
 	dbName                     string
+	dbUser                     string
 	signOverwrite              bool
 
 	rotateGracePeriod time.Duration
@@ -122,6 +123,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("kube-cluster-name", `Kubernetes cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.kubeCluster)
 	a.authSign.Flag("app-name", `Application to generate identity file for. Mutually exclusive with "--db-name".`).StringVar(&a.appName)
 	a.authSign.Flag("db-name", `Database to generate identity file for. Mutually exclusive with "--app-name".`).StringVar(&a.dbName)
+	a.authSign.Flag("db-user", `Database user placed on the identity file. Only used when "--db-name" is set.`).StringVar(&a.dbUser)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
 	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to relogin and nodes to re-register.").
@@ -638,6 +640,7 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		routeToDatabase = proto.RouteToDatabase{
 			ServiceName: a.dbName,
 			Protocol:    server.GetDatabase().GetProtocol(),
+			Username:    a.dbUser,
 		}
 		certUsage = proto.UserCertsRequest_Database
 	}
