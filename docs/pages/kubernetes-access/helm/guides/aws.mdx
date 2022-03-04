@@ -122,6 +122,31 @@ You'll need to replace these values in the policy example below:
 }
 ```
 
+## Step 4. TLS certificates for Teleport
+
+We now need to configure TLS certificates for Teleport to secure its communications.
+
+There are two options when using AWS:
+- Use `cert-manager` to provision and automatically renew ACME certs (described in [Step 4a](#step-4a-install-and-configure-cert-manager-to-handle-tls))
+  - This is better supported overall and will enable all Teleport services such as PostgreSQL database access
+    and CLI application access to work correctly. This is the recommended deployment option.
+- Use [AWS ACM](https://aws.amazon.com/certificate-manager/) to handle TLS termination with AWS-managed certificates (described in [Step 4b](#step-4b-use-acm-to-handle-tls))
+  - The use of ACM will not allow Teleport to handle PostgreSQL database connections or application access via CLI, as
+    Teleport will not be handling its own TLS termination.
+
+You must choose only one of these options.
+
+## Step 4a. Install and configure cert-manager to handle TLS
+
+Reference: [`cert-manager` docs](https://cert-manager.io/docs/)
+
+In this example, we are using multiple pods to create a High Availability Teleport cluster. As such, we will be using
+`cert-manager` to centrally provision TLS certificates using Let's Encrypt. These certificates will be mounted into each
+Teleport pod, and automatically renewed and kept up to date by `cert-manager`.
+
+If you are planning to use `cert-manager`, you will need to add one additional IAM policy to your cluster to enable it
+to update Route53 records.
+
 ### Route53 IAM policy
 
 This policy allows `cert-manager` to use DNS01 Let's Encrypt challenges to provision TLS certificates for your Teleport cluster.
@@ -153,13 +178,7 @@ You'll need to replace these values in the policy example below:
 }
 ```
 
-## Step 4. Install and configure cert-manager
-
-Reference: [`cert-manager` docs](https://cert-manager.io/docs/)
-
-In this example, we are using multiple pods to create a High Availability Teleport cluster. As such, we will be using
-`cert-manager` to centrally provision TLS certificates using Let's Encrypt. These certificates will be mounted into each
-Teleport pod, and automatically renewed and kept up to date by `cert-manager`.
+### Installing cert-manager
 
 If you do not have `cert-manager` already configured in the Kubernetes cluster where you are installing Teleport,
 you should add the Jetstack Helm chart repository which hosts the `cert-manager` chart, and install the chart:
@@ -215,6 +234,51 @@ After you have created the `Issuer` and updated the values, add it to your clust
 $ kubectl create namespace teleport
 $ kubectl --namespace teleport create -f aws-issuer.yaml
 ```
+
+## Step 4b. Use ACM to handle TLS
+
+To use ACM to handle TLS, add additional annotations to the chart specifying the ACM certificate ARN to use.
+
+We also use the `extraArgs` value to disable Teleport's TLS listener, making the backend connection use plain TCP from the load balancer
+to the pod.
+
+Replace `arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece` with your actual ACM certificate ARN.
+
+<Tabs>
+  <TabItem label="Using values.yaml">
+  ```yaml
+  extraArgs: ['--insecure-no-tls']
+  annotations:
+    service:
+      service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece"
+      service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+  ```
+  </TabItem>
+
+  <TabItem label="Using --set via CLI">
+
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. This gets harder and harder with
+    nested values containing dots like AWS annotations. We recommend using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+
+  ```code
+    --set extraArgs[0]="--insecure-no-tls" \
+    --set "annotations.service.service.\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert:\"arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece\"" \
+    --set "annotations.service.service.\.beta\.kubernetes\.io/aws-load-ssl-ports:\"443\""
+  ```
+  </TabItem>
+</Tabs>
+
+<Admonition type="note" title="Internal load balancers">
+  To use an internal AWS network load balancer (as opposed to the default internet-facing NLB), you should add two additional annotations:
+
+  ```yaml
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+  ```
+</Admonition>
+
 
 ## Step 5. Set values to configure the cluster
 
@@ -322,7 +386,7 @@ $ MY_CLUSTER_REGION='us-west-2'
 $ MYZONE="$(aws route53 list-hosted-zones-by-name --dns-name="${MYZONE_DNS?}" | jq -r '.HostedZones[0].Id' | sed s_/hostedzone/__)"
 $ MYELB="$(kubectl --namespace "${NAMESPACE?}" get "service/${RELEASE_NAME?}" -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')"
 $ MYELB_NAME="${MYELB%%-*}"
-$ MYELB_ZONE="$(aws elb describe-load-balancers --region "${MY_CLUSTER_REGION?}" --load-balancer-names "${MYELB_NAME?}" | jq -r '.LoadBalancerDescriptions[0].CanonicalHostedZoneNameID')"
+$ MYELB_ZONE="$(aws elbv2 describe-load-balancers --region "${MY_CLUSTER_REGION?}" --names "${MYELB_NAME?}" | jq -r '.LoadBalancers[0].CanonicalHostedZoneId')"
 
 # Create a JSON file changeset for AWS.
 $ jq -n --arg dns "${MYDNS?}" --arg elb "${MYELB?}" --arg elbz "${MYELB_ZONE?}" \
