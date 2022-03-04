@@ -40,8 +40,8 @@
                 "secondFactor": {
                     "$id": "#/properties/authenticationSecondFactor/properties/secondFactor",
                     "type": "string",
-                    "enum": ["on", "optional", "webauthn"],
-                    "default": "on"
+                    "enum": ["off", "on", "otp", "optional", "webauthn"],
+                    "default": "otp"
                 },
                 "webauthn": {
                     "$id": "#/properties/authenticationSecondFactor/properties/webauthn",
