@@ -943,9 +943,9 @@ message AddMFADeviceRequestInit {
     string DeviceName = 1;
     reserved 2; // LegacyDeviceType LegacyType
     DeviceType DeviceType = 3;
-    // Requested usage for the device.
+    // DeviceUsage is the requested usage for the device.
     // Defaults to DEVICE_USAGE_MFA.
-    DeviceUsage device_usage = 4 [ (gogoproto.jsontag) = "device_usage,omitempty" ];
+    DeviceUsage DeviceUsage = 4 [ (gogoproto.jsontag) = "device_usage,omitempty" ];
 }
 
 // AddMFADeviceResponseAck is a confirmation of successful device registration.
@@ -1391,14 +1391,15 @@ message UserCredentials {
     bytes Password = 2 [ (gogoproto.jsontag) = "password" ];
 }
 
+// ContextUser marks requests that rely in the currently authenticated user.
+message ContextUser {}
+
+// Passwordless marks requests for passwordless challenges.
+message Passwordless {}
+
 // CreateAuthenticateChallengeRequest is a request for creating MFA authentication challenges for a
 // users mfa devices.
 message CreateAuthenticateChallengeRequest {
-    // Request type that relies in the currently authenticated user.
-    message ContextUser {}
-    // Request type for passwordless challenges.
-    message Passwordless {}
-
     // Request defines how the request will be verified before creating challenges.
     // An empty Request is equivalent to context_user being set.
     oneof Request {
@@ -1410,11 +1411,12 @@ message CreateAuthenticateChallengeRequest {
         // VerifyAccountRecovery (step 2 of the recovery process after RPC StartAccountRecovery).
         string RecoveryStartTokenID = 2
             [ (gogoproto.jsontag) = "recovery_start_token_id,omitempty" ];
-        // Issues a challenge for the currently-authenticated user.
+        // ContextUser issues a challenge for the currently-authenticated user.
         // Default option if no other is provided.
-        ContextUser context_user = 3 [ (gogoproto.jsontag) = "context_user,omitempty" ];
-        // Issues a passwordless challenge (authenticated user not required).
-        Passwordless passwordless = 4 [ (gogoproto.jsontag) = "passwordless,omitempty" ];
+        ContextUser ContextUser = 3 [ (gogoproto.jsontag) = "context_user,omitempty" ];
+        // Passwordless issues a passwordless challenge (authenticated user not
+        // required).
+        Passwordless Passwordless = 4 [ (gogoproto.jsontag) = "passwordless,omitempty" ];
     }
 }
 
@@ -1438,9 +1440,9 @@ message CreateRegisterChallengeRequest {
     string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
     // DeviceType is the type of MFA device to make a register challenge for.
     DeviceType DeviceType = 2 [ (gogoproto.jsontag) = "device_type" ];
-    // Requested usage for the device.
+    // DeviceUsage is the requested usage for the device.
     // Defaults to DEVICE_USAGE_MFA.
-    DeviceUsage device_usage = 3 [ (gogoproto.jsontag) = "device_usage,omitempty" ];
+    DeviceUsage DeviceUsage = 3 [ (gogoproto.jsontag) = "device_usage,omitempty" ];
 }
 
 // PaginatedResource represents one of the supported resources.
