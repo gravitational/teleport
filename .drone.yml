@@ -2271,9 +2271,9 @@ steps:
     ARCH: amd64
     BUILDBOX_PASSWORD:
       from_secret: BUILDBOX_PASSWORD
-    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
     OS: darwin
-    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
 - name: Copy Mac pkg artifacts
   commands:
@@ -3376,6 +3376,6 @@ volumes:
 
 ---
 kind: signature
-hmac: e0c9a444f13dc7affad8deabd4d212ebe83bc34e71026151f6481d3b253747f4
+hmac: af5f013409520332144fdd8bb86e68e8018e4c092118263889f76c8bf58bb2ed
 
 ...
