@@ -1966,62 +1966,75 @@ func TestListResources(t *testing.T) {
 func TestCustomRateLimiting(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		fn   func(*Client) error
+	ctx := context.Background()
+	tests := []struct {
+		name  string
+		burst int
+		fn    func(*Client) error
 	}{
 		{
 			name: "RPC ChangeUserAuthentication",
 			fn: func(clt *Client) error {
-				_, err := clt.ChangeUserAuthentication(context.Background(), &proto.ChangeUserAuthenticationRequest{})
+				_, err := clt.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{})
+				return err
+			},
+		},
+		{
+			name:  "RPC CreateAuthenticateChallenge",
+			burst: defaults.LimiterPasswordlessBurst,
+			fn: func(clt *Client) error {
+				_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC GetAccountRecoveryToken",
 			fn: func(clt *Client) error {
-				_, err := clt.GetAccountRecoveryToken(context.Background(), &proto.GetAccountRecoveryTokenRequest{})
+				_, err := clt.GetAccountRecoveryToken(ctx, &proto.GetAccountRecoveryTokenRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC StartAccountRecovery",
 			fn: func(clt *Client) error {
-				_, err := clt.StartAccountRecovery(context.Background(), &proto.StartAccountRecoveryRequest{})
+				_, err := clt.StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC VerifyAccountRecovery",
 			fn: func(clt *Client) error {
-				_, err := clt.VerifyAccountRecovery(context.Background(), &proto.VerifyAccountRecoveryRequest{})
+				_, err := clt.VerifyAccountRecovery(ctx, &proto.VerifyAccountRecoveryRequest{})
 				return err
 			},
 		},
 	}
-
-	for _, c := range cases {
-		c := c
-		t.Run(c.name, func(t *testing.T) {
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			// For now since we only have one custom rate limit,
-			// test limit for 1 request per minute with bursts up to 10 requests.
-			const maxAttempts = 11
-			var err error
-
-			// Create new instance per test case, to troubleshoot
-			// which test case specifically failed, otherwise
-			// multiple cases can fail from running cases in parallel.
+			// Create new instance per test case, to troubleshoot which test case
+			// specifically failed, otherwise multiple cases can fail from running
+			// cases in parallel.
 			srv := newTestTLSServer(t)
 			clt, err := srv.NewClient(TestNop())
 			require.NoError(t, err)
 
-			for i := 0; i < maxAttempts; i++ {
-				err = c.fn(clt)
-				require.Error(t, err)
+			var attempts int
+			if test.burst == 0 {
+				attempts = 10 // Good for most tests.
+			} else {
+				attempts = test.burst
 			}
-			require.True(t, trace.IsLimitExceeded(err))
+
+			for i := 0; i < attempts; i++ {
+				err = test.fn(clt)
+				require.False(t, trace.IsLimitExceeded(err), "got err = %v, want non-IsLimitExceeded", err)
+			}
+
+			err = test.fn(clt)
+			require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
 		})
 	}
 }
