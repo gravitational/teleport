@@ -1,4 +1,32 @@
 ---
+kind: pipeline
+type: kubernetes
+name: update-docs-webhook
+
+trigger:
+  event:
+    include:
+      - push
+    exclude:
+      - pull_request
+  branch:
+    include:
+      - master
+      - branch/*
+  repo:
+    include:
+      - gravitational/teleport
+
+clone:
+  disable: true
+
+steps:
+  - name: Trigger docs deployment
+    image: plugins/webhook
+    settings:
+      urls:
+        from_secret: DOCS_DEPLOY_HOOK
+---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
@@ -9,8 +37,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64
 environment:
+  BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: go1.17.7
   UID: "1000"
 trigger:
   event:
@@ -111,8 +140,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-386
 environment:
+  BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: go1.17.7
   UID: "1000"
 trigger:
   event:
@@ -213,8 +243,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64-fips
 environment:
+  BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: go1.17.7
   UID: "1000"
 trigger:
   event:
@@ -319,8 +350,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-windows-amd64
 environment:
+  BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: go1.17.7
   UID: "1000"
 trigger:
   event:
@@ -480,7 +512,7 @@ steps:
   - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.17.2
+    RUNTIME: go1.17.7
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -563,8 +595,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-arm
 environment:
+  BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: go1.17.7
   UID: "1000"
 trigger:
   event:
@@ -665,8 +698,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-arm64
 environment:
+  BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: go1.17.7
   UID: "1000"
 trigger:
   event:
@@ -1025,7 +1059,8 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport10
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -1166,7 +1201,8 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport10
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -1306,7 +1342,8 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport10
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -1444,7 +1481,8 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport10
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -1575,7 +1613,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:410
 ################################################
 
 kind: pipeline
@@ -1741,7 +1779,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:410
 ################################################
 
 kind: pipeline
@@ -1904,7 +1942,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:410
 ################################################
 
 kind: pipeline
@@ -2056,7 +2094,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:410
 ################################################
 
 kind: pipeline
@@ -2212,7 +2250,8 @@ kind: pipeline
 type: kubernetes
 name: build-linux-386
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport10
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -2343,7 +2382,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:410
 ################################################
 
 kind: pipeline
@@ -2509,7 +2548,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:410
 ################################################
 
 kind: pipeline
@@ -2727,7 +2766,7 @@ steps:
   - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.17.2
+    RUNTIME: go1.17.7
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -3113,9 +3152,9 @@ steps:
     ARCH: amd64
     BUILDBOX_PASSWORD:
       from_secret: BUILDBOX_PASSWORD
-    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
+    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
     OS: darwin
-    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
+    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
 - name: Copy Mac pkg artifacts
   commands:
@@ -3194,7 +3233,8 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport10
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -3332,7 +3372,8 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm64
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport10
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -3463,7 +3504,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:410
 ################################################
 
 kind: pipeline
@@ -3615,7 +3656,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:410
 ################################################
 
 kind: pipeline
@@ -3767,7 +3808,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:410
 ################################################
 
 kind: pipeline
@@ -3933,7 +3974,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:410
 ################################################
 
 kind: pipeline
@@ -4106,7 +4147,8 @@ kind: pipeline
 type: kubernetes
 name: build-windows-amd64
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport10
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -4242,7 +4284,8 @@ type: kubernetes
 name: build-docker-images
 
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: "teleport10"
+  RUNTIME: go1.17.7
 
 trigger:
   event:
@@ -4305,7 +4348,7 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION || true
       - cd /go/src/github.com/gravitational/teleport
       - make image-ci publish-ci
 
@@ -4330,7 +4373,7 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - docker pull quay.io/gravitational/teleport-buildbox:BUILDBOX_VERSION || true
       - cd /go/src/github.com/gravitational/teleport
       # VERSION needs to be set manually when running in the e directory.
       # Normally, the version is set and exported by the root Makefile and then inherited,
@@ -4566,8 +4609,8 @@ kind: pipeline
 type: kubernetes
 name: build-buildboxes
 environment:
+  BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.17.2
   UID: "1000"
 trigger:
   event:
@@ -4579,6 +4622,7 @@ trigger:
   branch:
     include:
     - master
+    - branch/*
 workspace:
   path: /go/src/github.com/gravitational/teleport
 clone:
@@ -4604,7 +4648,7 @@ steps:
   - chown -R $UID:$GID /go
   - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
   - make -C build.assets buildbox
-  - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
+  - docker push quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION
   environment:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
@@ -4620,7 +4664,7 @@ steps:
   - chown -R $UID:$GID /go
   - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
   - make -C build.assets buildbox-fips
-  - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
+  - docker push quay.io/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
   environment:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
@@ -4636,7 +4680,7 @@ steps:
   - chown -R $UID:$GID /go
   - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
   - make -C build.assets buildbox-arm
-  - docker push quay.io/gravitational/teleport-buildbox-arm:$RUNTIME
+  - docker push quay.io/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION
   environment:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
@@ -5040,6 +5084,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 2fa9a32bf1f8b0fe5ef6abb7b0cdd30df5cd8813ca2bdbc3fdbd9b1d7296f459
+hmac: 7bc6b007cceb818562c22dedb8a0371cd3b1b160bd845dda8d0c90e0a19ec21a
 
 ...
