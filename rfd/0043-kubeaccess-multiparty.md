@@ -159,7 +159,7 @@ There are 9 kinds of broadcast messages:
 - `Creating session with uuid <example-uuid>...`: Sent on session creation.
 - `User <user> joined the session.`: Sent when a user joins the session.
 - `User <user> left the session.`: Sent when a user leaves the session.
-- `Lanching session...`: Sent when the session is launched and thus tranferred to a normal shell.
+- `Launching session...`: Sent when the session is launched and thus transferred to a normal shell.
 - `Session closed.`: Sent when the session is closed due to the termination of the shell.
 - `Session forcefully terminated`: Sent when moderator forcefully terminates a session.
 - `Session paused, waiting for additional participants...`: Sent when a session is paused due to lack of required participants.
