@@ -1813,7 +1813,8 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *proto.DeleteRoleReques
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream proto.AuthService_MaintainSessionPresenceServer, challengeReq *proto.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
 
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user)
+	const passwordless = false
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, passwordless)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1835,7 +1836,7 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream proto
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", challengeResp)
 	}
 
-	if _, err := actx.authServer.validateMFAAuthResponse(ctx, user, challengeResp); err != nil {
+	if _, _, err := actx.authServer.validateMFAAuthResponse(ctx, challengeResp, user, passwordless); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1964,7 +1965,8 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_AddMF
 	ctx := stream.Context()
 
 	// Note: authChallenge may be empty if this user has no existing MFA devices.
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user)
+	const passwordless = false
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user, passwordless)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1984,7 +1986,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_AddMF
 	}
 	// Only validate if there was a challenge.
 	if authChallenge.TOTP != nil || authChallenge.WebauthnChallenge != nil {
-		if _, err := auth.validateMFAAuthResponse(ctx, user, authResp); err != nil {
+		if _, _, err := auth.validateMFAAuthResponse(ctx, authResp, user, passwordless); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2006,6 +2008,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	res, err := auth.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
 		username:            user,
 		deviceType:          initReq.DeviceType,
+		deviceUsage:         initReq.DeviceUsage,
 		webIdentityOverride: webIdentity,
 	})
 	if err != nil {
@@ -2088,7 +2091,8 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_De
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user)
+	const passwordless = false
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user, passwordless)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2107,7 +2111,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_De
 	if authResp == nil {
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req)
 	}
-	if _, err := auth.validateMFAAuthResponse(ctx, user, authResp); err != nil {
+	if _, _, err := auth.validateMFAAuthResponse(ctx, authResp, user, passwordless); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -2251,7 +2255,8 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 
-	challenge, err := auth.mfaAuthChallenge(ctx, user)
+	const passwordless = false
+	challenge, err := auth.mfaAuthChallenge(ctx, user, passwordless)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2272,7 +2277,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	if authResp == nil {
 		return nil, trace.BadParameter("expected MFAAuthenticateResponse, got %T", req.Request)
 	}
-	mfaDev, err := auth.validateMFAAuthResponse(ctx, user, authResp)
+	mfaDev, _, err := auth.validateMFAAuthResponse(ctx, authResp, user, passwordless)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
