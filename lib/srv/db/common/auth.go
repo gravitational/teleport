@@ -287,7 +287,7 @@ func (a *dbAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (
 // GetTLSConfig builds the client TLS configuration for the session.
 //
 // For RDS/Aurora, the config must contain RDS root certificate as a trusted
-// authority. For onprem we generate a client certificate signed by the host
+// authority. For on-prem we generate a client certificate signed by the host
 // CA used to authenticate.
 func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
 	dbTLSConfig := sessionCtx.Database.GetTLS()
@@ -295,7 +295,7 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 	// Mode won't be set for older clients. We will default to VerifyFull then - the same as before.
 	switch dbTLSConfig.Mode {
 	case types.DatabaseTLSMode_INSECURE:
-		return getTLSConfigInsecure(), nil
+		return a.getTLSConfigInsecure(ctx, sessionCtx)
 	case types.DatabaseTLSMode_VERIFY_CA:
 		return a.getTLSConfigVerifyCA(ctx, sessionCtx)
 	default:
@@ -381,7 +381,7 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 
 // getTLSConfigInsecure generates tls.Config when TLS mode is equal to 'insecure'.
 // Generated configuration will accept any certificate provided by database.
-func getTLSConfigInsecure() *tls.Config {
+func (a *dbAuth) getTLSConfigInsecure(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		RootCAs: x509.NewCertPool(),
 	}
@@ -389,7 +389,7 @@ func getTLSConfigInsecure() *tls.Config {
 	// Accept any certificate provided by database.
 	tlsConfig.InsecureSkipVerify = true
 
-	return tlsConfig
+	return a.appendClientCert(ctx, sessionCtx, tlsConfig)
 }
 
 // getTLSConfigVerifyCA generates tls.Config when TLS mode is equal to 'verify-ca'.
