@@ -1,22 +1,27 @@
 ---
-title: Getting started with Teleport using Docker
-description: How to get started with Teleport Open Source Edition using Docker locally.
+title: How to Run Teleport Using Docker
+description: How to run Teleport using Docker.
 h1: Run Teleport using Docker
 ---
 
-This section will cover:
+This guide will explain how to run a container using one of Teleport's Docker
+images and execute commands on that container via Teleport's `tsh` client.
 
-- Getting started with a local Teleport using Docker.
-- Using Teleport with Teleport's native client, `tsh`.
+<Notice scope={["cloud"]} type="tip">
 
-<Details scope={["cloud"]} title="Teleport Cloud" scopeOnly={true} opened={true}>
-Teleport Cloud includes managed instances of Teleport's Auth Service and Proxy Service. Since all of Teleport's services are run from the same binary, you can use our Docker image to run other services (e.g., the Database Service or App Service), or explore the Auth and Proxy Services locally.
-</Details>
+Since all of Teleport's services are run from the same binary, you can
+use our Docker image to run Node services (e.g., the Database Service or App
+Service) or explore the Auth and Proxy Services locally.
+
+</Notice>
 
 ## Prerequisites
 
-- Teleport v(=teleport.version=) Open Source or Enterprise.
-- Docker v(=docker.version=) or later.
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+
+- Docker v(=docker.version=) or later. We currently only offer Docker images for
+  `x86_64` architectures.
 
 ```code
 $ docker version
@@ -24,25 +29,77 @@ $ docker version
 # Version:           (=docker.version=)
 ```
 
+- The `tsh` client tool, which ships with the `teleport` binary. Visit [Download Teleport](/teleport/download/) to download the open source edition.
+
+</TabItem>
+<TabItem scope={["cloud", "enterprise"]} label="Commercial">
+
+- Docker v(=docker.version=) or later. We currently only offer Docker images for
+  `x86_64` architectures.
+
+```code
+$ docker version
+# Client: Docker Engine - Community
+# Version:           (=docker.version=)
+```
+
+- The Enterprise edition of the `tsh` client tool, which ships with the `teleport` binary. Visit the [customer portal](https://dashboard.gravitational.com/web/login) to download Teleport.
+
+</TabItem>
+</Tabs>
 
 ## Step 1/4. Pick your image
 
-(!docs/pages/includes/image.mdx!)
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+We provide pre-built Docker images for every version of Teleport.
 
-## Step 2/4. Start teleport
+These images are hosted on quay.io. All tags under `quay.io/gravitational/teleport` [are Teleport Open Source images](https://quay.io/repository/gravitational/teleport?tag=latest\&tab=tags).
 
-Create teleport configs and start the process with sample `docker run` commands:
+The table below gives an idea of how our image naming scheme works. We offer images that
+point to a static version of Teleport, as well as images that are automatically rebuilt
+every night. These nightly images point to the latest version of Teleport from the
+three most recent release branches. They are stable, and we recommend their use to
+keep your Teleport installation up to date.
+
+<table>
+ <thead>
+   <tr><td>Image name</td><td>Teleport version</td><td>Image automatically updated?</td><td>Image base</td></tr>
+ </thead>
+ <tbody>
+   <tr><td>`(=teleport.latest_oss_docker_image=)`</td><td>The latest version of Teleport Open Source (=version=)</td><td>Yes</td><td>[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)</td></tr>
+   <tr><td>`quay.io/gravitational/teleport:(=teleport.version=)`</td><td>The version specified in the image's tag (i.e. (=teleport.version=))</td><td>No</td><td>[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)</td></tr> 
+ </tbody>
+</table>
+
+For testing, we always recommend that you use the latest release version of Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
+We provide pre-built Docker images for every version of Teleport.
+
+(!docs/pages/includes/enterprise/docker-images.mdx!)
+
+</TabItem>
+</Tabs>
+
+## Step 2/4. Start Teleport
+
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+
+Create Teleport configs and start the process with the following `docker run` commands:
 
 ```code
-# Create local config and data directories for teleport, which will be mounted into the container
+# Create local config and data directories for Teleport, which will be mounted
+# into the container.
 $ mkdir -p ~/teleport/config ~/teleport/data
-# Generate a sample teleport config and write it to the local config directory.
-# This container will write the config and immediately exit - this is expected.
+# Generate a sample Teleport config and write it to the local config directory.
+# This container will write the config and immediately exit--this is expected.
 $ docker run --hostname localhost --rm \
   --entrypoint=/bin/sh \
   -v ~/teleport/config:/etc/teleport \
-  (=teleport.latest_oss_docker_image=) -c "teleport configure > /etc/teleport/teleport.yaml"
-# Start teleport with mounted config and data directories, plus all ports
+  (=teleport.latest_oss_docker_image=) bash -c "teleport configure > /etc/teleport/teleport.yaml"
+# Start Teleport with mounted config and data directories, plus all ports
 $ docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
   -v ~/teleport/data:/var/lib/teleport \
@@ -50,11 +107,37 @@ $ docker run --hostname localhost --name teleport \
   (=teleport.latest_oss_docker_image=)
 ```
 
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
+
+Create Teleport configs and start the process with the following `docker run` commands:
+
+```code
+# Create local config and data directories for Teleport, which will be mounted
+# into the container.
+$ mkdir -p ~/teleport/config ~/teleport/data
+# Generate a sample Teleport config and write it to the local config directory.
+# This container will write the config and immediately exit--this is expected.
+$ docker run --hostname localhost --rm \
+  --entrypoint=/bin/sh \
+  -v ~/teleport/config:/etc/teleport \
+  (=teleport.latest_ent_docker_image=) bash -c "teleport configure > /etc/teleport/teleport.yaml"
+# Start Teleport with mounted config and data directories, plus all ports
+$ docker run --hostname localhost --name teleport \
+  -v ~/teleport/config:/etc/teleport \
+  -v ~/teleport/data:/var/lib/teleport \
+  -p 3023:3023 -p 3025:3025 -p 3080:3080 \
+  (=teleport.latest_ent_docker_image=)
+```
+
+</TabItem>
+</Tabs>
+
 ## Step 3/4. Creating a Teleport user
 
 To create a user inside your Teleport container, use `docker exec`.
 
-This example command will create a Teleport user called `testuser` which is allowed to log in as either operating system user `root` or `ubuntu`:
+This example command will create a Teleport user called `testuser` which is allowed to log in as either `root` or `ubuntu` on the host operating system:
 
 ```code
 $ docker exec teleport tctl users add testuser --roles=editor,access --logins=root,ubuntu,ec2-user
@@ -74,11 +157,9 @@ The Web UI will be available at the displayed URL.
 
 ## Step 4/4. tsh into your Teleport container
 
-Finish signing up and creating your user using the generated link created previously.
-
-[Download and install](https://goteleport.com/teleport/download) a copy of Teleport locally. Doing so will install the `tsh` tool so you can interact with Docker containers.
-
-Open a second terminal and issue the command:
+After you have finished creating your user, open a second terminal and issue the
+command, which will log in to your Teleport cluster via the Proxy Service at
+`localhost`.
 
 ```code
 $ tsh login --proxy=localhost --insecure --user=testuser
@@ -120,7 +201,7 @@ $ tsh ls
 # localhost 127.0.0.1:3022 env=example, hostname=localhost 
 ```
 
-To SSH into the local Node `localhost` (running in your Docker container) issue the following `tsh` command:
+To SSH into the local Node called `localhost`:
 
 ```code
 $ tsh ssh root@localhost

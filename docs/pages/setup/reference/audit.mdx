@@ -3,32 +3,65 @@ title: Audit Events and Records
 description: Reference of Teleport Audit Events and Session Records
 ---
 
-Teleport logs every SSH event into its audit log. There are two components of
-the audit log:
+Teleport logs SSH, Kubernetes, and database event into its audit log. There are
+two components of the audit log:
 
-1. **Cluster Events:** Teleport logs events like successful user logins along with the metadata like remote IP address, time, and the session ID.
-2. **Recorded Sessions:** Every SSH or Kubernetes shell session is recorded and can be replayed later. The recording is done by the nodes themselves, by default,
+<Tabs>
+<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
+
+
+1. **Cluster Events:** Teleport logs events like successful user logins along
+   with metadata like remote IP address, time, and the session ID.
+2. **Recorded Sessions:** Every SSH or Kubernetes shell session is recorded and
+   can be replayed later. By default, the recording is done by Teleport Nodes,
    but can be configured to be done by the proxy.
-3. **Optional: [BPF Session Recording](../../server-access/guides/bpf-session-recording.mdx)**
 
-Refer to the ["Audit Log" chapter in the Teleport
-Architecture](../../architecture/authentication.mdx#audit-log) to learn more about how the Audit Log and Session Recording are designed.
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+
+1. **Cluster Events:** Teleport logs events like successful user logins along
+   with metadata like remote IP address, time, and the session ID.
+2. **Recorded Sessions:** Every SSH or Kubernetes shell session is recorded and
+   can be replayed later. Teleport Cloud manages the storage of session
+   recording data.
+
+</TabItem>
+</Tabs>
+
+<Notice type="tip">
+
+You can use
+[Enhanced Session Recording with BPF](../../server-access/guides/bpf-session-recording.mdx)
+to get even more comprehensive audit logs with advanced security.
+
+</Notice>
+
+Refer to the
+["Audit Log" section](../../architecture/authentication.mdx#audit-log) in the
+Teleport architecture guide to learn more about how the audit log and Session
+Recording are designed.
 
 ## Events
 
-Teleport supports multiple storage back-ends for storing the SSH, Application, and Kubernetes events.
-The section below uses the `dir` backend as an example. `dir` backend uses the local
-filesystem of an auth server using the configurable `data_dir` directory.
+<Tabs>
+<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
+
+Teleport supports multiple storage backends for storing audit events. The `dir`
+backend uses the local filesystem of an Auth Service host.
 
 For High Availability configurations, users can refer to our
-[DynamoDB](./backends.mdx#dynamodb) or [Firestore](./backends.mdx#firestore) chapters for information
-on how to configure the SSH events and recorded sessions to be stored on
-network storage. It is even possible to store the audit log in multiple places at the
-same time - see `audit_events_uri` setting in the sample configuration file above for
-how to do that.
+[DynamoDB](./backends.mdx#dynamodb) or [Firestore](./backends.mdx#firestore)
+chapters for information on how to configure the SSH events and recorded
+sessions to be stored on network storage. 
+
+It is even possible to store audit logs in multiple places at the same time.
+For more information on how to configure the audit log, refer to the `storage`
+section of the example configuration file in the
+[Teleport Configuration Reference](./config.mdx).
 
 Let's examine the Teleport audit log using the `dir` backend. The event log is
-stored in `data_dir` under `log` directory, usually `/var/lib/teleport/log` .
+stored in the `data_dir` under `log` directory, usually `/var/lib/teleport/log`.
 Each day is represented as a file:
 
 ```code
@@ -40,15 +73,26 @@ $ ls -l /var/lib/teleport/log/
 # -rw-r----- 1 root root  15815 Feb 32 22:54 2017-02-03.00:00:00.log
 ```
 
-The log files use JSON format. They are human-readable but can also be
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+Teleport Cloud manages the storage of audit logs for you. You can access your
+audit logs via the Teleport Web UI by clicking:
+
+**Activity** > **Audit Log**
+
+</TabItem>
+</Tabs>
+
+Audit logs use JSON format. They are human readable but can also be
 programmatically parsed. Each line represents an event and has the following
 format:
 
 ```javascript
 {
-    // Event type. See below for the list of all possible event types
+    // Event type. See below for the list of all possible event types.
     "event": "session.start",
-    // uid: A unique ID for the event log. Useful for  deduplication.
+    // A unique ID for the event log. Useful for  deduplication.
     "uid": "59cf8d1b-7b36-4894-8e90-9d9713b6b9ef",
     // Teleport user name
     "user": "ekontsevoy",
@@ -56,9 +100,9 @@ format:
     "login": "root",
     // Server namespace. This field is reserved for future use.
     "namespace": "default",
-    // Unique server ID.
+    // Unique server ID
     "server_id": "f84f7386-5e22-45ff-8f7d-b8079742e63f",
-    // Server Labels.
+    // Server Labels
     "server_labels": {
       "datacenter": "us-east-1",
       "label-b": "x"
@@ -75,6 +119,8 @@ format:
     "time": "2017-02-03T06:54:05Z"
 }
 ```
+
+## Event types
 
 The possible event types are:
 
@@ -96,8 +142,12 @@ The possible event types are:
 | app.session.chunk | A record of activity during an app session |
 
 ## Recorded sessions
+In addition to logging `session.start` and `session.end` events, Teleport also
+records the entire stream of bytes going to/from the standard input and standard
+output of an SSH session.
 
-In addition to logging `session.start` and `session.end` events, Teleport also records the entire stream of bytes going to/from standard input and standard the output of an SSH session.
+<Tabs>
+<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
 Teleport can store the recorded sessions in an [AWS S3 bucket](./backends.mdx#s3)
 or in a local filesystem (including NFS).
@@ -105,7 +155,8 @@ or in a local filesystem (including NFS).
 The recorded sessions are stored as raw bytes in the `sessions` directory under
 `log`. Each session is a binary protobuf-encoded stream of data.
 
-You can decode events using [`tsh play`](./cli.mdx#tsh-play) or the Web UI to replay it.
+You can replay recorded sessions using the [`tsh play`](./cli.mdx#tsh-play) command or the Web
+UI.
 
 For example, replay a session via CLI:
 
@@ -113,8 +164,31 @@ For example, replay a session via CLI:
 $ tsh --proxy=proxy play 4c146ec8-eab6-11e6-b1b3-40167e68e931
 ```
 
-Print the session events in json to stdout:
+Print the session events in JSON to stdout:
 
 ```code
 $ tsh --proxy=proxy play 4c146ec8-eab6-11e6-b1b3-40167e68e931 --format=json
 ```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+Teleport Cloud automatically stores recorded sessions.
+
+You can replay recorded sessions using the [`tsh play`](./cli.mdx#tsh-play) command or the Web
+UI.
+
+For example, replay a session via CLI:
+
+```code
+$ tsh --proxy=proxy play 4c146ec8-eab6-11e6-b1b3-40167e68e931
+```
+
+Print the session events in JSON to stdout:
+
+```code
+$ tsh --proxy=proxy play 4c146ec8-eab6-11e6-b1b3-40167e68e931 --format=json
+```
+
+</TabItem>
+</Tabs>
