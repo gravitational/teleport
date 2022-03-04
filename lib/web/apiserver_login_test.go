@@ -20,7 +20,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -29,133 +28,26 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
 
-func TestU2FLogin(t *testing.T) {
-	for _, sf := range []constants.SecondFactorType{
-		constants.SecondFactorU2F,
-		constants.SecondFactorOptional,
-		constants.SecondFactorOn,
-	} {
-		sf := sf
-		t.Run(fmt.Sprintf("second_factor_%s", sf), func(t *testing.T) {
-			t.Parallel()
-			testU2FLogin(t, sf)
-		})
-	}
-}
-
-func testU2FLogin(t *testing.T, sf constants.SecondFactorType) {
-	env := newWebPack(t, 1)
-	clusterMFA := configureClusterForMFA(t, env, &types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: sf,
-		U2F: &types.U2F{
-			AppID:  "https://" + env.server.TLS.ClusterName(),
-			Facets: []string{"https://" + env.server.TLS.ClusterName()},
-		},
-	})
-	user := clusterMFA.User
-	password := clusterMFA.Password
-	device := clusterMFA.U2FDev.Key
-
-	// normal login
-	clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
-	require.NoError(t, err)
-	re, err := clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.MFAChallengeRequest{
-		User: user,
-		Pass: password,
-	})
-	require.NoError(t, err)
-	var u2fSignReq u2f.AuthenticateChallenge
-	require.NoError(t, json.Unmarshal(re.Bytes(), &u2fSignReq))
-
-	u2fSignResp, err := device.SignResponse(&u2fSignReq)
-	require.NoError(t, err)
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), &client.AuthenticateWebUserRequest{
-		User:            user,
-		U2FSignResponse: u2fSignResp,
-	})
-	require.NoError(t, err)
-
-	// bad login: corrupted sign responses, should fail
-	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.MFAChallengeRequest{
-		User: user,
-		Pass: password,
-	})
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal(re.Bytes(), &u2fSignReq))
-
-	u2fSignResp, err = device.SignResponse(&u2fSignReq)
-	require.NoError(t, err)
-
-	// corrupted KeyHandle
-	u2fSignRespCopy := u2fSignResp
-	u2fSignRespCopy.KeyHandle = u2fSignRespCopy.KeyHandle + u2fSignRespCopy.KeyHandle
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), &client.AuthenticateWebUserRequest{
-		User:            user,
-		U2FSignResponse: u2fSignRespCopy,
-	})
-	require.Error(t, err)
-
-	// corrupted SignatureData
-	u2fSignRespCopy = u2fSignResp
-	u2fSignRespCopy.SignatureData = u2fSignRespCopy.SignatureData[:10] + u2fSignRespCopy.SignatureData[20:]
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), &client.AuthenticateWebUserRequest{
-		User:            user,
-		U2FSignResponse: u2fSignRespCopy,
-	})
-	require.Error(t, err)
-
-	// corrupted ClientData
-	u2fSignRespCopy = u2fSignResp
-	u2fSignRespCopy.ClientData = u2fSignRespCopy.ClientData[:10] + u2fSignRespCopy.ClientData[20:]
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), &client.AuthenticateWebUserRequest{
-		User:            user,
-		U2FSignResponse: u2fSignRespCopy,
-	})
-	require.Error(t, err)
-
-	// bad login: counter not increasing, should fail
-	device.SetCounter(0)
-	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.MFAChallengeRequest{
-		User: user,
-		Pass: password,
-	})
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal(re.Bytes(), &u2fSignReq))
-
-	u2fSignResp, err = device.SignResponse(&u2fSignReq)
-	require.NoError(t, err)
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), &client.AuthenticateWebUserRequest{
-		User:            user,
-		U2FSignResponse: u2fSignResp,
-	})
-	require.Error(t, err)
-}
-
-func TestWebauthnLogin_ssh_u2fDevice(t *testing.T) {
+func TestWebauthnLogin_ssh(t *testing.T) {
 	env := newWebPack(t, 1)
 	clusterMFA := configureClusterForMFA(t, env, &types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
-		U2F: &types.U2F{
-			AppID:  "https://" + env.server.TLS.ClusterName(),
-			Facets: []string{"https://" + env.server.TLS.ClusterName()},
+		Webauthn: &types.Webauthn{
+			RPID: env.server.TLS.ClusterName(),
 		},
 		// Use default Webauthn configuration.
 	})
 	user := clusterMFA.User
 	password := clusterMFA.Password
-	device := clusterMFA.U2FDev.Key
+	device := clusterMFA.WebDev.Key
 
 	clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
 	require.NoError(t, err)
@@ -167,7 +59,7 @@ func TestWebauthnLogin_ssh_u2fDevice(t *testing.T) {
 		Pass: password,
 	})
 	require.NoError(t, err)
-	authChallenge := &auth.MFAAuthenticateChallenge{}
+	authChallenge := &client.MFAAuthenticateChallenge{}
 	require.NoError(t, json.Unmarshal(beginResp.Bytes(), authChallenge))
 	require.NotNil(t, authChallenge.WebauthnChallenge)
 
@@ -199,20 +91,19 @@ func TestWebauthnLogin_ssh_u2fDevice(t *testing.T) {
 	require.NotEmpty(t, loginResp.HostSigners)
 }
 
-func TestWebauthnLogin_web_u2fDevice(t *testing.T) {
+func TestWebauthnLogin_web(t *testing.T) {
 	env := newWebPack(t, 1)
 	clusterMFA := configureClusterForMFA(t, env, &types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
-		U2F: &types.U2F{
-			AppID:  "https://" + env.server.TLS.ClusterName(),
-			Facets: []string{"https://" + env.server.TLS.ClusterName()},
+		Webauthn: &types.Webauthn{
+			RPID: env.server.TLS.ClusterName(),
 		},
 		// Use default Webauthn configuration.
 	})
 	user := clusterMFA.User
 	password := clusterMFA.Password
-	device := clusterMFA.U2FDev.Key
+	device := clusterMFA.WebDev.Key
 
 	clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
 	require.NoError(t, err)
@@ -224,7 +115,7 @@ func TestWebauthnLogin_web_u2fDevice(t *testing.T) {
 		Pass: password,
 	})
 	require.NoError(t, err)
-	authChallenge := &auth.MFAAuthenticateChallenge{}
+	authChallenge := &client.MFAAuthenticateChallenge{}
 	require.NoError(t, json.Unmarshal(beginResp.Bytes(), authChallenge))
 	require.NotNil(t, authChallenge.WebauthnChallenge)
 
@@ -247,9 +138,48 @@ func TestWebauthnLogin_web_u2fDevice(t *testing.T) {
 	require.NotEmpty(t, createSessionResp.SessionExpires.Unix())
 }
 
+func TestAuthenticate_rateLimiting(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name  string
+		burst int
+		fn    func(clt *client.WebClient) error
+	}{
+		{
+			name:  "/webapi/mfa/login/begin",
+			burst: defaults.LimiterPasswordlessBurst,
+			fn: func(clt *client.WebClient) error {
+				ep := clt.Endpoint("webapi", "mfa", "login", "begin")
+				_, err := clt.PostJSON(ctx, ep, &client.MFAChallengeRequest{})
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Use a separate webPack per test, so limits won't influence one another.
+			env := newWebPack(t, 1)
+			clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
+			require.NoError(t, err)
+
+			for i := 0; i < test.burst; i++ {
+				err := test.fn(clt)
+				require.False(t, trace.IsLimitExceeded(err), "got err = %v, want non-LimitExceeded", err)
+			}
+
+			err = test.fn(clt)
+			require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+		})
+	}
+}
+
 type configureMFAResp struct {
 	User, Password string
-	U2FDev         *auth.TestDevice
+	WebDev         *auth.TestDevice
 }
 
 func configureClusterForMFA(t *testing.T, env *webPack, spec *types.AuthPreferenceSpecV2) *configureMFAResp {
@@ -271,12 +201,12 @@ func configureClusterForMFA(t *testing.T, env *webPack, spec *types.AuthPreferen
 	// Register device.
 	clt, err := env.server.NewClient(auth.TestUser(user))
 	require.NoError(t, err)
-	u2fDev, err := auth.RegisterTestDevice(ctx, clt, "u2f", proto.DeviceType_DEVICE_TYPE_U2F, nil /* authenticator */)
+	webDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 	require.NoError(t, err)
 
 	return &configureMFAResp{
 		User:     user,
 		Password: password,
-		U2FDev:   u2fDev,
+		WebDev:   webDev,
 	}
 }

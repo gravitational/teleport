@@ -406,6 +406,11 @@ message CreateBotResponse {
     // TokenTTL is the TTL for the token. If it differs from the requested TTL,
     // it may have been limited by server policy.
     int64 TokenTTL = 4 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
+    // JoinMethod is the join method the bot must use to join the cluster.
+    string JoinMethod = 5 [
+        (gogoproto.jsontag) = "join_method",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.JoinMethod"
+    ];
 }
 
 // DeleteBotRequest is a request to delete a bot user
@@ -805,8 +810,7 @@ enum DeviceType {
     DEVICE_TYPE_UNSPECIFIED = 0;
     // TOTP is a Time-based One-Time Password device.
     DEVICE_TYPE_TOTP = 1;
-    // U2F is a U2F/CTAP1 capable device registered via U2F APIs.
-    DEVICE_TYPE_U2F = 2;
+    reserved 2; // DEVICE_TYPE_U2F
     // Webauthn is a device compatible with the Web Authentication
     // specification, registered via Webauthn APIs.
     // Supports various kinds of devices: U2F/CTAP1, CTAP2, platform
@@ -817,9 +821,7 @@ enum DeviceType {
 // MFAAuthenticateChallenge is a challenge for all MFA devices registered for a
 // user.
 message MFAAuthenticateChallenge {
-    // U2F contains one U2FChallenge per U2F device registered for a
-    // user. Each challenge is unique.
-    repeated U2FChallenge U2F = 1;
+    reserved 1; // repeated U2FChallenge U2F
     // TOTP is a challenge for all TOTP devices registered for a user. When
     // this field is set, any TOTP device a user has registered can be used to
     // respond.
@@ -836,25 +838,10 @@ message MFAAuthenticateChallenge {
 // of the MFA devices registered for a user.
 message MFAAuthenticateResponse {
     oneof Response {
-        U2FResponse U2F = 1;
+        // Removed: U2FResponse U2F = 1;
         TOTPResponse TOTP = 2;
         webauthn.CredentialAssertionResponse Webauthn = 3;
     }
-}
-
-// U2FChallenge is a U2F auth challenge.
-message U2FChallenge {
-    string KeyHandle = 1;
-    string Challenge = 2;
-    string AppID = 3;
-    string Version = 4;
-}
-
-// U2FResponse is a U2F auth challenge response.
-message U2FResponse {
-    string KeyHandle = 1;
-    string ClientData = 2;
-    string Signature = 3;
 }
 
 // TOTPChallenge is a challenge for all TOTP devices registered for a user.
@@ -872,7 +859,7 @@ message TOTPResponse { string Code = 1; }
 message MFARegisterChallenge {
     // Request depends on the type of the MFA device being registered.
     oneof Request {
-        U2FRegisterChallenge U2F = 1;
+        // Removed: U2FRegisterChallenge U2F = 1;
         TOTPRegisterChallenge TOTP = 2;
         webauthn.CredentialCreation Webauthn = 3;
     }
@@ -881,23 +868,10 @@ message MFARegisterChallenge {
 // MFARegisterResponse is a response to MFARegisterChallenge.
 message MFARegisterResponse {
     oneof Response {
-        U2FRegisterResponse U2F = 1;
+        // Removed: U2FRegisterResponse U2F = 1;
         TOTPRegisterResponse TOTP = 2;
         webauthn.CredentialCreationResponse Webauthn = 3;
     }
-}
-
-// U2FRegisterChallenge is a challenge for registering a new U2F device.
-message U2FRegisterChallenge {
-    string Challenge = 1;
-    string AppID = 2;
-    string Version = 3;
-}
-
-// U2FRegisterResponse is a response to U2FRegisterChallenge.
-message U2FRegisterResponse {
-    string RegistrationData = 1;
-    string ClientData = 2;
 }
 
 // TOTPRegisterChallenge is a challenge for registering a new TOTP device.
@@ -953,16 +927,6 @@ message AddMFADeviceResponse {
 
 // AddMFADeviceRequestInit describes the new MFA device.
 message AddMFADeviceRequestInit {
-    // DELETE IN 9.x, superseded by DeviceType (codingllama).
-    // LegacyDeviceType is deprecated in favor of DeviceType.
-    enum LegacyDeviceType {
-        TOTP = 0;
-        U2F = 1;
-        Webauthn = 2;
-    }
-    // LegacyType is deprecated in favor of DeviceType.
-    LegacyDeviceType LegacyType = 2 [ deprecated = true ];
-
     string DeviceName = 1;
     DeviceType DeviceType = 3;
 }
@@ -1487,6 +1451,9 @@ message ListResourcesRequest {
     // SortBy describes which resource field and which direction to sort by.
     types.SortBy SortBy = 8
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "sort_by,omitempty" ];
+    // NeedTotalCount indicates whether or not the caller also wants the total number of resources
+    // after filtering.
+    bool NeedTotalCount = 9 [ (gogoproto.jsontag) = "need_total_count,omitempty" ];
 }
 
 // ListResourceResponse response of ListResources.
@@ -1497,6 +1464,8 @@ message ListResourcesResponse {
     // continue retrieving pages of resource. If NextKey is empty, there are no
     // more pages.
     string NextKey = 2 [ (gogoproto.jsontag) = "next_key,omitempty" ];
+    // TotalCount is the total number of resources available after filter, if any.
+    int32 TotalCount = 3 [ (gogoproto.jsontag) = "total_count,omitempty" ];
 }
 
 // CreateSessionTrackerRequest is a request to create a new session.
