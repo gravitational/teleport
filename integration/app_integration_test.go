@@ -1065,7 +1065,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	if opts.leafAppServersCount > 0 {
 		leafAppServersCount = opts.leafAppServersCount
 	}
-	p.leafAppServers = p.startLeafAppServers(t, leafAppServersCount, opts.extraRootApps)
+	p.leafAppServers = p.startLeafAppServers(t, leafAppServersCount, opts.extraLeafApps)
 
 	// Create user for tests.
 	p.initUser(t, opts)
