@@ -19,7 +19,7 @@ Here's an overview of what you will do:
 
 Before using Machine ID, you will need an existing Teleport cluster.
 
-If you have not setup a Teleport cluster before, follow the
+If you have not set up a Teleport cluster before, follow the
 [Getting started](https://goteleport.com/docs/getting-started) to setup a
 Teleport cluster.
 
@@ -27,8 +27,11 @@ Teleport cluster.
 
 In this step, you will be downloading and installing Teleport binaries onto the
 machine you wish to assign an identity to. Teleport packages hosted on our
-downloads page ships with several useful binaries. The most important one for
-Machine ID is `tbot`.
+downloads page ships with several useful binaries, including `teleport`, `tctl`, `tsh`, and `tbot`:
+- `teleport` is the daemon used to initialize a Teleport cluster; this binary is not used in this guide
+- `tctl` is the administrative tool you will use to create the bot user (step 1/4)
+- `tsh` is the client tool you will use to log in to the Teleport Cluster (steps 2/4 and 4/4)
+- `tbot` is the Machine ID tool you will use to associate a bot user with a machine (step 3/4)
 
 Machine ID is available starting from the Teleport `9.0.0` release. Download
 the appropriate Teleport package for your platform from our
