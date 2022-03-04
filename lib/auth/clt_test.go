@@ -17,16 +17,25 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"crypto/tls"
+	"crypto/x509/pkix"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
 func TestClient_DialTimeout(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		desc    string
 		timeout time.Duration
@@ -76,4 +85,101 @@ func TestClient_DialTimeout(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestClient_RequestTimeout(t *testing.T) {
+	t.Parallel()
+
+	testDone := make(chan struct{})
+	sawRoot := make(chan bool, 1)
+	sawSlow := make(chan bool, 1)
+
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v2/authorities/host/rotate/external" {
+			sawRoot <- true
+			http.Redirect(w, r, "/slow", http.StatusFound)
+			return
+		}
+
+		if r.URL.Path == "/slow" {
+			sawSlow <- true
+			w.Write([]byte("Hello"))
+			w.(http.Flusher).Flush()
+
+			<-testDone
+			return
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(testDone) }) // before srv.Close, to unblock /slow handler
+
+	cfg := apiclient.Config{
+		Addrs: []string{srv.Listener.Addr().String()},
+		Credentials: []apiclient.Credentials{
+			apiclient.LoadTLS(&tls.Config{
+				InsecureSkipVerify: true,
+			}),
+		},
+	}
+	clt, err := NewClient(cfg)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, cfg.Credentials)
+	tlsCfg, err := cfg.Credentials[0].TLSConfig()
+	require.NoError(t, err)
+	srv.TLS = tlsCfg
+
+	srv.StartTLS()
+
+	ca := newCertAuthority(t, "test", types.HostCA)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	t.Cleanup(cancel)
+
+	err = clt.RotateExternalCertAuthority(ctx, ca)
+	require.ErrorIs(t, trace.Unwrap(err), context.DeadlineExceeded)
+
+	select {
+	case <-sawRoot:
+		// good.
+	default:
+		t.Fatal("handler never got /v2/authorities/host/rotate/external request")
+	}
+
+	select {
+	case <-sawSlow:
+		// good.
+	default:
+		t.Fatal("handler never got /slow request")
+	}
+}
+
+func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) types.CertAuthority {
+	ta := testauthority.New()
+	priv, pub, err := ta.GenerateKeyPair("")
+	require.NoError(t, err)
+
+	// CA for cluster1 with 1 key pair.
+	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: name}, nil, time.Minute)
+	require.NoError(t, err)
+
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        caType,
+		ClusterName: name,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey:     priv,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+				PublicKey:      pub,
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Cert: cert,
+				Key:  key,
+			}},
+		},
+		Roles:      nil,
+		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_256,
+	})
+	require.NoError(t, err)
+	return ca
 }
