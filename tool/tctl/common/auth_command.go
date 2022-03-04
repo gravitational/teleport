@@ -737,6 +737,15 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 		return nil
 	}
 	if a.proxyAddr != "" {
+		// User set --proxy. Validate it and set its scheme to https in case it was omitted.
+		u, err := url.Parse(a.proxyAddr)
+		if err != nil {
+			return trace.WrapWithMessage(err, "Specified --proxy URL is invalid")
+		}
+		if u.Scheme == "" {
+			u.Scheme = "https"
+		}
+		a.proxyAddr = u.String()
 		return nil
 	}
 

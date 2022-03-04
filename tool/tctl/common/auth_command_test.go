@@ -107,14 +107,24 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		wantError   string
 	}{
 		{
-			desc: "--proxy specified",
+			desc: "--proxy specified with URL scheme",
+			ac: AuthCommand{
+				output:        filepath.Join(tmpDir, "kubeconfig"),
+				outputFormat:  identityfile.FormatKubernetes,
+				signOverwrite: true,
+				proxyAddr:     "https://proxy-from-flag.example.com",
+			},
+			wantAddr: "https://proxy-from-flag.example.com",
+		},
+		{
+			desc: "--proxy specified without URL scheme",
 			ac: AuthCommand{
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
 				proxyAddr:     "proxy-from-flag.example.com",
 			},
-			wantAddr: "proxy-from-flag.example.com",
+			wantAddr: "https://proxy-from-flag.example.com",
 		},
 		{
 			desc: "k8s proxy running locally with public_addr",
