@@ -104,27 +104,42 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		ac          AuthCommand
 		wantAddr    string
 		wantCluster string
-		wantError   string
+		assertErr   require.ErrorAssertionFunc
 	}{
 		{
-			desc: "--proxy specified with URL scheme",
+			desc: "valid --proxy with URL scheme",
 			ac: AuthCommand{
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
 				proxyAddr:     "https://proxy-from-flag.example.com",
 			},
-			wantAddr: "https://proxy-from-flag.example.com",
+			wantAddr:  "https://proxy-from-flag.example.com",
+			assertErr: require.NoError,
 		},
 		{
-			desc: "--proxy specified without URL scheme",
+			desc: "valid --proxy without URL scheme",
 			ac: AuthCommand{
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
 				proxyAddr:     "proxy-from-flag.example.com",
 			},
-			wantAddr: "https://proxy-from-flag.example.com",
+			wantAddr:  "https://proxy-from-flag.example.com",
+			assertErr: require.NoError,
+		},
+		{
+			desc: "invalid --proxy",
+			ac: AuthCommand{
+				output:        filepath.Join(tmpDir, "kubeconfig"),
+				outputFormat:  identityfile.FormatKubernetes,
+				signOverwrite: true,
+				proxyAddr:     "1https://proxy-from-flag.example.com",
+			},
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "Specified --proxy URL is invalid")
+			},
 		},
 		{
 			desc: "k8s proxy running locally with public_addr",
@@ -137,7 +152,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 					PublicAddrs: []utils.NetAddr{{Addr: "proxy-from-config.example.com:3026"}},
 				}}},
 			},
-			wantAddr: "https://proxy-from-config.example.com:3026",
+			wantAddr:  "https://proxy-from-config.example.com:3026",
+			assertErr: require.NoError,
 		},
 		{
 			desc: "k8s proxy running locally without public_addr",
@@ -152,7 +168,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 					PublicAddrs: []utils.NetAddr{{Addr: "proxy-from-config.example.com:3080"}},
 				}},
 			},
-			wantAddr: "https://proxy-from-config.example.com:3026",
+			wantAddr:  "https://proxy-from-config.example.com:3026",
+			assertErr: require.NoError,
 		},
 		{
 			desc: "k8s proxy from cluster info",
@@ -166,7 +183,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 					},
 				}},
 			},
-			wantAddr: "https://proxy-from-api.example.com:3026",
+			wantAddr:  "https://proxy-from-api.example.com:3026",
+			assertErr: require.NoError,
 		},
 		{
 			desc: "--kube-cluster specified with valid cluster",
@@ -182,6 +200,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				}},
 			},
 			wantCluster: remoteCluster.GetMetadata().Name,
+			assertErr:   require.NoError,
 		},
 		{
 			desc: "--kube-cluster specified with invalid cluster",
@@ -196,19 +215,17 @@ func TestAuthSignKubeconfig(t *testing.T) {
 					},
 				}},
 			},
-			wantError: "couldn't find leaf cluster named \"doesnotexist.example.com\"",
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+				require.Error(t, err)
+				require.Equal(t, err.Error(), "couldn't find leaf cluster named \"doesnotexist.example.com\"")
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			// Generate kubeconfig.
-			if err = tt.ac.generateUserKeys(client); err != nil && tt.wantError == "" {
-				t.Fatalf("generating KubeProxyConfig: %v", err)
-			}
-
-			if tt.wantError != "" && (err == nil || err.Error() != tt.wantError) {
-				t.Errorf("got error %v, want %v", err, tt.wantError)
-			}
+			err := tt.ac.generateUserKeys(client)
+			tt.assertErr(t, err)
 
 			// Validate kubeconfig contents.
 			kc, err := kubeconfig.Load(tt.ac.output)
