@@ -1,5 +1,16 @@
 # Changelog
 
+## 8.3.4
+
+This release of Teleport contains multiple improvements and fixes.
+
+* Fixed utmp accounting on some systems. [#10617](https://github.com/gravitational/teleport/pull/10617)
+* Fixed an issue with DynamoDB pagination when result set exceeds 1MB. [#10847](https://github.com/gravitational/teleport/pull/10847)
+* Improved join instructions printed by `tctl` when using Teleport Cloud. [#10749](https://github.com/gravitational/teleport/pull/10749)
+* Improved HA behavior of database agents in leaf clusters. [#10770](https://github.com/gravitational/teleport/pull/10770)
+* Fixed an issue with .deb packages not being published. [#10806](https://github.com/gravitational/teleport/pull/10806)
+* Fixed an issue with session uploader leaving empty directories behind in some cases. [#10793](https://github.com/gravitational/teleport/pull/10793)
+
 ## 8.3.3
 
 This release of Teleport contains a security fix and multiple improvements and fixes.
