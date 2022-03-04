@@ -90,6 +90,12 @@ func checkLatest(ctx context.Context, tag string, gh github.GitHub) error {
 		if r.GetDraft() {
 			continue
 		}
+		// Because pre-releases are not published to apt, we do not want to
+		// consider them when making apt publishing decisions.
+		// see: https://github.com/gravitational/teleport/issues/10800
+		if semver.Prerelease(r.GetTagName()) != "" {
+			continue
+		}
 		tags = append(tags, r.GetTagName())
 	}
 
