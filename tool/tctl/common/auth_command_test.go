@@ -646,7 +646,7 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 		dbUser             string
 		expectedDbProtocol string
 		dbServices         []types.DatabaseServer
-		withError          bool
+		expectedErr        error
 	}{
 		"DatabaseExists": {
 			clusterName:        "example.com",
@@ -693,7 +693,7 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 			clusterName: "example.com",
 			dbName:      "db-2",
 			dbServices:  []types.DatabaseServer{},
-			withError:   true,
+			expectedErr: trace.NotFound(""),
 		},
 	}
 
@@ -726,8 +726,9 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 			}
 
 			err = ac.generateUserKeys(authClient)
-			if test.withError {
+			if test.expectedErr != nil {
 				require.Error(t, err)
+				require.IsType(t, test.expectedErr, err)
 				return
 			}
 
