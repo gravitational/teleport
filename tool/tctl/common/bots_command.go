@@ -150,7 +150,6 @@ Optionally, if running the bot under an isolated user account, first initialize
 the data directory by running the following command {{ bold "as root" }}:
 
 > tbot init \
-   --auth-server={{.auth_server}} \
    --destination-dir=./tbot-user \
    --bot-user=tbot \
    --reader-user=alice
