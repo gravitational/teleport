@@ -161,7 +161,7 @@ There are 9 kinds of broadcast messages:
 - `User <user> left the session.`: Sent when a user leaves the session.
 - `Launching session...`: Sent when the session is launched and thus transferred to a normal shell.
 - `Session closed.`: Sent when the session is closed due to the termination of the shell.
-- `Session forcefully terminated`: Sent when moderator forcefully terminates a session.
+- `Session terminated by moderator`: Sent when moderator forcefully terminates a session.
 - `Session paused, waiting for additional participants...`: Sent when a session is paused due to lack of required participants.
 - `Session resumed.`: Sent when a session has the required participants and is resumed.
 - `Please tap your MFA key within 15 seconds.` and `Teleport >> MFA tap received.` are messages shown to moderators in sessions which are MFA-presence enabled.
