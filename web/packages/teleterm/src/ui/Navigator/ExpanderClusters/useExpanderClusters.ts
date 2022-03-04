@@ -24,7 +24,6 @@ export function useExpanderClusters(): ExpanderClusterState {
 
   // subscribe
   ctx.clustersService.useState();
-  ctx.docsService.useState();
 
   function onAddCluster() {
     ctx.commandLauncher.executeCommand('cluster-connect', {});
@@ -84,7 +83,9 @@ function initItems(ctx: AppContext): ClusterNavItem[] {
       .filter(c => c.leaf && c.uri.startsWith(clusterUri))
       .map<ClusterNavItem>(cluster => {
         return {
-          active: ctx.docsService.isClusterDocumentActive(cluster.uri),
+          active: ctx.workspacesService
+            .getActiveWorkspaceDocumentService()
+            .isClusterDocumentActive(cluster.uri),
           clusterUri: cluster.uri,
           title: cluster.name,
           connected: true,
@@ -99,7 +100,9 @@ function initItems(ctx: AppContext): ClusterNavItem[] {
     .map<ClusterNavItem>(cluster => {
       const { syncing } = ctx.clustersService.getClusterSyncStatus(cluster.uri);
       return {
-        active: ctx.docsService.isClusterDocumentActive(cluster.uri),
+        active: ctx.workspacesService
+          .getActiveWorkspaceDocumentService()
+          .isClusterDocumentActive(cluster.uri),
         title: cluster.name,
         clusterUri: cluster.uri,
         connected: cluster.connected,

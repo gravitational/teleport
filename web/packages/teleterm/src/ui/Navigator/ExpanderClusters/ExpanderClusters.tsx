@@ -19,7 +19,7 @@ import { Flex, Text, ButtonIcon, Box } from 'design';
 import { Restore, Add } from 'design/Icon';
 import Expander, { ExpanderHeader, ExpanderContent } from './../Expander';
 import { useExpanderClusters } from './useExpanderClusters';
-import { ExpanderClusterItem } from './ExpanderClusterItem';
+// import { ExpanderClusterItem } from '../../Identity/ExpanderClusterItem';
 import { ExpanderClusterState } from './types';
 
 export function ExpanderClusters() {
@@ -41,14 +41,14 @@ export function ExpanderClustersPresentational(props: ExpanderClusterState) {
     onAddCluster?.();
   };
 
-  const $clustersItems = items.map(i => (
-    <ExpanderClusterItem
-      key={i.clusterUri}
-      item={i}
-      onOpen={onOpen}
-      onContextMenu={() => onOpenContextMenu?.(i)}
-    />
-  ));
+  // const $clustersItems = items.map(i => (
+    // <ExpanderClusterItem
+    //   key={i.clusterUri}
+    //   item={i}
+    //   onOpen={onOpen}
+    //   onContextMenu={() => onOpenContextMenu?.(i)}
+    // />
+  // ));
 
   return (
     <Expander>
@@ -83,7 +83,7 @@ export function ExpanderClustersPresentational(props: ExpanderClusterState) {
         </Flex>
       </ExpanderHeader>
       <ExpanderContent>
-        <Box>{$clustersItems}</Box>
+        {/*<Box>{$clustersItems}</Box>*/}
       </ExpanderContent>
     </Expander>
   );

@@ -28,7 +28,7 @@ export default {
 export const Story = () => {
   const appContext = new MockAppContext();
 
-  appContext.workspaceService.getConnectionTrackerState = () => {
+  appContext.statePersistenceService.getConnectionTrackerState = () => {
     return {
       connections: [
         {
@@ -38,6 +38,7 @@ export const Story = () => {
           id: 'morris',
           serverUri: 'brock',
           login: 'casey',
+          clusterUri: '',
         },
         {
           connected: true,
@@ -47,6 +48,7 @@ export const Story = () => {
           targetUri: 'brock',
           port: '22',
           gatewayUri: 'empty',
+          clusterUri: ''
         },
       ],
     };

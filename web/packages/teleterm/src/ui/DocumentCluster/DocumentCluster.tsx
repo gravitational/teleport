@@ -17,7 +17,7 @@ limitations under the License.
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Text, Flex, Box, ButtonPrimary } from 'design';
-import * as types from 'teleterm/ui/services/docs/types';
+import * as types from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import ClusterCtx, {

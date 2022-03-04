@@ -19,7 +19,7 @@ import styled from 'styled-components';
 import { typography } from 'design/system';
 import { Box, ButtonIcon, Flex } from 'design';
 import * as Icons from 'design/Icon';
-import { Document } from 'teleterm/ui/services/docs/types';
+import { Document } from 'teleterm/ui/services/workspacesService';
 import { TabItem } from './TabItem';
 
 export function Tabs(props: Props) {

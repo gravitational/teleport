@@ -1,5 +1,5 @@
 import React from 'react';
-import NavItem from 'teleterm/ui/Navigator/NavItem';
+import { ListItem } from 'teleterm/ui/Navigator/NavItem';
 import { StatusIndicator } from './StatusIndicator';
 import { Cross } from 'design/Icon';
 import { ButtonIcon, Flex, Text } from 'design';
@@ -10,7 +10,7 @@ export function ExpanderConnectionItem(props: ExpanderConnectionItemProps) {
   const color = !offline ? 'text.primary' : 'text.placeholder';
 
   return (
-    <NavItem active={false} pl={5} onClick={() => props.onOpen(props.item.id)}>
+    <ListItem active={false} pl={5} onClick={() => props.onOpen(props.item.id)}>
       <StatusIndicator mr={2} connected={props.item.connected} />
       <Flex
         alignItems="center"
@@ -35,7 +35,7 @@ export function ExpanderConnectionItem(props: ExpanderConnectionItemProps) {
           </ButtonIcon>
         )}
       </Flex>
-    </NavItem>
+    </ListItem>
   );
 }
 

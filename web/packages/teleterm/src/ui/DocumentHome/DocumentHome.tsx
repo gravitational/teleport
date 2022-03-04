@@ -17,7 +17,9 @@ limitations under the License.
 import React from 'react';
 import { Text, Box, Flex } from 'design';
 import Document from 'teleterm/ui/Document';
-import * as types from 'teleterm/ui/services/docs/types';
+import * as types from 'teleterm/ui/services/workspacesService/documentsService';
+
+//TODO: remove
 
 export default function DocumentHome(props: PropTypes) {
   const { visible } = props;
@@ -42,5 +44,5 @@ const Key = props => <Text p={1} as="span" {...props} bg="primary.light" />;
 
 type PropTypes = {
   visible: boolean;
-  doc: types.DocumentHome;
+  // doc: types.DocumentHome;
 };

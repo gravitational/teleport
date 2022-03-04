@@ -2,7 +2,12 @@ import { fireEvent, render } from 'design/utils/testing';
 import React from 'react';
 import { TabHost } from 'teleterm/ui/TabHost/TabHost';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { Document, DocumentsService } from 'teleterm/ui/services/docs';
+import {
+  Document,
+  DocumentCluster,
+  DocumentsService,
+  WorkspacesService,
+} from 'teleterm/ui/services/workspacesService';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 import {
   MainProcessClient,
@@ -44,14 +49,13 @@ function getTestSetup({ documents }: { documents: Document[] }) {
     },
     close: jest.fn(),
     open: jest.fn(),
+    add: jest.fn(),
     closeOthers: jest.fn(),
     closeToRight: jest.fn(),
     openNewTerminal: jest.fn(),
     swapPosition: jest.fn(),
+    createClusterDocument: jest.fn(),
     duplicatePtyAndActivate: jest.fn(),
-    useState() {
-      return null;
-    },
   };
 
   const clustersService: Partial<ClustersService> = {
@@ -62,17 +66,45 @@ function getTestSetup({ documents }: { documents: Document[] }) {
     findGateway: jest.fn(),
   };
 
+  const workspacesService: Partial<WorkspacesService> = {
+    // @ts-expect-error - using mocks
+    getWorkspacesDocumentsServices() {
+      return [
+        { clusterUri: 'test_uri', workspaceDocumentsService: docsService },
+      ];
+    },
+    getRootClusterUri() {
+      return 'test_uri';
+    },
+    getActiveWorkspace() {
+      return {
+        documents,
+        location: undefined,
+        localClusterUri: undefined,
+      };
+    },
+    // @ts-expect-error - using mocks
+    getActiveWorkspaceDocumentService() {
+      return docsService;
+    },
+    useState: jest.fn(),
+    state: {
+      workspaces: {},
+      rootClusterUri: 'test_uri',
+    },
+  };
+
   const utils = render(
     <MockAppContextProvider
       appContext={{
         // @ts-expect-error - using mocks
         keyboardShortcutsService,
         // @ts-expect-error - using mocks
-        docsService,
-        // @ts-expect-error - using mocks
         mainProcessClient,
         // @ts-expect-error - using mocks
         clustersService,
+        // @ts-expect-error - using mocks
+        workspacesService,
       }}
     >
       <TabHost />
@@ -86,22 +118,14 @@ function getTestSetup({ documents }: { documents: Document[] }) {
   };
 }
 
-test('render documents without home document', () => {
+test('render documents', () => {
   const { queryByTitle, docsService } = getTestSetup({
-    documents: [
-      {
-        kind: 'doc.home',
-        uri: 'test_uri_0',
-        title: 'Test 0',
-      },
-      ...getMockDocuments(),
-    ],
+    documents: getMockDocuments(),
   });
   const documents = docsService.getDocuments();
 
-  expect(queryByTitle(documents[0].title)).not.toBeInTheDocument();
+  expect(queryByTitle(documents[0].title)).toBeInTheDocument();
   expect(queryByTitle(documents[1].title)).toBeInTheDocument();
-  expect(queryByTitle(documents[2].title)).toBeInTheDocument();
 });
 
 test('open tab on click', () => {
@@ -153,12 +177,20 @@ test('open new tab', () => {
   const { getByTitle, docsService } = getTestSetup({
     documents: [getMockDocuments()[0]],
   });
-  const { openNewTerminal } = docsService;
+  const { add, open } = docsService;
+  const mockedClusterDocument: DocumentCluster = {
+    clusterUri: 'test',
+    uri: 'test',
+    title: 'Test',
+    kind: 'doc.cluster',
+  };
+  docsService.createClusterDocument = () => mockedClusterDocument;
   const $newTabButton = getByTitle('New Tab');
 
   fireEvent.click($newTabButton);
 
-  expect(openNewTerminal).toHaveBeenCalledWith();
+  expect(add).toHaveBeenCalledWith(mockedClusterDocument);
+  expect(open).toHaveBeenCalledWith(mockedClusterDocument.uri);
 });
 
 test('swap tabs', () => {

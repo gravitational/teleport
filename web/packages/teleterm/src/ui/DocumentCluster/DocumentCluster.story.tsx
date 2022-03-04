@@ -59,7 +59,8 @@ export const Notfound = () => {
 
 function renderState(state: ClustersServiceState) {
   const appContext = new MockAppContext();
-  appContext.docsService.update = () => null;
+  appContext.workspacesService.getActiveWorkspaceDocumentService().update =
+    () => null;
   appContext.clustersService.state = state;
 
   const doc = {

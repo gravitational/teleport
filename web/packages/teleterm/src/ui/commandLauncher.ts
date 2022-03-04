@@ -36,9 +36,10 @@ const commands = {
       }
     ) {
       const onSuccess = (gatewayUri: string) => {
+        const documentsService = ctx.workspacesService.getActiveWorkspaceDocumentService()
         const db = ctx.clustersService.findDb(args.dbUri);
         const gateway = ctx.clustersService.findGateway(gatewayUri);
-        const doc = ctx.docsService.createGatewayDocument({
+        const doc = documentsService.createGatewayDocument({
           title: db.name,
           gatewayUri: gatewayUri,
           targetUri: gateway.targetUri,
@@ -46,8 +47,8 @@ const commands = {
           port: gateway.localPort,
         });
 
-        ctx.docsService.add(doc);
-        ctx.docsService.open(doc.uri);
+        documentsService.add(doc);
+        documentsService.open(doc.uri);
       };
 
       ctx.modalsService.openProxyDbDialog({
@@ -62,9 +63,10 @@ const commands = {
     displayName: '',
     description: '',
     run(ctx: IAppContext, args: { kubeUri: string }) {
-      const kubeDoc = ctx.docsService.createTshKubeDocument(args.kubeUri);
-      ctx.docsService.add(kubeDoc);
-      ctx.docsService.open(kubeDoc.uri);
+      const documentsService = ctx.workspacesService.getActiveWorkspaceDocumentService()
+      const kubeDoc = documentsService.createTshKubeDocument(args.kubeUri);
+      documentsService.add(kubeDoc);
+      documentsService.open(kubeDoc.uri);
     },
   },
 
@@ -101,13 +103,14 @@ const commands = {
     description: '',
     run(ctx: IAppContext, args: { clusterUri: string }) {
       const { clusterUri } = args;
-      const doc = ctx.docsService.findClusterDocument(clusterUri);
+      const documentsService = ctx.workspacesService.getActiveWorkspaceDocumentService()
+      const doc = documentsService.findClusterDocument(clusterUri);
       if (doc) {
-        ctx.docsService.open(doc.uri);
+        documentsService.open(doc.uri);
       } else {
-        const newDoc = ctx.docsService.createClusterDocument({ clusterUri });
-        ctx.docsService.add(newDoc);
-        ctx.docsService.open(newDoc.uri);
+        const newDoc = documentsService.createClusterDocument();
+        documentsService.add(newDoc);
+        documentsService.open(newDoc.uri);
       }
     },
   },

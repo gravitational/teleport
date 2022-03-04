@@ -14,51 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect, useRef } from 'react';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
+import React from 'react';
 import { Box, Flex } from 'design';
-import { debounce } from 'lodash';
 import QuickInput from 'teleterm/ui/QuickInput';
 import SplitPane from 'shared/components/SplitPane';
 import { Navigator } from 'teleterm/ui/Navigator';
-import { TabHost } from 'teleterm/ui/TabHost';
+import { TabHostContainer } from 'teleterm/ui/TabHost';
 import styled from 'styled-components';
+import { Identity } from 'teleterm/ui/Identity/Identity';
 
 export function LayoutManager() {
-  const ctx = useAppContext();
-  const navigatorRef = useRef<HTMLDivElement>();
-  const defaultNavigatorWidth = ctx.workspaceService.getNavigatorWidth()
-    ? `${ctx.workspaceService.getNavigatorWidth()}px`
-    : '20%';
-
-  useEffect(() => {
-    const updateNavigatorWidth = debounce((width: number) => {
-      if (ctx.workspaceService.getNavigatorWidth() !== width) {
-        ctx.workspaceService.saveNavigatorWidth(width);
-      }
-    }, 1000);
-
-    const resizeObserver = new ResizeObserver(entries => {
-      updateNavigatorWidth(entries[0].contentRect.width);
-    });
-
-    resizeObserver.observe(navigatorRef.current);
-
-    return () => {
-      resizeObserver.unobserve(navigatorRef.current);
-      updateNavigatorWidth.cancel();
-    };
-  }, []);
-
   return (
-    <SplitPane defaultSize={defaultNavigatorWidth} flex="1" split="vertical">
-      <Box flex="1" bg="primary.light" ref={navigatorRef} width="100%">
+    <SplitPane defaultSize='20%' flex="1" split="vertical">
+      <Box flex="1" bg="primary.light" width="100%">
         <Navigator />
       </Box>
       <RightPaneContainer flexDirection="column">
-        <QuickInput />
+        <Flex justifyContent="space-between" p="0 25px">
+          <QuickInput />
+          <Identity />
+        </Flex>
         <Box flex="1" style={{ position: 'relative' }}>
-          <TabHost />
+          <TabHostContainer />
         </Box>
       </RightPaneContainer>
     </SplitPane>

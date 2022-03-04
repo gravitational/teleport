@@ -18,7 +18,7 @@ import React from 'react';
 import Document from 'teleterm/ui/Document';
 import { Flex, Text, ButtonPrimary } from 'design';
 import { useReconnect, State } from './useReconnect';
-import * as types from 'teleterm/ui/services/docs/types';
+import * as types from 'teleterm/ui/services/workspacesService';
 import { Danger } from 'design/Alert';
 
 export default function Container(props: DocumentReconnectProps) {

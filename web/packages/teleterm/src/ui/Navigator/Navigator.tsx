@@ -29,7 +29,7 @@ export function Navigator() {
       <Scrollable>
         <ExpanderConnections />
         <Separator />
-        <ExpanderClusters />
+        {/*<ExpanderClusters />*/}
         <Separator />
       </Scrollable>
     </Nav>

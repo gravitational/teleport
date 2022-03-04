@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useStore } from 'shared/libs/stores';
 import { unique } from 'teleterm/ui/utils/uid';
 import {
   DocumentTshKube,
@@ -22,32 +21,18 @@ import {
   DocumentGateway,
   DocumentTshNode,
   CreateGatewayDocumentOpts,
-  CreateClusterDocumentOpts,
   DocumentCluster,
 } from './types';
-import { ImmutableStore } from '../immutableStore';
 import { routing, paths } from 'teleterm/ui/uri';
 
-type State = {
-  location: string;
-  docs: Document[];
-};
-
-export class DocumentsService extends ImmutableStore<State> {
-  state: State = {
-    location: paths.docHome,
-    docs: [
-      {
-        uri: paths.docHome,
-        kind: 'doc.home',
-        title: 'Home',
-      },
-    ],
-  };
-
-  constructor() {
-    super();
-  }
+export class DocumentsService {
+  constructor(
+    private getState: () => { documents: Document[]; location: string },
+    private setState: (
+      draftState: (draft: { documents: Document[]; location: string }) => void
+    ) => void,
+    private clusterUri: string
+  ) {}
 
   open(docUri: string) {
     if (!this.getDocument(docUri)) {
@@ -61,12 +46,12 @@ export class DocumentsService extends ImmutableStore<State> {
     this.setLocation(docUri);
   }
 
-  createClusterDocument(opts: CreateClusterDocumentOpts): DocumentCluster {
+  createClusterDocument(): DocumentCluster {
     const uri = routing.getDocUri({ docId: unique() });
-    const clusterName = routing.parseClusterName(opts.clusterUri);
+    const clusterName = routing.parseClusterName(this.clusterUri);
     return {
       uri,
-      clusterUri: opts.clusterUri,
+      clusterUri: this.clusterUri,
       title: clusterName,
       kind: 'doc.cluster',
     };
@@ -140,11 +125,11 @@ export class DocumentsService extends ImmutableStore<State> {
   }
 
   getDocuments() {
-    return this.state.docs;
+    return this.getState().documents;
   }
 
   getDocument(uri: string) {
-    return this.state.docs.find(i => i.uri === uri);
+    return this.getState().documents.find(i => i.uri === uri);
   }
 
   getActive() {
@@ -152,13 +137,15 @@ export class DocumentsService extends ImmutableStore<State> {
   }
 
   getLocation() {
-    return this.state.location;
+    return this.getState().location;
   }
 
   duplicatePtyAndActivate(uri: string) {
-    const documentIndex = this.state.docs.findIndex(d => d.uri === uri);
+    const documentIndex = this.getState().documents.findIndex(
+      d => d.uri === uri
+    );
     const newDocument = {
-      ...this.state.docs[documentIndex],
+      ...this.getState().documents[documentIndex],
       uri: routing.getDocUri({ docId: unique() }),
     };
     this.add(newDocument, documentIndex + 1);
@@ -171,8 +158,11 @@ export class DocumentsService extends ImmutableStore<State> {
     }
 
     const nextUri = this.getNextUri(uri);
-    const docs = this.state.docs.filter(d => d.uri !== uri);
-    this.setState(draft => ({ ...draft, docs, location: nextUri }));
+    const docs = this.getState().documents.filter(d => d.uri !== uri);
+    this.setState(draft => {
+      draft.documents = docs;
+      draft.location = nextUri;
+    });
   }
 
   closeOthers(uri: string) {
@@ -180,9 +170,11 @@ export class DocumentsService extends ImmutableStore<State> {
   }
 
   closeToRight(uri: string) {
-    const documentIndex = this.state.docs.findIndex(d => d.uri === uri);
-    this.state.docs
-      .filter((_, index) => index > documentIndex)
+    const documentIndex = this.getState().documents.findIndex(
+      d => d.uri === uri
+    );
+    this.getState()
+      .documents.filter((_, index) => index > documentIndex)
       .forEach(d => this.close(d.uri));
   }
 
@@ -199,22 +191,22 @@ export class DocumentsService extends ImmutableStore<State> {
   add(doc: Document, position?: number) {
     this.setState(draft => {
       if (position === undefined) {
-        draft.docs.push(doc);
+        draft.documents.push(doc);
       } else {
-        draft.docs.splice(position, 0, doc);
+        draft.documents.splice(position, 0, doc);
       }
     });
   }
 
   update(uri: string, partialDoc: Partial<Document>) {
     this.setState(draft => {
-      const toUpdate = draft.docs.find(doc => doc.uri === uri);
+      const toUpdate = draft.documents.find(doc => doc.uri === uri);
       Object.assign(toUpdate, partialDoc);
     });
   }
 
   filter(uri: string) {
-    return this.state.docs.filter(i => i.uri !== uri);
+    return this.getState().documents.filter(i => i.uri !== uri);
   }
 
   getTshNodeDocuments() {
@@ -222,7 +214,7 @@ export class DocumentsService extends ImmutableStore<State> {
       return d.kind === 'doc.terminal_tsh_node';
     }
 
-    return this.state.docs.filter(isTshNode);
+    return this.getState().documents.filter(isTshNode);
   }
 
   getGatewayDocuments() {
@@ -230,11 +222,11 @@ export class DocumentsService extends ImmutableStore<State> {
       return d.kind === 'doc.gateway';
     }
 
-    return this.state.docs.filter(isGw);
+    return this.getState().documents.filter(isGw);
   }
 
   getNextUri(uri: string) {
-    const docs = this.state.docs;
+    const docs = this.getState().documents;
     for (let i = 0; i < docs.length; i++) {
       if (docs[i].uri === uri) {
         if (docs.length > i + 1) {
@@ -251,7 +243,7 @@ export class DocumentsService extends ImmutableStore<State> {
   }
 
   findClusterDocument(clusterUri: string) {
-    return this.state.docs.find(
+    return this.getState().documents.find(
       i => i.kind === 'doc.cluster' && i.clusterUri === clusterUri
     );
   }
@@ -262,22 +254,11 @@ export class DocumentsService extends ImmutableStore<State> {
     });
   }
 
-  useState() {
-    return useStore(this).state;
-  }
-
   swapPosition(oldIndex: number, newIndex: number) {
-    // account for hidden "home" document
-    // TODO(alex-kovoy): consider removing "home" document from the service
-    if (this.state.docs.some(d => d.kind === 'doc.home')) {
-      oldIndex += 1;
-      newIndex += 1;
-    }
-
-    const doc = this.state.docs[oldIndex];
     this.setState(draft => {
-      draft.docs.splice(oldIndex, 1);
-      draft.docs.splice(newIndex, 0, doc);
+      const doc = draft.documents[oldIndex];
+      draft.documents.splice(oldIndex, 1);
+      draft.documents.splice(newIndex, 0, doc);
     });
   }
 }

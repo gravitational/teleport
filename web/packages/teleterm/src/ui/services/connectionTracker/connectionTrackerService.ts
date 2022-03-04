@@ -16,14 +16,13 @@ limitations under the License.
 
 import { useStore } from 'shared/libs/stores';
 import { ImmutableStore } from '../immutableStore';
-import { WorkspaceService } from 'teleterm/ui/services/workspace';
 import {
-  DocumentsService,
   DocumentGateway,
   DocumentTshNode,
-} from 'teleterm/ui/services/docs';
+} from 'teleterm/ui/services/workspacesService/documentsService';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { unique } from 'teleterm/ui/utils/uid';
+import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
 
 export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerState> {
   state: ConnectionTrackerState = {
@@ -31,14 +30,13 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
   };
 
   constructor(
-    private _workspaceService: WorkspaceService,
-    private _documentService: DocumentsService,
+    private _workspacesService: WorkspacesService,
     private _clusterService: ClustersService
   ) {
     super();
 
     this.state.connections = this._restoreConnectionItems();
-    this._documentService.subscribe(this._refreshState);
+    this._workspacesService.subscribe(this._refreshState);
     this._clusterService.subscribe(this._refreshState);
   }
 
@@ -46,36 +44,42 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     return useStore(this).state;
   }
 
-  processItemClick = (id: string) => {
+  processItemClick = async (id: string) => {
     const conn = this.state.connections.find(i => i.id === id);
+    if (conn.clusterUri !== this._workspacesService.getRootClusterUri()) {
+      await this._workspacesService.setActiveWorkspace(conn.clusterUri);
+    }
+    const docService = this._workspacesService.getWorkspaceDocumentService(
+      conn.clusterUri
+    );
 
     switch (conn.kind) {
       case 'connection.server':
-        let srvDoc = this._documentService
+        let srvDoc = docService
           .getTshNodeDocuments()
           .find(
             doc => conn.serverUri === doc.serverUri && conn.login === doc.login
           );
 
         if (!srvDoc) {
-          srvDoc = this._documentService.createTshNodeDocument(conn.serverUri);
+          srvDoc = docService.createTshNodeDocument(conn.serverUri);
           srvDoc.status = 'disconnected';
           srvDoc.login = conn.login;
           srvDoc.title = conn.title;
 
-          this._documentService.add(srvDoc);
+          docService.add(srvDoc);
         }
-        this._documentService.open(srvDoc.uri);
+        docService.open(srvDoc.uri);
         return;
       case 'connection.gateway':
-        let gwDoc = this._documentService
+        let gwDoc = docService
           .getGatewayDocuments()
           .find(
             doc => doc.targetUri === conn.targetUri && doc.port === conn.port
           );
 
         if (!gwDoc) {
-          gwDoc = this._documentService.createGatewayDocument({
+          gwDoc = docService.createGatewayDocument({
             targetUri: conn.targetUri,
             targetUser: conn.targetUser,
             title: conn.title,
@@ -83,9 +87,9 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
             port: conn.port,
           });
 
-          this._documentService.add(gwDoc);
+          docService.add(gwDoc);
         }
-        this._documentService.open(gwDoc.uri);
+        docService.open(gwDoc.uri);
     }
   };
 
@@ -94,11 +98,11 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
       draft.connections = draft.connections.filter(i => i.id !== id);
     });
 
-    this._workspaceService.saveConnectionTrackerState(this.state);
+    // this._workspaceService.saveConnectionTrackerState(this.state);
   };
 
   dispose() {
-    this._documentService.unsubscribe(this._refreshState);
+    this._workspacesService.unsubscribe(this._refreshState);
   }
 
   private _refreshState = () => {
@@ -112,11 +116,20 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
         }
       });
 
-      const docs = this._documentService
-        .getDocuments()
+      const docs = Array.from(Object.keys(this._workspacesService.getWorkspaces()))
+        .flatMap(clusterUri => {
+          const docService =
+            this._workspacesService.getWorkspaceDocumentService(clusterUri);
+          return docService?.getDocuments();
+        })
+        .filter(Boolean)
         .filter(
           d => d.kind === 'doc.gateway' || d.kind === 'doc.terminal_tsh_node'
         );
+
+      if (!docs) {
+        return;
+      }
 
       while (docs.length > 0) {
         const doc = docs.pop();
@@ -162,7 +175,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
       }
     });
 
-    this._workspaceService.saveConnectionTrackerState(this.state);
+    // this._workspaceService.saveConnectionTrackerState(this.state);
   };
 
   private _createServerConnItem(doc: DocumentTshNode): ServerConnection {
@@ -173,6 +186,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
       login: doc.login,
       serverUri: doc.serverUri,
       kind: 'connection.server',
+      clusterUri: doc.rootClusterId,
     };
   }
 
@@ -186,19 +200,20 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
       targetUser: doc.targetUser,
       kind: 'connection.gateway',
       gatewayUri: doc.gatewayUri,
+      clusterUri: '',
     };
   }
 
   private _restoreConnectionItems(): Connection[] {
-    const savedState = this._workspaceService.getConnectionTrackerState();
-    if (savedState && Array.isArray(savedState.connections)) {
-      // restored connections cannot have connected state
-      savedState.connections.forEach(i => {
-        i.connected = false;
-      });
-
-      return savedState.connections;
-    }
+    // const savedState = this._workspaceService.getConnectionTrackerState();
+    // if (savedState && Array.isArray(savedState.connections)) {
+    //   // restored connections cannot have connected state
+    //   savedState.connections.forEach(i => {
+    //     i.connected = false;
+    //   });
+    //
+    //   return savedState.connections;
+    // }
 
     return [];
   }
@@ -211,6 +226,7 @@ export type ConnectionTrackerState = {
 type Item = {
   kind: 'connection.server' | 'connection.gateway';
   connected: boolean;
+  clusterUri: string;
 };
 
 export interface ServerConnection extends Item {

@@ -1,5 +1,5 @@
 import { ConfigService } from '../services/config';
-import { Kind } from 'teleterm/ui/services/docs/types';
+import { Kind } from 'teleterm/ui/services/workspacesService';
 
 export type RuntimeSettings = {
   dev: boolean;

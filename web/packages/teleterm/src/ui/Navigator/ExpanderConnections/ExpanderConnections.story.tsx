@@ -26,7 +26,9 @@ export default {
 function getState(): State {
   return {
     processRemove() {},
-    processClick() {},
+    processClick() {
+      return Promise.resolve();
+    },
     items: [
       {
         connected: true,
@@ -35,6 +37,7 @@ function getState(): State {
         id: 'e9c4fbc2',
         serverUri: 'brock',
         login: 'casey',
+        clusterUri: '',
       },
       {
         connected: true,
@@ -44,6 +47,7 @@ function getState(): State {
         targetUri: 'brock',
         port: '22',
         gatewayUri: 'empty',
+        clusterUri: '',
       },
       {
         connected: false,
@@ -52,6 +56,7 @@ function getState(): State {
         id: '949651ed',
         serverUri: 'brock',
         login: 'casey',
+        clusterUri: '',
       },
     ],
   };

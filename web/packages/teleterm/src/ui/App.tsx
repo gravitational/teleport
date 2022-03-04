@@ -8,6 +8,7 @@ import AppContextProvider from './appContextProvider';
 import AppContext from './appContext';
 import ThemeProvider from './ThemeProvider';
 import { LayoutManager } from './LayoutManager';
+import { AppInitializer } from 'teleterm/ui/AppInitializer';
 
 const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
   const { appearance } = ctx.mainProcessClient.configService.get();
@@ -17,8 +18,10 @@ const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
         <DndProvider backend={HTML5Backend}>
           <AppContextProvider value={ctx}>
             <ThemeProvider appearanceConfig={appearance}>
-              <LayoutManager />
-              <ModalsHost />
+              <AppInitializer>
+                <LayoutManager />
+                <ModalsHost />
+              </AppInitializer>
             </ThemeProvider>
           </AppContextProvider>
         </DndProvider>

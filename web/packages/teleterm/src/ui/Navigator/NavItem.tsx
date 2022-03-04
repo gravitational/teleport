@@ -18,57 +18,61 @@ import React from 'react';
 import styled from 'styled-components';
 import { color, space } from 'design/system';
 
-type Props = {
-  active: boolean;
-  onClick?: () => void;
-  [key: string]: any;
-};
+// type Props = {
+//   active: boolean;
+//   onClick?: () => void;
+// };
+//
+// const NavItem: React.FC<Props> = props => {
+//   const { onClick } = props;
+//   return (
+//     <ListItem onClick={onClick}>
+//       {props.children}
+//     </ListItem>
+//   );
+// };
 
-const NavItem: React.FC<Props> = props => {
-  const { active, onClick, ...styles } = props;
-  return (
-    <StyledNavItem $active={active} {...styles} onClick={onClick}>
-      {props.children}
-    </StyledNavItem>
-  );
-};
+export const ListItem = styled.button`
+  white-space: nowrap;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: pointer;
+  width: 100%;
+  position: relative;
+  font-size: 14px;
+  padding: 0 16px;
+  font-weight: ${props => props.theme.regular};
+  font-family: ${props => props.theme.font};
+  color: ${props => props.theme.colors.text.primary};
+  height: 36px;
+  background: inherit;
+  border: none;
+
+  &:hover {
+    background: ${props => props.theme.colors.primary.light};
+  }
+
+  &:focus, &:hover {
+    color: ${props => props.theme.colors.primary.contrastText};
+  }
+,
+`;
 
 const StyledNavItem = styled.div(props => {
   const { theme, $active } = props;
   const colors = $active
     ? {
         color: theme.colors.primary.contrastText,
-        background: theme.colors.primary.lighter,
       }
     : {};
 
   return {
-    whiteSpace: 'nowrap',
-    boxSizing: 'border-box',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    cursor: 'pointer',
-    width: '100%',
-    position: 'relative',
-    fontSize: '12px',
-    fontWeight: theme.regular,
-    fontFamily: theme.font,
-    color: theme.colors.text.primary,
-    height: '32px',
-
-    '&:hover': {
-      background: theme.colors.primary.light,
-    },
-
-    '&:focus, &:hover': {
-      color: theme.colors.primary.contrastText,
-    },
-
     ...colors,
     ...color(props),
     ...space(props),
   };
 });
 
-export default NavItem;
+// export default NavItem;

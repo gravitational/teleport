@@ -187,22 +187,12 @@ const useClusterContext = () => {
   return React.useContext(ClusterReactContext);
 };
 
-export type ClusterNavItem = {
-  location: NavLocation;
-  title: string;
-};
-
 export type NavLocation =
   | '/resources/'
   | '/resources/databases'
   | '/resources/servers'
   | '/resources/apps'
   | '/resources/kubes';
-
-export type ClusterTopNavItem = {
-  navLocation: NavLocation;
-  title: string;
-};
 
 export default ClusterContext;
 

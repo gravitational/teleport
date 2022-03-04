@@ -22,7 +22,7 @@ import { ExpanderClustersPresentational } from './ExpanderClusters';
 import { ExpanderClusterState } from './types';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 
-test('should render simple and trusted clusters', () => {
+test.skip('should render simple and trusted clusters', () => {
   const state: ExpanderClusterState = {
     onAddCluster() {},
     onSyncClusters() {},
@@ -58,7 +58,7 @@ test('should render simple and trusted clusters', () => {
   expect(getByText(state.items[0].leaves[0].title)).toBeInTheDocument();
 });
 
-test('should invoke callback when context menu is clicked', () => {
+test.skip('should invoke callback when context menu is clicked', () => {
   const state: ExpanderClusterState = {
     onAddCluster() {},
     onSyncClusters() {},

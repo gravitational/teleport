@@ -1,16 +1,6 @@
 import { DocumentsService } from './documentsService';
-import {
-  Document,
-  DocumentGateway,
-  DocumentHome,
-  DocumentTshNode,
-} from './types';
-
-const homeDocument: DocumentHome = {
-  kind: 'doc.home',
-  title: 'Home',
-  uri: '/docs/home',
-};
+import { Document, DocumentGateway, DocumentTshNode } from './types';
+import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 
 function getMockedDocuments(): Document[] {
   return [
@@ -21,37 +11,48 @@ function getMockedDocuments(): Document[] {
 }
 
 function createService(mockDocks: Document[]): DocumentsService {
-  const service = new DocumentsService();
+  const store = new ImmutableStore<{
+    documents: Document[];
+    location: string;
+  }>();
+  store.state = { documents: [], location: undefined };
+  const service = new DocumentsService(
+    () => store.state,
+    draftState => store.setState(draftState),
+    'test_uri'
+  );
   mockDocks.forEach(d => service.add(d));
 
   return service;
 }
 
 test('open the document', () => {
-  const mockedDocks = getMockedDocuments();
-  const service = createService(mockedDocks);
+  const mockedDocuments = getMockedDocuments();
+  const service = createService(mockedDocuments);
 
-  service.open(mockedDocks[0].uri);
+  service.open(mockedDocuments[0].uri);
 
-  expect(service.getActive()).toStrictEqual(mockedDocks[0]);
+  expect(service.getActive()).toStrictEqual(mockedDocuments[0]);
 });
 
-test('get documents should return all documents and doc home', () => {
-  const mockedDocks = getMockedDocuments();
-  const service = createService(mockedDocks);
+test('get documents should return all documents', () => {
+  const mockedDocuments = getMockedDocuments();
+  const service = createService(mockedDocuments);
 
-  expect(service.getDocuments()).toStrictEqual([homeDocument, ...mockedDocks]);
+  expect(service.getDocuments()).toStrictEqual(mockedDocuments);
 });
 
 test('get document should return the document', () => {
-  const mockedDocks = getMockedDocuments();
-  const service = createService(mockedDocks);
+  const mockedDocuments = getMockedDocuments();
+  const service = createService(mockedDocuments);
 
-  expect(service.getDocument(mockedDocks[0].uri)).toStrictEqual(mockedDocks[0]);
+  expect(service.getDocument(mockedDocuments[0].uri)).toStrictEqual(
+    mockedDocuments[0]
+  );
 });
 
 describe('document should be added', () => {
-  const mockedDocks = getMockedDocuments();
+  const mockedDocuments = getMockedDocuments();
   const newDocument: DocumentGateway = {
     uri: 'new-doc',
     title: 'New doc',
@@ -61,7 +62,7 @@ describe('document should be added', () => {
   };
 
   test('at the specific position', () => {
-    const service = createService(mockedDocks);
+    const service = createService(mockedDocuments);
 
     service.add(newDocument);
 
@@ -71,7 +72,7 @@ describe('document should be added', () => {
   });
 
   test('at the end if position is not specified', () => {
-    const service = createService(mockedDocks);
+    const service = createService(mockedDocuments);
     const newPosition = 2;
 
     service.add(newDocument, newPosition);

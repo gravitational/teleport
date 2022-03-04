@@ -18,7 +18,7 @@ import React from 'react';
 import { Text, Flex, Box, ButtonPrimary } from 'design';
 import Document from 'teleterm/ui/Document';
 import * as Alerts from 'design/Alert';
-import * as types from 'teleterm/ui/services/docs/types';
+import * as types from 'teleterm/ui/services/workspacesService';
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
 import { GatewayProtocol } from 'teleterm/ui/services/clusters/types';
 import useDocumentGateway, { State } from './useDocumentGateway';

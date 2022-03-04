@@ -23,12 +23,15 @@ export default function useServerConnect({ serverUri, onClose }: Props) {
   const logins = cluster?.loggedInUser?.sshLoginsList || [];
 
   const connect = (login: string) => {
-    const doc = ctx.docsService.createTshNodeDocument(serverUri);
+    const documentsService = ctx.workspacesService.getWorkspaceDocumentService(
+      cluster.uri
+    );
+    const doc = documentsService.createTshNodeDocument(serverUri);
     doc.title = `${login}@${server.hostname}`;
     doc.login = login;
 
-    ctx.docsService.add(doc);
-    ctx.docsService.setLocation(doc.uri);
+    documentsService.add(doc);
+    documentsService.setLocation(doc.uri);
 
     onClose();
   };

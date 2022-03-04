@@ -79,6 +79,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
 
   async syncRootClusters() {
     const clusters = await this.client.listRootClusters();
+    console.log('synced', clusters);
     this.setState(draft => {
       draft.clusters = new Map(clusters.map(c => [c.uri, c]));
     });

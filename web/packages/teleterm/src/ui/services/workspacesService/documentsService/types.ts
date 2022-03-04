@@ -17,7 +17,6 @@ limitations under the License.
 export type Kind =
   | 'doc.cluster'
   | 'doc.blank'
-  | 'doc.home'
   | 'doc.gateway'
   | 'doc.terminal_shell'
   | 'doc.terminal_tsh_node'
@@ -27,10 +26,6 @@ interface DocumentBase {
   uri: string;
   title: string;
   kind: Kind;
-}
-
-export interface DocumentHome extends DocumentBase {
-  kind: 'doc.home';
 }
 
 export interface DocumentBlank extends DocumentBase {
@@ -80,7 +75,6 @@ export type DocumentTerminal =
   | DocumentTshKube;
 
 export type Document =
-  | DocumentHome
   | DocumentBlank
   | DocumentGateway
   | DocumentCluster
@@ -92,8 +86,4 @@ export type CreateGatewayDocumentOpts = {
   targetUser?: string;
   title: string;
   port?: string;
-};
-
-export type CreateClusterDocumentOpts = {
-  clusterUri: string;
 };
