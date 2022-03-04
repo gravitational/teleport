@@ -3,8 +3,6 @@ title: Machine ID Getting Started Guide
 description: Getting started with Teleport Machine ID
 ---
 
-# Getting Started
-
 In this getting started guide, you will use Machine ID to create a bot user for
 a machine and use that identity to connect to said machine.
 
@@ -13,25 +11,27 @@ Here's an overview of what you will do:
 1. Download and install Teleport (=teleport.version=)
 2. Create bot user
 3. Start Machine ID
-4. Use Machine ID
+4. Use certificates issued by Machine ID
 
 ## Prerequisites
 
 Before using Machine ID, you will need an existing Teleport cluster.
 
 If you have not set up a Teleport cluster before, follow the
-[Getting started](https://goteleport.com/docs/getting-started) to setup a
+[Getting started](https://goteleport.com/docs/getting-started) guide to setup a
 Teleport cluster.
 
 ## Step 1/4. Download and install Teleport (=teleport.version=)
 
 In this step, you will be downloading and installing Teleport binaries onto the
 machine you wish to assign an identity to. Teleport packages hosted on our
-downloads page ships with several useful binaries, including `teleport`, `tctl`, `tsh`, and `tbot`:
-- `teleport` is the daemon used to initialize a Teleport cluster; this binary is not used in this guide
-- `tctl` is the administrative tool you will use to create the bot user (step 1/4)
-- `tsh` is the client tool you will use to log in to the Teleport Cluster (steps 2/4 and 4/4)
-- `tbot` is the Machine ID tool you will use to associate a bot user with a machine (step 3/4)
+downloads page ships with several useful binaries, including `teleport`,
+`tctl`, `tsh`, and `tbot`:
+
+* `teleport` is the daemon used to initialize a Teleport cluster; this binary is not used in this guide
+* `tctl` is the administrative tool you will use to create the bot user (step 1/4)
+* `tsh` is the client tool you will use to log in to the Teleport Cluster (steps 2/4 and 4/4)
+* `tbot` is the Machine ID tool you will use to associate a bot user with a machine (step 3/4)
 
 Machine ID is available starting from the Teleport `9.0.0` release. Download
 the appropriate Teleport package for your platform from our
@@ -69,8 +69,7 @@ auditor no-login-6566121f-b602-47f1-a118-c9c618ee5aec             session:list,r
 editor                                                            user:list,create,read,update,delete,...
 ```
 
-
-You can join with a token or [IAM Method](https://goteleport.com/docs/setup/guides/joining-nodes-aws) on AWS.
+Machine ID can join with a token or [IAM Method](https://goteleport.com/docs/setup/guides/joining-nodes-aws) on AWS.
 
 <Tabs>
   <TabItem label="Token-based Joining">
@@ -79,10 +78,8 @@ You can join with a token or [IAM Method](https://goteleport.com/docs/setup/guid
   ```
   </TabItem>
   <TabItem label="IAM Method">
-  If you are running Machine ID on AWS, you can use the IAM method when creating a bot user.
-
-  First, create a token the IAM method token that will specify the AWS account
-  from which the bot can join from.
+  First, create a IAM method token that specifies the AWS account from which
+  the bot can join from.
 
   ```
   kind: token
@@ -101,13 +98,13 @@ You can join with a token or [IAM Method](https://goteleport.com/docs/setup/guid
     join_method: iam
 
     # Define the name of the bot that will be allowed to use this token. Note,
-    # the "bot-" prefix is required, the name of the bot is simply "robot".
+    # the "bot-" prefix is required, the name of the bot you will create is "robot".
     bot_name: bot-robot
   
     allow:
     # Restrict the AWS account and (optionally) ARN that can use this token.
     # This information can be obtained from running the
-    # "aws sts get-caller-identity".
+    # "aws sts get-caller-identity" command from the CLI.
     - aws_account: "111111111111"
       aws_arn: "arn:aws:sts::111111111111:assumed-role/teleport-bot-role/i-*"
   ```
@@ -158,23 +155,19 @@ the foreground to better understand how it works.
 
 Replace the following fields with values from your own cluster.
 
-* `token` is the token output by `tctl bots add` command or the name of your
-IAM method token
-* `ca-pin` is the CA Pin for your Teleport cluster output by the `tctl bots add`
-command
-* `destination-dir` is where Machine ID writes the renewable certificates to.
-This certificate is only used by Machine ID and should not be exposed to tools.
-* `data-dir` is where Machine ID writes the short lived certificate to. This
-certificate can be used by applications and tools.
+* `token` is the token output by `tctl bots add` command or the name of your IAM method token
+* `ca-pin` is the CA Pin for your Teleport cluster output by the `tctl bots add` command
+* `destination-dir` is where Machine ID writes the renewable certificates to, this certificate is only used by Machine ID and should not be used by applications and tools
+* `data-dir` is where Machine ID writes the short lived certificate to, this certificate should be used by applications and tools
 <Details scope={["cloud"]} scopeOnly={true}>
-* `auth-server`: Replace this with the address of your Teleport Auth Server.
+* `auth-server` is the address of your Teleport Auth Server
 </Details>
 <Details scope={["oss","enterprise"]} scopeOnly={true}>
-* `auth-server`: Replace this with the address of your Teleport Cloud Proxy Server.
+* `auth-server` is the address of your Teleport Cloud Proxy Server
 </Details>
 
-Once Machine ID is successfully started, let's investigate the `/opt/machine-id`
-directory to see what was written to disk.
+Now that Machine ID has successfully started, let's investigate the
+`/opt/machine-id` directory to see what was written to disk.
 
 ```
 $ tree /opt/machine-id
@@ -191,15 +184,15 @@ machine-id
 0 directories, 8 files
 ```
 
-This directory contains private key material, SSH certificates, X.509
-certificates, and OpenSSH configuration to make it easy to integrate Machine
-ID with external tooling.
+This directory contains private key material in the `key.*` files, SSH
+certificates in the `ssh*` files, X.509 certificates in the `tls*` files, and
+OpenSSH configuration in `ssh_config` and `known_hosts` files to make it easy
+to integrate Machine ID with external applications and tools.
 
-## Step 4/4. Use Machine ID
+## Step 4/4. Use certificates issued by Machine ID
 
-To use Machine ID, find a host that is registered within your cluster to
-connect to using `tsh ls`. You might see output like the following on your own
-system.
+To use Machine ID, find a host that you want to connect to within your cluster
+using `tsh ls`. You might see output like the following on your system.
 
 ```code
 $ tsh ls
@@ -208,8 +201,8 @@ Node Name Address        Labels
 node-name  127.0.0.1:3022 arch=x86_64,group=api-servers 
 ```
 
-To use Machine ID with the OpenSSH integration, simply run the following
-command to connect to `node-name`.
+To use Machine ID with the OpenSSH integration, run the following command to
+connect to `node-name`.
 
 ```
 ssh -F /opt/machine-id/ssh_config root@node-name
@@ -229,8 +222,9 @@ ssh -F /opt/machine-id/ssh_config root@node-name
   ```
 </Admonition>
 
-Now you can replace any invocations of `ssh` with the above command for
-automation to use Machine ID.
+Now you can replace any invocations of `ssh` with the above command to provide
+your applications and tools a machine identity that can be rotated, audited,
+and controlled with all the familiar Teleport access controls.
 
 {
 /*
