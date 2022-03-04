@@ -11,10 +11,14 @@ accounts, with fine-grained role-based access controls and audit built in.
 
 Some of the things you can do with Machine ID:
 
-* Machines can retrieve short-lived certificates for CI/CD pipelines.
-* Machines hsort lived certs for db in applications.
+* Machines can retrieve short-lived SSH certificates for CI/CD pipelines.
+* Machines can retrieve short-lived X.509 certificates for use with databases or applications.
 * Configure role-based access controls and locking for machines.
-* Capture database access events as well as query activity in the audit log.
+* Capture access events in the audit log.
+
+{
+/*
+TODO(russjones): Once we have a demo video for Machine ID, include it here.
 
 ## Demo
 
@@ -39,13 +43,13 @@ Let's create a bot and use the machine identity to connect to a server.
 
   Your browser does not support the video tag.
 </video>
+*/
+}
 
 ## Getting started
 
 <TileSet>
-  <Tile icon="database" title="Getting started" href="./getting-started.mdx">
+  <Tile icon="magic-wand" title="Getting started" href="./getting-started.mdx">
     Getting started with Teleport Machine ID
   </Tile>
 </TileSet>
-
-(!docs/pages/includes/database-access/guides.mdx!)

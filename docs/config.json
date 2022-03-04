@@ -527,7 +527,7 @@
       ]
     },
     {
-      "icon": "note",
+      "icon": "magic-wand",
       "title": "Machine ID",
       "entries": [
         {
@@ -537,10 +537,6 @@
         {
           "title": "Getting Started",
           "slug": "/machine-id/getting-started/"
-        },
-        {
-          "title": "Architecture",
-          "slug": "/api/architecture/"
         }
       ]
     },
