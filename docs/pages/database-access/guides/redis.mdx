@@ -16,13 +16,13 @@ description: How to configure Teleport Database Access with Redis.
 This guide will help you to:
 
 - Install and configure Teleport.
-- Configure mutual TLS authentication between Teleport and your Redis database.
-- Connect to Redis database through Teleport.
+- Configure mutual TLS authentication between Teleport and your Redis.
+- Connect to Redis through Teleport.
 
 ## Prerequisites
 
 - Teleport version `9.0` or newer.
-- Redis database (standalone or cluster) version `6.0` or newer.
+- Redis (standalone or cluster) version `6.0` or newer.
 - `redis-cli` installed and added to your system's `PATH` environment variable.
 
 <Admonition type="note" title="Note">
@@ -51,8 +51,6 @@ or use OpenSSL if you have it installed on your machine
 ```shell
 openssl rand -hex 32
 ```
-
-This command generates a password like that `0a49c95a25b0f92787d07a5b6bdc1a25b3a2130a1b338ec524f1b5dcd708bc65`.
 
 Create a `users.acl` file, which defines users for your Redis deployment, passwords required to log in as a given user
 , and sets of ACL rules. Redis allows you to provide passwords in plaintext or an SHA256 checksum.
@@ -84,9 +82,7 @@ Redis in cluster mode requires a special user created on leader nodes to enable 
   to the database can log in as the `default` user, which by default has administrator privileges.
 </Admonition>
 
-## Step 4/5
-
-### Set up mutual TLS
+## Step 4/5. Set up mutual TLS
 
 (!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
 
@@ -106,9 +102,11 @@ Create the secrets:
 
     (!docs/pages/includes/database-access/ttl-note.mdx!)
 
-    The command will create three files: `server.cas` with Teleport's certificate
-    authority, `server.key` with generated private key and `server.crt` with generated user certificate. You will
-    need these files to enable mutual TLS on your Redis server.
+    The command will create three files:
+    * `server.cas` with Teleport's certificate authority
+    * `server.key` with generated private key
+    * `server.crt` with generated user certificate.
+    You will need these files to enable mutual TLS on your Redis server.
   </TabItem>
   <TabItem label="Cluster">
     When connecting to Redis Cluster, sign certificates for each member
@@ -124,9 +122,11 @@ Create the secrets:
 
     (!docs/pages/includes/database-access/ttl-note.mdx!)
 
-    The command will create three files: `server.cas` with Teleport's certificate
-    authority, `server.key` with generated private key and `server.crt` with generated user certificate. You will
-    need these files to enable mutual TLS on your Redis server.
+    The command will create three files:
+    * `server.cas` with Teleport's certificate authority
+    * `server.key` with generated private key
+    * `server.crt` with generated user certificate.
+    You will need these files to enable mutual TLS on your Redis server.
   </TabItem>
 </Tabs>
 
@@ -183,9 +183,7 @@ in the Redis documentation for more details.
 <Admonition type="note" title="Create Redis Cluster">
   When you're configuring Redis Cluster you need to create the cluster using `redis-cli`.
 
-  `redis-cli --cluster create` accepts only IP addresses, so the
-
-  Use the following command to create the cluster:
+  Use the following command to create the cluster. Please note `redis-cli --cluster create` accepts only IP addresses.
 
   ```shell
   export REDISCLI_AUTH=STRONG_GENERATED_PASSWORD
@@ -214,13 +212,26 @@ in the Redis documentation for more details.
 
 Log into your Teleport cluster and see available databases:
 
-```code
-$ tsh login --proxy=teleport.example.com --user=alice
-$ tsh db ls
-# Name          Description     Labels
-# ------------- --------------- --------
-# example-redis Example Redis env=dev
-```
+<Tabs>
+  <TabItem scope={["enterprise", "oss"]} label="Self Hosted">
+    ```code
+    $ tsh login --proxy=teleport.example.com --user=alice
+    $ tsh db ls
+    # Name          Description     Labels
+    # ------------- --------------- --------
+    # example-redis Example Redis   env=dev
+    ```
+  </TabItem>
+  <TabItem scope={["cloud"]} label="Cloud">
+    ```code
+    $ tsh login --proxy=mytenant.teleport.sh --user=alice
+    $ tsh db ls
+    # Name          Description     Labels
+    # ------------- --------------- --------
+    # example-redis Example Redis   env=dev
+    ```
+  </TabItem>
+</Tabs>
 
 To connect to a particular database instance, first retrieve its certificate
 using the `tsh db login` command:
@@ -275,72 +286,70 @@ $ tsh db logout
   <Tabs>
     <TabItem label="Standalone">
 
-      Redis in standalone mode doesn't support the commands below.
+      Redis in standalone mode doesn't support the commands below. If one of the listed commands is called Teleport
+      returns `ERR Teleport: not supported by Teleport` error.
 
-      - HELLO
-      - PUNSUBSCRIBE
-      - SSUBSCRIBE
-      - SUNSUBSCRIBE
-
-      If one of the listed commands is called Teleport returns `ERR Teleport: not supported by Teleport` error.
+      - `HELLO`
+      - `PUNSUBSCRIBE`
+      - `SSUBSCRIBE`
+      - `SUNSUBSCRIBE`
 
     </TabItem>
     <TabItem label="Cluster">
 
-      Redis in cluster mode doesn't support below commands:
+      Redis in cluster mode doesn't support below commands. If one of the listed commands above is called Teleport
+      returns `ERR Teleport: command not supported` error.
 
-      - ACL
-      - ASKING
-      - CLIENT
-      - CLUSTER
-      - CONFIG
-      - DEBUG
-      - EXEC
-      - HELLO
-      - INFO
-      - LATENCY
-      - MEMORY
-      - MIGRATE
-      - MODULE
-      - MONITOR
-      - MULTI
-      - PFDEBUG
-      - PFSELFTEST
-      - PSUBSCRIBE
-      - PSYNC
-      - PUNSUBSCRIBE
-      - PUNSUBSCRIBE
-      - READONLY
-      - READWRITE
-      - REPLCONF
-      - REPLICAOF
-      - ROLE
-      - SCAN
-      - SCRIPT DEBUG
-      - SCRIPT KILL
-      - SHUTDOWN
-      - SLAVEOF
-      - SLOWLOG
-      - SSUBSCRIBE
-      - SUNSUBSCRIBE
-      - SYNC
-      - TIME
-      - WAIT
-      - WATCH
-
-      If one of the listed commands above is called Teleport returns `ERR Teleport: command not supported` error.
+      - `ACL`
+      - `ASKING`
+      - `CLIENT`
+      - `CLUSTER`
+      - `CONFIG`
+      - `DEBUG`
+      - `EXEC`
+      - `HELLO`
+      - `INFO`
+      - `LATENCY`
+      - `MEMORY`
+      - `MIGRATE`
+      - `MODULE`
+      - `MONITOR`
+      - `MULTI`
+      - `PFDEBUG`
+      - `PFSELFTEST`
+      - `PSUBSCRIBE`
+      - `PSYNC`
+      - `PUNSUBSCRIBE`
+      - `PUNSUBSCRIBE`
+      - `READONLY`
+      - `READWRITE`
+      - `REPLCONF`
+      - `REPLICAOF`
+      - `ROLE`
+      - `SCAN`
+      - `SCRIPT DEBUG`
+      - `SCRIPT KILL`
+      - `SHUTDOWN`
+      - `SLAVEOF`
+      - `SLOWLOG`
+      - `SSUBSCRIBE`
+      - `SUNSUBSCRIBE`
+      - `SYNC`
+      - `TIME`
+      - `WAIT`
+      - `WATCH`
 
       Teleport also adds additional processing to:
 
-      - DBSIZE - sends the query to all nodes and returns the number of keys in the whole cluster.
-      - KEYS - sends the query to all nodes and returns a list of all keys in the whole cluster.
-      - MGET - translates the commands to multiple GETs and sends them to multiple nodes. Result is merged in Teleport
+      - `DBSIZE` - sends the query to all nodes and returns the number of keys in the whole cluster.
+      - `KEYS` - sends the query to all nodes and returns a list of all keys in the whole cluster.
+      - `MGET` - translates the commands to multiple `GET`s and sends them to multiple nodes. Result is merged in Teleport
       and returned back to the client. If Teleport fails to fetch at least one key an error is returned.
-      - FLUSHDB - sends the query to all nodes.
-      - FLUSHALL - works the same as FLUSHDB.
-      - SCRIPT EXISTS - sends the query to all nodes. `1` is returned only if script exists on all nodes.
-      - SCRIPT LOAD - sends the script to all nodes.
-      - SCRIPT FLUSH - sends the query to all nodes. ASYNC parameter is ignored.
+      - `FLUSHDB` - sends the query to all nodes.
+      - `FLUSHALL` - works the same as FLUSHDB.
+      - `SCRIPT EXISTS` - sends the query to all nodes. `1` is returned only if script exists on all nodes.
+      - `SCRIPT LOAD` - sends the script to all nodes.
+      - `SCRIPT FLUSH` - sends the query to all nodes. `ASYNC` parameter is ignored.
 
     </TabItem>
   </Tabs>
