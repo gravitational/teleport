@@ -844,6 +844,8 @@ func getApplicationServer(ctx context.Context, clusterAPI auth.ClientI, appName 
 	return nil, trace.NotFound("app %q not found", appName)
 }
 
+// getDatabaseServer fetches a single `DatabaseServer` by name using the
+// provided `auth.ClientI`.
 func getDatabaseServer(ctx context.Context, clientAPI auth.ClientI, dbName string) (types.DatabaseServer, error) {
 	servers, err := clientAPI.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {
