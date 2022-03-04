@@ -358,8 +358,8 @@ func TestIsRDSClusterSupported(t *testing.T) {
 				EngineVersion:       aws.String(test.engineVersion),
 			}
 
-			require.Equal(t, test.isSupported, IsRDSClusterSupported(cluster))
-
+			got, want := IsRDSClusterSupported(cluster), test.isSupported
+			require.Equal(t, want, got, "IsRDSClusterSupported = %v, want = %v", got, want)
 		})
 	}
 }
@@ -407,7 +407,8 @@ func TestIsRDSInstanceSupported(t *testing.T) {
 				EngineVersion:       aws.String(test.engineVersion),
 			}
 
-			require.Equal(t, test.isSupported, IsRDSInstanceSupported(cluster))
+			got, want := IsRDSInstanceSupported(cluster), test.isSupported
+			require.Equal(t, want, got, "IsRDSInstanceSupported = %v, want = %v", got, want)
 		})
 	}
 }

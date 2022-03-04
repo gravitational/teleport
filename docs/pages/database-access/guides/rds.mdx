@@ -9,14 +9,10 @@ This guide will help you to:
 - Set up Teleport to access your RDS instances and Aurora clusters.
 - Connect to your databases through Teleport.
 
-<Admonition type="note" title="Aurora Serverless">
-  Aurora Serverless does not support IAM authentication at the time of this
-  writing so it can't be used with Database Access.
-</Admonition>
-
-<Admonition type="note" title="MariaDB supported versions">
-  The minimum supported version of MariaDB is 10.6. Older versions don't support
-  IAM authentication and they can't be used with Database Access.
+<Admonition type="note" title="Supported versions">
+    The following products are not compatible with Database Access as they don't support IAM authentication:
+    * Aurora Serverless.
+    * RDS MariaDB in version lower than 10.6.
 </Admonition>
 
 ## Prerequisites
