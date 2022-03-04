@@ -577,7 +577,7 @@ const (
 	// RDSEndpointTypeReader is the endpoint that load-balances connections across the Aurora Replicas that are
 	// available in a RDS cluster.
 	RDSEndpointTypeReader RDSEndpointType = "reader"
-	// RDSEndpointTypeCustom is the endpoint that specified one of the custom endpoints associated with the RDS cluster.
+	// RDSEndpointTypeCustom is the endpoint that specifies one of the custom endpoints associated with the RDS cluster.
 	RDSEndpointTypeCustom RDSEndpointType = "custom"
 	// RDSEndpointTypeInstance is the endpoint of an RDS DB instance.
 	RDSEndpointTypeInstance RDSEndpointType = "instance"

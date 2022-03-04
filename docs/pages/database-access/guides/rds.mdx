@@ -1,5 +1,5 @@
 ---
-title: Database Access with AWS RDS and Aurora for PostgreSQL, MySQL and MariaDB.
+title: Database Access with AWS RDS and Aurora for PostgreSQL, MySQL and MariaDB
 description: How to configure Teleport Database Access with AWS RDS and Aurora for PostgreSQL, MySQL and MariaDB.
 ---
 
@@ -324,7 +324,7 @@ Access for RDS. See below how to enable it for your database engine.
   ```
   </TabItem>
   <TabItem label="MySQL/MariaDB">
-  MySQL and MariaDB users must have RDS authentication plugin enabled:
+  MySQL and MariaDB users must have the RDS authentication plugin enabled:
 
   ```sql
   CREATE USER alice IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
