@@ -107,7 +107,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		assertErr   require.ErrorAssertionFunc
 	}{
 		{
-			desc: "valid --proxy with URL scheme",
+			desc: "valid --proxy URL with valid URL scheme",
 			ac: AuthCommand{
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
@@ -118,7 +118,20 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			assertErr: require.NoError,
 		},
 		{
-			desc: "valid --proxy without URL scheme",
+			desc: "valid --proxy URL with invalid URL scheme",
+			ac: AuthCommand{
+				output:        filepath.Join(tmpDir, "kubeconfig"),
+				outputFormat:  identityfile.FormatKubernetes,
+				signOverwrite: true,
+				proxyAddr:     "file://proxy-from-flag.example.com",
+			},
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+				require.Error(t, err)
+				require.Equal(t, err.Error(), "expected --proxy URL with http or https scheme")
+			},
+		},
+		{
+			desc: "valid --proxy URL without URL scheme",
 			ac: AuthCommand{
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
@@ -129,7 +142,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			assertErr: require.NoError,
 		},
 		{
-			desc: "invalid --proxy",
+			desc: "invalid --proxy URL",
 			ac: AuthCommand{
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
@@ -138,7 +151,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			},
 			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), "Specified --proxy URL is invalid")
+				require.Contains(t, err.Error(), "specified --proxy URL is invalid")
 			},
 		},
 		{

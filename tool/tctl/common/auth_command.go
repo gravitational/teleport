@@ -740,13 +740,18 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 		// User set --proxy. Validate it and set its scheme to https in case it was omitted.
 		u, err := url.Parse(a.proxyAddr)
 		if err != nil {
-			return trace.WrapWithMessage(err, "Specified --proxy URL is invalid")
+			return trace.WrapWithMessage(err, "specified --proxy URL is invalid")
 		}
-		if u.Scheme == "" {
+		switch u.Scheme {
+		case "":
 			u.Scheme = "https"
+			a.proxyAddr = u.String()
+			return nil
+		case "http", "https":
+			return nil
+		default:
+			return trace.BadParameter("expected --proxy URL with http or https scheme")
 		}
-		a.proxyAddr = u.String()
-		return nil
 	}
 
 	// User didn't specify --proxy for kubeconfig. Let's try to guess it.
