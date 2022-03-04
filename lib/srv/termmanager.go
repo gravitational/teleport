@@ -46,9 +46,10 @@ type TermManager struct {
 	incoming chan []byte
 	// remaining is a partially read chunk of stdin data
 	// we only support one concurrent reader so this isn't mutex protected
-	remaining       []byte
-	readStateUpdate *sync.Cond
-	closed          *int32
+	remaining        []byte
+	readStateUpdate  *sync.Cond
+	closed           *int32
+	lastWasBroadcast bool
 }
 
 // NewTermManager creates a new TermManager.
@@ -63,6 +64,7 @@ func NewTermManager() *TermManager {
 }
 
 func (g *TermManager) writeToClients(p []byte) int {
+	g.lastWasBroadcast = false
 	truncateFront := func(slice []byte, max int) []byte {
 		if len(slice) > max {
 			return slice[len(slice)-max:]
@@ -163,9 +165,14 @@ func (g *TermManager) writeUnconditional(p []byte) (int, error) {
 
 // BroadcastMessage injects a message into the stream.
 func (g *TermManager) BroadcastMessage(message string) error {
-	data := []byte("\r\nTeleport > " + message + "\r\n")
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	data := []byte("Teleport > " + message + "\r\n")
+	if g.lastWasBroadcast {
+		data = append([]byte("\r\n"), data...)
+	} else {
+		g.lastWasBroadcast = true
+	}
 	_, err := g.writeUnconditional(data)
 	return trace.Wrap(err)
 }
