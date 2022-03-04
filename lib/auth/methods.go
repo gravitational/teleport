@@ -118,7 +118,7 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) (string, error) {
 	if err := s.emitter.EmitAuditEvent(s.closeCtx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit login event.")
 	}
-	return user, err
+	return user, trace.Wrap(err)
 }
 
 // authenticateWebauthnError is the generic error message returned for failed
