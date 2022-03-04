@@ -30,22 +30,15 @@ Take a look at the [Installation Guide](../installation.mdx) for more options.
 
 ### Configure DNS
 
-Teleport uses TLS to provide secure access to its Proxy Service and Auth Service, and this requires a domain name that clients can use to verify Teleport's certificate. To get started, set up two `A` records for `tele.example.com` and `*.tele.example.com` pointing to the IP/FQDN of the machine with Teleport installed.
-
-<Admonition
-  type="tip"
-  title="Tip"
->
-  You can use `dig` to make sure that DNS records are propagated:
-
-  ```code
-  $ dig @$DNS_SERVER_ADDRESS tele.example.com
-  ```
-</Admonition>
+(!docs/pages/includes/dns.mdx!)
 
 ### Configure Teleport
 
-Next, generate a configuration file for Teleport using the `teleport configure` command. This command requires information about a TLS certificate and private key. If your environment allows your Teleport Auth Server to be reachable via the public internet, we recommend using Let's Encrypt to generate your key and certificate automatically. Otherwise, you can use a key and certificate provided via your organization's internal public key infrastructure.
+Generate a configuration file for Teleport using the `teleport configure` command.
+This command requires information about a TLS certificate and private key.
+
+If you are running Teleport on the internet, we recommend using Let's Encrypt to receive your key and certificate automatically.
+For private net or custom deployments, use your own private key and certificate.
 
 <Tabs>
   <TabItem label="Public internet deployment with Let's Encrypt">
