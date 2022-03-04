@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509/pkix"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -43,7 +42,7 @@ import (
 func TestAuthSignKubeconfig(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := ioutil.TempDir("", "auth_command_test")
+	tmpDir, err := os.MkdirTemp("", "auth_command_test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -522,19 +521,19 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			require.Equal(t, test.outServerNames[0], authClient.dbCertsReq.ServerName)
 
 			if len(test.outKey) > 0 {
-				keyBytes, err := ioutil.ReadFile(filepath.Join(test.inOutDir, test.outKeyFile))
+				keyBytes, err := os.ReadFile(filepath.Join(test.inOutDir, test.outKeyFile))
 				require.NoError(t, err)
 				require.Equal(t, test.outKey, keyBytes, "keys match")
 			}
 
 			if len(test.outCert) > 0 {
-				certBytes, err := ioutil.ReadFile(filepath.Join(test.inOutDir, test.outCertFile))
+				certBytes, err := os.ReadFile(filepath.Join(test.inOutDir, test.outCertFile))
 				require.NoError(t, err)
 				require.Equal(t, test.outCert, certBytes, "certificates match")
 			}
 
 			if len(test.outCA) > 0 {
-				caBytes, err := ioutil.ReadFile(filepath.Join(test.inOutDir, test.outCAFile))
+				caBytes, err := os.ReadFile(filepath.Join(test.inOutDir, test.outCAFile))
 				require.NoError(t, err)
 				require.Equal(t, test.outCA, caBytes, "CA certificates match")
 			}
@@ -633,7 +632,7 @@ func TestGenerateAppCertificates(t *testing.T) {
 			require.Equal(t, proto.UserCertsRequest_App, authClient.userCertsReq.Usage)
 			require.Equal(t, expectedRouteToApp, authClient.userCertsReq.RouteToApp)
 
-			certBytes, err := ioutil.ReadFile(filepath.Join(tc.outDir, tc.outFileBase+".crt"))
+			certBytes, err := os.ReadFile(filepath.Join(tc.outDir, tc.outFileBase+".crt"))
 			require.NoError(t, err)
 			require.Equal(t, authClient.userCerts.TLS, certBytes, "certificates match")
 		})
@@ -742,7 +741,7 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 			require.Equal(t, proto.UserCertsRequest_Database, authClient.userCertsReq.Usage)
 			require.Equal(t, expectedRouteToDatabase, authClient.userCertsReq.RouteToDatabase)
 
-			certBytes, err := ioutil.ReadFile(filepath.Join(certsDir, test.dbName+".crt"))
+			certBytes, err := os.ReadFile(filepath.Join(certsDir, test.dbName+".crt"))
 			require.NoError(t, err)
 			require.Equal(t, authClient.userCerts.TLS, certBytes, "certificates match")
 		})
