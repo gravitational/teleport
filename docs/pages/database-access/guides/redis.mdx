@@ -37,9 +37,9 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/5. Create Redis users.
+## Step 3/5. Create Redis users
 
-Redis user must be protected by a strong password. We recommend using a password generator built-in in Redis.
+Each Redis user must be protected by a strong password. We recommend using the password generator built into Redis.
 To generate password connect to a Redis instance and call:
 
 ```
@@ -54,9 +54,9 @@ openssl rand -hex 32
 
 This command generates a password like that `0a49c95a25b0f92787d07a5b6bdc1a25b3a2130a1b338ec524f1b5dcd708bc65`.
 
-Create `users.acl` file with users. File defines Redis users, passwords required to log in as a given user
-and sets of Redis ACL rules. Redis allows providing passwords as a plain text or SHA256 checksum version.
-We strongly recommend to use SHA256 checksum instead of plain text password.
+Create a `users.acl` file, which defines users for your Redis deployment, passwords required to log in as a given user
+, and sets of ACL rules. Redis allows you to provide passwords in plaintext or an SHA256 checksum.
+We strongly recommend using SHA256 checksums instead of plaintext passwords.
 
 <Tabs>
   <TabItem label="Standalone">
@@ -65,23 +65,23 @@ We strongly recommend to use SHA256 checksum instead of plain text password.
     user default off
     ```
 
-    For more ACL examples refer to [Redis documentation](https://redis.io/topics/acl).
+    For more ACL examples refer to the [Redis documentation](https://redis.io/topics/acl).
   </TabItem>
   <TabItem label="Cluster">
-    Redis in Cluster mode requires a special user created on master nodes to enable master-replica communication.
+Redis in cluster mode requires a special user created on leader nodes to enable leader-follower communication.
     ```text
     user alice on #57639ed88a85996453555f22f5aa4147b4c9614056585d931e5d976f610651e9 allcommands allkeys
     user replica-user on #42a9798b99d4afcec9995e47a1d246b98ebc96be7a732323eee39d924006ee1d &* -@all +replconf +ping +psync
     user default off
     ```
 
-    For more ACL examples refer to Redis documentation: [ACL](https://redis.io/topics/acl), [ACL rules for replicas](https://redis.io/topics/acl#acl-rules-for-sentinel-and-replicas).
+    For more ACL examples refer to the Redis documentation: [ACL](https://redis.io/topics/acl), [ACL rules for replicas](https://redis.io/topics/acl#acl-rules-for-sentinel-and-replicas).
   </TabItem>
 </Tabs>
 
 <Admonition type="warning">
-  It's very important to either disable or protect with password the `default` user. Otherwise, everyone with access
-  to the database can login as the `default` user which by default has administrator privileges.
+  It's very important to either disable or protect with a password the `default` user. Otherwise, everyone with access
+  to the database can log in as the `default` user, which by default has administrator privileges.
 </Admonition>
 
 ## Step 4/5
@@ -98,7 +98,7 @@ Create the secrets:
     which Teleport will be connecting to it.
 
     For example, if your Redis server is accessible at `redis.example.com`
-    hostname, run:
+, run:
 
     ```code
     $ tctl auth sign --format=redis --host=redis.example.com --out=server --ttl=2190h
@@ -111,8 +111,8 @@ Create the secrets:
     need these files to enable mutual TLS on your Redis server.
   </TabItem>
   <TabItem label="Cluster">
-    When connecting to a Redis Cluster, sign certificates for each member
-    using the hostnames and the IP they're accessible at.
+    When connecting to Redis Cluster, sign certificates for each member
+    using their hostnames and IP addresses.
 
     For example, if the first member is accessible at `redis1.example.com` with IP `10.0.1` and
     the second at `redis2.example.com` with IP `10.0.0.2`, run:
@@ -173,19 +173,19 @@ file and restart the database:
 </Tabs>
 
 Once mutual TLS has been enabled, you will no longer be able to connect to
-the cluster without providing a valid client certificate. You can use
+the cluster without providing a valid client certificate. You can use the
 `tls-auth-clients optional` setting to allow connections
 from clients that do not present a certificate.
 
-See [Configure TLS/SSL](https://redis.io/topics/encryption)
-in Redis documentation for more details.
+See [TLS Support](https://redis.io/topics/encryption)
+in the Redis documentation for more details.
 
 <Admonition type="note" title="Create Redis Cluster">
-  When you're configuring Redis Cluster you need to create the cluster using `redis-cli`
+  When you're configuring Redis Cluster you need to create the cluster using `redis-cli`.
 
   `redis-cli --cluster create` accepts only IP addresses, so the
 
-  Use below command to create the cluster:
+  Use the following command to create the cluster:
 
   ```shell
   export REDISCLI_AUTH=STRONG_GENERATED_PASSWORD
@@ -200,7 +200,7 @@ in Redis documentation for more details.
 
 <Admonition type="note" title="Redis Cluster Only">
 
-  To enable Redis cluster mode in Teleport add `mode=cluster` parameter to connection uri in teleport config file.
+  To enable Redis cluster mode in Teleport, add the `mode=cluster` parameter to the connection URI in your Teleport config file.
 
   ```yaml
   databases:
@@ -223,7 +223,7 @@ $ tsh db ls
 ```
 
 To connect to a particular database instance, first retrieve its certificate
-using `tsh db login` command:
+using the `tsh db login` command:
 
 ```code
 $ tsh db login example-redis
@@ -241,7 +241,7 @@ $ tsh db login --db-user=alice example-redis
 ```
 
 <Admonition type="note" title="Note">
-  If flag `--db-user` is not provided Teleport logs in as the `default` user.
+  If flag `--db-user` is not provided, Teleport logs in as the `default` user.
 </Admonition>
 
 Once logged in, connect to the database:
@@ -275,7 +275,7 @@ $ tsh db logout
   <Tabs>
     <TabItem label="Standalone">
 
-      Redis in standalone mode doesn't support below commands.
+      Redis in standalone mode doesn't support the commands below.
 
       - HELLO
       - PUNSUBSCRIBE

@@ -27,7 +27,7 @@ db_service:
     # Free-form description of the database proxy instance.
     description: "Production database"
 
-    # Database protocol. Can be: "postgres", "mysql", "mongodb", "cockroachdb", "sqlserver", "redis".
+    # Database protocol. Can be: "postgres", "mysql", "mongodb", "cockroachdb", "sqlserver", or "redis".
     protocol: "postgres"
 
     # Database connection endpoint. Must be reachable from Database Service.
