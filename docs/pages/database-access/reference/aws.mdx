@@ -4,14 +4,11 @@ description: AWS IAM policies for Teleport database access.
 ---
 
 ## Auto-discovery
-Teleport automatically discovers and configures IAM for RDS and Redshift given
-proper IAM permissions as described in the [AWS RDS & Aurora
-guide](../guides/rds.mdx) and the [AWS Redshift
-guide](../guides/postgres-redshift.mdx).
+With the appropriate IAM permissions, Teleport automatically discovers and
+configures IAM policies for Amazon RDS and Redshift.
 
-The Teleport Database Service requires a set of AWS IAM permissions to:
-- update database configurations
-- update its identity with connection-related permissions
+It also requires permission to update database configurations, for example, to
+enable IAM authentication on RDS databases.
 
 You can generate and manage the permissions with the [`teleport db configure
 bootstrap`](../../database-access/reference/cli.mdx#teleport-db-configure-bootstrap)
