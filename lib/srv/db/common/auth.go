@@ -382,12 +382,15 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 // getTLSConfigInsecure generates tls.Config when TLS mode is equal to 'insecure'.
 // Generated configuration will accept any certificate provided by database.
 func (a *dbAuth) getTLSConfigInsecure(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
-	tlsConfig := &tls.Config{
-		RootCAs: x509.NewCertPool(),
+	tlsConfig, err := a.getTLSConfigVerifyFull(ctx, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Accept any certificate provided by database.
 	tlsConfig.InsecureSkipVerify = true
+	// Remove certificate validation if set.
+	tlsConfig.VerifyConnection = nil
 
 	return a.appendClientCert(ctx, sessionCtx, tlsConfig)
 }
