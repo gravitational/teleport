@@ -1,4 +1,33 @@
 ---
+kind: pipeline
+type: kubernetes
+name: update-docs-webhook
+
+trigger:
+  event:
+    include:
+      - push
+    exclude:
+      - pull_request
+  branch:
+    include:
+      - master
+      - branch/*
+  repo:
+    include:
+      - gravitational/teleport
+
+clone:
+  disable: true
+
+steps:
+  - name: Trigger docs deployment
+    image: plugins/webhook
+    settings:
+      urls:
+        from_secret: DOCS_DEPLOY_HOOK
+                
+---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
@@ -5220,6 +5249,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: c86a7ce07ccdd38eb5e3e458b357d71592f8bda3401cd630774bbc0fbeeadecb
+hmac: 540fe3bdd610d91a1d3e3b52b6f4de1e0fd2b13ca78fc40a856f64abb3882db7
 
 ...
