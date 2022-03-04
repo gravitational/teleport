@@ -360,3 +360,13 @@ func stringCompare(a string, b string, isDesc bool) bool {
 	}
 	return a < b
 }
+
+// ListResourcesResponse describes a non proto response to ListResources.
+type ListResourcesResponse struct {
+	// Resources is a list of resource.
+	Resources []ResourceWithLabels
+	// NextKey is the next key to use as a starting point.
+	NextKey string
+	// TotalCount is the total number of resources available as a whole.
+	TotalCount int
+}
