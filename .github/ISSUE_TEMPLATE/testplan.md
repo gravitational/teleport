@@ -947,6 +947,10 @@ and non interactive tsh bench loads.
   - [ ] Verify async recording (`mode: node` or `mode: proxy`)
   - [ ] Sessions show up in session recordings UI with desktop icon
   - [ ] Sessions can be played back, including play/pause functionality
+  - [ ] A session that ends with a TDP error message can be played back, ends by displaying the error message,
+        and the progress bar progresses to the end.
+  - [ ] Attempting to play back a session that doesn't exist (i.e. by entering a non-existing session id in the url) shows
+        a relevant error message.
   - [ ] RBAC for sessions: ensure users can only see their own recordings when
     using the RBAC rule from our
     [docs](../../docs/pages/access-controls/reference.mdx#rbac-for-sessions)
