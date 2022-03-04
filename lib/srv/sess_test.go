@@ -76,8 +76,6 @@ func TestParseAccessRequestIDs(t *testing.T) {
 
 }
 
-var _ Server = (*mockServer)(nil)
-
 type mockServer struct {
 	events.StreamEmitter
 }
