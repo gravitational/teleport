@@ -406,6 +406,11 @@ message CreateBotResponse {
     // TokenTTL is the TTL for the token. If it differs from the requested TTL,
     // it may have been limited by server policy.
     int64 TokenTTL = 4 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
+    // JoinMethod is the join method the bot must use to join the cluster.
+    string JoinMethod = 5 [
+        (gogoproto.jsontag) = "join_method",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.JoinMethod"
+    ];
 }
 
 // DeleteBotRequest is a request to delete a bot user
@@ -1487,7 +1492,8 @@ message ListResourcesRequest {
     // SortBy describes which resource field and which direction to sort by.
     types.SortBy SortBy = 8
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "sort_by,omitempty" ];
-    // NeedTotalCount indicates whether or not the caller also wants the total number of resources after filtering.
+    // NeedTotalCount indicates whether or not the caller also wants the total number of resources
+    // after filtering.
     bool NeedTotalCount = 9 [ (gogoproto.jsontag) = "need_total_count,omitempty" ];
 }
 
