@@ -230,6 +230,8 @@ type Presence interface {
 
 	// GetWindowsDesktopServices returns all registered Windows desktop services.
 	GetWindowsDesktopServices(context.Context) ([]types.WindowsDesktopService, error)
+	// GetWindowsDesktopService returns a Windows desktop service by name
+	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 	// UpsertWindowsDesktopService creates or updates a new Windows desktop service.
 	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
 	// DeleteWindowsDesktopService removes the specified Windows desktop service.
@@ -238,5 +240,5 @@ type Presence interface {
 	DeleteAllWindowsDesktopServices(context.Context) error
 
 	// ListResoures returns a paginated list of resources.
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.ResourceWithLabels, nextKey string, err error)
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }

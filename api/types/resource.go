@@ -109,6 +109,45 @@ func (r ResourcesWithLabels) Less(i, j int) bool { return r[i].GetName() < r[j].
 // Swap swaps two resources.
 func (r ResourcesWithLabels) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 
+// AsAppServers converts each resource into type AppServer.
+func (r ResourcesWithLabels) AsAppServers() ([]AppServer, error) {
+	apps := make([]AppServer, 0, len(r))
+	for _, resource := range r {
+		app, ok := resource.(AppServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.AppServer, got: %T", resource)
+		}
+		apps = append(apps, app)
+	}
+	return apps, nil
+}
+
+// AsServers converts each resource into type Server.
+func (r ResourcesWithLabels) AsServers() ([]Server, error) {
+	servers := make([]Server, 0, len(r))
+	for _, resource := range r {
+		server, ok := resource.(Server)
+		if !ok {
+			return nil, trace.BadParameter("expected types.Server, got: %T", resource)
+		}
+		servers = append(servers, server)
+	}
+	return servers, nil
+}
+
+// AsDatabaseServers converts each resource into type DatabaseServer.
+func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
+	dbs := make([]DatabaseServer, 0, len(r))
+	for _, resource := range r {
+		db, ok := resource.(DatabaseServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.DatabaseServer, got: %T", resource)
+		}
+		dbs = append(dbs, db)
+	}
+	return dbs, nil
+}
+
 // GetVersion returns resource version
 func (h *ResourceHeader) GetVersion() string {
 	return h.Version
@@ -313,4 +352,21 @@ Outer:
 	}
 
 	return true
+}
+
+func stringCompare(a string, b string, isDesc bool) bool {
+	if isDesc {
+		return a > b
+	}
+	return a < b
+}
+
+// ListResourcesResponse describes a non proto response to ListResources.
+type ListResourcesResponse struct {
+	// Resources is a list of resource.
+	Resources []ResourceWithLabels
+	// NextKey is the next key to use as a starting point.
+	NextKey string
+	// TotalCount is the total number of resources available as a whole.
+	TotalCount int
 }

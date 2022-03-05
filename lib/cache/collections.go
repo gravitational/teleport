@@ -52,7 +52,9 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 			if c.Trust == nil {
 				return nil, trace.BadParameter("missing parameter Trust")
 			}
-			collections[resourceKind] = &certAuthority{watch: watch, Cache: c}
+			var filter types.CertAuthorityFilter
+			filter.FromMap(watch.Filter)
+			collections[resourceKind] = &certAuthority{Cache: c, watch: watch, filter: filter}
 		case types.KindStaticTokens:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
@@ -786,6 +788,8 @@ func (c *namespace) watchKind() types.WatchKind {
 type certAuthority struct {
 	*Cache
 	watch types.WatchKind
+	// filter extracted from watch.Filter, to avoid rebuilding it on every event
+	filter types.CertAuthorityFilter
 }
 
 // erase erases all data in the collection
@@ -846,6 +850,19 @@ func (c *certAuthority) fetchCertAuthorities(caType types.CertAuthType) (apply f
 		}
 		return nil, trace.Wrap(err)
 	}
+
+	// this can be removed once we get the ability to fetch CAs with a filter,
+	// but it should be harmless, and it could be kept as additional safety
+	if !c.filter.IsEmpty() {
+		filteredCAs := make([]types.CertAuthority, 0, len(authorities))
+		for _, ca := range authorities {
+			if c.filter.Match(ca) {
+				filteredCAs = append(filteredCAs, ca)
+			}
+		}
+		authorities = filteredCAs
+	}
+
 	return func(ctx context.Context) error {
 		if err := c.trustCache.DeleteAllCertAuthorities(caType); err != nil {
 			if !trace.IsNotFound(err) {
@@ -881,6 +898,9 @@ func (c *certAuthority) processEvent(ctx context.Context, event types.Event) err
 		resource, ok := event.Resource.(types.CertAuthority)
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if !c.filter.Match(resource) {
+			return nil
 		}
 		if err := c.trustCache.UpsertCertAuthority(resource); err != nil {
 			return trace.Wrap(err)
@@ -2278,7 +2298,7 @@ func (c *windowsDesktops) erase(ctx context.Context) error {
 }
 
 func (c *windowsDesktops) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := c.WindowsDesktops.GetWindowsDesktops(ctx)
+	resources, err := c.WindowsDesktops.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2288,7 +2308,7 @@ func (c *windowsDesktops) fetch(ctx context.Context) (apply func(ctx context.Con
 		}
 
 		for _, resource := range resources {
-			if err := c.windowsDesktopsCache.CreateWindowsDesktop(ctx, resource); err != nil {
+			if err := c.windowsDesktopsCache.UpsertWindowsDesktop(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -2299,7 +2319,10 @@ func (c *windowsDesktops) fetch(ctx context.Context) (apply func(ctx context.Con
 func (c *windowsDesktops) processEvent(ctx context.Context, event types.Event) error {
 	switch event.Type {
 	case types.OpDelete:
-		err := c.windowsDesktopsCache.DeleteWindowsDesktop(ctx, event.Resource.GetName())
+		err := c.windowsDesktopsCache.DeleteWindowsDesktop(ctx,
+			event.Resource.GetMetadata().Description, // Cache passes host ID via description field.
+			event.Resource.GetName(),
+		)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				c.Warningf("Failed to delete resource %v.", err)
@@ -2311,14 +2334,7 @@ func (c *windowsDesktops) processEvent(ctx context.Context, event types.Event) e
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		err := c.windowsDesktopsCache.DeleteWindowsDesktop(ctx, resource.GetName())
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				c.WithError(err).Warningf("Failed to delete Windows desktop %v.", event.Resource.GetName())
-				return trace.Wrap(err)
-			}
-		}
-		if err := c.windowsDesktopsCache.CreateWindowsDesktop(ctx, resource); err != nil {
+		if err := c.windowsDesktopsCache.UpsertWindowsDesktop(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:

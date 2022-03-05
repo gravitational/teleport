@@ -624,7 +624,7 @@ func TestMain(m *testing.M) {
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 &&
-		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
+		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand || os.Args[1] == teleport.CheckHomeDirSubCommand) {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
@@ -3454,9 +3454,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	// audit log should have the fact that the session occurred recorded in it
-	sessions, err = site.GetSessions(apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, sessions, 1)
+	// but the session could have been garbage collected at this point.
 
 	// however, attempts to read the actual sessions should fail because it was
 	// not actually recorded
@@ -4300,7 +4298,7 @@ func (s *integrationTestSuite) rotationConfig(disableWebService bool) *service.C
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebService = disableWebService
 	tconf.Proxy.DisableWebInterface = true
-	tconf.PollingPeriod = 500 * time.Millisecond
+	tconf.PollingPeriod = time.Second
 	tconf.ClientTimeout = time.Second
 	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
 	tconf.MaxRetryPeriod = time.Second
@@ -5213,7 +5211,9 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 			Host:    Host,
 			Port:    main.GetPortSSHInt(),
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Errorf("Failed to create client: %v.", err)
+		}
 
 		// Connect terminal to std{in,out} of client.
 		client.Stdout = term
@@ -5222,25 +5222,34 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 		// "Type" a command into the terminal.
 		term.Type(fmt.Sprintf("\a%v\n\r\aexit\n\r\a", lsPath))
 		err = client.SSH(context.Background(), []string{}, false)
-		require.NoError(t, err)
+		if err != nil {
+			t.Errorf("Failed to start SSH session: %v.", err)
+		}
 
 		// Signal that the client has finished the interactive session.
 		doneCh <- true
 	}
-	writeTerm(termA)
-	writeTerm(termB)
+
+	// It's possible to run this test sequentially but it should
+	// be run in parallel to amortize the time since the two tasks can be run in parallel.
+	//
+	// This is also important because it ensures the tests faults if some part of the SSH code
+	// hangs unexpectedly instead of timing out silently.
+	go writeTerm(termA)
+	go writeTerm(termB)
 
 	// Wait 10 seconds for both events to arrive, otherwise timeout.
 	timeout := time.After(10 * time.Second)
-	for i := 0; i < 2; i++ {
+	gotEvents := 0
+	for {
 		select {
 		case <-doneCh:
-			if i == 1 {
-				break
-			}
+			gotEvents++
 		case <-timeout:
-			dumpGoroutineProfile()
 			require.FailNow(t, "Timed out waiting for client to finish interactive session.")
+		}
+		if gotEvents == 2 {
+			break
 		}
 	}
 

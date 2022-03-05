@@ -95,8 +95,6 @@ type RegisterParams struct {
 	AdditionalPrincipals []string
 	// DNSNames is a list of DNS names to add to x509 certificate
 	DNSNames []string
-	// PrivateKey is a PEM encoded private key (not passed to auth servers)
-	PrivateKey []byte
 	// PublicTLSKey is a server's public key to sign
 	PublicTLSKey []byte
 	// PublicSSHKey is a server's public SSH key to sign
@@ -113,11 +111,11 @@ type RegisterParams struct {
 	// for TLS certificate verification.
 	// Defaults to real clock if unspecified
 	Clock clockwork.Clock
-	// EC2IdentityDocument is used for Simplified Node Joining to prove the
-	// identity of a joining EC2 instance.
-	EC2IdentityDocument []byte
 	// JoinMethod is the joining method used for this register request.
 	JoinMethod types.JoinMethod
+	// ec2IdentityDocument is used for Simplified Node Joining to prove the
+	// identity of a joining EC2 instance.
+	ec2IdentityDocument []byte
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -135,7 +133,7 @@ type HostCredentials func(context.Context, string, bool, types.RegisterUsingToke
 // different hosts than the auth server. This method requires provisioning
 // tokens to prove a valid auth server was used to issue the joining request
 // as well as a method for the node to validate the auth server.
-func Register(params RegisterParams) (*Identity, error) {
+func Register(params RegisterParams) (*proto.Certs, error) {
 	params.setDefaults()
 	// Read in the token. The token can either be passed in or come from a file
 	// on disk.
@@ -144,10 +142,18 @@ func Register(params RegisterParams) (*Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// add EC2 Identity Document to params if required for given join method
+	if params.JoinMethod == types.JoinMethodEC2 {
+		params.ec2IdentityDocument, err = utils.GetEC2IdentityDocument()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	log.WithField("auth-servers", params.Servers).Debugf("Registering node to the cluster.")
 
 	type registerMethod struct {
-		call func(token string, params RegisterParams) (*Identity, error)
+		call func(token string, params RegisterParams) (*proto.Certs, error)
 		desc string
 	}
 	registerThroughAuth := registerMethod{registerThroughAuth, "with auth server"}
@@ -165,14 +171,14 @@ func Register(params RegisterParams) (*Identity, error) {
 	var collectedErrs []error
 	for _, method := range registerMethods {
 		log.Infof("Attempting registration %s.", method.desc)
-		ident, err := method.call(token, params)
+		certs, err := method.call(token, params)
 		if err != nil {
 			collectedErrs = append(collectedErrs, err)
 			log.WithError(err).Debugf("Registration %s failed.", method.desc)
 			continue
 		}
 		log.Infof("Successfully registered %s.", method.desc)
-		return ident, nil
+		return certs, nil
 	}
 	return nil, trace.NewAggregate(collectedErrs...)
 }
@@ -188,7 +194,7 @@ func authServerIsProxy(servers []utils.NetAddr) bool {
 }
 
 // registerThroughProxy is used to register through the proxy server.
-func registerThroughProxy(token string, params RegisterParams) (*Identity, error) {
+func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, error) {
 	if len(params.Servers) == 0 {
 		return nil, trace.BadParameter("no auth servers set")
 	}
@@ -220,18 +226,17 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 				DNSNames:             params.DNSNames,
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
-				EC2IdentityDocument:  params.EC2IdentityDocument,
+				EC2IdentityDocument:  params.ec2IdentityDocument,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-
-	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
+	return certs, nil
 }
 
 // registerThroughAuth is used to register through the auth server.
-func registerThroughAuth(token string, params RegisterParams) (*Identity, error) {
+func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, error) {
 	var client *Client
 	var err error
 
@@ -267,14 +272,10 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 				DNSNames:             params.DNSNames,
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
-				EC2IdentityDocument:  params.EC2IdentityDocument,
+				EC2IdentityDocument:  params.ec2IdentityDocument,
 			})
 	}
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
+	return certs, trace.Wrap(err)
 }
 
 // proxyJoinServiceClient attempts to connect to the join service running on the

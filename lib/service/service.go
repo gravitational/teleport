@@ -2130,36 +2130,6 @@ func (process *TeleportProcess) initUploaderService(streamer events.Streamer, au
 		}
 	}
 
-	// DELETE IN (5.1.0)
-	// this uploader was superseded by filesessions.Uploader,
-	// see below
-	uploader, err := events.NewUploader(events.UploaderConfig{
-		DataDir:   filepath.Join(process.Config.DataDir, teleport.LogsDir),
-		Namespace: apidefaults.Namespace,
-		ServerID:  teleport.ComponentUpload,
-		AuditLog:  auditLog,
-		EventsC:   process.Config.UploadEventsC,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	process.RegisterFunc("uploader.service", func() error {
-		err := uploader.Serve()
-		if err != nil {
-			log.Errorf("Uploader server exited with error: %v.", err)
-		}
-		return nil
-	})
-
-	process.OnExit("uploader.shutdown", func(payload interface{}) {
-		log.Infof("Shutting down.")
-		warnOnErr(uploader.Stop(), log)
-		log.Infof("Exited.")
-	})
-
-	// This uploader supersedes the events.Uploader above,
-	// that is kept for backwards compatibility purposes for one release.
-	// Delete this comment once the uploader above is phased out.
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
 		ScanDir:  filepath.Join(streamingDir...),
 		Streamer: streamer,
@@ -2547,7 +2517,7 @@ type dbListeners struct {
 
 // Empty returns true if no database access listeners are initialized.
 func (l *dbListeners) Empty() bool {
-	return l.postgres == nil && l.mysql == nil && l.tls == nil
+	return l.postgres == nil && l.mysql == nil && l.tls == nil && l.mongo == nil
 }
 
 // Close closes all database access listeners.
@@ -3167,10 +3137,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Handler:   dbProxyServer.PostgresProxy().HandleConnection,
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
-				// Add MongoDB teleport ALPN protocol without setting custom Handler.
-				// ALPN Proxy will handle MongoDB connection internally (terminate wrapped TLS traffic) and route
-				// extracted connection to ALPN Proxy DB TLS Handler.
-				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMongoDB),
+				// For the following protocols ALPN Proxy will handle the
+				// connection internally (terminate wrapped TLS traffic) and
+				// route extracted connection to ALPN Proxy DB TLS Handler.
+				MatchFunc: alpnproxy.MatchByProtocol(
+					alpncommon.ProtocolMongoDB,
+					alpncommon.ProtocolRedisDB,
+					alpncommon.ProtocolSQLServer),
 			})
 		}
 
@@ -3216,7 +3189,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var grpcServer *grpc.Server
 	if alpnRouter != nil {
-		grpcServer := grpc.NewServer(
+		grpcServer = grpc.NewServer(
 			grpc.ChainUnaryInterceptor(
 				utils.ErrorConvertUnaryInterceptor,
 				proxyLimiter.UnaryServerInterceptor(),

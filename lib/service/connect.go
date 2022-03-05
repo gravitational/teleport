@@ -379,14 +379,6 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 		}
 
-		var ec2IdentityDocument []byte
-		if process.Config.JoinMethod == types.JoinMethodEC2 {
-			ec2IdentityDocument, err = utils.GetEC2IdentityDocument()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-
 		process.log.Infof("Joining the cluster with a secure token.")
 		const reason = "first-time-connect"
 		keyPair, err := process.generateKeyPair(role, reason)
@@ -394,13 +386,12 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.Wrap(err)
 		}
 
-		identity, err = auth.Register(auth.RegisterParams{
+		certs, err := auth.Register(auth.RegisterParams{
 			Token:                process.Config.Token,
 			ID:                   id,
 			Servers:              process.Config.AuthServers,
 			AdditionalPrincipals: additionalPrincipals,
 			DNSNames:             dnsNames,
-			PrivateKey:           keyPair.PrivateKey,
 			PublicTLSKey:         keyPair.PublicTLSKey,
 			PublicSSHKey:         keyPair.PublicSSHKey,
 			CipherSuites:         process.Config.CipherSuites,
@@ -408,12 +399,17 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			CAPath:               filepath.Join(defaults.DataDir, defaults.CACertFile),
 			GetHostCredentials:   client.HostCredentials,
 			Clock:                process.Clock,
-			EC2IdentityDocument:  ec2IdentityDocument,
 			JoinMethod:           process.Config.JoinMethod,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		identity, err = auth.ReadIdentityFromKeyPair(keyPair.PrivateKey, certs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		process.deleteKeyPair(role, reason)
 	}
 
@@ -524,7 +520,12 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 		return nil
 	}
 
-	watcher, err := process.newWatcher(conn, types.Watch{Kinds: []types.WatchKind{{Kind: types.KindCertAuthority}}})
+	watcher, err := process.newWatcher(conn, types.Watch{Kinds: []types.WatchKind{{
+		Kind: types.KindCertAuthority,
+		Filter: types.CertAuthorityFilter{
+			types.HostCA: conn.ClientIdentity.ClusterName,
+		}.IntoMap(),
+	}}})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -547,7 +548,7 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 				process.log.Debugf("Skipping event %v for %v", event.Type, event.Resource.GetName())
 				continue
 			}
-			if ca.GetType() != types.HostCA && ca.GetClusterName() != conn.ClientIdentity.ClusterName {
+			if ca.GetType() != types.HostCA || ca.GetClusterName() != conn.ClientIdentity.ClusterName {
 				process.log.Debugf("Skipping event for %v %v", ca.GetType(), ca.GetClusterName())
 				continue
 			}
