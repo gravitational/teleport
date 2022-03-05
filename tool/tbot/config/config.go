@@ -80,6 +80,15 @@ type CLIConf struct {
 	// BotUser is a Unix username that should be given permission to write
 	BotUser string
 
+	// ReaderUser is the Unix username that will be reading the files
+	ReaderUser string
+
+	// Owner is the user:group that will own the destination files. Due to SSH
+	// restrictions on key permissions, it cannot be the same as the reader
+	// user. If ACL support is unused or unavailable, the reader user will own
+	// files directly.
+	Owner string
+
 	// Clean is a flag that, if set, instructs `tbot init` to remove existing
 	// unexpected files.
 	Clean bool

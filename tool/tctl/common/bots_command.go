@@ -136,6 +136,7 @@ func (c *BotsCommand) ListBots(client auth.ClientI) error {
 	return nil
 }
 
+// bold wraps the given text in an ANSI escape to bold it
 func bold(text string) string {
 	return utils.Color(utils.Bold, text)
 }
@@ -146,15 +147,16 @@ var startMessageTemplate = template.Must(template.New("node").Funcs(template.Fun
 This token will expire in {{.minutes}} minutes.
 
 Optionally, if running the bot under an isolated user account, first initialize
-the data directory by running the following command {{ bold "as the user who will be " }}
-{{ bold "using the certificates" }}:
+the data directory by running the following command {{ bold "as root" }}:
 
 > tbot init \
    --auth-server={{.auth_server}} \
    --destination-dir=./tbot-user \
-   --bot-user=tbot
+   --bot-user=tbot \
+   --reader-user=alice
 
-... where "tbot" is the username of the bot's UNIX user.
+... where "tbot" is the username of the bot's UNIX user, and "alice" is the
+UNIX user that will be making use of the certificates.
 
 Then, run this {{ bold "as the bot user" }} to begin continuously fetching
 certificates:

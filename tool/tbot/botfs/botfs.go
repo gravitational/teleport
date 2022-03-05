@@ -84,6 +84,15 @@ const (
 	DefaultDirMode fs.FileMode = 0700
 )
 
+// aclOptions contains parameters needed to configure ACLs
+type ACLOptions struct {
+	// botUser is the bot user that should have write access to this entry
+	BotUser *user.User
+
+	// readerUser is the user that should have read access to the file
+	ReaderUser *user.User
+}
+
 // openStandard attempts to open the given path for writing with O_CREATE set.
 func openStandard(path string) (*os.File, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, DefaultMode)

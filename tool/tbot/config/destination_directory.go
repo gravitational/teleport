@@ -168,7 +168,9 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	errors := []error{}
 	for _, key := range keys {
 		path := filepath.Join(dd.Path, key)
-		errors = append(errors, botfs.VerifyACL(path, currentUser.Uid))
+		errors = append(errors, botfs.VerifyACL(path, &botfs.ACLOptions{
+			BotUser: currentUser,
+		}))
 	}
 
 	aggregate := trace.NewAggregate(errors...)

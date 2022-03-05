@@ -252,17 +252,17 @@ func Write(path string, data []byte, symlinksMode SymlinksMode) error {
 
 // desiredBotPerms determines the desired bot permissions for an artifact at
 // the given path. Directories require read/exec, files require read/write.
-func desiredPerms(path string) (userMode fs.FileMode, botMode fs.FileMode, err error) {
+func desiredPerms(path string) (ownerMode fs.FileMode, botAndReaderMode fs.FileMode, err error) {
 	stat, err := os.Stat(path)
 	if err != nil {
 		return 0, 0, trace.Wrap(err)
 	}
 
-	botMode = modeACLReadWrite
-	userMode = modeACLReadWrite
+	botAndReaderMode = modeACLReadWrite
+	ownerMode = modeACLReadWrite
 	if stat.IsDir() {
-		userMode = modeACLReadWriteExecute
-		botMode = modeACLReadExecute
+		ownerMode = modeACLReadWriteExecute
+		botAndReaderMode = modeACLReadExecute
 	}
 
 	return
@@ -271,13 +271,13 @@ func desiredPerms(path string) (userMode fs.FileMode, botMode fs.FileMode, err e
 // VerifyACL verifies whether the ACL of the given file allows writes from the
 // bot user. Errors may optionally be used as more informational warnings;
 // ConfigureACL can be used to correct them, assuming the user has permissions.
-func VerifyACL(path string, botUserID string) error {
+func VerifyACL(path string, opts *ACLOptions) error {
 	current, err := acl.Get(path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	userMode, botMode, err := desiredPerms(path)
+	ownerMode, botAndReaderMode, err := desiredPerms(path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -288,7 +288,7 @@ func VerifyACL(path string, botUserID string) error {
 	for _, entry := range current {
 		switch entry.Tag {
 		case acl.TagUserObj:
-			if entry.Perms != userMode {
+			if entry.Perms != ownerMode {
 				errors = append(errors, trace.BadParameter("user entry has improper permissions %d", entry.Perms))
 			}
 		case acl.TagGroupObj:
@@ -300,7 +300,7 @@ func VerifyACL(path string, botUserID string) error {
 				errors = append(errors, trace.BadParameter("other entry has improper permissions %d", entry.Perms))
 			}
 		case acl.TagMask:
-			if entry.Perms != modeACLReadWrite {
+			if entry.Perms != botAndReaderMode {
 				errors = append(errors, trace.BadParameter("mask entry has improper permissions %d", entry.Perms))
 			}
 		case acl.TagGroup:
@@ -309,19 +309,27 @@ func VerifyACL(path string, botUserID string) error {
 		case acl.TagUser:
 			userTagCount++
 
-			if entry.Qualifier != botUserID {
+			// It's only worth checking the qualifiers if we know all expected
+			// values in advance. We can't know them at bot runtime in any way
+			// that isn't also subject to e.g. an attacker with root / owner
+			// access, so we might as well not spam warnings every time we
+			// verify the ACLs. We'll have to rely on the tag counter instead.
+			if opts.BotUser != nil &&
+				opts.ReaderUser != nil &&
+				entry.Qualifier != opts.BotUser.Uid &&
+				entry.Qualifier != opts.ReaderUser.Uid {
 				errors = append(errors, trace.BadParameter("invalid qualifier %q for user entry", entry.Qualifier))
 			}
 
-			if entry.Perms != botMode {
+			if entry.Perms != botAndReaderMode {
 				errors = append(errors, trace.BadParameter("invalid permissions %q for bot user entry", entry.Perms))
 			}
 		}
 	}
 
 	if userTagCount == 0 {
-		errors = append(errors, trace.BadParameter("no user tag for bot user %q found", botUserID))
-	} else if userTagCount > 1 {
+		errors = append(errors, trace.BadParameter("missing tags for bot and reader users"))
+	} else if userTagCount > 2 {
 		errors = append(errors, trace.BadParameter("unexpected number of user tags"))
 	}
 
@@ -330,26 +338,36 @@ func VerifyACL(path string, botUserID string) error {
 
 // ConfigureACL configures ACLs of the given file to allow writes from the bot
 // user.
-func ConfigureACL(path string, botUserID string) error {
+func ConfigureACL(path string, opts *ACLOptions) error {
 	// We fully specify the ACL here to ensure the correct permissions are
 	// always set (rather than just appending an "allow" for the bot user).
 	// Note: These need to be sorted by tag value.
-	userMode, botMode, err := desiredPerms(path)
+	ownerMode, botAndReaderMode, err := desiredPerms(path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	// Note: we currently give both the bot and reader read/write to all the
+	// files. This is done for simplicity and shouldn't represent a security
+	// risk - the bot obviously knows the contents of the destination, and
+	// writing
 	desiredACL := acl.ACL{
 		{
 			// Note: Mask does not apply to user object.
 			Tag:   acl.TagUserObj,
-			Perms: userMode,
+			Perms: ownerMode,
 		},
 		{
-			// Entry allows the bot to write.
+			// Entry to allow the bot to read/write.
 			Tag:       acl.TagUser,
-			Qualifier: botUserID,
-			Perms:     botMode,
+			Qualifier: opts.BotUser.Uid,
+			Perms:     botAndReaderMode,
+		},
+		{
+			// Entry to allow the reader user to read/write.
+			Tag:       acl.TagUser,
+			Qualifier: opts.ReaderUser.Uid,
+			Perms:     botAndReaderMode,
 		},
 		{
 			Tag:   acl.TagGroupObj,
@@ -359,7 +377,7 @@ func ConfigureACL(path string, botUserID string) error {
 			// Mask is the maximum permissions the ACL can grant. This should
 			// match the desired bot permissions.
 			Tag:   acl.TagMask,
-			Perms: botMode,
+			Perms: botAndReaderMode,
 		},
 		{
 			Tag:   acl.TagOther,
@@ -367,8 +385,8 @@ func ConfigureACL(path string, botUserID string) error {
 		},
 	}
 
-	log.Debugf("Configuring ACL for user %q on path %q: %v", botUserID, path, desiredACL)
-	return trace.Wrap(acl.Set(path, desiredACL))
+	log.Debugf("Configuring ACL on path %q: %v", path, desiredACL)
+	return trace.ConvertSystemError(trace.Wrap(acl.Set(path, desiredACL)))
 }
 
 // HasACLSupport determines if this binary / system supports ACLs.
