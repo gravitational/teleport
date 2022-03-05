@@ -11,20 +11,22 @@ Here's an overview of what you will do:
 1. Download and install Teleport (=teleport.version=)
 2. Create bot user
 3. Start Machine ID
-4. Use certificates issued by Machine ID
+4. Use certificates issued by Machine ID to connect to a remote machine
 
 ## Prerequisites
 
 Before using Machine ID, you will need an existing Teleport cluster.
 
 If you have not set up a Teleport cluster before, follow the
-[Getting started](https://goteleport.com/docs/getting-started) guide to setup a
+[Getting started](https://goteleport.com/docs/getting-started) guide to set up a
 Teleport cluster.
 
 ## Step 1/4. Download and install Teleport (=teleport.version=)
 
 In this step, you will be downloading and installing Teleport binaries onto the
-machine you wish to assign an identity to. Teleport packages hosted on our
+machine you wish to assign an identity to. 
+
+Each Teleport package hosted on our
 downloads page ships with several useful binaries, including `teleport`,
 `tctl`, `tsh`, and `tbot`:
 
@@ -44,11 +46,11 @@ assign to it. You can use the `tctl` command below to examine what roles exist
 on your system.
 
 <Details scope={["cloud"]} scopeOnly={true}>
-On your client machine, login to Teleport using `tsh` then `tctl` to examine
+On your client machine, log in to Teleport using `tsh`, then use `tctl` to examine
 what roles exist on your system.
 </Details>
 <Details scope={["oss","enterprise"]} scopeOnly={true}>
-Connect to Teleport Auth Server and use `tctl` to examine what roles exist on
+Connect to the Teleport Auth Server and use `tctl` to examine what roles exist on
 your system.
 </Details>
 
@@ -56,8 +58,8 @@ your system.
 $ tctl get roles --format=text
 ```
 
-You will see something like below on a fresh install of Teleport with the
-default roles -- your cluster may have different roles. In this example, let's
+You will see something like the output below on a fresh install of Teleport with the
+default roles—your cluster may have different roles. In this example, let's
 assume you want to give the bot the `access` role to allow it to connect to
 machines within your cluster.
 
@@ -69,7 +71,7 @@ auditor no-login-6566121f-b602-47f1-a118-c9c618ee5aec             session:list,r
 editor                                                            user:list,create,read,update,delete,...
 ```
 
-Machine ID can join with a token or [IAM Method](https://goteleport.com/docs/setup/guides/joining-nodes-aws) on AWS.
+Machine ID can join with a token or the [IAM Method](https://goteleport.com/docs/setup/guides/joining-nodes-aws) on AWS.
 
 <Tabs>
   <TabItem label="Token-based Joining">
@@ -78,8 +80,8 @@ Machine ID can join with a token or [IAM Method](https://goteleport.com/docs/set
   ```
   </TabItem>
   <TabItem label="IAM Method">
-  First, create a IAM method token that specifies the AWS account from which
-  the bot can join from.
+  First, create an IAM method token that specifies the AWS account from which
+  the bot can join.
 
   ```
   kind: token
@@ -88,7 +90,7 @@ Machine ID can join with a token or [IAM Method](https://goteleport.com/docs/set
     # The token name is not a secret because instances must prove that they are
     # running in your AWS account to use this token.
     name: iam-token
-    # Set a long expiry time, the default for tokens is only 30 minutes.
+    # Set a long expiry time. The default for tokens is only 30 minutes.
     expires: "3000-01-01T00:00:00Z"
   spec:
     # Only allow bots to join using this token.
@@ -98,7 +100,7 @@ Machine ID can join with a token or [IAM Method](https://goteleport.com/docs/set
     join_method: iam
 
     # Define the name of the bot that will be allowed to use this token. Note,
-    # the "bot-" prefix is required, the name of the bot you will create is "robot".
+    # the "bot-" prefix is required. The name of the bot you will create is "robot".
     bot_name: bot-robot
   
     allow:
@@ -120,8 +122,8 @@ Machine ID can join with a token or [IAM Method](https://goteleport.com/docs/set
 ## Step 3/4. Start Machine ID
 
 Now start Machine ID using the `tbot` binary. The `tbot start` command will
-start running Machine ID in a loop writing renewable certificates to
-`/var/lib/teleport` and the short lived certificates your application will use
+start running Machine ID in a loop, writing renewable certificates to
+`/var/lib/teleport` and the short-lived certificates your application will use
 to `/opt/machine-id`.
 
 In a production environment you will want to run Machine ID in the background
@@ -132,7 +134,7 @@ the foreground to better understand how it works.
   <TabItem label="Token-based Joining">
   ```code
   $ tbot start \
-     --data-dir=/var/lib/teleport
+     --data-dir=/var/lib/teleport \
      --destination-dir=/opt/machine-id \
      --token=00000000000000000000000000000000 \
      --join-method=token \
@@ -143,7 +145,7 @@ the foreground to better understand how it works.
   <TabItem label="IAM Method">
   ```code
   $ tbot start \
-     --data-dir=/var/lib/teleport
+     --data-dir=/var/lib/teleport \
      --destination-dir=/opt/machine-id \
      --token=iam-token \
      --join-method=iam \
@@ -155,10 +157,10 @@ the foreground to better understand how it works.
 
 Replace the following fields with values from your own cluster.
 
-* `token` is the token output by `tctl bots add` command or the name of your IAM method token
-* `ca-pin` is the CA Pin for your Teleport cluster output by the `tctl bots add` command
+* `token` is the token output by the `tctl bots add` command or the name of your IAM method token
+* `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command
 * `destination-dir` is where Machine ID writes the renewable certificates to, this certificate is only used by Machine ID and should not be used by applications and tools
-* `data-dir` is where Machine ID writes the short lived certificate to, this certificate should be used by applications and tools
+* `data-dir` is where Machine ID writes the short-lived certificate. This certificate should be used by applications and tools.
 <Details scope={["cloud"]} scopeOnly={true}>
 * `auth-server` is the address of your Teleport Auth Server
 </Details>
@@ -186,7 +188,7 @@ machine-id
 
 This directory contains private key material in the `key.*` files, SSH
 certificates in the `ssh*` files, X.509 certificates in the `tls*` files, and
-OpenSSH configuration in `ssh_config` and `known_hosts` files to make it easy
+OpenSSH configuration in the `ssh_config` and `known_hosts` files to make it easy
 to integrate Machine ID with external applications and tools.
 
 ## Step 4/4. Use certificates issued by Machine ID
@@ -209,7 +211,7 @@ ssh -F /opt/machine-id/ssh_config root@node-name
 ```
 
 <Admonition type="note" title="Roles must have logins defined">
-  If you see the below error, it means the user you are trying to login as is
+  If you see the below error, it means the user you are trying to log in as is
   not specified under `logins` in the role you are using. If you have been
   following along with the `access` role, run
   `tctl get roles/access > access.yaml`, update the `logins` field, and update
