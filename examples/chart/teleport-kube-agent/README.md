@@ -8,15 +8,15 @@ with an existing Teleport cluster:
 
 To use it, you will need:
 - an existing Teleport cluster (at least proxy and auth services)
-- a reachable proxy endpoint (`$PROXY_ENDPOINT` e.g. `teleport.example.com:3080` or `teleport.example.com:443`) 
-- a reachable reverse tunnel port on the proxy (e.g. `teleport.example.com:3024`). The address is automatically 
+- a reachable proxy endpoint (`$PROXY_ENDPOINT` e.g. `teleport.example.com:3080` or `teleport.example.com:443`)
+- a reachable reverse tunnel port on the proxy (e.g. `teleport.example.com:3024`). The address is automatically
   retrieved from the Teleport proxy configuration.
 - either a static or dynamic join token for the Teleport Cluster
   - a [static join token](https://goteleport.com/docs/setup/admin/adding-nodes/#adding-nodes-to-the-cluster)
     for this Teleport cluster (`$JOIN_TOKEN`) is used by default.
   - optionally a [dynamic join token](https://goteleport.com/docs/setup/admin/adding-nodes/#short-lived-dynamic-tokens) can
-    be used on Kubernetes clusters that support persistent volumes. Set `storage.enabled=true` and 
-    `storage.storageClassName=<storage class configured in kubernetes>` in the helm configuration to use persistent 
+    be used on Kubernetes clusters that support persistent volumes. Set `storage.enabled=true` and
+    `storage.storageClassName=<storage class configured in kubernetes>` in the helm configuration to use persistent
     volumes.
 
 
@@ -127,12 +127,35 @@ After installing, the new application should show up in `tsh apps ls` after a fe
 
 ## Database access
 
+### Auto-discovery mode (AWS only)
+
+To use Teleport database access in auto-discovery mode, you will also need:
+- the database types you are attempting to auto-discover (`$DB_TYPES`)
+- the AWS region(s) you would like to run auto-discovery in (`$DB_REGIONS`)
+- the AWS resource tags if you want to target only certain databases (`$DB_TAGS`)
+
+To install the agent in database auto-discovery mode, run:
+
+```sh
+$ helm install teleport-kube-agent . \
+  --create-namespace \
+  --namespace teleport \
+  --set roles=db \
+  --set proxyAddr=${PROXY_ENDPOINT?} \
+  --set authToken=${JOIN_TOKEN?} \
+  --set "awsDatabases[0].types=${DB_TYPES?}" \
+  --set "awsDatabases[0].regions=${DB_REGIONS?}" \
+  --set "awsDatabases[0].tags=${DB_TAGS?}"
+```
+
+### Manual configuration mode
+
 To use Teleport database access, you will also need:
 - the name of an database that you would like to proxy (`$DB_NAME`)
 - the URI to connect to the database from the node where this chart is deployed (`$DB_URI`)
 - the database protocol used for the database (`$DB_PROTOCOL`)
 
-To install the agent, run:
+To install the agent in manual database configuration mode, run:
 
 ```sh
 $ helm install teleport-kube-agent . \

@@ -30,6 +30,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
@@ -41,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
 
@@ -249,6 +250,7 @@ func TestHostCertVerification(t *testing.T) {
 	// By default user has not refused any hosts.
 	require.False(t, lka.UserRefusedHosts())
 
+	lka.AddKey(s.key)
 	// Create a CA, generate a keypair for the CA, and add it to the known
 	// hosts cache (done by "tsh login").
 	keygen := testauthority.New()
@@ -259,6 +261,11 @@ func TestHostCertVerification(t *testing.T) {
 	caPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(caPub)
 	require.NoError(t, err)
 	err = lka.keyStore.AddKnownHostKeys("example.com", s.hostname, []ssh.PublicKey{caPublicKey})
+	require.NoError(t, err)
+
+	// Call SaveTrustedCerts to create cas profile dir - this step is needed to support migration from profile combined
+	// CA file certs.pem to per cluster CA files in cas profile directory.
+	err = lka.keyStore.SaveTrustedCerts(s.hostname, nil)
 	require.NoError(t, err)
 
 	// Generate a host certificate for node with role "node".
@@ -333,6 +340,12 @@ func TestHostKeyVerification(t *testing.T) {
 		KeysOption: AddKeysToAgentAuto,
 		Insecure:   true,
 	})
+	require.NoError(t, err)
+
+	lka.AddKey(s.key)
+	// Call SaveTrustedCerts to create cas profile dir - this step is needed to support migration from profile combined
+	// CA file certs.pem to per cluster CA files in cas profile directory.
+	err = lka.keyStore.SaveTrustedCerts(s.hostname, nil)
 	require.NoError(t, err)
 
 	// by default user has not refused any hosts:

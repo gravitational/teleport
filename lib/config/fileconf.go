@@ -44,10 +44,11 @@ import (
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
 
@@ -293,8 +294,8 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 
 // JoinParams configures the parameters for Simplified Node Joining.
 type JoinParams struct {
-	TokenName string `yaml:"token_name"`
-	Method    string `yaml:"method"`
+	TokenName string           `yaml:"token_name"`
+	Method    types.JoinMethod `yaml:"method"`
 }
 
 // ConnectionRate configures rate limiter
@@ -500,7 +501,8 @@ type Auth struct {
 	// type, second factor type, specific connector information, etc.
 	Authentication *AuthenticationConfig `yaml:"authentication,omitempty"`
 
-	// SessionRecording determines where the session is recorded: node, proxy, or off.
+	// SessionRecording determines where the session is recorded:
+	// node, node-sync, proxy, proxy-sync, or off.
 	SessionRecording string `yaml:"session_recording,omitempty"`
 
 	// ProxyChecksHostKeys is used when the proxy is in recording mode and
@@ -743,7 +745,10 @@ type Webauthn struct {
 	RPID                  string   `yaml:"rp_id,omitempty"`
 	AttestationAllowedCAs []string `yaml:"attestation_allowed_cas,omitempty"`
 	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
-	Disabled              bool     `yaml:"disabled,omitempty"`
+	// Disabled has no effect, it is kept solely to not break existing
+	// configurations.
+	// DELETE IN 11.0, time to sunset U2F (codingllama).
+	Disabled bool `yaml:"disabled,omitempty"`
 }
 
 func (w *Webauthn) Parse() (*types.Webauthn, error) {
@@ -755,13 +760,18 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 	if err != nil {
 		return nil, trace.BadParameter("webauthn.attestation_denied_cas: %v", err)
 	}
+	if w.Disabled {
+		log.Warnf(`` +
+			`The "webauthn.disabled" setting is marked for removal and currently has no effect. ` +
+			`Please update your configuration to use WebAuthn. ` +
+			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`)
+	}
 	return &types.Webauthn{
 		// Allow any RPID to go through, we rely on
 		// types.Webauthn.CheckAndSetDefaults to correct it.
 		RPID:                  w.RPID,
 		AttestationAllowedCAs: allowedCAs,
 		AttestationDeniedCAs:  deniedCAs,
-		Disabled:              w.Disabled,
 	}, nil
 }
 
@@ -822,6 +832,9 @@ type SSH struct {
 	// Don't read this value directly: call the AllowTCPForwarding method
 	// instead.
 	MaybeAllowTCPForwarding *bool `yaml:"port_forwarding,omitempty"`
+
+	// X11 is used to configure X11 forwarding settings
+	X11 *X11 `yaml:"x11,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -830,6 +843,54 @@ func (ssh *SSH) AllowTCPForwarding() bool {
 		return true
 	}
 	return *ssh.MaybeAllowTCPForwarding
+}
+
+// X11ServerConfig returns the X11 forwarding server configuration.
+func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
+	// Start with default configuration
+	cfg := &x11.ServerConfig{Enabled: false}
+	if ssh.X11 == nil {
+		return cfg, nil
+	}
+
+	var err error
+	cfg.Enabled, err = apiutils.ParseBool(ssh.X11.Enabled)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !cfg.Enabled {
+		return cfg, nil
+	}
+
+	cfg.DisplayOffset = x11.DefaultDisplayOffset
+	if ssh.X11.DisplayOffset != nil {
+		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
+
+		if cfg.DisplayOffset > x11.MaxDisplayNumber {
+			cfg.DisplayOffset = x11.MaxDisplayNumber
+		}
+	}
+
+	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
+	if ssh.X11.MaxDisplays != nil && ssh.X11.MaxDisplay == nil {
+		ssh.X11.MaxDisplay = ssh.X11.MaxDisplays
+	}
+
+	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays
+	if ssh.X11.MaxDisplay != nil {
+		cfg.MaxDisplay = int(*ssh.X11.MaxDisplay)
+
+		if cfg.MaxDisplay < cfg.DisplayOffset {
+			return nil, trace.BadParameter("x11.MaxDisplay cannot be smaller than x11.DisplayOffset")
+		}
+	}
+
+	if cfg.MaxDisplay > x11.MaxDisplayNumber {
+		cfg.MaxDisplay = x11.MaxDisplayNumber
+	}
+
+	return cfg, nil
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -924,6 +985,20 @@ func (r *RestrictedSession) Parse() (*restricted.Config, error) {
 	}, nil
 }
 
+// X11 is a configuration for X11 forwarding
+type X11 struct {
+	// Enabled controls whether X11 forwarding requests can be granted by the server.
+	Enabled string `yaml:"enabled"`
+	// DisplayOffset tells the server what X11 display number to start from when
+	// searching for an open X11 unix socket for XServer proxies.
+	DisplayOffset *uint `yaml:"display_offset,omitempty"`
+	// MaxDisplay tells the server what X11 display number to stop at when
+	// searching for an open X11 unix socket for XServer proxies.
+	MaxDisplay *uint `yaml:"max_display,omitempty"`
+	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
+	MaxDisplays *uint `yaml:"max_displays,omitempty"`
+}
+
 // Databases represents the database proxy service configuration.
 //
 // In the configuration file this section will be "db_service".
@@ -977,6 +1052,20 @@ type Database struct {
 	AWS DatabaseAWS `yaml:"aws"`
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP `yaml:"gcp"`
+	// AD contains Active Directory database configuration.
+	AD DatabaseAD `yaml:"ad"`
+}
+
+// DatabaseAD contains database Active Directory configuration.
+type DatabaseAD struct {
+	// KeytabFile is the path to the Kerberos keytab file.
+	KeytabFile string `yaml:"keytab_file"`
+	// Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
+	Krb5File string `yaml:"krb5_file,omitempty"`
+	// Domain is the Active Directory domain the database resides in.
+	Domain string `yaml:"domain"`
+	// SPN is the service principal name for the database.
+	SPN string `yaml:"spn"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.

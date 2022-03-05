@@ -4,12 +4,6 @@ description: Connect Teleport to Active Directory and log into a Windows Desktop
 videoBanner: YvMqgcq0MTQ
 ---
 
-<Admonition type="warning" title="Warning">
-  Desktop Access is currently in Preview. Do not use this feature for any
-  critical infrastructure and keep a backup option for accessing your desktop
-  hosts.
-</Admonition>
-
 # Getting Started
 
 In this guide we will connect an Active Directory domain to Teleport using
@@ -21,11 +15,20 @@ This guide requires you to have:
 
 - An Active Directory domain, configured for LDAPS (Teleport requires an
   encrypted LDAP connection)
+
 - Access to a Domain Controller
-- An existing Teleport cluster and user, version 8.0 or newer
-  - See [Teleport Getting Started](../getting-started.mdx) if you're new to Teleport
-- A Linux server to run the Teleport Desktop Access service on
-  - You can reuse an existing server running any other Teleport instance
+
+- An existing Teleport cluster with one of the following versions:
+
+  **Open Source or Enterprise:** version 8.0 or newer
+
+  **Teleport Cloud:** version 9.0 or newer
+
+  See [Teleport Getting Started](../getting-started.mdx) if you're new to Teleport.
+
+- A Linux server to run the Teleport Desktop Access service on. 
+
+  You can reuse an existing server running any other Teleport instance.
 
 ## Step 1/6. Create a restrictive service account
 
@@ -95,7 +98,7 @@ dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuratio
 </Admonition>
 
 The Teleport service account is only needed to authenticate over LDAP, meaning
-that it needn't be able to login to Windows machines like an ordinary user.
+that it needn't be able to log in to Windows machines like an ordinary user.
 Restrict it from doing so by creating a new Group Policy Object (GPO) linked to
 your entire domain, and then deny it interactive login.
 
@@ -159,6 +162,10 @@ $ tctl auth export --type=windows > user-ca.cer
 
 2. Transfer the `user-ca.cer` file to a Windows machine where you can manage your group policy.
 
+<Admonition type="note" title="Take note of the location">
+  Take note of the path to the `user-ca.cer` file, as you will need this in the next step.
+</Admonition>
+
 ### Create another GPO and import the Teleport CA
 
 <Admonition type="note" title="Domain Wide Policy">
@@ -166,6 +173,18 @@ $ tctl auth export --type=windows > user-ca.cer
   entire AD domain. In the case where you wish for only a subset of computers
   within your AD domain to be accessible via Teleport, you should apply the GPO
   to an OU that includes only such computers.
+</Admonition>
+
+<Admonition type="warning" title="Differences when using AWS Managed Active Directory">
+  When using AWS Managed Active Directory, AWS Delegated Domain Administrator accounts are not granted permissions
+  to apply GPOs at the domain level.
+
+  Instead, you should apply this GPO to the automatically-created OU with the NetBIOS domain name containing `Computers`
+  and `Users` which is nested one level beneath the domain root.
+
+  <Figure align="left" bordered caption="AWS Managed AD OU Location">
+  ![AWS Managed AD OU Location](../../img/desktop-access/aws-managed-ad.png)
+  </Figure>
 </Admonition>
 
 1. Create another new GPO, this time giving it a name like `Teleport Access Policy`:
@@ -190,6 +209,23 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Publi
 <Figure align="left" bordered caption="Import Teleport CA">
   ![Import Teleport CA](../../img/desktop-access/ca.png)
 </Figure>
+
+### Publish the Teleport CA to the Active Directory domain
+
+<Admonition type="note" title="Differences when using AWS Managed Active Directory">
+  When using AWS Managed Active Directory, you should run this command using an account which is part of the
+  `AWS Delegated Domain Administrators` group, such as the AWS-provided `admin` account.
+</Admonition>
+
+On a machine which is joined to your domain and logged in as an account in the `Domain Administrators` group,
+run the two commands below at a PowerShell prompt to publish the Teleport CA to your Active Directory
+domain (using the path to the exported Teleport `user-ca.cer` file that you copied above):
+
+```powershell
+certutil –dspublish –f <PathToCertFile.cer> RootCA
+```
+
+This step enables the domain controllers to trust the Teleport CA, which will allow smart card logons via Teleport to succeed.
 
 ### Publish the Teleport CA to the NTAuth Store
 
@@ -323,8 +359,10 @@ the filepath to the `der_ca_file` configuration variable.
 
 In order to enable Desktop Access in Teleport, add the following section in
 `teleport.yaml` on your Linux server. For a detailed description of these
-configuration fields, see the [reference](./reference.mdx) page.
+configuration fields, see the
+[configuration reference](./reference/configuration.mdx) page.
 
+<Details title="Desktop Service Configuration" min="7.0" scopeOnly={true} scope={["oss", "enterprise"]}>
 ```yaml
 windows_desktop_service:
   enabled: yes
@@ -338,6 +376,38 @@ windows_desktop_service:
   discovery:
     base_dn: "*"
 ```
+</Details>
+<Details title="Desktop Service Configuration" min="7.0" scopeOnly={true} scope={"cloud"}>
+For Teleport Cloud, Windows Desktop Service should establish a reverse tunnel to
+the hosted proxy. This requires setting `auth_servers` to your cloud tenant and
+providing a join token.
+
+First, generate a join token with the following command:
+
+```
+$ tctl tokens add --type=windowsdesktop
+```
+
+Copy the join token to a file on the instance where you will run Windows Desktop
+Service, and then use the following configuration:
+
+```yaml
+teleport:
+  auth_token: /path/to/token
+  auth_servers:
+  - mytenant.teleport.sh # replace with your cloud tenant
+windows_desktop_service:
+  enabled: yes
+  ldap:
+    addr: "$LDAP_SERVER_ADDRESS"
+    domain: "$LDAP_DOMAIN_NAME"
+    username: '$LDAP_USERNAME'
+    # This should be the path to the certificate exported in Step 4.
+    der_ca_file: /path/to/cert
+  discovery:
+    base_dn: "*"
+```
+</Details>
 
 After updating `teleport.yaml`, start Teleport as usual using `teleport start`.
 
@@ -352,7 +422,7 @@ that gives its users access to all Windows desktop labels and the
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: windows-desktop-admins
 spec:
@@ -362,8 +432,13 @@ spec:
     windows_desktop_logins: ["Administrator"]
 ```
 
-See the [RBAC section](./reference.mdx#rbac) in the Reference documentation
-for more information about setting up Windows Desktop Access permissions.
+<Admonition type="warning" title="RBAC Configuration">
+Ensure that each Teleport user is only assigned Windows logins that they should
+be allowed to access.
+</Admonition>
+
+See the [RBAC page](./rbac.mdx) for more information about setting up
+Windows Desktop Access permissions.
 
 See the [Access Controls Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles)
 guide for instructions on how to create or update a user with a given role.

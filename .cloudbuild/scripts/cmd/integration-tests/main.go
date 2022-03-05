@@ -18,18 +18,21 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
 
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/git"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/secrets"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -46,50 +49,30 @@ func main() {
 	}
 }
 
-type commandlineArgs struct {
-	workspace    string
-	targetBranch string
-	commitSHA    string
-	skipChown    bool
-}
-
-func parseCommandLine() (commandlineArgs, error) {
-	args := commandlineArgs{}
-
-	flag.StringVar(&args.workspace, "w", "", "Fully-qualified path to the build workspace")
-	flag.StringVar(&args.targetBranch, "t", "", "The PR's target branch")
-	flag.StringVar(&args.commitSHA, "c", "", "The PR's latest commit SHA")
-	flag.BoolVar(&args.skipChown, "skip-chown", false, "Skip reconfiguring the workspace for a nonroot user.")
-
-	flag.Parse()
-
-	if args.workspace == "" {
-		return args, trace.Errorf("workspace path must be set")
-	}
-
-	var err error
-	args.workspace, err = filepath.Abs(args.workspace)
-	if err != nil {
-		return args, trace.Wrap(err, "Unable to resole absolute path to workspace")
-	}
-
-	if args.targetBranch == "" {
-		return args, trace.Errorf("target branch must be set")
-	}
-
-	if args.commitSHA == "" {
-		return args, trace.Errorf("commit must be set")
-	}
-
-	return args, nil
-}
-
 // innerMain parses the command line, performs the highlevel docs change check
 // and creates the marker file if necessary
 func innerMain() error {
 	args, err := parseCommandLine()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// If a github deploy key location was supplied...
+	var deployKey []byte
+	if args.githubKeySrc != "" {
+		// fetch the deployment key from the GCB secret manager
+		log.Infof("Fetching deploy key from %s", args.githubKeySrc)
+		deployKey, err = secrets.Fetch(context.Background(), args.githubKeySrc)
+		if err != nil {
+			return trace.Wrap(err, "failed fetching deploy key")
+		}
+	}
+
+	unshallowCtx, unshallowCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer unshallowCancel()
+	err = git.UnshallowRepository(unshallowCtx, args.workspace, deployKey)
+	if err != nil {
+		return trace.Wrap(err, "unshallow failed")
 	}
 
 	moduleCacheDir := filepath.Join(os.TempDir(), gomodcacheDir)
@@ -106,6 +89,15 @@ func innerMain() error {
 		log.Println("No code changes detected. Skipping tests.")
 		return nil
 	}
+
+	// From this point on, whatever happens we want to upload any artifacts
+	// produced by the build
+	defer func() {
+		prefix := fmt.Sprintf("%s/artifacts", args.buildID)
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		artifacts.FindAndUpload(timeoutCtx, args.bucket, prefix, args.artifactSearchPatterns)
+	}()
 
 	log.Printf("Running root-only integration tests...")
 	err = runRootIntegrationTests(args.workspace, gomodcache)
@@ -139,12 +131,13 @@ func innerMain() error {
 	// diagnostic warnings that would pollute the build log and just confuse
 	// people when they are trying to work out why their build failed.
 	log.Printf("Starting etcd...")
-	cancelCtx, cancel := context.WithCancel(context.Background())
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID, gomodcache)
+	etcdSvc, err := etcd.Start(timeoutCtx, args.workspace)
 	if err != nil {
 		return trace.Wrap(err, "failed starting etcd")
 	}
+	defer etcdSvc.Stop()
 
 	log.Printf("Running nonroot integration tests...")
 	err = runNonrootIntegrationTests(args.workspace, nonrootUID, nonrootGID, gomodcache)

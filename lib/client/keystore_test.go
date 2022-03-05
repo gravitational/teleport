@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -234,10 +235,11 @@ func TestProxySSHConfig(t *testing.T) {
 	caPub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
 	require.NoError(t, err)
 
-	err = s.store.AddKnownHostKeys("127.0.0.1", idx.ProxyHost, []ssh.PublicKey{caPub})
+	firsthost := "127.0.0.1"
+	err = s.store.AddKnownHostKeys(firsthost, idx.ProxyHost, []ssh.PublicKey{caPub})
 	require.NoError(t, err)
 
-	clientConfig, err := key.ProxyClientSSHConfig(s.store)
+	clientConfig, err := key.ProxyClientSSHConfig(s.store, firsthost)
 	require.NoError(t, err)
 
 	called := atomic.NewInt32(0)
@@ -298,6 +300,21 @@ func TestProxySSHConfig(t *testing.T) {
 	_, err = clt.NewSession()
 	require.Error(t, err)
 	require.Equal(t, int(called.Load()), 1)
+
+	_, spub, err := testauthority.New().GenerateKeyPair("")
+	require.NoError(t, err)
+	caPub22, _, _, _, err := ssh.ParseAuthorizedKey(spub)
+	require.NoError(t, err)
+	err = s.store.AddKnownHostKeys("second-host", idx.ProxyHost, []ssh.PublicKey{caPub22})
+	require.NoError(t, err)
+
+	// The ProxyClientSSHConfig should create configuration that validates server authority only based on
+	// second-host instead of all known hosts.
+	clientConfig, err = key.ProxyClientSSHConfig(s.store, "second-host")
+	require.NoError(t, err)
+	_, err = ssh.Dial("tcp", srv.Addr(), clientConfig)
+	// ssh server cert doesn't match second-host user known host thus connection should fail.
+	require.Error(t, err)
 }
 
 // TestCheckKeyFIPS makes sure Teleport clients don't load invalid
@@ -327,30 +344,41 @@ func TestCheckKeyFIPS(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err))
 }
 
-func TestGetTrustedCertsPEM_nonCertificateBlocks(t *testing.T) {
+func TestSaveGetTrustedCerts(t *testing.T) {
 	s, cleanup := newTest(t)
 	defer cleanup()
 
-	// Make sure we behave correctly if someone writes a non-CERTIFICATE block to
-	// certs.pem. During regular use this shouldn't happen, but a bug was lurking
-	// around here.
 	proxy := "proxy.example.com"
-	certsFile := keypaths.TLSCAsPath(s.storeDir, proxy)
+	certsFile := keypaths.CAsDir(s.storeDir, proxy)
 	err := os.MkdirAll(filepath.Dir(certsFile), 0700)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(certsFile, []byte(`-----BEGIN RSA PUBLIC KEY-----
-MIIBCgKCAQEAp2eO39fYnpUI4PplyoS/bHrr5Yiy98t+1sdDwGIG01UPlkxAxzIi
-VVQmel1NrSh4lF4t3b8KUUNM+5pk241F7Olr/4DIRTPQHDGWO0nciEieZ8IpFigz
-kUQRvKjNIw4zZbZSsZu0QE7hCU6O8VwEwSFrEsCCrPw4+28pp2IEYOqe0chZosO/
-6kXdJa/ZjC/Edjep1XVdoM+BSFXR5qwY4WtU/Ha4SNRbaktzMZgrkOLgD5TALGoN
-DYxXLyVgxD6BvRxlaQft75Bwg1KJ6nKqYAAtu/Me98BXDt+1GFwltLsjeY68untS
-hRdXE63PXwAfzj0P/H4qWsFfwdeCo/fuIQIDAQAB
------END RSA PUBLIC KEY-----`), 0600)
+
+	pemBytes, ok := fixtures.PEMBytes["rsa"]
+	require.True(t, ok)
+	_, firstLeafCluster, err := newSelfSignedCA(pemBytes)
+	require.NoError(t, err)
+	_, firstLeafClusterSecondCert, err := newSelfSignedCA(pemBytes)
+	require.NoError(t, err)
+
+	_, secondLeafCluster, err := newSelfSignedCA(pemBytes)
+	require.NoError(t, err)
+
+	cas := []auth.TrustedCerts{
+		{
+			ClusterName:     "firstLeafCluster",
+			TLSCertificates: append(firstLeafCluster.TLSCertificates, firstLeafClusterSecondCert.TLSCertificates...),
+		},
+		{
+			ClusterName:     "secondLeafCluster",
+			TLSCertificates: secondLeafCluster.TLSCertificates,
+		},
+	}
+	err = s.store.SaveTrustedCerts(proxy, cas)
 	require.NoError(t, err)
 
 	blocks, err := s.store.GetTrustedCertsPEM(proxy)
-	require.Empty(t, blocks)
 	require.NoError(t, err)
+	require.Equal(t, 3, len(blocks))
 }
 
 func TestAddKey_withoutSSHCert(t *testing.T) {

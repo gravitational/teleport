@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -147,6 +148,16 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	if _, ok := certificate.Extensions[teleport.CertExtensionDisallowReissue]; ok {
 		identity.DisallowReissue = true
 	}
+	if _, ok := certificate.Extensions[teleport.CertExtensionRenewable]; ok {
+		identity.Renewable = true
+	}
+	if generationStr, ok := certificate.Extensions[teleport.CertExtensionGeneration]; ok {
+		generation, err := strconv.ParseUint(generationStr, 10, 64)
+		if err != nil {
+			return IdentityContext{}, trace.Wrap(err)
+		}
+		identity.Generation = generation
+	}
 	return identity, nil
 }
 
@@ -156,6 +167,14 @@ func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
 		return trace.Wrap(err)
 	}
 
+	return nil
+}
+
+// CheckX11Forward checks if X11 forwarding is permitted for the user's RoleSet.
+func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
+	if !ctx.Identity.RoleSet.PermitX11Forwarding() {
+		return trace.AccessDenied("x11 forwarding not permitted")
+	}
 	return nil
 }
 

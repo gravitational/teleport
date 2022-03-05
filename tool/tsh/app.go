@@ -45,6 +45,11 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	rootCluster, err := tc.RootClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var arn string
 	if app.IsAWSConsole() {
 		var err error
@@ -89,7 +94,7 @@ func onAppLogin(cf *CLIConf) error {
 	}
 	return appLoginTpl.Execute(os.Stdout, map[string]string{
 		"appName": app.GetName(),
-		"curlCmd": formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL),
+		"curlCmd": formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster),
 	})
 }
 
@@ -185,16 +190,16 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Print(formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format))
+	fmt.Print(formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format, ""))
 	return nil
 }
 
-func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format string) string {
+func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster string) string {
 	switch format {
 	case appFormatURI:
 		return fmt.Sprintf("https://%v:%v", appPublicAddr, tc.WebProxyPort())
 	case appFormatCA:
-		return profile.CACertPath()
+		return profile.CACertPathForCluster(cluster)
 	case appFormatCert:
 		return profile.AppCertPath(appName)
 	case appFormatKey:
@@ -205,7 +210,7 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
   --cert %v \
   --key %v \
   https://%v:%v`,
-			profile.CACertPath(),
+			profile.CACertPathForCluster(cluster),
 			profile.AppCertPath(appName),
 			profile.KeyPath(),
 			appPublicAddr,
@@ -216,7 +221,7 @@ URI:       https://%v:%v
 CA:        %v
 Cert:      %v
 Key:       %v
-`, appName, appPublicAddr, tc.WebProxyPort(), profile.CACertPath(),
+`, appName, appPublicAddr, tc.WebProxyPort(), profile.CACertPathForCluster(cluster),
 		profile.AppCertPath(appName), profile.KeyPath())
 }
 

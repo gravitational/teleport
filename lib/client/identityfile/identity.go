@@ -66,12 +66,30 @@ const (
 	// configuring a CockroachDB database for mutual TLS.
 	FormatCockroach Format = "cockroachdb"
 
+	// FormatRedis produces CA and key pair in the format suitable for
+	// configuring a Redis database for mutual TLS.
+	FormatRedis Format = "redis"
+
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
 )
 
-// KnownFormats is a list of all above formats.
-var KnownFormats = []Format{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo, FormatCockroach}
+// FormatList is a list of all possible FormatList.
+type FormatList []Format
+
+// KnownFileFormats is a list of all above formats.
+var KnownFileFormats = FormatList{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
+	FormatCockroach, FormatRedis}
+
+// String returns human-readable version of FormatList, ex:
+// file, openssh, tls, kubernetes
+func (f FormatList) String() string {
+	elems := make([]string, len(f))
+	for i, format := range f {
+		elems[i] = string(format)
+	}
+	return strings.Join(elems, ", ")
+}
 
 // WriteConfig holds the necessary information to write an identity file.
 type WriteConfig struct {
@@ -88,7 +106,7 @@ type WriteConfig struct {
 	KubeProxyAddr string
 	// OverwriteDestination forces all existing destination files to be
 	// overwritten. When false, user will be prompted for confirmation of
-	// overwite first.
+	// overwrite first.
 	OverwriteDestination bool
 }
 
@@ -114,7 +132,6 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				TLS: cfg.Key.TLSCert,
 			},
 		}
-
 		// append trusted host certificate authorities
 		for _, ca := range cfg.Key.TrustedCA {
 			// append ssh ca certificates
@@ -152,7 +169,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-	case FormatTLS, FormatDatabase, FormatCockroach:
+	case FormatTLS, FormatDatabase, FormatCockroach, FormatRedis:
 		keyPath := cfg.OutputPath + ".key"
 		certPath := cfg.OutputPath + ".crt"
 		casPath := cfg.OutputPath + ".cas"
@@ -235,7 +252,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		}
 
 	default:
-		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q", cfg.Format, KnownFormats)
+		return nil, trace.BadParameter("unsupported identity format: %q, use one of %s", cfg.Format, KnownFileFormats)
 	}
 	return filesWritten, nil
 }

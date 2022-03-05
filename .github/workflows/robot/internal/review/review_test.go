@@ -207,6 +207,39 @@ func TestGetCodeReviewers(t *testing.T) {
 			setB:   []string{"2"},
 		},
 		{
+			desc: "cloud-gets-core-reviewers",
+			assignments: &Assignments{
+				c: &Config{
+					// Code.
+					CodeReviewers: map[string]Reviewer{
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: true},
+						"4": Reviewer{Team: "Core", Owner: false},
+						"5": Reviewer{Team: "Core", Owner: false},
+						"6": Reviewer{Team: "Core", Owner: false},
+						"7": Reviewer{Team: "Internal", Owner: false},
+						"8": Reviewer{Team: "Cloud", Owner: false},
+						"9": Reviewer{Team: "Cloud", Owner: false},
+					},
+					CodeReviewersOmit: map[string]bool{
+						"6": true,
+					},
+					// Docs.
+					DocsReviewers:     map[string]Reviewer{},
+					DocsReviewersOmit: map[string]bool{},
+					// Admins.
+					Admins: []string{
+						"1",
+						"2",
+					},
+				},
+			},
+			author: "8",
+			setA:   []string{"1", "2", "3"},
+			setB:   []string{"4", "5"},
+		},
+		{
 			desc: "normal",
 			assignments: &Assignments{
 				c: &Config{
@@ -438,14 +471,17 @@ func TestCheckInternal(t *testing.T) {
 		c: &Config{
 			// Code.
 			CodeReviewers: map[string]Reviewer{
-				"1": Reviewer{Team: "Core", Owner: true},
-				"2": Reviewer{Team: "Core", Owner: true},
-				"3": Reviewer{Team: "Core", Owner: true},
-				"9": Reviewer{Team: "Core", Owner: true},
-				"4": Reviewer{Team: "Core", Owner: false},
-				"5": Reviewer{Team: "Core", Owner: false},
-				"6": Reviewer{Team: "Core", Owner: false},
-				"8": Reviewer{Team: "Internal", Owner: false},
+				"1":  Reviewer{Team: "Core", Owner: true},
+				"2":  Reviewer{Team: "Core", Owner: true},
+				"3":  Reviewer{Team: "Core", Owner: true},
+				"9":  Reviewer{Team: "Core", Owner: true},
+				"4":  Reviewer{Team: "Core", Owner: false},
+				"5":  Reviewer{Team: "Core", Owner: false},
+				"6":  Reviewer{Team: "Core", Owner: false},
+				"8":  Reviewer{Team: "Internal", Owner: false},
+				"10": Reviewer{Team: "Cloud", Owner: false},
+				"11": Reviewer{Team: "Cloud", Owner: false},
+				"12": Reviewer{Team: "Cloud", Owner: false},
 			},
 			// Docs.
 			DocsReviewers: map[string]Reviewer{
@@ -610,6 +646,28 @@ func TestCheckInternal(t *testing.T) {
 		{
 			desc:   "code-only-internal-two-code-owner-approval-success",
 			author: "4",
+			reviews: map[string]*github.Review{
+				"3": &github.Review{Author: "3", State: approved},
+				"9": &github.Review{Author: "9", State: approved},
+			},
+			docs:   false,
+			code:   true,
+			result: true,
+		},
+		{
+			desc:   "cloud-with-self-approval-failure",
+			author: "10",
+			reviews: map[string]*github.Review{
+				"11": &github.Review{Author: "11", State: approved},
+				"12": &github.Review{Author: "12", State: approved},
+			},
+			docs:   false,
+			code:   true,
+			result: false,
+		},
+		{
+			desc:   "cloud-with-core-approval-success",
+			author: "10",
 			reviews: map[string]*github.Review{
 				"3": &github.Review{Author: "3", State: approved},
 				"9": &github.Review{Author: "9", State: approved},

@@ -117,14 +117,7 @@ func tagCopyArtifactCommands(b buildType) []string {
 
 	// we need to specifically rename artifacts which are created for CentOS
 	// these is the only special case where renaming is not handled inside the Makefile
-	if b.centos6 {
-		// for CentOS 6 we don't support FIPS, just OSS and enterprise
-		commands = append(commands,
-			`export VERSION=$(cat /go/.version.txt)`,
-			`mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$${VERSION}-linux-amd64-centos6-bin.tar.gz`,
-			`mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz`,
-		)
-	} else if b.centos7 {
+	if b.centos7 {
 		// for CentOS 7, we support OSS, Enterprise, and FIPS (Enterprise only)
 		commands = append(commands, `export VERSION=$(cat /go/.version.txt)`)
 		if !b.fips {
@@ -192,7 +185,6 @@ func tagPipelines() []pipeline {
 
 	// Also add CentOS artifacts
 	// CentOS 6 FIPS builds have been removed in Teleport 7.0. See https://github.com/gravitational/teleport/issues/7207
-	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true}))
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true}))
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true, fips: true}))
 
@@ -210,9 +202,7 @@ func tagPipeline(b buildType) pipeline {
 	}
 
 	pipelineName := fmt.Sprintf("build-%s-%s", b.os, b.arch)
-	if b.centos6 {
-		pipelineName += "-centos6"
-	} else if b.centos7 {
+	if b.centos7 {
 		pipelineName += "-centos7"
 	}
 	tagEnvironment := map[string]value{
@@ -234,7 +224,8 @@ func tagPipeline(b buildType) pipeline {
 
 	p := newKubePipeline(pipelineName)
 	p.Environment = map[string]value{
-		"RUNTIME": goRuntime,
+		"BUILDBOX_VERSION": buildboxVersion,
+		"RUNTIME":          goRuntime,
 	}
 	p.Trigger = triggerTag
 	p.Workspace = workspace{Path: "/go"}

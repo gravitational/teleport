@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -240,9 +241,10 @@ func writeProfile(t *testing.T, p *profile.Profile, oldSSHPath bool) {
 	require.NoError(t, p.SaveToDir(p.Dir, true))
 	require.NoError(t, os.MkdirAll(p.KeyDir(), 0700))
 	require.NoError(t, os.MkdirAll(p.ProxyKeyDir(), 0700))
+	require.NoError(t, os.MkdirAll(p.TLSClusterCASDir(), 0700))
 	require.NoError(t, ioutil.WriteFile(p.UserKeyPath(), keyPEM, 0600))
 	require.NoError(t, ioutil.WriteFile(p.TLSCertPath(), tlsCert, 0600))
-	require.NoError(t, ioutil.WriteFile(p.TLSCAsPath(), tlsCACert, 0600))
+	require.NoError(t, ioutil.WriteFile(p.TLSCAPathCluster(p.SiteName), tlsCACert, 0600))
 	require.NoError(t, ioutil.WriteFile(p.KnownHostsPath(), sshCACert, 0600))
 	// If oldSSHPath is specified, write the sshCert to the old ssh cert path.
 	// DELETE IN 8.0.0

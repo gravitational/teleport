@@ -30,6 +30,8 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/postgres"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 )
 
@@ -46,6 +48,10 @@ const (
 	mongoshBin = "mongosh"
 	// mongoBin is the Mongo client binary name.
 	mongoBin = "mongo"
+	// redisBin is the Redis client binary name.
+	redisBin = "redis-cli"
+	// mssqlBin is the SQL Server client program name.
+	mssqlBin = "mssql-cli"
 )
 
 // execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -72,18 +78,20 @@ func (s systemExecer) LookPath(file string) (string, error) {
 }
 
 type cliCommandBuilder struct {
-	tc      *client.TeleportClient
-	profile *client.ProfileStatus
-	db      *tlsca.RouteToDatabase
-	host    string
-	port    int
-	options connectionCommandOpts
+	tc          *client.TeleportClient
+	rootCluster string
+	profile     *client.ProfileStatus
+	db          *tlsca.RouteToDatabase
+	host        string
+	port        int
+	options     connectionCommandOpts
+	uid         utils.UID
 
 	exe execer
 }
 
 func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
-	db *tlsca.RouteToDatabase, opts ...ConnectCommandFunc,
+	db *tlsca.RouteToDatabase, rootClusterName string, opts ...ConnectCommandFunc,
 ) *cliCommandBuilder {
 	var options connectionCommandOpts
 	for _, opt := range opts {
@@ -98,12 +106,14 @@ func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	}
 
 	return &cliCommandBuilder{
-		tc:      tc,
-		profile: profile,
-		db:      db,
-		host:    host,
-		port:    port,
-		options: options,
+		tc:          tc,
+		profile:     profile,
+		db:          db,
+		host:        host,
+		port:        port,
+		options:     options,
+		rootCluster: rootClusterName,
+		uid:         utils.NewRealUID(),
 
 		exe: &systemExecer{},
 	}
@@ -122,6 +132,12 @@ func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolMongoDB:
 		return c.getMongoCommand(), nil
+
+	case defaults.ProtocolRedis:
+		return c.getRedisCommand(), nil
+
+	case defaults.ProtocolSQLServer:
+		return c.getSQLServerCommand(), nil
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -129,7 +145,7 @@ func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
 
 func (c *cliCommandBuilder) getPostgresCommand() *exec.Cmd {
 	return exec.Command(postgresBin,
-		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.host, c.port)))
+		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port)))
 }
 
 func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
@@ -138,10 +154,10 @@ func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
 		log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
 			cockroachBin, postgresBin, err)
 		return exec.Command(postgresBin,
-			postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.host, c.port)))
+			postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port)))
 	}
 	return exec.Command(cockroachBin, "sql", "--url",
-		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.host, c.port)))
+		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port)))
 }
 
 // getMySQLCommonCmdOpts returns common command line arguments for mysql and mariadb.
@@ -175,7 +191,7 @@ func (c *cliCommandBuilder) getMariaDBArgs() []string {
 	sslCertPath := c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName)
 
 	args = append(args, []string{"--ssl-key", c.profile.KeyPath()}...)
-	args = append(args, []string{"--ssl-ca", c.profile.CACertPath()}...)
+	args = append(args, []string{"--ssl-ca", c.profile.CACertPathForCluster(c.rootCluster)}...)
 	args = append(args, []string{"--ssl-cert", sslCertPath}...)
 
 	// Flag below verifies "Common Name" check on the certificate provided by the server.
@@ -311,4 +327,48 @@ func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
 
 	// fall back to `mongo` if `mongosh` isn't found
 	return exec.Command(mongoBin, args...)
+}
+
+// getRedisCommand returns redis-cli commands used by 'tsh db connect' when connecting to a Redis instance.
+func (c *cliCommandBuilder) getRedisCommand() *exec.Cmd {
+	// TODO(jakub): Add "-3" when Teleport adds support for Redis RESP3 protocol.
+	args := []string{
+		"--tls",
+		"-h", c.host,
+		"-p", strconv.Itoa(c.port),
+		"--key", c.profile.KeyPath(),
+		"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+	}
+
+	if c.tc.InsecureSkipVerify {
+		args = append(args, "--insecure")
+	}
+
+	if c.options.caPath != "" {
+		args = append(args, []string{"--cacert", c.options.caPath}...)
+	}
+
+	// append database number if provided
+	if c.db.Database != "" {
+		args = append(args, []string{"-n", c.db.Database}...)
+	}
+
+	return exec.Command(redisBin, args...)
+}
+
+func (c *cliCommandBuilder) getSQLServerCommand() *exec.Cmd {
+	args := []string{
+		// Host and port must be comma-separated.
+		"-S", fmt.Sprintf("%v,%v", c.host, c.port),
+		"-U", c.db.Username,
+		// Password is required by the client but doesn't matter as we're
+		// connecting to local proxy.
+		"-P", c.uid.New(),
+	}
+
+	if c.db.Database != "" {
+		args = append(args, "-d", c.db.Database)
+	}
+
+	return exec.Command(mssqlBin, args...)
 }

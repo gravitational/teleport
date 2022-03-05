@@ -122,9 +122,26 @@ Follow the instructions in the [docker/README](docker/README.md) file.
 
 ## Building Teleport
 
-The Teleport source code contains the Teleport daemon binary written in Golang and a web UI written in Javascript (a git submodule located in the `/webassets` directory).
+The `teleport` repository contains the Teleport daemon binary (written in Go)
+and a web UI written in Javascript (a git submodule located in the `webassets/`
+directory).
 
-Make sure you have Golang `v1.17` or newer, then run:
+### Dockerized Build
+
+It is often easiest to build with Docker, which ensures that all required
+tooling is available for the build. To execute a dockerized build, ensure
+that docker is installed and running, and execute:
+
+```
+$ make -C build.assets build-binaries
+```
+
+### Local Build
+
+To perform a build on your host, ensure you have installed Go. In order to
+include the Rust-powered features like Desktop Access and `roletester`, you'll
+also need `cargo` and `rustc`. The current versions of these tools can be found
+in `build.assets/Makefile`.
 
 ```bash
 # get the source & build:
@@ -137,12 +154,17 @@ $ sudo mkdir -p -m0700 /var/lib/teleport
 $ sudo chown $USER /var/lib/teleport
 ```
 
-If the build succeeds, the installer places the binaries in the following directory:
-`$GOPATH/src/github.com/gravitational/teleport/build`
+If the build succeeds, the installer will place the binaries in the `build` directory.
 
 **Important:**
-* The Go compiler is somewhat sensitive to the amount of memory: you will need **at least** 1GB of virtual memory to compile Teleport. A 512MB instance without swap will **not** work.
-* This will build the latest version of Teleport, **regardless** of whether it is stable. If you want to build the latest stable release, run `git checkout` to the corresponding tag (for example, run `git checkout v8.0.0`) **before** running `make full`.
+
+* The Go compiler is somewhat sensitive to the amount of memory: you will need
+  **at least** 1GB of virtual memory to compile Teleport. A 512MB instance
+  without swap will **not** work.
+* This will build the latest version of Teleport, **regardless** of whether it
+  is stable. If you want to build the latest stable release, run `git checkout`
+  to the corresponding tag (for example, run `git checkout v8.0.0`) **before**
+  running `make full`.
 
 ### Web UI
 
@@ -185,17 +207,6 @@ Run `make update-webassets` to update the `webassets` repo and create a PR for
 
 You will need to have the `gh` utility installed on your system for the script
 to work. For installation instructions, read the [GitHub CLI installation](https://github.com/cli/cli/releases/latest) documentation.
-
-### Updating Documentation
-
-TL;DR version:
-
-```bash
-make docs
-make run-docs
-```
-
-For more details, read the [docs/README](docs/README.md) file.
 
 ### Managing dependencies
 

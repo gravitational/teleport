@@ -185,7 +185,13 @@ func (r *Assignments) getCodeReviewerSets(author string) ([]string, []string) {
 		return reviewers[:n], reviewers[n:]
 	}
 
-	return getReviewerSets(author, v.Team, r.c.CodeReviewers, r.c.CodeReviewersOmit)
+	// Cloud gets reviewers assigned from Core.
+	team := v.Team
+	if v.Team == "Cloud" {
+		team = "Core"
+	}
+
+	return getReviewerSets(author, team, r.c.CodeReviewers, r.c.CodeReviewersOmit)
 }
 
 // CheckExternal requires two admins have approved.
@@ -259,10 +265,10 @@ func (r *Assignments) checkCodeReviews(author string, reviews map[string]*github
 		return trace.BadParameter("rejecting checking external review")
 	}
 
-	// Internal Teleport reviews get checked by same Core rules. Other teams do
-	// own internal reviews.
+	// Cloud and Internal get reviews from the Core team. Other teams do own
+	// internal reviews.
 	team := v.Team
-	if team == "Internal" {
+	if team == "Internal" || team == "Cloud" {
 		team = "Core"
 	}
 

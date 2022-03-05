@@ -27,10 +27,37 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// Client implements the GitHub API.
+type Client interface {
+	// RequestReviewers is used to assign reviewers to a PR.
+	RequestReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error
+
+	// ListReviews is used to list all submitted reviews for a PR.
+	ListReviews(ctx context.Context, organization string, repository string, number int) (map[string]*github.Review, error)
+
+	// ListPullRequests returns a list of Pull Requests.
+	ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]github.PullRequest, error)
+
+	// ListFiles is used to list all the files within a PR.
+	ListFiles(ctx context.Context, organization string, repository string, number int) ([]string, error)
+
+	// AddLabels will add labels to an Issue or Pull Request.
+	AddLabels(ctx context.Context, organization string, repository string, number int, labels []string) error
+
+	// ListWorkflows lists all workflows within a repository.
+	ListWorkflows(ctx context.Context, organization string, repository string) ([]github.Workflow, error)
+
+	// ListWorkflowRuns is used to list all workflow runs for an ID.
+	ListWorkflowRuns(ctx context.Context, organization string, repository string, branch string, workflowID int64) ([]github.Run, error)
+
+	// DeleteWorkflowRun is used to delete a workflow run.
+	DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error
+}
+
 // Config contains configuration for the bot.
 type Config struct {
 	// GitHub is a GitHub client.
-	GitHub github.Client
+	GitHub Client
 
 	// Environment holds information about the workflow run event.
 	Environment *env.Environment

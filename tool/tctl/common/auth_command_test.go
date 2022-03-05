@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 func TestAuthSignKubeconfig(t *testing.T) {
@@ -60,12 +60,15 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	_, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "example.com"}, nil, time.Minute)
+	require.NoError(t, err)
+
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: "example.com",
 		ActiveKeys: types.CAKeySet{
 			SSH: []*types.SSHKeyPair{{PublicKey: []byte("SSH CA cert")}},
-			TLS: []*types.TLSKeyPair{{Cert: []byte("TLS CA cert")}},
+			TLS: []*types.TLSKeyPair{{Cert: cert}},
 		},
 		Roles:      nil,
 		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
@@ -77,7 +80,10 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		remoteClusters: []types.RemoteCluster{remoteCluster},
 		userCerts: &proto.Certs{
 			SSH: []byte("SSH cert"),
-			TLS: []byte("TLS cert"),
+			TLS: cert,
+			TLSCACerts: [][]byte{
+				cert,
+			},
 		},
 		cas: []types.CertAuthority{ca},
 		proxies: []types.Server{
@@ -399,6 +405,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 		outKey         []byte
 		outCert        []byte
 		outCA          []byte
+		genKeyErrMsg   string
 	}{
 		{
 			name:           "database certificate",
@@ -457,6 +464,29 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outCert:        certBytes,
 			outCA:          caBytes,
 		},
+		{
+			name:           "redis certificate",
+			inFormat:       identityfile.FormatRedis,
+			inHost:         "localhost,redis1,172.0.0.1",
+			inOutDir:       t.TempDir(),
+			inOutFile:      "db",
+			outSubject:     pkix.Name{CommonName: "localhost"},
+			outServerNames: []string{"localhost", "redis1", "172.0.0.1"},
+			outKeyFile:     "db.key",
+			outCertFile:    "db.crt",
+			outCAFile:      "db.cas",
+			outKey:         key.Priv,
+			outCert:        certBytes,
+			outCA:          caBytes,
+		},
+		{
+			name:         "missing host",
+			inFormat:     identityfile.FormatRedis,
+			inOutDir:     t.TempDir(),
+			inHost:       "", // missing host
+			inOutFile:    "db",
+			genKeyErrMsg: "at least one hostname must be specified",
+		},
 	}
 
 	for _, test := range tests {
@@ -470,7 +500,13 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			}
 
 			err = ac.generateDatabaseKeysForKey(authClient, key)
-			require.NoError(t, err)
+			if test.genKeyErrMsg == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), test.genKeyErrMsg)
+				return
+			}
 
 			require.NotNil(t, authClient.dbCertsReq)
 			csr, err := tlsca.ParseCertificateRequestPEM(authClient.dbCertsReq.CSR)
