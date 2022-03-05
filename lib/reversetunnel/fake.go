@@ -18,9 +18,9 @@ package reversetunnel
 
 import (
 	"net"
+	"sync"
 
 	"github.com/gravitational/teleport/lib/auth"
-
 	"github.com/gravitational/trace"
 )
 
@@ -51,12 +51,26 @@ type FakeRemoteSite struct {
 	RemoteSite
 	// Name is the remote site name.
 	Name string
-	// ConnCh receives the connection when dialing this site.
-	ConnCh chan net.Conn
+	// connCh receives the connection when dialing this site.
+	connCh chan net.Conn
+	// closed is set to true after the site is being closed.
+	closed bool
+	// closedMtx is a mutex that protects closed.
+	closedMtx sync.Mutex
 	// AccessPoint is the auth server client.
 	AccessPoint auth.RemoteProxyAccessPoint
 	// OfflineTunnels is a list of server IDs that will return connection error.
 	OfflineTunnels map[string]struct{}
+}
+
+// NewFakeRemoteSite is a FakeRemoteSite constructor.
+func NewFakeRemoteSite(clusterName string, accessPoint auth.RemoteProxyAccessPoint) (*FakeRemoteSite, <-chan net.Conn) {
+	proxyConn := make(chan net.Conn)
+	return &FakeRemoteSite{
+		Name:        clusterName,
+		connCh:      proxyConn,
+		AccessPoint: accessPoint,
+	}, proxyConn
 }
 
 // CachingAccessPoint returns caching auth server client.
@@ -75,7 +89,22 @@ func (s *FakeRemoteSite) Dial(params DialParams) (net.Conn, error) {
 		return nil, trace.ConnectionProblem(nil, "server %v tunnel is offline",
 			params.ServerID)
 	}
+
+	s.closedMtx.Lock()
+	defer s.closedMtx.Unlock()
+
+	if s.closed {
+		return nil, trace.ConnectionProblem(nil, "tunnel has been closed")
+	}
+
 	readerConn, writerConn := net.Pipe()
-	s.ConnCh <- readerConn
+	s.connCh <- readerConn
 	return writerConn, nil
+}
+
+func (s *FakeRemoteSite) Close() {
+	s.closedMtx.Lock()
+	defer s.closedMtx.Unlock()
+	close(s.connCh)
+	s.closed = true
 }

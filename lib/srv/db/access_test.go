@@ -1222,7 +1222,7 @@ type testContext struct {
 	mux            *multiplexer.Mux
 	mysqlListener  net.Listener
 	webListener    *multiplexer.WebListener
-	proxyConn      chan net.Conn
+	proxyConn      <-chan net.Conn
 	fakeRemoteSite *reversetunnel.FakeRemoteSite
 	server         *Server
 	emitter        *testEmitter
@@ -1616,15 +1616,10 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	}
 
 	// Establish fake reversetunnel b/w database proxy and database service.
-	testCtx.proxyConn = make(chan net.Conn)
+	testCtx.fakeRemoteSite, testCtx.proxyConn = reversetunnel.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
 	t.Cleanup(func() {
-		close(testCtx.proxyConn)
+		testCtx.fakeRemoteSite.Close()
 	})
-	testCtx.fakeRemoteSite = &reversetunnel.FakeRemoteSite{
-		Name:        testCtx.clusterName,
-		ConnCh:      testCtx.proxyConn,
-		AccessPoint: proxyAuthClient,
-	}
 	tunnel := &reversetunnel.FakeServer{
 		Sites: []reversetunnel.RemoteSite{
 			testCtx.fakeRemoteSite,
