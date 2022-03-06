@@ -28,6 +28,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 
@@ -234,6 +235,57 @@ func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, 
 		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint.Address), aws.Int64Value(cluster.Endpoint.Port)),
 		AWS:      *metadata,
 	})
+}
+
+func NewDatabaseFromElasticacheCluster(replica *elasticache.ReplicationGroup) (types.Database, error) {
+	var endpoint *elasticache.Endpoint
+
+	if replica.ConfigurationEndpoint != nil {
+		endpoint = replica.ConfigurationEndpoint
+	}
+
+	for _, nodeGroup := range replica.NodeGroups {
+		if nodeGroup.PrimaryEndpoint != nil {
+			endpoint = nodeGroup.PrimaryEndpoint
+			break
+		}
+
+		if nodeGroup.ReaderEndpoint != nil {
+			endpoint = nodeGroup.ReaderEndpoint
+		}
+	}
+
+	metadata, err := MetadataFromElasticacheInstance(replica)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return types.NewDatabaseV3(types.Metadata{
+		Name:        aws.StringValue(replica.ReplicationGroupId),
+		Description: fmt.Sprintf("Elasticache cluster in %v", metadata.Region),
+		//Labels:      labelsFromRedshiftCluster(cluster, metadata),
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
+		AWS:      *metadata,
+	})
+}
+
+func MetadataFromElasticacheInstance(replica *elasticache.ReplicationGroup) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(replica.ARN))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		//RDS: types.RDS{
+		//	InstanceID: aws.StringValue(replica.ReplicationGroupId),
+		//	//ClusterID:  aws.StringValue(replica.),
+		//	//ResourceID: aws.StringValue(replica.Re),
+		//	//IAMAuth:    aws.BoolValue(replica.),
+		//},
+	}, nil
 }
 
 // MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
@@ -511,6 +563,11 @@ func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
 		)
 		return true
 	}
+}
+
+// IsElasticacheClusterAvailable TODO
+func IsElasticacheClusterAvailable(cluster *elasticache.ReplicationGroup) bool {
+	return true
 }
 
 // auroraMySQLVersion extracts aurora mysql version from engine version

@@ -26,6 +26,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/aws/aws-sdk-go/aws"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -50,6 +52,8 @@ type CloudClients interface {
 	GetAWSRDSClient(region string) (rdsiface.RDSAPI, error)
 	// GetAWSRedshiftClient returns AWS Redshift client for the specified region.
 	GetAWSRedshiftClient(region string) (redshiftiface.RedshiftAPI, error)
+	// GetAWSElasticacheClient returns AWS Elasticache client for the specified region.
+	GetAWSElasticacheClient(region string) (elasticacheiface.ElastiCacheAPI, error)
 	// GetAWSIAMClient returns AWS IAM client for the specified region.
 	GetAWSIAMClient(region string) (iamiface.IAMAPI, error)
 	// GetAWSSTSClient returns AWS STS client for the specified region.
@@ -113,6 +117,14 @@ func (c *cloudClients) GetAWSRedshiftClient(region string) (redshiftiface.Redshi
 	return redshift.New(session), nil
 }
 
+func (c *cloudClients) GetAWSElasticacheClient(region string) (elasticacheiface.ElastiCacheAPI, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return elasticache.New(session), nil
+}
+
 // GetAWSIAMClient returns AWS IAM client for the specified region.
 func (c *cloudClients) GetAWSIAMClient(region string) (iamiface.IAMAPI, error) {
 	session, err := c.GetAWSSession(region)
@@ -164,7 +176,7 @@ func (c *cloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
 	return c.initAzureCredential()
 }
 
-// Closes closes all initialized clients.
+// Close closes all initialized clients.
 func (c *cloudClients) Close() (err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()

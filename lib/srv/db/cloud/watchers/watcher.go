@@ -144,6 +144,10 @@ func (w *Watcher) DatabasesC() <-chan types.Databases {
 
 // makeFetchers returns cloud fetchers for the provided matchers.
 func makeFetchers(clients common.CloudClients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
+	// TODO(jakule):
+	//fetchers := map[string]awsFetcherFunc{
+	//	services.AWSMatcherRDS: makeRDSFetchers,
+	//}
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
 			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherRDS) {
@@ -161,10 +165,21 @@ func makeFetchers(clients common.CloudClients, matchers []services.AWSMatcher) (
 				}
 				result = append(result, fetcher)
 			}
+
+			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherElasticache) {
+				fetcher, err := makeElasticacheFetcher(clients, region, matcher.Tags)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				result = append(result, fetcher)
+			}
+
 		}
 	}
 	return result, nil
 }
+
+//type awsFetcherFunc = func(clients common.CloudClients, region string, tags types.Labels) (Fetcher, error)
 
 // makeRDSFetchers returns RDS fetcher for the provided region and tags.
 func makeRDSFetchers(clients common.CloudClients, region string, tags types.Labels) ([]Fetcher, error) {
@@ -202,5 +217,18 @@ func makeRedshiftFetcher(clients common.CloudClients, region string, tags types.
 		Region:   region,
 		Labels:   tags,
 		Redshift: redshift,
+	})
+}
+
+// makeElasticacheFetcher returns Elasticache fetcher for the provided region and tags.
+func makeElasticacheFetcher(clients common.CloudClients, region string, tags types.Labels) (Fetcher, error) {
+	elasticacheClient, err := clients.GetAWSElasticacheClient(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newElasticacheFetcher(elasticacheFetcherConfig{
+		Region:      region,
+		Labels:      tags,
+		elasticache: elasticacheClient,
 	})
 }

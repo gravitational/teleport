@@ -49,21 +49,21 @@ const (
 var (
 	// defaultPolicyTags default list of tags present at the managed policies.
 	defaultPolicyTags = map[string]string{policyTeleportTagKey: policyTeleportTagValue}
-	// userBaseActions list of actions used when target is an user.
+	// userBaseActions list of actions used when target is a user.
 	userBaseActions = []string{"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy"}
 	// roleBaseActions list of actions used when target is a role.
 	roleBaseActions = []string{"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"}
 	// rdsActions list of actions used when giving RDS permissions.
 	rdsActions = []string{"rds:DescribeDBInstances", "rds:ModifyDBInstance"}
-	// auroraActions list of acions used when giving RDS Aurora permissions.
+	// auroraActions list of actions used when giving RDS Aurora permissions.
 	auroraActions = []string{"rds:DescribeDBClusters", "rds:ModifyDBCluster"}
 	// redshiftActions list of actions used when giving Redshift auto-discovery
 	// permissions.
 	redshiftActions = []string{"redshift:DescribeClusters"}
-	// boundaryRDSAuroraActions aditional actions added to the policy boundary
+	// boundaryRDSAuroraActions additional actions added to the policy boundary
 	// when policy has RDS auto-discovery.
 	boundaryRDSAuroraActions = []string{"rds-db:connect"}
-	// boundaryRedshiftActions aditional actions added to the policy boundary
+	// boundaryRedshiftActions additional actions added to the policy boundary
 	// when policy has Redshift auto-discovery.
 	boundaryRedshiftActions = []string{"redshift:GetClusterCredentials"}
 )
@@ -154,7 +154,7 @@ func (a *awsConfigurator) IsEmpty() bool {
 	return len(a.actions) == 0
 }
 
-// Name returns humam-readable configurator name.
+// Name returns human-readable configurator name.
 func (a *awsConfigurator) Name() string {
 	return "AWS"
 }
@@ -182,7 +182,7 @@ func (a *awsPolicyCreator) Description() string {
 	return fmt.Sprintf("Create IAM Policy %q", a.policy.Name)
 }
 
-// Details returnst the policy document that will be created.
+// Details returns the policy document that will be created.
 func (a *awsPolicyCreator) Details() string {
 	return a.formattedPolicy
 }
