@@ -23,6 +23,7 @@ import (
 	"net"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -152,8 +153,13 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
+	username, pass, err := e.getCloudLogin()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create new client without username or password. Those will be added when we receive AUTH command.
-	e.redisClient, err = e.newClient("", "")
+	e.redisClient, err = e.newClient(username, pass)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -172,6 +178,18 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 
 	return nil
+}
+
+func (e *Engine) getCloudLogin() (username string, password string, err error) {
+	switch e.sessionCtx.Database.GetType() {
+	case types.DatabaseTypeElasticache:
+		username, password, err = e.Auth.GetElasticacheAuthToken(e.sessionCtx)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+	}
+
+	return username, password, nil
 }
 
 // getNewClientFn returns a partial Redis client factory function.

@@ -137,7 +137,7 @@ func (r *Reconciler) processRegisteredResource(ctx context.Context, newResources
 	return nil
 }
 
-// processNewResource checks the provided new resource agsinst currently
+// processNewResource checks the provided new resource against currently
 // registered resources.
 func (r *Reconciler) processNewResource(ctx context.Context, currentResources types.ResourcesWithLabelsMap, new types.ResourceWithLabels) error {
 	// First see if the resource is already registered and if not, whether it

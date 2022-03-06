@@ -25,6 +25,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	libauth "github.com/gravitational/teleport/lib/auth"
@@ -53,6 +54,8 @@ type Auth interface {
 	GetRDSAuthToken(sessionCtx *Session) (string, error)
 	// GetRedshiftAuthToken generates Redshift auth token.
 	GetRedshiftAuthToken(sessionCtx *Session) (string, string, error)
+	// GetElasticacheAuthToken generates Redshift auth token.
+	GetElasticacheAuthToken(sessionCtx *Session) (string, string, error)
 	// GetCloudSQLAuthToken generates Cloud SQL auth token.
 	GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
@@ -171,6 +174,51 @@ propagate):
 `, err, sessionCtx.Database.GetIAMPolicy())
 	}
 	return *resp.DbUser, *resp.DbPassword, nil
+}
+
+func (a *dbAuth) GetElasticacheAuthToken(sessionCtx *Session) (string, string, error) {
+	awsSession, err := a.cfg.Clients.GetAWSSession(sessionCtx.Database.GetAWS().Region)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+
+	password := "1q2w3e4r5t6y7u8i9o0p"
+
+	a.cfg.Log.Debugf("Generating Elasticache auth token for %s.", sessionCtx)
+	resp, err := elasticache.New(awsSession).ModifyUser(&elasticache.ModifyUserInput{
+		NoPasswordRequired: aws.Bool(false),
+		UserId:             aws.String(sessionCtx.DatabaseUser),
+		Passwords:          []*string{aws.String(password)},
+	})
+	// ref: https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth.html
+	//resp, err := elasticache.New(awsSession).ModifyReplicationGroup(&elasticache.ModifyReplicationGroupInput{
+	//	ReplicationGroupId: aws.String(sessionCtx.Database.GetAWS().Elasticache.ReplicationGroupID),
+	//	AuthToken:          aws.String("testPass"), //TODO(jakule): generate password
+	//	ApplyImmediately:   aws.Bool(true),
+	//	//ClusterIdentifier: aws.String(sessionCtx.Database.GetAWS().Redshift.ClusterID),
+	//	//DbUser:            aws.String(sessionCtx.DatabaseUser),
+	//	//DbName:            aws.String(sessionCtx.DatabaseName),
+	//	//// TODO(r0mant): Do not auto-create database account if DbUser doesn't
+	//	//// exist for now, but it may be potentially useful in future.
+	//	//AutoCreate: aws.Bool(false),
+	//	//// TODO(r0mant): List of additional groups DbUser will join for the
+	//	//// session. Do we need to let people control this?
+	//	//DbGroups: []*string{},
+	//})
+	if err != nil {
+		return "", "", trace.AccessDenied(`Could not generate ElastiCache IAM auth token:
+
+  %v
+
+Make sure that Teleport database agent's IAM policy is attached and has permissions
+to generate ElastiCache credentials (note that IAM changes may take a few minutes to
+propagate):
+
+%v
+`, err, sessionCtx.Database.GetIAMPolicy())
+	}
+	return *resp.UserId, password, nil
+	//return *resp., *resp.DbPassword, nil
 }
 
 // GetCloudSQLAuthToken returns authorization token that will be used as a

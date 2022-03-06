@@ -282,12 +282,21 @@ message AWS {
     RDS RDS = 3 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rds,omitempty" ];
     // AccountID is the AWS account ID this database belongs to.
     string AccountID = 4 [ (gogoproto.jsontag) = "account_id,omitempty" ];
+
+    Elasticache Elasticache = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "elasticache,omitempty" ];
 }
 
 // Redshift contains AWS Redshift specific database metadata.
 message Redshift {
     // ClusterID is the Redshift cluster identifier.
     string ClusterID = 1 [ (gogoproto.jsontag) = "cluster_id,omitempty" ];
+}
+
+// Elasticache contains AWS ElastiCache specific database metadata.
+message Elasticache {
+    // ClusterID is the Elasticache cluster identifier.
+    string ReplicationGroupID = 1 [ (gogoproto.jsontag) = "replication_group_id,omitempty" ];
 }
 
 // RDS contains AWS RDS specific database metadata.

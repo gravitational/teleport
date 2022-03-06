@@ -171,7 +171,7 @@ func (s *Server) matcher(resource types.ResourceWithLabels) bool {
 	if !ok {
 		return false
 	}
-	if database.IsRDS() || database.IsRedshift() {
+	if database.IsRDS() || database.IsRedshift() || database.IsElastiCache() {
 		return true // Cloud fetchers return only matching databases.
 	}
 	return services.MatchResourceLabels(s.cfg.ResourceMatchers, database)

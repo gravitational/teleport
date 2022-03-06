@@ -61,7 +61,7 @@ type Watcher struct {
 	// fetchers fetch databases according to their selectors.
 	fetchers []Fetcher
 	// databasesC is a channel where fetched databases are sent.
-	databasesC chan (types.Databases)
+	databasesC chan types.Databases
 }
 
 // Fetcher fetches cloud databases.

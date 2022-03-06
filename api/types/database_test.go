@@ -76,3 +76,29 @@ func TestDatabaseStatus(t *testing.T) {
 	database.SetStatusAWS(awsMeta)
 	require.Equal(t, awsMeta, database.GetAWS())
 }
+
+// TestDatabaseIsElastiCache verifies if the Elasticache URI is correctly recognized.
+func TestDatabaseIsElastiCache(t *testing.T) {
+	database, err := NewDatabaseV3(Metadata{
+		Name: "test",
+	}, DatabaseSpecV3{
+		Protocol: "redis",
+		URI:      "clustercfg.test-instance.dwudvg.use1.cache.amazonaws.com:6379",
+	})
+	require.NoError(t, err)
+
+	require.True(t, database.IsElastiCache())
+}
+
+// TestDatabaseIsMemoryDB verifies if the MemoryDB URI is correctly recognized.
+//func TestDatabaseIsMemoryDB(t *testing.T) {
+//	database, err := NewDatabaseV3(Metadata{
+//		Name: "test",
+//	}, DatabaseSpecV3{
+//		Protocol: "redis",
+//		URI:      "redis://clustercfg.test-instance.dwudvg.memorydb.us-east-1.amazonaws.com:6379?mode=cluster",
+//	})
+//	require.NoError(t, err)
+//
+//	require.True(t, database.IsMemoryDB())
+//}

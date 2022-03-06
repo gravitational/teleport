@@ -86,6 +86,12 @@ type Database interface {
 	IsCloudSQL() bool
 	// IsAzure returns true if this is an Azure database.
 	IsAzure() bool
+	// IsElastiCache returns true if this is an AWS ElastiCache database
+	IsElastiCache() bool
+
+	// IsMemoryDB returns true if this is an AWS MemoryDB database.
+	//IsMemoryDB() bool
+
 	// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
 	IsCloudHosted() bool
 	// Copy returns a copy of this database resource.
@@ -303,15 +309,27 @@ func (d *DatabaseV3) IsAzure() bool {
 	return d.GetType() == DatabaseTypeAzure
 }
 
+func (d *DatabaseV3) IsElastiCache() bool {
+	return strings.Contains(d.Spec.URI, ".cache.amazonaws.com")
+}
+
+// IsMemoryDB returns true if the database is MemoryDB instance.
+//func (d *DatabaseV3) IsMemoryDB() bool {
+//	return memoryDBUriRegex.MatchString(d.Spec.URI)
+//}
+
 // IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
 func (d *DatabaseV3) IsCloudHosted() bool {
-	return d.IsRDS() || d.IsRedshift() || d.IsCloudSQL() || d.IsAzure()
+	return d.IsRDS() || d.IsRedshift() || d.IsCloudSQL() || d.IsAzure() || d.IsElastiCache()
 }
 
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
 	if d.GetAWS().Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift
+	}
+	if d.IsElastiCache() {
+		return DatabaseTypeElasticache
 	}
 	if d.GetAWS().Region != "" || d.GetAWS().RDS.InstanceID != "" || d.GetAWS().RDS.ClusterID != "" {
 		return DatabaseTypeRDS
@@ -322,6 +340,9 @@ func (d *DatabaseV3) GetType() string {
 	if d.GetAzure().Name != "" {
 		return DatabaseTypeAzure
 	}
+	//if d.IsMemoryDB() {
+	//	return DatabaseTypeMemoryDB
+	//}
 	return DatabaseTypeSelfHosted
 }
 
@@ -400,6 +421,14 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = region
 		}
+	case strings.Contains(d.Spec.URI, ElasticacheSuffix):
+		clusterID, _, err := parseElasticacheEndpoint(d.Spec.URI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if d.Spec.AWS.Elasticache.ReplicationGroupID == "" {
+			d.Spec.AWS.Elasticache.ReplicationGroupID = clusterID
+		}
 	case strings.Contains(d.Spec.URI, AzureEndpointSuffix):
 		name, err := parseAzureEndpoint(d.Spec.URI)
 		if err != nil {
@@ -440,6 +469,22 @@ func parseRedshiftEndpoint(endpoint string) (clusterID, region string, err error
 		return "", "", trace.BadParameter("failed to parse %v as Redshift endpoint", endpoint)
 	}
 	return parts[0], parts[2], nil
+}
+
+// parseElasticacheEndpoint extracts cluster ID and region from the provided Elasticache endpoint.
+func parseElasticacheEndpoint(endpoint string) (clusterID, endpointType string, err error) {
+	host, _, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	// Elasticache endpoint looks like this:
+	// clustercfg.test-instance.dwudvg.memorydb.us-east-1.amazonaws.com
+	parts := strings.Split(host, ".")
+	if !strings.HasSuffix(host, ElasticacheSuffix) || len(parts) != 7 {
+		return "", "", trace.BadParameter("failed to parse %v as Elasticache endpoint", endpoint)
+	}
+	// TODO(jakule) incorrect.....
+	return parts[1], parts[0], nil
 }
 
 // parseAzureEndpoint extracts database server name from Azure endpoint.
@@ -545,6 +590,10 @@ const (
 	DatabaseTypeCloudSQL = "gcp"
 	// DatabaseTypeAzure is Azure-hosted database.
 	DatabaseTypeAzure = "azure"
+	// DatabaseTypeElasticache is AWS-hosted Elasticache database.
+	DatabaseTypeElasticache = "elasticache"
+	// DatabaseTypeMemoryDB is AWS-hosted MemoryDB database.
+	//DatabaseTypeMemoryDB = "memoryDB"
 )
 
 // DeduplicateDatabases deduplicates databases by name.
@@ -596,7 +645,11 @@ const (
 	RedshiftEndpointSuffix = ".redshift.amazonaws.com"
 	// AzureEndpointSuffix is the Azure database endpoint suffix.
 	AzureEndpointSuffix = ".database.azure.com"
+	// ElasticacheSuffix is the AWS Elasticache database endpoint suffix.
+	ElasticacheSuffix = ".cache.amazonaws.com"
 )
+
+//var memoryDBUriRegex = regexp.MustCompile(`.*\.memorydb\.[\w\d-]+\.amazonaws.com.*`)
 
 var (
 	// rdsPolicyTemplate is the IAM policy template for RDS databases access.
