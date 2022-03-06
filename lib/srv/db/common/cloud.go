@@ -257,6 +257,7 @@ type TestCloudClients struct {
 	RDS          rdsiface.RDSAPI
 	RDSPerRegion map[string]rdsiface.RDSAPI
 	Redshift     redshiftiface.RedshiftAPI
+	Elasticache  elasticacheiface.ElastiCacheAPI
 	IAM          iamiface.IAMAPI
 	STS          stsiface.STSAPI
 	GCPSQL       GCPSQLAdminClient
@@ -278,6 +279,10 @@ func (c *TestCloudClients) GetAWSRDSClient(region string) (rdsiface.RDSAPI, erro
 // GetAWSRedshiftClient returns AWS Redshift client for the specified region.
 func (c *TestCloudClients) GetAWSRedshiftClient(region string) (redshiftiface.RedshiftAPI, error) {
 	return c.Redshift, nil
+}
+
+func (c *TestCloudClients) GetAWSElasticacheClient(region string) (elasticacheiface.ElastiCacheAPI, error) {
+	return c.Elasticache, nil
 }
 
 // GetAWSIAMClient returns AWS IAM client for the specified region.
