@@ -22,7 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 func TestProxyListenerModeMarshalYAML(t *testing.T) {

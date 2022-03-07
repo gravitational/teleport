@@ -20,7 +20,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 func main() {
@@ -127,7 +127,7 @@ func parsePipelines(data []byte) ([]parsedPipeline, error) {
 			continue
 		}
 		var p pipeline
-		if err := yaml.UnmarshalStrict(c, &p); err != nil {
+		if err := yaml.Unmarshal(c, &p); err != nil {
 			return nil, err
 		}
 		pipelines = append(pipelines, parsedPipeline{pipeline: p, raw: c})
