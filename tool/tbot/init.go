@@ -419,10 +419,6 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		var ownerErr, aclErr error
 		ownerUser, ownerGroup, ownerErr = getOwner(cf.Owner, DefaultACLOwner)
 		aclOpts, aclErr = getAndTestACLOptions(cf, destDir.Path)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		err = trace.NewAggregate(ownerErr, aclErr)
 		if err != nil {
 			if destDir.ACLs == botfs.ACLOn {
