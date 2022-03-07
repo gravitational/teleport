@@ -346,15 +346,16 @@ $ tsh db logout
 
       Teleport also adds additional processing to:
 
-      - `DBSIZE` - sends the query to all nodes and returns the number of keys in the whole cluster.
-      - `KEYS` - sends the query to all nodes and returns a list of all keys in the whole cluster.
-      - `MGET` - translates the commands to multiple `GET`s and sends them to multiple nodes. Result is merged in Teleport
-      and returned back to the client. If Teleport fails to fetch at least one key an error is returned.
-      - `FLUSHDB` - sends the query to all nodes.
-      - `FLUSHALL` - works the same as FLUSHDB.
-      - `SCRIPT EXISTS` - sends the query to all nodes. `1` is returned only if script exists on all nodes.
-      - `SCRIPT LOAD` - sends the script to all nodes.
-      - `SCRIPT FLUSH` - sends the query to all nodes. `ASYNC` parameter is ignored.
+| Command         | Description                                                                                                                                                                                                  |
+|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `DBSIZE`        | Sends the query to all nodes and returns the number of keys in the whole cluster.                                                                                                                            |
+| `KEYS`          | Sends the query to all nodes and returns a list of all keys in the whole cluster.                                                                                                                            |
+| `MGET`          | Translates the commands to multiple `GET`s and sends them to multiple nodes. Result is merged in Teleport and returned back to the client. If Teleport fails to fetch at least one key an error is returned. |
+| `FLUSHDB`       | Sends the query to all nodes.                                                                                                                                                                                |
+| `FLUSHALL`      | Works the same as `FLUSHDB`.                                                                                                                                                                                 |
+| `SCRIPT EXISTS` | Sends the query to all nodes. `1` is returned only if script exists on all nodes.                                                                                                                            |
+| `SCRIPT LOAD`   | Sends the script to all nodes.                                                                                                                                                                               |
+| `SCRIPT FLUSH`  | Sends the query to all nodes. `ASYNC` parameter is ignored.                                                                                                                                                  |
 
     </TabItem>
   </Tabs>
