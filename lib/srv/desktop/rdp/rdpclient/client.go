@@ -366,11 +366,11 @@ func (c *Client) start() {
 }
 
 //export handle_bitmap
-func handle_bitmap(handle C.uintptr_t, cb C.CGOBitmap) C.CGOError {
+func handle_bitmap(handle C.uintptr_t, cb *C.CGOBitmap) C.CGOError {
 	return cgo.Handle(handle).Value().(*Client).handleBitmap(cb)
 }
 
-func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
+func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOError {
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
 	// from the fact that a bitmap was sent.
