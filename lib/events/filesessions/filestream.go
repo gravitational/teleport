@@ -96,9 +96,6 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 
 // CompleteUpload completes the upload
 func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
-	if len(parts) == 0 {
-		return trace.BadParameter("need at least one part to complete the upload")
-	}
 	if err := checkUpload(upload); err != nil {
 		return trace.Wrap(err)
 	}
@@ -127,30 +124,26 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		}
 	}()
 
-	files := make([]*os.File, 0, len(parts))
-	readers := make([]io.Reader, 0, len(parts))
-
-	defer func() {
-		for i := 0; i < len(files); i++ {
-			if err := files[i].Close(); err != nil {
-				h.WithError(err).Errorf("Failed to close file %q.", files[i].Name())
-			}
+	writePartToFile := func(path string) error {
+		file, err := os.Open(path)
+		if err != nil {
+			return err
 		}
-	}()
+		defer func() {
+			if err := file.Close(); err != nil {
+				h.WithError(err).Errorf("failed to close file %q", path)
+			}
+		}()
+
+		_, err = io.Copy(f, file)
+		return err
+	}
 
 	for _, part := range parts {
 		partPath := h.partPath(upload, part.Number)
-		file, err := os.Open(partPath)
-		if err != nil {
-			return trace.ConvertSystemError(err)
+		if err := writePartToFile(partPath); err != nil {
+			return trace.Wrap(err)
 		}
-		files = append(files, file)
-		readers = append(readers, file)
-	}
-
-	_, err = io.Copy(f, io.MultiReader(readers...))
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	err = h.Config.OnBeforeComplete(ctx, upload)
