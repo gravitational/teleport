@@ -323,7 +323,8 @@ func getOwner(cliOwner, defaultOwner string) (*user.User, *user.Group, error) {
 }
 
 // getAndTestACLOptions gets options needed to configure an ACL from CLI
-// options and attempts to configure a test ACL to validate them.
+// options and attempts to configure a test ACL to validate them. Ownership is
+// not validated here.
 func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*botfs.ACLOptions, error) {
 	if cf.BotUser == "" {
 		return nil, trace.BadParameter("--bot-user must be set")
@@ -413,12 +414,16 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	switch destDir.ACLs {
 	case botfs.ACLOn, botfs.ACLTry:
 		log.Debug("Testing for ACL support...")
-		ownerUser, ownerGroup, err = getOwner(cf.Owner, DefaultACLOwner)
+
+		// Awkward control flow here, but we want these to fail together.
+		var ownerErr, aclErr error
+		ownerUser, ownerGroup, ownerErr = getOwner(cf.Owner, DefaultACLOwner)
+		aclOpts, aclErr = getAndTestACLOptions(cf, destDir.Path)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		aclOpts, err = getAndTestACLOptions(cf, destDir.Path)
+		err = trace.NewAggregate(ownerErr, aclErr)
 		if err != nil {
 			if destDir.ACLs == botfs.ACLOn {
 				// ACLs were specifically requested (vs "try" mode), so fail.

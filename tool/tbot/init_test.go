@@ -18,9 +18,11 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -108,36 +110,17 @@ func getACLOptions() (*botfs.ACLOptions, error) {
 	}, nil
 }
 
-// initACLTest performs checks to ensure we can test ACLs on this system. If
-// the system doesn't support ACLs, the test is skipped, but if the ACL test
-// succeeds, returns a usable ACLOptions. Other errors may still fail the test.
-func initACLTest(t *testing.T) (*botfs.ACLOptions, error) {
-	hasACLSupport, err := botfs.HasACLSupport()
+// testConfigFromCLI creates a BotConfig from the given CLI config.
+func testConfigFromCLI(t *testing.T, cf *config.CLIConf) *config.BotConfig {
+	cfg, err := config.FromCLIConf(cf)
 	require.NoError(t, err)
 
-	if !hasACLSupport {
-		return nil, trace.NotImplemented("Platform has no ACL support")
-	}
-
-	opts, err := getACLOptions()
-	if trace.IsNotImplemented(err) {
-		t.Skipf("%+v", err)
-	} else if trace.IsNotFound(err) {
-		t.Skipf("%+v", err)
-	}
-	require.NoError(t, err)
-
-	err = testACL(t.TempDir(), opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return opts, nil
+	return cfg
 }
 
-// testConfig creates a BotConfig from the given CLI config.
-func testConfig(t *testing.T, cf *config.CLIConf) *config.BotConfig {
-	cfg, err := config.FromCLIConf(cf)
+// testConfigFromString parses a YAML config file from a string.
+func testConfigFromString(t *testing.T, yaml string) *config.BotConfig {
+	cfg, err := config.ReadConfig(strings.NewReader(yaml))
 	require.NoError(t, err)
 
 	return cfg
@@ -171,7 +154,7 @@ func TestInit(t *testing.T) {
 		AuthServer:     "example.com",
 		DestinationDir: dir,
 	}
-	cfg := testConfig(t, cf)
+	cfg := testConfigFromCLI(t, cf)
 
 	// Run init.
 	require.NoError(t, onInit(cfg, cf))
@@ -221,7 +204,7 @@ func TestInitMaybeACLs(t *testing.T) {
 		// non-nobody owner for CI purposes.
 		Owner: fmt.Sprintf("%s:%s", currentUser.Name, currentGroup.Name),
 	}
-	cfg := testConfig(t, cf)
+	cfg := testConfigFromCLI(t, cf)
 
 	// Run init.
 	require.NoError(t, onInit(cfg, cf))
@@ -229,10 +212,60 @@ func TestInitMaybeACLs(t *testing.T) {
 	// Make sure everything was created.
 	destDir := validateFileDestination(t, cfg.Destinations[0])
 
-	// If we expected ACLs, verify them:
+	// If we expect ACLs, verify them.
 	if expectACLs {
 		require.NoError(t, destDir.Verify(identity.ListKeys(cfg.Destinations[0].Kinds...)))
 	} else {
 		t.Logf("Skipping ACL check on %q as they should not be supported.", dir)
 	}
+}
+
+// testInitSymlinksTemplate is a config template with a configurable symlinks
+// mode and ACLs disabled.
+const testInitSymlinksTemplate = `
+auth_server: example.com
+destinations:
+  - directory:
+      path: %s
+      acls: off
+      symlinks: %s
+`
+
+// TestInitSymlink tests tbot init with a symlink in the path.
+func TestInitSymlink(t *testing.T) {
+	secureWriteSupported, err := botfs.HasSecureWriteSupport()
+	require.NoError(t, err)
+	if !secureWriteSupported {
+		t.Skip("Secure write not supported on this system.")
+	}
+
+	dir := t.TempDir()
+
+	realPath := filepath.Join(dir, "data")
+	dataDir := filepath.Join(dir, "data-symlink")
+	require.NoError(t, os.Symlink(realPath, dataDir))
+
+	// Should fail due to symlink in path.
+	cfg := testConfigFromString(t, fmt.Sprintf(testInitSymlinksTemplate, dataDir, botfs.SymlinksSecure))
+	require.Error(t, onInit(cfg, &config.CLIConf{}))
+
+	// Should succeed when writing to the dir directly.
+	cfg = testConfigFromString(t, fmt.Sprintf(testInitSymlinksTemplate, realPath, botfs.SymlinksSecure))
+	require.NoError(t, onInit(cfg, &config.CLIConf{}))
+
+	// Make sure everything was created.
+	_ = validateFileDestination(t, cfg.Destinations[0])
+}
+
+// TestInitSymlinksInsecure should work on all platforms.
+func TestInitSymlinkInsecure(t *testing.T) {
+	dir := t.TempDir()
+
+	realPath := filepath.Join(dir, "data")
+	dataDir := filepath.Join(dir, "data-symlink")
+	require.NoError(t, os.Symlink(realPath, dataDir))
+
+	// Should succeed due to SymlinksInsecure
+	cfg := testConfigFromString(t, fmt.Sprintf(testInitSymlinksTemplate, dataDir, botfs.SymlinksInsecure))
+	require.Error(t, onInit(cfg, &config.CLIConf{}))
 }
