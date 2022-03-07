@@ -561,7 +561,7 @@ run-etcd:
 # Any tests which need to run as root must be skipped during regular integration testing.
 #
 .PHONY: integration
-integration: FLAGS ?= -v -race
+integration: FLAGS ?= -v -race -shuffle on
 integration: PACKAGES = $(shell go list ./... | grep integration)
 integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
@@ -575,7 +575,7 @@ integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 #
 INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
-integration-root: FLAGS ?= -v -race
+integration-root: FLAGS ?= -v -race -shuffle on
 integration-root: PACKAGES = $(shell go list ./... | grep integration)
 integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
