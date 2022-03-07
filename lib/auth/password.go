@@ -122,7 +122,7 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 			Token:    req.SecondFactorToken,
 		}
 	}
-	if _, err := s.authenticateUser(ctx, authReq); err != nil {
+	if _, _, err := s.authenticateUser(ctx, authReq); err != nil {
 		return trace.Wrap(err)
 	}
 
