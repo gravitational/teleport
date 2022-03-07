@@ -49,18 +49,7 @@ Next, generate a configuration file for Teleport using the `teleport configure` 
 
 <Tabs>
   <TabItem label="Public internet deployment with Let's Encrypt">
-  Teleport uses the ACME protocol to request automatic TLS certificates from Let's Encrypt, which accesses an HTTP endpoint on your Teleport host in order to complete authentication challenges.
-
-  Use the following command to configure Teleport:
-
-  ```code
-  $ sudo teleport configure --acme --acme-email=your-email@example.com --cluster-name=tele.example.com -o file
-  # Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
-  ```
-
-  The `--acme-email` flag indicates an email address that Let's Encrypt can use for notifications, and does *not* require the same domain name as your Teleport host. 
-  
-  For the `--cluster-name` flag, enter the domain name you used when creating a DNS A record earlier.
+  (!docs/pages/includes/acme.mdx!)
 
   </TabItem>
 

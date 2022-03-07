@@ -20,17 +20,7 @@ administrators to define policies like:
   This guide requires an Enterprise edition of Teleport.
 </Admonition>
 
-## Enable OIDC Authentication
-
-First, configure Teleport auth server to use OIDC authentication instead of the local
-user database. Update `/etc/teleport.yaml` as show below and restart the
-teleport daemon.
-
-```yaml
-auth_service:
-    authentication:
-        type: oidc
-```
+(!docs/pages/includes/enterprise/oidcauthentication.mdx!)
 
 ## Identity Providers
 
