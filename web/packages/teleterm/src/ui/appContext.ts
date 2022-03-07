@@ -65,8 +65,9 @@ export default class AppContext {
     );
 
     this.connectionTracker = new ConnectionTrackerService(
+      this.statePersistenceService,
       this.workspacesService,
-      this.clustersService
+      this.clustersService,
     );
   }
 

@@ -16,33 +16,16 @@ limitations under the License.
 
 import React from 'react';
 import { Box, Flex } from 'design';
-import QuickInput from 'teleterm/ui/QuickInput';
-import SplitPane from 'shared/components/SplitPane';
-import { Navigator } from 'teleterm/ui/Navigator';
 import { TabHostContainer } from 'teleterm/ui/TabHost';
-import styled from 'styled-components';
-import { Identity } from 'teleterm/ui/Identity/Identity';
+import { TopBar } from 'teleterm/ui/TopBar';
 
 export function LayoutManager() {
   return (
-    <SplitPane defaultSize='20%' flex="1" split="vertical">
-      <Box flex="1" bg="primary.light" width="100%">
-        <Navigator />
+    <Flex flexDirection="column" flex="1">
+      <TopBar />
+      <Box flex="1" style={{ position: 'relative' }}>
+        <TabHostContainer />
       </Box>
-      <RightPaneContainer flexDirection="column">
-        <Flex justifyContent="space-between" p="0 25px">
-          <QuickInput />
-          <Identity />
-        </Flex>
-        <Box flex="1" style={{ position: 'relative' }}>
-          <TabHostContainer />
-        </Box>
-      </RightPaneContainer>
-    </SplitPane>
+    </Flex>
   );
 }
-
-const RightPaneContainer = styled(Flex)`
-  width: 100%;
-  flex-direction: column;
-`;

@@ -20,7 +20,6 @@ import { WorkspacesState } from 'teleterm/ui/services/workspacesService';
 import { debounce } from 'lodash';
 
 interface StatePersistenceState {
-  clusterUri?: string;
   connectionTracker: ConnectionTrackerState;
   workspacesState?: WorkspacesState;
 }
@@ -38,7 +37,7 @@ export class StatePersistenceService {
 
   constructor(private _fileStorage: FileStorage) {
     const restored =
-      this._fileStorage.get<StatePersistenceState>('statePersistence');
+      this._fileStorage.get<StatePersistenceState>('state');
     if (restored) {
       this.state = restored;
     }

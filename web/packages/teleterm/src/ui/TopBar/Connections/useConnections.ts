@@ -16,16 +16,18 @@ limitations under the License.
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-export function useExpanderConnections() {
+export function useConnections() {
   const { connectionTracker } = useAppContext();
 
   connectionTracker.useState();
 
+  const items = connectionTracker.getConnections();
+
   return {
-    processRemove: connectionTracker.processItemRemove,
-    processClick: connectionTracker.processItemClick,
-    items: connectionTracker.state.connections,
+    isAnyConnectionActive: items.some(c => c.connected),
+    removeItem: (id: string) => connectionTracker.removeItem(id),
+    activateItem: (id: string) => connectionTracker.activateItem(id),
+    disconnectItem: (id: string) => connectionTracker.disconnectItem(id),
+    items,
   };
 }
-
-export type State = ReturnType<typeof useExpanderConnections>;

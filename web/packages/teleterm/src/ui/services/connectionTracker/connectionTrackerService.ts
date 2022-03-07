@@ -16,20 +16,26 @@ limitations under the License.
 
 import { useStore } from 'shared/libs/stores';
 import { ImmutableStore } from '../immutableStore';
-import {
-  DocumentGateway,
-  DocumentTshNode,
-} from 'teleterm/ui/services/workspacesService/documentsService';
 import { ClustersService } from 'teleterm/ui/services/clusters';
-import { unique } from 'teleterm/ui/utils/uid';
-import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
+import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
+import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
+import { TrackedConnectionOperationsFactory } from './trackedConnectionOperationsFactory';
+import {
+  createGatewayConnection,
+  createServerConnection,
+  getGatewayConnectionByDocument,
+  getServerConnectionByDocument,
+} from './trackedConnectionUtils';
+import { TrackedConnection, TrackedGatewayConnection } from './types';
 
 export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerState> {
+  private _trackedConnectionOperationsFactory: TrackedConnectionOperationsFactory;
   state: ConnectionTrackerState = {
     connections: [],
   };
 
   constructor(
+    private _statePersistenceService: StatePersistenceService,
     private _workspacesService: WorkspacesService,
     private _clusterService: ClustersService
   ) {
@@ -38,70 +44,48 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     this.state.connections = this._restoreConnectionItems();
     this._workspacesService.subscribe(this._refreshState);
     this._clusterService.subscribe(this._refreshState);
+    this._trackedConnectionOperationsFactory =
+      new TrackedConnectionOperationsFactory(
+        this._clusterService,
+        this._workspacesService
+      );
   }
 
   useState() {
     return useStore(this).state;
   }
 
-  processItemClick = async (id: string) => {
-    const conn = this.state.connections.find(i => i.id === id);
-    if (conn.clusterUri !== this._workspacesService.getRootClusterUri()) {
-      await this._workspacesService.setActiveWorkspace(conn.clusterUri);
+  getConnections(): TrackedConnection[] {
+    return this.state.connections;
+  }
+
+  async activateItem(id: string): Promise<void> {
+    const connection = this.state.connections.find(c => c.id === id);
+    const { clusterUri, activate } =
+      this._trackedConnectionOperationsFactory.create(connection);
+
+    if (clusterUri !== this._workspacesService.getRootClusterUri()) {
+      await this._workspacesService.setActiveWorkspace(clusterUri);
     }
-    const docService = this._workspacesService.getWorkspaceDocumentService(
-      conn.clusterUri
-    );
+    activate();
+  }
 
-    switch (conn.kind) {
-      case 'connection.server':
-        let srvDoc = docService
-          .getTshNodeDocuments()
-          .find(
-            doc => conn.serverUri === doc.serverUri && conn.login === doc.login
-          );
+  async disconnectItem(id: string): Promise<void> {
+    const connection = this.state.connections.find(c => c.id === id);
+    const { disconnect } =
+      this._trackedConnectionOperationsFactory.create(connection);
+    return disconnect();
+  }
 
-        if (!srvDoc) {
-          srvDoc = docService.createTshNodeDocument(conn.serverUri);
-          srvDoc.status = 'disconnected';
-          srvDoc.login = conn.login;
-          srvDoc.title = conn.title;
-
-          docService.add(srvDoc);
-        }
-        docService.open(srvDoc.uri);
-        return;
-      case 'connection.gateway':
-        let gwDoc = docService
-          .getGatewayDocuments()
-          .find(
-            doc => doc.targetUri === conn.targetUri && doc.port === conn.port
-          );
-
-        if (!gwDoc) {
-          gwDoc = docService.createGatewayDocument({
-            targetUri: conn.targetUri,
-            targetUser: conn.targetUser,
-            title: conn.title,
-            gatewayUri: conn.gatewayUri,
-            port: conn.port,
-          });
-
-          docService.add(gwDoc);
-        }
-        docService.open(gwDoc.uri);
-    }
-  };
-
-  processItemRemove = (id: string) => {
+  removeItem(id: string): void {
     this.setState(draft => {
       draft.connections = draft.connections.filter(i => i.id !== id);
     });
 
-    // this._workspaceService.saveConnectionTrackerState(this.state);
-  };
+    this._statePersistenceService.saveConnectionTrackerState(this.state);
+  }
 
-  dispose() {
+  dispose(): void {
     this._workspacesService.unsubscribe(this._refreshState);
   }
 
@@ -116,7 +100,9 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
         }
       });
 
-      const docs = Array.from(Object.keys(this._workspacesService.getWorkspaces()))
+      const docs = Array.from(
+        Object.keys(this._workspacesService.getWorkspaces())
+      )
         .flatMap(clusterUri => {
           const docService =
             this._workspacesService.getWorkspaceDocumentService(clusterUri);
@@ -138,14 +124,11 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
           // process gateway connections
           case 'doc.gateway':
             const gwConn = draft.connections.find(
-              i =>
-                i.kind === 'connection.gateway' &&
-                i.targetUri === doc.targetUri &&
-                i.port === doc.port
-            ) as GatewayConnection;
+              getGatewayConnectionByDocument(doc)
+            ) as TrackedGatewayConnection;
 
             if (!gwConn) {
-              const newItem = this._createGatewayConnItem(doc);
+              const newItem = createGatewayConnection(doc);
               draft.connections.push(newItem);
             } else {
               gwConn.gatewayUri = doc.gatewayUri;
@@ -158,16 +141,13 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
           // process tsh connections
           case 'doc.terminal_tsh_node':
             const tshConn = draft.connections.find(
-              i =>
-                i.kind === 'connection.server' &&
-                i.serverUri === doc.serverUri &&
-                i.login === doc.login
+              getServerConnectionByDocument(doc)
             );
 
             if (tshConn) {
               tshConn.connected = doc.status === 'connected';
             } else {
-              const newItem = this._createServerConnItem(doc);
+              const newItem = createServerConnection(doc);
               draft.connections.push(newItem);
             }
             break;
@@ -175,76 +155,25 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
       }
     });
 
-    // this._workspaceService.saveConnectionTrackerState(this.state);
+    this._statePersistenceService.saveConnectionTrackerState(this.state);
   };
 
-  private _createServerConnItem(doc: DocumentTshNode): ServerConnection {
-    return {
-      connected: doc.status === 'connected',
-      id: unique(),
-      title: doc.title,
-      login: doc.login,
-      serverUri: doc.serverUri,
-      kind: 'connection.server',
-      clusterUri: doc.rootClusterId,
-    };
-  }
+  private _restoreConnectionItems(): TrackedConnection[] {
+    const savedState =
+      this._statePersistenceService.getConnectionTrackerState();
+    if (savedState && Array.isArray(savedState.connections)) {
+      // restored connections cannot have connected state
+      savedState.connections.forEach(i => {
+        i.connected = false;
+      });
 
-  private _createGatewayConnItem(doc: DocumentGateway): GatewayConnection {
-    return {
-      connected: true,
-      id: unique(),
-      title: doc.title,
-      port: doc.port,
-      targetUri: doc.targetUri,
-      targetUser: doc.targetUser,
-      kind: 'connection.gateway',
-      gatewayUri: doc.gatewayUri,
-      clusterUri: '',
-    };
-  }
-
-  private _restoreConnectionItems(): Connection[] {
-    // const savedState = this._workspaceService.getConnectionTrackerState();
-    // if (savedState && Array.isArray(savedState.connections)) {
-    //   // restored connections cannot have connected state
-    //   savedState.connections.forEach(i => {
-    //     i.connected = false;
-    //   });
-    //
-    //   return savedState.connections;
-    // }
+      return savedState.connections;
+    }
 
     return [];
   }
 }
 
 export type ConnectionTrackerState = {
-  connections: Connection[];
+  connections: TrackedConnection[];
 };
-
-type Item = {
-  kind: 'connection.server' | 'connection.gateway';
-  connected: boolean;
-  clusterUri: string;
-};
-
-export interface ServerConnection extends Item {
-  kind: 'connection.server';
-  title: string;
-  id?: string;
-  serverUri: string;
-  login: string;
-}
-
-export interface GatewayConnection extends Item {
-  kind: 'connection.gateway';
-  title: string;
-  id: string;
-  targetUri: string;
-  targetUser?: string;
-  port?: string;
-  gatewayUri: string;
-}
-
-export type Connection = ServerConnection | GatewayConnection;

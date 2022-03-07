@@ -1,5 +1,5 @@
 import React from 'react';
-import { ListItem } from 'teleterm/ui/Navigator/NavItem';
+import { ListItem } from 'teleterm/ui/components/ListItem';
 import { Flex, Text } from 'design';
 import { ListAddCheck } from 'design/Icon';
 import styled from 'styled-components';

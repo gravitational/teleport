@@ -15,3 +15,4 @@ limitations under the License.
 */
 
 export * from './connectionTrackerService';
+export * from './types';

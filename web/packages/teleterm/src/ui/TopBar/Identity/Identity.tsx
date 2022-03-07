@@ -2,9 +2,9 @@ import React, { useRef, useState } from 'react';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { Box, Flex, Text } from 'design';
 import Popover from 'design/Popover';
-import { ClusterItem } from 'teleterm/ui/Identity/ClusterItem';
+import { ClusterItem } from './ClusterItem';
 import styled from 'styled-components';
-import { ListItem } from 'teleterm/ui/Navigator/NavItem';
+import { ListItem } from 'teleterm/ui/components/ListItem';
 import { Cluster } from 'teleterm/services/tshd/types';
 import { SortDesc } from 'design/Icon';
 import AppContext from 'teleterm/ui/appContext';
@@ -50,26 +50,28 @@ export function Identity() {
         ref={shortInfoRef}
         onClick={() => setIsLongInfoOpened(prevState => !prevState)}
       >
-        {loggedInUser ? (
-          <ShortInfoContainer alignItems="center">
-            <Flex flexDirection="column">
-              <Text typography="paragraph2" bold>
-                {loggedInUser.name}
-              </Text>
-              <Text
-                typography="paragraph2"
-                fontWeight="regular"
-                mb="0"
-                css={{ opacity: 0.7, lineHeight: '14px' }}
-              >
-                {activeRootCluster.name}
-              </Text>
-            </Flex>
-            <SortDesc ml={24} />
-          </ShortInfoContainer>
-        ) : (
-          'Select cluster'
-        )}
+        <ShortInfoContainer alignItems="center">
+          <Flex flexDirection="column">
+            {loggedInUser ? (
+              <>
+                <Text typography="paragraph2" bold>
+                  {loggedInUser.name}
+                </Text>
+                <Text
+                  typography="paragraph2"
+                  fontWeight="regular"
+                  mb="0"
+                  css={{ opacity: 0.7, lineHeight: '14px' }}
+                >
+                  {activeRootCluster.name}
+                </Text>
+              </>
+            ) : (
+              'Select a cluster'
+            )}
+          </Flex>
+          <SortDesc ml={24} />
+        </ShortInfoContainer>
       </ShortInfoButton>
       <Popover
         open={isLongInfoOpened}
