@@ -98,7 +98,7 @@ func (f *fakeGithub) RequestReviewers(ctx context.Context, organization string, 
 	return nil
 }
 
-func (f *fakeGithub) ListReviews(ctx context.Context, organization string, repository string, number int) (map[string]*github.Review, error) {
+func (f *fakeGithub) ListReviews(ctx context.Context, organization string, repository string, number int) ([]github.Review, error) {
 	return nil, nil
 }
 
