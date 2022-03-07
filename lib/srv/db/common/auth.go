@@ -177,12 +177,16 @@ propagate):
 }
 
 func (a *dbAuth) GetElasticacheAuthToken(sessionCtx *Session) (string, string, error) {
+	// TODO(jakule): Region is not set when the URL is provided in the config file.
 	awsSession, err := a.cfg.Clients.GetAWSSession(sessionCtx.Database.GetAWS().Region)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
 
-	password := "1q2w3e4r5t6y7u8i9o0p"
+	password, err := utils.CryptoRandomHex(2 * libauth.TokenLenBytes)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
 
 	a.cfg.Log.Debugf("Generating Elasticache auth token for %s.", sessionCtx)
 	resp, err := elasticache.New(awsSession).ModifyUser(&elasticache.ModifyUserInput{

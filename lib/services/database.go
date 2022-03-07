@@ -279,6 +279,9 @@ func MetadataFromElasticacheInstance(replica *elasticache.ReplicationGroup) (*ty
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
+		Elasticache: types.Elasticache{
+			ReplicationGroupID: aws.StringValue(replica.ReplicationGroupId),
+		},
 		//RDS: types.RDS{
 		//	InstanceID: aws.StringValue(replica.ReplicationGroupId),
 		//	//ClusterID:  aws.StringValue(replica.),

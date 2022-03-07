@@ -310,7 +310,8 @@ func (d *DatabaseV3) IsAzure() bool {
 }
 
 func (d *DatabaseV3) IsElastiCache() bool {
-	return strings.Contains(d.Spec.URI, ".cache.amazonaws.com")
+	return d.GetType() == DatabaseTypeElasticache
+	//return strings.Contains(d.Spec.URI, ".cache.amazonaws.com")
 }
 
 // IsMemoryDB returns true if the database is MemoryDB instance.
@@ -328,7 +329,7 @@ func (d *DatabaseV3) GetType() string {
 	if d.GetAWS().Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift
 	}
-	if d.IsElastiCache() {
+	if d.GetAWS().Elasticache.ReplicationGroupID != "" {
 		return DatabaseTypeElasticache
 	}
 	if d.GetAWS().Region != "" || d.GetAWS().RDS.InstanceID != "" || d.GetAWS().RDS.ClusterID != "" {
