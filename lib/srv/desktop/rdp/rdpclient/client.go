@@ -376,7 +376,13 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	// from the fact that a bitmap was sent.
 	atomic.StoreUint32(&c.readyForInput, 1)
 
-	data := C.GoBytes(unsafe.Pointer(cb.data_ptr), C.int(cb.data_len))
+	// use unsafe.Slice here instead of C.GoBytes, because unsafe.Slice
+	// creates a Go slice backed by data managed from Rust - it does not
+	// copy. This way we only need one copy into img.Pix below.
+	ptr := unsafe.Pointer(cb.data_ptr)
+	uptr := (*uint8)(ptr)
+	data := unsafe.Slice(uptr, C.int(cb.data_len))
+
 	// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
 	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
 	// a byte slice with 4-byte segments representing pixels (RGBA).
