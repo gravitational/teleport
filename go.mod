@@ -268,4 +268,5 @@ replace (
 	github.com/gravitational/teleport/api => ./api
 	github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-teleport.1
 	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
+	github.com/vulcand/predicate => github.com/gravitational/predicate v1.2.1
 )
