@@ -64,7 +64,7 @@ func VerifyACL(path string, opts *ACLOptions) error {
 
 // ConfigureACL configures ACLs of the given file to allow writes from the bot
 // user.
-func ConfigureACL(path string, opts *ACLOptions) error {
+func ConfigureACL(path string, owner *user.User, opts *ACLOptions) error {
 	return trace.NotImplemented("ACLs not supported on this platform")
 }
 

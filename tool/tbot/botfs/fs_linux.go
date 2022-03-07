@@ -23,6 +23,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/user"
 	"path/filepath"
 
 	"github.com/coreos/go-semver/semver"
@@ -263,10 +264,7 @@ func desiredPerms(path string) (ownerMode fs.FileMode, botAndReaderMode fs.FileM
 	if stat.IsDir() {
 		botAndReaderMode = modeACLReadExecute
 		ownerMode = modeACLReadWriteExecute
-		log.Debugf("%q is dir", path)
 	}
-
-	log.Debugf("%q: bot mode %#o, owner mode: %#o", path, botAndReaderMode, ownerMode)
 
 	return
 }
@@ -280,9 +278,29 @@ func VerifyACL(path string, opts *ACLOptions) error {
 		return trace.Wrap(err)
 	}
 
+	stat, err := os.Stat(path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	owner, err := GetOwner(stat)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	ownerMode, botAndReaderMode, err := desiredPerms(path)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Attempt to determine the max # of expected user tags. We can't know the
+	// reader user in all cases because we only know it during `tbot init`, so
+	// instead we'll try to determine the upper bound of expected entries here.
+	maxExpectedUserTags := 2
+	if owner.Uid == opts.BotUser.Uid {
+		// This path is owned by the bot user, so at least one user tag will
+		// be missing.
+		maxExpectedUserTags--
 	}
 
 	userTagCount := 0
@@ -330,9 +348,7 @@ func VerifyACL(path string, opts *ACLOptions) error {
 		}
 	}
 
-	if userTagCount == 0 {
-		errors = append(errors, trace.BadParameter("missing tags for bot and reader users"))
-	} else if userTagCount > 2 {
+	if userTagCount > maxExpectedUserTags {
 		errors = append(errors, trace.BadParameter("unexpected number of user tags"))
 	}
 
@@ -341,7 +357,15 @@ func VerifyACL(path string, opts *ACLOptions) error {
 
 // ConfigureACL configures ACLs of the given file to allow writes from the bot
 // user.
-func ConfigureACL(path string, opts *ACLOptions) error {
+func ConfigureACL(path string, owner *user.User, opts *ACLOptions) error {
+	if owner.Uid == opts.BotUser.Uid && owner.Uid == opts.ReaderUser.Uid {
+		// We'll end up with an empty ACL. This isn't technically a problem
+		log.Warnf("The owner, bot, and reader all appear to be the same "+
+			"user (%+v). This is an unusual configuration: consider setting "+
+			"`acls: off` in the destination config to remove this warning.",
+			owner.Username)
+	}
+
 	// We fully specify the ACL here to ensure the correct permissions are
 	// always set (rather than just appending an "allow" for the bot user).
 	// Note: These need to be sorted by tag value.
@@ -350,28 +374,36 @@ func ConfigureACL(path string, opts *ACLOptions) error {
 		return trace.Wrap(err)
 	}
 
-	// Note: we currently give both the bot and reader read/write to all the
-	// files. This is done for simplicity and shouldn't represent a security
-	// risk - the bot obviously knows the contents of the destination, and
-	// writing
+	// Note: ACL entries need to be ordered per acl_linux entryPriority
 	desiredACL := acl.ACL{
 		{
 			// Note: Mask does not apply to user object.
 			Tag:   acl.TagUserObj,
 			Perms: ownerMode,
 		},
-		{
+	}
+
+	// Only add an entry for the bot user if it isn't the owner.
+	if owner.Uid != opts.BotUser.Uid {
+		desiredACL = append(desiredACL, acl.Entry{
 			// Entry to allow the bot to read/write.
 			Tag:       acl.TagUser,
 			Qualifier: opts.BotUser.Uid,
 			Perms:     botAndReaderMode,
-		},
-		{
+		})
+	}
+
+	// Only add entry for the reader if it isn't the owner.
+	if owner.Uid != opts.ReaderUser.Uid {
+		desiredACL = append(desiredACL, acl.Entry{
 			// Entry to allow the reader user to read/write.
 			Tag:       acl.TagUser,
 			Qualifier: opts.ReaderUser.Uid,
 			Perms:     botAndReaderMode,
-		},
+		})
+	}
+
+	desiredACL = append(desiredACL, []acl.Entry{
 		{
 			Tag:   acl.TagGroupObj,
 			Perms: modeACLNone,
@@ -386,7 +418,13 @@ func ConfigureACL(path string, opts *ACLOptions) error {
 			Tag:   acl.TagOther,
 			Perms: modeACLNone,
 		},
-	}
+	}...)
+
+	// Note: we currently give both the bot and reader read/write to all the
+	// files. This is done for simplicity and shouldn't represent a security
+	// risk - the bot obviously knows the contents of the destination, and
+	// the files being writable to the reader is (maybe arguably) not a
+	// security issue.
 
 	log.Debugf("Configuring ACL on path %q: %v", path, desiredACL)
 	return trace.ConvertSystemError(trace.Wrap(acl.Set(path, desiredACL)))

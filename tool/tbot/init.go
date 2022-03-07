@@ -101,7 +101,7 @@ func diffArtifacts(a, b map[string]bool) map[string]bool {
 
 // testACL creates a temporary file and attempts to apply an ACL to it. If the
 // ACL is successfully applied, returns nil; otherwise, returns the error.
-func testACL(directory string, opts *botfs.ACLOptions) error {
+func testACL(directory string, ownerUser *user.User, opts *botfs.ACLOptions) error {
 	// Note: we need to create the test file in the dest dir to ensure we
 	// actually test the target filesystem.
 	id, err := uuid.NewRandom()
@@ -121,7 +121,7 @@ func testACL(directory string, opts *botfs.ACLOptions) error {
 		}
 	}()
 
-	if err := botfs.ConfigureACL(testFile, opts); err != nil {
+	if err := botfs.ConfigureACL(testFile, ownerUser, opts); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -244,7 +244,7 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 		if err != nil && (currentUser.Uid == RootUID || currentUser.Uid == params.ownerUser.Uid) {
 			log.Warnf("ACL for %q is not correct and will be corrected: %v", path, err)
 
-			return trace.Wrap(botfs.ConfigureACL(path, params.aclOptions))
+			return trace.Wrap(botfs.ConfigureACL(path, params.ownerUser, params.aclOptions))
 		} else if err != nil {
 			log.Errorf("ACL for %q is incorrect but `tbot init` must be run "+
 				"as root or the owner (%s) to correct it: %v",
@@ -325,23 +325,28 @@ func getOwner(cliOwner, defaultOwner string) (*user.User, *user.Group, error) {
 // getAndTestACLOptions gets options needed to configure an ACL from CLI
 // options and attempts to configure a test ACL to validate them. Ownership is
 // not validated here.
-func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*botfs.ACLOptions, error) {
+func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*user.User, *user.Group, *botfs.ACLOptions, error) {
+	ownerUser, ownerGroup, err := getOwner(cf.Owner, DefaultACLOwner)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
 	if cf.BotUser == "" {
-		return nil, trace.BadParameter("--bot-user must be set")
+		return nil, nil, nil, trace.BadParameter("--bot-user must be set")
 	}
 
 	if cf.ReaderUser == "" {
-		return nil, trace.BadParameter("--reader-user must be set")
+		return nil, nil, nil, trace.BadParameter("--reader-user must be set")
 	}
 
 	botUser, err := user.Lookup(cf.BotUser)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	readerUser, err := user.Lookup(cf.ReaderUser)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	opts := botfs.ACLOptions{
@@ -349,14 +354,14 @@ func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*botfs.ACLOptions
 		ReaderUser: readerUser,
 	}
 
-	err = testACL(destDir, &opts)
+	err = testACL(destDir, ownerUser, &opts)
 	if err != nil && trace.IsAccessDenied(err) {
-		return nil, trace.Wrap(err, "The destination %q does not appear to be writable", destDir)
+		return nil, nil, nil, trace.Wrap(err, "The destination %q does not appear to be writable", destDir)
 	} else if err != nil {
-		return nil, trace.Wrap(err, "ACL support may need to be enabled for the filesystem.")
+		return nil, nil, nil, trace.Wrap(err, "ACL support may need to be enabled for the filesystem.")
 	}
 
-	return &opts, nil
+	return ownerUser, ownerGroup, &opts, nil
 }
 
 func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
@@ -416,10 +421,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		log.Debug("Testing for ACL support...")
 
 		// Awkward control flow here, but we want these to fail together.
-		var ownerErr, aclErr error
-		ownerUser, ownerGroup, ownerErr = getOwner(cf.Owner, DefaultACLOwner)
-		aclOpts, aclErr = getAndTestACLOptions(cf, destDir.Path)
-		err = trace.NewAggregate(ownerErr, aclErr)
+		ownerUser, ownerGroup, aclOpts, err = getAndTestACLOptions(cf, destDir.Path)
 		if err != nil {
 			if destDir.ACLs == botfs.ACLOn {
 				// ACLs were specifically requested (vs "try" mode), so fail.

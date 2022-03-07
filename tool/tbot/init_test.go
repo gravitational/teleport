@@ -177,19 +177,19 @@ func TestInitMaybeACLs(t *testing.T) {
 	hasACLSupport, err := botfs.HasACLSupport()
 	require.NoError(t, err)
 
-	// Determine if we expect init to use ACLs.
-	expectACLs := false
-	if hasACLSupport {
-		if err := testACL(t.TempDir(), opts); err == nil {
-			expectACLs = true
-		}
-	}
-
 	currentUser, err := user.Current()
 	require.NoError(t, err)
 
 	currentGroup, err := user.LookupGroupId(currentUser.Gid)
 	require.NoError(t, err)
+
+	// Determine if we expect init to use ACLs.
+	expectACLs := false
+	if hasACLSupport {
+		if err := testACL(t.TempDir(), currentUser, opts); err == nil {
+			expectACLs = true
+		}
+	}
 
 	// Note: we'll use the current user as owner as that's the only way to
 	// guarantee ACL write access.
