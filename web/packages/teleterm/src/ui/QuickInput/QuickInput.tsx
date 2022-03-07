@@ -28,7 +28,8 @@ export default function Container() {
 }
 
 export function QuickInput(props: State) {
-  const { visible, listItems, activeItem } = props;
+  const { visible, activeItem, autocompleteResult } = props;
+  const hasListItems = autocompleteResult.kind === 'autocomplete.partial-match';
   const refInput = useRef<HTMLInputElement>();
   const refList = useRef<HTMLElement>();
   const refContainer = useRef<HTMLElement>();
@@ -66,7 +67,13 @@ export function QuickInput(props: State) {
 
   const handleArrowKey = (e: React.KeyboardEvent, nudge = 0) => {
     e.stopPropagation();
-    const next = getNext(activeItem + nudge, listItems.length);
+    if (!hasListItems) {
+      return;
+    }
+    const next = getNext(
+      activeItem + nudge,
+      autocompleteResult.listItems.length
+    );
     props.onActiveItem(next);
   };
 
@@ -74,6 +81,12 @@ export function QuickInput(props: State) {
     const keyCode = e.which;
     switch (keyCode) {
       case KeyEnum.RETURN:
+        // TODO: even if the list is empty, it should call onPick from the given picker.
+        // Some pickers will choose from a list, some will just submit the command.
+        if (!hasListItems) {
+          return;
+        }
+        const { listItems } = autocompleteResult;
         if (listItems.length > 0) {
           e.stopPropagation();
           e.preventDefault();
@@ -127,10 +140,10 @@ export function QuickInput(props: State) {
           onKeyDown={handleKeyDown}
         />
       </Box>
-      {visible && (
+      {visible && hasListItems && (
         <QuickInputList
           ref={refList}
-          items={listItems}
+          items={autocompleteResult.listItems}
           activeItem={activeItem}
           onPick={props.onPickItem}
         />

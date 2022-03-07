@@ -117,6 +117,14 @@ function ClusterItem(props: { item: types.ItemCluster }) {
   );
 }
 
+function SshLoginItem(props: { item: types.ItemSshLogin }) {
+  return (
+    <Flex alignItems="center">
+      <Box mr={2}>{props.item.data}</Box>
+    </Flex>
+  );
+}
+
 function UnknownItem(props: { item: types.Item }) {
   const { kind } = props.item;
   return <div>unknown kind: {kind} </div>;
@@ -180,6 +188,7 @@ const ComponentMap: Record<
   ['item.cluster']: ClusterItem,
   ['item.cluster-new']: NewClusterItem,
   ['item.cmd']: CmdItem,
+  ['item.ssh-login']: SshLoginItem,
   ['item.empty']: EmptyItem,
 };
 

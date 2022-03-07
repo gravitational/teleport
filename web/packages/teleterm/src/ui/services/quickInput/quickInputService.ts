@@ -17,11 +17,11 @@ limitations under the License.
 import { Store, useStore } from 'shared/libs/stores';
 import { CommandLauncher } from 'teleterm/ui/commandLauncher';
 import { ClustersService } from 'teleterm/ui/services/clusters';
+import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import * as pickers from './quickPickers';
-import { QuickInputPicker } from './types';
+import { AutocompleteResult } from './types';
 
 type State = {
-  picker: QuickInputPicker;
   inputValue: string;
   visible: boolean;
 };
@@ -33,40 +33,50 @@ export class QuickInputService extends Store<State> {
   quickCommandPicker: pickers.QuickCommandPicker;
   lastFocused: WeakRef<HTMLElement>;
 
-  constructor(launcher: CommandLauncher, serviceClusters: ClustersService) {
+  constructor(
+    launcher: CommandLauncher,
+    clustersService: ClustersService,
+    workspacesService: WorkspacesService
+  ) {
     super();
     this.lastFocused = new WeakRef(document.createElement('div'));
-    this.quickDbPicker = new pickers.QuickDbPicker(launcher, serviceClusters);
+    this.quickDbPicker = new pickers.QuickDbPicker(launcher, clustersService);
     this.quickServerPicker = new pickers.QuickServerPicker(
       launcher,
-      serviceClusters
+      clustersService
     );
     this.quickLoginPicker = new pickers.QuickLoginPicker(
       launcher,
-      serviceClusters
+      clustersService
     );
-    this.quickCommandPicker = new pickers.QuickCommandPicker();
+    this.quickCommandPicker = new pickers.QuickCommandPicker(launcher);
     this.setState({
-      picker: this.quickCommandPicker,
       inputValue: '',
     });
+
+    const sshLoginPicker = new pickers.QuickSshLoginPicker(
+      workspacesService,
+      clustersService
+    );
+
+    this.quickCommandPicker.registerPickerForCommand(
+      'tsh ssh',
+      new pickers.QuickTshSshPicker(launcher, sshLoginPicker)
+    );
+    this.quickCommandPicker.registerPickerForCommand(
+      'tsh proxy db',
+      new pickers.QuickTshProxyDbPicker(launcher)
+    );
   }
 
   state: State = {
-    picker: null,
     inputValue: '',
     visible: false,
   };
 
+  // TODO: There's no "back" in the new command bar. We can probably just remove this method and the
+  // behavior related to it?
   goBack = () => {
-    if (this.state.picker !== this.quickCommandPicker) {
-      this.setState({
-        picker: this.quickCommandPicker,
-        inputValue: '',
-      });
-      return;
-    }
-
     this.setState({
       inputValue: '',
       visible: false,
@@ -78,7 +88,6 @@ export class QuickInputService extends Store<State> {
 
   show = () => {
     this.setState({
-      picker: this.quickCommandPicker,
       visible: true,
     });
   };
@@ -88,6 +97,12 @@ export class QuickInputService extends Store<State> {
       visible: false,
     });
   };
+
+  // TODO(ravicious): This function needs to take cursor index into account instead of assuming that
+  // you want to complete only what's at the end of the input string.
+  getAutocompleteResult(input: string): AutocompleteResult {
+    return this.quickCommandPicker.getAutocompleteResult(input);
+  }
 
   setInputValue = (value: string) => {
     this.setState({

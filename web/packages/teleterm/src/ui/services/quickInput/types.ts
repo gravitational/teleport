@@ -23,9 +23,11 @@ export type ItemNewCluster = Base<
   { displayName: string; uri?: string; description: string }
 >;
 
+export type ItemSshLogin = Base<'item.ssh-login', string>;
+
 export type QuickInputPicker = {
-  onFilter(value: string): Item[];
   onPick(item: Item): void;
+  getAutocompleteResult(input: string): AutocompleteResult;
 };
 
 export type Item =
@@ -34,4 +36,17 @@ export type Item =
   | ItemDb
   | ItemCluster
   | ItemCmd
+  | ItemSshLogin
   | ItemEmpty;
+
+type AutocompleteBase<T> = {
+  kind: T;
+  picker: QuickInputPicker;
+};
+
+export type AutocompletePartialMatch =
+  AutocompleteBase<'autocomplete.partial-match'> & { listItems: Item[] };
+
+export type AutocompleteNoMatch = AutocompleteBase<'autocomplete.no-match'>;
+
+export type AutocompleteResult = AutocompletePartialMatch | AutocompleteNoMatch;

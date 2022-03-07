@@ -20,12 +20,14 @@ import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
 
 export default function useQuickInput() {
   const { quickInputService: serviceQuickInput } = useAppContext();
-  const { picker, visible, inputValue } = serviceQuickInput.useState();
+  const { visible, inputValue } = serviceQuickInput.useState();
   const [activeItem, setActiveItem] = React.useState(0);
-  const listItems = React.useMemo(
-    () => picker.onFilter(inputValue),
-    [inputValue, picker]
+  const autocompleteResult = React.useMemo(
+    () => serviceQuickInput.getAutocompleteResult(inputValue),
+    [inputValue]
   );
+  const hasListItems = autocompleteResult.kind === 'autocomplete.partial-match';
+  const picker = autocompleteResult.picker;
 
   const onFocus = (e: any) => {
     if (e.relatedTarget) {
@@ -34,12 +36,18 @@ export default function useQuickInput() {
   };
 
   const onActiveItem = (index: number) => {
+    if (!hasListItems) {
+      return;
+    }
     setActiveItem(index);
   };
 
   const onPickItem = (index: number) => {
+    if (!hasListItems) {
+      return;
+    }
     setActiveItem(index);
-    picker.onPick(listItems[index]);
+    picker.onPick(autocompleteResult.listItems[index]);
   };
 
   const onBack = () => {
@@ -59,9 +67,9 @@ export default function useQuickInput() {
 
   return {
     visible,
+    autocompleteResult,
     activeItem,
     inputValue,
-    listItems,
     onFocus,
     onBack,
     onPickItem,

@@ -61,7 +61,8 @@ export default class AppContext {
 
     this.quickInputService = new QuickInputService(
       this.commandLauncher,
-      this.clustersService
+      this.clustersService,
+      this.workspacesService
     );
 
     this.connectionTracker = new ConnectionTrackerService(

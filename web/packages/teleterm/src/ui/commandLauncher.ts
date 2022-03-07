@@ -117,6 +117,18 @@ const commands = {
       }
     },
   },
+
+  'autocomplete.tsh-ssh': {
+    displayName: 'tsh ssh',
+    description: 'Run shell or execute a command on a remote SSH node',
+    run() {},
+  },
+  'autocomplete.tsh-proxy-db': {
+    displayName: 'tsh proxy db',
+    description:
+      'Start local TLS proxy for database connections when using Teleport',
+    run() {},
+  },
 };
 
 export class CommandLauncher {
@@ -128,6 +140,12 @@ export class CommandLauncher {
 
   executeCommand<T extends CommandName>(name: T, args: CommandArgs<T>) {
     commands[name].run(this.appContext, args as any);
+  }
+
+  getAutocompleteCommands() {
+    return Object.entries(commands)
+      .filter(([key]) => key.startsWith('autocomplete.'))
+      .map(([key, value]) => ({ name: key, ...value }));
   }
 }
 
