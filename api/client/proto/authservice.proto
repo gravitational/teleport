@@ -1460,6 +1460,9 @@ message PaginatedResource {
         // WindowsDesktop represents a WindowsDesktop resource.
         types.WindowsDesktopV3 WindowsDesktop = 5
             [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
+        // KubeCluster represents a KubeCluster resource.
+        types.KubernetesClusterV3 KubeCluster = 6
+            [ (gogoproto.jsontag) = "kube_cluster,omitempty" ];
     }
 }
 
