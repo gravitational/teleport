@@ -67,7 +67,7 @@ func (h *Handler) createScriptJoinTokenHandle(w http.ResponseWriter, r *http.Req
 		types.RoleApp,
 	}
 
-	return createScriptJoinToken(r.Context(), clt, roles)
+	return createJoinToken(r.Context(), clt, roles)
 }
 
 func (h *Handler) createDatabaseJoinTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -75,7 +75,7 @@ func (h *Handler) createDatabaseJoinTokenHandle(w http.ResponseWriter, r *http.R
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return createScriptJoinToken(r.Context(), clt, types.SystemRoles{
+	return createJoinToken(r.Context(), clt, types.SystemRoles{
 		types.RoleDatabase,
 	})
 }
@@ -145,7 +145,7 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 	return nil, nil
 }
 
-func createScriptJoinToken(ctx context.Context, m nodeAPIGetter, roles types.SystemRoles) (*nodeJoinToken, error) {
+func createJoinToken(ctx context.Context, m nodeAPIGetter, roles types.SystemRoles) (*nodeJoinToken, error) {
 	req := auth.GenerateTokenRequest{
 		Roles: roles,
 		TTL:   defaults.NodeJoinTokenTTL,

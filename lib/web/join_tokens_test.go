@@ -36,7 +36,7 @@ func TestCreateNodeJoinToken(t *testing.T) {
 		return "some-token-id", nil
 	}
 
-	token, err := createScriptJoinToken(context.Background(), m, types.SystemRoles{
+	token, err := createJoinToken(context.Background(), m, types.SystemRoles{
 		types.RoleNode,
 		types.RoleApp,
 	})
