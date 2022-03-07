@@ -53,8 +53,13 @@ openssl rand -hex 32
 ```
 
 Create a `users.acl` file, which defines users for your Redis deployment, passwords required to log in as a given user
-, and sets of ACL rules. Redis allows you to provide passwords in plaintext or an SHA256 checksum.
-We strongly recommend using SHA256 checksums instead of plaintext passwords.
+, and sets of ACL rules. Redis allows you to provide passwords in plaintext or an SHA256 hash.
+We strongly recommend using SHA256 hash instead of plaintext passwords.
+
+You can use the below command to generate SHA256 hash from a password.
+```shell
+echo -n STRONG_GENERATED_PASSWORD | sha256sum
+```
 
 <Tabs>
   <TabItem label="Standalone">
