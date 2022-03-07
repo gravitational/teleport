@@ -1,3 +1,5 @@
+// +build dynamodb
+
 /*
 Copyright 2015-2018 Gravitational, Inc.
 
