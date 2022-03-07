@@ -312,13 +312,14 @@ type CachePolicy struct {
 
 // CheckAndSetDefaults checks and sets default values
 func (c *CachePolicy) CheckAndSetDefaults() error {
+	if c.Type == "" {
+		c.Type = memory.GetName()
+	}
 	switch c.Type {
-	case "", lite.GetName():
-		c.Type = lite.GetName()
-	case memory.GetName():
+	case lite.GetName(), memory.GetName():
 	default:
 		return trace.BadParameter("unsupported cache type %q, supported values are %q and %q",
-			c.Type, lite.GetName(), memory.GetName())
+			c.Type, memory.GetName(), lite.GetName())
 	}
 	return nil
 }
