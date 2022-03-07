@@ -300,6 +300,8 @@ type TeleportProcess struct {
 
 	// storage is a server local storage
 	storage *auth.ProcessStorage
+	// cacheDir is the path to a directory to hold ephemeral on-disk data
+	cacheDir string
 
 	// id is a process id - used to identify different processes
 	// during in-process reloads.
@@ -1097,6 +1099,39 @@ func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, 
 	return loggers[0], nil
 }
 
+func (process *TeleportProcess) getCacheDir() (string, error) {
+	if cacheDir := process.currentCacheDir(); cacheDir != "" {
+		return cacheDir, nil
+	}
+
+	newCacheDir, err := os.MkdirTemp(process.Config.DataDir, "cache-")
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	if err := os.Chmod(newCacheDir, teleport.SharedDirMode); err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+
+	process.Lock()
+	if cacheDir := process.cacheDir; cacheDir != "" {
+		process.Unlock()
+		if err := os.Remove(newCacheDir); err != nil {
+			process.log.WithError(err).Warnf("Failed to clean up cache directory %q.", newCacheDir)
+		}
+		return cacheDir, nil
+	}
+	process.cacheDir = newCacheDir
+	process.Unlock()
+
+	return newCacheDir, nil
+}
+
+func (process *TeleportProcess) currentCacheDir() string {
+	process.Lock()
+	defer process.Unlock()
+	return process.cacheDir
+}
+
 // initAuthService can be called to initialize auth server service
 func (process *TeleportProcess) initAuthService() error {
 	var err error
@@ -1571,7 +1606,11 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		cacheBackend = mem
 	} else {
 		process.log.Debugf("Creating sqlite backend for %v.", cfg.cacheName)
-		path := filepath.Join(append([]string{process.Config.DataDir, "cache"}, cfg.cacheName...)...)
+		cacheDir, err := process.getCacheDir()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		path := filepath.Join(append([]string{cacheDir}, cfg.cacheName...)...)
 		if err := os.MkdirAll(path, teleport.SharedDirMode); err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
@@ -1579,6 +1618,8 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 			lite.Config{
 				Path:             path,
 				EventsOff:        !cfg.events,
+				Sync:             lite.SyncOff,
+				Journal:          lite.JournalMemory,
 				Mirror:           true,
 				PollStreamPeriod: 100 * time.Millisecond,
 			})
@@ -3811,6 +3852,12 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 				process.log.Warningf("Failed closing process storage: %v.", err)
 			}
 		}
+
+		if cacheDir := process.currentCacheDir(); cacheDir != "" {
+			if err := os.RemoveAll(process.cacheDir); err != nil {
+				process.log.WithError(err).Warnf("Failed to clean up cache directory %q.", cacheDir)
+			}
+		}
 	}()
 	go process.printShutdownStatus(localCtx)
 	return localCtx
@@ -3839,6 +3886,15 @@ func (process *TeleportProcess) Close() error {
 
 	if process.storage != nil {
 		errors = append(errors, process.storage.Close())
+	}
+
+	if cacheDir := process.currentCacheDir(); cacheDir != "" {
+		// services are still running but we've been asked to close as quickly
+		// as possible, so we'll only give this one attempt and not exit with an
+		// error in case something created something in the cacheDir
+		if err := os.RemoveAll(cacheDir); err != nil {
+			process.log.WithError(err).Warnf("Failed to clean up cache directory %q.", cacheDir)
+		}
 	}
 
 	return trace.NewAggregate(errors...)
