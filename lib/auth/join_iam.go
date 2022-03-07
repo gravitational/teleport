@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -33,9 +34,12 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
 
+	awssdk "github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
@@ -49,15 +53,102 @@ const (
 	// ever have a need to allow a newer API version.
 	expectedStsIdentityRequestBody = "Action=GetCallerIdentity&Version=2011-06-15"
 
-	// Only allowing the global sts endpoint here, Teleport nodes will only send
-	// requests for this endpoint. If we want to start using regional endpoints
-	// we can update this check before updating the nodes.
-	stsHost = "sts.amazonaws.com"
+	// Used to check if we were unable to resolve the regional STS endpoint.
+	globalSTSEndpoint = "https://sts.amazonaws.com"
 
 	// AWS SignedHeaders will always be lowercase
 	// https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html#sigv4-auth-header-overview
 	challengeHeaderKey = "x-teleport-challenge"
 )
+
+// validateSTSHost returns an error if the given stsHost is not a valid regional
+// endpoint for the AWS STS service, or nil if it is valid.
+//
+// This is a security-critical check: we are allowing the client to tell us
+// which URL we should use to validate their identity. If the client could pass
+// off an attacker-controlled URL as the STS endpoint, the entire security
+// mechanism of the IAM join method would be compromised.
+//
+// The simplest approach would be to make sure that the URL matches
+// "sts.(<region>.)?amazonaws.com(.cn)?" but this fails in a couple of ways:
+// - it seems that, at least in the past, Amazon was selling subdomains of
+//   "amazonaws.com", so we don't know who might control that endpoint.
+// - Second, it does not match endpoints in the AWS ISO partitions such as
+//   "sts.us-iso-east-1.c2s.ic.gov". We don't know if AWS will add more STS
+//   endpoints like this with different URL patterns.
+//
+// Probably the most secure approach would be to check the given STS URL against
+// a static list of known STS endpoints. This would be hard to maintain over
+// time as AWS adds new regions and partitions.
+//
+// Another option would be to query AWS at runtime to get the list of valid STS
+// endpoints. I couldn't find a suitable API to support this.
+//
+// The approach I've chosen here basically offloads the task of maintaining the
+// static list of STS endpoints to the AWS SDK. Since I can't get at the list
+// directly, I attempt to infer the region from the given URL, and then check if
+// the SDK will return an exact match for the given stsHost in that region. As
+// new STS endpoints come online, we will need to update the version of
+// aws-sdk-go used by Teleport.
+//
+// TestValidateSTSHost includes a list of all currently known valid STS
+// endpoints, and asserts that all pass this check.
+func validateSTSHost(stsHost string) error {
+	for _, p := range endpoints.DefaultPartitions() {
+		prefix := strings.TrimSuffix(stsHost, p.DNSSuffix())
+		if prefix == stsHost {
+			// The given stsHost does not match this partition's DNS suffix. We
+			// can continue early in this case, but multiple partitions may have
+			// the same suffix, e.g. GovCloud and the default partition.
+			continue
+		}
+
+		// It's important to include StrictMatchingOption here so that the SDK
+		// won't fill in a value for an unknown region, which could be used to
+		// make sts.attacker.amazonaws.com pass the check.
+		resolveOptions := []func(*endpoints.Options){
+			endpoints.StrictMatchingOption,
+			endpoints.STSRegionalEndpointOption,
+		}
+
+		// Known STS endpoints match "sts(-fips)?.(<region>.)?<suffix>"
+		parts := strings.Split(prefix, ".")
+		if len(parts) == 0 {
+			return trace.AccessDenied("invalid STS host %q", stsHost)
+		}
+
+		switch parts[0] {
+		case "sts":
+		case "sts-fips":
+			resolveOptions = append(resolveOptions, endpoints.UseFIPSEndpointOption)
+		default:
+			return trace.AccessDenied("invalid prefix %q for STS host %q", parts[0], stsHost)
+		}
+
+		region := ""
+		if len(parts) > 1 {
+			region = parts[1]
+		}
+
+		endpoint, err := p.EndpointFor(sts.ServiceName, region, resolveOptions...)
+		if errors.As(err, &endpoints.UnknownServiceError{}) || errors.As(err, &endpoints.UnknownEndpointError{}) || errors.As(err, &endpoints.EndpointNotFoundError{}) {
+			// This region is probably not valid in this partition, or there is
+			// no STS in this partition. Keep iterating.
+			continue
+		} else if err != nil {
+			return trace.AccessDenied("unexpected error resolving STS endpoint: %v", err)
+		}
+
+		if endpoint.URL == "https://"+stsHost {
+			// Found an exact match, this is a valid STS endpoint.
+			return nil
+		}
+		// Didn't find a matching endpoint in this partition, this can
+		// happen if checking the GovCloud partition for a region in the
+		// default partition or vice-versa. Continue iterating.
+	}
+	return trace.AccessDenied("unrecognized STS host %q", stsHost)
+}
 
 // validateStsIdentityRequest checks that a received sts:GetCallerIdentity
 // request is valid and includes the challenge as a signed header. An example
@@ -77,8 +168,8 @@ const (
 // Action=GetCallerIdentity&Version=2011-06-15
 // ```
 func validateStsIdentityRequest(req *http.Request, challenge string) error {
-	if req.Host != stsHost {
-		return trace.AccessDenied("sts identity request is for unknown host %q", req.Host)
+	if err := validateSTSHost(req.Host); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if req.Method != http.MethodPost {
@@ -95,7 +186,7 @@ func validateStsIdentityRequest(req *http.Request, challenge string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !utils.SliceContainsStr(sigV4.SignedHeaders, challengeHeaderKey) {
+	if !apiutils.SliceContainsStr(sigV4.SignedHeaders, challengeHeaderKey) {
 		return trace.AccessDenied("sts identity request auth header %q does not include "+
 			challengeHeaderKey+" as a signed header", authHeader)
 	}
@@ -125,7 +216,7 @@ func parseSTSRequest(req []byte) (*http.Request, error) {
 	httpReq.RequestURI = ""
 	httpReq.URL = &url.URL{
 		Scheme: "https",
-		Host:   stsHost,
+		Host:   httpReq.Host,
 	}
 	return httpReq, nil
 }
@@ -335,16 +426,13 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 
 // createSignedStsIdentityRequest is called on the client side and returns an
 // sts:GetCallerIdentity request signed with the local AWS credentials
-func createSignedStsIdentityRequest(challenge string) ([]byte, error) {
-	// use the aws sdk to generate the request
-	sess, err := session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-	})
+func createSignedStsIdentityRequest(ctx context.Context, endpointOption stsEndpointOption, challenge string) ([]byte, error) {
+	stsClient, err := endpointOption(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	stsService := sts.New(sess)
-	req, _ := stsService.GetCallerIdentityRequest(&sts.GetCallerIdentityInput{})
+
+	req, _ := stsClient.GetCallerIdentityRequest(&sts.GetCallerIdentityInput{})
 	// set challenge header
 	req.HTTPRequest.Header.Set(challengeHeaderKey, challenge)
 	// request json for simpler parsing
@@ -359,4 +447,91 @@ func createSignedStsIdentityRequest(challenge string) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	return signedRequest.Bytes(), nil
+}
+
+type stsEndpointOption func(context.Context) (*sts.STS, error)
+
+var (
+	stsEndpointOptionGlobal   = newGlobalSTSClient
+	stsEndpointOptionRegional = newRegionalSTSClient
+)
+
+// newRegionalSTSClient returns an STS client will resolve the "global" endpoint
+// for the STS service.
+func newGlobalSTSClient(ctx context.Context) (*sts.STS, error) {
+	// sess will be used as a ConfigProvider to be passed to sts.New. It will
+	// load AWS configuration options from the environment, which means that AWS
+	// credentials may come from environment variables, files in ~/.aws/, or
+	// from the attached role on an EC2 instance.
+	sess, err := session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sts.New(sess), nil
+}
+
+// newRegionalSTSClient returns an STS client which attempts to resolve the local
+// regional endpoint for the STS service, rather than the "global" endpoint
+// which is not supported in non-default AWS partitions.
+func newRegionalSTSClient(ctx context.Context) (*sts.STS, error) {
+	// sess will be used as a ConfigProvider to be passed to sts.New. It will
+	// load AWS configuration options from the environment, which means that AWS
+	// credentials may come from environment variables, files in ~/.aws/, or
+	// from the attached role on an EC2 instance. The regional STS endpoint will
+	// be used instead of the global endopint if the local (or preferred) region
+	// can be resolved from the environment.
+	sess, err := session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+		Config:            *awssdk.NewConfig().WithSTSRegionalEndpoint(endpoints.RegionalSTSEndpoint),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// will set the local region on extraConfigOptions if we can find it from
+	// the environment or IMDS
+	extraConfigOptions := awssdk.NewConfig()
+
+	// If the region was not resolved from the environment the client will try to
+	// use the global STS endpoint, which will not be supported if the AWS identity
+	// being used is for a non-default AWS partition (such as China or
+	// GovCloud.) This is the default behavior on EC2, so let's try to find the
+	// region from the IMDS.
+	if clientConfig := sess.ClientConfig(sts.ServiceName); clientConfig.Endpoint == globalSTSEndpoint {
+		region, err := getEC2LocalRegion(ctx)
+		if trace.IsNotFound(err) {
+			// Unfortunately we could not find the region from the IMDS, go with
+			// the default global endpoint and hope it works.
+			log.Info("Unable to find the local AWS region from the environment or IMDSv2. " +
+				"Attempting to use the global STS endpoint for the IAM join method. " +
+				"This will probably fail in non-default AWS partitions such as China or GovCloud. " +
+				"Consider setting the AWS_REGION environment variable, setting the region in ~/.aws/config, or enabling the IMDSv2.")
+		} else if err != nil {
+			// Return the unexpected error.
+			return nil, trace.Wrap(err)
+		} else {
+			// Found the region, set it on the config.
+			extraConfigOptions.Region = &region
+		}
+	}
+
+	return sts.New(sess, extraConfigOptions), nil
+}
+
+// getEC2LocalRegion returns the AWS region this EC2 instance is running in, or
+// a NotFound error if the EC2 IMDS is unavailable.
+func getEC2LocalRegion(ctx context.Context) (string, error) {
+	imdsClient, err := utils.NewInstanceMetadataClient(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if !imdsClient.IsAvailable(ctx) {
+		return "", trace.NotFound("IMDS is unavailable")
+	}
+
+	region, err := imdsClient.GetRegion(ctx)
+	return region, trace.Wrap(err)
 }
