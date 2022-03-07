@@ -40,7 +40,9 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/dynamo"
+	"github.com/gravitational/teleport/lib/backend/etcdbk"
+	"github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -510,7 +512,7 @@ type AuthConfig struct {
 	StaticTokens types.StaticTokens
 
 	// StorageConfig contains configuration settings for the storage backend.
-	StorageConfig backend.Config
+	StorageConfig StorageConfig
 
 	Limiter limiter.Config
 
@@ -538,6 +540,51 @@ type AuthConfig struct {
 
 	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
 	KeyStore keystore.Config
+}
+
+// StorageConfig is the configuration for the storage backend.
+// The Backend field is decoded to the backend's Config type based on the value
+// of the Type field. E.g. when Type is "lite" then Backend is *lite.Config.
+type StorageConfig struct {
+	Type    string      `yaml:"type,omitempty"` // lite, etcd, dynamo, etc.
+	Backend interface{} `yaml:"-"`              // *<type>.Config
+}
+
+// UnmarshalYAML decodes YAML to StorageConfig.
+func (s *StorageConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// Set Type by parsing section into a map. Strict mode requires that the
+	// target object contains all the fields defined in the YAML. We do not yet
+	// know which backend type is being targeted.
+	params := make(map[string]interface{})
+	err := unmarshal(params)
+	if err != nil {
+		return trace.BadParameter("failed to decode storage config: %v", err)
+	}
+	if len(params) == 0 {
+		return nil
+	}
+	var ok bool
+	s.Type, ok = params["type"].(string)
+	if !ok {
+		return nil
+	}
+
+	// Decode to the specific backend based on type.
+	switch s.Type {
+	case lite.GetName(), lite.AlternativeName:
+		s.Backend = &lite.Config{}
+	case firestore.GetName():
+		s.Backend = &firestore.Config{}
+	case dynamo.GetName():
+		s.Backend = &dynamo.Config{}
+	case etcdbk.GetName():
+		s.Backend = &etcdbk.Config{}
+	default:
+		// Some older tests define "boltdb" as the type, so we'll just fail to decode.
+		// Future versions may consider returning an error.
+		return nil
+	}
+	return trace.Wrap(unmarshal(s.Backend))
 }
 
 // SSHConfig configures SSH server node role
@@ -1118,7 +1165,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.Enabled = true
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = lite.GetName()
-	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
+	cfg.Auth.StorageConfig.Backend = &lite.Config{Path: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
 	cfg.Auth.AuditConfig = types.DefaultClusterAuditConfig()
 	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()

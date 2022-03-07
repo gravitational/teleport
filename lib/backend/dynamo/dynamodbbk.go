@@ -26,7 +26,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 
@@ -46,49 +45,52 @@ import (
 // Config structure represents DynamoDB configuration as appears in `storage` section
 // of Teleport YAML
 type Config struct {
+	// Type is the type of backend (dynamodb).
+	// This field must be included in all backends.
+	Type string `yaml:"type"`
 	// Region is where DynamoDB Table will be used to store k/v
-	Region string `json:"region,omitempty"`
+	Region string `yaml:"region"`
 	// AWS AccessKey used to authenticate DynamoDB queries (prefer IAM role instead of hardcoded value)
-	AccessKey string `json:"access_key,omitempty"`
+	AccessKey string `yaml:"access_key"`
 	// AWS SecretKey used to authenticate DynamoDB queries (prefer IAM role instead of hardcoded value)
-	SecretKey string `json:"secret_key,omitempty"`
+	SecretKey string `yaml:"secret_key"`
 	// TableName where to store K/V in DynamoDB
-	TableName string `json:"table_name,omitempty"`
+	TableName string `yaml:"table_name"`
 	// ReadCapacityUnits is Dynamodb read capacity units
-	ReadCapacityUnits int64 `json:"read_capacity_units"`
+	ReadCapacityUnits int64 `yaml:"read_capacity_units"`
 	// WriteCapacityUnits is Dynamodb write capacity units
-	WriteCapacityUnits int64 `json:"write_capacity_units"`
+	WriteCapacityUnits int64 `yaml:"write_capacity_units"`
 	// BufferSize is a default buffer size
 	// used to pull events
-	BufferSize int `json:"buffer_size,omitempty"`
+	BufferSize int `yaml:"buffer_size"`
 	// PollStreamPeriod is a polling period for event stream
-	PollStreamPeriod time.Duration `json:"poll_stream_period,omitempty"`
+	PollStreamPeriod time.Duration `yaml:"poll_stream_period"`
 	// RetryPeriod is a period between dynamo backend retries on failures
-	RetryPeriod time.Duration `json:"retry_period"`
+	RetryPeriod time.Duration `yaml:"retry_period"`
 
 	// EnableContinuousBackups is used to enables PITR (Point-In-Time Recovery).
-	EnableContinuousBackups bool `json:"continuous_backups,omitempty"`
+	EnableContinuousBackups bool `yaml:"continuous_backups"`
 
 	// EnableAutoScaling is used to enable auto scaling policy.
-	EnableAutoScaling bool `json:"auto_scaling,omitempty"`
+	EnableAutoScaling bool `yaml:"auto_scaling"`
 	// ReadMaxCapacity is the maximum provisioned read capacity. Required to be
 	// set if auto scaling is enabled.
-	ReadMaxCapacity int64 `json:"read_max_capacity,omitempty"`
+	ReadMaxCapacity int64 `yaml:"read_max_capacity"`
 	// ReadMinCapacity is the minimum provisioned read capacity. Required to be
 	// set if auto scaling is enabled.
-	ReadMinCapacity int64 `json:"read_min_capacity,omitempty"`
+	ReadMinCapacity int64 `yaml:"read_min_capacity"`
 	// ReadTargetValue is the ratio of consumed read capacity to provisioned
 	// capacity. Required to be set if auto scaling is enabled.
-	ReadTargetValue float64 `json:"read_target_value,omitempty"`
+	ReadTargetValue float64 `yaml:"read_target_value"`
 	// WriteMaxCapacity is the maximum provisioned write capacity. Required to
 	// be set if auto scaling is enabled.
-	WriteMaxCapacity int64 `json:"write_max_capacity,omitempty"`
+	WriteMaxCapacity int64 `yaml:"write_max_capacity"`
 	// WriteMinCapacity is the minimum provisioned write capacity. Required to
 	// be set if auto scaling is enabled.
-	WriteMinCapacity int64 `json:"write_min_capacity,omitempty"`
+	WriteMinCapacity int64 `yaml:"write_min_capacity"`
 	// WriteTargetValue is the ratio of consumed write capacity to provisioned
 	// capacity. Required to be set if auto scaling is enabled.
-	WriteTargetValue float64 `json:"write_target_value,omitempty"`
+	WriteTargetValue float64 `yaml:"write_target_value"`
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
@@ -195,20 +197,13 @@ var _ backend.Backend = &Backend{}
 
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
-func New(ctx context.Context, params backend.Params) (*Backend, error) {
+func New(ctx context.Context, cfg Config) (*Backend, error) {
 	l := log.WithFields(log.Fields{trace.Component: BackendName})
-
-	var cfg *Config
-	err := utils.ObjectToStruct(params, &cfg)
-	if err != nil {
-		return nil, trace.BadParameter("DynamoDB configuration is invalid: %v", err)
-	}
-
 	l.Infof("Initializing backend. Table: %q, poll streams every %v.", cfg.TableName, cfg.PollStreamPeriod)
-
 	defer l.Debug("AWS session is created.")
 
-	if err := cfg.CheckAndSetDefaults(); err != nil {
+	err := cfg.CheckAndSetDefaults()
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -219,7 +214,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	watchStarted, signalWatchStart := context.WithCancel(ctx)
 	b := &Backend{
 		Entry:            l,
-		Config:           *cfg,
+		Config:           cfg,
 		clock:            clockwork.NewRealClock(),
 		buf:              buf,
 		ctx:              closeCtx,

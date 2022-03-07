@@ -47,9 +47,9 @@ func ensureTestsEnabled(t *testing.T) {
 func TestDynamoDB(t *testing.T) {
 	ensureTestsEnabled(t)
 
-	dynamoCfg := map[string]interface{}{
-		"table_name":         tableName,
-		"poll_stream_period": 300 * time.Millisecond,
+	dynamoCfg := Config{
+		TableName:        tableName,
+		PollStreamPeriod: 300 * time.Millisecond,
 	}
 
 	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {

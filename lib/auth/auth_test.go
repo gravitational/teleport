@@ -74,7 +74,7 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 		p   testPack
 		err error
 	)
-	p.bk, err = lite.NewWithConfig(ctx, lite.Config{Path: dataDir})
+	p.bk, err = lite.New(ctx, lite.Config{Path: dataDir})
 	if err != nil {
 		return p, trace.Wrap(err)
 	}

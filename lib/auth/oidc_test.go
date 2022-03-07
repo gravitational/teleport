@@ -55,7 +55,7 @@ func setUpSuite(t *testing.T) *OIDCSuite {
 	s.c = clockwork.NewFakeClockAt(time.Now())
 
 	var err error
-	s.b, err = lite.NewWithConfig(context.Background(), lite.Config{
+	s.b, err = lite.New(context.Background(), lite.Config{
 		Path:             t.TempDir(),
 		PollStreamPeriod: 200 * time.Millisecond,
 		Clock:            s.c,

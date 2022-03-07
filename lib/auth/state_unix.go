@@ -33,7 +33,7 @@ func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error
 		return nil, trace.BadParameter("missing parameter path")
 	}
 
-	litebk, err := lite.NewWithConfig(ctx, lite.Config{
+	litebk, err := lite.New(ctx, lite.Config{
 		Path:      path,
 		EventsOff: true,
 	})

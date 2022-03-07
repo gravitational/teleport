@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
@@ -373,18 +372,18 @@ func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Global is 'teleport' (global) section of the config file
 type Global struct {
-	NodeName    string           `yaml:"nodename,omitempty"`
-	DataDir     string           `yaml:"data_dir,omitempty"`
-	PIDFile     string           `yaml:"pid_file,omitempty"`
-	AuthToken   string           `yaml:"auth_token,omitempty"`
-	JoinParams  JoinParams       `yaml:"join_params,omitempty"`
-	AuthServers []string         `yaml:"auth_servers,omitempty"`
-	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
-	Logger      Log              `yaml:"log,omitempty"`
-	Storage     backend.Config   `yaml:"storage,omitempty"`
-	AdvertiseIP string           `yaml:"advertise_ip,omitempty"`
-	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
-	SeedConfig  *bool            `yaml:"seed_config,omitempty"`
+	NodeName    string                `yaml:"nodename,omitempty"`
+	DataDir     string                `yaml:"data_dir,omitempty"`
+	PIDFile     string                `yaml:"pid_file,omitempty"`
+	AuthToken   string                `yaml:"auth_token,omitempty"`
+	JoinParams  JoinParams            `yaml:"join_params,omitempty"`
+	AuthServers []string              `yaml:"auth_servers,omitempty"`
+	Limits      ConnectionLimits      `yaml:"connection_limits,omitempty"`
+	Logger      Log                   `yaml:"log,omitempty"`
+	Storage     service.StorageConfig `yaml:"storage,omitempty"`
+	AdvertiseIP string                `yaml:"advertise_ip,omitempty"`
+	CachePolicy CachePolicy           `yaml:"cache,omitempty"`
+	SeedConfig  *bool                 `yaml:"seed_config,omitempty"`
 
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.

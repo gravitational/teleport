@@ -30,7 +30,6 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -148,33 +147,36 @@ type EtcdBackend struct {
 
 // Config represents JSON config for etcd backend
 type Config struct {
+	// Type is the type of backend (etcd).
+	// This field must be included in all backends.
+	Type string `yaml:"type"`
 	// Nodes is a list of nodes
-	Nodes []string `json:"peers,omitempty"`
+	Nodes []string `yaml:"peers"`
 	// Key is an optional prefix for etcd
-	Key string `json:"prefix,omitempty"`
+	Key string `yaml:"prefix"`
 	// TLSKeyFile is a private key, implies mTLS client authentication
-	TLSKeyFile string `json:"tls_key_file,omitempty"`
+	TLSKeyFile string `yaml:"tls_key_file"`
 	// TLSCertFile is a client certificate implies mTLS client authentication
-	TLSCertFile string `json:"tls_cert_file,omitempty"`
+	TLSCertFile string `yaml:"tls_cert_file"`
 	// TLSCAFile is a trusted certificate authority certificate
-	TLSCAFile string `json:"tls_ca_file,omitempty"`
+	TLSCAFile string `yaml:"tls_ca_file"`
 	// Insecure turns off TLS
-	Insecure bool `json:"insecure,omitempty"`
+	Insecure bool `yaml:"insecure"`
 	// BufferSize is a default buffer size
 	// used to pull events
-	BufferSize int `json:"buffer_size,omitempty"`
+	BufferSize int `yaml:"buffer_size"`
 	// DialTimeout specifies dial timeout
-	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
+	DialTimeout time.Duration `yaml:"dial_timeout"`
 	// Username is an optional username for HTTPS basic authentication
-	Username string `json:"username,omitempty"`
+	Username string `yaml:"username"`
 	// Password is initialized from password file, and is not read from the config
-	Password string `json:"-"`
+	Password string `yaml:"-"`
 	// PasswordFile is an optional password file for HTTPS basic authentication,
 	// expects path to a file
-	PasswordFile string `json:"password_file,omitempty"`
+	PasswordFile string `yaml:"password_file"`
 	// MaxClientMsgSizeBytes optionally specifies the size limit on client send message size.
 	// See https://github.com/etcd-io/etcd/blob/221f0cc107cb3497eeb20fb241e1bcafca2e9115/clientv3/config.go#L49
-	MaxClientMsgSizeBytes int `json:"etcd_max_client_msg_size_bytes,omitempty"`
+	MaxClientMsgSizeBytes int `yaml:"etcd_max_client_msg_size_bytes"`
 }
 
 // GetName returns the name of etcd backend as it appears in 'storage/type' section
@@ -187,21 +189,12 @@ func GetName() string {
 var _ backend.Backend = &EtcdBackend{}
 
 // New returns new instance of Etcd-powered backend
-func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
+func New(ctx context.Context, cfg Config) (*EtcdBackend, error) {
 	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if params == nil {
-		return nil, trace.BadParameter("missing etcd configuration")
-	}
-
-	// convert generic backend parameters structure to etcd config:
-	var cfg *Config
-	if err = apiutils.ObjectToStruct(params, &cfg); err != nil {
-		return nil, trace.BadParameter("invalid etcd configuration: %v", err)
-	}
 	if err = cfg.Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -212,7 +205,7 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 	closeCtx, cancel := context.WithCancel(ctx)
 	b := &EtcdBackend{
 		Entry:     log.WithFields(log.Fields{trace.Component: GetName()}),
-		cfg:       cfg,
+		cfg:       &cfg,
 		nodes:     cfg.Nodes,
 		cancelC:   make(chan bool, 1),
 		stopC:     make(chan bool, 1),

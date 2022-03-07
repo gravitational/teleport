@@ -1575,7 +1575,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		if err := os.MkdirAll(path, teleport.SharedDirMode); err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
-		liteBackend, err := lite.NewWithConfig(process.ExitContext(),
+		liteBackend, err := lite.New(process.ExitContext(),
 			lite.Config{
 				Path:             path,
 				EventsOff:        !cfg.events,
@@ -3738,16 +3738,16 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 	switch bc.Type {
 	// SQLite backend (or alt name dir).
 	case lite.GetName():
-		bk, err = lite.New(ctx, bc.Params)
+		bk, err = lite.New(ctx, *bc.Backend.(*lite.Config))
 	// Firestore backend:
 	case firestore.GetName():
-		bk, err = firestore.New(ctx, bc.Params, firestore.Options{})
+		bk, err = firestore.New(ctx, *bc.Backend.(*firestore.Config), firestore.Options{})
 	// DynamoDB backend.
 	case dynamo.GetName():
-		bk, err = dynamo.New(ctx, bc.Params)
+		bk, err = dynamo.New(ctx, *bc.Backend.(*dynamo.Config))
 	// etcd backend.
 	case etcdbk.GetName():
-		bk, err = etcdbk.New(ctx, bc.Params)
+		bk, err = etcdbk.New(ctx, *bc.Backend.(*etcdbk.Config))
 	default:
 		err = trace.BadParameter("unsupported secrets storage type: %q", bc.Type)
 	}

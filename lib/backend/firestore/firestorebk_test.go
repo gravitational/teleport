@@ -51,16 +51,16 @@ func TestMarshal(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func firestoreParams() backend.Params {
+func firestoreConfig() Config {
 	// Creating the indices on - even an empty - live Firestore collection
 	// can take 5 minutes, so we re-use the same project and collection
 	// names for each test.
 
-	return map[string]interface{}{
-		"collection_name":                   "tp-cluster-data-test",
-		"project_id":                        "tp-testproj",
-		"endpoint":                          "localhost:8618",
-		"purgeExpiredDocumentsPollInterval": time.Second,
+	return Config{
+		CollectionName:                    "tp-cluster-data-test",
+		ProjectID:                         "tp-testproj",
+		EndPoint:                          "localhost:8618",
+		PurgeExpiredDocumentsPollInterval: time.Second,
 	}
 }
 
@@ -71,8 +71,8 @@ func ensureTestsEnabled(t *testing.T) {
 	}
 }
 
-func ensureEmulatorRunning(t *testing.T, cfg map[string]interface{}) {
-	con, err := net.Dial("tcp", cfg["endpoint"].(string))
+func ensureEmulatorRunning(t *testing.T, cfg Config) {
+	con, err := net.Dial("tcp", cfg.EndPoint)
 	if err != nil {
 		t.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
 	}
@@ -80,7 +80,7 @@ func ensureEmulatorRunning(t *testing.T, cfg map[string]interface{}) {
 }
 
 func TestFirestoreDB(t *testing.T) {
-	cfg := firestoreParams()
+	cfg := firestoreConfig()
 	ensureTestsEnabled(t)
 	ensureEmulatorRunning(t, cfg)
 
@@ -113,7 +113,7 @@ func TestFirestoreDB(t *testing.T) {
 }
 
 // newBackend creates a self-closing firestore backend
-func newBackend(t *testing.T, cfg map[string]interface{}) *Backend {
+func newBackend(t *testing.T, cfg Config) *Backend {
 	clock := clockwork.NewFakeClock()
 
 	uut, err := New(context.Background(), cfg, Options{Clock: clock})
@@ -124,7 +124,7 @@ func newBackend(t *testing.T, cfg map[string]interface{}) *Backend {
 }
 
 func TestReadLegacyRecord(t *testing.T) {
-	cfg := firestoreParams()
+	cfg := firestoreConfig()
 	ensureTestsEnabled(t)
 	ensureEmulatorRunning(t, cfg)
 

@@ -53,7 +53,7 @@ func TestLite(t *testing.T) {
 			return nil, nil, test.ErrMirrorNotSupported
 		}
 
-		backend, err := NewWithConfig(context.Background(), Config{
+		backend, err := New(context.Background(), Config{
 			Path:             t.TempDir(),
 			PollStreamPeriod: 300 * time.Millisecond,
 			Clock:            clock,
@@ -73,7 +73,7 @@ func TestLite(t *testing.T) {
 // at the end of the supplied test
 func newBackend(t *testing.T) *Backend {
 	clock := clockwork.NewFakeClock()
-	backend, err := NewWithConfig(context.Background(), Config{
+	backend, err := New(context.Background(), Config{
 		Path:             t.TempDir(),
 		PollStreamPeriod: 300 * time.Millisecond,
 		Clock:            clock,

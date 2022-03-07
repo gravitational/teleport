@@ -77,7 +77,7 @@ func TestDefaultConfig(t *testing.T) {
 	require.Equal(t, auth.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
 	require.Equal(t, auth.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
 	require.Equal(t, config.Auth.StorageConfig.Type, lite.GetName())
-	require.Equal(t, auth.StorageConfig.Params[defaults.BackendPath], filepath.Join(config.DataDir, defaults.BackendDir))
+	require.Equal(t, auth.StorageConfig.Backend.(*lite.Config).Path, filepath.Join(config.DataDir, defaults.BackendDir))
 
 	// SSH section
 	ssh := config.SSH

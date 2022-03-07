@@ -210,33 +210,6 @@ func (e Event) String() string {
 	return fmt.Sprintf("%v %s=%s", e.Type, e.Item.Key, val)
 }
 
-// Config is used for 'storage' config section. It's a combination of
-// values for various backends: 'boltdb', 'etcd', 'filesystem' and 'dynamodb'
-type Config struct {
-	// Type can be "bolt" or "etcd" or "dynamodb"
-	Type string `yaml:"type,omitempty"`
-
-	// Params is a generic key/value property bag which allows arbitrary
-	// values to be passed to backend
-	Params Params `yaml:",inline"`
-}
-
-// Params type defines a flexible unified back-end configuration API.
-// It is just a map of key/value pairs which gets populated by `storage` section
-// in Teleport YAML config.
-type Params map[string]interface{}
-
-// GetString returns a string value stored in Params map, or an empty string
-// if nothing is found
-func (p Params) GetString(key string) string {
-	v, ok := p[key]
-	if !ok {
-		return ""
-	}
-	s, _ := v.(string)
-	return s
-}
-
 // NoLimit specifies no limits
 const NoLimit = 0
 

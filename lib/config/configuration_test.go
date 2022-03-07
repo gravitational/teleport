@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -310,7 +309,7 @@ func TestConfigReading(t *testing.T) {
 					Output: "text",
 				},
 			},
-			Storage: backend.Config{
+			Storage: service.StorageConfig{
 				Type: "bolt",
 			},
 			DataDir: "/path/to/data",
@@ -846,7 +845,7 @@ func TestBackendDefaults(t *testing.T) {
   data_dir: /var/lib/teleport
 `)
 	require.Equal(t, cfg.Auth.StorageConfig.Type, lite.GetName())
-	require.Equal(t, cfg.Auth.StorageConfig.Params[defaults.BackendPath], filepath.Join("/var/lib/teleport", defaults.BackendDir))
+	require.Equal(t, cfg.Auth.StorageConfig.Backend.(*lite.Config).Path, filepath.Join("/var/lib/teleport", defaults.BackendDir))
 
 	// If no path is specified, the default is picked. In addition, internally
 	// dir gets converted into lite.
@@ -856,7 +855,7 @@ func TestBackendDefaults(t *testing.T) {
        type: dir
 `)
 	require.Equal(t, cfg.Auth.StorageConfig.Type, lite.GetName())
-	require.Equal(t, cfg.Auth.StorageConfig.Params[defaults.BackendPath], filepath.Join("/var/lib/teleport", defaults.BackendDir))
+	require.Equal(t, cfg.Auth.StorageConfig.Backend.(*lite.Config).Path, filepath.Join("/var/lib/teleport", defaults.BackendDir))
 
 	// Support custom paths for dir/lite backends.
 	cfg = read(`teleport:
@@ -866,7 +865,7 @@ func TestBackendDefaults(t *testing.T) {
        path: /var/lib/teleport/mybackend
 `)
 	require.Equal(t, cfg.Auth.StorageConfig.Type, lite.GetName())
-	require.Equal(t, cfg.Auth.StorageConfig.Params[defaults.BackendPath], "/var/lib/teleport/mybackend")
+	require.Equal(t, cfg.Auth.StorageConfig.Backend.(*lite.Config).Path, "/var/lib/teleport/mybackend")
 
 	// Kubernetes proxy is disabled by default.
 	cfg = read(`teleport:

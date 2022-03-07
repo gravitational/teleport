@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -628,9 +627,12 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		}
 	}
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
-	tconf.Auth.StorageConfig = backend.Config{
-		Type:   lite.GetName(),
-		Params: backend.Params{"path": dataDir + string(os.PathListSeparator) + defaults.BackendDir, "poll_stream_period": 50 * time.Millisecond},
+	tconf.Auth.StorageConfig = service.StorageConfig{
+		Type: lite.GetName(),
+		Backend: &lite.Config{
+			Path:             dataDir + string(os.PathListSeparator) + defaults.BackendDir,
+			PollStreamPeriod: 50 * time.Millisecond,
+		},
 	}
 
 	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck

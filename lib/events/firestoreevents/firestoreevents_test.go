@@ -24,6 +24,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 
+	"github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -49,13 +50,14 @@ func (s *FirestoreeventsSuite) SetUpSuite(c *check.C) {
 
 	fakeClock := clockwork.NewFakeClock()
 
-	config := EventsConfig{}
-	config.SetFromParams(map[string]interface{}{
-		"collection_name":                   "tp-events-test",
-		"project_id":                        "tp-testproj",
-		"endpoint":                          "localhost:8618",
-		"purgeExpiredDocumentsPollInterval": time.Second,
-	})
+	config := EventsConfig{
+		Config: firestore.Config{
+			CollectionName:                    "tp-events-test",
+			ProjectID:                         "tp-testproj",
+			EndPoint:                          "localhost:8618",
+			PurgeExpiredDocumentsPollInterval: time.Second,
+		},
+	}
 
 	config.Clock = fakeClock
 	config.UIDGenerator = utils.NewFakeUID()

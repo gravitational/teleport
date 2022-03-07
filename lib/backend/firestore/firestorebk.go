@@ -31,7 +31,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -44,34 +43,32 @@ import (
 
 // Config structure represents Firestore configuration as appears in `storage` section of Teleport YAML
 type Config struct {
+	// Type is the type of backend (firestorebk).
+	// This field must be included in all backends.
+	Type string `yaml:"type"`
 	// Credentials path for the Firestore client
-	CredentialsPath string `json:"credentials_path,omitempty"`
+	CredentialsPath string `yaml:"credentials_path"`
 	// Google Project ID of Collection containing events
-	ProjectID string `json:"project_id,omitempty"`
+	ProjectID string `yaml:"project_id"`
 	// CollectName is the name of the collection containing events
-	CollectionName string `json:"collection_name,omitempty"`
+	CollectionName string `yaml:"collection_name"`
 	// PurgeExpiredDocumentsPollInterval is the poll interval used to purge expired documents
-	PurgeExpiredDocumentsPollInterval time.Duration `json:"purge_expired_documents_poll_interval,omitempty"`
+	PurgeExpiredDocumentsPollInterval time.Duration `yaml:"purge_expired_documents_poll_interval"`
 	// RetryPeriod is a period between retry executions of long-lived document snapshot queries and purging expired records
-	RetryPeriod time.Duration `json:"retry_period,omitempty"`
+	RetryPeriod time.Duration `yaml:"retry_period"`
 	// DisableExpiredDocumentPurge
-	DisableExpiredDocumentPurge bool `json:"disable_expired_document_purge,omitempty"`
+	DisableExpiredDocumentPurge bool `yaml:"disable_expired_document_purge"`
 	// EndPoint is used to point the Firestore clients at emulated Firestore storage.
-	EndPoint string `json:"endpoint,omitempty"`
-}
-
-type backendConfig struct {
-	// FirestoreConfig base config composed into FirestoreBK-specific config
-	Config
+	EndPoint string `yaml:"endpoint"`
 	// BufferSize is a default buffer size used to pull events
-	BufferSize int `json:"buffer_size,omitempty"`
+	BufferSize int `yaml:"buffer_size"`
 	// LimitWatchQuery is a parameter that will limit the document snapshot watcher on startup to the current time
-	LimitWatchQuery bool `json:"limit_watch_query,omitempty"`
+	LimitWatchQuery bool `yaml:"limit_watch_query"`
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
 // is not enough to connect to Firestore
-func (cfg *backendConfig) CheckAndSetDefaults() error {
+func (cfg *Config) CheckAndSetDefaults() error {
 	// table is not configured?
 	if cfg.CollectionName == "" {
 		return trace.BadParameter("firestore: collection_name is not specified")
@@ -94,7 +91,7 @@ func (cfg *backendConfig) CheckAndSetDefaults() error {
 // Backend is a Firestore-backed key value backend implementation.
 type Backend struct {
 	*log.Entry
-	backendConfig
+	Config
 	backend.NoMigrations
 	// svc is the primary Firestore client
 	svc *firestore.Client
@@ -254,13 +251,8 @@ func (opts *Options) checkAndSetDefaults() error {
 
 // New returns new instance of Firestore backend.
 // It's an implementation of backend API's NewFunc
-func New(ctx context.Context, params backend.Params, options Options) (*Backend, error) {
+func New(ctx context.Context, cfg Config, options Options) (*Backend, error) {
 	l := log.WithFields(log.Fields{trace.Component: BackendName})
-	var cfg *backendConfig
-	err := apiutils.ObjectToStruct(params, &cfg)
-	if err != nil {
-		return nil, trace.BadParameter("firestore: configuration is invalid: %v", err)
-	}
 	l.Info("Initializing backend.")
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -288,7 +280,7 @@ func New(ctx context.Context, params backend.Params, options Options) (*Backend,
 	b := &Backend{
 		svc:           firestoreClient,
 		Entry:         l,
-		backendConfig: *cfg,
+		Config:        cfg,
 		clock:         options.Clock,
 		buf:           buf,
 		clientContext: closeCtx,

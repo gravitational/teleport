@@ -44,7 +44,7 @@ func TestLiteMem(t *testing.T) {
 			Mirror:           testCfg.MirrorMode,
 		}
 
-		backend, err := NewWithConfig(context.Background(), backendCfg)
+		backend, err := New(context.Background(), backendCfg)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

@@ -42,13 +42,13 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// commonEtcdParams holds the common etcd configuration for all tests.
-var commonEtcdParams = backend.Params{
-	"peers":         []string{"https://127.0.0.1:2379"},
-	"prefix":        examplePrefix,
-	"tls_key_file":  "../../../examples/etcd/certs/client-key.pem",
-	"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
-	"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
+// commonEtcdConfig holds the common etcd configuration for all tests.
+var commonEtcdConfig = Config{
+	Nodes:       []string{"https://127.0.0.1:2379"},
+	Key:         examplePrefix,
+	TLSKeyFile:  "../../../examples/etcd/certs/client-key.pem",
+	TLSCertFile: "../../../examples/etcd/certs/client-cert.pem",
+	TLSCAFile:   "../../../examples/etcd/certs/ca-cert.pem",
 }
 
 func TestEtcd(t *testing.T) {
@@ -69,7 +69,7 @@ func TestEtcd(t *testing.T) {
 		// No need to check target backend - all Etcd backends create by this test
 		// point to the same datastore.
 
-		bk, err := New(context.Background(), commonEtcdParams)
+		bk, err := New(context.Background(), commonEtcdConfig)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -93,16 +93,13 @@ func TestPrefix(t *testing.T) {
 	ctx := context.Background()
 
 	// Given an etcd backend with a minimal configuration...
-	unprefixedUut, err := New(context.Background(), commonEtcdParams)
+	unprefixedUut, err := New(context.Background(), commonEtcdConfig)
 	require.NoError(t, err)
 	defer unprefixedUut.Close()
 
 	// ...and an etcd backend configured to use a custom prefix
-	cfg := make(backend.Params)
-	for k, v := range commonEtcdParams {
-		cfg[k] = v
-	}
-	cfg["prefix"] = customPrefix
+	cfg := commonEtcdConfig
+	cfg.Key = customPrefix
 
 	prefixedUut, err := New(context.Background(), cfg)
 	require.NoError(t, err)
@@ -168,14 +165,14 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 	}
 	// setup
 	const maxClientMsgSize = 128
-	bk, err := New(context.Background(), backend.Params{
-		"peers":                          []string{"https://127.0.0.1:2379"},
-		"prefix":                         "/teleport",
-		"tls_key_file":                   "../../../examples/etcd/certs/client-key.pem",
-		"tls_cert_file":                  "../../../examples/etcd/certs/client-cert.pem",
-		"tls_ca_file":                    "../../../examples/etcd/certs/ca-cert.pem",
-		"dial_timeout":                   500 * time.Millisecond,
-		"etcd_max_client_msg_size_bytes": maxClientMsgSize,
+	bk, err := New(context.Background(), Config{
+		Nodes:                 []string{"https://127.0.0.1:2379"},
+		Key:                   "/teleport",
+		TLSKeyFile:            "../../../examples/etcd/certs/client-key.pem",
+		TLSCertFile:           "../../../examples/etcd/certs/client-cert.pem",
+		TLSCAFile:             "../../../examples/etcd/certs/ca-cert.pem",
+		DialTimeout:           500 * time.Millisecond,
+		MaxClientMsgSizeBytes: maxClientMsgSize,
 	})
 	require.NoError(t, err)
 	defer bk.Close()

@@ -27,12 +27,10 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	firestorebk "github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -156,15 +154,6 @@ type EventsConfig struct {
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator
 	UIDGenerator utils.UID
-}
-
-// SetFromParams establishes values on an EventsConfig from the supplied params
-func (cfg *EventsConfig) SetFromParams(params backend.Params) error {
-	err := apiutils.ObjectToStruct(params, &cfg)
-	if err != nil {
-		return trace.BadParameter("firestore: configuration is invalid: %v", err)
-	}
-	return nil
 }
 
 // SetFromURL establishes values on an EventsConfig from the supplied URI

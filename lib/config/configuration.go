@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -264,7 +263,14 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	if fc.Global.DataDir != "" {
 		cfg.DataDir = fc.Global.DataDir
-		cfg.Auth.StorageConfig.Params["path"] = cfg.DataDir
+		// Path only applies to lite backend.
+		if cfg.Auth.StorageConfig.Type == lite.GetName() {
+			liteCfg, ok := cfg.Auth.StorageConfig.Backend.(*lite.Config)
+			if !ok {
+				return trace.BadParameter("[BUG] backend type %v does not match config type %#v", cfg.Auth.StorageConfig.Type, cfg.Auth.StorageConfig.Backend)
+			}
+			liteCfg.Path = cfg.DataDir
+		}
 	}
 
 	// If a backend is specified, override the defaults.
@@ -275,17 +281,24 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 
 		cfg.Auth.StorageConfig = fc.Storage
-		// backend is specified, but no path is set, set a reasonable default
-		_, pathSet := cfg.Auth.StorageConfig.Params[defaults.BackendPath]
-		if cfg.Auth.StorageConfig.Type == lite.GetName() && !pathSet {
-			if cfg.Auth.StorageConfig.Params == nil {
-				cfg.Auth.StorageConfig.Params = make(backend.Params)
+		// Path only applies to lite backend.
+		if cfg.Auth.StorageConfig.Type == lite.GetName() {
+			liteCfg, ok := cfg.Auth.StorageConfig.Backend.(*lite.Config)
+			if !ok {
+				return trace.BadParameter("[BUG] backend type %v does not match config type %#v", cfg.Auth.StorageConfig.Type, cfg.Auth.StorageConfig.Backend)
 			}
-			cfg.Auth.StorageConfig.Params[defaults.BackendPath] = filepath.Join(cfg.DataDir, defaults.BackendDir)
+			if liteCfg.Path == "" {
+				// backend is specified, but no path is set, set a reasonable default
+				liteCfg.Path = filepath.Join(cfg.DataDir, defaults.BackendDir)
+			}
 		}
-	} else {
-		// Set a reasonable default.
-		cfg.Auth.StorageConfig.Params[defaults.BackendPath] = filepath.Join(cfg.DataDir, defaults.BackendDir)
+	} else if cfg.Auth.StorageConfig.Type == lite.GetName() {
+		// Path only applies to lite backend. Set a reasonable default.
+		liteCfg, ok := cfg.Auth.StorageConfig.Backend.(*lite.Config)
+		if !ok {
+			return trace.BadParameter("[BUG] backend type %v does not match config type %#v", cfg.Auth.StorageConfig.Type, cfg.Auth.StorageConfig.Backend)
+		}
+		liteCfg.Path = filepath.Join(cfg.DataDir, defaults.BackendDir)
 	}
 
 	// apply logger settings
@@ -563,7 +576,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// Set cluster audit configuration from file configuration.
-	auditConfigSpec, err := services.ClusterAuditConfigSpecFromObject(fc.Storage.Params)
+	auditConfigSpec, err := services.ClusterAuditConfigSpecFromObject(fc.Storage.Backend)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1829,11 +1842,6 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.SSHAddr)
 	}
 
-	// add data_dir to the backend config:
-	if cfg.Auth.StorageConfig.Params == nil {
-		cfg.Auth.StorageConfig.Params = backend.Params{}
-	}
-	cfg.Auth.StorageConfig.Params["data_dir"] = cfg.DataDir
 	// command line flag takes precedence over file config
 	if clf.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true

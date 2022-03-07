@@ -56,7 +56,7 @@ type passwordSuite struct {
 func setupPasswordSuite(t *testing.T) *passwordSuite {
 	s := passwordSuite{}
 	var err error
-	s.bk, err = lite.New(context.TODO(), backend.Params{"path": t.TempDir()})
+	s.bk, err = lite.New(context.TODO(), lite.Config{Path: t.TempDir()})
 	require.NoError(t, err)
 	// set cluster name
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{

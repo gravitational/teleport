@@ -27,7 +27,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -86,11 +85,11 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 
 func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 	var err error
-	storageConfig := backend.Config{
+	storageConfig := service.StorageConfig{
 		Type: lite.GetName(),
-		Params: backend.Params{
-			"path":               t.TempDir(),
-			"poll_stream_period": 50 * time.Millisecond,
+		Backend: &lite.Config{
+			Path:             t.TempDir(),
+			PollStreamPeriod: 50 * time.Millisecond,
 		},
 	}
 

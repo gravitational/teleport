@@ -34,7 +34,7 @@ import (
 
 func TestCreateSAMLUser(t *testing.T) {
 	c := clockwork.NewFakeClockAt(time.Now())
-	b, err := lite.NewWithConfig(context.Background(), lite.Config{
+	b, err := lite.New(context.Background(), lite.Config{
 		Path:             t.TempDir(),
 		PollStreamPeriod: 200 * time.Millisecond,
 		Clock:            c,
@@ -139,7 +139,7 @@ func TestEncryptedSAML(t *testing.T) {
 func TestPingSAMLWorkaround(t *testing.T) {
 	// Create a Server instance for testing.
 	c := clockwork.NewFakeClockAt(time.Now())
-	b, err := lite.NewWithConfig(context.Background(), lite.Config{
+	b, err := lite.New(context.Background(), lite.Config{
 		Path:             t.TempDir(),
 		PollStreamPeriod: 200 * time.Millisecond,
 		Clock:            c,

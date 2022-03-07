@@ -469,7 +469,7 @@ func TestCASigningAlg(t *testing.T) {
 	require.NoError(t, auth.Close())
 
 	// Reset the auth server state.
-	conf.Backend, err = lite.New(context.TODO(), backend.Params{"path": t.TempDir()})
+	conf.Backend, err = lite.New(context.TODO(), lite.Config{Path: t.TempDir()})
 	require.NoError(t, err)
 	conf.DataDir = t.TempDir()
 
@@ -545,7 +545,7 @@ func TestPresets(t *testing.T) {
 func setupConfig(t *testing.T) InitConfig {
 	tempDir := t.TempDir()
 
-	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
+	bk, err := lite.New(context.TODO(), lite.Config{Path: tempDir})
 	require.NoError(t, err)
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{

@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 
 	"github.com/gravitational/trace"
@@ -66,30 +65,33 @@ func init() {
 
 // Config structure represents configuration section
 type Config struct {
+	// Type is the type of backend (lite).
+	// This field must be included in all backends.
+	Type string `yaml:"type"`
 	// Path is a path to the database directory
-	Path string `json:"path,omitempty"`
+	Path string `yaml:"path"`
 	// BufferSize is a default buffer size
 	// used to pull events
-	BufferSize int `json:"buffer_size,omitempty"`
+	BufferSize int `yaml:"buffer_size"`
 	// PollStreamPeriod is a polling period for event stream
-	PollStreamPeriod time.Duration `json:"poll_stream_period,omitempty"`
+	PollStreamPeriod time.Duration `yaml:"poll_stream_period"`
 	// EventsOff turns events off
-	EventsOff bool `json:"events_off,omitempty"`
+	EventsOff bool `yaml:"events_off"`
 	// Clock allows to override clock used in the backend
-	Clock clockwork.Clock `json:"-"`
+	Clock clockwork.Clock `yaml:"-"`
 	// Sync sets synchronous pragrma
-	Sync string `json:"sync,omitempty"`
+	Sync string `yaml:"sync"`
 	// BusyTimeout sets busy timeout in milliseconds
-	BusyTimeout int `json:"busy_timeout,omitempty"`
+	BusyTimeout int `yaml:"busy_timeout"`
 	// Memory turns memory mode of the database
-	Memory bool `json:"memory"`
+	Memory bool `yaml:"memory"`
 	// MemoryName sets the name of the database,
 	// set to "sqlite.db" by default
-	MemoryName string `json:"memory_name"`
+	MemoryName string `yaml:"memory_name"`
 	// Mirror turns on mirror mode for the backend,
 	// which will use record IDs for Put and PutRange passed from
 	// the resources, not generate a new one
-	Mirror bool `json:"mirror"`
+	Mirror bool `yaml:"mirror"`
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
@@ -119,19 +121,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// New returns a new instance of sqlite backend
-func New(ctx context.Context, params backend.Params) (*Backend, error) {
-	var cfg *Config
-	err := utils.ObjectToStruct(params, &cfg)
-	if err != nil {
-		return nil, trace.BadParameter("SQLite configuration is invalid: %v", err)
-	}
-	return NewWithConfig(ctx, *cfg)
-}
-
-// NewWithConfig returns a new instance of lite backend using
+// New returns a new instance of lite backend using
 // configuration struct as a parameter
-func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
+func New(ctx context.Context, cfg Config) (*Backend, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
