@@ -39,6 +39,7 @@ const DefaultACLOwner = "nobody:nobody"
 // RootUID is the UID of the root user
 const RootUID = "0"
 
+// aclTestFailedMessage is printed when an ACL test fails.
 const aclTestFailedMessage = "ACLs are not usable for destination %s; " +
 	"Change the destination's ACL mode to `off` to silence this warning."
 
@@ -203,7 +204,7 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 	// Correct ownership.
 	ownedByDesiredOwner, err := botfs.IsOwnedBy(stat, params.ownerUser)
 	if err != nil {
-		log.WithError(err).Debug("Could not determine file ownership of %q", path)
+		log.WithError(err).Debugf("Could not determine file ownership of %q", path)
 
 		// Can't read file ownership on this platform (e.g. Windows), so always
 		// attempt to chown (which does work on Windows)
@@ -212,7 +213,7 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 
 	if !ownedByDesiredOwner {
 		// If we're not running as root, this will probably fail.
-		if currentUser.Uid != "0" && runtime.GOOS != constants.WindowsOS {
+		if currentUser.Uid != RootUID && runtime.GOOS != constants.WindowsOS {
 			log.Warnf("Not running as root, ownership change is likely to fail.")
 		}
 
@@ -240,7 +241,7 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 		// We can verify ACLs as any user with read, but can only correct ACLs
 		// as root or the owner.
 		err = botfs.VerifyACL(path, params.aclOptions)
-		if err != nil && (currentUser.Uid == "0" || currentUser.Uid == params.ownerUser.Uid) {
+		if err != nil && (currentUser.Uid == RootUID || currentUser.Uid == params.ownerUser.Uid) {
 			log.Warnf("ACL for %q is not correct and will be corrected: %v", path, err)
 
 			return trace.Wrap(botfs.ConfigureACL(path, params.aclOptions))
