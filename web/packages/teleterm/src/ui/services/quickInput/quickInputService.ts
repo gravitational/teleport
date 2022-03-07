@@ -27,10 +27,10 @@ type State = {
 };
 
 export class QuickInputService extends Store<State> {
-  quickCmdPicker: pickers.QuickCmdPicker;
   quickLoginPicker: pickers.QuickLoginPicker;
   quickDbPicker: pickers.QuickDbPicker;
   quickServerPicker: pickers.QuickServerPicker;
+  quickCommandPicker: pickers.QuickCommandPicker;
   lastFocused: WeakRef<HTMLElement>;
 
   constructor(launcher: CommandLauncher, serviceClusters: ClustersService) {
@@ -41,13 +41,13 @@ export class QuickInputService extends Store<State> {
       launcher,
       serviceClusters
     );
-    this.quickCmdPicker = new pickers.QuickCmdPicker(launcher);
     this.quickLoginPicker = new pickers.QuickLoginPicker(
       launcher,
       serviceClusters
     );
+    this.quickCommandPicker = new pickers.QuickCommandPicker();
     this.setState({
-      picker: this.quickCmdPicker,
+      picker: this.quickCommandPicker,
       inputValue: '',
     });
   }
@@ -59,9 +59,9 @@ export class QuickInputService extends Store<State> {
   };
 
   goBack = () => {
-    if (this.state.picker !== this.quickCmdPicker) {
+    if (this.state.picker !== this.quickCommandPicker) {
       this.setState({
-        picker: this.quickCmdPicker,
+        picker: this.quickCommandPicker,
         inputValue: '',
       });
       return;
@@ -78,7 +78,7 @@ export class QuickInputService extends Store<State> {
 
   show = () => {
     this.setState({
-      picker: this.quickCmdPicker,
+      picker: this.quickCommandPicker,
       visible: true,
     });
   };

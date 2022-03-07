@@ -117,48 +117,6 @@ const commands = {
       }
     },
   },
-
-  'cmd-palette.cluster-login': {
-    displayName: 'login',
-    description: 'Log in to a cluster and retrieve the session',
-    run(appCtx: IAppContext) {
-      appCtx.quickInputService.setState({
-        picker: appCtx.quickInputService.quickLoginPicker,
-        inputValue: '',
-      });
-    },
-  },
-  'cmd-palette.ssh': {
-    displayName: 'ssh',
-    description: 'Run shell or execute a command on a remote SSH node',
-    run(appCtx: IAppContext) {
-      appCtx.quickInputService.setState({
-        picker: appCtx.quickInputService.quickServerPicker,
-        inputValue: '',
-      });
-    },
-  },
-  'cmd-palette.proxy-db': {
-    displayName: 'proxy db',
-    description:
-      'Start local TLS proxy for database connections when using Teleport',
-    run(appCtx: IAppContext) {
-      appCtx.quickInputService.setState({
-        picker: appCtx.quickInputService.quickDbPicker,
-        inputValue: '',
-      });
-    },
-  },
-  'cmd-palette.db-ls': {
-    displayName: 'db ls',
-    description: 'List cluster available databases',
-    run(appCtx: IAppContext) {
-      appCtx.quickInputService.setState({
-        picker: appCtx.quickInputService.quickLoginPicker,
-        inputValue: '',
-      });
-    },
-  },
 };
 
 export class CommandLauncher {
@@ -170,19 +128,6 @@ export class CommandLauncher {
 
   executeCommand<T extends CommandName>(name: T, args: CommandArgs<T>) {
     commands[name].run(this.appContext, args as any);
-  }
-
-  getPaletteCommands() {
-    return Object.entries(commands)
-      .filter(([key]) => {
-        return key.startsWith('cmd-palette');
-      })
-      .map(([key, value]) => {
-        return {
-          name: key,
-          ...value,
-        };
-      });
   }
 }
 

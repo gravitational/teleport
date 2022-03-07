@@ -132,35 +132,12 @@ export class QuickServerPicker extends ClusterPicker {
   }
 }
 
-export class QuickCmdPicker implements QuickInputPicker {
-  launcher: CommandLauncher;
-
-  constructor(launcher: CommandLauncher) {
-    this.launcher = launcher;
+export class QuickCommandPicker implements QuickInputPicker {
+  onFilter() {
+    return [];
   }
 
-  onFilter(value = '') {
-    const items = this.launcher
-      .getPaletteCommands()
-      .filter(cmd => {
-        return [cmd.description, cmd.displayName]
-          .join('')
-          .toLocaleLowerCase()
-          .includes(value);
-      })
-      .map(cmd => {
-        return {
-          kind: 'item.cmd' as const,
-          data: cmd,
-        };
-      });
-
-    return ensureEmptyPlaceholder(items);
-  }
-
-  onPick(item: ItemCmd) {
-    this.launcher.executeCommand(item.data.name as any, null);
-  }
+  onPick() {}
 }
 
 function ensureEmptyPlaceholder(items: Item[]): Item[] {
