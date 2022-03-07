@@ -33,7 +33,7 @@ type Client interface {
 	RequestReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error
 
 	// ListReviews is used to list all submitted reviews for a PR.
-	ListReviews(ctx context.Context, organization string, repository string, number int) (map[string]*github.Review, error)
+	ListReviews(ctx context.Context, organization string, repository string, number int) ([]github.Review, error)
 
 	// ListPullRequests returns a list of Pull Requests.
 	ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]github.PullRequest, error)
