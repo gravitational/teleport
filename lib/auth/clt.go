@@ -1561,6 +1561,11 @@ func (c *Client) DeleteAllRoles() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// ListWindowsDesktops not implemented: can only be called locally.
+func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // DeleteAllUsers not implemented: can only be called locally.
 func (c *Client) DeleteAllUsers() error {
 	return trace.NotImplemented(notImplementedMessage)
