@@ -52,7 +52,7 @@ export abstract class ClusterPicker implements QuickInputPicker {
         };
       });
 
-    return ensureEmptyPlaceholder(items);
+    return items;
   }
 
   protected searchServers(value: string): Item[] {
@@ -67,7 +67,7 @@ export abstract class ClusterPicker implements QuickInputPicker {
         });
       }
     }
-    return ensureEmptyPlaceholder(items);
+    return items;
   }
 
   protected searchDbs(value: string): Item[] {
@@ -82,7 +82,7 @@ export abstract class ClusterPicker implements QuickInputPicker {
         });
       }
     }
-    return ensureEmptyPlaceholder(items);
+    return items;
   }
 }
 
@@ -337,12 +337,4 @@ export class QuickSshLoginPicker implements QuickInputPicker {
       listItems,
     };
   }
-}
-
-function ensureEmptyPlaceholder(items: Item[]): Item[] {
-  if (items.length === 0) {
-    items.push({ kind: 'item.empty', data: { message: 'not found' } });
-  }
-
-  return items;
 }

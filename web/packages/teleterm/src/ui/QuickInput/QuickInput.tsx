@@ -90,10 +90,9 @@ export function QuickInput(props: State) {
         if (listItems.length > 0) {
           e.stopPropagation();
           e.preventDefault();
-          if (listItems[activeItem].kind !== 'item.empty') {
-            refInput.current.value = '';
-            props.onPickItem(activeItem);
-          }
+
+          refInput.current.value = '';
+          props.onPickItem(activeItem);
         }
         return;
       case KeyEnum.ESC:

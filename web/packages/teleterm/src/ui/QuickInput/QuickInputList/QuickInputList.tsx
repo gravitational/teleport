@@ -130,10 +130,6 @@ function UnknownItem(props: { item: types.Item }) {
   return <div>unknown kind: {kind} </div>;
 }
 
-function EmptyItem(props: { item: types.ItemEmpty }) {
-  return <div>{props.item.data.message || 'Empty'}</div>;
-}
-
 function NewClusterItem(props: { item: types.ItemNewCluster }) {
   return (
     <Flex alignItems="center">
@@ -189,7 +185,6 @@ const ComponentMap: Record<
   ['item.cluster-new']: NewClusterItem,
   ['item.cmd']: CmdItem,
   ['item.ssh-login']: SshLoginItem,
-  ['item.empty']: EmptyItem,
 };
 
 type Props = {

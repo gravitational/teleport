@@ -5,8 +5,6 @@ type Base<T, R> = {
   data: R;
 };
 
-export type ItemEmpty = Base<'item.empty', { message: string }>;
-
 export type ItemCluster = Base<'item.cluster', tsh.Cluster>;
 
 export type ItemServer = Base<'item.server', tsh.Server>;
@@ -36,8 +34,7 @@ export type Item =
   | ItemDb
   | ItemCluster
   | ItemCmd
-  | ItemSshLogin
-  | ItemEmpty;
+  | ItemSshLogin;
 
 type AutocompleteBase<T> = {
   kind: T;
