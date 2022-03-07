@@ -468,7 +468,7 @@ test: test-sh test-ci test-api test-go test-rust
 #
 .PHONY: test-bot
 test-bot:
-test-bot: FLAGS ?= '-race'
+test-bot: FLAGS ?= -race -shuffle on
 test-bot:
 	cd .github/workflows/robot && go test $(FLAGS) ./...
 
@@ -481,7 +481,7 @@ $(TEST_LOG_DIR):
 #
 .PHONY: test-go
 test-go: ensure-webassets bpf-bytecode roletester rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
-test-go: FLAGS ?= '-race'
+test-go: FLAGS ?= -race -shuffle on
 test-go: PACKAGES = $(shell go list ./... | grep -v integration | grep -v tool/tsh)
 test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC) $(TEST_LOG_DIR)
@@ -508,7 +508,7 @@ test-ci: $(TEST_LOG_DIR) $(RENDER_TESTS)
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
 test-go-root: ensure-webassets bpf-bytecode roletester rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
-test-go-root: FLAGS ?= '-race'
+test-go-root: FLAGS ?= -race -shuffle on
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
@@ -520,7 +520,7 @@ test-go-root: $(VERSRC)
 #
 .PHONY: test-api
 test-api:
-test-api: FLAGS ?= '-race'
+test-api: FLAGS ?= -race -shuffle on
 test-api: PACKAGES = $(shell cd api && go list ./...)
 test-api: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
