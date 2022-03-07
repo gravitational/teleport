@@ -82,6 +82,7 @@ func (s *FakeRemoteSite) GetName() string {
 	return s.Name
 }
 
+// ProxyConn returns proxy connection channel with incoming connections.
 func (s *FakeRemoteSite) ProxyConn() <-chan net.Conn {
 	return s.connCh
 }
