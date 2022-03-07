@@ -36,7 +36,8 @@ const commands = {
       }
     ) {
       const onSuccess = (gatewayUri: string) => {
-        const documentsService = ctx.workspacesService.getActiveWorkspaceDocumentService()
+        const documentsService =
+          ctx.workspacesService.getActiveWorkspaceDocumentService();
         const db = ctx.clustersService.findDb(args.dbUri);
         const gateway = ctx.clustersService.findGateway(gatewayUri);
         const doc = documentsService.createGatewayDocument({
@@ -63,7 +64,8 @@ const commands = {
     displayName: '',
     description: '',
     run(ctx: IAppContext, args: { kubeUri: string }) {
-      const documentsService = ctx.workspacesService.getActiveWorkspaceDocumentService()
+      const documentsService =
+        ctx.workspacesService.getActiveWorkspaceDocumentService();
       const kubeDoc = documentsService.createTshKubeDocument(args.kubeUri);
       documentsService.add(kubeDoc);
       documentsService.open(kubeDoc.uri);
@@ -103,7 +105,8 @@ const commands = {
     description: '',
     run(ctx: IAppContext, args: { clusterUri: string }) {
       const { clusterUri } = args;
-      const documentsService = ctx.workspacesService.getActiveWorkspaceDocumentService()
+      const documentsService =
+        ctx.workspacesService.getActiveWorkspaceDocumentService();
       const doc = documentsService.findClusterDocument(clusterUri);
       if (doc) {
         documentsService.open(doc.uri);
