@@ -463,6 +463,18 @@ func TestMatchResourceByFilters(t *testing.T) {
 				PredicateExpression: filterExpression,
 			},
 		},
+		{
+			name: "windows desktop",
+			resource: func() types.ResourceWithLabels {
+				desktop, err := types.NewWindowsDesktopV3("foo", nil, types.WindowsDesktopSpecV3{Addr: "_"})
+				require.NoError(t, err)
+				return desktop
+			},
+			filters: MatchResourceFilter{
+				ResourceKind:        types.KindWindowsDesktop,
+				PredicateExpression: filterExpression,
+			},
+		},
 	}
 
 	for _, tc := range testcases {

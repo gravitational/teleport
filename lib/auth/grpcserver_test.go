@@ -2151,6 +2151,18 @@ func TestListResources(t *testing.T) {
 				return err
 			},
 		},
+		"WindowsDesktops": {
+			resourceType: types.KindWindowsDesktop,
+			createResource: func(name string) error {
+				desktop, err := types.NewWindowsDesktopV3(name, nil,
+					types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
+				if err != nil {
+					return err
+				}
+
+				return clt.UpsertWindowsDesktop(ctx, desktop)
+			},
+		},
 	}
 
 	for name, test := range testCases {
