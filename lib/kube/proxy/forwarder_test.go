@@ -159,16 +159,17 @@ func TestAuthenticate(t *testing.T) {
 	const remoteAddr = "user.example.com"
 
 	tests := []struct {
-		desc              string
-		user              auth.IdentityGetter
-		authzErr          bool
-		roleKubeUsers     []string
-		roleKubeGroups    []string
-		routeToCluster    string
-		kubernetesCluster string
-		haveKubeCreds     bool
-		tunnel            reversetunnel.Server
-		kubeServices      []types.Server
+		desc               string
+		user               auth.IdentityGetter
+		authzErr           bool
+		roleKubeUsers      []string
+		roleKubeGroups     []string
+		roleDenyKubeGroups []string
+		routeToCluster     string
+		kubernetesCluster  string
+		haveKubeCreds      bool
+		tunnel             reversetunnel.Server
+		kubeServices       []types.Server
 
 		wantCtx     *authContext
 		wantErr     bool
@@ -446,6 +447,32 @@ func TestAuthenticate(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc:               "deny authenticate",
+			user:               auth.LocalUser{},
+			roleKubeGroups:     []string{},
+			roleDenyKubeGroups: []string{teleport.KubeSystemAuthenticated},
+			routeToCluster:     "local",
+			haveKubeCreds:      true,
+			tunnel:             tun,
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
+
+			wantCtx: &authContext{
+				kubeUsers:   utils.StringsSet([]string{"user-a"}),
+				kubeGroups:  utils.StringsSet([]string{}),
+				kubeCluster: "local",
+				teleportCluster: teleportClusterClient{
+					name:       "local",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -455,6 +482,9 @@ func TestAuthenticate(t *testing.T) {
 				Allow: types.RoleConditions{
 					KubeUsers:  tt.roleKubeUsers,
 					KubeGroups: tt.roleKubeGroups,
+				},
+				Deny: types.RoleConditions{
+					KubeGroups: tt.roleDenyKubeGroups,
 				},
 			})
 			require.NoError(t, err)
