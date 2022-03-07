@@ -148,6 +148,19 @@ func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
 	return dbs, nil
 }
 
+// AsWindowsDesktops converts each resource into type WindowsDesktop.
+func (r ResourcesWithLabels) AsWindowsDesktops() ([]WindowsDesktop, error) {
+	desktops := make([]WindowsDesktop, 0, len(r))
+	for _, resource := range r {
+		desktop, ok := resource.(WindowsDesktop)
+		if !ok {
+			return nil, trace.BadParameter("expected types.WindowsDesktop, got: %T", resource)
+		}
+		desktops = append(desktops, desktop)
+	}
+	return desktops, nil
+}
+
 // GetVersion returns resource version
 func (h *ResourceHeader) GetVersion() string {
 	return h.Version
