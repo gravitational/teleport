@@ -927,34 +927,11 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	// create a new "party" (connected client)
 	p := newParty(s, types.SessionPeerMode, ch, ctx)
 
-	// Nodes discard events in cases when proxies are already recording them.
-	if s.registry.srv.Component() == teleport.ComponentNode &&
-		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
-		s.recorder = &events.DiscardStream{}
-	} else {
-		streamer, err := s.newStreamer(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.recorder, err = events.NewAuditWriter(events.AuditWriterConfig{
-			// Audit stream is using server context, not session context,
-			// to make sure that session is uploaded even after it is closed
-			Context:      ctx.srv.Context(),
-			Streamer:     streamer,
-			Clock:        ctx.srv.GetClock(),
-			SessionID:    s.id,
-			Namespace:    ctx.srv.GetNamespace(),
-			ServerID:     ctx.srv.HostUUID(),
-			RecordOutput: ctx.SessionRecordingConfig.GetMode() != types.RecordOff,
-			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
-			ClusterName:  ctx.ClusterName,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	rec, err := newRecorder(s, ctx)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
-	var err error
+	s.recorder = rec
 
 	// allocate a terminal or take the one previously allocated via a
 	// seaprate "allocate TTY" SSH request
@@ -1055,36 +1032,45 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	return nil
 }
 
-func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
-	var err error
-
+// newRecorder creates a new events.StreamWriter to be used as the recorder
+// of the passed in session.
+func newRecorder(s *session, ctx *ServerContext) (events.StreamWriter, error) {
 	// Nodes discard events in cases when proxies are already recording them.
 	if s.registry.srv.Component() == teleport.ComponentNode &&
 		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
-		s.recorder = &events.DiscardStream{}
-	} else {
-		streamer, err := s.newStreamer(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		rec, err := events.NewAuditWriter(events.AuditWriterConfig{
-			// Audit stream is using server context, not session context,
-			// to make sure that session is uploaded even after it is closed
-			Context:      ctx.srv.Context(),
-			Streamer:     streamer,
-			SessionID:    s.id,
-			Clock:        ctx.srv.GetClock(),
-			Namespace:    ctx.srv.GetNamespace(),
-			ServerID:     ctx.srv.HostUUID(),
-			RecordOutput: ctx.SessionRecordingConfig.GetMode() != types.RecordOff,
-			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
-			ClusterName:  ctx.ClusterName,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.recorder = rec
+		return &events.DiscardStream{}, nil
 	}
+
+	streamer, err := s.newStreamer(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rec, err := events.NewAuditWriter(events.AuditWriterConfig{
+		// Audit stream is using server context, not session context,
+		// to make sure that session is uploaded even after it is closed
+		Context:      ctx.srv.Context(),
+		Streamer:     streamer,
+		SessionID:    s.id,
+		Clock:        ctx.srv.GetClock(),
+		Namespace:    ctx.srv.GetNamespace(),
+		ServerID:     ctx.srv.HostUUID(),
+		RecordOutput: ctx.SessionRecordingConfig.GetMode() != types.RecordOff,
+		Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
+		ClusterName:  ctx.ClusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rec, nil
+}
+
+func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
+	rec, err := newRecorder(s, ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.recorder = rec
 
 	// Emit a session.start event for the exec session.
 	sessionStartEvent := &apievents.SessionStart{

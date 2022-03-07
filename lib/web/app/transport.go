@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -189,8 +190,7 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (net.Conn, err
 		var dialErr error
 		conn, dialErr = dialAppServer(t.c.proxyClient, t.c.identity, appServer)
 		if dialErr != nil {
-			// Connection problem with the server.
-			if trace.IsConnectionProblem(dialErr) {
+			if isReverseTunnelDownError(dialErr) {
 				t.c.log.Warnf("Failed to connect to application server %q: %v.", serverID, dialErr)
 				t.servers.Delete(serverID)
 				// Only goes for the next server if the error returned is a
@@ -282,4 +282,11 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 	tlsConfig.ServerName = apiutils.EncodeClusterName(c.clusterName)
 
 	return tlsConfig, nil
+}
+
+// isReverseTunnelDownError returns true if the provided error indicates that
+// the reverse tunnel connection is down e.g. because the agent is down.
+func isReverseTunnelDownError(err error) bool {
+	return trace.IsConnectionProblem(err) ||
+		strings.Contains(err.Error(), reversetunnel.NoApplicationTunnel)
 }

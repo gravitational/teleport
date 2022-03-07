@@ -22,17 +22,7 @@ like:
   This guide requires an Enterprise edition of Teleport.
 </Admonition>
 
-## Enable SAML Authentication
-
-Configure Teleport auth server to use SAML authentication instead of the local
-user database. Update `/etc/teleport.yaml` as shown below and restart the
-teleport daemon.
-
-```yaml
-auth_service:
-    authentication:
-        type: saml
-```
+(!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
 ## Configure Application
 

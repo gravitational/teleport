@@ -458,7 +458,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
             .unwrap()
             .read(|rdp_event| match rdp_event {
                 RdpEvent::Bitmap(bitmap) => {
-                    let cbitmap = match CGOBitmap::try_from(bitmap) {
+                    let mut cbitmap = match CGOBitmap::try_from(bitmap) {
                         Ok(cb) => cb,
                         Err(e) => {
                             error!(
@@ -469,7 +469,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
                         }
                     };
                     unsafe {
-                        err = handle_bitmap(client_ref, cbitmap) as CGOError;
+                        err = handle_bitmap(client_ref, &mut cbitmap) as CGOError;
                     };
                 }
                 // These should never really be sent by the server to us.
@@ -696,8 +696,7 @@ unsafe fn from_cgo_error(e: CGOError) -> String {
 // comments.
 extern "C" {
     fn free_go_string(s: *mut c_char);
-    fn handle_bitmap(client_ref: usize, b: CGOBitmap) -> CGOError;
-
+    fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOError;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOError;
 }
 
