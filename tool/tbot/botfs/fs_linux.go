@@ -124,7 +124,7 @@ func createSecure(path string, isDir bool) error {
 		// of the world, though: if an attacker attempts a symlink attack we'll
 		// just open the correct file for read/write later (and error when it
 		// doesn't exist).
-		if err := os.Mkdir(path, DefaultMode); err != nil {
+		if err := os.Mkdir(path, DefaultDirMode); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
@@ -261,9 +261,12 @@ func desiredPerms(path string) (ownerMode fs.FileMode, botAndReaderMode fs.FileM
 	botAndReaderMode = modeACLReadWrite
 	ownerMode = modeACLReadWrite
 	if stat.IsDir() {
-		ownerMode = modeACLReadWriteExecute
 		botAndReaderMode = modeACLReadExecute
+		ownerMode = modeACLReadWriteExecute
+		log.Debugf("%q is dir", path)
 	}
+
+	log.Debugf("%q: bot mode %#o, owner mode: %#o", path, botAndReaderMode, ownerMode)
 
 	return
 }

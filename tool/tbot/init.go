@@ -256,10 +256,15 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 		return nil
 	}
 
+	desiredMode := botfs.DefaultMode
+	if stat.IsDir() {
+		desiredMode = botfs.DefaultDirMode
+	}
+
 	// Using regular permissions, so attempt to correct the file mode.
-	if stat.Mode().Perm() != botfs.DefaultMode {
-		if err := os.Chmod(path, botfs.DefaultMode); err != nil {
-			return trace.Wrap(err, "Could not fix permissions on file %q", path)
+	if stat.Mode().Perm() != desiredMode {
+		if err := os.Chmod(path, desiredMode); err != nil {
+			return trace.Wrap(err, "Could not fix permissions on file %q, expected %#o", path, desiredMode)
 		}
 
 		log.Infof("Corrected permissions on %q from %#o to %#o", path, stat.Mode().Perm(), botfs.DefaultMode)

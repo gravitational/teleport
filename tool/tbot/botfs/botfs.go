@@ -72,12 +72,6 @@ const (
 	// DefaultMode is the preferred permissions mode for bot files.
 	DefaultMode fs.FileMode = 0600
 
-	// DefaultModeACL is the preferred permissions mode for bot files when ACLs
-	// are in use. Our preferred ACL mask overwrites the group bits and so
-	// appears to be 0670 when the true permissions are owner r/w + bot user
-	// r/w.
-	DefaultModeACL fs.FileMode = 0670
-
 	// DefaultDirMode is the preferred permissions mode for bot directories.
 	// Directories need the execute bit set for most operations on their
 	// contents to succeed.
@@ -107,7 +101,7 @@ func openStandard(path string) (*os.File, error) {
 // attempting to prevent symlink attacks.
 func createStandard(path string, isDir bool) error {
 	if isDir {
-		if err := os.Mkdir(path, DefaultMode); err != nil {
+		if err := os.Mkdir(path, DefaultDirMode); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
