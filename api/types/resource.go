@@ -161,6 +161,19 @@ func (r ResourcesWithLabels) AsWindowsDesktops() ([]WindowsDesktop, error) {
 	return desktops, nil
 }
 
+// AsKubeClusters converts each resource into type KubeCluster.
+func (r ResourcesWithLabels) AsKubeClusters() ([]KubeCluster, error) {
+	clusters := make([]KubeCluster, 0, len(r))
+	for _, resource := range r {
+		cluster, ok := resource.(KubeCluster)
+		if !ok {
+			return nil, trace.BadParameter("expected types.KubeCluster, got: %T", resource)
+		}
+		clusters = append(clusters, cluster)
+	}
+	return clusters, nil
+}
+
 // GetVersion returns resource version
 func (h *ResourceHeader) GetVersion() string {
 	return h.Version
