@@ -51,26 +51,25 @@ type FakeRemoteSite struct {
 	RemoteSite
 	// Name is the remote site name.
 	Name string
-	// connCh receives the connection when dialing this site.
-	connCh chan net.Conn
-	// closed is set to true after the site is being closed.
-	closed bool
-	// closedMtx is a mutex that protects closed.
-	closedMtx sync.Mutex
 	// AccessPoint is the auth server client.
 	AccessPoint auth.RemoteProxyAccessPoint
 	// OfflineTunnels is a list of server IDs that will return connection error.
 	OfflineTunnels map[string]struct{}
+	// connCh receives the connection when dialing this site.
+	connCh chan net.Conn
+	// closedMtx is a mutex that protects closed.
+	closedMtx sync.Mutex
+	// closed is set to true after the site is being closed.
+	closed bool
 }
 
 // NewFakeRemoteSite is a FakeRemoteSite constructor.
-func NewFakeRemoteSite(clusterName string, accessPoint auth.RemoteProxyAccessPoint) (*FakeRemoteSite, <-chan net.Conn) {
-	proxyConn := make(chan net.Conn)
+func NewFakeRemoteSite(clusterName string, accessPoint auth.RemoteProxyAccessPoint) *FakeRemoteSite {
 	return &FakeRemoteSite{
 		Name:        clusterName,
-		connCh:      proxyConn,
+		connCh:      make(chan net.Conn),
 		AccessPoint: accessPoint,
-	}, proxyConn
+	}
 }
 
 // CachingAccessPoint returns caching auth server client.
@@ -81,6 +80,10 @@ func (s *FakeRemoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, erro
 // GetName returns the remote site name.
 func (s *FakeRemoteSite) GetName() string {
 	return s.Name
+}
+
+func (s *FakeRemoteSite) ProxyConn() <-chan net.Conn {
+	return s.connCh
 }
 
 // Dial returns the connection to the remote site.

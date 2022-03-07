@@ -921,7 +921,7 @@ func TestCompatibilityWithOldAgents(t *testing.T) {
 		},
 	})
 	go func() {
-		for conn := range testCtx.proxyConn {
+		for conn := range testCtx.fakeRemoteSite.ProxyConn() {
 			go databaseServer.HandleConnection(conn)
 		}
 	}()
@@ -1222,7 +1222,6 @@ type testContext struct {
 	mux            *multiplexer.Mux
 	mysqlListener  net.Listener
 	webListener    *multiplexer.WebListener
-	proxyConn      <-chan net.Conn
 	fakeRemoteSite *reversetunnel.FakeRemoteSite
 	server         *Server
 	emitter        *testEmitter
@@ -1300,7 +1299,7 @@ func (c *testContext) startHandlingConnections() {
 	// Start all proxy services.
 	c.startProxy()
 	// Start handling database client connections on the database server.
-	for conn := range c.proxyConn {
+	for conn := range c.fakeRemoteSite.ProxyConn() {
 		go c.server.HandleConnection(conn)
 	}
 }
@@ -1616,7 +1615,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	}
 
 	// Establish fake reversetunnel b/w database proxy and database service.
-	testCtx.fakeRemoteSite, testCtx.proxyConn = reversetunnel.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
+	testCtx.fakeRemoteSite = reversetunnel.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
 	t.Cleanup(func() {
 		testCtx.fakeRemoteSite.Close()
 	})
