@@ -116,7 +116,7 @@ func createStandard(path string, isDir bool) error {
 	return nil
 }
 
-// GetOwner attempts to retreive the owner of the given file. This is not
+// GetOwner attempts to retrieve the owner of the given file. This is not
 // supported on all platforms and will return a trace.NotImplemented in that
 // case.
 func GetOwner(fileInfo fs.FileInfo) (*user.User, error) {
