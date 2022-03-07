@@ -22,6 +22,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -180,7 +181,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		// some amount of retries to inTransaction, and double-checking that all
 		// uses of it correctly handle the possibility of the transaction being
 		// restarted.
-		connectorURL = fmt.Sprintf("file:%v?_busy_timeout=%v&_sync=%v&_txlock=immediate", fullPath, cfg.BusyTimeout, cfg.Sync)
+		connectorURL = fmt.Sprintf("file:%v?_busy_timeout=%v&_sync=%v&_txlock=immediate", url.QueryEscape(fullPath), cfg.BusyTimeout, cfg.Sync)
 	} else {
 		connectorURL = fmt.Sprintf("file:%v?mode=memory", cfg.MemoryName)
 	}
