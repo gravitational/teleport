@@ -452,6 +452,20 @@ func TestMatchResourceByFilters(t *testing.T) {
 			},
 		},
 		{
+			name: "kube cluster",
+			resource: func() types.ResourceWithLabels {
+				cluster, err := types.NewKubernetesClusterV3FromLegacyCluster("_", &types.KubernetesCluster{
+					Name: "foo",
+				})
+				require.NoError(t, err)
+				return cluster
+			},
+			filters: MatchResourceFilter{
+				ResourceKind:        types.KindKubernetesCluster,
+				PredicateExpression: filterExpression,
+			},
+		},
+		{
 			name: "node",
 			resource: func() types.ResourceWithLabels {
 				server, err := types.NewServer("foo", types.KindNode, types.ServerSpecV2{})
