@@ -311,6 +311,39 @@ $ tsh play --format=pty 1fe153d1-ce8b-4ef4-9908-6539457ba4ad.tar
 $ tsh play --format=json ~/play/0c0b81ed-91a9-4a2a-8d7c-7495891a6ca0.tar | jq '.event
 ```
 
+### tsh proxy app
+
+Start local TLS proxy for app connections when using Teleport in single-port mode
+
+```code
+$ tsh proxy app [<flags>] <app>
+```
+
+#### Arguments
+`<app>`
+
+- `app` The name of the application to start the local proxy for.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--port` | none | port | Specify the source port for the local proxy |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples 
+```code
+$ tsh --proxy proxy.example.com:443 proxy app <app>
+
+# Proxy a connection to drone app on local port 10700
+$ tsh proxy --port 10700 app drone
+# Proxying connections to drone on 127.0.0.1:10700
+```
+
 ### tsh scp
 
 Copies files from source to dest:
