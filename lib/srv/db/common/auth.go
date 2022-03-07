@@ -409,6 +409,18 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		tlsConfig.VerifyConnection = getVerifyCloudSQLCertificate(tlsConfig.RootCAs)
 	}
 
+	// ElastiCache and MemoryDB don't support mTLS, but they use standard TLS.
+	// As those services only have internal IP addresses only connection within AWS
+	// are allowed. We want to force TLS connection and use system certificate
+	// to verify the handshake.
+	if sessionCtx.Database.IsElastiCache() /*|| sessionCtx.Database.IsMemoryDB()*/ {
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		tlsConfig.RootCAs, err = x509.SystemCertPool()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	dbTLSConfig := sessionCtx.Database.GetTLS()
 	// Use user provided server name if set. Override the current value if needed.
 	if dbTLSConfig.ServerName != "" {
