@@ -1579,7 +1579,6 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 			lite.Config{
 				Path:             path,
 				EventsOff:        !cfg.events,
-				Memory:           false,
 				Mirror:           true,
 				PollStreamPeriod: 100 * time.Millisecond,
 			})
