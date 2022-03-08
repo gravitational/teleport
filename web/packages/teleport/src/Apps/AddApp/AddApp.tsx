@@ -31,7 +31,6 @@ export default function Container(props: Props) {
 }
 
 export function AddApp({
-  cmd,
   user,
   expires,
   onClose,
@@ -42,6 +41,7 @@ export function AddApp({
   automatic,
   setAutomatic,
   isAuthTypeLocal,
+  token,
 }: State & Props) {
   return (
     <Dialog
@@ -76,11 +76,11 @@ export function AddApp({
         </Flex>
         {automatic && (
           <Automatically
-            cmd={cmd}
             expires={expires}
             onClose={onClose}
             onCreate={createToken}
             attempt={attempt}
+            token={token}
           />
         )}
         {!automatic && (
@@ -90,6 +90,10 @@ export function AddApp({
             onClose={onClose}
             user={user}
             version={version}
+            expires={expires}
+            createToken={createToken}
+            attempt={attempt}
+            token={token}
           />
         )}
       </Flex>

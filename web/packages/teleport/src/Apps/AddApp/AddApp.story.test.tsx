@@ -19,8 +19,9 @@ import {
   Created,
   Loaded,
   Failed,
-  ManuallySSO,
-  ManuallyLocal,
+  ManuallyWithoutTokenSSO,
+  ManuallyWithoutTokenLocal,
+  ManuallyWithToken,
 } from './AddApp.story';
 import { render, screen } from 'design/utils/testing';
 
@@ -39,12 +40,17 @@ test('render automatic tab on created state', async () => {
   expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });
 
+test('render manual tab with token', async () => {
+  render(<ManuallyWithToken />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+});
+
 test('render manual tab with local user', async () => {
-  render(<ManuallyLocal />);
+  render(<ManuallyWithoutTokenLocal />);
   expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });
 
 test('render manual tab with sso user', async () => {
-  render(<ManuallySSO />);
+  render(<ManuallyWithoutTokenSSO />);
   expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });

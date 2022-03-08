@@ -18,7 +18,6 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import makeNode from './makeNode';
 import makeNodeToken from './makeNodeToken';
-import makeAppBashCmd from './makeAppBashCmd';
 import { NodeToken, NodesResponse } from './types';
 
 const service = {
@@ -36,13 +35,6 @@ const service = {
 
   fetchJoinToken(): Promise<NodeToken> {
     return api.post(cfg.getNodeJoinTokenUrl()).then(makeNodeToken);
-  },
-
-  createAppBashCommand(appName: string, appUri: string) {
-    return api
-      .post(cfg.getNodeJoinTokenUrl())
-      .then(makeNodeToken)
-      .then(token => makeAppBashCmd(token, appName, appUri));
   },
 };
 

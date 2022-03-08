@@ -371,56 +371,7 @@ exports[`render automatic tab on created state 1`] = `
   width: 100%;
 }
 
-.c19 {
-  box-sizing: border-box;
-  margin-right: 4px;
-}
-
-.c20 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-}
-
-.c20:active {
-  opacity: 0.56;
-}
-
-.c20:hover,
-.c20:focus {
-  background: #651FFF;
-}
-
-.c20:active {
-  background: #354AA4;
-}
-
-.c20:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c22 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -447,25 +398,25 @@ exports[`render automatic tab on created state 1`] = `
   margin-right: 16px;
 }
 
-.c22:active {
+.c16:active {
   opacity: 0.56;
 }
 
-.c22:hover,
-.c22:focus {
+.c16:hover,
+.c16:focus {
   background: #651FFF;
 }
 
-.c22:active {
+.c16:active {
   background: #354AA4;
 }
 
-.c22:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c23 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -491,16 +442,16 @@ exports[`render automatic tab on created state 1`] = `
   padding: 0px 24px;
 }
 
-.c23:active {
+.c17:active {
   opacity: 0.56;
 }
 
-.c23:hover,
-.c23:focus {
+.c17:hover,
+.c17:focus {
   background: #2C3A73;
 }
 
-.c23:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -543,14 +494,6 @@ exports[`render automatic tab on created state 1`] = `
   margin-bottom: 4px;
 }
 
-.c16 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -573,14 +516,8 @@ exports[`render automatic tab on created state 1`] = `
 .c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
   margin: 0px;
-}
-
-.c15 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
+  margin-top: 8px;
 }
 
 .c4 {
@@ -603,23 +540,6 @@ exports[`render automatic tab on created state 1`] = `
   display: flex;
   align-items: center;
   flex-direction: row;
-}
-
-.c17 {
-  box-sizing: border-box;
-  margin-bottom: 8px;
-  padding: 8px;
-  background-color: #010B1C;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c18 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
 }
 
 .c1 {
@@ -681,7 +601,7 @@ exports[`render automatic tab on created state 1`] = `
   flex-direction: column;
 }
 
-.c21 {
+.c15 {
   box-sizing: border-box;
 }
 
@@ -762,66 +682,27 @@ exports[`render automatic tab on created state 1`] = `
           <div
             class="c13"
           >
-            Use the script below to add an application to your cluster.
-             
-            The script will be valid for
-            <span
+            Teleport can automatically set up application access. Provide the name and URL of your application to generate our auto-installer script.
+            <div
               class="c14"
             >
-               1 hour
-              .
-            </span>
-            <div
-              class="c15"
-            >
-              This app will be available on 
-                
-              <a
-                class="c16"
-                href="https://.localhost"
-                rel="noreferrer"
-                target="_blank"
-              >
-                https://.localhost
-              </a>
+              The script will install the Teleport agent to provide secure access to your application.
             </div>
           </div>
-          <div
-            class="c17"
-          >
-            <div
-              class="c18"
-              style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
-            >
-              <div
-                class="c19"
-              >
-                $
-              </div>
-              <div>
-                sudo bash -c "$(curl -fsSL 'http://localhost/scripts/86/install-app.sh?name=test&uri=http://myapp/')"
-              </div>
-            </div>
-            <button
-              class="c20"
-              kind="primary"
-              style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
-            >
-              Copy
-            </button>
-          </div>
+          
         </div>
         <div
-          class="c21"
+          class="c15"
         >
           <button
-            class="c22"
+            class="c16"
             kind="primary"
           >
-            Regenerate
+            Generate Script
           </button>
+          
           <button
-            class="c23"
+            class="c17"
             kind="secondary"
           >
             Close
@@ -834,7 +715,7 @@ exports[`render automatic tab on created state 1`] = `
 `;
 
 exports[`render failed automatic tab 1`] = `
-.c13 {
+.c15 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -851,7 +732,7 @@ exports[`render failed automatic tab 1`] = `
   color: #FFFFFF;
 }
 
-.c13 a {
+.c15 a {
   color: #FFFFFF;
 }
 
@@ -868,56 +749,7 @@ exports[`render failed automatic tab 1`] = `
   width: 100%;
 }
 
-.c20 {
-  box-sizing: border-box;
-  margin-right: 4px;
-}
-
-.c21 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-}
-
-.c21:active {
-  opacity: 0.56;
-}
-
-.c21:hover,
-.c21:focus {
-  background: #651FFF;
-}
-
-.c21:active {
-  background: #354AA4;
-}
-
-.c21:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c23 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -944,25 +776,25 @@ exports[`render failed automatic tab 1`] = `
   margin-right: 16px;
 }
 
-.c23:active {
+.c17:active {
   opacity: 0.56;
 }
 
-.c23:hover,
-.c23:focus {
+.c17:hover,
+.c17:focus {
   background: #651FFF;
 }
 
-.c23:active {
+.c17:active {
   background: #354AA4;
 }
 
-.c23:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c24 {
+.c18 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -988,16 +820,16 @@ exports[`render failed automatic tab 1`] = `
   padding: 0px 24px;
 }
 
-.c24:active {
+.c18:active {
   opacity: 0.56;
 }
 
-.c24:hover,
-.c24:focus {
+.c18:hover,
+.c18:focus {
   background: #2C3A73;
 }
 
-.c24:disabled {
+.c18:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -1040,14 +872,6 @@ exports[`render failed automatic tab 1`] = `
   margin-bottom: 4px;
 }
 
-.c17 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1060,24 +884,18 @@ exports[`render failed automatic tab 1`] = `
   color: rgba(255,255,255,0.87);
 }
 
-.c14 {
+.c13 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
 }
 
-.c15 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
-.c16 {
+.c14 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
+  margin-top: 8px;
 }
 
 .c4 {
@@ -1100,23 +918,6 @@ exports[`render failed automatic tab 1`] = `
   display: flex;
   align-items: center;
   flex-direction: row;
-}
-
-.c18 {
-  box-sizing: border-box;
-  margin-bottom: 8px;
-  padding: 8px;
-  background-color: #010B1C;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c19 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
 }
 
 .c1 {
@@ -1178,7 +979,7 @@ exports[`render failed automatic tab 1`] = `
   flex-direction: column;
 }
 
-.c22 {
+.c16 {
   box-sizing: border-box;
 }
 
@@ -1258,73 +1059,34 @@ exports[`render failed automatic tab 1`] = `
           </div>
           <div
             class="c13"
+          >
+            Teleport can automatically set up application access. Provide the name and URL of your application to generate our auto-installer script.
+            <div
+              class="c14"
+            >
+              The script will install the Teleport agent to provide secure access to your application.
+            </div>
+          </div>
+          <div
+            class="c15"
             kind="danger"
           >
             some error message
           </div>
-          <div
-            class="c14"
-          >
-            Use the script below to add an application to your cluster.
-             
-            The script will be valid for
-            <span
-              class="c15"
-            >
-               1 hour
-              .
-            </span>
-            <div
-              class="c16"
-            >
-              This app will be available on 
-                
-              <a
-                class="c17"
-                href="https://.localhost"
-                rel="noreferrer"
-                target="_blank"
-              >
-                https://.localhost
-              </a>
-            </div>
-          </div>
-          <div
-            class="c18"
-          >
-            <div
-              class="c19"
-              style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
-            >
-              <div
-                class="c20"
-              >
-                $
-              </div>
-              <div>
-                sudo bash -c "$(curl -fsSL 'http://localhost/scripts/86/install-app.sh?name=test&uri=http://myapp/')"
-              </div>
-            </div>
-            <button
-              class="c21"
-              kind="primary"
-              style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
-            >
-              Copy
-            </button>
-          </div>
+          
         </div>
         <div
-          class="c22"
+          class="c16"
         >
           <button
-            class="c23"
+            class="c17"
             kind="primary"
           >
-            Regenerate
+            Generate Script
           </button>
+          
           <button
-            class="c24"
+            class="c18"
             kind="secondary"
           >
             Close
@@ -1556,7 +1318,6 @@ exports[`render manual tab with local user 1`] = `
 .c7 {
   box-sizing: border-box;
   margin-bottom: 32px;
-  min-height: 240px;
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
@@ -1991,7 +1752,6 @@ exports[`render manual tab with sso user 1`] = `
 .c7 {
   box-sizing: border-box;
   margin-bottom: 32px;
-  min-height: 240px;
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
@@ -2195,6 +1955,400 @@ exports[`render manual tab with sso user 1`] = `
         >
           <button
             class="c18"
+            kind="secondary"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render manual tab with token 1`] = `
+.c8 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c10 {
+  box-sizing: border-box;
+}
+
+.c16 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c17 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c17:active {
+  opacity: 0.56;
+}
+
+.c17:hover,
+.c17:focus {
+  background: #651FFF;
+}
+
+.c17:active {
+  background: #354AA4;
+}
+
+.c17:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c20 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c20:active {
+  opacity: 0.56;
+}
+
+.c20:hover,
+.c20:focus {
+  background: #2C3A73;
+}
+
+.c20:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c18 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  padding: 0 8px;
+}
+
+.c18:hover,
+.c18:focus {
+  background: #222C59;
+}
+
+.c11 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  margin-right: 8px;
+}
+
+.c12 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  margin-right: auto;
+  color: rgba(255,255,255,0.87);
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 4px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.c5 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c14 {
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 8px;
+  background-color: #010B1C;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c15 {
+  box-sizing: border-box;
+  margin-right: 8px;
+  display: flex;
+}
+
+.c1 {
+  z-index: -1;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+  background-color: rgba(0,0,0,0.5);
+  opacity: 1;
+  touch-action: none;
+}
+
+.c0 {
+  position: fixed;
+  z-index: 1200;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+}
+
+.c2 {
+  height: 100%;
+  outline: none;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  will-change: opacity;
+  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+}
+
+.c3 {
+  padding: 32px;
+  padding-top: 24px;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  max-height: calc(100% - 96px);
+  max-width: 600px;
+  width: 100%;
+  min-height: 330px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.c19 {
+  box-sizing: border-box;
+}
+
+<div
+  class="c0"
+  data-testid="Modal"
+>
+  <div
+    aria-hidden="true"
+    class="c1"
+    data-testid="backdrop"
+  />
+  <div
+    class="c2"
+  >
+    <div
+      class="c3"
+      data-testid="dialogbox"
+    >
+      <div
+        class="c4"
+      >
+        <div
+          class="c5"
+        >
+          <div
+            class="c6"
+            color="text.primary"
+          >
+            Add Application
+          </div>
+        </div>
+        <div
+          class="c7"
+        >
+          <div
+            class="c8"
+          >
+            <span
+              class="c9"
+            >
+              Step 1
+            </span>
+             
+            - Download Teleport package to your computer
+            <div
+              class="c10"
+            >
+              <a
+                class="c11"
+                href="https://get.gravitational.com/teleport-v5.0.0-dev-darwin-amd64-bin.tar.gz"
+                rel="noreferrer"
+                target="_blank"
+              >
+                MacOS
+              </a>
+              <a
+                class="c11"
+                href="https://get.gravitational.com/teleport-v5.0.0-dev-linux-amd64-bin.tar.gz"
+                rel="noreferrer"
+                target="_blank"
+              >
+                Linux 64-bit
+              </a>
+              <a
+                class="c12"
+                href="https://get.gravitational.com/teleport-v5.0.0-dev-linux-386-bin.tar.gz"
+                rel="noreferrer"
+                target="_blank"
+              >
+                Linux 32-bit
+              </a>
+            </div>
+          </div>
+          <div
+            class="c10"
+          >
+            <span
+              class="c9"
+            >
+              Step 2
+            </span>
+             - Start the Teleport agent with the following parameters
+            <div
+              class="c13"
+            >
+              The token will be valid for
+               
+              <span
+                class="c9"
+              >
+                1 hour
+                .
+              </span>
+            </div>
+            <div
+              class="c14"
+            >
+              <div
+                class="c15"
+                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+              >
+                <div
+                  class="c16"
+                >
+                  $
+                </div>
+                <div>
+                  teleport start --roles=app --app-name=[example-app] --app-uri=http://localhost/ --token=join-token --auth-server=localhost:443
+                </div>
+              </div>
+              <button
+                class="c17"
+                kind="primary"
+                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+              >
+                Copy
+              </button>
+            </div>
+            <div
+              class="c10"
+            >
+              <a
+                class="c18 c17"
+                kind="primary"
+              >
+                Regenerate Token
+              </a>
+            </div>
+          </div>
+        </div>
+        <div
+          class="c19"
+        >
+          <button
+            class="c20"
             kind="secondary"
           >
             Close

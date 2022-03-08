@@ -28,14 +28,23 @@ import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import { DialogContent, DialogFooter } from 'design/Dialog';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import cfg from 'teleport/config';
 
 export default function Automatically(props: Props) {
-  const { cmd, onClose, attempt, expires } = props;
+  const { onClose, attempt, expires, token } = props;
 
   const [name, setName] = React.useState('');
   const [uri, setUri] = React.useState('');
+  const [cmd, setCmd] = React.useState('');
 
-  function handleCreate(validator: Validator) {
+  React.useEffect(() => {
+    if (name && uri) {
+      const cmd = createAppBashCommand(token, name, uri);
+      setCmd(cmd);
+    }
+  }, [token]);
+
+  function handleRegenerate(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
@@ -43,12 +52,25 @@ export default function Automatically(props: Props) {
     props.onCreate(name, uri);
   }
 
+  function handleGenerate(validator: Validator) {
+    if (!validator.validate()) {
+      return;
+    }
+
+    const cmd = createAppBashCommand(token, name, uri);
+    setCmd(cmd);
+  }
+
   function handleEnterPress(
     e: KeyboardEvent<HTMLInputElement>,
     validator: Validator
   ) {
     if (e.key === 'Enter') {
-      handleCreate(validator);
+      if (cmd) {
+        handleRegenerate(validator);
+      } else {
+        handleGenerate(validator);
+      }
     }
   }
 
@@ -112,7 +134,7 @@ export default function Automatically(props: Props) {
               <ButtonPrimary
                 mr="3"
                 disabled={attempt.status === 'processing'}
-                onClick={() => handleCreate(validator)}
+                onClick={() => handleGenerate(validator)}
               >
                 Generate Script
               </ButtonPrimary>
@@ -121,7 +143,7 @@ export default function Automatically(props: Props) {
               <ButtonPrimary
                 mr="3"
                 disabled={attempt.status === 'processing'}
-                onClick={() => handleCreate(validator)}
+                onClick={() => handleRegenerate(validator)}
               >
                 Regenerate
               </ButtonPrimary>
@@ -219,10 +241,25 @@ const requiredAppName = value => () => {
   };
 };
 
+export const createAppBashCommand = (token, appName, appUri): string => {
+  // encode uri so it can be passed around as URL query parameter
+  const encoded = encodeURIComponent(appUri)
+    // encode single quotes so they do not break the curl parameters
+    .replace(/'/g, '%27');
+  const bashUrl =
+    cfg.baseUrl +
+    cfg.api.appNodeScriptPath
+      .replace(':token', token)
+      .replace(':name', appName)
+      .replace(':uri', encoded);
+
+  return `sudo bash -c "$(curl -fsSL '${bashUrl}')"`;
+};
+
 type Props = {
   onClose(): void;
   onCreate(name: string, uri: string): Promise<any>;
-  cmd: string;
+  token: string;
   expires: string;
   attempt: Attempt;
 };
