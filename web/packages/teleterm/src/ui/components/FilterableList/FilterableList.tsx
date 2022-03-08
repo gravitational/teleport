@@ -7,7 +7,7 @@ interface FilterableListProps<T> {
   filterBy: keyof T;
   placeholder?: string;
 
-  Node(props: { item: T }): ReactNode;
+  Node(props: { item: T; index: number }): ReactNode;
 }
 
 const maxItemsToShow = 10;
@@ -32,7 +32,7 @@ export function FilterableList<T>(props: FilterableListProps<T>) {
       />
       <UnorderedList>
         {filteredItems.map((item, index) => (
-          <Fragment key={index}>{props.Node({ item })}</Fragment>
+          <Fragment key={index}>{props.Node({ item, index })}</Fragment>
         ))}
       </UnorderedList>
     </>

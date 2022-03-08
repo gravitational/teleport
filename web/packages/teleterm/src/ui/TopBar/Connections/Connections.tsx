@@ -1,19 +1,29 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import Popover from 'design/Popover';
 import styled from 'styled-components';
 import { Box } from 'design';
 import { useConnections } from './useConnections';
 import { ConnectionsIcon } from './ConnectionsIcon/ConnectionsIcon';
 import { ConnectionsFilterableList } from './ConnectionsFilterableList/ConnectionsFilterableList';
+import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
 
 export function Connections() {
   const iconRef = useRef();
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
   const connections = useConnections();
 
-  function togglePopover(): void {
+  const togglePopover = useCallback(() => {
     setIsPopoverOpened(wasOpened => !wasOpened);
-  }
+  }, [setIsPopoverOpened]);
+
+  useKeyboardShortcuts(
+    useMemo(
+      () => ({
+        'toggle-connections': togglePopover,
+      }),
+      [togglePopover]
+    )
+  );
 
   function activateItem(id: string): void {
     setIsPopoverOpened(false);

@@ -21,7 +21,10 @@ export function useConnections() {
 
   connectionTracker.useState();
 
-  const items = connectionTracker.getConnections();
+  // connected first
+  const items = [...connectionTracker.getConnections()].sort((a, b) => {
+    return a.connected === b.connected ? 0 : a.connected ? -1 : 1;
+  });
 
   return {
     isAnyConnectionActive: items.some(c => c.connected),

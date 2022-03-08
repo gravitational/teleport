@@ -20,7 +20,7 @@ export const ListItem = styled.li`
   border-radius: 4px;
 
   background: ${props =>
-    props.isFocused ? props.theme.colors.primary.light : null};
+    props.isActive ? props.theme.colors.primary.light : null};
 
   &:hover {
     background: ${props => props.theme.colors.primary.light};

@@ -1,23 +1,29 @@
 import React from 'react';
 import { ButtonIcon, Flex, Text } from 'design';
-import { CircleStop, CircleCross } from 'design/Icon';
+import { CircleCross, CircleStop } from 'design/Icon';
 import { TrackedConnection } from 'teleterm/ui/services/connectionTracker';
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
+import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 
 interface ConnectionItemProps {
+  index: number;
   item: TrackedConnection;
 
-  onActivate(id: string): void;
+  onActivate(): void;
 
-  onRemove(id: string): void;
+  onRemove(): void;
 
-  onDisconnect(id: string): void;
+  onDisconnect(): void;
 }
 
 export function ConnectionItem(props: ConnectionItemProps) {
   const offline = !props.item.connected;
   const color = !offline ? 'text.primary' : 'text.placeholder';
+  const { isActive } = useKeyboardArrowsNavigation({
+    index: props.index,
+    onRunActiveItem: props.onActivate,
+  });
 
   const actionIcons = {
     disconnect: {
@@ -35,7 +41,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
   const actionIcon = offline ? actionIcons.remove : actionIcons.disconnect;
 
   return (
-    <ListItem onClick={() => props.onActivate(props.item.id)}>
+    <ListItem onClick={() => props.onActivate()} isActive={isActive}>
       <ConnectionStatusIndicator mr={2} connected={props.item.connected} />
       <Flex
         alignItems="center"
@@ -53,7 +59,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
           title={actionIcon.title}
           onClick={e => {
             e.stopPropagation();
-            actionIcon.action(props.item.id);
+            actionIcon.action();
           }}
         >
           <actionIcon.Icon fontSize={12} />
