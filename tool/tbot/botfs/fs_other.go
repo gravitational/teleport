@@ -33,6 +33,30 @@ func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 	return trace.Wrap(createStandard(path, isDir))
 }
 
+// Read reads the contents of the given file into memory.
+func Read(path string, symlinksMode SymlinksMode) ([]byte, error) {
+	switch symlinksMode {
+	case SymlinksSecure:
+		return nil, trace.BadParameter("cannot read with `symlinks: secure` on unsupported platform")
+	case SymlinksTrySecure:
+		log.Warn("Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message", path)
+	}
+
+	file, err := openStandard(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return data, nil
+}
+
 // Write stores the given data to the file at the given path.
 func Write(path string, data []byte, symlinksMode SymlinksMode) error {
 	switch symlinksMode {

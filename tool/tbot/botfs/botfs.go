@@ -64,8 +64,8 @@ const (
 	// unavailable.
 	ACLTry ACLMode = "try"
 
-	// ACLOn enables ACL support and fails if ACLs are unavailable.
-	ACLOn ACLMode = "on"
+	// ACLRequired enables ACL support and fails if ACLs are unavailable.
+	ACLRequired ACLMode = "required"
 )
 
 const (
@@ -78,7 +78,7 @@ const (
 	DefaultDirMode fs.FileMode = 0700
 )
 
-// aclOptions contains parameters needed to configure ACLs
+// ACLOptions contains parameters needed to configure ACLs
 type ACLOptions struct {
 	// botUser is the bot user that should have write access to this entry
 	BotUser *user.User
@@ -111,7 +111,9 @@ func createStandard(path string, isDir bool) error {
 			return trace.Wrap(err)
 		}
 
-		f.Close()
+		if err := f.Close(); err != nil {
+			log.Warnf("Failed to close file at %q: %+v", path, err)
+		}
 	}
 
 	return nil
@@ -121,11 +123,6 @@ func createStandard(path string, isDir bool) error {
 // supported on all platforms and will return a trace.NotImplemented in that
 // case.
 func GetOwner(fileInfo fs.FileInfo) (*user.User, error) {
-	if runtime.GOOS == constants.WindowsOS {
-		// no-op on windows
-		return nil, trace.NotImplemented("Cannot verify file ownership on this platform.")
-	}
-
 	info, ok := fileInfo.Sys().(*syscall.Stat_t)
 	if !ok {
 		return nil, trace.NotImplemented("Cannot verify file ownership on this platform.")

@@ -104,7 +104,7 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 		}
 	case botfs.ACLOff, botfs.ACLTry:
 		// valid
-	case botfs.ACLOn:
+	case botfs.ACLRequired:
 		if !aclsSupported {
 			return trace.BadParameter("acls mode %q not supported on this system", dd.ACLs)
 		}
@@ -120,10 +120,10 @@ func (dd *DestinationDirectory) Init() error {
 	stat, err := os.Stat(dd.Path)
 	if trace.IsNotFound(err) {
 		err = os.MkdirAll(dd.Path, botfs.DefaultDirMode)
-		log.Infof("Created directory %q", dd.Path)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		log.Infof("Created directory %q", dd.Path)
 	} else if err != nil {
 		return trace.Wrap(err)
 	} else if !stat.IsDir() {
@@ -175,7 +175,7 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	}
 
 	aggregate := trace.NewAggregate(errors...)
-	if dd.ACLs == botfs.ACLOn {
+	if dd.ACLs == botfs.ACLRequired {
 		// Hard fail if ACLs are specifically requested and there are errors.
 		return aggregate
 	}

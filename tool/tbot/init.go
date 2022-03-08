@@ -422,13 +422,13 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	var ownerGroup *user.Group
 
 	switch destDir.ACLs {
-	case botfs.ACLOn, botfs.ACLTry:
+	case botfs.ACLRequired, botfs.ACLTry:
 		log.Debug("Testing for ACL support...")
 
 		// Awkward control flow here, but we want these to fail together.
 		ownerUser, ownerGroup, aclOpts, err = getAndTestACLOptions(cf, destDir.Path)
 		if err != nil {
-			if destDir.ACLs == botfs.ACLOn {
+			if destDir.ACLs == botfs.ACLRequired {
 				// ACLs were specifically requested (vs "try" mode), so fail.
 				return trace.Wrap(err, aclTestFailedMessage, destImpl)
 			}

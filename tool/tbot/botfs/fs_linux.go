@@ -138,7 +138,9 @@ func createSecure(path string, isDir bool) error {
 		}
 
 		// No writing to do, just close it.
-		f.Close()
+		if err := f.Close(); err != nil {
+			log.Warnf("Failed to close file at %q: %+v", path, err)
+		}
 	}
 
 	return nil
@@ -199,40 +201,12 @@ func Read(path string, symlinksMode SymlinksMode) ([]byte, error) {
 
 	defer file.Close()
 
-	// Blatantly stolen from go's os/file.go since there's no stdlib function
-	// for reading everything from an _already open_ file, sigh.
-	var size int
-	if info, err := file.Stat(); err == nil {
-		size64 := info.Size()
-		if int64(int(size64)) == size64 {
-			size = int(size64)
-		}
-	}
-	size++ // one byte for final read at EOF
-
-	// If a file claims a small size, read at least 512 bytes.
-	// In particular, files in Linux's /proc claim size 0 but
-	// then do not work right if read in small pieces,
-	// so an initial read of 1 byte would not work correctly.
-	if size < 512 {
-		size = 512
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	data := make([]byte, 0, size)
-	for {
-		if len(data) >= cap(data) {
-			d := append(data[:cap(data)], 0)
-			data = d[:len(data)]
-		}
-		n, err := file.Read(data[len(data):cap(data)])
-		data = data[:len(data)+n]
-		if err != nil {
-			if err == io.EOF {
-				err = nil
-			}
-			return data, err
-		}
-	}
+	return data, nil
 }
 
 // Write stores the given data to the file at the given path.
@@ -415,22 +389,22 @@ func ConfigureACL(path string, owner *user.User, opts *ACLOptions) error {
 		})
 	}
 
-	desiredACL = append(desiredACL, []acl.Entry{
-		{
+	desiredACL = append(desiredACL,
+		acl.Entry{
 			Tag:   acl.TagGroupObj,
 			Perms: modeACLNone,
 		},
-		{
+		acl.Entry{
 			// Mask is the maximum permissions the ACL can grant. This should
 			// match the desired bot permissions.
 			Tag:   acl.TagMask,
 			Perms: botAndReaderMode,
 		},
-		{
+		acl.Entry{
 			Tag:   acl.TagOther,
 			Perms: modeACLNone,
 		},
-	}...)
+	)
 
 	// Note: we currently give both the bot and reader read/write to all the
 	// files. This is done for simplicity and shouldn't represent a security
