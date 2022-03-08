@@ -68,7 +68,7 @@ func Run(args []string) error {
 	var cf config.CLIConf
 	utils.InitLogger(utils.LoggingForDaemon, logrus.InfoLevel)
 
-	app := utils.InitCLIParser("tbot", "tbot: Teleport Credential Bot").Interspersed(false)
+	app := utils.InitCLIParser("tbot", "tbot: Teleport Machine ID").Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
 	app.Flag("config", "tbot.yaml path").Short('c').StringVar(&cf.ConfigPath)
 
