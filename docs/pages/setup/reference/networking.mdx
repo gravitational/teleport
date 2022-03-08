@@ -8,7 +8,7 @@ description: Teleport ports and networking requirements
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
-All Teleport services (the Proxy Service, Auth Service, and Nodes) have an
+All Teleport services (e.g., the Proxy Service, Auth Service, and Nodes) have an
 optional `public_addr` property that you can modify in each service's
 configuration file. The public address can take an IP or a DNS name. It can also
 be a list of values:
@@ -20,25 +20,27 @@ public_addr: ["proxy-one.example.com", "proxy-two.example.com"]
 Specifying a public address for a Teleport service may be useful in the
 following use cases:
 
-- You have multiple identical services, like proxies, behind a load balancer.
-- You want Teleport to issue an SSH certificate for the service with the additional
+- You have multiple identical services, e.g., Proxy Service instances, behind a
+  load balancer.
+- You want Teleport to issue an SSH certificate for the service with additional
   principals, e.g., host names.
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Cloud">
 
-Teleport Nodes have an optional `public_addr` property that you can modify in
-each service's configuration file. The public address can take an IP or a DNS
-name. It can also be a list of values:
+All Teleport services (e.g., the Application Service and Database Service) have
+an optional `public_addr` property that you can modify in each service's
+configuration file. The public address can take an IP or a DNS name. It can also
+be a list of values:
 
 ```yaml
-public_addr: ["proxy-one.example.com", "proxy-two.example.com"]
+public_addr: ["service-one.example.com", "service-two.example.com"]
 ```
 
 Specifying a public address for a Teleport Node may be useful in the
 following use cases:
 
-- You have multiple identical services, like proxies, behind a load balancer.
-- You want Teleport to issue an SSH certificate for the service with the additional
+- You have multiple identical services behind a load balancer.
+- You want Teleport to issue an SSH certificate for the service with additional
   principals, e.g., host names.
 </TabItem>
 </Tabs>
@@ -47,16 +49,9 @@ following use cases:
 ## HTTP CONNECT proxies
 
 Some networks funnel all connections through a proxy server where they can be
-audited and access control rules can be applied. For these scenarios, Teleport
-supports HTTP CONNECT tunneling.
+audited and access control rules are applied. For these scenarios, Teleport supports HTTP CONNECT tunneling.
 
-To use HTTP CONNECT tunneling, simply set either the `HTTPS_PROXY` or
-`HTTP_PROXY` variables of the `teleport` daemon's shell environment. When the
-daemon builds and establishes a reverse tunnel to the main cluster, it will
-funnel all traffic through the selected proxy. 
-
-If using the default configuration, Teleport will tunnel ports `3024` (SSH,
-reverse tunnel) and `3080` (HTTPS, establishing trust) through the proxy.
+To use HTTP CONNECT tunneling, simply set either the `HTTPS_PROXY` or `HTTP_PROXY` environment variables and when Teleport builds and establishes the reverse tunnel to the main cluster, it will funnel all traffic through the proxy. Specifically, if using the default configuration, Teleport will tunnel ports `3024` (SSH, reverse tunnel) and `3080` (HTTPS, establishing trust) through the proxy.
 
 The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
 `scheme://host:port` where scheme is either `https` or `http` . If the value is
@@ -64,9 +59,7 @@ The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
 
 It's important to note that for Teleport to use HTTP CONNECT
 tunneling, the `HTTP_PROXY` and `HTTPS_PROXY` environment variables must be set
-within Teleport's environment.
-
-You can also optionally set the `NO_PROXY`
+within Teleport's environment. You can also optionally set the `NO_PROXY`
 environment variable to avoid use of the proxy when accessing specified
 hosts/netmasks. When launching Teleport with `systemd`, this will probably involve
 adding some lines to your `systemd` unit file:
