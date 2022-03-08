@@ -104,7 +104,7 @@ export default function LoginForm(props: Props) {
       {({ validator }) => (
         <CardLogin title={title}>
           {isFailed && (
-            <Alerts.Danger m={5} mb={0} style={{ wordBreak: 'break-word' }}>
+            <Alerts.Danger m={5} mb={0}>
               {message}
             </Alerts.Danger>
           )}

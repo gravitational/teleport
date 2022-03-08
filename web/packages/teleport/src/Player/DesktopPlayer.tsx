@@ -47,7 +47,7 @@ export const DesktopPlayer = ({
       )}
 
       {attempt.status === 'failed' && (
-        <DesktopPlayerAlert my={4} children={attempt.statusText} />
+        <DesktopPlayerAlert my={4} mx={10} children={attempt.statusText} />
       )}
 
       <TdpClientCanvas

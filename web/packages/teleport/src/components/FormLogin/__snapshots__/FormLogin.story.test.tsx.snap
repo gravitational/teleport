@@ -2112,12 +2112,12 @@ exports[`nonrendering of SSO providers w/ local auth disabled and no providers 1
   justify-content: center;
   border-radius: 2px;
   box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,.24);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
   margin: 0 0 24px 0;
   min-height: 40px;
   padding: 8px 16px;
   overflow: auto;
-  word-break: break-all;
+  word-break: break-word;
   line-height: 1.5;
   margin-top: 32px;
   margin-bottom: 32px;
@@ -2384,12 +2384,12 @@ exports[`server error rendering 1`] = `
   justify-content: center;
   border-radius: 2px;
   box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,.24);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
   margin: 0 0 24px 0;
   min-height: 40px;
   padding: 8px 16px;
   overflow: auto;
-  word-break: break-all;
+  word-break: break-word;
   line-height: 1.5;
   margin: 32px;
   margin-bottom: 0px;
@@ -2544,7 +2544,6 @@ exports[`server error rendering 1`] = `
   <div
     class="c2"
     kind="danger"
-    style="word-break: break-word;"
   >
     invalid credentials with looooooooooooooooooooooooooooooooong text
   </div>

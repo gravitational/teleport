@@ -214,7 +214,7 @@ function ErrorMessage({ message = '' }) {
   const showU2fErrorLink = notSupportedErr && message.includes('U2F');
 
   return (
-    <Alerts.Danger style={{ wordBreak: 'break-word' }}>
+    <Alerts.Danger>
       <div>
         {message}
         {showU2fErrorLink && (

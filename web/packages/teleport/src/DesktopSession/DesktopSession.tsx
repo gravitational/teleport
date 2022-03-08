@@ -62,14 +62,12 @@ export function DesktopSession(props: State) {
     alertText = clipboardState.errorText || 'clipboard sharing failed';
   } else if (unknownConnectionError) {
     alertText = 'Session disconnected for an unknown reason';
-  } else {
-    alertText = '';
   }
 
   if (alertText) {
     return (
       <Session {...props}>
-        <DesktopSessionAlert my={2} children={alertText} />
+        <DesktopSessionAlert my={2} mx={10} children={alertText} />
       </Session>
     );
   }
