@@ -1526,6 +1526,11 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 				s.state = types.SessionState_SessionStateRunning
 				s.stateUpdate.Broadcast()
 			}
+		} else if !s.started {
+			err := s.io.BroadcastMessage("Session paused, Waiting for required participants...")
+			if err != nil {
+				log.WithError(err).Errorf("Failed to broadcast message.")
+			}
 		}
 	}
 
