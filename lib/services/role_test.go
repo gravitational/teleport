@@ -580,6 +580,40 @@ func TestValidateRole(t *testing.T) {
 	}
 }
 
+func TestValidateRoleName(t *testing.T) {
+	var tests = []struct {
+		name         string
+		roleName     string
+		err          error
+		matchMessage string
+	}{
+		{
+			name:         "reserved role name proxy",
+			roleName:     string(types.RoleProxy),
+			err:          trace.BadParameter(""),
+			matchMessage: fmt.Sprintf("reserved role: %s", types.RoleProxy),
+		},
+		{
+			name:     "valid role name test-1",
+			roleName: "test-1",
+		},
+	}
+
+	for _, tc := range tests {
+		err := ValidateRoleName(&types.RoleV4{Metadata: types.Metadata{
+			Name: tc.roleName,
+		}})
+		if tc.err != nil {
+			require.Error(t, err, tc.name)
+			if tc.matchMessage != "" {
+				require.Contains(t, err.Error(), tc.matchMessage)
+			}
+		} else {
+			require.NoError(t, err, tc.name)
+		}
+	}
+}
+
 // TestLabelCompatibility makes sure that labels
 // are serialized in format understood by older servers with
 // scalar labels
