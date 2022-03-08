@@ -51,6 +51,7 @@ type commandlineArgs struct {
 	artifactSearchPatterns customflag.StringArray
 	bucket                 string
 	githubKeySrc           string
+	skipUnshallow          bool
 }
 
 // NOTE: changing the interface to this build script may require follow-up
@@ -65,6 +66,7 @@ func parseCommandLine() (commandlineArgs, error) {
 	flag.StringVar(&args.bucket, "bucket", "", "The artifact storage bucket.")
 	flag.Var(&args.artifactSearchPatterns, "a", "Path to artifacts. May be globbed, and have multiple entries.")
 	flag.StringVar(&args.githubKeySrc, "key-secret", "", "Location of github deploy token, as a Google Cloud Secret")
+	flag.BoolVar(&args.skipUnshallow, "skip-unshallow", false, "Skip unshallowing the repository.")
 
 	flag.Parse()
 
@@ -123,11 +125,13 @@ func run() error {
 		}
 	}
 
-	unshallowCtx, unshallowCancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer unshallowCancel()
-	err = git.UnshallowRepository(unshallowCtx, args.workspace, deployKey)
-	if err != nil {
-		return trace.Wrap(err, "unshallow failed")
+	if !args.skipUnshallow {
+		unshallowCtx, unshallowCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer unshallowCancel()
+		err = git.UnshallowRepository(unshallowCtx, args.workspace, deployKey)
+		if err != nil {
+			return trace.Wrap(err, "unshallow failed")
+		}
 	}
 
 	log.Println("Analysing code changes")
