@@ -29,7 +29,7 @@ This RFD repeatedly refers to some specific nouns of which explanations can be f
 - Initiator: The user that started the session. This user is in peer mode.
 - Mode: One of the modes below. Any given participant must be in one mode only.
 - Observer: A participant who can only view the session.
-- Moderator: A participant who can view and terminate a session at any point.
+- Moderator: A participant who can view and terminate the session at any point.
 - Peer: A participant with the ability to view and interact with the session.
 
 ### Multiparty sessions for Kubernetes
