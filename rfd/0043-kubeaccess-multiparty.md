@@ -25,7 +25,7 @@ that can be used to define observers, their powers, and when and in what capacit
 ### Terminology
 
 This RFD repeatedly refers to some specific nouns of which explanations can be found below:
-- Participant: Any user in a session regardless of mode, including the session initiator.
+- Participant: Any user in the session regardless of mode, including the session initiator.
 - Initiator: The user that started the session. This user is in peer mode.
 - Mode: One of the modes below. Any given participant must be in one mode only.
 - Observer: A participant who can only view the session.
