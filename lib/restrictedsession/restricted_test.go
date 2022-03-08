@@ -508,8 +508,8 @@ func isRoot() bool {
 	return os.Geteuid() == 0
 }
 
-// bpfTestEnabled returns true if BPF tests should run. Tests can be enabled by
-// setting TELEPORT_BPF_TEST environment variable to any value.
+// bpfTestEnabled returns true if BPF/LSM tests should run. Tests can be enabled by
+// setting TELEPORT_BPF_LSM_TEST environment variable to any value.
 func bpfTestEnabled() bool {
-	return os.Getenv("TELEPORT_BPF_TEST") != ""
+	return os.Getenv("TELEPORT_BPF_LSM_TEST") != ""
 }
