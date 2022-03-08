@@ -182,10 +182,6 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	if !isRoot() {
 		c.Skip("Tests for package restrictedsession can only be run as root.")
 	}
-	err := bpf.IsHostCompatible()
-	if err != nil {
-		c.Skip(fmt.Sprintf("Tests for package restrictedsession can not be run: %v.", err))
-	}
 
 	s.srcAddrs = map[int]string{
 		4: "0.0.0.0",
