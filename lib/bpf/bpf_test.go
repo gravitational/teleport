@@ -62,10 +62,6 @@ func (s *Suite) TestWatch(c *check.C) {
 	if !isRoot() {
 		c.Skip("Tests for package bpf can only be run as root.")
 	}
-	err := IsHostCompatible()
-	if err != nil {
-		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
-	}
 
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
 	dir, err := os.MkdirTemp("", "cgroup-test")
@@ -143,11 +139,6 @@ func (s *Suite) TestObfuscate(c *check.C) {
 	// BPF programs.
 	if !isRoot() {
 		c.Skip("Tests for package bpf can only be run as root.")
-		return
-	}
-	err := IsHostCompatible()
-	if err != nil {
-		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
 		return
 	}
 
@@ -229,10 +220,6 @@ func (s *Suite) TestScript(c *check.C) {
 	if !isRoot() {
 		c.Skip("Tests for package bpf can only be run as root.")
 	}
-	err := IsHostCompatible()
-	if err != nil {
-		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
-	}
 
 	// Start execsnoop.
 	execsnoop, err := startExec(8192)
@@ -301,12 +288,6 @@ func (s *Suite) TestPrograms(c *check.C) {
 	// This test must be run as root. Only root can create cgroups.
 	if !isRoot() {
 		c.Skip("Tests for package bpf can only be run as root.")
-	}
-
-	// Check that the host is capable of running BPF programs.
-	err := IsHostCompatible()
-	if err != nil {
-		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
 	}
 
 	// Start a debug server that tcpconnect will connect to.
@@ -393,12 +374,6 @@ func (s *Suite) TestBPFCounter(c *check.C) {
 	// This test must be run as root. Only root can create cgroups.
 	if !isRoot() {
 		c.Skip("Tests for package bpf can only be run as root.")
-	}
-
-	// Check that the host is capable of running BPF programs.
-	err := IsHostCompatible()
-	if err != nil {
-		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
 	}
 
 	counterTestBPF, err := embedFS.ReadFile("bytecode/counter_test.bpf.o")
