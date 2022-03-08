@@ -163,6 +163,3 @@ func (s *Sanitizer) Clock() clockwork.Clock {
 func (s *Sanitizer) CloseWatchers() {
 	s.backend.CloseWatchers()
 }
-
-// Migrate runs the necessary data migrations for this backend.
-func (s *Sanitizer) Migrate(ctx context.Context) error { return s.backend.Migrate(ctx) }
