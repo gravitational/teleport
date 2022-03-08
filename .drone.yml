@@ -1,5 +1,5 @@
 ---
-kind: pipeline
+kind: pipeline   
 type: kubernetes
 name: update-docs-webhook
 
