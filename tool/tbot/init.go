@@ -472,7 +472,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 	// Based on this, create any new files.
 	if len(toCreate) > 0 {
-		log.Infof("To create: %v", toCreate)
+		log.Infof("Attempting to create: %v", toCreate)
 
 		for key, isDir := range toCreate {
 			path := filepath.Join(destDir.Path, key)
@@ -488,14 +488,22 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 	// ... and warn about / remove any unneeded files.
 	if len(toRemove) > 0 && cf.Clean {
-		log.Infof("To remove: %v", toRemove)
+		log.Infof("Attempting to remove: %v", toRemove)
+
+		var errors []error
+
 		for key := range toRemove {
 			path := filepath.Join(destDir.Path, key)
 
 			if err := os.RemoveAll(path); err != nil {
-				return trace.Wrap(err)
+				errors = append(errors, err)
+			} else {
+				log.Infof("Removed: %s", path)
 			}
-			log.Infof("Removed: %s", path)
+		}
+
+		if err := trace.NewAggregate(errors...); err != nil {
+			return trace.Wrap(err)
 		}
 	} else if len(toRemove) > 0 {
 		log.Warnf("Unexpected files found in destination directory, consider " +

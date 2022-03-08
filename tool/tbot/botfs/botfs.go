@@ -105,15 +105,17 @@ func createStandard(path string, isDir bool) error {
 		if err := os.Mkdir(path, DefaultDirMode); err != nil {
 			return trace.Wrap(err)
 		}
-	} else {
-		f, err := openStandard(path)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 
-		if err := f.Close(); err != nil {
-			log.Warnf("Failed to close file at %q: %+v", path, err)
-		}
+		return nil
+	}
+	
+	f, err := openStandard(path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := f.Close(); err != nil {
+		log.Warnf("Failed to close file at %q: %+v", path, err)
 	}
 
 	return nil

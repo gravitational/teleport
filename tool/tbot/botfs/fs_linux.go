@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"sync"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport/lib/utils"
@@ -51,6 +52,9 @@ const modeACLReadWriteExecute fs.FileMode = 07
 // modeACLNone is the UNIX file mode for no permissions, used for group and
 // world read/write.
 const modeACLNone fs.FileMode = 0
+
+// missingSyscallWarning is used to reduce log spam when a syscall is missing.
+var missingSyscallWarning sync.Once
 
 // openSecure opens the given path for writing (with O_CREAT, mode 0600)
 // with the RESOLVE_NO_SYMLINKS flag set.
@@ -128,19 +132,21 @@ func createSecure(path string, isDir bool) error {
 		if err := os.Mkdir(path, DefaultDirMode); err != nil {
 			return trace.Wrap(err)
 		}
-	} else {
-		f, err := openSecure(path)
-		if err == unix.ENOSYS {
-			// bubble up the original error for comparison
-			return err
-		} else if err != nil {
-			return trace.Wrap(err)
-		}
 
-		// No writing to do, just close it.
-		if err := f.Close(); err != nil {
-			log.Warnf("Failed to close file at %q: %+v", path, err)
-		}
+		return nil
+	}
+
+	f, err := openSecure(path)
+	if err == unix.ENOSYS {
+		// bubble up the original error for comparison
+		return err
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// No writing to do, just close it.
+	if err := f.Close(); err != nil {
+		log.Warnf("Failed to close file at %q: %+v", path, err)
 	}
 
 	return nil
@@ -178,15 +184,19 @@ func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 			return trace.Wrap(err)
 		}
 
-		// TODO: this will be very noisy on older systems. Maybe flip a global
-		// or something to only log once?
-		log.Warnf("Failed to create %q securely due to missing syscall; "+
-			"falling back to regular file creation. Set `symlinks: "+
-			"insecure` on this destination to disable this warning.", path)
+		// It's a bit gross to stuff this sync.Once into a global, but
+		// hopefully that's forgivable since it just manages a log message.
+		missingSyscallWarning.Do(func() {
+			log.Warnf("Failed to create %q securely due to missing syscall; "+
+				"falling back to regular file creation. Set `symlinks: "+
+				"insecure` on this destination to disable this warning.", path)
+		})
 
 		return trace.Wrap(createStandard(path, isDir))
 	case SymlinksInsecure:
 		return trace.Wrap(createStandard(path, isDir))
+	default:
+		return trace.BadParameter("invalid symlinks mode %q", symlinksMode)
 	}
 
 	return nil
