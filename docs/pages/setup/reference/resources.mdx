@@ -4,52 +4,74 @@ description: The detailed reference documentation for Teleport Configuration Res
 h1: Teleport Configuration Resources Reference
 ---
 
-## Resources
+## Introduction
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 A Teleport administrator has two tools to configure a Teleport cluster:
 
-- The [configuration file](./config.mdx) is used for static configuration like
-  the cluster name.
-- The [`tctl`](./cli.mdx#tctl) admin tool is used for manipulating dynamic
+- The [configuration file](./config.mdx) is used for static configuration
+  settings such as the cluster name.
+- The [`tctl`](./cli.mdx#tctl) admin tool is used for managing dynamic
   records like Teleport users.
 
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+A Teleport administrator can configure a Teleport cluster by using the
+[`tctl`](./cli.mdx#tctl) admin tool to manage dynamic records like Teleport
+users.
+
+</TabItem>
+</Tabs>
+
+(!docs/pages/includes/tctl.mdx!)
+
+### `tctl` concepts
+
 [`tctl`](./cli.mdx#tctl) has convenient sub-commands for dynamic
-configuration, like `tctl users` or `tctl nodes`. However, for dealing with
-more advanced topics, like connecting clusters together or troubleshooting
-trust, [`tctl`](./cli.mdx#tctl) offers the more powerful, although
+configuration, such as `tctl users` or `tctl nodes`. 
+
+For more advanced management tasks, like connecting clusters together or
+troubleshooting trust, [`tctl`](./cli.mdx#tctl) offers the more powerful,
 lower-level CLI interface called `resources`.
 
 The concept is borrowed from the REST programming pattern. A cluster is composed
-of different objects (aka, resources) and there are just three common operations
-that can be performed on them: `get` , `create` , `remove` .
+of different objects (i.e., resources) and there are three common operations
+that can be performed on them: `get` , `create` , and `remove` .
 
 A resource is defined as a [YAML](https://en.wikipedia.org/wiki/YAML) file.
 Every resource in Teleport has three required fields:
 
-- `Kind` - The type of resource
-- `Name` - A required field in the `metadata` to uniquely identify the resource
-- `Version` - The version of the resource format
+- `kind`: The type of resource
+- `name`: A required field in the `metadata` to uniquely identify the resource
+- `version`: The version of the resource format
 
-Everything else is resource-specific and any component of a Teleport cluster can
+Everything else is resource specific and any component of a Teleport cluster can
 be manipulated with just three CLI commands:
 
 | Command | Description | Examples |
 | - | - | - |
-| [`tctl get`](./cli.mdx#tctl-get) | Get one or multiple resources | `tctl get users` or `tctl get user/joe` |
-| [`tctl rm`](./cli.mdx#tctl-rm) | Delete a resource by type/name | `tctl rm user/joe` |
-| [`tctl create`](./cli.mdx#tctl-create) | Create a new resource from a YAML file. Use `-f` to override / update | `tctl create -f joe.yaml` |
+| [`tctl get`](./cli.mdx#tctl-get) | Get one or multiple resources. | `tctl get users` or `tctl get user/joe` |
+| [`tctl rm`](./cli.mdx#tctl-rm) | Delete a resource by type/name. | `tctl rm user/joe` |
+| [`tctl create`](./cli.mdx#tctl-create) | Create a new resource from a YAML file. Use the `-f` flag to update existing resources. | `tctl create -f joe.yaml` |
 
 <Admonition
   type="warning"
   title="YAML Format"
 >
-  By default Teleport uses [YAML format](https://en.wikipedia.org/wiki/YAML) to describe resources.
-  YAML is a human-readable alternative to JSON or XML, but it's sensitive to white space.
-  Pay attention to spaces vs tabs.
+
+  By default Teleport, uses [YAML format](https://en.wikipedia.org/wiki/YAML) to
+  describe resources. YAML is a human-readable alternative to JSON or XML, but
+  it's sensitive to white space. Pay attention to spaces versus tabs.
+
 </Admonition>
 
-Here's an example how the YAML resource definition for a user Joe might look
-like. It can be retrieved by executing [`tctl get user/joe`](./cli.mdx#tctl-get)
+### `tctl` example
+
+Here's an example of a YAML resource definition for a user named `joe`. It can
+be retrieved by executing `tctl get user/joe`.
 
 ```yaml
 kind: user
@@ -66,13 +88,13 @@ spec:
     locked_time: 0001-01-01T00:00:00Z
   traits:
     # These are "allowed logins" which are usually specified as the
-    # last argument to `tctl users add`
+    # last argument to `tctl users add`.
     logins:
     - joe
     - root
   # Any resource in Teleport can automatically expire.
   expires: 0001-01-01T00:00:00Z
-  # for internal use only
+  # For internal use only
   created_by:
     time: 0001-01-01T00:00:00Z
     user:
@@ -85,6 +107,8 @@ spec:
 >
   Some of the fields you will see when printing resources are used only internally and are not meant to be changed. Others are reserved for future use.
 </Admonition>
+
+## Dynamic resources
 
 Here's the list of resources currently exposed via [`tctl`](./cli.mdx#tctl):
 
@@ -122,7 +146,7 @@ $ tctl rm users/admin
   Although `tctl get connectors` will show you every connector, when working with an individual connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each connector's `kind` at the top of its YAML output from `tctl get connectors`.
 </Admonition>
 
-## User
+### User
 
 Teleport supports interactive local users, non-interactive local users (bots)
 and single-sign on users that are represented as a resource.
@@ -158,7 +182,7 @@ spec:
       name: builtin-Admin
 ```
 
-## Role
+### Role
 
 Interactive and non-interactive users (bots) assume one or many roles.
 Roles govern access to databases, SSH servers, kubernetes clusters, and web apps.
