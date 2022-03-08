@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"k8s.io/apimachinery/pkg/util/validation"
 	"os"
 	"time"
 
@@ -34,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
