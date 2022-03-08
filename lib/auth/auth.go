@@ -1065,6 +1065,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		DisallowReissue:       req.disallowReissue,
 		Renewable:             req.renewable,
 		Generation:            req.generation,
+		CertificateExtensions: req.checker.CertificateExtensions(),
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
