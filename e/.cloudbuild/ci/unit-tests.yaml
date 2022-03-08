@@ -20,7 +20,7 @@ steps:
     entrypoint: bash
     args:
       - -c
-      - go run ./cmd/unit-tests --workspace=/tmp/teleport --target=$_BASE_BRANCH
+      - go run ./cmd/unit-tests -workspace=/tmp/teleport -target=$_BASE_BRANCH -skip-unshallow
     timeout: 25m
 
 availableSecrets:
