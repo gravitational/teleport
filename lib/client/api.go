@@ -17,7 +17,6 @@ limitations under the License.
 package client
 
 import (
-	"bufio"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -3164,12 +3163,6 @@ func passwordFromConsole() (string, error) {
 	}()
 
 	bytes, err := term.ReadPassword(fd)
-	return string(bytes), err
-}
-
-// lineFromConsole reads a line from stdin
-func lineFromConsole() (string, error) {
-	bytes, _, err := bufio.NewReader(os.Stdin).ReadLine()
 	return string(bytes), err
 }
 
