@@ -67,6 +67,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.botsAdd.Flag("roles", "Roles the bot is able to assume.").Required().StringVar(&c.botRoles)
 	c.botsAdd.Flag("ttl", "TTL for the bot join token.").DurationVar(&c.tokenTTL)
 	c.botsAdd.Flag("token", "Name of an existing token to use.").StringVar(&c.tokenID)
+	c.botsAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	// TODO: --ttl for setting a ttl on the join token
 
 	c.botsRemove = bots.Command("rm", "Permanently remove a certificate renewal bot from the cluster.")
@@ -186,6 +187,16 @@ func (c *BotsCommand) AddBot(client auth.ClientI) error {
 	})
 	if err != nil {
 		return trace.WrapWithMessage(err, "error while creating bot")
+	}
+
+	if c.format == teleport.JSON {
+		out, err := json.MarshalIndent(response, "", "  ")
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal CreateBot response")
+		}
+
+		fmt.Println(string(out))
+		return nil
 	}
 
 	// Calculate the CA pins for this cluster. The CA pins are used by the
