@@ -666,10 +666,7 @@ func (f *Forwarder) getKubeGroupsAndUsers(
 	}
 
 	// kubeClusterName not found. Empty list of allowed kube users/groups is returned.
-	return services.KubePermissions{
-		Groups: make([]string, 0),
-		Users:  make([]string, 0),
-	}, nil
+	return services.KubePermissions{}, nil
 }
 
 func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {

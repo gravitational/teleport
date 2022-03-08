@@ -1047,6 +1047,7 @@ func (set RoleSet) AdjustDisconnectExpiredCert(disconnect bool) bool {
 	return disconnect
 }
 
+// KubePermissions contains permission data specifying what kubernetes groups and users to map onto API requests.
 type KubePermissions struct {
 	// Groups is the list of kube groups the user has access to.
 	Groups []string
