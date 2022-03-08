@@ -218,7 +218,7 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 		return trace.Wrap(err)
 	}
 
-	caTypes = a.findDuplicatedCertificates(caTypes, allCerts)
+	caTypes = findDuplicatedCertificates(caTypes, allCerts)
 
 	for _, caType := range caTypes {
 		existing, found := allCerts[caType]
@@ -428,7 +428,7 @@ func (a *Server) getAllCertificates(clusterName string) (CertAuthorityMap, error
 
 // findDuplicatedCertificates checks if any CA provided as caTypes has a duplicate in allCerts. List of all duplicates
 // is returned as a result. If no duplicates are found, then caTypes is returned in unmodified form.
-func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAuthorityMap) []types.CertAuthType {
+func findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAuthorityMap) []types.CertAuthType {
 	if len(caTypes) == len(allCerts) {
 		// requested rotation of all certs, no point of looking for duplicates
 		return caTypes
@@ -479,6 +479,11 @@ func (a *Server) findDuplicatedCertificates(caTypes []types.CertAuthType, allCer
 	if len(rotateMap) == 0 {
 		// no duplicates found
 		return caTypes
+	}
+
+	// Copy unique keys from the request as those won't be in rotateMap at that point.
+	for _, caType := range caTypes {
+		rotateMap[caType] = struct{}{}
 	}
 
 	// copy all set elements to an array

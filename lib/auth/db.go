@@ -155,9 +155,9 @@ func (s *Server) SignDatabaseCSR(_ context.Context, req *proto.DatabaseCSRReques
 
 	caType := types.UserCA
 	if req.SignWithDatabaseCA {
-		// Field SignWithDatabaseCA was added in Teleport 9.0 when DatabaseCA was introduced.
+		// Field SignWithDatabaseCA was added in Teleport 9.1 when DatabaseCA was introduced.
 		// Previous Teleport versions used UserCA, and we still need to sign certificates with UserCA
-		// for compatibility reason. Teleport 9.0+ expects request signed with DatabaseCA.
+		// for compatibility reason. Teleport 9.1+ expects request signed with DatabaseCA.
 		caType = types.DatabaseCA
 	}
 
