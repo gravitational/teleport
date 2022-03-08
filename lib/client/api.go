@@ -3045,7 +3045,7 @@ func Username() (string, error) {
 // AskOTP prompts the user to enter the OTP token.
 func (tc *TeleportClient) AskOTP() (token string, err error) {
 	fmt.Fprintf(tc.Config.Stderr, "Enter your OTP token:\n")
-	token, err = lineFromConsole()
+	token, err = passwordFromConsoleFn()
 	if err != nil {
 		fmt.Fprintln(tc.Stderr, err)
 		return "", trace.Wrap(err)
