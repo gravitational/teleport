@@ -2398,37 +2398,55 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name       string
-		deviceType string
+		name            string
+		req             *createRegisterChallengeRequest
+		assertChallenge func(t *testing.T, c *client.MFARegisterChallenge)
 	}{
 		{
-			name:       "totp challenge",
-			deviceType: "totp",
+			name: "totp",
+			req: &createRegisterChallengeRequest{
+				DeviceType: "totp",
+			},
 		},
 		{
-			name:       "webauthn challenge",
-			deviceType: "webauthn",
+			name: "webauthn",
+			req: &createRegisterChallengeRequest{
+				DeviceType: "webauthn",
+			},
+		},
+		{
+			name: "passwordless",
+			req: &createRegisterChallengeRequest{
+				DeviceType:  "webauthn",
+				DeviceUsage: "passwordless",
+			},
+			assertChallenge: func(t *testing.T, c *client.MFARegisterChallenge) {
+				// rrk=true is a good proxy for passwordless.
+				require.NotNil(t, c.Webauthn.Response.AuthenticatorSelection.RequireResidentKey, "rrk cannot be nil")
+				require.True(t, *c.Webauthn.Response.AuthenticatorSelection.RequireResidentKey, "rrk cannot be false")
+			},
 		},
 	}
-
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			endpoint := clt.Endpoint("webapi", "mfa", "token", token.GetName(), "registerchallenge")
-			res, err := clt.PostJSON(ctx, endpoint, &createRegisterChallengeRequest{
-				DeviceType: tc.deviceType,
-			})
+			res, err := clt.PostJSON(ctx, endpoint, tc.req)
 			require.NoError(t, err)
 
 			var chal client.MFARegisterChallenge
 			require.NoError(t, json.Unmarshal(res.Bytes(), &chal))
 
-			switch tc.deviceType {
+			switch tc.req.DeviceType {
 			case "totp":
-				require.NotNil(t, chal.TOTP.QRCode)
+				require.NotNil(t, chal.TOTP.QRCode, "TOTP QR code cannot be nil")
 			case "webauthn":
-				require.NotNil(t, chal.Webauthn)
+				require.NotNil(t, chal.Webauthn, "WebAuthn challenge cannot be nil")
+			}
+
+			if tc.assertChallenge != nil {
+				tc.assertChallenge(t, &chal)
 			}
 		})
 	}

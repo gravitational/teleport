@@ -390,6 +390,107 @@ func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 	return true
 }
 
+// IsRDSInstanceAvailable checks if the RDS instance is available.
+func IsRDSInstanceAvailable(instance *rds.DBInstance) bool {
+	// For a full list of status values, see:
+	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/accessing-monitoring.html
+	switch aws.StringValue(instance.DBInstanceStatus) {
+	// Statuses marked as "Billed" in the above guide.
+	case "available", "backing-up", "configuring-enhanced-monitoring",
+		"configuring-iam-database-auth", "configuring-log-exports",
+		"converting-to-vpc", "incompatible-option-group",
+		"incompatible-parameters", "maintenance", "modifying", "moving-to-vpc",
+		"rebooting", "resetting-master-credentials", "renaming", "restore-error",
+		"storage-full", "storage-optimization", "upgrading":
+		return true
+
+	// Statuses marked as "Not billed" in the above guide.
+	case "creating", "deleting", "failed",
+		"inaccessible-encryption-credentials", "incompatible-network",
+		"incompatible-restore":
+		return false
+
+	// Statuses marked as "Billed for storage" in the above guide.
+	case "inaccessible-encryption-credentials-recoverable", "starting",
+		"stopped", "stopping":
+		return false
+
+	// Statuses that have no billing information in the above guide, but
+	// believed to be unavailable.
+	case "insufficient-capacity":
+		return false
+
+	default:
+		log.Warnf("Unknown status type: %q. Assuming RDS instance %q is available.",
+			aws.StringValue(instance.DBInstanceStatus),
+			aws.StringValue(instance.DBInstanceIdentifier),
+		)
+		return true
+	}
+}
+
+// IsRDSClusterAvailable checks if the RDS cluster is available.
+func IsRDSClusterAvailable(cluster *rds.DBCluster) bool {
+	// For a full list of status values, see:
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/accessing-monitoring.html
+	switch aws.StringValue(cluster.Status) {
+	// Statuses marked as "Billed" in the above guide.
+	case "available", "backing-up", "backtracking", "failing-over",
+		"maintenance", "migrating", "modifying", "promoting", "renaming",
+		"resetting-master-credentials", "update-iam-db-auth", "upgrading":
+		return true
+
+	// Statuses marked as "Not billed" in the above guide.
+	case "cloning-failed", "creating", "deleting",
+		"inaccessible-encryption-credentials", "migration-failed":
+		return false
+
+	// Statuses marked as "Billed for storage" in the above guide.
+	case "starting", "stopped", "stopping":
+		return false
+
+	default:
+		log.Warnf("Unknown status type: %q. Assuming Aurora cluster %q is available.",
+			aws.StringValue(cluster.Status),
+			aws.StringValue(cluster.DBClusterIdentifier),
+		)
+		return true
+	}
+}
+
+// IsRedshiftClusterAvailable checks if the Redshift cluster is available.
+func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
+	// For a full list of status values, see:
+	// https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-clusters.html#rs-mgmt-cluster-status
+	//
+	// Note that the Redshift guide does not specify billing information like
+	// the RDS and Aurora guides do. Most Redshift statuses are
+	// cross-referenced with similar statuses from RDS and Aurora guides to
+	// determine the availability.
+	//
+	// For "incompatible-xxx" statuses, the cluster is assumed to be available
+	// if the status is resulted by modifying the cluster, and the cluster is
+	// assumed to be unavailable if the cluster cannot be created or restored.
+	switch aws.StringValue(cluster.ClusterStatus) {
+	case "available", "available, prep-for-resize", "available, resize-cleanup",
+		"cancelling-resize", "final-snapshot", "modifying", "rebooting",
+		"renaming", "resizing", "rotating-keys", "storage-full", "updating-hsm",
+		"incompatible-parameters", "incompatible-hsm":
+		return true
+
+	case "creating", "deleting", "hardware-failure", "paused",
+		"incompatible-network":
+		return false
+
+	default:
+		log.Warnf("Unknown status type: %q. Assuming Redshift cluster %q is available.",
+			aws.StringValue(cluster.ClusterStatus),
+			aws.StringValue(cluster.ClusterIdentifier),
+		)
+		return true
+	}
+}
+
 // auroraMySQLVersion extracts aurora mysql version from engine version
 func auroraMySQLVersion(cluster *rds.DBCluster) string {
 	// version guide: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Updates.Versions.html

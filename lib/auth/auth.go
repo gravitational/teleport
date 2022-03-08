@@ -1307,6 +1307,7 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (t
 // CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
 func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	var username string
+	var passwordless bool
 
 	switch req.GetRequest().(type) {
 	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
@@ -1331,7 +1332,10 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 
 		username = token.GetUser()
 
-	default:
+	case *proto.CreateAuthenticateChallengeRequest_Passwordless:
+		passwordless = true // Allows empty username.
+
+	default: // unset or CreateAuthenticateChallengeRequest_ContextUser.
 		var err error
 		username, err = GetClientUsername(ctx)
 		if err != nil {
@@ -1339,7 +1343,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username)
+	challenges, err := a.mfaAuthChallenge(ctx, username, passwordless)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied("unable to create MFA challenges")
@@ -1368,17 +1372,19 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 	}
 
 	regChal, err := a.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
-		username:   token.GetUser(),
-		token:      token,
-		deviceType: req.GetDeviceType(),
+		username:    token.GetUser(),
+		token:       token,
+		deviceType:  req.GetDeviceType(),
+		deviceUsage: req.GetDeviceUsage(),
 	})
 
 	return regChal, trace.Wrap(err)
 }
 
 type newRegisterChallengeRequest struct {
-	username   string
-	deviceType proto.DeviceType
+	username    string
+	deviceType  proto.DeviceType
+	deviceUsage proto.DeviceUsage
 
 	// token is a user token resource.
 	// It is used as following:
@@ -1447,7 +1453,8 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 			Identity: identity,
 		}
 
-		credentialCreation, err := webRegistration.Begin(ctx, req.username, false /* passwordless */)
+		passwordless := req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
+		credentialCreation, err := webRegistration.Begin(ctx, req.username, passwordless)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2708,9 +2715,31 @@ type ResourcePageFunc func(next []types.ResourceWithLabels) (stop bool, err erro
 // IterateResourcePages can be used to iterate over pages of resources.
 func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (*types.ListResourcesResponse, error) {
 	for {
-		resp, err := a.ListResources(ctx, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		var resp *types.ListResourcesResponse
+		switch {
+		case req.ResourceType == types.KindWindowsDesktop:
+			wResp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+				WindowsDesktopFilter: req.WindowsDesktopFilter,
+				Limit:                int(req.Limit),
+				StartKey:             req.StartKey,
+				PredicateExpression:  req.PredicateExpression,
+				Labels:               req.Labels,
+				SearchKeywords:       req.SearchKeywords,
+				SortBy:               req.SortBy,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			resp = &types.ListResourcesResponse{
+				Resources: types.WindowsDesktops(wResp.Desktops).AsResources(),
+				NextKey:   wResp.NextKey,
+			}
+		default:
+			dResp, err := a.ListResources(ctx, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			resp = dResp
 		}
 
 		stop, err := f(resp.Resources)
@@ -3003,9 +3032,14 @@ func (a *Server) GetDatabase(ctx context.Context, name string) (types.Database, 
 	return a.GetCache().GetDatabase(ctx, name)
 }
 
-// GetDatabases returns all database resources.
+// ListResources returns paginated resources depending on the resource type..
 func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	return a.GetCache().ListResources(ctx, req)
+}
+
+// ListWindowsDesktops returns paginated windows desktops.
+func (a *Server) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	return a.GetCache().ListWindowsDesktops(ctx, req)
 }
 
 // GetLock gets a lock by name from the auth server's cache.
@@ -3184,7 +3218,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user string) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless bool) (*proto.MFAAuthenticateChallenge, error) {
 	// Check what kind of MFA is enabled.
 	apref, err := a.GetAuthPreference(ctx)
 	if err != nil {
@@ -3212,16 +3246,42 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string) (*proto.MFAA
 		webConfig = val
 	}
 
-	devs, err := a.Identity.GetMFADevices(ctx, user, true)
+	// Handle passwordless separately, it works differently from MFA.
+	if passwordless {
+		if !enableWebauthn {
+			return nil, trace.BadParameter("passwordless requires WebAuthn")
+		}
+		webLogin := &wanlib.PasswordlessFlow{
+			Webauthn: webConfig,
+			Identity: a.Identity,
+		}
+		assertion, err := webLogin.Begin(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &proto.MFAAuthenticateChallenge{
+			WebauthnChallenge: wanlib.CredentialAssertionToProto(assertion),
+		}, nil
+	}
+
+	// User required for non-passwordless.
+	if user == "" {
+		return nil, trace.BadParameter("user required")
+	}
+
+	devs, err := a.Identity.GetMFADevices(ctx, user, true /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	groupedDevs := groupByDeviceType(devs, enableWebauthn)
 	challenge := &proto.MFAAuthenticateChallenge{}
+
+	// TOTP challenge.
 	if enableTOTP && groupedDevs.TOTP {
 		challenge.TOTP = &proto.TOTPChallenge{}
 	}
+
+	// WebAuthn challenge.
 	if len(groupedDevs.Webauthn) > 0 {
 		webLogin := &wanlib.LoginFlow{
 			U2F:      u2fPref,
@@ -3264,32 +3324,63 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 	return res
 }
 
-func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse) (*types.MFADevice, error) {
+// validateMFAAuthResponse validates an MFA or passwordless challenge.
+// Returns the device used to solve the challenge (if applicable) and the
+// username.
+func (a *Server) validateMFAAuthResponse(
+	ctx context.Context,
+	resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	// Sanity check user/passwordless.
+	if user == "" && !passwordless {
+		return nil, "", trace.BadParameter("user required")
+	}
+
 	switch res := resp.Response.(type) {
-	case *proto.MFAAuthenticateResponse_TOTP:
-		return a.checkOTP(user, res.TOTP.Code)
+	// cases in order of preference
 	case *proto.MFAAuthenticateResponse_Webauthn:
+		// Read necessary configurations.
 		cap, err := a.GetAuthPreference(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
-		u2f, _ := cap.GetU2F()
+		u2f, err := cap.GetU2F()
+		switch {
+		case trace.IsNotFound(err): // OK, may happen.
+		case err != nil: // Unexpected.
+			return nil, "", trace.Wrap(err)
+		}
 		webConfig, err := cap.GetWebauthn()
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
-		webLogin := &wanlib.LoginFlow{
-			U2F:      u2f,
-			Webauthn: webConfig,
-			Identity: a.Identity,
+
+		assertionResp := wanlib.CredentialAssertionResponseFromProto(res.Webauthn)
+		var dev *types.MFADevice
+		if passwordless {
+			webLogin := &wanlib.PasswordlessFlow{
+				Webauthn: webConfig,
+				Identity: a.Identity,
+			}
+			dev, user, err = webLogin.Finish(ctx, assertionResp)
+		} else {
+			webLogin := &wanlib.LoginFlow{
+				U2F:      u2f,
+				Webauthn: webConfig,
+				Identity: a.Identity,
+			}
+			dev, err = webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
 		}
-		dev, err := webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
 		if err != nil {
-			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
+			return nil, "", trace.AccessDenied("MFA response validation failed: %v", err)
 		}
-		return dev, nil
+		return dev, user, nil
+
+	case *proto.MFAAuthenticateResponse_TOTP:
+		dev, err := a.checkOTP(user, res.TOTP.Code)
+		return dev, user, trace.Wrap(err)
+
 	default:
-		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
+		return nil, "", trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
 }
 
