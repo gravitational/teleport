@@ -451,19 +451,19 @@ export const formatters: Formatters = {
   [eventCodes.MYSQL_STATEMENT_CLOSE]: {
     type: 'db.session.mysql.statements.close',
     desc: 'MySQL Statement Close',
-    format: ({ user, db_service, db_name, statement_id}) =>
+    format: ({ user, db_service, db_name, statement_id }) =>
       `User [${user}] has closed statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
   },
   [eventCodes.MYSQL_STATEMENT_RESET]: {
     type: 'db.session.mysql.statements.reset',
     desc: 'MySQL Statement Reset',
-    format: ({ user, db_service, db_name, statement_id}) =>
+    format: ({ user, db_service, db_name, statement_id }) =>
       `User [${user}] has reset statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
   },
   [eventCodes.MYSQL_STATEMENT_FETCH]: {
     type: 'db.session.mysql.statements.fetch',
     desc: 'MySQL Statement Fetch',
-    format: ({ user, db_service, db_name, rows_count, statement_id}) =>
+    format: ({ user, db_service, db_name, rows_count, statement_id }) =>
       `User [${user}] has fetched ${rows_count} rows of statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
   },
   [eventCodes.MYSQL_STATEMENT_BULK_EXECUTE]: {
@@ -597,6 +597,11 @@ export const formatters: Formatters = {
       }
       return `Certificate of type [${cert_type}] issued for [${user}]`
     }
+  },
+  [eventCodes.UNKNOWN]: {
+    type: 'unknown',
+    desc: 'Unknown Event',
+    format: ({ unknown_type, unknown_code }) => `Unknown '${unknown_type}' event (${unknown_code})`,
   }
 };
 

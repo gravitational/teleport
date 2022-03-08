@@ -3756,12 +3756,12 @@ exports[`loaded audit log screen 1`] = `
           </strong>
            - 
           <strong>
-            4
+            5
           </strong>
            of
            
           <strong>
-            4
+            5
           </strong>
         </div>
       </div>
@@ -3884,6 +3884,43 @@ exports[`loaded audit log screen 1`] = `
           style="min-width: 120px;"
         >
           2020-06-05 16:24:05
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c17"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c15"
+          >
+            <span
+              class="c11 c16 icon icon-question-circle c11 c16"
+              color="light"
+              font-size="3"
+            />
+            Unknown Event
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          Unknown 'unimplemented.event' event (abc123)
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22 19:39:26
         </td>
         <td
           align="right"
