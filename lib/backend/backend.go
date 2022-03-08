@@ -281,6 +281,8 @@ func GetPaginationKey(r types.Resource) string {
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
 	case types.AppServer:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
+	case types.WindowsDesktop:
+		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
 	default:
 		return r.GetName()
 	}

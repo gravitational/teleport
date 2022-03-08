@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"sort"
 	"strconv"
 	"time"
 
@@ -63,14 +64,15 @@ func (c *Client) RequestReviewers(ctx context.Context, organization string, repo
 type Review struct {
 	// Author is the GitHub login of the user that created the PR.
 	Author string
-	// State is the state of the PR, for example APPROVED or CHANGES_REQUESTED.
+	// State is the state of the PR, for example APPROVED, COMMENTED,
+	// CHANGES_REQUESTED, or DISMISSED.
 	State string
 	// SubmittedAt is the time the PR was created.
 	SubmittedAt time.Time
 }
 
-func (c *Client) ListReviews(ctx context.Context, organization string, repository string, number int) (map[string]*Review, error) {
-	reviews := map[string]*Review{}
+func (c *Client) ListReviews(ctx context.Context, organization string, repository string, number int) ([]Review, error) {
+	var reviews []Review
 
 	opt := &go_github.ListOptions{
 		Page:    0,
@@ -87,20 +89,11 @@ func (c *Client) ListReviews(ctx context.Context, organization string, repositor
 		}
 
 		for _, r := range page {
-			// Always pick up the last submitted review from each reviewer.
-			review, ok := reviews[r.GetUser().GetLogin()]
-			if ok {
-				if r.GetSubmittedAt().After(review.SubmittedAt) {
-					review.State = r.GetState()
-					review.SubmittedAt = r.GetSubmittedAt()
-				}
-			}
-
-			reviews[r.GetUser().GetLogin()] = &Review{
+			reviews = append(reviews, Review{
 				Author:      r.GetUser().GetLogin(),
 				State:       r.GetState(),
 				SubmittedAt: r.GetSubmittedAt(),
-			}
+			})
 		}
 
 		if resp.NextPage == 0 {
@@ -108,6 +101,11 @@ func (c *Client) ListReviews(ctx context.Context, organization string, repositor
 		}
 		opt.Page = resp.NextPage
 	}
+
+	// Sort oldest review first.
+	sort.SliceStable(reviews, func(i, j int) bool {
+		return reviews[i].SubmittedAt.Before(reviews[j].SubmittedAt)
+	})
 
 	return reviews, nil
 }
