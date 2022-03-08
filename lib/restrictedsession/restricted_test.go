@@ -188,6 +188,7 @@ func (s *Suite) SetUpSuite(c *check.C) {
 		6: "::",
 	}
 
+	var err error
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
 	s.cgroupDir, err = os.MkdirTemp("", "cgroup-test")
 	c.Assert(err, check.IsNil)
@@ -283,7 +284,7 @@ func (s *Suite) closeSession(c *check.C) {
 var ip4Regex = regexp.MustCompile(`^\d+\.\d+\.\d+\.\d+$`)
 
 // mustParseIP parses the IP and also converts IPv4 addresses
-// to 4 byte represenetation. IPv4 mapped (into IPv6) addresses
+// to 4 byte representation. IPv4 mapped (into IPv6) addresses
 // are kept in 16 byte encoding
 func mustParseIP(addr string) net.IP {
 	is4 := ip4Regex.MatchString(addr)
