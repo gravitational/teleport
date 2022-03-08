@@ -240,16 +240,21 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 	if params.aclOptions != nil {
 		// We can verify ACLs as any user with read, but can only correct ACLs
 		// as root or the owner.
+		// Note that we rely on VerifyACL to return some error if permissions
+		// are incorrect.
+
 		err = botfs.VerifyACL(path, params.aclOptions)
 		if err != nil && (currentUser.Uid == RootUID || currentUser.Uid == params.ownerUser.Uid) {
-			log.Warnf("ACL for %q is not correct and will be corrected: %v", path, err)
+			if verboseLogging {
+				log.Warnf("ACL for %q is not correct and will be corrected: %v", path, err)
+			}
 
 			return trace.Wrap(botfs.ConfigureACL(path, params.ownerUser, params.aclOptions))
 		} else if err != nil {
 			log.Errorf("ACL for %q is incorrect but `tbot init` must be run "+
 				"as root or the owner (%s) to correct it: %v",
 				path, params.ownerUser.Username, err)
-			return trace.AccessDenied("Elevated permissions")
+			return trace.AccessDenied("Elevated permissions required")
 		}
 
 		// ACL is valid.

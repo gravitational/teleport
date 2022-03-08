@@ -303,6 +303,16 @@ func VerifyACL(path string, opts *ACLOptions) error {
 		maxExpectedUserTags--
 	}
 
+	// Also determine the minimum number of expected user tags. There should
+	// generally be at least 1 unless all users are the same.
+	minExpectedUserTags := 0
+	if owner.Uid != opts.BotUser.Uid {
+		minExpectedUserTags++
+	}
+	if opts.ReaderUser != nil && owner.Uid != opts.ReaderUser.Uid {
+		minExpectedUserTags++
+	}
+
 	userTagCount := 0
 	errors := []error{}
 
@@ -349,7 +359,9 @@ func VerifyACL(path string, opts *ACLOptions) error {
 	}
 
 	if userTagCount > maxExpectedUserTags {
-		errors = append(errors, trace.BadParameter("unexpected number of user tags"))
+		errors = append(errors, trace.BadParameter("too many user tags found"))
+	} else if userTagCount < minExpectedUserTags {
+		errors = append(errors, trace.BadParameter("too few user tags found"))
 	}
 
 	return trace.NewAggregate(errors...)
