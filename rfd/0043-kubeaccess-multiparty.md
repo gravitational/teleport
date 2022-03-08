@@ -3,65 +3,70 @@ authors: Joel Wejdenstål (jwejdenstal@goteleport.com)
 state: implemented
 ---
 
-# RFD 43 - Shared sessions with observers for Kubernetes Access
+# RFD 43 - Moderated Sessions
 
 ## What
 
-Implement joint observer support for Kubernetes Access with support for configurable conditions similar to those of [RFD 26](https://github.com/gravitational/teleport/blob/2fd6a88800604342bfa6277060b056d8bf0cbfb2/rfd/0026-custom-approval-conditions.md).
-Also support defining conditions for required observers in order to initiate and maintain a session.
+Implement the ability to define RBAC policies with filters similar to those of [RFD 26](https://github.com/gravitational/teleport/blob/2fd6a88800604342bfa6277060b056d8bf0cbfb2/rfd/0026-custom-approval-conditions.md) that can be used to require others to be present in a session for it to be usable.
 
 ## Why
 
-Heavily regulated and security critical industries require that one or more observers with a certain role
-are present in Kubernetes Access sessions and viewing it live in order to guarantee that
-operator does not perform any mistakes or acts of malice.
+Heavily regulated and security-critical industries require that one or more participants with a certain role
+are present in SSH and Kubernetes sessions and viewing it live to guarantee that
+the operator does not perform any mistakes or acts of malice.
 
-Such observers need to have the power to terminate a session immediately should anything go wrong.
+Such participants need to have the power to terminate a session immediately should anything go wrong.
 
 To suit everyone this will need a more detailed configuration model based on rules
-that can be used to define observers, their powers and when and in what capacity they are required.
+that can be used to define observers, their powers, and when and in what capacity they are required.
 
 ## Details
 
-### Multiparty sessions
+### Terminology
 
-SSH sessions via TSH currently have rich support for sessions with multiple users at once.
+This RFD repeatedly refers to some specific nouns of which explanations can be found below:
+- Participant: Any user in a session regardless of mode, including the session initiator.
+- Observer: A participant which only can view the session.
+- Moderator: A participant who can view and terminate a session at any point.
+- Peer: A participant with the ability to view and interact with the session.
+
+### Multiparty sessions for Kubernetes
+
+SSH sessions via TSH currently have support for sessions with multiple users at once.
 This concept is to be extended to Kubernetes Access which will allow us to build additional features on top.
 
-Multiparty sessions shall be implemented by modifying the k8s request proxy forwarder in the `kubernetes_service`. This
-approach was chosen as it is a hub that sessions pass through which makes it optimal for multiplexing.
+Multiparty sessions shall be implemented by modifying the k8s request proxy forwarder in the `kubernetes_service`. This approach was chosen as it is a hub that sessions pass through which makes it optimal for multiplexing.
 
 An approach using multiplexing in the `proxy_service` layer was considered but was ultimately determined to be more complicated
-due to the fact that proxies don't handle the final session traffic hop when using Kubernetes Access.
+since proxies don't handle the final session traffic hop when using Kubernetes Access.
 
-It will work by adding a multiplexing layer inside the forwarder that similar to the current session recording
-functionality, but instead this multiplexes outputs to the session initiator and all observers
-but only streams back input from the initiator.
+It will be implemented by adding a multiplexing layer inside the forwarder that similar to the current session recording
+functionality, but instead this multiplexes output to the session initiator and all participants
+but only streams back input from participants with the `peer` mode.
 
-#### Session observers
+#### Session participants and require policies
 
-A core feature we need to support is required observers. This will allow cluster administrators to configure
+A core feature we need to support is the required participants. This will allow cluster administrators to configure
 policies that require certain Teleport users of a certain role to be actively monitoring the session.
 
-This feature is useful in security critical environments where multiple people need to witness every action
-in the event of severe error or malice and have the ability to halt any erroneous or malicious action.
+This feature is useful in security-critical environments where multiple people need to witness every action
+in the event of severe error or malice and can halt any erroneous or malicious action.
 
 #### Session states
 
-By default, a `tsh kube exec` and `kubectl attach` request will go through as usual if no policies are defined. If a policy like the one above is defined the session will be put in a pending state
+By default, a `tsh kube exec` and `tsh ssh` request will go through as usual if no policies are defined. If a policy like the one above is defined the session will be put in a pending state
 until the required viewers have joined.
 
 Sessions can have 3 possible states:
 
 - `PENDING`\
-  When a session is in a `PENDING` state, the connection to the pod from the proxy has not yet started
-  and all users are shown a default message informing them that the session is pending, current participants
-  and who else is required for the session to start.
+ When a session is in a `PENDING` state, the connection to the pod from the proxy has not yet started
+ and all users are shown a default message informing them that the session is pending.
 - `RUNNING`\
 A `RUNNING` session behaves like a normal multiparty session. `stdout`, `stdin` and `stdout` are mapped as usual
-  and the pod can be interacted with.
+ and the pod can be interacted with.
 - `TERMINATED`\
-  A session becomes `TERMINATED` once the shell spawned inside the pod quits or is forcefully terminated by one of the session participants.
+ A session becomes `TERMINATED` once the shell spawned inside the pod quits or is forcefully terminated by one of the session participants.
 
 All sessions begin in the `PENDING` state and can change states based on the following transitions:
 
@@ -72,13 +77,13 @@ the session transitions to a `RUNNING` state. This involves initiating the conne
 and setting up the shell. Finally, all clients are multiplexed
 onto the correct streams as described previously.
 
-Only the session initiator is able to make input, observers are not connected to the input stream
+Only the session initiator can make input, observers are not connected to the input stream
 and may only view stdout/stderr and terminate the session.
 
 ##### Transition 2: `RUNNING -> TERMINATED`
 
-When the shell process created on the pod is terminated, the session transitions to a `TERMINATED` state and all clients
-are disconnected as per standard `kubectl` behaviour.
+When the shell process created on the pod is terminated, the session transitions to a `TERMINATED` state, and all clients
+are disconnected as per standard `kubectl` behavior.
 
 ##### Transition 3: `RUNNING -> TERMINATED`
 
@@ -96,7 +101,7 @@ Here, the connection is frozen for a configurable amount of time as a sort of gr
 ##### Transition 5: `PENDING -> TERMINATED`
 
 After a grace period has elapsed in a session in a session that previously was in a `RUNNING`
-state, the session is automatically terminated. This can be cancelled by having the required observers
+state, the session is automatically terminated. This can be canceled by having the required observers
 join back in which transitions the session back to `RUNNING`.
 
 ##### Transition 6: `PENDING -> TERMINATED`
@@ -107,22 +112,22 @@ connection to the pod exists at this time.
 
 #### UI/UX
 
-The initial implementation of multiparty sessions on Kubernetes access will only be supported via CLI access for implementation simplicity.
+The initial implementation of multiparty sessions for SSH Kubernetes access will only be supported via CLI access for implementation simplicity.
 
-Terminating the `kubectl` process that started the session terminates the session. Terminating an observer `tsh` process
+Terminating the `tsh kube exec` or `tsh ssh` process that started the session terminates the session. Terminating a participant `tsh` process
 disconnects the observer from the session and applies relevant state transitions if any.
 
-Terminating the session from a observer `tsh` instance can be done with the key combination `CTRL-T`
+Terminating the session from a moderator `tsh` instance can be done with the T hotkey.
 
 ##### Session creation
 
 Session creation can happen with the existing flow using `kubectl exec`
-but the wrapper command `tsh kube exec --invite=bob@example.com,eve@foo.net --reason="Need to fix this pod" -- database_pod -- /bin/bash`. This subcommand allows you to invite one or more accounts which will receive a notification saying they are invited. An arbitrary string may also be provided as a reason
+but the wrapper command `tsh kube exec --invite=bob@example.com,eve@foo.net --reason="Need to fix this pod" -- database_pod -- /bin/bash`. This subcommand allows you to invite one or more accounts that will receive a notification saying they are invited. An arbitrary string may also be provided as a reason
 for the session invite, it could for example be used to say what the purpose of the session is.
 
 ##### Session join
 
-`kubectl` itself has no concept of multiparty sessions. This means that we cannot easily use
+Kubernetes itself has no concept of multiparty sessions. This means that we cannot easily use
 its built-in facilities for support session joining.
 
 To make this process easier for the user. I propose extending the current `tsh join` command
@@ -132,21 +137,21 @@ to an ongoing session and displays stdout/stderr.
 ##### MFA tap
 
 If the standard `per_session_mfa` option is enabled for a role then MFA tap input via Yubikey or other is required for the participant to be considered active.
-This requirement is on an interval of 1 minute. When there is 15 seconds left, an alert is printed to the console.
+This requirement is on an interval of 1 minute. When there are 15 seconds left, an alert is printed to the console.
 
 ```
-Teleport >> Please tap your MFA key within 15 seconds.
+Teleport > Please tap your MFA key within 15 seconds.
 ```
 
-If tap is made after the alert, the follwing message is shown:
+If the tap is made after the alert, the following message is shown:
 
 ```
-Teleport >> MFA tap received.
+Teleport > MFA tap received.
 ```
 
 #### Broadcast messages
 
-For TTY-enabled SSH and Kubernetes sessions that require additional participants as per a require policy, Teleport will now inject broadcast messages into the session to notify participants
+For TTY-enabled SSH and Kubernetes sessions that require additional participants regardless of mode as per a require policy, Teleport will now inject broadcast messages into the session to notify participants
 about the state of the session. No messages will be shown in sessions that do not require additional participants.
 
 This is needed so that participants are aware of what is currently happening in the session
@@ -155,26 +160,44 @@ for security and usability reasons.
 Each broadcast message is prefixed with `Teleport > ` to indicate that this message
 is injected by Teleport and not from the originating shell.
 
-There are 9 kinds of broadcast messages:
+There are 10 kinds of broadcast messages:
 - `Creating session with uuid <example-uuid>...`: Sent on session creation.
 - `User <user> joined the session.`: Sent when a user joins the session.
 - `User <user> left the session.`: Sent when a user leaves the session.
-- `Launching session...`: Sent when the session is launched and thus transferred to a normal shell.
+- `Connecting to $HOSTNAME over $PROTOCOL`: Sent when the session is launched and thus transferred to a normal shell.
 - `Session closed.`: Sent when the session is closed due to the termination of the shell.
-- `Session terminated by moderator`: Sent when moderator forcefully terminates a session.
+- `Session terminated by a moderator`: Sent when moderator forcefully terminates a session.
 - `Session paused, waiting for additional participants...`: Sent when a session is paused due to lack of required participants.
 - `Session resumed.`: Sent when a session has the required participants and is resumed.
-- `Please tap your MFA key within 15 seconds.` and `Teleport >> MFA tap received.` are messages shown to moderators in sessions which are MFA-presence enabled.
+- `Please tap your MFA key within 15 seconds.` and `MFA tap received.` are messages shown to moderators in sessions that are MFA-presence enabled.
+- `Session terminated: participant requirements not met`: Sent when a session is terminated due to lack of required participants and when the pause mode is not enabled.
+
+##### Verbose participant requirements
+
+The optional flag `--participant-req` may be passed `tsh kube exec` or `tsh ssh` when the session is started to provide a verbose output of the participant requirements. By default, we avoid this because the output is large and may be overwhelming but the option is provided for users who wish to see exactly what the requirements for starting a session are.
+
+In this case, the `Session paused, waiting for additional participants...` message will be replaced by the message below.
+
+```
+Teleport > Session paused, waiting for additional participants:
+           role-1:
+             one-of:
+               - 2x `contains(user.roles, "auditor")`
+               - 1x `contains(user.roles, "admin")`
+           role-2:
+             one-of:
+               - 1x `contains(user.roles, "cs-overwatch")`
+```
 
 ##### Example
 
-This example illustrates how a group 3 users of which Alice is the initiator and Eve and Ben are two observers start a multiparty session. Below is a a series of events that happen that include what each user sees and actions taken.
+This example illustrates how a group of 3 users of which Alice is the initiator and Eve and Ben are two observers start a multiparty session. Below is a series of events that happen that include what each user sees and actions taken.
 
-- Alice initiates an interactive session to a pod: `tsh kube exec -st --invite=ben@foo.net,eve@foo.net,alice@foo.net database_pod /bin/bash`
+- Alice initiates an interactive session to a pod: `tsh kube exec -st --invite=ben@foo.net,eve@foo.net,alice@foo.net redis-bastion /bin/bash`
 - Alice sees:
 ```
 Teleport > Creating session with uuid <example-uuid>...
-Telport > User Alice joined the session.
+Teleport > User Alice joined the session.
 Teleport > This session requires additional participants to start...
 ```
 - Eve joins the session with `tsh kube join <example-uuid>` and sees:
@@ -182,10 +205,11 @@ Teleport > This session requires additional participants to start...
 Please tap MFA key to continue...
 ```
 - Eve taps MFA
-- Alice and Eve sees:
+- Alice and Eve sees
+:
 ```
 Teleport > Creating session with uuid <example-uuid>...
-Telport > User Alice joined the session.
+Teleport > User Alice joined the session.
 Teleport > This session requires additional participants to start...
 Teleport > User Eve joined the session.
 ```
@@ -194,17 +218,17 @@ Teleport > User Eve joined the session.
 Please tap MFA key to continue...
 ```
 - Ben taps MFA
-- Alice, Eve and Ben sees
+- Alice, Eve, and Ben sees
 ```
 Teleport > Creating session with uuid <example-uuid>...
-Telport > User Alice joined the session.
+Teleport > User Alice joined the session.
 Teleport > This session requires additional participants to start...
 Teleport > User Eve joined the session.
 Teleport > User Ben joined the session.
-Teleport > Launching session...
-ubuntu@localhost $
+Teleport > Connecting to redis-bastion over Kubernetes...
+redis-bastion@localhost $
 ```
-- The connection to the pod is made and each the session turns into a normal shell.
+- The connection to the pod is made and each session turns into a normal shell.
 
 #### Session invites and notifications
 
@@ -219,12 +243,12 @@ session resource which allows Teleport clients and plugins to detect notify them
 
 ##### Session resource
 
-There currently isn't a general purpose session resource in Teleport that's suitable.
+There currently isn't a general-purpose session resource in Teleport that's suitable.
 therefore I suggest that this shall be added. This will be initially used for tracking Kubernetes
 sessions but is compatible with all current and future session types.
 
 This resource is stored centrally in the backend and is used for storing and tracking metadata of active
-sessions. Detailed runtime information needed to join such as the TTY size is stored in memory on the the multiplexing node.
+sessions. Detailed runtime information needed to join such as the TTY size is stored in memory on the multiplexing node.
 
 This effectively replaces the resource defined [here](https://github.com/gravitational/teleport/blob/master/lib/session/session.go).
 
@@ -323,7 +347,7 @@ enum SessionState {
     // to start the session.
     SessionStatePending = 0;
 
-    // Running variant represents a session that has had it's criteria for starting
+    // Running variant represents a session that has had its criteria for starting
     // fulfilled at least once and has transitioned to a RUNNING state.
     SessionStateRunning = 1;
 
@@ -337,14 +361,14 @@ enum SessionState {
 Instead of having fixed fields for specifying values such as required session viewers and roles this
 model centers around conditional allow rules and filters. It is implemented as a bi-directional mapping between the role of the session initiator and the roles of the other session participants.
 
-Roles can have `require_session_join` rule under `allow` containing requirements for session participants
-before a session may be started with privilege access to nodes that the role provides.
+Roles can have a `require_session_join` rule under `allow` containing requirements for session participants
+before a session may be started with privileged access to nodes that the role provides.
 
-Roles can also have an `join_sessions` rule under `allow` specifying which roles
-and session types that that the role grants privileges to join.
+Roles can also have a `join_sessions` rule under `allow` specifying which roles
+and session types that the role grants privileges to join.
 
 We will only initially support the modes `moderator` for Kubernetes Access and `peer` for SSH sessions.
-An `observer` mode also exists which only grants access to view but not terminate an ongoing session.
+An `observer` mode also exists which only grants access to view but does not terminate an ongoing session.
 
 Imagine you have 4 roles:
 - `prod-access`
@@ -353,7 +377,7 @@ Imagine you have 4 roles:
 - `maintenance-observer`
 
 And these requirements:
-- `prod-access` should be able to start sessions of any type with either one `senior-dev` observeror two `dev` observers.
+- `prod-access` should be able to start sessions of any type with either one `senior-dev` participant two `dev` participants.
 - `senior-dev` should be able to start sessions of any type without oversight.
 - `customer-db-maintenance` needs oversight by one `maintenance-observer` on `ssh` type sessions.
 
@@ -431,7 +455,7 @@ To make it more workable, the language has been slimmed down significantly to ha
 
 ##### Provided variables
 
-- `participant`
+- `user`
 ```json
 {
   "traits": "map<string, []string>",
