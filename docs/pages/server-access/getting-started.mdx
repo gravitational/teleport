@@ -70,15 +70,9 @@ This guide introduces some of these common scenarios and how to interact with Te
 
 3. Configure Teleport on the *Bastion Host*.
 
-   Teleport will now automatically acquire an X.509 certificate using the ACME protocol.
+   Teleport uses TLS to communicate with clients, and can fetch certificates automatically via Let's Encrypt.
 
-   ```code
-   # Configure Teleport with TLS certs
-   $ sudo teleport configure \
-     --acme --acme-email=your_email@example.com \
-     --cluster-name=tele.example.com \
-     -o file
-   ```
+   (!docs/pages/includes/acme.mdx!)
 
    Run the command above on `tele.example.com`.
 

@@ -399,6 +399,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 		outKey         []byte
 		outCert        []byte
 		outCA          []byte
+		genKeyErrMsg   string
 	}{
 		{
 			name:           "database certificate",
@@ -457,6 +458,14 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outCert:        certBytes,
 			outCA:          caBytes,
 		},
+		{
+			name:         "missing host",
+			inFormat:     identityfile.FormatDatabase,
+			inOutDir:     t.TempDir(),
+			inHost:       "", // missing host
+			inOutFile:    "db",
+			genKeyErrMsg: "at least one hostname must be specified",
+		},
 	}
 
 	for _, test := range tests {
@@ -470,7 +479,13 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			}
 
 			err = ac.generateDatabaseKeysForKey(authClient, key)
-			require.NoError(t, err)
+			if test.genKeyErrMsg == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), test.genKeyErrMsg)
+				return
+			}
 
 			require.NotNil(t, authClient.dbCertsReq)
 			csr, err := tlsca.ParseCertificateRequestPEM(authClient.dbCertsReq.CSR)
