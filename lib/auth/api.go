@@ -809,6 +809,8 @@ type Cache interface {
 
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+	// ListWindowsDesktops returns a paginated list of windows desktops.
+	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
 }
 
 type NodeWrapper struct {
