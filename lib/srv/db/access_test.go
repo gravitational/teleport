@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -771,12 +770,12 @@ func TestAccessMongoDB(t *testing.T) {
 					testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
 
 					// Try to connect to the database as this user.
-					client, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)
-					defer func() {
-						if client != nil {
-							client.Disconnect(ctx)
+					mongoClient, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)
+					t.Cleanup(func() {
+						if mongoClient != nil {
+							require.NoError(t, mongoClient.Disconnect(ctx))
 						}
-					}()
+					})
 					if test.connectErr != "" {
 						require.Error(t, err)
 						require.Contains(t, err.Error(), test.connectErr)
@@ -785,13 +784,14 @@ func TestAccessMongoDB(t *testing.T) {
 					require.NoError(t, err)
 
 					// Execute a "find" command. Collection name doesn't matter currently.
-					_, err = client.Database(test.dbName).Collection("test").Find(ctx, bson.M{})
+					records, err := mongoClient.Database(test.dbName).Collection("test").Find(ctx, bson.M{})
 					if test.queryErr != "" {
 						require.Error(t, err)
 						require.Contains(t, err.Error(), test.queryErr)
 						return
 					}
 					require.NoError(t, err)
+					require.NoError(t, records.Close(ctx))
 				})
 			}
 		}
@@ -1518,6 +1518,12 @@ func (c *testContext) Close() error {
 	return trace.NewAggregate(errors...)
 }
 
+func init() {
+	// Override database agents shuffle behavior to ensure they're always
+	// tried in the same order during tests. Used for HA tests.
+	SetShuffleFunc(ShuffleSort)
+}
+
 func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDatabaseOption) *testContext {
 	testCtx := &testContext{
 		clusterName: "root.example.com",
@@ -1538,8 +1544,12 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
+
 	testCtx.tlsServer, err = authServer.NewTestTLSServer()
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testCtx.tlsServer.Close()) })
+
 	testCtx.authServer = testCtx.tlsServer.Auth()
 
 	// Create multiplexer.
@@ -1557,6 +1567,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		Listener: tls.NewListener(testCtx.mux.TLS(), testCtx.makeTLSConfig(t)),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testCtx.webListener.Close()) })
 
 	// Create MySQL proxy listener.
 	testCtx.mysqlListener, err = net.Listen("tcp", "localhost:0")
@@ -1572,12 +1583,16 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	// Auth client for database service.
 	testCtx.authClient, err = testCtx.tlsServer.NewClient(auth.TestServerID(types.RoleDatabase, testCtx.hostID))
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testCtx.authClient.Close()) })
+
 	testCtx.hostCA, err = testCtx.authClient.GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: testCtx.clusterName}, false)
 	require.NoError(t, err)
 
 	// Auth client, lock watcher and authorizer for database proxy.
 	proxyAuthClient, err := testCtx.tlsServer.NewClient(auth.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
+
 	proxyLockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
@@ -1602,6 +1617,9 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 
 	// Establish fake reversetunnel b/w database proxy and database service.
 	testCtx.proxyConn = make(chan net.Conn)
+	t.Cleanup(func() {
+		close(testCtx.proxyConn)
+	})
 	testCtx.fakeRemoteSite = &reversetunnel.FakeRemoteSite{
 		Name:        testCtx.clusterName,
 		ConnCh:      testCtx.proxyConn,
@@ -1630,11 +1648,6 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		Emitter:     testCtx.emitter,
 		Clock:       testCtx.clock,
 		ServerID:    "proxy-server",
-		Shuffle: func(servers []types.DatabaseServer) []types.DatabaseServer {
-			// To ensure predictability in tests, sort servers instead of shuffling.
-			sort.Sort(types.DatabaseServers(servers))
-			return servers
-		},
 		LockWatcher: proxyLockWatcher,
 	})
 	require.NoError(t, err)

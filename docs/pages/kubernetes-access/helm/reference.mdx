@@ -67,6 +67,48 @@ This reference details available values for the `teleport-cluster` chart.
 
 `authenticationType` controls the authentication scheme used by Teleport. Possible values are `local` and `github` for OSS, plus `oidc`, `saml`, and `false` for Enterprise.
 
+## `authenticationSecondFactor`
+
+### `authenticationSecondFactor.secondFactor`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `otp` | Yes | `auth_service.authentication.second_factor` | ❌ |
+
+`authenticationSecondFactor.secondFactor` controls the second factor used for local user authentication. Possible values supported by this chart
+are `off` (not recommended), `on`, `otp`, `optional` and `webauthn`.
+
+When set to `on`, `optional` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used. The configured `rp_id` defaults to
+the FQDN which is used to access the Teleport cluster.
+
+### `authenticationSecondFactor.webauthn`
+
+See [Second Factor - WebAuthn](../../access-controls/guides/webauthn.mdx) for more details.
+
+#### `authenticationSecondFactor.webauthn.attestationAllowedCas`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `array` | `[]` | No | `auth_service.authentication.webauthn.attestation_allowed_cas` | ❌ |
+
+`authenticationSecondFactor.webauthn.attestationAllowedCas` is an optional allow list of certificate authorities (as local file paths or in-line PEM certificate string) for
+[device verification](https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
+This field allows you to restrict which device models and vendors you trust.
+Devices outside of the list will be rejected during registration.
+By default all devices are allowed.
+
+#### `authenticationSecondFactor.webauthn.attestationDeniedCas`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `array` | `[]` | No | `auth_service.authentication.webauthn.attestation_denied_cas` | ❌ |
+
+`authenticationSecondFactor.webauthn.attestationDeniedCas` is optional deny list of certificate authorities (as local file paths or in-line PEM certificate string) for
+[device verification](https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
+This field allows you to forbid specific device models and vendors, while allowing all others (provided they clear attestation_allowed_cas as well).
+Devices within this list will be rejected during registration.
+By default no devices are forbidden.
+
 ## `proxyListenerMode`
 
 | Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
@@ -1487,7 +1529,7 @@ You can specify multiple apps by adding additional list elements.
 </Admonition>
 
 <Admonition type="note" title="IAM roles">
-  For AWS database auto-discovery to work, your agent pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx#step-36-configure-iam).
+  For AWS database auto-discovery to work, your agent pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx#step-47-create-an-iam-policy-for-teleport).
 
   After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
 
