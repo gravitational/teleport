@@ -175,7 +175,11 @@ func tagPipelines() []pipeline {
 
 			// RPM/DEB package builds
 			for _, packageType := range []string{rpmPackage, debPackage} {
-				ps = append(ps, tagPackagePipeline(packageType, buildType{os: "linux", arch: arch, fips: fips}))
+				bt := buildType{os: "linux", arch: arch, fips: fips}
+				if packageType == "rpm" && arch == "amd64" {
+					bt.centos7 = true
+				}
+				ps = append(ps, tagPackagePipeline(packageType, bt))
 			}
 		}
 	}
@@ -283,6 +287,11 @@ func tagDownloadArtifactCommands(b buildType) []string {
 	}
 	artifactOSS := true
 	artifactType := fmt.Sprintf("%s-%s", b.os, b.arch)
+
+	if b.centos7 {
+		artifactType += "-centos7"
+	}
+
 	if b.fips {
 		artifactType += "-fips"
 		artifactOSS = false
@@ -362,6 +371,11 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 	}
 
 	dependentPipeline := fmt.Sprintf("build-%s-%s", b.os, b.arch)
+
+	if b.centos7 {
+		dependentPipeline += "-centos7"
+	}
+
 	packageBuildCommands := []string{
 		`apk add --no-cache bash curl gzip make tar`,
 		`cd /go/src/github.com/gravitational/teleport`,
