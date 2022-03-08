@@ -1069,7 +1069,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	kubeGroups, kubeUsers, _, err := req.checker.CheckKubeGroupsAndUsers(sessionTTL, req.overrideRoleTTL)
+	kubePerms, err := req.checker.CheckKubeGroupsAndUsers(sessionTTL, req.overrideRoleTTL)
 	// NotFound errors are acceptable - this user may have no k8s access
 	// granted and that shouldn't prevent us from issuing a TLS cert.
 	if err != nil && !trace.IsNotFound(err) {
@@ -1118,8 +1118,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		RouteToCluster:    req.routeToCluster,
 		KubernetesCluster: req.kubernetesCluster,
 		Traits:            req.traits,
-		KubernetesGroups:  kubeGroups,
-		KubernetesUsers:   kubeUsers,
+		KubernetesGroups:  kubePerms.Groups,
+		KubernetesUsers:   kubePerms.Users,
 		RouteToApp: tlsca.RouteToApp{
 			SessionID:   req.appSessionID,
 			PublicAddr:  req.appPublicAddr,

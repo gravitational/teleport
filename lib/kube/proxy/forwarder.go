@@ -515,8 +515,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		}
 	}
 
-	var kubeUsers, kubeGroups []string
-	var denyAuthenticated bool
+	var kubePerms services.KubePermissions
 	// Only check k8s principals for local clusters.
 	//
 	// For remote clusters, everything will be remapped to new roles on the
@@ -524,7 +523,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	if !isRemoteCluster {
 		var err error
 		// check signing TTL and return a list of allowed logins for local cluster based on Kubernetes service labels.
-		kubeGroups, kubeUsers, denyAuthenticated, err = f.getKubeGroupsAndUsers(roles, kubeCluster, sessionTTL)
+		kubePerms, err = f.getKubeGroupsAndUsers(roles, kubeCluster, sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -532,8 +531,8 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 
 	// By default, if no kubernetes_users is set (which will be a majority),
 	// user will impersonate themselves, which is the backwards-compatible behavior.
-	if len(kubeUsers) == 0 {
-		kubeUsers = append(kubeUsers, ctx.User.GetName())
+	if len(kubePerms.Users) == 0 {
+		kubePerms.Users = append(kubePerms.Users, ctx.User.GetName())
 	}
 
 	// KubeSystemAuthenticated is a builtin group that allows
@@ -543,8 +542,8 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	//
 	// We add this by default to preserve backwards compatibility but it will be omitted
 	// if explicitly denied in any role the user has.
-	if !denyAuthenticated && !apiutils.SliceContainsStr(kubeGroups, teleport.KubeSystemAuthenticated) {
-		kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
+	if !kubePerms.DenyAuthenticated && !apiutils.SliceContainsStr(kubePerms.Groups, teleport.KubeSystemAuthenticated) {
+		kubePerms.Groups = append(kubePerms.Groups, teleport.KubeSystemAuthenticated)
 	}
 
 	// Get a dialer for either a k8s endpoint in current cluster or a tunneled
@@ -612,8 +611,8 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		clientIdleTimeout: roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		sessionTTL:        sessionTTL,
 		Context:           ctx,
-		kubeGroups:        utils.StringsSet(kubeGroups),
-		kubeUsers:         utils.StringsSet(kubeUsers),
+		kubeGroups:        utils.StringsSet(kubePerms.Groups),
+		kubeUsers:         utils.StringsSet(kubePerms.Users),
 		recordingConfig:   recordingConfig,
 		kubeCluster:       kubeCluster,
 		teleportCluster: teleportClusterClient{
@@ -642,10 +641,10 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 func (f *Forwarder) getKubeGroupsAndUsers(
 	roles services.AccessChecker,
 	kubeClusterName string,
-	sessionTTL time.Duration) (groups, users []string, denyAuthenticated bool, err error) {
+	sessionTTL time.Duration) (kubePerms services.KubePermissions, err error) {
 	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
 	if err != nil {
-		return nil, nil, false, trace.Wrap(err)
+		return services.KubePermissions{}, trace.Wrap(err)
 	}
 
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
@@ -658,15 +657,19 @@ func (f *Forwarder) getKubeGroupsAndUsers(
 			// Get list of allowed kube user/groups based on kubernetes service labels.
 			labels := types.CombineLabels(c.StaticLabels, c.DynamicLabels)
 			labelsMatcher := services.NewKubernetesClusterLabelMatcher(labels)
-			groups, users, denyAuthenticated, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
+			kubePerms, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
 			if err != nil {
-				return nil, nil, false, trace.Wrap(err)
+				return services.KubePermissions{}, trace.Wrap(err)
 			}
-			return groups, users, denyAuthenticated, nil
+			return kubePerms, nil
 		}
 	}
+
 	// kubeClusterName not found. Empty list of allowed kube users/groups is returned.
-	return []string{}, []string{}, false, nil
+	return services.KubePermissions{
+		Groups: make([]string, 0),
+		Users:  make([]string, 0),
+	}, nil
 }
 
 func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {

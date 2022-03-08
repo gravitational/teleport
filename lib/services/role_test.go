@@ -3979,15 +3979,15 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels)
-			gotGroups, gotUsers, _, err := tc.roles.CheckKubeGroupsAndUsers(time.Hour, true, matcher)
+			permissions, err := tc.roles.CheckKubeGroupsAndUsers(time.Hour, true, matcher)
 			if tc.errorFunc == nil {
 				require.NoError(t, err)
 			} else {
 				tc.errorFunc(t, err)
 			}
 
-			require.ElementsMatch(t, tc.wantUsers, gotUsers)
-			require.ElementsMatch(t, tc.wantGroups, gotGroups)
+			require.ElementsMatch(t, tc.wantUsers, permissions.Users)
+			require.ElementsMatch(t, tc.wantGroups, permissions.Groups)
 		})
 	}
 }
