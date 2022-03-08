@@ -49,7 +49,7 @@ func (c *DesktopCommand) Initialize(app *kingpin.Application, config *service.Co
 
 	desktop := app.Command("desktops", "Operate on registered desktops.")
 	c.desktopList = desktop.Command("ls", "List all desktops registered with the cluster.")
-	c.desktopList.Flag("format", "Output format, 'text', or 'yaml'").Default("text").StringVar(&c.format)
+	c.desktopList.Flag("format", "Output format, 'text', 'json' or 'yaml'").Default("text").StringVar(&c.format)
 	c.desktopList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
 }
 
@@ -71,7 +71,10 @@ func (c *DesktopCommand) ListDesktop(client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	coll := windowsDesktopAndServiceCollection{desktops: []windowsDesktopAndService{}}
+	coll := windowsDesktopAndServiceCollection{
+		desktops: []windowsDesktopAndService{},
+		verbose:  c.verbose,
+	}
 	ctx := context.Background()
 	for _, desktop := range desktops {
 		ds, err := client.GetWindowsDesktopService(ctx, desktop.GetHostID())
@@ -83,15 +86,12 @@ func (c *DesktopCommand) ListDesktop(client auth.ClientI) error {
 	}
 	switch c.format {
 	case teleport.Text:
-		err = coll.writeText(c.verbose, os.Stdout)
+		return trace.Wrap(coll.writeText(os.Stdout))
+	case teleport.JSON:
+		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:
-		desktopColl := windowsDesktopCollection{desktops: desktops}
-		err = desktopColl.writeYaml(os.Stdout)
+		return trace.Wrap(coll.writeYAML(os.Stdout))
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
