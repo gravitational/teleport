@@ -22,7 +22,7 @@ import (
 	"io"
 	"os"
 	"time"
-
+	
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -551,11 +550,6 @@ func (rc *ResourceCommand) createApp(client auth.ClientI, raw services.UnknownRe
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	if errs := validation.IsDNS1035Label(app.GetName()); len(errs) > 0 {
-		return trace.Wrap(trace.BadParameter("application name %q must be a valid DNS subdomain.", app.GetName()))
-	}
-
 	if err := client.CreateApp(context.Background(), app); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !rc.force {
