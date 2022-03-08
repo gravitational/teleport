@@ -1063,4 +1063,12 @@ export const eventsSample = [
     return_code: 0,
     time: '2019-04-22T19:39:26.676Z',
   },
+  {
+    code: 'TCC00E',
+    event: 'unknown',
+    unknown_type: 'unimplemented.event',
+    unknown_code: 'abc123',
+    data: '{"some": "json"}',
+    time: '2019-04-22T19:39:26.676Z'
+  },
 ].map(makeEvent);

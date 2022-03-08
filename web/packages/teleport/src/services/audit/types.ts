@@ -122,6 +122,7 @@ export const eventCodes = {
   TRUSTED_CLUSTER_CREATED: 'T7000I',
   TRUSTED_CLUSTER_DELETED: 'T7001I',
   TRUSTED_CLUSTER_TOKEN_CREATED: 'T7002I',
+  UNKNOWN: 'TCC00E',
   USER_CREATED: 'T1002I',
   USER_DELETED: 'T1004I',
   USER_LOCAL_LOGIN: 'T1000I',
@@ -615,6 +616,14 @@ export type RawEvents = {
       desktop_addr: string;
       length: number;
       windows_domain: string;
+    }
+  >;
+  [eventCodes.UNKNOWN]: RawEvent<
+    typeof eventCodes.UNKNOWN,
+    {
+      unknown_type: string;
+      unknown_code: string;
+      data: string;
     }
   >;
   [eventCodes.X11_FORWARD]: RawEvent<typeof eventCodes.X11_FORWARD>;
