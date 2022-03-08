@@ -164,6 +164,8 @@ metadata:
 spec:
   allow:
     kubernetes_groups: ["system:masters"]
+    kubernetes_labels:
+      '*': '*'
 ```
 
 Create the role and add a user:
