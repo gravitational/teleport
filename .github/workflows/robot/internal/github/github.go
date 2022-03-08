@@ -46,6 +46,7 @@ func New(ctx context.Context, token string) (*Client, error) {
 	}, nil
 }
 
+// RequestReviewers is used to assign reviewers to a Pull Requests.
 func (c *Client) RequestReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error {
 	_, _, err := c.client.PullRequests.RequestReviewers(ctx,
 		organization,
@@ -116,13 +117,95 @@ type PullRequest struct {
 	Author string
 	// Repository is the name of the repository.
 	Repository string
-	// UnsafeHead is the name of the branch this PR is created from. It is marked
-	// unsafe as it can be attacker controlled.
+	// Number is the Pull Request number.
+	Number int
+	// State is the state of the submitted review.
+	State string
+	// UnsafeHead is the name head of the branch.
+	//
+	// UnsafeHead can be attacker controlled and should not be used in any
+	// security sensitive context. For example, don't use it when crafting a URL
+	// to send a request to or an access decision. See the following link for
+	// more details:
+	//
+	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
 	UnsafeHead string
+	// UnsafeTitle is the title of the Pull Request.
+	//
+	// UnsafeTitle can be attacker controlled and should not be used in any
+	// security sensitive context. For example, don't use it when crafting a URL
+	// to send a request to or an access decision. See the following link for
+	// more details:
+	//
+	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
+	UnsafeTitle string
+	// UnsafeBody is the body of the Pull Request.
+	//
+	// UnsafeBody can be attacker controlled and should not be used in any
+	// security sensitive context. For example, don't use it when crafting a URL
+	// to send a request to or an access decision. See the following link for
+	// more details:
+	//
+	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
+	UnsafeBody string
 	// Fork determines if the pull request is from a fork.
 	Fork bool
 }
 
+// ListReviewers returns a list of reviewers that have yet to submit a review.
+func (c *Client) ListReviewers(ctx context.Context, organization string, repository string, number int) ([]string, error) {
+	var reviewers []string
+
+	opt := &go_github.ListOptions{
+		Page:    0,
+		PerPage: perPage,
+	}
+	for {
+		page, resp, err := c.client.PullRequests.ListReviewers(ctx,
+			organization,
+			repository,
+			number,
+			opt)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, r := range page.Users {
+			reviewers = append(reviewers, r.GetLogin())
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+
+	return reviewers, nil
+}
+
+// GetPullRequest returns a specific Pull Request.
+func (c *Client) GetPullRequest(ctx context.Context, organization string, repository string, number int) (PullRequest, error) {
+	pull, _, err := c.client.PullRequests.Get(ctx,
+		organization,
+		repository,
+		number)
+	if err != nil {
+		return PullRequest{}, trace.Wrap(err)
+	}
+
+	return PullRequest{
+		Author:      pull.GetUser().GetLogin(),
+		Repository:  repository,
+		Number:      pull.GetNumber(),
+		State:       pull.GetState(),
+		UnsafeHead:  pull.GetHead().GetRef(),
+		UnsafeTitle: pull.GetTitle(),
+		UnsafeBody:  pull.GetBody(),
+		Fork:        pull.GetHead().GetRepo().GetFork(),
+	}, nil
+}
+
+// ListPullRequests returns a list of Pull Requests.
 func (c *Client) ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]PullRequest, error) {
 	var pulls []PullRequest
 
@@ -142,12 +225,16 @@ func (c *Client) ListPullRequests(ctx context.Context, organization string, repo
 			return nil, trace.Wrap(err)
 		}
 
-		for _, pr := range page {
+		for _, pull := range page {
 			pulls = append(pulls, PullRequest{
-				Author:     pr.GetUser().GetLogin(),
-				Repository: repository,
-				UnsafeHead: pr.GetHead().GetRef(),
-				Fork:       pr.GetHead().GetRepo().GetFork(),
+				Author:      pull.GetUser().GetLogin(),
+				Repository:  repository,
+				Number:      pull.GetNumber(),
+				State:       pull.GetState(),
+				UnsafeHead:  pull.GetHead().GetRef(),
+				UnsafeTitle: pull.GetTitle(),
+				UnsafeBody:  pull.GetBody(),
+				Fork:        pull.GetHead().GetRepo().GetFork(),
 			})
 		}
 		if resp.NextPage == 0 {
@@ -159,6 +246,7 @@ func (c *Client) ListPullRequests(ctx context.Context, organization string, repo
 	return pulls, nil
 }
 
+// ListFiles is used to list all the files within a Pull Request.
 func (c *Client) ListFiles(ctx context.Context, organization string, repository string, number int) ([]string, error) {
 	var files []string
 
@@ -213,6 +301,7 @@ type Workflow struct {
 	Path string
 }
 
+// ListWorkflows lists all workflows within a repository.
 func (c *Client) ListWorkflows(ctx context.Context, organization string, repository string) ([]Workflow, error) {
 	var workflows []Workflow
 
@@ -258,6 +347,7 @@ type Run struct {
 	CreatedAt time.Time
 }
 
+// ListWorkflowRuns is used to list all workflow runs for an ID.
 func (c *Client) ListWorkflowRuns(ctx context.Context, organization string, repository string, branch string, workflowID int64) ([]Run, error) {
 	var runs []Run
 
