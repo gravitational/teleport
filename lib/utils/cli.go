@@ -294,6 +294,38 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	return app.UsageTemplate(defaultUsageTemplate)
 }
 
+// UpdateAppUsageTemplate updates usage template for kingpin application.
+func UpdateAppUsageTemplate(app *kingpin.Application, args []string) {
+	context, err := app.ParseContext(args)
+	if err != nil {
+		return
+	}
+
+	// Update command printf width if longer than default.
+	commandWidth := 0
+	var commands []*kingpin.CmdModel
+	if context.SelectedCommand != nil {
+		commands = context.SelectedCommand.Model().FlattenedCommands()
+	} else {
+		commands = app.Model().FlattenedCommands()
+	}
+
+	for _, command := range commands {
+		if !command.Hidden && len(command.FullCommand) > commandWidth {
+			commandWidth = len(command.FullCommand)
+		}
+	}
+
+	template := defaultUsageTemplate
+	if commandWidth > defaultCommandPrintfWidth {
+		template = strings.ReplaceAll(template,
+			fmt.Sprintf("%%-%ds", defaultCommandPrintfWidth),
+			fmt.Sprintf("%%-%ds", commandWidth),
+		)
+	}
+	app.UsageTemplate(template)
+}
+
 // SplitIdentifiers splits list of identifiers by commas/spaces/newlines.  Helpful when
 // accepting lists of identifiers in CLI (role names, request IDs, etc).
 func SplitIdentifiers(s string) []string {
@@ -379,8 +411,12 @@ func needsQuoting(text string) bool {
 	return false
 }
 
+// defaultCommandPrintfWidth is the printf width of the command name with
+// padding when printing usage.
+const defaultCommandPrintfWidth = 12
+
 // Usage template with compactly formatted commands.
-var defaultUsageTemplate = `{{define "FormatCommand"}}\
+var defaultUsageTemplate = fmt.Sprintf(`{{define "FormatCommand"}}\
 {{if .FlagSummary}} {{.FlagSummary}}{{end}}\
 {{range .Args}} {{if not .Required}}[{{end}}<{{.Name}}>{{if .Value|IsCumulative}}...{{end}}{{if not .Required}}]{{end}}{{end}}\
 {{end}}\
@@ -388,7 +424,7 @@ var defaultUsageTemplate = `{{define "FormatCommand"}}\
 {{define "FormatCommands"}}\
 {{range .FlattenedCommands}}\
 {{if not .Hidden}}\
-  {{.FullCommand | printf "%-12s" }}{{if .Default}} (Default){{end}} {{ .Help }}
+  {{.FullCommand | printf "%%-%ds" }}{{if .Default}} (Default){{end}} {{ .Help }}
 {{end}}\
 {{end}}\
 {{end}}\
@@ -435,4 +471,4 @@ Aliases:
 {{ . }}
 {{end}}\
 {{end}}
-`
+`, defaultCommandPrintfWidth)

@@ -131,6 +131,7 @@ func Run(commands []CLICommand) {
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
+	utils.UpdateAppUsageTemplate(app, os.Args[1:])
 	selectedCmd, err := app.Parse(os.Args[1:])
 	if err != nil {
 		utils.FatalError(err)

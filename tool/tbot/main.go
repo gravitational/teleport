@@ -82,6 +82,7 @@ func Run(args []string) error {
 
 	watchCmd := app.Command("watch", "Watch a destination directory for changes.")
 
+	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
 		return trace.Wrap(err)
