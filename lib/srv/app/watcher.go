@@ -18,10 +18,12 @@ package app
 
 import (
 	"context"
-
+	"fmt"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -82,7 +84,22 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher
 		for {
 			select {
 			case apps := <-watcher.AppsC:
-				s.monitoredApps.setResources(apps)
+				appsWithAddr := make(types.Apps, 0, len(apps))
+				for _, app := range apps {
+					if app.GetPublicAddr() == "" {
+						c := app.Copy()
+						pubAddr, err := FindPublicAddr(s.c.AccessPoint, app.GetPublicAddr(), app.GetName())
+						if err == nil {
+							c.Spec.PublicAddr = pubAddr
+						} else {
+							s.log.WithError(err).Errorf("Unable to find public address for app %q, leaving empty.", app.GetName())
+						}
+						appsWithAddr = append(appsWithAddr, c)
+					} else {
+						appsWithAddr = append(appsWithAddr, app)
+					}
+				}
+				s.monitoredApps.setResources(appsWithAddr)
 				select {
 				case s.reconcileCh <- struct{}{}:
 				case <-ctx.Done():
@@ -95,6 +112,37 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher
 		}
 	}()
 	return watcher, nil
+}
+
+// FindPublicAddr tries to resolve the public address of the proxy of this cluster.
+func FindPublicAddr(authClient auth.ReadAppsAccessPoint, appPublicAddr string, appName string) (string, error) {
+	// If the application has a public address already set, use it.
+	if appPublicAddr != "" {
+		return appPublicAddr, nil
+	}
+
+	// Fetch list of proxies, if first has public address set, use it.
+	servers, err := authClient.GetProxies()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if len(servers) == 0 {
+		return "", trace.BadParameter("cluster has no proxy registered, at least one proxy must be registered for application access")
+	}
+	if servers[0].GetPublicAddr() != "" {
+		addr, err := utils.ParseAddr(servers[0].GetPublicAddr())
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return fmt.Sprintf("%v.%v", appName, addr.Host()), nil
+	}
+
+	// Fall back to cluster name.
+	cn, err := authClient.GetClusterName()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return fmt.Sprintf("%v.%v", appName, cn.GetClusterName()), nil
 }
 
 func (s *Server) getResources() (resources types.ResourcesWithLabels) {

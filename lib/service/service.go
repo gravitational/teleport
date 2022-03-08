@@ -4003,7 +4003,8 @@ func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 	for {
 		select {
 		case <-ticker.C:
-			publicAddr, err := findPublicAddr(authClient, a)
+			publicAddr, err := app.FindPublicAddr(authClient, a.PublicAddr, a.Name)
+
 			if err == nil {
 				return publicAddr, nil
 			}
@@ -4011,37 +4012,6 @@ func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 			return "", trace.BadParameter("timed out waiting for proxy with public address")
 		}
 	}
-}
-
-// findPublicAddr tries to resolve the public address of the proxy of this cluster.
-func findPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
-	// If the application has a public address already set, use it.
-	if a.PublicAddr != "" {
-		return a.PublicAddr, nil
-	}
-
-	// Fetch list of proxies, if first has public address set, use it.
-	servers, err := authClient.GetProxies()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	if len(servers) == 0 {
-		return "", trace.BadParameter("cluster has no proxied registered, at least one proxy must be registered for application access")
-	}
-	if servers[0].GetPublicAddr() != "" {
-		addr, err := utils.ParseAddr(servers[0].GetPublicAddr())
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return fmt.Sprintf("%v.%v", a.Name, addr.Host()), nil
-	}
-
-	// Fall back to cluster name.
-	cn, err := authClient.GetClusterName()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return fmt.Sprintf("%v.%v", a.Name, cn.GetClusterName()), nil
 }
 
 // newHTTPFileSystem creates a new HTTP file system for the web handler.
