@@ -119,8 +119,7 @@ func (dd *DestinationDirectory) Init() error {
 	// Create the directory if needed.
 	stat, err := os.Stat(dd.Path)
 	if trace.IsNotFound(err) {
-		err = os.MkdirAll(dd.Path, botfs.DefaultDirMode)
-		if err != nil {
+		if err := os.MkdirAll(dd.Path, botfs.DefaultDirMode); err != nil {
 			return trace.Wrap(err)
 		}
 		log.Infof("Created directory %q", dd.Path)

@@ -80,10 +80,10 @@ const (
 
 // ACLOptions contains parameters needed to configure ACLs
 type ACLOptions struct {
-	// botUser is the bot user that should have write access to this entry
+	// BotUser is the bot user that should have write access to this entry
 	BotUser *user.User
 
-	// readerUser is the user that should have read access to the file. This
+	// ReaderUser is the user that should have read access to the file. This
 	// may be nil if the reader user is not known.
 	ReaderUser *user.User
 }

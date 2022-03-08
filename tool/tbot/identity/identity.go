@@ -269,8 +269,7 @@ func ReadIdentityFromStore(params *LoadIdentityParams, certs *proto.Certs, kinds
 		}
 
 		// Parse the key pair to verify that identity parses properly for future use.
-		err := ReadTLSIdentityFromKeyPair(&identity, params.PrivateKeyBytes, certs.TLS, certs.TLSCACerts)
-		if err != nil {
+		if err := ReadTLSIdentityFromKeyPair(&identity, params.PrivateKeyBytes, certs.TLS, certs.TLSCACerts); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
