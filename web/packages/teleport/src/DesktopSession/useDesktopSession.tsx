@@ -121,7 +121,7 @@ export default function useDesktopSession() {
       Promise.all([
         desktopService
           .fetchDesktop(clusterId, desktopName)
-          .then(desktop => setHostname(desktop.addr)),
+          .then(desktop => setHostname(desktop.name)),
         userService.fetchUserContext().then(user => {
           setHasClipboardSharingEnabled(user.acl.clipboardSharingEnabled);
           setIsRecording(user.acl.desktopSessionRecordingEnabled);
