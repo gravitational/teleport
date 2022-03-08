@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -317,6 +316,12 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 	for _, kind := range watch.Kinds {
 		servicesWatch.Kinds = append(servicesWatch.Kinds, proto.ToWatchKind(kind))
 	}
+
+	if clusterName, err := auth.GetClusterName(); err == nil {
+		// we might want to enforce a filter for older clients in certain conditions
+		maybeFilterCertAuthorityWatches(stream.Context(), clusterName.GetClusterName(), auth.Checker.RoleNames(), &servicesWatch)
+	}
+
 	watcher, err := auth.NewWatcher(stream.Context(), servicesWatch)
 	if err != nil {
 		return trace.Wrap(err)
@@ -344,6 +349,56 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		}
 	}
 }
+
+// maybeFilterCertAuthorityWatches will add filters to the CertAuthority
+// WatchKinds in the watch if the client is authenticated as just a `Node` with
+// no other roles and if the client is older than the cutoff version, and if the
+// WatchKind for KindCertAuthority is trivial, i.e. it's a WatchKind{Kind:
+// KindCertAuthority} with no other fields set. In any other case we will assume
+// that the client knows what it's doing and the cache watcher will still send
+// everything.
+//
+// DELETE IN 10.0, no supported clients should require this at that point
+func maybeFilterCertAuthorityWatches(ctx context.Context, clusterName string, roleNames []string, watch *types.Watch) {
+	if len(roleNames) != 1 || roleNames[0] != string(types.RoleNode) {
+		return
+	}
+
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if !ok {
+		log.Debug("no client version found in grpc context")
+		return
+	}
+
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		log.WithError(err).Debugf("couldn't parse client version %q", clientVersionString)
+		return
+	}
+
+	// we treat the entire previous major version as "old" for this version
+	// check, even if there might have been backports; compliant clients will
+	// supply their own filter anyway
+	if !clientVersion.LessThan(certAuthorityFilterVersionCutoff) {
+		return
+	}
+
+	for i, k := range watch.Kinds {
+		if k.Kind != types.KindCertAuthority || !k.IsTrivial() {
+			continue
+		}
+
+		log.Debugf("Injecting filter for CertAuthority watch for Node-only watcher with version %v", clientVersion)
+		watch.Kinds[i].Filter = types.CertAuthorityFilter{
+			types.HostCA: clusterName,
+			types.UserCA: types.Wildcard,
+		}.IntoMap()
+	}
+}
+
+// certAuthorityFilterVersionCutoff is the version starting from which we stop
+// injecting filters for CertAuthority watches in maybeFilterCertAuthorityWatches.
+var certAuthorityFilterVersionCutoff = *semver.New("9.0.0")
 
 // resourceLabel returns the label for the provided types.Event
 func resourceLabel(event types.Event) string {
@@ -764,6 +819,63 @@ func (g *GRPCServer) GetResetPasswordToken(ctx context.Context, req *proto.GetRe
 	}
 
 	return r, nil
+}
+
+// CreateBot creates a new bot and an optional join token.
+func (g *GRPCServer) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := auth.ServerWithRoles.CreateBot(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Infof("%q bot created", req.GetName())
+
+	return response, nil
+}
+
+// DeleteBot removes a bot and its associated resources.
+func (g *GRPCServer) DeleteBot(ctx context.Context, req *proto.DeleteBotRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.ServerWithRoles.DeleteBot(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Infof("%q bot deleted", req.Name)
+
+	return &empty.Empty{}, nil
+}
+
+// GetBotUsers lists all users with a bot label
+func (g *GRPCServer) GetBotUsers(_ *proto.GetBotUsersRequest, stream proto.AuthService_GetBotUsersServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	users, err := auth.ServerWithRoles.GetBotUsers(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, user := range users {
+		v2, ok := user.(*types.UserV2)
+		if !ok {
+			log.Warnf("expected type services.UserV2, got %T for user %q", user, user.GetName())
+			return trace.Errorf("encountered unexpected user type")
+		}
+		if err := stream.Send(v2); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
@@ -1700,18 +1812,14 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *proto.DeleteRoleReques
 // related GRPC API endpoints.
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream proto.AuthService_MaintainSessionPresenceServer, challengeReq *proto.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
-	u2fStorage, err := u2f.InMemoryAuthenticationStorage(actx.authServer.Identity)
+
+	const passwordless = false
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, passwordless)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, u2fStorage)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if len(authChallenge.U2F) == 0 && authChallenge.WebauthnChallenge == nil {
-		return trace.BadParameter("no U2F or WebAuthn devices registered for %q", user)
+	if authChallenge.WebauthnChallenge == nil {
+		return trace.BadParameter("no MFA devices registered for %q", user)
 	}
 
 	if err := stream.Send(authChallenge); err != nil {
@@ -1728,7 +1836,7 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream proto
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", challengeResp)
 	}
 
-	if _, err := actx.authServer.validateMFAAuthResponse(ctx, user, challengeResp, u2fStorage); err != nil {
+	if _, _, err := actx.authServer.validateMFAAuthResponse(ctx, challengeResp, user, passwordless); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1855,13 +1963,10 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_AddMF
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 	ctx := stream.Context()
-	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Identity)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	// Note: authChallenge may be empty if this user has no existing MFA devices.
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user, u2fStorage)
+	const passwordless = false
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user, passwordless)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1880,8 +1985,8 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_AddMF
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req)
 	}
 	// Only validate if there was a challenge.
-	if authChallenge.TOTP != nil || len(authChallenge.U2F) > 0 {
-		if _, err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage); err != nil {
+	if authChallenge.TOTP != nil || authChallenge.WebauthnChallenge != nil {
+		if _, _, err := auth.validateMFAAuthResponse(ctx, authResp, user, passwordless); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1892,33 +1997,18 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 	ctx := stream.Context()
-	u2fStorage, err := u2f.InMemoryRegistrationStorage(auth.Identity)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	// Keep Webauthn session data in memory, we can afford that for the streaming
 	// RPCs.
 	webIdentity := wanlib.WithInMemorySessionData(auth.Identity)
-
-	devType := initReq.DeviceType
-	if devType == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
-		// Try and convert from legacy type.
-		// Keep conversion until 9.x, when the field is marked for deletion.
-		m := map[proto.AddMFADeviceRequestInit_LegacyDeviceType]proto.DeviceType{
-			proto.AddMFADeviceRequestInit_TOTP:     proto.DeviceType_DEVICE_TYPE_TOTP,
-			proto.AddMFADeviceRequestInit_U2F:      proto.DeviceType_DEVICE_TYPE_U2F,
-			proto.AddMFADeviceRequestInit_Webauthn: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-		}
-		devType = m[initReq.LegacyType]
-	}
 
 	// Send registration challenge for the requested device type.
 	regChallenge := new(proto.MFARegisterChallenge)
 
 	res, err := auth.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
 		username:            user,
-		deviceType:          devType,
-		u2fStorageOverride:  u2fStorage,
+		deviceType:          initReq.DeviceType,
+		deviceUsage:         initReq.DeviceUsage,
 		webIdentityOverride: webIdentity,
 	})
 	if err != nil {
@@ -1947,7 +2037,6 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 		username:            user,
 		newDeviceName:       initReq.DeviceName,
 		totpSecret:          regChallenge.GetTOTP().GetSecret(),
-		u2fStorage:          u2fStorage,
 		webIdentityOverride: webIdentity,
 	})
 
@@ -1995,19 +2084,15 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 	return trace.Wrap(stream.Send(&proto.DeleteMFADeviceResponse{
 		Response: &proto.DeleteMFADeviceResponse_Ack{Ack: &proto.DeleteMFADeviceResponseAck{}},
 	}))
-
 }
 
 func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_DeleteMFADeviceServer) error {
 	ctx := stream.Context()
 	auth := gctx.authServer
 	user := gctx.User.GetName()
-	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Identity)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user, u2fStorage)
+	const passwordless = false
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user, passwordless)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2026,7 +2111,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_De
 	if authResp == nil {
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req)
 	}
-	if _, err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage); err != nil {
+	if _, _, err := auth.validateMFAAuthResponse(ctx, authResp, user, passwordless); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -2150,6 +2235,10 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 		}
 	case proto.UserCertsRequest_All:
 		return trace.BadParameter("must specify a concrete Usage in UserCertsRequest, one of SSH, Kubernetes or Database")
+	case proto.UserCertsRequest_WindowsDesktop:
+		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
+			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
+		}
 	default:
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
@@ -2165,16 +2254,13 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	ctx := stream.Context()
 	auth := gctx.authServer
 	user := gctx.User.GetName()
-	u2fStorage, err := u2f.InMemoryAuthenticationStorage(auth.Identity)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	challenge, err := auth.mfaAuthChallenge(ctx, user, u2fStorage)
+	const passwordless = false
+	challenge, err := auth.mfaAuthChallenge(ctx, user, passwordless)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if challenge.TOTP == nil && len(challenge.U2F) == 0 && challenge.WebauthnChallenge == nil {
+	if challenge.TOTP == nil && challenge.WebauthnChallenge == nil {
 		return nil, trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
 	}
 	if err := stream.Send(&proto.UserSingleUseCertsResponse{
@@ -2191,7 +2277,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	if authResp == nil {
 		return nil, trace.BadParameter("expected MFAAuthenticateResponse, got %T", req.Request)
 	}
-	mfaDev, err := auth.validateMFAAuthResponse(ctx, user, authResp, u2fStorage)
+	mfaDev, _, err := auth.validateMFAAuthResponse(ctx, authResp, user, passwordless)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2218,7 +2304,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 	switch req.Usage {
 	case proto.UserCertsRequest_SSH:
 		resp.Cert = &proto.SingleUseUserCert_SSH{SSH: certs.SSH}
-	case proto.UserCertsRequest_Kubernetes, proto.UserCertsRequest_Database:
+	case proto.UserCertsRequest_Kubernetes, proto.UserCertsRequest_Database, proto.UserCertsRequest_WindowsDesktop:
 		resp.Cert = &proto.SingleUseUserCert_TLS{TLS: certs.TLS}
 	default:
 		return nil, trace.BadParameter("unknown certificate usage %q", req.Usage)
@@ -3595,17 +3681,18 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 		return nil, trace.Wrap(err)
 	}
 
-	resources, nextKey, err := auth.ListResources(ctx, *req)
+	resp, err := auth.ListResources(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp := &proto.ListResourcesResponse{
-		NextKey:   nextKey,
-		Resources: make([]*proto.PaginatedResource, len(resources)),
+	protoResp := &proto.ListResourcesResponse{
+		NextKey:    resp.NextKey,
+		Resources:  make([]*proto.PaginatedResource, len(resp.Resources)),
+		TotalCount: int32(resp.TotalCount),
 	}
 
-	for i, resource := range resources {
+	for i, resource := range resp.Resources {
 		var protoResource *proto.PaginatedResource
 		switch req.ResourceType {
 		case types.KindDatabaseServer:
@@ -3636,14 +3723,28 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeService{KubeService: srv}}
+		case types.KindWindowsDesktop:
+			desktop, ok := resource.(*types.WindowsDesktopV3)
+			if !ok {
+				return nil, trace.BadParameter("windows desktop has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
+		case types.KindKubernetesCluster:
+			cluster, ok := resource.(*types.KubernetesClusterV3)
+			if !ok {
+				return nil, trace.BadParameter("kubernetes cluster has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}}
 		default:
 			return nil, trace.NotImplemented("resource type %s doesn't support pagination", req.ResourceType)
 		}
 
-		resp.Resources[i] = protoResource
+		protoResp.Resources[i] = protoResource
 	}
 
-	return resp, nil
+	return protoResp, nil
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.

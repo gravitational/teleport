@@ -275,14 +275,16 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	}
 }
 
-type connectFunc func(ctx context.Context, params connectParams) (*Client, error)
-type connectParams struct {
-	cfg       Config
-	addr      string
-	tlsConfig *tls.Config
-	dialer    ContextDialer
-	sshConfig *ssh.ClientConfig
-}
+type (
+	connectFunc   func(ctx context.Context, params connectParams) (*Client, error)
+	connectParams struct {
+		cfg       Config
+		addr      string
+		tlsConfig *tls.Config
+		dialer    ContextDialer
+		sshConfig *ssh.ClientConfig
+	}
+)
 
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
@@ -687,6 +689,40 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 	}
 
 	return token, nil
+}
+
+// CreateBot creates a new bot from the specified descriptor.
+func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+	response, err := c.grpc.CreateBot(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return response, nil
+}
+
+// DeleteBot deletes a bot and associated resources.
+func (c *Client) DeleteBot(ctx context.Context, botName string) error {
+	_, err := c.grpc.DeleteBot(ctx, &proto.DeleteBotRequest{
+		Name: botName,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetBotUsers fetches all bot users.
+func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
+	stream, err := c.grpc.GetBotUsers(ctx, &proto.GetBotUsersRequest{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	var users []types.User
+	for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+		users = append(users, user)
+	}
+	return users, nil
 }
 
 // GetAccessRequests retrieves a list of all access requests matching the provided filter.
@@ -1643,8 +1679,8 @@ func GetNodesWithLabels(ctx context.Context, clt NodeClient, namespace string, l
 // ListNodes returns a paginated list of nodes that the user has access to in the given namespace.
 // nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
 // ListNodes will return a trace.LimitExceeded error if the page of nodes retrieved exceeds 4MiB.
-func (c *Client) ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error) {
-	resources, nextKey, err := c.ListResources(ctx, proto.ListResourcesRequest{
+func (c *Client) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
+	resp, err := c.ListResources(ctx, proto.ListResourcesRequest{
 		ResourceType: types.KindNode,
 		Namespace:    req.Namespace,
 		StartKey:     req.StartKey,
@@ -1659,8 +1695,8 @@ func (c *Client) ListNodes(ctx context.Context, req proto.ListNodesRequest) (nod
 		return nil, "", trace.Wrap(err)
 	}
 
-	servers := make([]types.Server, len(resources))
-	for i, resource := range resources {
+	servers := make([]types.Server, len(resp.Resources))
+	for i, resource := range resp.Resources {
 		server, ok := resource.(*types.ServerV2)
 		if !ok {
 			return nil, "", trace.BadParameter("invalid node type %T", resource)
@@ -1669,7 +1705,7 @@ func (c *Client) ListNodes(ctx context.Context, req proto.ListNodesRequest) (nod
 		servers[i] = server
 	}
 
-	return servers, nextKey, nil
+	return servers, resp.NextKey, nil
 }
 
 // listNodesFallback previous implementation of `ListNodes` function using
@@ -2352,17 +2388,17 @@ func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAu
 // `GetResources` function.
 // It will return a `trace.LimitExceeded` error if the page exceeds gRPC max
 // message size.
-func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.ResourceWithLabels, nextKey string, err error) {
+func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	resp, err := c.grpc.ListResources(ctx, &req, c.callOpts...)
 	if err != nil {
-		return nil, "", trail.FromGRPC(err)
+		return nil, trail.FromGRPC(err)
 	}
 
-	resources = make([]types.ResourceWithLabels, len(resp.GetResources()))
+	resources := make([]types.ResourceWithLabels, len(resp.GetResources()))
 	for i, respResource := range resp.GetResources() {
 		switch req.ResourceType {
 		case types.KindDatabaseServer:
@@ -2373,12 +2409,20 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetNode()
 		case types.KindKubeService:
 			resources[i] = respResource.GetKubeService()
+		case types.KindWindowsDesktop:
+			resources[i] = respResource.GetWindowsDesktop()
+		case types.KindKubernetesCluster:
+			resources[i] = respResource.GetKubeCluster()
 		default:
-			return nil, "", trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
 	}
 
-	return resources, resp.NextKey, nil
+	return &types.ListResourcesResponse{
+		Resources:  resources,
+		NextKey:    resp.NextKey,
+		TotalCount: int(resp.TotalCount),
+	}, nil
 }
 
 // GetResources retrieves all pages from ListResourcesPage and return all
@@ -2391,7 +2435,7 @@ func (c *Client) GetResources(ctx context.Context, namespace, resourceType strin
 	)
 
 	for {
-		listResources, nextKey, err := c.ListResources(ctx, proto.ListResourcesRequest{
+		resp, err := c.ListResources(ctx, proto.ListResourcesRequest{
 			Namespace:    namespace,
 			ResourceType: resourceType,
 			StartKey:     startKey,
@@ -2410,9 +2454,9 @@ func (c *Client) GetResources(ctx context.Context, namespace, resourceType strin
 			return nil, trail.FromGRPC(err)
 		}
 
-		startKey = nextKey
-		resources = append(resources, listResources...)
-		if startKey == "" || len(listResources) == 0 {
+		startKey = resp.NextKey
+		resources = append(resources, resp.Resources...)
+		if startKey == "" || len(resp.Resources) == 0 {
 			break
 		}
 
@@ -2439,7 +2483,6 @@ func (c *Client) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionT
 	stream, err := c.grpc.GetActiveSessionTrackers(ctx, &empty.Empty{})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
-
 	}
 
 	var sessions []types.SessionTracker

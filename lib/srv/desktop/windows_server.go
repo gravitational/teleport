@@ -638,14 +638,12 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 			return trace.Wrap(s.closeCtx.Err())
 		default:
 		}
-
 		conn, err := lis.Accept()
 		if err != nil {
 			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
 				return nil
 			}
 			return trace.Wrap(err)
-
 		}
 		proxyConn, ok := conn.(*tls.Conn)
 		if !ok {
@@ -797,9 +795,13 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	var windowsUser string
 	authorize := func(login string) error {
 		windowsUser = login // capture attempted login user
+		mfaParams := services.AccessMFAParams{
+			Verified:       identity.MFAVerified != "",
+			AlwaysRequired: authPref.GetRequireSessionMFA(),
+		}
 		return authCtx.Checker.CheckAccess(
 			desktop,
-			services.AccessMFAParams{Verified: true},
+			mfaParams,
 			services.NewWindowsLoginMatcher(login))
 	}
 
@@ -827,7 +829,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		AllowClipboard: authCtx.Checker.DesktopClipboard(),
 	})
 	if err != nil {
-		s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
+		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
@@ -855,13 +857,13 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
 		rdpc.Close()
-		s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
+		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
-	s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, nil)
+	s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, nil)
 	err = rdpc.Wait()
-	s.onSessionEnd(ctx, &identity, sessionStartTime, recordSession, windowsUser, string(sessionID), desktop)
+	s.onSessionEnd(ctx, sw, &identity, sessionStartTime, recordSession, windowsUser, string(sessionID), desktop)
 
 	return trace.Wrap(err)
 }
@@ -870,7 +872,7 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypePNGFrame):
+		case byte(tdp.TypePNGFrame), byte(tdp.TypeError):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
@@ -894,7 +896,7 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 				// the TDP send handler emits a clipboard receive event, because we
 				// received clipboard data from the remote desktop and are sending
 				// it on the TDP connection
-				s.onClipboardReceive(ctx, id, sessionID, desktopAddr, int32(len(clip)))
+				s.onClipboardReceive(ctx, emitter, id, sessionID, desktopAddr, int32(len(clip)))
 			}
 		}
 	}
@@ -928,7 +930,7 @@ func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter even
 			// the TDP receive handler emits a clipboard send event, because we
 			// received clipboard data from the user (over TDP) and are sending
 			// it to the remote desktop
-			s.onClipboardSend(ctx, id, sessionID, desktopAddr, int32(len(msg)))
+			s.onClipboardSend(ctx, emitter, id, sessionID, desktopAddr, int32(len(msg)))
 		}
 	}
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package web
 
 import (
+	"bufio"
 	"bytes"
 	"compress/flate"
 	"context"
@@ -26,6 +27,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"image"
 	"io"
 	"io/ioutil"
 	"net"
@@ -47,6 +49,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiProto "github.com/gravitational/teleport/api/client/proto"
+	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -54,7 +57,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -72,8 +74,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/desktop"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
 
@@ -745,29 +750,37 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 	}
 }
 
-type getSiteNodeResponse struct {
-	Items []ui.Server `json:"items"`
+type clusterNodesGetResponse struct {
+	Items      []ui.Server `json:"items"`
+	StartKey   string      `json:"startKey"`
+	TotalCount int         `json:"totalCount"`
 }
 
-func (s *WebSuite) TestGetSiteNodes(c *C) {
-	pack := s.authPack(c, "foo")
+func TestClusterNodesGet(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com")
+	clusterName := env.server.ClusterName()
 
-	// get site nodes
-	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "nodes"), url.Values{})
-	c.Assert(err, IsNil)
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
 
-	nodes := getSiteNodeResponse{}
-	c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
-	c.Assert(len(nodes.Items), Equals, 1)
+	// Get nodes.
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
 
-	// get site nodes using shortcut
+	nodes := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
+	require.Len(t, nodes.Items, 1)
+
+	// Get nodes using shortcut.
 	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
-	nodes2 := getSiteNodeResponse{}
-	c.Assert(json.Unmarshal(re.Bytes(), &nodes2), IsNil)
-	c.Assert(len(nodes.Items), Equals, 1)
-	c.Assert(nodes2, DeepEquals, nodes)
+	nodes2 := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes2))
+	require.Len(t, nodes.Items, 1)
+	require.Equal(t, nodes, nodes2)
 }
 
 func (s *WebSuite) TestSiteNodeConnectInvalidSessionID(c *C) {
@@ -1051,7 +1064,7 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 		name                      string
 		getAuthPreference         func() types.AuthPreference
 		registerDevice            func() *auth.TestDevice
-		getChallengeResponseBytes func(chals *auth.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte
+		getChallengeResponseBytes func(chals *client.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte
 	}{
 		{
 			name: "with webauthn",
@@ -1074,7 +1087,7 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 
 				return webauthnDev
 			},
-			getChallengeResponseBytes: func(chals *auth.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
+			getChallengeResponseBytes: func(chals *client.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
 				res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
 					WebauthnChallenge: wanlib.CredentialAssertionToProto(chals.WebauthnChallenge),
 				})
@@ -1084,49 +1097,6 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 				require.Nil(t, err)
 
 				return webauthnResBytes
-			},
-		},
-		{
-			name: "with u2f",
-			getAuthPreference: func() types.AuthPreference {
-				ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorU2F,
-					U2F: &types.U2F{
-						AppID:  "https://localhost",
-						Facets: []string{"https://localhost"},
-					},
-					RequireSessionMFA: true,
-				})
-				require.NoError(t, err)
-
-				return ap
-			},
-			registerDevice: func() *auth.TestDevice {
-				u2fDev, err := auth.RegisterTestDevice(ctx, clt, "u2f", apiProto.DeviceType_DEVICE_TYPE_U2F, nil /* authenticator */)
-				require.NoError(t, err)
-
-				return u2fDev
-			},
-			getChallengeResponseBytes: func(chals *auth.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
-				res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
-					U2F: []*apiProto.U2FChallenge{{
-						KeyHandle: chals.U2FChallenges[0].KeyHandle,
-						Challenge: chals.U2FChallenges[0].Challenge,
-						AppID:     chals.U2FChallenges[0].AppID,
-						Version:   chals.U2FChallenges[0].Version,
-					}},
-				})
-				require.NoError(t, err)
-
-				u2fResBytes, err := json.Marshal(&u2f.AuthenticateChallengeResponse{
-					KeyHandle:     res.GetU2F().KeyHandle,
-					SignatureData: res.GetU2F().Signature,
-					ClientData:    res.GetU2F().ClientData,
-				})
-				require.NoError(t, err)
-
-				return u2fResBytes
 			},
 		},
 	}
@@ -1148,7 +1118,7 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 			var env Envelope
 			require.Nil(t, proto.Unmarshal(raw, &env))
 
-			chals := &auth.MFAAuthenticateChallenge{}
+			chals := &client.MFAAuthenticateChallenge{}
 			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chals))
 
 			// Send response over ws.
@@ -1165,6 +1135,174 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 			require.Nil(t, ws.Close())
 		})
 	}
+}
+
+type windowsDesktopServiceMock struct {
+	listener net.Listener
+}
+
+func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windowsDesktopServiceMock {
+	l, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, l.Close())
+	})
+	authID := auth.IdentityID{
+		Role:     types.RoleWindowsDesktop,
+		HostUUID: "windows_server",
+		NodeName: "windows_server",
+	}
+	n, err := authClient.GetClusterName()
+	require.NoError(t, err)
+	dns := []string{"localhost", "127.0.0.1", desktop.WildcardServiceDNS}
+	identity, err := auth.LocalRegister(authID, authClient, nil, dns, "")
+	require.NoError(t, err)
+
+	tlsConfig, err := identity.TLSConfig(nil)
+	require.NoError(t, err)
+	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	require.NoError(t, err)
+
+	ca, err := authClient.GetCertAuthority(types.CertAuthID{Type: types.UserCA, DomainName: n.GetClusterName()}, false)
+	require.NoError(t, err)
+
+	for _, kp := range services.GetTLSCerts(ca) {
+		require.True(t, tlsConfig.ClientCAs.AppendCertsFromPEM(kp))
+	}
+
+	wd := &windowsDesktopServiceMock{
+		listener: l,
+	}
+	go func() {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		tlsConn := tls.Server(conn, tlsConfig)
+		if err := tlsConn.Handshake(); err != nil {
+			t.Errorf("Unexpected error %v", err)
+			return
+		}
+		wd.handleConn(t, tlsConn)
+	}()
+
+	return wd
+}
+
+func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
+	tdpConn := tdp.NewConn(conn)
+
+	// Ensure that incoming connection is MFAVerified.
+	require.NotEmpty(t, conn.ConnectionState().PeerCertificates)
+	cert := conn.ConnectionState().PeerCertificates[0]
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.NotEmpty(t, identity.MFAVerified)
+
+	msg, err := tdpConn.InputMessage()
+	require.NoError(t, err)
+	require.IsType(t, tdp.ClientUsername{}, msg)
+
+	msg, err = tdpConn.InputMessage()
+	require.NoError(t, err)
+	require.IsType(t, tdp.ClientScreenSpec{}, msg)
+
+	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	err = tdpConn.OutputMessage(tdp.NewPNG(img, tdp.PNGEncoder()))
+	require.NoError(t, err)
+}
+
+func TestDesktopAccessMFARequiresMfa(t *testing.T) {
+	tests := []struct {
+		name           string
+		authPref       types.AuthPreferenceSpecV2
+		mfaHandler     func(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice)
+		registerDevice func(t *testing.T, ctx context.Context, clt *auth.Client) *auth.TestDevice
+	}{
+		{
+			name: "webauthn",
+			authPref: types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorWebauthn,
+				Webauthn: &types.Webauthn{
+					RPID: "localhost",
+				},
+				RequireSessionMFA: true,
+			},
+			mfaHandler: handleMFAWebauthnChallenge,
+			registerDevice: func(t *testing.T, ctx context.Context, clt *auth.Client) *auth.TestDevice {
+				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", apiProto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+				require.NoError(t, err)
+				return webauthnDev
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			env := newWebPack(t, 1)
+			proxy := env.proxies[0]
+			pack := proxy.authPack(t, "llama")
+
+			clt, err := env.server.NewClient(auth.TestUser("llama"))
+			require.NoError(t, err)
+			wdID := uuid.New().String()
+
+			wdMock := mustStartWindowsDesktopMock(t, env.server.Auth())
+			wd, err := types.NewWindowsDesktopV3("desktop1", nil, types.WindowsDesktopSpecV3{
+				Addr:   wdMock.listener.Addr().String(),
+				Domain: "CORP",
+				HostID: wdID,
+			})
+			require.NoError(t, err)
+
+			err = env.server.Auth().UpsertWindowsDesktop(context.Background(), wd)
+			require.NoError(t, err)
+			wds, err := types.NewWindowsDesktopServiceV3(wdID, types.WindowsDesktopServiceSpecV3{
+				Addr:            wdMock.listener.Addr().String(),
+				TeleportVersion: teleport.Version,
+			})
+			require.NoError(t, err)
+
+			_, err = env.server.Auth().UpsertWindowsDesktopService(context.Background(), wds)
+			require.NoError(t, err)
+
+			ap, err := types.NewAuthPreference(tc.authPref)
+			require.NoError(t, err)
+			err = env.server.Auth().SetAuthPreference(ctx, ap)
+			require.NoError(t, err)
+
+			dev := tc.registerDevice(t, ctx, clt)
+
+			ws := proxy.makeDesktopSession(t, pack, session.NewID(), env.server.TLS.Listener.Addr())
+			tc.mfaHandler(t, ws, dev)
+
+			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws})
+
+			msg, err := tdpClient.InputMessage()
+			require.NoError(t, err)
+			require.IsType(t, tdp.PNGFrame{}, msg)
+		})
+	}
+}
+
+func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
+	mfaChallange, err := tdp.DecodeMFAChallenge(bufio.NewReader(&WebsocketIO{Conn: ws}))
+	require.NoError(t, err)
+	res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
+		WebauthnChallenge: wanlib.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
+	})
+	require.NoError(t, err)
+	err = tdp.NewConn(&WebsocketIO{Conn: ws}).OutputMessage(tdp.MFA{
+		Type: defaults.WebsocketWebauthnChallenge[0],
+		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
+			Response: &authproto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: res.GetWebauthn(),
+			},
+		},
+	})
+	require.NoError(t, err)
 }
 
 func (s *WebSuite) TestWebAgentForward(c *C) {
@@ -1335,44 +1473,48 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	}
 }
 
-func (s *WebSuite) TestCreateSession(c *C) {
-	pack := s.authPack(c, "foo")
+func TestCreateSession(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	user := "test-user@example.com"
+	pack := proxy.authPack(t, user)
 
 	// get site nodes
-	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "nodes"), url.Values{})
-	c.Assert(err, IsNil)
+	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "nodes"), url.Values{})
+	require.NoError(t, err)
 
-	nodes := getSiteNodeResponse{}
-	c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
+	nodes := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
 	node := nodes.Items[0]
 
 	sess := session.Session{
 		TerminalParams: session.TerminalParams{W: 300, H: 120},
-		Login:          s.user,
+		Login:          user,
 	}
 
 	// test using node UUID
 	sess.ServerID = node.Name
 	re, err = pack.clt.PostJSON(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"),
+		pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "sessions"),
 		siteSessionGenerateReq{Session: sess},
 	)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	var created *siteSessionGenerateResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &created), IsNil)
-	c.Assert(created.Session.ID, Not(Equals), "")
-	c.Assert(created.Session.ServerHostname, Equals, node.Hostname)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &created))
+	require.NotEmpty(t, created.Session.ID)
+	require.Equal(t, node.Hostname, created.Session.ServerHostname)
 
 	// test empty serverID (older version does not supply serverID)
 	sess.ServerID = ""
 	_, err = pack.clt.PostJSON(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"),
+		pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "sessions"),
 		siteSessionGenerateReq{Session: sess},
 	)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 }
 
 func (s *WebSuite) TestPlayback(c *C) {
@@ -1448,130 +1590,6 @@ func (s *WebSuite) TestLogin(c *C) {
 	_, err = clt.Get(context.Background(), clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
-}
-
-func (s *WebSuite) TestChangePasswordAndAddTOTPDeviceWithToken(c *C) {
-	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOTP,
-	})
-	c.Assert(err, IsNil)
-	err = s.server.Auth().SetAuthPreference(s.ctx, ap)
-	c.Assert(err, IsNil)
-
-	// create user
-	s.createUser(c, "user1", "root", "password", "")
-
-	// create password change token
-	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
-		Name: "user1",
-	})
-	c.Assert(err, IsNil)
-
-	clt := s.client()
-	re, err := clt.Get(context.Background(), clt.Endpoint("webapi", "users", "password", "token", token.GetName()), url.Values{})
-	c.Assert(err, IsNil)
-
-	var uiToken *ui.ResetPasswordToken
-	c.Assert(json.Unmarshal(re.Bytes(), &uiToken), IsNil)
-	c.Assert(uiToken.User, Equals, token.GetUser())
-	c.Assert(uiToken.TokenID, Equals, token.GetName())
-	c.Assert(uiToken.QRCode, NotNil)
-
-	res, err := s.server.Auth().CreateRegisterChallenge(context.Background(), &apiProto.CreateRegisterChallengeRequest{
-		TokenID:    token.GetName(),
-		DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
-	})
-	c.Assert(err, IsNil)
-
-	// Advance the clock to invalidate the TOTP token
-	s.clock.Advance(1 * time.Minute)
-	secondFactorToken, err := totp.GenerateCode(res.GetTOTP().GetSecret(), s.clock.Now())
-	c.Assert(err, IsNil)
-
-	data, err := json.Marshal(auth.ChangePasswordWithTokenRequest{
-		TokenID:           token.GetName(),
-		Password:          []byte("abc123"),
-		SecondFactorToken: secondFactorToken,
-	})
-	c.Assert(err, IsNil)
-
-	req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(data))
-	c.Assert(err, IsNil)
-
-	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
-	addCSRFCookieToReq(req, csrfToken)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(csrf.HeaderName, csrfToken)
-
-	re, err = clt.Client.RoundTrip(func() (*http.Response, error) {
-		return clt.Client.HTTPClient().Do(req)
-	})
-	c.Assert(err, IsNil)
-
-	// Test that no recovery codes are returned b/c cloud feature isn't enabled.
-	var response ui.RecoveryCodes
-	c.Assert(json.Unmarshal(re.Bytes(), &response), IsNil)
-	c.Assert(response.Codes, IsNil)
-	c.Assert(response.Created, IsNil)
-}
-
-func (s *WebSuite) TestChangePasswordAndAddU2FDeviceWithToken(c *C) {
-	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorU2F,
-		U2F: &types.U2F{
-			AppID:  "https://" + s.server.ClusterName(),
-			Facets: []string{"https://" + s.server.ClusterName()},
-		},
-	})
-	c.Assert(err, IsNil)
-	err = s.server.Auth().SetAuthPreference(s.ctx, ap)
-	c.Assert(err, IsNil)
-
-	s.createUser(c, "user2", "root", "password", "")
-
-	// create reset password token
-	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
-		Name: "user2",
-	})
-	c.Assert(err, IsNil)
-
-	clt := s.client()
-	re, err := clt.Get(context.Background(), clt.Endpoint("webapi", "u2f", "signuptokens", token.GetName()), url.Values{})
-	c.Assert(err, IsNil)
-
-	var u2fRegReq u2f.RegisterChallenge
-	c.Assert(json.Unmarshal(re.Bytes(), &u2fRegReq), IsNil)
-
-	u2fRegResp, err := s.mockU2F.RegisterResponse(&u2fRegReq)
-	c.Assert(err, IsNil)
-
-	data, err := json.Marshal(auth.ChangePasswordWithTokenRequest{
-		TokenID:             token.GetName(),
-		Password:            []byte("qweQWE"),
-		U2FRegisterResponse: u2fRegResp,
-	})
-	c.Assert(err, IsNil)
-
-	req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(data))
-	c.Assert(err, IsNil)
-
-	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
-	addCSRFCookieToReq(req, csrfToken)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(csrf.HeaderName, csrfToken)
-
-	re, err = clt.Client.RoundTrip(func() (*http.Response, error) {
-		return clt.Client.HTTPClient().Do(req)
-	})
-	c.Assert(err, IsNil)
-
-	// Test that no recovery codes are returned b/c cloud is not turned on.
-	var response ui.RecoveryCodes
-	c.Assert(json.Unmarshal(re.Bytes(), &response), IsNil)
-	c.Assert(response.Codes, IsNil)
-	c.Assert(response.Created, IsNil)
 }
 
 // TestEmptyMotD ensures that responses returned by both /webapi/ping and
@@ -1952,10 +1970,14 @@ func TestClusterDatabasesGet(t *testing.T) {
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
+	type testResponse struct {
+		Items []ui.Database `json:"items"`
+	}
+
 	// No db registered.
-	dbs := []ui.Database{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &dbs))
-	require.Len(t, dbs, 0)
+	resp := testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 0)
 
 	// Register a database.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
@@ -1976,16 +1998,16 @@ func TestClusterDatabasesGet(t *testing.T) {
 	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
-	dbs = []ui.Database{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &dbs))
-	require.Len(t, dbs, 1)
+	resp = testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 1)
 	require.EqualValues(t, ui.Database{
 		Name:     "test-db-name",
 		Desc:     "test-description",
 		Protocol: "test-protocol",
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
-	}, dbs[0])
+	}, resp.Items[0])
 }
 
 func TestClusterKubesGet(t *testing.T) {
@@ -1998,10 +2020,14 @@ func TestClusterKubesGet(t *testing.T) {
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
+	type testResponse struct {
+		Items []ui.Kube `json:"items"`
+	}
+
 	// No kube registered.
-	kbs := []ui.Kube{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &kbs))
-	require.Len(t, kbs, 0)
+	resp := testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 0)
 
 	// Register a kube service.
 	_, err = env.server.Auth().UpsertKubeServiceV2(context.Background(), &types.ServerV2{
@@ -2027,13 +2053,13 @@ func TestClusterKubesGet(t *testing.T) {
 	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
-	kbs = []ui.Kube{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &kbs))
-	require.Len(t, kbs, 1)
+	resp = testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 1)
 	require.EqualValues(t, ui.Kube{
 		Name:   "test-kube-name",
 		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
-	}, kbs[0])
+	}, resp.Items[0])
 }
 
 // TestApplicationAccessDisabled makes sure application access can be disabled
@@ -2108,9 +2134,8 @@ func TestAddMFADevice(t *testing.T) {
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "https://localhost",
-			Facets: []string{"https://localhost"},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)
@@ -2134,7 +2159,6 @@ func TestAddMFADevice(t *testing.T) {
 		name            string
 		deviceName      string
 		getTOTPCode     func() string
-		getU2FResp      func() *u2f.RegisterChallengeResponse
 		getWebauthnResp func() *wanlib.CredentialCreationResponse
 	}{
 		{
@@ -2152,26 +2176,6 @@ func TestAddMFADevice(t *testing.T) {
 				require.NoError(t, err)
 
 				return regRes.GetTOTP().Code
-			},
-		},
-		{
-			name:       "new U2F device",
-			deviceName: "new-u2f",
-			getU2FResp: func() *u2f.RegisterChallengeResponse {
-				// Get u2f register challenge.
-				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
-					TokenID:    privilegeToken,
-					DeviceType: apiProto.DeviceType_DEVICE_TYPE_U2F,
-				})
-				require.NoError(t, err)
-
-				_, regRes, err := auth.NewTestDeviceFromChallenge(res)
-				require.NoError(t, err)
-
-				return &u2f.RegisterChallengeResponse{
-					RegistrationData: regRes.GetU2F().RegistrationData,
-					ClientData:       regRes.GetU2F().ClientData,
-				}
 			},
 		},
 		{
@@ -2198,15 +2202,11 @@ func TestAddMFADevice(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var totpCode string
-			var u2fRegResp *u2f.RegisterChallengeResponse
 			var webauthnRegResp *wanlib.CredentialCreationResponse
 
-			switch {
-			case tc.getU2FResp != nil:
-				u2fRegResp = tc.getU2FResp()
-			case tc.getWebauthnResp != nil:
+			if tc.getWebauthnResp != nil {
 				webauthnRegResp = tc.getWebauthnResp()
-			default:
+			} else {
 				totpCode = tc.getTOTPCode()
 			}
 
@@ -2216,7 +2216,6 @@ func TestAddMFADevice(t *testing.T) {
 				PrivilegeTokenID:         privilegeToken,
 				DeviceName:               tc.deviceName,
 				SecondFactorToken:        totpCode,
-				U2FRegisterResponse:      u2fRegResp,
 				WebauthnRegisterResponse: webauthnRegResp,
 			})
 			require.NoError(t, err)
@@ -2254,9 +2253,8 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "https://" + env.server.ClusterName(),
-			Facets: []string{"https://" + env.server.ClusterName()},
+		Webauthn: &types.Webauthn{
+			RPID: env.server.ClusterName(),
 		},
 	})
 	require.NoError(t, err)
@@ -2363,11 +2361,10 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 			res, err := tc.clt.PostJSON(ctx, endpoint, tc.reqBody)
 			require.NoError(t, err)
 
-			var chal auth.MFAAuthenticateChallenge
+			var chal client.MFAAuthenticateChallenge
 			err = json.Unmarshal(res.Bytes(), &chal)
 			require.NoError(t, err)
 			require.True(t, chal.TOTPChallenge)
-			require.Empty(t, chal.U2FChallenges)
 			require.Empty(t, chal.WebauthnChallenge)
 		})
 	}
@@ -2384,9 +2381,8 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
-		U2F: &types.U2F{
-			AppID:  "https://" + env.server.ClusterName(),
-			Facets: []string{"https://" + env.server.ClusterName()},
+		Webauthn: &types.Webauthn{
+			RPID: env.server.ClusterName(),
 		},
 	})
 	require.NoError(t, err)
@@ -2402,43 +2398,55 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name       string
-		deviceType string
+		name            string
+		req             *createRegisterChallengeRequest
+		assertChallenge func(t *testing.T, c *client.MFARegisterChallenge)
 	}{
 		{
-			name:       "u2f challenge",
-			deviceType: "u2f",
+			name: "totp",
+			req: &createRegisterChallengeRequest{
+				DeviceType: "totp",
+			},
 		},
 		{
-			name:       "totp challenge",
-			deviceType: "totp",
+			name: "webauthn",
+			req: &createRegisterChallengeRequest{
+				DeviceType: "webauthn",
+			},
 		},
 		{
-			name:       "webauthn challenge",
-			deviceType: "webauthn",
+			name: "passwordless",
+			req: &createRegisterChallengeRequest{
+				DeviceType:  "webauthn",
+				DeviceUsage: "passwordless",
+			},
+			assertChallenge: func(t *testing.T, c *client.MFARegisterChallenge) {
+				// rrk=true is a good proxy for passwordless.
+				require.NotNil(t, c.Webauthn.Response.AuthenticatorSelection.RequireResidentKey, "rrk cannot be nil")
+				require.True(t, *c.Webauthn.Response.AuthenticatorSelection.RequireResidentKey, "rrk cannot be false")
+			},
 		},
 	}
-
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			endpoint := clt.Endpoint("webapi", "mfa", "token", token.GetName(), "registerchallenge")
-			res, err := clt.PostJSON(ctx, endpoint, &createRegisterChallengeRequest{
-				DeviceType: tc.deviceType,
-			})
+			res, err := clt.PostJSON(ctx, endpoint, tc.req)
 			require.NoError(t, err)
 
 			var chal client.MFARegisterChallenge
 			require.NoError(t, json.Unmarshal(res.Bytes(), &chal))
 
-			switch tc.deviceType {
-			case "u2f":
-				require.NotNil(t, chal.U2F)
+			switch tc.req.DeviceType {
 			case "totp":
-				require.NotNil(t, chal.TOTP.QRCode)
+				require.NotNil(t, chal.TOTP.QRCode, "TOTP QR code cannot be nil")
 			case "webauthn":
-				require.NotNil(t, chal.Webauthn)
+				require.NotNil(t, chal.Webauthn, "WebAuthn challenge cannot be nil")
+			}
+
+			if tc.assertChallenge != nil {
+				tc.assertChallenge(t, &chal)
 			}
 		})
 	}
@@ -3110,7 +3118,7 @@ func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
 
 func newWebPack(t *testing.T, numProxies int) *webPack {
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
+	clock := clockwork.NewFakeClockAt(time.Now())
 
 	server, err := auth.NewTestServer(auth.TestServerConfig{
 		Auth: auth.TestAuthServerConfig{
@@ -3540,6 +3548,39 @@ func (r *proxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID)
 	return ws
 }
 
+func (r *proxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID session.ID, addr net.Addr) *websocket.Conn {
+	u := url.URL{
+		Host:   r.webURL.Host,
+		Scheme: client.WSS,
+		Path:   fmt.Sprintf("/webapi/sites/%s/desktops/%s/connect", currentSiteShortcut, "desktop1"),
+	}
+
+	q := u.Query()
+	q.Set("username", "marek")
+	q.Set("width", "100")
+	q.Set("height", "100")
+	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
+	u.RawQuery = q.Encode()
+
+	dialer := websocket.Dialer{}
+	dialer.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	header := http.Header{}
+	for _, cookie := range pack.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+
+	ws, resp, err := dialer.Dial(u.String(), header)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		ws.Close()
+		resp.Body.Close()
+	})
+	return ws
+}
+
 func login(t *testing.T, clt *client.WebClient, cookieToken, reqToken string, reqData interface{}) *roundtrip.Response {
 	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(reqData)
@@ -3569,8 +3610,7 @@ func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
 	require.NoError(t, err)
 }
 
-type mockProxySettings struct {
-}
+type mockProxySettings struct{}
 
 func (mock *mockProxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error) {
 	return &webclient.ProxySettings{}, nil

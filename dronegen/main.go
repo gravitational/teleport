@@ -24,7 +24,7 @@ import (
 )
 
 func main() {
-	if err := checkDroneCLI(); err != nil {
+	if err := checkTDR(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}

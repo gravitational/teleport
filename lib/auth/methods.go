@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -39,12 +38,9 @@ type AuthenticateUserRequest struct {
 	Username string `json:"username"`
 	// Pass is a password used in local authentication schemes
 	Pass *PassCreds `json:"pass,omitempty"`
-	// U2F is a sign response credentials used to authenticate via U2F
-	U2F *U2FSignResponseCreds `json:"u2f,omitempty"`
-	// Webauthn is a signed credential assertion used to authenticate via WebAuthn
-	// or U2F devices.
+	// Webauthn is a signed credential assertion, used in MFA authentication
 	Webauthn *wanlib.CredentialAssertionResponse `json:"webauthn,omitempty"`
-	// OTP is a password and second factor, used in two factor authentication
+	// OTP is a password and second factor, used for MFA authentication
 	OTP *OTPCreds `json:"otp,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
 	Session *SessionCreds `json:"session,omitempty"`
@@ -52,10 +48,11 @@ type AuthenticateUserRequest struct {
 
 // CheckAndSetDefaults checks and sets defaults
 func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
-	if a.Username == "" {
+	switch {
+	case a.Username == "" && a.Webauthn != nil: // OK, passwordless.
+	case a.Username == "":
 		return trace.BadParameter("missing parameter 'username'")
-	}
-	if a.Pass == nil && a.U2F == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil {
+	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil:
 		return trace.BadParameter("at least one authentication method is required")
 	}
 	return nil
@@ -65,12 +62,6 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 type PassCreds struct {
 	// Password is a user password
 	Password []byte `json:"password"`
-}
-
-// U2FSignResponseCreds is a U2F signature sent by U2F device
-type U2FSignResponseCreds struct {
-	// SignResponse is a U2F sign resposne
-	SignResponse u2f.AuthenticateChallengeResponse `json:"sign_response"`
 }
 
 // OTPCreds is a two factor authencication credentials
@@ -87,16 +78,28 @@ type SessionCreds struct {
 	ID string `json:"id"`
 }
 
-// AuthenticateUser authenticates user based on the request type
-func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
-	mfaDev, err := s.authenticateUser(context.TODO(), req)
+// AuthenticateUser authenticates user based on the request type.
+// Returns the username of the authenticated user.
+func (s *Server) AuthenticateUser(req AuthenticateUserRequest) (string, error) {
+	user := req.Username
+
+	mfaDev, actualUser, err := s.authenticateUser(context.TODO(), req)
+	// err is handled below.
+	switch {
+	case user != "" && actualUser != "" && user != actualUser:
+		log.Warnf("Authenticate user mismatch (%q vs %q). Using request user (%q)", user, actualUser, user)
+	case user == "" && actualUser != "":
+		log.Debugf("User %q authenticated via passwordless", actualUser)
+		user = actualUser
+	}
+
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 			Code: events.UserLocalLoginFailureCode,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User: req.Username,
+			User: user,
 		},
 		Method: events.LoginMethodLocal,
 	}
@@ -115,14 +118,27 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
 	if err := s.emitter.EmitAuditEvent(s.closeCtx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit login event.")
 	}
-	return err
+	return user, trace.Wrap(err)
 }
 
-func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, error) {
+// authenticateWebauthnError is the generic error message returned for failed
+// WebAuthn authentication attempts.
+const authenticateWebauthnError = "invalid Webauthn response"
+
+// authenticateUser authenticates a user through various methods (password, MFA,
+// passwordless)
+// Returns the device used to authenticate (if applicable) and the username.
+func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, string, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 	user := req.Username
+	passwordless := user == ""
+
+	// Only one path if passwordless, other variants shouldn't see an empty user.
+	if passwordless {
+		return s.authenticatePasswordless(ctx, req)
+	}
 
 	// Try 2nd-factor-enabled authentication schemes first.
 	var authenticateFn func() (*types.MFADevice, error)
@@ -136,23 +152,10 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 					Webauthn: wanlib.CredentialAssertionResponseToProto(req.Webauthn),
 				},
 			}
-			return s.validateMFAAuthResponse(ctx, user, mfaResponse, s.Identity /* u2fStorage */)
+			dev, _, err := s.validateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
+			return dev, trace.Wrap(err)
 		}
-		failMsg = "invalid Webauthn response"
-	case req.U2F != nil:
-		authenticateFn = func() (*types.MFADevice, error) {
-			mfaResponse := &proto.MFAAuthenticateResponse{
-				Response: &proto.MFAAuthenticateResponse_U2F{
-					U2F: &proto.U2FResponse{
-						KeyHandle:  req.U2F.SignResponse.KeyHandle,
-						ClientData: req.U2F.SignResponse.ClientData,
-						Signature:  req.U2F.SignResponse.SignatureData,
-					},
-				},
-			}
-			return s.validateMFAAuthResponse(ctx, user, mfaResponse, s.Identity /* u2fStorage */)
-		}
-		failMsg = "invalid U2F response"
+		failMsg = authenticateWebauthnError
 	case req.OTP != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
 			// OTP cannot be validated by validateMFAAuthResponse because we need to
@@ -176,28 +179,28 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		case err != nil:
 			log.Debugf("User %v failed to authenticate: %v.", user, err)
 			if fieldErr := getErrorByTraceField(err); fieldErr != nil {
-				return nil, trace.Wrap(fieldErr)
+				return nil, "", trace.Wrap(fieldErr)
 			}
 
-			return nil, trace.AccessDenied(failMsg)
+			return nil, "", trace.AccessDenied(failMsg)
 		case dev == nil:
 			log.Debugf(
-				"MFA authentication returned nil device (Webauthn = %v, U2F = %v, TOTP = %v): %v.",
-				req.Webauthn != nil, req.U2F != nil, req.OTP != nil, err)
-			return nil, trace.AccessDenied(failMsg)
+				"MFA authentication returned nil device (Webauthn = %v, TOTP = %v): %v.",
+				req.Webauthn != nil, req.OTP != nil, err)
+			return nil, "", trace.AccessDenied(failMsg)
 		default:
-			return dev, nil
+			return dev, user, nil
 		}
 	}
 
 	// Try password-only authentication last.
 	if req.Pass == nil {
-		return nil, trace.AccessDenied("unsupported authentication method")
+		return nil, "", trace.AccessDenied("unsupported authentication method")
 	}
 
 	authPreference, err := s.GetAuthPreference(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	// When using password only make sure that auth preference does not require
@@ -210,37 +213,62 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		// registered.
 		devs, err := s.Identity.GetMFADevices(ctx, user, false /* withSecrets */)
 		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
 		if len(devs) != 0 {
 			log.Warningf("MFA bypass attempt by user %q, access denied.", user)
-			return nil, trace.AccessDenied("missing second factor authentication")
+			return nil, "", trace.AccessDenied("missing second factor authentication")
 		}
 	default:
 		// Some form of MFA is required but none provided. Either client is
 		// buggy (didn't send MFA response) or someone is trying to bypass
 		// MFA.
 		log.Warningf("MFA bypass attempt by user %q, access denied.", user)
-		return nil, trace.AccessDenied("missing second factor")
+		return nil, "", trace.AccessDenied("missing second factor")
 	}
 	if err = s.WithUserLock(user, func() error {
 		return s.checkPasswordWOToken(user, req.Pass.Password)
 	}); err != nil {
 		if fieldErr := getErrorByTraceField(err); fieldErr != nil {
-			return nil, trace.Wrap(fieldErr)
+			return nil, "", trace.Wrap(fieldErr)
 		}
 		// provide obscure message on purpose, while logging the real
 		// error server side
 		log.Debugf("User %v failed to authenticate: %v.", user, err)
-		return nil, trace.AccessDenied("invalid username or password")
+		return nil, "", trace.AccessDenied("invalid username or password")
 	}
-	return nil, nil
+	return nil, user, nil
+}
+
+func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, string, error) {
+	mfaResponse := &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: wanlib.CredentialAssertionResponseToProto(req.Webauthn),
+		},
+	}
+	dev, user, err := s.validateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)
+	if err != nil {
+		log.Debugf("Passwordless authentication failed: %v", err)
+		return nil, "", trace.AccessDenied(authenticateWebauthnError)
+	}
+
+	// A distinction between passwordless and "plain" MFA is that we can't
+	// acquire the user lock beforehand (or at all on failures!)
+	// We do grab it here so successful logins go through the regular process.
+	if err := s.WithUserLock(user, func() error { return nil }); err != nil {
+		log.Debugf("WithUserLock for user %q failed during passwordless authentication: %v", user, err)
+		return nil, user, trace.AccessDenied(authenticateWebauthnError)
+	}
+
+	return dev, user, nil
 }
 
 // AuthenticateWebUser authenticates web user, creates and returns a web session
 // if authentication is successful. In case the existing session ID is used to authenticate,
 // returns the existing session instead of creating a new one
 func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error) {
+	username := req.Username // Empty if passwordless.
+
 	ctx := context.TODO()
 	authPref, err := s.GetAuthPreference(ctx)
 	if err != nil {
@@ -252,13 +280,13 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSess
 	// This condition uses Session as a blanket check, because any new method added
 	// to the local auth will be disabled by default.
 	if !authPref.GetAllowLocalAuth() && req.Session == nil {
-		s.emitNoLocalAuthEvent(req.Username)
+		s.emitNoLocalAuthEvent(username)
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
 
 	if req.Session != nil {
 		session, err := s.GetWebSession(context.TODO(), types.GetWebSessionRequest{
-			User:      req.Username,
+			User:      username,
 			SessionID: req.Session.ID,
 		})
 		if err != nil {
@@ -267,11 +295,13 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSess
 		return session, nil
 	}
 
-	if err := s.AuthenticateUser(req); err != nil {
+	actualUser, err := s.AuthenticateUser(req)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	username = actualUser
 
-	user, err := s.GetUser(req.Username, false)
+	user, err := s.GetUser(username, false /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -373,13 +403,15 @@ func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []TrustedCerts
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
 // certificates for the public key in req.
 func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+	username := req.Username // Empty if passwordless.
+
 	ctx := context.TODO()
 	authPref, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if !authPref.GetAllowLocalAuth() {
-		s.emitNoLocalAuthEvent(req.Username)
+		s.emitNoLocalAuthEvent(username)
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
 
@@ -388,13 +420,15 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.AuthenticateUser(req.AuthenticateUserRequest); err != nil {
+	actualUser, err := s.AuthenticateUser(req.AuthenticateUserRequest)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	username = actualUser
 
 	// It's safe to extract the roles and traits directly from services.User as
 	// this endpoint is only used for local accounts.
-	user, err := s.GetUser(req.Username, false)
+	user, err := s.GetUser(username, false /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -430,7 +464,7 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 	}
 	UserLoginCount.Inc()
 	return &SSHLoginResponse{
-		Username:    req.Username,
+		Username:    username,
 		Cert:        certs.SSH,
 		TLSCert:     certs.TLS,
 		HostSigners: AuthoritiesToTrustedCerts(hostCertAuthorities),
