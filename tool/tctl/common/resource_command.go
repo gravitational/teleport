@@ -194,7 +194,7 @@ func (rc *ResourceCommand) Get(client auth.ClientI) error {
 	// is experimental.
 	switch rc.format {
 	case teleport.Text:
-		return collection.writeText(rc.verbose, rc.stdout)
+		return collection.writeText(rc.stdout)
 	case teleport.YAML:
 		return writeYAML(collection, rc.stdout)
 	case teleport.JSON:
