@@ -2665,6 +2665,11 @@ message WindowsDesktopServiceSpecV3 {
     string TeleportVersion = 2 [ (gogoproto.jsontag) = "teleport_version" ];
 }
 
+message WindowsDesktopFilter {
+    string HostID = 1 [ (gogoproto.jsontag) = "host_id" ];
+    string Name = 2 [ (gogoproto.jsontag) = "name" ];
+}
+
 // WindowsDesktopV3 represents a Windows host for desktop access.
 message WindowsDesktopV3 {
     // Header is the common resource header.
@@ -2680,6 +2685,8 @@ message WindowsDesktopSpecV3 {
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
     // Domain is the ActiveDirectory domain that this host belongs to.
     string Domain = 2 [ (gogoproto.jsontag) = "domain" ];
+    // HostID is the ID of the host the Windows Desktop Service proxying the desktop.
+    string HostID = 3 [ (gogoproto.jsontag) = "host_id" ];
 }
 
 // RegisterUsingTokenRequest is a request to register with the auth server using
