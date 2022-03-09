@@ -2223,6 +2223,53 @@ func TestAddMFADevice(t *testing.T) {
 	}
 }
 
+func TestDeleteMFA(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com")
+
+	//setting up client manually because we need sanitizer off
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	opts := []roundtrip.ClientParam{roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar), roundtrip.HTTPClient(client.NewInsecureWebClient())}
+	rclt, err := roundtrip.NewClient(proxy.webURL.String(), teleport.WebAPIVersion, opts...)
+	require.NoError(t, err)
+	clt := client.WebClient{Client: rclt}
+	jar.SetCookies(&proxy.webURL, pack.cookies)
+
+	totpCode, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	// Obtain a privilege token.
+	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
+	re, err := pack.clt.PostJSON(ctx, endpoint, &privilegeTokenRequest{
+		SecondFactorToken: totpCode,
+	})
+
+	require.NoError(t, err)
+	var privilegeToken string
+	require.NoError(t, json.Unmarshal(re.Bytes(), &privilegeToken))
+
+	names := []string{"x", "??", "%123/", "///", "my/device", "?/%&*1"}
+	for _, devName := range names {
+		devName := devName
+		t.Run(devName, func(t *testing.T) {
+			t.Parallel()
+			otpSecret := base32.StdEncoding.EncodeToString([]byte(devName))
+			dev, err := services.NewTOTPDevice(devName, otpSecret, env.clock.Now())
+			require.NoError(t, err)
+			err = env.server.Auth().UpsertMFADevice(ctx, pack.user, dev)
+			require.NoError(t, err)
+
+			enc := url.PathEscape(devName)
+			_, err = clt.Delete(ctx, pack.clt.Endpoint("webapi", "mfa", "token", privilegeToken, "devices", enc))
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestGetMFADevicesWithAuth(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
