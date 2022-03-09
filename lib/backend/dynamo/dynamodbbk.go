@@ -363,6 +363,9 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	if len(endKey) == 0 {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
+	if limit <= 0 {
+		limit = backend.DefaultRangeLimit
+	}
 	result, err := b.getAllRecords(ctx, startKey, endKey, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -391,7 +394,9 @@ func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []b
 			return nil, trace.Wrap(err)
 		}
 		result.records = append(result.records, re.records...)
-		if len(result.records) >= limit || len(re.lastEvaluatedKey) == 0 {
+		// If the limit was exceeded or there are no more records to fetch return the current result
+		// otherwise updated lastEvaluatedKey and proceed with obtaining new records.
+		if (limit != 0 && len(result.records) >= limit) || len(re.lastEvaluatedKey) == 0 {
 			if len(result.records) == backend.DefaultRangeLimit {
 				b.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
 			}
@@ -744,12 +749,12 @@ func (b *Backend) getRecords(ctx context.Context, startKey, endKey string, limit
 
 // isExpired returns 'true' if the given object (record) has a TTL and
 // it's due.
-func (r *record) isExpired() bool {
+func (r *record) isExpired(now time.Time) bool {
 	if r.Expires == nil {
 		return false
 	}
 	expiryDateUTC := time.Unix(*r.Expires, 0).UTC()
-	return time.Now().UTC().After(expiryDateUTC)
+	return now.UTC().After(expiryDateUTC)
 }
 
 func removeDuplicates(elements []record) []record {
@@ -863,7 +868,7 @@ func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
 		return nil, trace.WrapWithMessage(err, "%q is not found", string(key))
 	}
 	// Check if key expired, if expired delete it
-	if r.isExpired() {
+	if r.isExpired(b.clock.Now()) {
 		if err := b.deleteKey(ctx, key); err != nil {
 			b.Warnf("Failed deleting expired key %q: %v", key, err)
 		}
