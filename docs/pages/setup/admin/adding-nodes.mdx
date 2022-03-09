@@ -45,21 +45,13 @@ Administrators can generate tokens as they are needed.
 Such token can be used multiple times until its time to live (TTL)
 expires.
 
-Use the [`tctl`](../reference/cli.mdx#tctl) tool to register a new invitation token (or
-it can also generate a new token for you). In the following example a new token
-is created with a TTL of 5 minutes:
-
-```code
-$ tctl nodes add --ttl=5m --roles=node --token=secret-value
-# The invite token: secret-value
-```
-
-If `--token` is not provided, [`tctl`](../reference/cli.mdx#tctl) will generate one:
+Use the [`tctl`](../reference/cli.mdx#tctl) tool to generate a new invitation token.
+In the following example a new token is created with a TTL of 5 minutes:
 
 ```code
 # Generate a short-lived invitation token for a new node:
-$ tctl nodes add --ttl=5m --roles=node,app
-# The invite token: abcdefgh-do-not-use-this-token-123
+$ tctl nodes add --ttl=5m --roles=node
+# The invite token: (=presets.tokens.first=)
 
 # You can also list all generated non-expired tokens:
 $ tctl tokens ls
@@ -67,7 +59,7 @@ $ tctl tokens ls
 # ------------------------         -----------     ---------------
 # (=presets.tokens.first=)         Node            25 Sep 18 00:21 UTC
 
-# ... or revoke an invitation before it's used:
+# ... or revoke an invitation token before it's used:
 $ tctl tokens rm (=presets.tokens.first=)
 ```
 
