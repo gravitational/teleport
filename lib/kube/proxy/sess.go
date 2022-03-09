@@ -432,10 +432,7 @@ func (s *session) launch() error {
 	}()
 
 	s.log.Debugf("Launching session: %v", s.id)
-
-	if s.tty {
-		s.BroadcastMessage("Connecting to %v over K8S", s.podName)
-	}
+	s.BroadcastMessage("Connecting to %v over K8S", s.podName)
 
 	q := s.req.URL.Query()
 	request := &remoteCommandRequest{
@@ -521,10 +518,7 @@ func (s *session) launch() error {
 		case <-time.After(time.Until(s.expires)):
 			s.mu.Lock()
 			defer s.mu.Unlock()
-
-			if s.tty {
-				s.BroadcastMessage("Session expired, closing...")
-			}
+			s.BroadcastMessage("Session expired, closing...")
 
 			err := s.Close()
 			if err != nil {
@@ -898,10 +892,7 @@ func (s *session) join(p *party) error {
 	}
 
 	s.io.AddWriter(stringID, p.Client.stdoutStream())
-
-	if s.tty {
-		s.BroadcastMessage("User %v joined the session.", p.Ctx.User.GetName())
-	}
+	s.BroadcastMessage("User %v joined the session.", p.Ctx.User.GetName())
 
 	if p.Mode == types.SessionModeratorMode {
 		go func() {
@@ -948,7 +939,7 @@ func (s *session) join(p *party) error {
 }
 
 func (s *session) BroadcastMessage(format string, args ...interface{}) error {
-	if s.accessEvaluator.IsModerated() {
+	if s.accessEvaluator.IsModerated() && s.tty {
 		return s.BroadcastMessage(fmt.Sprintf(format, args...))
 	}
 
@@ -976,9 +967,7 @@ func (s *session) leave(id uuid.UUID) error {
 	s.io.DeleteReader(stringID)
 	s.io.DeleteWriter(stringID)
 
-	if s.tty {
-		s.BroadcastMessage("User %v left the session.", party.Ctx.User.GetName())
-	}
+	s.BroadcastMessage("User %v left the session.", party.Ctx.User.GetName())
 
 	sessionLeaveEvent := &apievents.SessionLeave{
 		Metadata: apievents.Metadata{
@@ -1094,10 +1083,7 @@ func (s *session) Close() error {
 	defer s.mu.Unlock()
 
 	s.closeOnce.Do(func() {
-		if s.tty {
-			s.BroadcastMessage("Closing session...")
-		}
-
+		s.BroadcastMessage("Closing session...")
 		s.stateUpdate.L.Lock()
 		defer s.stateUpdate.L.Unlock()
 		s.state = types.SessionState_SessionStateTerminated
