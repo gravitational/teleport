@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 )
 
 const (
@@ -376,8 +377,14 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		dependentPipeline += "-centos7"
 	}
 
+	apkPackages := []string{"bash", "curl", "gzip", "make", "tar"}
+	if packageType == rpmPackage {
+		// Required by `make rpm`
+		apkPackages = append(apkPackages, "go")
+	}
+
 	packageBuildCommands := []string{
-		`apk add --no-cache bash curl gzip make tar`,
+		fmt.Sprintf("apk add --no-cache %s", strings.Join(apkPackages, " ")),
 		`cd /go/src/github.com/gravitational/teleport`,
 		`export VERSION=$(cat /go/.version.txt)`,
 	}
