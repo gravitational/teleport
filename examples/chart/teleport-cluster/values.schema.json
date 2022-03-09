@@ -45,7 +45,8 @@
                 "node-sync",
                 "proxy",
                 "proxy-sync",
-                "off"
+                "off",
+                ""
             ],
             "default": "node"
         },
