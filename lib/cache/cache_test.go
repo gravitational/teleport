@@ -926,7 +926,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		IsDesc: true,
 	}
 	require.Eventually(t, func() bool {
-		page, nextKey, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+		resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
 			Namespace:    apidefaults.Namespace,
 			ResourceType: types.KindNode,
 			StartKey:     listResourcesStartKey,
@@ -934,8 +934,8 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 			SortBy:       sortBy,
 		})
 		require.NoError(t, err)
-		resources = append(resources, page...)
-		listResourcesStartKey = nextKey
+		resources = append(resources, resp.Resources...)
+		listResourcesStartKey = resp.NextKey
 		return len(resources) == nodeCount
 	}, 5*time.Second, 100*time.Millisecond)
 
@@ -1405,7 +1405,7 @@ func TestRoles(t *testing.T) {
 	p := newPackForNode(t)
 	t.Cleanup(p.Close)
 
-	role, err := types.NewRole("role1", types.RoleSpecV5{
+	role, err := types.NewRoleV3("role1", types.RoleSpecV5{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.Duration(time.Hour),
 		},

@@ -148,6 +148,32 @@ func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
 	return dbs, nil
 }
 
+// AsWindowsDesktops converts each resource into type WindowsDesktop.
+func (r ResourcesWithLabels) AsWindowsDesktops() ([]WindowsDesktop, error) {
+	desktops := make([]WindowsDesktop, 0, len(r))
+	for _, resource := range r {
+		desktop, ok := resource.(WindowsDesktop)
+		if !ok {
+			return nil, trace.BadParameter("expected types.WindowsDesktop, got: %T", resource)
+		}
+		desktops = append(desktops, desktop)
+	}
+	return desktops, nil
+}
+
+// AsKubeClusters converts each resource into type KubeCluster.
+func (r ResourcesWithLabels) AsKubeClusters() ([]KubeCluster, error) {
+	clusters := make([]KubeCluster, 0, len(r))
+	for _, resource := range r {
+		cluster, ok := resource.(KubeCluster)
+		if !ok {
+			return nil, trace.BadParameter("expected types.KubeCluster, got: %T", resource)
+		}
+		clusters = append(clusters, cluster)
+	}
+	return clusters, nil
+}
+
 // GetVersion returns resource version
 func (h *ResourceHeader) GetVersion() string {
 	return h.Version
@@ -359,4 +385,14 @@ func stringCompare(a string, b string, isDesc bool) bool {
 		return a > b
 	}
 	return a < b
+}
+
+// ListResourcesResponse describes a non proto response to ListResources.
+type ListResourcesResponse struct {
+	// Resources is a list of resource.
+	Resources []ResourceWithLabels
+	// NextKey is the next key to use as a starting point.
+	NextKey string
+	// TotalCount is the total number of resources available as a whole.
+	TotalCount int
 }

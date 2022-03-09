@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -37,20 +36,6 @@ import (
 
 // This is bcrypt hash for password "barbaz".
 var fakePasswordHash = []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
-
-// ChangePasswordWithTokenRequest defines a request to change user password
-// DELETE IN 9.0.0 along with changePasswordWithToken http endpoint
-// in favor of grpc ChangeUserAuthentication.
-type ChangePasswordWithTokenRequest struct {
-	// SecondFactorToken is the TOTP code.
-	SecondFactorToken string `json:"second_factor_token"`
-	// TokenID is the ID of a reset or invite token.
-	TokenID string `json:"token"`
-	// Password is user password string converted to bytes.
-	Password []byte `json:"password"`
-	// U2FRegisterResponse is U2F registration challenge response.
-	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
-}
 
 // ChangeUserAuthentication implements AuthService.ChangeUserAuthentication.
 func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
@@ -118,7 +103,6 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 	// validate new password
 	if err := services.VerifyPassword(req.NewPassword); err != nil {
 		return trace.Wrap(err)
-
 	}
 
 	// Authenticate.
@@ -132,18 +116,13 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 			Password: req.OldPassword,
 		}
 	}
-	if req.U2FSignResponse != nil {
-		authReq.U2F = &U2FSignResponseCreds{
-			SignResponse: *req.U2FSignResponse,
-		}
-	}
 	if req.SecondFactorToken != "" {
 		authReq.OTP = &OTPCreds{
 			Password: req.OldPassword,
 			Token:    req.SecondFactorToken,
 		}
 	}
-	if _, err := s.authenticateUser(ctx, authReq); err != nil {
+	if _, _, err := s.authenticateUser(ctx, authReq); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -409,8 +388,6 @@ func (s *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUs
 	switch {
 	case req.GetNewMFARegisterResponse().GetTOTP() != nil:
 		deviceName = "otp"
-	case req.GetNewMFARegisterResponse().GetU2F() != nil:
-		deviceName = "u2f"
 	case req.GetNewMFARegisterResponse().GetWebauthn() != nil:
 		deviceName = "webauthn"
 	default:

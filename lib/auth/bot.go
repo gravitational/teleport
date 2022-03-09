@@ -44,7 +44,7 @@ func BotResourceName(botName string) string {
 
 // createBotRole creates a role from a bot template with the given parameters.
 func createBotRole(ctx context.Context, s *Server, botName string, resourceName string, roleRequests []string) (types.Role, error) {
-	role, err := types.NewRole(resourceName, types.RoleSpecV5{
+	role, err := types.NewRoleV3(resourceName, types.RoleSpecV5{
 		Options: types.RoleOptions{
 			// TODO: inherit TTLs from cert length?
 			MaxSessionTTL: types.Duration(12 * time.Hour),
@@ -112,11 +112,6 @@ func createBotUser(ctx context.Context, s *Server, botName string, resourceName 
 
 // createBot creates a new certificate renewal bot from a bot request.
 func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
-	if req.TokenID != "" {
-		// TODO: IAM joining for bots
-		return nil, trace.NotImplemented("IAM join for bots is not yet supported")
-	}
-
 	if req.Name == "" {
 		return nil, trace.BadParameter("bot name must not be empty")
 	}
@@ -148,6 +143,11 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		}
 	}
 
+	provisionToken, err := s.checkOrCreateBotToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create the resources.
 	if _, err := createBotRole(ctx, s, req.Name, resourceName, req.Roles); err != nil {
 		return nil, trace.Wrap(err)
@@ -157,21 +157,12 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		return nil, trace.Wrap(err)
 	}
 
-	ttl := time.Duration(req.TTL)
-	if ttl == 0 {
-		ttl = defaults.DefaultBotJoinTTL
-	}
-
-	provisionToken, err := s.CreateBotProvisionToken(ctx, resourceName, ttl)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &proto.CreateBotResponse{
-		TokenID:  provisionToken.GetName(),
-		UserName: resourceName,
-		RoleName: resourceName,
-		TokenTTL: proto.Duration(ttl),
+		TokenID:    provisionToken.GetName(),
+		UserName:   resourceName,
+		RoleName:   resourceName,
+		TokenTTL:   proto.Duration(time.Until(*provisionToken.GetMetadata().Expires)),
+		JoinMethod: provisionToken.GetJoinMethod(),
 	}, nil
 }
 
@@ -247,17 +238,55 @@ func (s *Server) getBotUsers(ctx context.Context) ([]types.User, error) {
 	return botUsers, nil
 }
 
-// CreateBotProvisionToken creates a new random dynamic provision token which
-// allows bots to join with the given botName
-func (s *Server) CreateBotProvisionToken(ctx context.Context, botName string, ttl time.Duration) (types.ProvisionToken, error) {
+// checkOrCreateBotToken checks the existing token if given, or creates a new
+// random dynamic provision token which allows bots to join with the given
+// botName. Returns the token and any error.
+func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBotRequest) (types.ProvisionToken, error) {
+	resourceName := BotResourceName(req.Name)
+
+	// if the request includes a TokenID it should already exist
+	if req.TokenID != "" {
+		provisionToken, err := s.GetToken(ctx, req.TokenID)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return nil, trace.NotFound("token with name %q not found, create the token or do not set TokenName: %v",
+					req.TokenID, err)
+			}
+			return nil, trace.Wrap(err)
+		}
+		if !provisionToken.GetRoles().Include(types.RoleBot) {
+			return nil, trace.BadParameter("token %q is not valid for role %q",
+				req.TokenID, types.RoleBot)
+		}
+		if provisionToken.GetBotName() != resourceName {
+			return nil, trace.BadParameter("token %q is valid for bot with name %q, not %q",
+				req.TokenID, provisionToken.GetBotName(), resourceName)
+		}
+		switch provisionToken.GetJoinMethod() {
+		case types.JoinMethodToken, types.JoinMethodIAM:
+		default:
+			return nil, trace.BadParameter(
+				"token %q has join method %q which is not supported for bots. Supported join methods are %v",
+				req.TokenID, provisionToken.GetJoinMethod(), []types.JoinMethod{types.JoinMethodToken, types.JoinMethodIAM})
+		}
+		return provisionToken, nil
+	}
+
+	// create a new random dynamic token
 	tokenName, err := utils.CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	ttl := time.Duration(req.TTL)
+	if ttl == 0 {
+		ttl = defaults.DefaultBotJoinTTL
+	}
+
 	tokenSpec := types.ProvisionTokenSpecV2{
 		Roles:      []types.SystemRole{types.RoleBot},
 		JoinMethod: types.JoinMethodToken,
-		BotName:    botName,
+		BotName:    resourceName,
 	}
 	token, err := types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(ttl), tokenSpec)
 	if err != nil {
@@ -313,6 +342,11 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 				"user %q has already been issued a renewable certificate and cannot be issued another; consider deleting and recreating the bot",
 				user.GetName(),
 			)
+		}
+
+		// Sanity check that the requested generation is 1.
+		if certReq.generation != 1 {
+			return trace.BadParameter("explicitly requested generation %d is not equal to 1, this is a logic error", certReq.generation)
 		}
 
 		// Fetch a fresh copy of the user we can mutate safely. We can't
@@ -404,15 +438,14 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 	return nil
 }
 
-// generateInitialRenewableUserCerts is used to generate renewable bot certs
-// and overlaps significantly with `generateUserCerts()`. However, it omits a
-// number of options (impersonation, access requests, role requests, actual
-// cert renewal, and most UserCertsRequest options that don't relate to bots)
-// and does not care if the current identity is Nop.
-// This function does not validate the current identity at all; the caller is
-// expected to validate that the client is allowed to issue the renewable
-// certificates.
-func (s *Server) generateInitialRenewableUserCerts(ctx context.Context, username string, pubKey []byte, expires time.Time) (*proto.Certs, error) {
+// generateInitialBotCerts is used to generate bot certs and overlaps
+// significantly with `generateUserCerts()`. However, it omits a number of
+// options (impersonation, access requests, role requests, actual cert renewal,
+// and most UserCertsRequest options that don't relate to bots) and does not
+// care if the current identity is Nop.  This function does not validate the
+// current identity at all; the caller is expected to validate that the client
+// is allowed to issue the (possibly renewable) certificates.
+func (s *Server) generateInitialBotCerts(ctx context.Context, username string, pubKey []byte, expires time.Time, renewable bool) (*proto.Certs, error) {
 	var err error
 
 	// Extract the user and role set for whom the certificate will be generated.
@@ -449,6 +482,12 @@ func (s *Server) generateInitialRenewableUserCerts(ctx context.Context, username
 	// add implicit roles to the set and build a checker
 	checker := services.NewRoleSet(parsedRoles...)
 
+	// renewable cert request must include a generation
+	var generation uint64
+	if renewable {
+		generation = 1
+	}
+
 	// Generate certificate
 	certReq := certRequest{
 		user:          user,
@@ -456,9 +495,9 @@ func (s *Server) generateInitialRenewableUserCerts(ctx context.Context, username
 		publicKey:     pubKey,
 		checker:       checker,
 		traits:        user.GetTraits(),
-		renewable:     true,
+		renewable:     renewable,
 		includeHostCA: true,
-		generation:    1,
+		generation:    generation,
 	}
 
 	if err := s.validateGenerationLabel(ctx, user, &certReq, 0); err != nil {

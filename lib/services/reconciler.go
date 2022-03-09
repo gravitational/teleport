@@ -155,9 +155,9 @@ func (r *Reconciler) processNewResource(ctx context.Context, currentResources ty
 		return nil
 	}
 
-	// Don't overwrite resource of a different origin.
+	// Don't overwrite resource of a different origin (e.g., keep static resource from config and ignore dynamic resource)
 	if registered.Origin() != new.Origin() {
-		r.log.Debugf("%v has different origin (%v vs %v), not updating.", new.GetName(),
+		r.log.Warnf("%v has different origin (%v vs %v), not updating.", new.GetName(),
 			new.Origin(), registered.Origin())
 		return nil
 	}

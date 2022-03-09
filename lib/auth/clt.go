@@ -921,19 +921,6 @@ func (c *Client) DeleteProxy(name string) error {
 	return nil
 }
 
-// GetU2FAppID returns U2F settings, like App ID and Facets
-func (c *Client) GetU2FAppID() (string, error) {
-	out, err := c.Get(c.Endpoint("u2f", "appID"), url.Values{})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var appid string
-	if err := json.Unmarshal(out.Bytes(), &appid); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return appid, nil
-}
-
 // UpsertPassword updates web access password for the user
 func (c *Client) UpsertPassword(user string, password []byte) error {
 	_, err := c.PostJSON(
@@ -1559,6 +1546,11 @@ func (c *Client) DeleteAllNamespaces() error {
 // DeleteAllRoles not implemented: can only be called locally.
 func (c *Client) DeleteAllRoles() error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ListWindowsDesktops not implemented: can only be called locally.
+func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteAllUsers not implemented: can only be called locally.

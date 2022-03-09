@@ -468,6 +468,17 @@ const (
 	LimiterMaxConcurrentSignatures = 10
 )
 
+// Default rate limits for unauthenticated passwordless endpoints.
+const (
+	// LimiterPasswordlessPeriod is the default period for passwordless limiters.
+	LimiterPasswordlessPeriod = 1 * time.Minute
+	// LimiterPasswordlessAverage is the default average for passwordless
+	// limiters.
+	LimiterPasswordlessAverage = 10
+	// LimiterPasswordlessBurst is the default burst for passwordless limiters.
+	LimiterPasswordlessBurst = 20
+)
+
 const (
 	// HostCertCacheSize is the number of host certificates to cache at any moment.
 	HostCertCacheSize = 4000
@@ -599,8 +610,6 @@ const (
 )
 
 const (
-	// U2FChallengeTimeout is hardcoded in the U2F library
-	U2FChallengeTimeout = 5 * time.Minute
 	// WebauthnChallengeTimeout is the timeout for ongoing Webauthn authentication
 	// or registration challenges.
 	WebauthnChallengeTimeout = 5 * time.Minute
@@ -703,9 +712,6 @@ const (
 
 	// WebsocketResize is receiving a resize request.
 	WebsocketResize = "w"
-
-	// WebsocketU2FChallenge is sending a U2F challenge.
-	WebsocketU2FChallenge = "u"
 
 	// WebsocketWebauthnChallenge is sending a webauthn challenge.
 	WebsocketWebauthnChallenge = "n"
