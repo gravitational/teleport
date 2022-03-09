@@ -1,0 +1,38 @@
+---
+title: Clipboard Sharing
+description: Using Clipboard Sharing with Teleport Desktop Access.
+---
+
+Teleport Desktop Access supports copying and pasting text between your browser
+and a remote Windows Desktop.
+
+<Adminition type="note">
+This feature requires a Chromium-based browser such as Google Chrome, Brave,
+or Microsoft Edge.
+</Admonition>
+
+Clipboard sharing is configured via Teleport's RBAC system. It is enabled by default,
+but can be disabled by setting the following role option on one or more of a user's
+roles:
+
+```yaml
+desktop_clipboard: false
+```
+
+If a clipboard sharing is enabled for a user, the browser will prompt for access
+to the system clipboard when a desktop session is started. Grant this access to
+proceed.
+
+{
+    /* screenshot of prompt */
+}
+
+- what if unsupported browser
+- what if user clicks no
+
+When a desktop session is active, Teleport will indicate whether clipboard sharing
+is enabled in the menu bar at the top of the screen.
+
+{
+    /* screenshots for enabled / disabled */
+}
