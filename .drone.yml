@@ -1052,7 +1052,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
@@ -1194,7 +1194,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
@@ -1335,7 +1335,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
@@ -1474,7 +1474,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
@@ -1613,12 +1613,12 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
 type: kubernetes
-name: build-linux-amd64-rpm
+name: build-linux-amd64-centos7-rpm
 trigger:
   event:
     include:
@@ -1634,7 +1634,7 @@ workspace:
 clone:
   disable: true
 depends_on:
-- build-linux-amd64
+- build-linux-amd64-centos7
 steps:
 - name: Check out code
   image: docker:git
@@ -1668,9 +1668,9 @@ steps:
   - export VERSION=$(cat /go/.version.txt)
   - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz
+  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
     /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz
+  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -1683,7 +1683,7 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - mkdir -m0700 $GNUPG_DIR
@@ -1779,12 +1779,12 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
 type: kubernetes
-name: build-linux-amd64-fips-rpm
+name: build-linux-amd64-centos7-fips-rpm
 trigger:
   event:
     include:
@@ -1800,7 +1800,7 @@ workspace:
 clone:
   disable: true
 depends_on:
-- build-linux-amd64-fips
+- build-linux-amd64-centos7-fips
 steps:
 - name: Check out code
   image: docker:git
@@ -1834,7 +1834,7 @@ steps:
   - export VERSION=$(cat /go/.version.txt)
   - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
+  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-centos7-fips-bin.tar.gz
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -1847,7 +1847,7 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - mkdir -m0700 $GNUPG_DIR
@@ -1942,7 +1942,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -2094,7 +2094,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -2243,7 +2243,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
@@ -2382,7 +2382,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -2452,7 +2452,7 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - mkdir -m0700 $GNUPG_DIR
@@ -2548,7 +2548,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -3226,7 +3226,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
@@ -3365,7 +3365,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
@@ -3504,7 +3504,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -3656,7 +3656,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -3808,7 +3808,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -3878,7 +3878,7 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - mkdir -m0700 $GNUPG_DIR
@@ -3974,7 +3974,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -4044,7 +4044,7 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - mkdir -m0700 $GNUPG_DIR
@@ -4140,7 +4140,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
@@ -5084,6 +5084,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: eb954f5ddc1da7e5f4545ab8a5612fbc381633cd7a29950b9dc47ac19f4b54e1
+hmac: 1dd41a2efd6b7983f62a49578cdcf4eb9058d4319e333f9f958e80e7f8a91877
 
 ...
