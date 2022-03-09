@@ -34,6 +34,7 @@ type commandlineArgs struct {
 	artifactSearchPatterns customflag.StringArray
 	bucket                 string
 	githubKeySrc           string
+	skipUnshallow          bool
 }
 
 // validate ensures the suplied arguments are valid & internally consistent.
@@ -87,6 +88,7 @@ func parseCommandLine() (*commandlineArgs, error) {
 	flag.StringVar(&args.bucket, "bucket", "", "The artifact storage bucket.")
 	flag.Var(&args.artifactSearchPatterns, "a", "Path to artifacts. May be shell-globbed, and have multiple entries.")
 	flag.StringVar(&args.githubKeySrc, "key-secret", "", "Location of github deploy token, as a Google Cloud Secret")
+	flag.BoolVar(&args.skipUnshallow, "skip-unshallow", false, "Skip unshallowing the repository.")
 
 	flag.Parse()
 

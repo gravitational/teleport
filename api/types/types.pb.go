@@ -8195,8 +8195,11 @@ func (m *WindowsDesktopServiceSpecV3) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_WindowsDesktopServiceSpecV3 proto.InternalMessageInfo
 
+// WindowsDesktopFilter are filters to apply when searching for windows desktops.
 type WindowsDesktopFilter struct {
-	HostID               string   `protobuf:"bytes,1,opt,name=HostID,proto3" json:"host_id"`
+	// HostID is the ID of the host the Windows Desktop Service proxying the desktop.
+	HostID string `protobuf:"bytes,1,opt,name=HostID,proto3" json:"host_id"`
+	// Name is the name of the desktop.
 	Name                 string   `protobuf:"bytes,2,opt,name=Name,proto3" json:"name"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
