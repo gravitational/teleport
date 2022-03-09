@@ -20,6 +20,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -765,4 +766,24 @@ func ExpectItems(c *check.C, items, expected []backend.Item) {
 		c.Assert(string(items[i].Key), check.Equals, string(expected[i].Key))
 		c.Assert(string(items[i].Value), check.Equals, string(expected[i].Value))
 	}
+}
+
+func (s *BackendSuite) FetchLimit(c *check.C) {
+	prefix := MakePrefix()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Allocate 65KB buffer.
+	buff := make([]byte, 1<<16)
+	itemsCount := 20
+	// Fill the backend with events that total size is greater than 1MB (65KB * 20 > 1MB).
+	for i := 0; i < itemsCount; i++ {
+		item := &backend.Item{Key: prefix(fmt.Sprintf("/db/database%d", i)), Value: buff}
+		_, err := s.B.Put(ctx, *item)
+		c.Assert(err, check.IsNil)
+	}
+
+	result, err := s.B.GetRange(ctx, prefix("/db"), backend.RangeEnd(prefix("/db")), backend.NoLimit)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(result.Items), check.Equals, 20)
 }
