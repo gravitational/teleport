@@ -43,6 +43,18 @@ spec:
     port: 3036
     targetPort: 3036
     protocol: TCP
+  {{- if .Values.separatePostgresListener }}
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+    protocol: TCP
+  {{- end }}
+  {{- if .Values.separateMongoListener }}
+  - name: mongo
+    port: 27017
+    targetPort: 27017
+    protocol: TCP
+  {{- end }}
   {{- end }}
   selector:
     app: {{ .Release.Name }}
