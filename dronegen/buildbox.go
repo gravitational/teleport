@@ -30,18 +30,23 @@ func buildboxPipelineSteps() []step {
 	}
 
 	for _, name := range []string{"buildbox", "buildbox-arm"} {
-		for _, fips := range []bool{false, true} {
-			// FIPS is unsupported on ARM/ARM64
-			if name == "buildbox-arm" && fips {
-				continue
+		for _, os := range []string{"", "centos7"} {
+			for _, fips := range []bool{false, true} {
+				// FIPS is unsupported on ARM/ARM64
+				if name == "buildbox-arm" && fips {
+					continue
+				}
+				steps = append(steps, buildboxPipelineStep(name, os, fips))
 			}
-			steps = append(steps, buildboxPipelineStep(name, fips))
 		}
 	}
 	return steps
 }
 
-func buildboxPipelineStep(buildboxName string, fips bool) step {
+func buildboxPipelineStep(buildboxName string, os string, fips bool) step {
+	if os != "" {
+		buildboxName += fmt.Sprintf("-%s", os)
+	}
 	if fips {
 		buildboxName += "-fips"
 	}
