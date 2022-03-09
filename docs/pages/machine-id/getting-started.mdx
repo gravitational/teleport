@@ -90,7 +90,8 @@ Machine ID can join with a token or the [IAM Method](https://goteleport.com/docs
     # The token name is not a secret because instances must prove that they are
     # running in your AWS account to use this token.
     name: iam-token
-    # Set a long expiry time. The default for tokens is only 30 minutes.
+    # Set a long expiry time for how long you want to support IAM method for
+    # joining. It is safe to set this value to a very long time.
     expires: "3000-01-01T00:00:00Z"
   spec:
     # Only allow bots to join using this token.
@@ -204,10 +205,10 @@ node-name  127.0.0.1:3022 arch=x86_64,group=api-servers
 ```
 
 To use Machine ID with the OpenSSH integration, run the following command to
-connect to `node-name`.
+connect to `node-name` within cluster `example.com`.
 
 ```
-ssh -F /opt/machine-id/ssh_config root@node-name
+ssh -F /opt/machine-id/ssh_config root@node-name.example.com
 ```
 
 <Admonition type="note" title="Roles must have logins defined">
