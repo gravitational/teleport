@@ -17,14 +17,18 @@ limitations under the License.
 package config
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -38,6 +42,66 @@ import (
 // template
 type TemplateSSHClient struct {
 	ProxyPort uint16 `yaml:"proxy_port"`
+}
+
+// openSSHVersionRegex is a regex used to parse OpenSSH version strings.
+var openSSHVersionRegex = regexp.MustCompile(`^OpenSSH_(?P<major>\d+)\.(?P<minor>\d+)(?:p(?P<patch>\d+))?`)
+
+// openSSHMinVersionForRSAWorkaround is the OpenSSH version after which the
+// RSA deprecation workaround should be added to generated ssh_config.
+var openSSHMinVersionForRSAWorkaround = semver.New("8.5.0")
+
+// parseSSHVersion attempts to parse
+func parseSSHVersion(versionString string) (*semver.Version, error) {
+	versionTokens := strings.Split(versionString, " ")
+	if len(versionTokens) == 0 {
+		return nil, trace.Errorf("invalid version string: %s", versionString)
+	}
+
+	versionID := versionTokens[0]
+	matches := openSSHVersionRegex.FindStringSubmatch(versionID)
+	if matches == nil {
+		return nil, trace.Errorf("cannot parse version string: %q", versionID)
+	}
+
+	major, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return nil, trace.Wrap(err, "invalid major version number: %s", matches[1])
+	}
+
+	minor, err := strconv.Atoi(matches[2])
+	if err != nil {
+		return nil, trace.Wrap(err, "invalid minor version number: %s", matches[2])
+	}
+
+	patch := 0
+	if matches[3] != "" {
+		patch, err = strconv.Atoi(matches[3])
+		if err != nil {
+			return nil, trace.Wrap(err, "invalid patch version number: %s", matches[3])
+		}
+	}
+
+	return &semver.Version{
+		Major: int64(major),
+		Minor: int64(minor),
+		Patch: int64(patch),
+	}, nil
+}
+
+// getSSHVersion attempts to query the system SSH for it's current version.
+func getSSHVersion() (*semver.Version, error) {
+	var out bytes.Buffer
+
+	cmd := exec.Command("ssh", "-V")
+	cmd.Stderr = &out
+
+	err := cmd.Run()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return parseSSHVersion(out.String())
 }
 
 func (c *TemplateSSHClient) CheckAndSetDefaults() error {
@@ -111,18 +175,31 @@ func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI,
 		return trace.Wrap(err)
 	}
 
+	// Default to including the RSA deprecation workaround.
+	rsaWorkaround := true
+	version, err := getSSHVersion()
+	if err != nil {
+		log.WithError(err).Debugf("Could not determine SSH version, will include RSA workaround.")
+	} else if version.LessThan(*openSSHMinVersionForRSAWorkaround) {
+		log.Debugf("OpenSSH version %s does not require workaround for RSA deprecation", version)
+		rsaWorkaround = false
+	} else {
+		log.Debugf("OpenSSH version %s will use workaround for RSA deprecation", version)
+	}
+
 	var sshConfigBuilder strings.Builder
 	identityFilePath := filepath.Join(dataDir, identity.PrivateKeyKey)
 	certificateFilePath := filepath.Join(dataDir, identity.SSHCertKey)
 	sshConfigPath := filepath.Join(dataDir, "ssh_config")
 	if err := sshConfigTemplate.Execute(&sshConfigBuilder, sshConfigParameters{
-		ClusterName:         clusterName.GetClusterName(),
-		ProxyHost:           proxyHost,
-		ProxyPort:           proxyPort,
-		KnownHostsPath:      knownHostsPath,
-		IdentityFilePath:    identityFilePath,
-		CertificateFilePath: certificateFilePath,
-		SSHConfigPath:       sshConfigPath,
+		ClusterName:          clusterName.GetClusterName(),
+		ProxyHost:            proxyHost,
+		ProxyPort:            proxyPort,
+		KnownHostsPath:       knownHostsPath,
+		IdentityFilePath:     identityFilePath,
+		CertificateFilePath:  certificateFilePath,
+		SSHConfigPath:        sshConfigPath,
+		IncludeRSAWorkaround: rsaWorkaround,
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -135,13 +212,14 @@ func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI,
 }
 
 type sshConfigParameters struct {
-	ClusterName         string
-	KnownHostsPath      string
-	IdentityFilePath    string
-	CertificateFilePath string
-	ProxyHost           string
-	ProxyPort           string
-	SSHConfigPath       string
+	ClusterName          string
+	KnownHostsPath       string
+	IdentityFilePath     string
+	CertificateFilePath  string
+	ProxyHost            string
+	ProxyPort            string
+	SSHConfigPath        string
+	IncludeRSAWorkaround bool
 }
 
 var sshConfigTemplate = template.Must(template.New("ssh-config").Parse(`
@@ -152,8 +230,8 @@ Host *.{{ .ClusterName }} {{ .ProxyHost }}
     UserKnownHostsFile "{{ .KnownHostsPath }}"
     IdentityFile "{{ .IdentityFilePath }}"
     CertificateFile "{{ .CertificateFilePath }}"
-    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
-    PubkeyAcceptedAlgorithms +ssh-rsa-cert-v01@openssh.com
+    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com{{- if .IncludeRSAWorkaround }}
+    PubkeyAcceptedAlgorithms +ssh-rsa-cert-v01@openssh.com{{- end }}
 
 # Flags for all {{ .ClusterName }} hosts except the proxy
 Host *.{{ .ClusterName }} !{{ .ProxyHost }}
