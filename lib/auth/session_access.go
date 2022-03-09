@@ -215,6 +215,7 @@ func (e *SessionAccessEvaluator) IsModerated() bool {
 	return e.hasPolicies()
 }
 
+// Generate a pretty-printed string of precise requirements for session start suitable for user display.
 func (e *SessionAccessEvaluator) PrettyRequirementsList() string {
 	s := "require all:"
 
