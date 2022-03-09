@@ -340,8 +340,9 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 $ tsh --proxy proxy.example.com:443 proxy app <app>
 
 # Proxy a connection to grafana on local port 10700
-$ tsh proxy --port 10700 app grafana
+$ tsh proxy --port 10700 app grafana &
 # Proxying connections to grafana on 127.0.0.1:10700
+$ curl http://127.0.0.1:10700/api/users
 ```
 
 ### tsh scp
