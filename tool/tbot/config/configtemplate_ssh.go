@@ -89,7 +89,7 @@ func parseSSHVersion(versionString string) (*semver.Version, error) {
 	}, nil
 }
 
-// getSSHVersion attempts to query the system SSH for it's current version.
+// getSSHVersion attempts to query the system SSH for its current version.
 func getSSHVersion() (*semver.Version, error) {
 	var out bytes.Buffer
 
