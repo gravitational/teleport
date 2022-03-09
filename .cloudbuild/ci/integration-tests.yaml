@@ -15,12 +15,12 @@ steps:
     id: run-tests
     dir: /workspace/.cloudbuild/scripts
     entrypoint: bash
-    args: 
+    args:
       - -c
       - |
         go run ./cmd/integration-tests \
           -target $_BASE_BRANCH        \
           -bucket test-logs            \
           -build $BUILD_ID             \
-          -a "test-logs/*.json"          
-    timeout: 20m
+          -a "test-logs/*.json"
+    timeout: 25m
