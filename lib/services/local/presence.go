@@ -1439,6 +1439,22 @@ func (s *PresenceService) GetWindowsDesktopServices(ctx context.Context) ([]type
 	return srvs, nil
 }
 
+func (s *PresenceService) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
+	result, err := s.Get(ctx, backend.Key(windowsDesktopServicesPrefix, name))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	service, err := services.UnmarshalWindowsDesktopService(
+		result.Value,
+		services.WithResourceID(result.ID),
+		services.WithExpires(result.Expires),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return service, nil
+}
+
 // UpsertWindowsDesktopService registers new Windows desktop service.
 func (s *PresenceService) UpsertWindowsDesktopService(ctx context.Context, srv types.WindowsDesktopService) (*types.KeepAlive, error) {
 	if err := srv.CheckAndSetDefaults(); err != nil {
