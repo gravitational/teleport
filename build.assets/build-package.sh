@@ -193,7 +193,7 @@ elif [[ "${ARCH}" == "arm64" ]]; then
 fi
 
 # amd64 RPMs should use CentOS 7 compatible artifacts
-if [[ "${PACKAGE_TYPE}" == "rpm" && "${ARCH}" == "amd64" ]]; then
+if [[ "${PACKAGE_TYPE}" == "rpm" && "${ARCH}" == "x86_64" ]]; then
     OPTIONAL_RUNTIME_SECTION+="-centos7"
 fi
 
