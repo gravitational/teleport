@@ -1748,24 +1748,24 @@ func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsD
 	return rg.presence.GetWindowsDesktopServices(ctx)
 }
 
-// GetWindowsDesktops returns all registered Windows desktop hosts.
-func (c *Cache) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
+// GetWindowsDesktopService returns a registered Windows desktop service by name.
+func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.windowsDesktops.GetWindowsDesktops(ctx)
+	return rg.presence.GetWindowsDesktopService(ctx, name)
 }
 
-// GetWindowsDesktop returns a registered Windows desktop host.
-func (c *Cache) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
+// GetWindowsDesktops returns all registered Windows desktop hosts.
+func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.windowsDesktops.GetWindowsDesktop(ctx, name)
+	return rg.windowsDesktops.GetWindowsDesktops(ctx, filter)
 }
 
 // ListResources is a part of auth.Cache implementation
