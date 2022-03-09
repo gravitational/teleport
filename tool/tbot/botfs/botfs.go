@@ -108,7 +108,7 @@ func createStandard(path string, isDir bool) error {
 
 		return nil
 	}
-	
+
 	f, err := openStandard(path)
 	if err != nil {
 		return trace.Wrap(err)
