@@ -1,0 +1,103 @@
+---
+title: Fluentd configuration options reference
+description: The detailed guide and reference documentation for configuring Fluentd Teleport event forwarder.
+---
+
+## Fluentd configuration options
+
+`teleport-event-handler` could be configured either using .TOML file, environment variables or command-line options.
+
+Here is the complete list of the available configuration options with their environment variables counterparts:
+
+| CLI arg name          | Description                                         | Env var name                |
+| ----------------------|-----------------------------------------------------|-----------------------------|
+| `teleport-addr`       | Teleport host and port                              | `FDFWD_TELEPORT_ADDR`       |
+| `teleport-ca`         | Teleport TLS CA file                                | `FDFWD_TELEPORT_CA`         |
+| `teleport-cert`       | Teleport TLS certificate file                       | `FDWRD_TELEPORT_CERT`       |
+| `teleport-key`        | Teleport TLS key file                               | `FDFWD_TELEPORT_KEY`        |
+| `teleport-identity`   | Teleport identity file                              | `FDFWD_TELEPORT_IDENTITY`   |
+| `fluentd-url`         | Fluentd URL                                         | `FDFWD_FLUENTD_URL`         |
+| `fluentd-session-url` | Fluentd session URL                                 | `FDFWD_FLUENTD_SESSION_URL` |
+| `fluentd-ca`          | fluentd TLS CA file                                 | `FDFWD_FLUENTD_CA`          |
+| `fluentd-cert`        | Fluentd TLS certificate file                        | `FDFWD_FLUENTD_CERT`        |
+| `fluentd-key`         | Fluentd TLS key file                                | `FDFWD_FLUENTD_KEY`         |
+| `storage`             | Path to storage directory                           | `FDFWD_STORAGE`             |
+| `batch`               | Fetch batch size                                    | `FDFWD_BATCH`               |
+| `namespace`           | Events namespace                                    | `FDFWD_NAMESPACE`           |
+| `types`               | Comma-separated list of event types to forward      | `FDFWD_TYPES`               |
+| `skip-session-types`  | Comma-separated list of session event types to skip | `FDFWD_SKIP_SESSION_TYPES`  |
+| `start-time`          | Minimum event time (RFC3339 format)                 | `FDFWD_START_TIME`          |
+| `timeout`             | Polling timeout                                     | `FDFWD_TIMEOUT`             |
+| `cursor`              | Start cursor value                                  | `FDFWD_CURSOR`              |
+| `debug`               | Debug logging                                       | `FDFWD_DEBUG`               |
+| `config`              | Path to TOML configuration file                     | `FDFWD_CONFIG`              |
+
+TOML configuration key names are the same as CLI args. 
+
+Teleport and Fluentd variables can be grouped into sections in a TOML file:
+
+```
+[teleport]
+addr = "localhost:3025"    # Equals to teleport-addr root key
+identity = "tmp/identity"  # Equals to teleport-identity root key
+```
+
+## Special arguments
+
+There are two special arguments which might be used on the initial setup:
+
+- `--dry-run` argument forces `teleport-event-handler` to simulate event export. It will read all the events, but won't send them to `fluentd.`
+- `--exit-on-last-event` argument forces `teleport-event-handler` to exit when last event gots processed. This might be useful for initial export.
+
+## URLs
+
+`teleport-event-handler` sends two types of events: normal cluste-wide audit log entries and session events. 
+You need to specify two URLs: `fluentd-url` is used for base Audit Log entries. `fluentd-session-url` is 
+required to send session events. Full session url would be: `%fluentd-session-url%.%session id%.log`.
+
+There should be two `match` entries in the fluentd configuration:
+
+```
+# This matches Audit Log events
+<match test.log>
+  @type stdout
+</match>
+
+# This matches Session events
+<match session.*.log> 
+  @type stdout
+</match>
+```
+
+## Do not forget to set time range
+
+By default, all events starting from the current moment will be exported. If you want to export an older events, you have to pass `--start-time` argument.
+
+This will start an export from May 5 2021 (RFC3339 time):
+
+```sh
+teleport-event-handler start --config teleport-event-handler.toml --start-time "2021-05-05T00:00:00Z"
+```
+
+This will export new events from a moment the service did start:
+
+```sh
+teleport-event-handler start --config teleport-event-handler.toml
+```
+
+Note that start time can be set only once, on the first run. If you want to change the start time frame later, remove plugin state dir which you had specified in `storage-dir` argument.s
+
+## Export print events
+
+Session print events are skipped by default. If you still want to export them, specify `--skip-session-types=''` argument.
+
+## How it works
+
+- `teleport-event-handler` takes the Audit Log event stream from Teleport. It loads events in batches of 20 (specified by `--batch`). Every event is sent to fluentd.
+- Once event is successfully received by fluentd, it's ID is saved to the `teleport-event-handler` state. In case `teleport-event-handler` crashes, it will pick the stream up from a latest successful event.
+- Once all events are sent, `teleport-event-handler` starts polling for a new evetns. It happens every `--timeout` seconds by default.
+- If storage directory gets lost, you may specify latest event id value with `--cursor` argument or specify `--start-time` of the last event. `teleport-event-handler` will pick streaming up from the next event after it.
+
+## See also
+
+- Check basic [setup guide](https://goteleport.com/docs/setup/guides/fluentd/).

@@ -57,21 +57,39 @@ Put the following content into `terraform.yaml`:
 
 ```yaml
 kind: role
+version: v4
 metadata:
   name: terraform
 spec:
   allow:
+    app_labels: # This gives Terraform access to all apps in the cluster. You might want to restrict it.
+      '*': '*'
+    db_labels: # This gives Terraform access to all databases in the cluster. You might want to restrict it.
+      '*': '*'
+    db_users: ['*']
+    db_names: ['*']
     rules:
-      - resources: ['user', 'role', 'token', 'trusted_cluster', 'github', 'oidc', 'saml']
+      - resources:
+        - user
+        - role
+        - token
+        - trusted_cluster
+        - github
+        - oidc
+        - saml
+        - cluster_auth_preference
+        - cluster_networking_config
+        - session_recording_config
+        - app
+        - db
         verbs: ['list','create','read','update','delete']
-version: v5
 ---
 kind: user
+version: v2
 metadata:
   name: terraform
 spec:
   roles: ['terraform']
-version: v2
 ```
 
 Run:
