@@ -728,8 +728,7 @@ version: $(VERSRC)
 # This rule triggers re-generation of version files specified if Makefile changes.
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
-	# Update api module path, but don't fail on error.
-	$(MAKE) update-api-import-path || true
+	# "TODO: Enable automatic updating of API import paths using update-api-import-path target once agreed upon the solution".
 
 # This rule updates the api module path to be in sync with the current api release version.
 # e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
