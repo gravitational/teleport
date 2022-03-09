@@ -17,7 +17,6 @@ limitations under the License.
 package client
 
 import (
-	"bufio"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -3045,7 +3044,7 @@ func Username() (string, error) {
 // AskOTP prompts the user to enter the OTP token.
 func (tc *TeleportClient) AskOTP() (token string, err error) {
 	fmt.Fprintf(tc.Config.Stderr, "Enter your OTP token:\n")
-	token, err = lineFromConsole()
+	token, err = passwordFromConsoleFn()
 	if err != nil {
 		fmt.Fprintln(tc.Stderr, err)
 		return "", trace.Wrap(err)
@@ -3164,12 +3163,6 @@ func passwordFromConsole() (string, error) {
 	}()
 
 	bytes, err := term.ReadPassword(fd)
-	return string(bytes), err
-}
-
-// lineFromConsole reads a line from stdin
-func lineFromConsole() (string, error) {
-	bytes, _, err := bufio.NewReader(os.Stdin).ReadLine()
 	return string(bytes), err
 }
 
