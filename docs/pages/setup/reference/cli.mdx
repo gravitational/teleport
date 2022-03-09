@@ -1327,22 +1327,19 @@ tctl version
 
 ## Resource Filtering
 
-### tsh and tctl ls
+Both `tsh` and `tctl` allow you to filter node, app, db, and kube resources using the `--search` and `--query` flags.
 
-Resources nodes, apps, db, and kube all use the same filter flags and argument.
+The `--search` flag performs a simple fuzzy search on resource fields. For example, `--search=mac` searches for resources containing `mac`.
 
-#### Argument
+The `--query` flag allows you to perform more sophisticated searches using a [predicate language](#predicate-language) that is detailed in the next section.
 
-`[<labels>]` List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)
+In both cases, you can further refine the results by appending a list of comma-separated labels to the command. For example:
 
-#### Flags
+```bash
+$ tsh ls --search=foo,bar labelKey1=labelValue1,labelKey2=labelValue2
+```
 
-| Name       | Default Value(s) | Allowed Value(s)           | Description                                                                        |
-|------------|------------------|----------------------------|------------------------------------------------------------------------------------|
-| `--search` | none             | **string** comma-separated | Search through common resource fields by keywords or double quote enclosed phrases |
-| `--query`  | none             | **string**                 | Query by predicate language enclosed in single quotes.                             |
-
-#### Predicate Language
+### [Predicate Language](#predicate-language)
 
 The `--query` flag uses the same predicate language used else where but tailored for resources. 
 
@@ -1372,19 +1369,22 @@ The language also supports the following functions:
 | `!exists(labels.env)`                 | resources without a label key `env`; value unchecked |
 | `search("foo", "bar", "some phrase")` | fuzzy match against common resource fields           |
 
-#### Examples
+### Examples
 
 The example with filters, searches for nodes with labels with key `env` equal to `staging` and key `os` equal to `mac`.
 
 ```bash
 # List all nodes
-tsh ls
+$ tsh ls
+
 # List nodes using label argument
-tsh ls env=staging,os=mac
+$ tsh ls env=staging,os=mac
+
 # List nodes using search keywords
-tsh ls --search=staging,mac
+$ tsh ls --search=staging,mac
+
 # List nodes using predicate language
-tsh ls --query='labels.env == "staging" && equals(labels.os, "mac")'
+$ tsh ls --query='labels.env == "staging" && equals(labels.os, "mac")'
 ```
 
 ## Experimental features
