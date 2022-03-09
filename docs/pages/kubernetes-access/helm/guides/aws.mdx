@@ -51,7 +51,8 @@ You'll need to replace these values in the policy example below:
                 "dynamodb:GetShardIterator",
                 "dynamodb:GetItem",
                 "dynamodb:UpdateTable",
-                "dynamodb:GetRecords"
+                "dynamodb:GetRecords",
+                "dynamodb:UpdateContinuousBackups"
             ],
             "Resource": [
                 "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-backend",
@@ -73,7 +74,8 @@ You'll need to replace these values in the policy example below:
                 "dynamodb:Query",
                 "dynamodb:UpdateItem",
                 "dynamodb:DescribeTimeToLive",
-                "dynamodb:UpdateTable"
+                "dynamodb:UpdateTable",
+                "dynamodb:UpdateContinuousBackups"
             ],
             "Resource": [
                 "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-events",
