@@ -729,7 +729,8 @@ version: $(VERSRC)
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 	# Update api module path, but don't fail on error.
-	$(MAKE) update-api-import-path || true
+	# Disabled for v9 release.
+	# $(MAKE) update-api-import-path || true
 
 # This rule updates the api module path to be in sync with the current api release version.
 # e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
