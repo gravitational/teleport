@@ -60,47 +60,7 @@ const QuickInputList = React.forwardRef<HTMLElement, Props>((props, ref) => {
 
 export default QuickInputList;
 
-function ServerItem(props: { item: types.ItemServer }) {
-  const { hostname, uri, labelsList } = props.item.data;
-  const $labels = labelsList.map((label, index) => (
-    <Label mr="1" key={index} kind="secondary">
-      {label.name}: {label.value}
-    </Label>
-  ));
-
-  return (
-    <div>
-      <Flex alignItems="center">
-        <Box mr={2}>{hostname}</Box>
-        <Box color="text.placeholder">{uri}</Box>
-      </Flex>
-      {$labels}
-    </div>
-  );
-}
-
-function DbItem(props: { item: types.ItemDb }) {
-  const db = props.item.data;
-  const $labels = db.labelsList.map((label, index) => (
-    <Label mr="1" key={index} kind="secondary">
-      {label.name}: {label.value}
-    </Label>
-  ));
-  return (
-    <div>
-      <Flex alignItems="center">
-        <Box mr={2}>{db.name}</Box>
-        <Box color="text.placeholder">{db.uri}</Box>
-        <Text ml="auto" typography="body2" fontSize={0}>
-          {db.type}/{db.protocol}
-        </Text>
-      </Flex>
-      {$labels}
-    </div>
-  );
-}
-
-function CmdItem(props: { item: types.ItemCmd }) {
+function CmdItem(props: { item: types.SuggestionCmd }) {
   return (
     <Flex alignItems="center">
       <Box mr={2}>{props.item.data.displayName}</Box>
@@ -109,34 +69,17 @@ function CmdItem(props: { item: types.ItemCmd }) {
   );
 }
 
-function ClusterItem(props: { item: types.ItemCluster }) {
+function SshLoginItem(props: { item: types.SuggestionSshLogin }) {
   return (
     <Flex alignItems="center">
-      <Box mr={2}>{props.item.data.name}</Box>
+      <Box mr={2}>{props.item.token}</Box>
     </Flex>
   );
 }
 
-function SshLoginItem(props: { item: types.ItemSshLogin }) {
-  return (
-    <Flex alignItems="center">
-      <Box mr={2}>{props.item.data}</Box>
-    </Flex>
-  );
-}
-
-function UnknownItem(props: { item: types.Item }) {
+function UnknownItem(props: { item: types.Suggestion }) {
   const { kind } = props.item;
   return <div>unknown kind: {kind} </div>;
-}
-
-function NewClusterItem(props: { item: types.ItemNewCluster }) {
-  return (
-    <Flex alignItems="center">
-      <Box mr={2}>{props.item.data.displayName}</Box>
-      <Box color="text.placeholder">{props.item.data.description}</Box>
-    </Flex>
-  );
 }
 
 const StyledItem = styled.div(({ theme, $active }) => {
@@ -176,19 +119,15 @@ const StyledGlobalSearchResults = styled.div(({ theme }) => {
 });
 
 const ComponentMap: Record<
-  types.Item['kind'],
-  React.FC<{ item: types.Item }>
+  types.Suggestion['kind'],
+  React.FC<{ item: types.Suggestion }>
 > = {
-  ['item.db']: DbItem,
-  ['item.server']: ServerItem,
-  ['item.cluster']: ClusterItem,
-  ['item.cluster-new']: NewClusterItem,
-  ['item.cmd']: CmdItem,
-  ['item.ssh-login']: SshLoginItem,
+  ['suggestion.cmd']: CmdItem,
+  ['suggestion.ssh-login']: SshLoginItem,
 };
 
 type Props = {
-  items: types.Item[];
+  items: types.Suggestion[];
   activeItem: number;
   onPick(index: number): void;
 };

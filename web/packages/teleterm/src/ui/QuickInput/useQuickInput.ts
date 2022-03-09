@@ -21,12 +21,13 @@ import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
 export default function useQuickInput() {
   const { quickInputService: serviceQuickInput } = useAppContext();
   const { visible, inputValue } = serviceQuickInput.useState();
-  const [activeItem, setActiveItem] = React.useState(0);
+  const [activeSuggestion, setActiveSuggestion] = React.useState(0);
   const autocompleteResult = React.useMemo(
     () => serviceQuickInput.getAutocompleteResult(inputValue),
     [inputValue]
   );
-  const hasListItems = autocompleteResult.kind === 'autocomplete.partial-match';
+  const hasSuggestions =
+    autocompleteResult.kind === 'autocomplete.partial-match';
   const picker = autocompleteResult.picker;
 
   const onFocus = (e: any) => {
@@ -35,24 +36,24 @@ export default function useQuickInput() {
     }
   };
 
-  const onActiveItem = (index: number) => {
-    if (!hasListItems) {
+  const onActiveSuggestion = (index: number) => {
+    if (!hasSuggestions) {
       return;
     }
-    setActiveItem(index);
+    setActiveSuggestion(index);
   };
 
-  const onPickItem = (index: number) => {
-    if (!hasListItems) {
+  const onPickSuggestion = (index: number) => {
+    if (!hasSuggestions) {
       return;
     }
-    setActiveItem(index);
-    picker.onPick(autocompleteResult.listItems[index]);
+    setActiveSuggestion(index);
+    picker.onPick(autocompleteResult.suggestions[index]);
   };
 
   const onBack = () => {
     serviceQuickInput.goBack();
-    setActiveItem(0);
+    setActiveSuggestion(0);
   };
 
   useKeyboardShortcuts({
@@ -62,18 +63,18 @@ export default function useQuickInput() {
   });
 
   useEffect(() => {
-    setActiveItem(0);
+    setActiveSuggestion(0);
   }, [picker]);
 
   return {
     visible,
     autocompleteResult,
-    activeItem,
+    activeSuggestion,
     inputValue,
     onFocus,
     onBack,
-    onPickItem,
-    onActiveItem,
+    onPickSuggestion,
+    onActiveSuggestion,
     onInputChange: serviceQuickInput.setInputValue,
     onHide: serviceQuickInput.hide,
     onShow: serviceQuickInput.show,

@@ -28,8 +28,9 @@ export default function Container() {
 }
 
 export function QuickInput(props: State) {
-  const { visible, activeItem, autocompleteResult } = props;
-  const hasListItems = autocompleteResult.kind === 'autocomplete.partial-match';
+  const { visible, activeSuggestion, autocompleteResult } = props;
+  const hasSuggestions =
+    autocompleteResult.kind === 'autocomplete.partial-match';
   const refInput = useRef<HTMLInputElement>();
   const refList = useRef<HTMLElement>();
   const refContainer = useRef<HTMLElement>();
@@ -67,14 +68,14 @@ export function QuickInput(props: State) {
 
   const handleArrowKey = (e: React.KeyboardEvent, nudge = 0) => {
     e.stopPropagation();
-    if (!hasListItems) {
+    if (!hasSuggestions) {
       return;
     }
     const next = getNext(
-      activeItem + nudge,
-      autocompleteResult.listItems.length
+      activeSuggestion + nudge,
+      autocompleteResult.suggestions.length
     );
-    props.onActiveItem(next);
+    props.onActiveSuggestion(next);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -83,16 +84,16 @@ export function QuickInput(props: State) {
       case KeyEnum.RETURN:
         // TODO: even if the list is empty, it should call onPick from the given picker.
         // Some pickers will choose from a list, some will just submit the command.
-        if (!hasListItems) {
+        if (!hasSuggestions) {
           return;
         }
-        const { listItems } = autocompleteResult;
-        if (listItems.length > 0) {
+        const { suggestions } = autocompleteResult;
+        if (suggestions.length > 0) {
           e.stopPropagation();
           e.preventDefault();
 
           refInput.current.value = '';
-          props.onPickItem(activeItem);
+          props.onPickSuggestion(activeSuggestion);
         }
         return;
       case KeyEnum.ESC:
@@ -139,12 +140,12 @@ export function QuickInput(props: State) {
           onKeyDown={handleKeyDown}
         />
       </Box>
-      {visible && hasListItems && (
+      {visible && hasSuggestions && (
         <QuickInputList
           ref={refList}
-          items={autocompleteResult.listItems}
-          activeItem={activeItem}
-          onPick={props.onPickItem}
+          items={autocompleteResult.suggestions}
+          activeItem={activeSuggestion}
+          onPick={props.onPickSuggestion}
         />
       )}
     </Flex>

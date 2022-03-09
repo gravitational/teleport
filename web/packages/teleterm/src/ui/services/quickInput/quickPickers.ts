@@ -19,133 +19,10 @@ import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import { CommandLauncher } from 'teleterm/ui/commandLauncher';
 import {
   QuickInputPicker,
-  Item,
-  ItemCmd,
-  ItemServer,
-  ItemDb,
-  ItemNewCluster,
-  ItemCluster,
-  ItemSshLogin,
+  SuggestionCmd,
+  SuggestionSshLogin,
   AutocompleteResult,
 } from './types';
-
-export abstract class ClusterPicker implements QuickInputPicker {
-  abstract onPick(result: Item): void;
-  abstract getAutocompleteResult(value: string): AutocompleteResult;
-
-  launcher: CommandLauncher;
-  serviceCluster: ClustersService;
-
-  constructor(launcher: CommandLauncher, service: ClustersService) {
-    this.serviceCluster = service;
-    this.launcher = launcher;
-  }
-
-  protected searchClusters(value: string): Item[] {
-    const clusters = this.serviceCluster.searchClusters(value);
-    const items: ItemCluster[] = clusters
-      .filter(s => !s.leaf)
-      .map(cluster => {
-        return {
-          kind: 'item.cluster',
-          data: cluster,
-        };
-      });
-
-    return items;
-  }
-
-  protected searchServers(value: string): Item[] {
-    const clusters = this.serviceCluster.getClusters();
-    const items: Item[] = [];
-    for (const { uri } of clusters) {
-      const servers = this.serviceCluster.searchServers(uri, { search: value });
-      for (const server of servers) {
-        items.push({
-          kind: 'item.server',
-          data: server,
-        });
-      }
-    }
-    return items;
-  }
-
-  protected searchDbs(value: string): Item[] {
-    const clusters = this.serviceCluster.getClusters();
-    const items: Item[] = [];
-    for (const { uri } of clusters) {
-      const dbs = this.serviceCluster.searchDbs(uri, { search: value });
-      for (const db of dbs) {
-        items.push({
-          kind: 'item.db',
-          data: db,
-        });
-      }
-    }
-    return items;
-  }
-}
-
-export class QuickLoginPicker extends ClusterPicker {
-  onFilter(value = '') {
-    const items = this.searchClusters(value);
-    if (value === '') {
-      const addNew: ItemNewCluster = {
-        kind: 'item.cluster-new',
-        data: {
-          displayName: 'new cluster...',
-          description: 'Enter a new cluster name to login',
-        },
-      };
-
-      items.unshift(addNew);
-    }
-
-    return items;
-  }
-
-  getAutocompleteResult() {
-    return null;
-  }
-
-  onPick(item: ItemCluster | ItemNewCluster) {
-    this.launcher.executeCommand('cluster-connect', {
-      clusterUri: item.data.uri,
-    });
-  }
-}
-
-export class QuickDbPicker extends ClusterPicker {
-  onFilter(value = '') {
-    return this.searchDbs(value);
-  }
-
-  onPick(item: ItemDb) {
-    this.launcher.executeCommand('proxy-db', {
-      dbUri: item.data.uri,
-    });
-  }
-
-  getAutocompleteResult() {
-    return null;
-  }
-}
-
-export class QuickServerPicker extends ClusterPicker {
-  onFilter(value = '') {
-    return this.searchServers(value);
-  }
-
-  onPick(item: ItemServer) {
-    this.launcher.executeCommand('ssh', {
-      serverUri: item.data.uri,
-    });
-  }
-
-  getAutocompleteResult() {
-    return null;
-  }
-}
 
 export class QuickCommandPicker implements QuickInputPicker {
   private pickerRegistry: Map<string, QuickInputPicker>;
@@ -158,8 +35,8 @@ export class QuickCommandPicker implements QuickInputPicker {
     this.pickerRegistry.set(command, picker);
   }
 
-  onPick(item: ItemCmd) {
-    this.launcher.executeCommand(item.data.name as any, null);
+  onPick(suggestion: SuggestionCmd) {
+    this.launcher.executeCommand(suggestion.data.name as any, null);
   }
 
   // TODO: Add tests.
@@ -176,7 +53,8 @@ export class QuickCommandPicker implements QuickInputPicker {
       return {
         kind: 'autocomplete.partial-match',
         picker: this,
-        listItems: this.mapAutocompleteCommandsToItems(autocompleteCommands),
+        suggestions:
+          this.mapAutocompleteCommandsToSuggestions(autocompleteCommands),
       };
     }
 
@@ -201,7 +79,7 @@ export class QuickCommandPicker implements QuickInputPicker {
       return {
         kind: 'autocomplete.partial-match',
         picker: this,
-        listItems: this.mapAutocompleteCommandsToItems(
+        suggestions: this.mapAutocompleteCommandsToSuggestions(
           matchingAutocompleteCommands
         ),
       };
@@ -230,17 +108,18 @@ export class QuickCommandPicker implements QuickInputPicker {
     return {
       kind: 'autocomplete.partial-match',
       picker: this,
-      listItems: this.mapAutocompleteCommandsToItems(
+      suggestions: this.mapAutocompleteCommandsToSuggestions(
         matchingAutocompleteCommands
       ),
     };
   }
 
-  private mapAutocompleteCommandsToItems(
+  private mapAutocompleteCommandsToSuggestions(
     commands: { name: string; displayName: string; description: string }[]
-  ): ItemCmd[] {
+  ): SuggestionCmd[] {
     return commands.map(cmd => ({
-      kind: 'item.cmd' as const,
+      kind: 'suggestion.cmd' as const,
+      token: cmd.displayName,
       data: cmd,
     }));
   }
@@ -259,9 +138,9 @@ export class QuickTshSshPicker implements QuickInputPicker {
     return [];
   }
 
-  onPick(item: ItemCmd) {
+  onPick(suggestion: SuggestionCmd) {
     // TODO: Execute SSH.
-    // this.launcher.executeCommand(item.data.name as any, null);
+    // this.launcher.executeCommand(suggestion.data.name as any, null);
   }
 
   // TODO: Support cluster arg.
@@ -287,9 +166,9 @@ export class QuickTshProxyDbPicker implements QuickInputPicker {
     return [];
   }
 
-  onPick(item: ItemCmd) {
+  onPick(suggestion: SuggestionCmd) {
     // TODO: Execute Proxy db.
-    // this.launcher.executeCommand(item.data.name as any, null);
+    // this.launcher.executeCommand(suggestion.data.name as any, null);
   }
 
   getAutocompleteResult(input: string): AutocompleteResult {
@@ -306,7 +185,7 @@ export class QuickSshLoginPicker implements QuickInputPicker {
     private clustersService: ClustersService
   ) {}
 
-  filterSshLogins(input: string): ItemSshLogin[] {
+  filterSshLogins(input: string): SuggestionSshLogin[] {
     // TODO(ravicious): Use local cluster URI.
     // TODO(ravicious): Handle the `--cluster` tsh ssh flag.
     const rootClusterUri = this.workspacesService.getRootClusterUri();
@@ -321,20 +200,21 @@ export class QuickSshLoginPicker implements QuickInputPicker {
     }
 
     return matchingLogins.map(login => ({
-      kind: 'item.ssh-login' as const,
-      data: login,
+      kind: 'suggestion.ssh-login' as const,
+      token: login,
+      data: null,
     }));
   }
 
   // TODO: Append the rest of the login to quickInputService's inputValue.
-  onPick(item: ItemCmd) {}
+  onPick(suggestion: SuggestionCmd) {}
 
   getAutocompleteResult(input: string): AutocompleteResult {
-    const listItems = this.filterSshLogins(input);
+    const suggestions = this.filterSshLogins(input);
     return {
       kind: 'autocomplete.partial-match',
       picker: this,
-      listItems,
+      suggestions,
     };
   }
 }

@@ -27,9 +27,6 @@ type State = {
 };
 
 export class QuickInputService extends Store<State> {
-  quickLoginPicker: pickers.QuickLoginPicker;
-  quickDbPicker: pickers.QuickDbPicker;
-  quickServerPicker: pickers.QuickServerPicker;
   quickCommandPicker: pickers.QuickCommandPicker;
   lastFocused: WeakRef<HTMLElement>;
 
@@ -40,15 +37,6 @@ export class QuickInputService extends Store<State> {
   ) {
     super();
     this.lastFocused = new WeakRef(document.createElement('div'));
-    this.quickDbPicker = new pickers.QuickDbPicker(launcher, clustersService);
-    this.quickServerPicker = new pickers.QuickServerPicker(
-      launcher,
-      clustersService
-    );
-    this.quickLoginPicker = new pickers.QuickLoginPicker(
-      launcher,
-      clustersService
-    );
     this.quickCommandPicker = new pickers.QuickCommandPicker(launcher);
     this.setState({
       inputValue: '',

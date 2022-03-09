@@ -1,40 +1,24 @@
 import { tsh } from 'teleterm/ui/services/clusters/types';
 
-type Base<T, R> = {
+type SuggestionBase<T, R> = {
   kind: T;
+  token: string;
   data: R;
 };
 
-export type ItemCluster = Base<'item.cluster', tsh.Cluster>;
-
-export type ItemServer = Base<'item.server', tsh.Server>;
-
-export type ItemDb = Base<'item.db', tsh.Database>;
-
-export type ItemCmd = Base<
-  'item.cmd',
+export type SuggestionCmd = SuggestionBase<
+  'suggestion.cmd',
   { name: string; displayName: string; description: string }
 >;
 
-export type ItemNewCluster = Base<
-  'item.cluster-new',
-  { displayName: string; uri?: string; description: string }
->;
-
-export type ItemSshLogin = Base<'item.ssh-login', string>;
+export type SuggestionSshLogin = SuggestionBase<'suggestion.ssh-login', null>;
 
 export type QuickInputPicker = {
-  onPick(item: Item): void;
+  onPick(suggestion: Suggestion): void;
   getAutocompleteResult(input: string): AutocompleteResult;
 };
 
-export type Item =
-  | ItemNewCluster
-  | ItemServer
-  | ItemDb
-  | ItemCluster
-  | ItemCmd
-  | ItemSshLogin;
+export type Suggestion = SuggestionCmd | SuggestionSshLogin;
 
 type AutocompleteBase<T> = {
   kind: T;
@@ -42,7 +26,9 @@ type AutocompleteBase<T> = {
 };
 
 export type AutocompletePartialMatch =
-  AutocompleteBase<'autocomplete.partial-match'> & { listItems: Item[] };
+  AutocompleteBase<'autocomplete.partial-match'> & {
+    suggestions: Suggestion[];
+  };
 
 export type AutocompleteNoMatch = AutocompleteBase<'autocomplete.no-match'>;
 
