@@ -357,6 +357,14 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		stateUpdate:       sync.NewCond(&sync.Mutex{}),
 	}
 
+	go func() {
+		<-s.io.TerminateNotifier()
+		err := s.Close()
+		if err != nil {
+			s.log.Errorf("Failed to close session: %v.", err)
+		}
+	}()
+
 	err = s.trackerCreate(initiator, policySets)
 	if err != nil {
 		return nil, trace.Wrap(err)

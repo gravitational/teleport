@@ -689,6 +689,14 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		initiator:       ctx.Identity.TeleportUser,
 	}
 
+	go func() {
+		<-sess.io.TerminateNotifier()
+		err := sess.registry.ForceTerminate(sess.scx)
+		if err != nil {
+			sess.log.Errorf("Failed to terminate session: %v.", err)
+		}
+	}()
+
 	err = sess.trackerCreate(ctx.Identity.TeleportUser, policySets)
 	if err != nil {
 		return nil, trace.Wrap(err)
