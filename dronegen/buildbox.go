@@ -30,23 +30,18 @@ func buildboxPipelineSteps() []step {
 	}
 
 	for _, name := range []string{"buildbox", "buildbox-arm"} {
-		for _, os := range []string{"", "centos7"} {
-			for _, fips := range []bool{false, true} {
-				// FIPS is unsupported on ARM/ARM64
-				if name == "buildbox-arm" && fips {
-					continue
-				}
-				steps = append(steps, buildboxPipelineStep(name, os, fips))
+		for _, fips := range []bool{false, true} {
+			// FIPS is unsupported on ARM/ARM64
+			if name == "buildbox-arm" && fips {
+				continue
 			}
+			steps = append(steps, buildboxPipelineStep(name, fips))
 		}
 	}
 	return steps
 }
 
-func buildboxPipelineStep(buildboxName string, os string, fips bool) step {
-	if os != "" {
-		buildboxName += fmt.Sprintf("-%s", os)
-	}
+func buildboxPipelineStep(buildboxName string, fips bool) step {
 	if fips {
 		buildboxName += "-fips"
 	}
@@ -75,7 +70,7 @@ func buildboxPipeline() pipeline {
 		"UID":              {raw: "1000"},
 		"GID":              {raw: "1000"},
 	}
-	p.Trigger = triggerTag
+	p.Trigger = pushTriggerFor("master", "branch/v9")
 	p.Workspace = workspace{Path: "/go/src/github.com/gravitational/teleport"}
 	p.Volumes = dockerVolumes()
 	p.Services = []service{
