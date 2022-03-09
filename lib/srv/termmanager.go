@@ -145,19 +145,16 @@ func (g *TermManager) Read(p []byte) (int, error) {
 		}
 	}()
 
-	wait := func() {
-		for !<-c {
-		}
-	}
-
+	on := <-c
 	for {
-		wait()
+		if !on {
+			on = <-c
+			continue
+		}
 
 		select {
-		case on := <-c:
-			if !on {
-				continue
-			}
+		case on = <-c:
+			continue
 		case g.remaining = <-g.incoming:
 			close(q)
 			n := copy(p, g.remaining)
