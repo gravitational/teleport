@@ -1106,10 +1106,11 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, 
 		}
 	}
 
-	if !matchedTTL && !denyAuthenticated {
+	if !matchedTTL {
 		return KubePermissions{}, trace.AccessDenied("this user cannot request kubernetes access for %v", ttl)
 	}
-	if len(groups) == 0 && len(users) == 0 && !denyAuthenticated {
+
+	if len(groups) == 0 && len(users) == 0 {
 		return KubePermissions{}, trace.NotFound("this user cannot request kubernetes access, has no assigned groups or users")
 	}
 

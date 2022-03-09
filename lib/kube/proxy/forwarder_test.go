@@ -451,6 +451,7 @@ func TestAuthenticate(t *testing.T) {
 			desc:               "deny authenticate",
 			user:               auth.LocalUser{},
 			roleKubeGroups:     []string{},
+			roleKubeUsers:      []string{"kube-user-a"},
 			roleDenyKubeGroups: []string{teleport.KubeSystemAuthenticated},
 			routeToCluster:     "local",
 			haveKubeCreds:      true,
@@ -464,7 +465,7 @@ func TestAuthenticate(t *testing.T) {
 			}},
 
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
+				kubeUsers:   utils.StringsSet([]string{"kube-user-a"}),
 				kubeGroups:  utils.StringsSet([]string{}),
 				kubeCluster: "local",
 				teleportCluster: teleportClusterClient{
