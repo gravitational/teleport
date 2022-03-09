@@ -46,20 +46,22 @@ type TermManager struct {
 	incoming chan []byte
 	// remaining is a partially read chunk of stdin data
 	// we only support one concurrent reader so this isn't mutex protected
-	remaining        []byte
-	readStateUpdate  *sync.Cond
-	closed           *int32
-	lastWasBroadcast bool
+	remaining         []byte
+	readStateUpdate   *sync.Cond
+	closed            *int32
+	lastWasBroadcast  bool
+	terminateNotifier chan struct{}
 }
 
 // NewTermManager creates a new TermManager.
 func NewTermManager() *TermManager {
 	return &TermManager{
-		writers:         make(map[string]io.Writer),
-		readerState:     make(map[string]*int32),
-		closed:          new(int32),
-		readStateUpdate: sync.NewCond(&sync.Mutex{}),
-		incoming:        make(chan []byte, 100),
+		writers:           make(map[string]io.Writer),
+		readerState:       make(map[string]*int32),
+		closed:            new(int32),
+		readStateUpdate:   sync.NewCond(&sync.Mutex{}),
+		incoming:          make(chan []byte, 100),
+		terminateNotifier: make(chan struct{}),
 	}
 }
 
@@ -95,6 +97,10 @@ func (g *TermManager) writeToClients(p []byte) int {
 	}
 
 	return len(p)
+}
+
+func (g *TermManager) TerminateNotifier() <-chan struct{} {
+	return g.terminateNotifier
 }
 
 func (g *TermManager) Write(p []byte) (int, error) {
@@ -139,16 +145,19 @@ func (g *TermManager) Read(p []byte) (int, error) {
 		}
 	}()
 
-	on := <-c
-	for {
-		if !on {
-			on = <-c
-			continue
+	wait := func() {
+		for !<-c {
 		}
+	}
+
+	for {
+		wait()
 
 		select {
-		case on = <-c:
-			continue
+		case on := <-c:
+			if !on {
+				wait()
+			}
 		case g.remaining = <-g.incoming:
 			close(q)
 			n := copy(p, g.remaining)
@@ -219,6 +228,17 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 				log.Warnf("Failed to read from remote terminal: %v", err)
 				g.DeleteReader(name)
 				return
+			}
+
+			for _, b := range buf[:n] {
+				if b == 0x03 {
+					g.mu.Lock()
+					if !g.on {
+						close(g.terminateNotifier)
+					}
+					g.mu.Unlock()
+					return
+				}
 			}
 
 			g.incoming <- buf[:n]
