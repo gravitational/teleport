@@ -43,7 +43,7 @@ func onListDatabases(cf *CLIConf) error {
 	}
 	var databases []types.Database
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		databases, err = tc.ListDatabases(cf.Context)
+		databases, err = tc.ListDatabases(cf.Context, nil /* custom filter */)
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -410,7 +410,12 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tl
 func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.Database, error) {
 	var databases []types.Database
 	err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		allDatabases, err := tc.ListDatabases(cf.Context)
+		allDatabases, err := tc.ListDatabases(cf.Context, &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			PredicateExpression: fmt.Sprintf(`name == "%s"`, dbName),
+		})
+		// Kept for fallback in case an older auth does not apply filters.
+		// DELETE IN 11.0.0
 		for _, database := range allDatabases {
 			if database.GetName() == dbName {
 				databases = append(databases, database)

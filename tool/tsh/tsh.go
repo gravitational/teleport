@@ -429,6 +429,9 @@ func Run(args []string, opts ...cliOption) error {
 	lsApps := apps.Command("ls", "List available applications.")
 	lsApps.Flag("verbose", "Show extra application fields.").Short('v').BoolVar(&cf.Verbose)
 	lsApps.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
+	lsApps.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
+	lsApps.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	lsApps.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
@@ -458,6 +461,9 @@ func Run(args []string, opts ...cliOption) error {
 	db.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	dbList := db.Command("ls", "List all available databases.")
 	dbList.Flag("verbose", "Show extra database fields.").Short('v').BoolVar(&cf.Verbose)
+	dbList.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
+	dbList.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	dbList.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	dbLogin := db.Command("login", "Retrieve credentials for a database.")
 	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").Required().StringVar(&cf.DatabaseService)
 	dbLogin.Flag("db-user", "Optional database user to configure as default.").StringVar(&cf.DatabaseUser)
@@ -2468,7 +2474,7 @@ func onApps(cf *CLIConf) error {
 	// Get a list of all applications.
 	var apps []types.Application
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		apps, err = tc.ListApps(cf.Context)
+		apps, err = tc.ListApps(cf.Context, nil /* custom filter */)
 		return err
 	})
 	if err != nil {

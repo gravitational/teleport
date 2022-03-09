@@ -645,14 +645,32 @@ func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.List
 	return servers, nil
 }
 
-// GetAppServers returns a list of application servers.
-func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+// FindAppServersByFilters returns a list of application servers which have filters matched.
+func (proxy *ProxyClient) FindAppServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.AppServer, error) {
+	req.ResourceType = types.KindAppServer
 	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := authClient.GetApplicationServers(ctx, namespace)
+	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
+	if err != nil {
+		// ListResources for app servers not availalbe, provide fallback.
+		// Fallback does not support filters, so if users
+		// provide them, it does nothing.
+		//
+		// DELETE IN 11.0.0
+		if trace.IsNotImplemented(err) {
+			servers, err := authClient.GetApplicationServers(ctx, req.Namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return servers, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resources).AsAppServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -699,13 +717,32 @@ func (proxy *ProxyClient) DeleteAppSession(ctx context.Context, sessionID string
 	return nil
 }
 
-// GetDatabaseServers returns all registered database proxy servers.
-func (proxy *ProxyClient) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
+// FindDatabaseServersByFilters returns all registered database proxy servers.
+func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.DatabaseServer, error) {
+	req.ResourceType = types.KindDatabaseServer
 	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := authClient.GetDatabaseServers(ctx, namespace)
+
+	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
+	if err != nil {
+		// ListResources for db servers not availalbe, provide fallback.
+		// Fallback does not support filters, so if users
+		// provide them, it does nothing.
+		//
+		// DELETE IN 11.0.0
+		if trace.IsNotImplemented(err) {
+			servers, err := authClient.GetDatabaseServers(ctx, req.Namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return servers, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resources).AsDatabaseServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
