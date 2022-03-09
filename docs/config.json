@@ -330,17 +330,17 @@
           "title": "Getting Started",
           "slug": "/kubernetes-access/getting-started/",
            "entries": [
-            { 
-              "title": "Local Demo Cluster", 
+            {
+              "title": "Local Demo Cluster",
               "slug": "/kubernetes-access/getting-started/local/"
             },
-            { 
-              "title": "Cluster", 
-              "slug": "/kubernetes-access/getting-started/cluster/" 
+            {
+              "title": "Cluster",
+              "slug": "/kubernetes-access/getting-started/cluster/"
             },
-            { 
-              "title": "Agent", 
-              "slug": "/kubernetes-access/getting-started/agent/" 
+            {
+              "title": "Agent",
+              "slug": "/kubernetes-access/getting-started/agent/"
             }
           ]
         },
@@ -858,10 +858,7 @@
     }
   ],
   "variables": {
-    "version": "7.0",
-    "helm": {
-      "version": "3.4.2"
-    },
+    "version": "10.0",
     "terraform": {
       "version": "1.0.0"
     },
