@@ -172,7 +172,7 @@ func TestParseSSHVersion(t *testing.T) {
 
 const exampleConfigFile = `
 auth_server: auth.example.com
-renew_interval: 5m
+renewal_interval: 5m
 onboarding:
   token: foo
   ca_pins:
