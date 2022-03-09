@@ -1461,7 +1461,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Kind: types.KindRole,
 			},
 			crud: func(context.Context) types.Resource {
-				role, err := types.NewRole("role1", types.RoleSpecV5{
+				role, err := types.NewRoleV3("role1", types.RoleSpecV5{
 					Options: types.RoleOptions{
 						MaxSessionTTL: types.Duration(time.Hour),
 					},
