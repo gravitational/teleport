@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -48,17 +50,22 @@ var _ = check.Suite(&DynamoDBSuite{})
 
 func (s *DynamoDBSuite) SetUpSuite(c *check.C) {
 	s.tableName = "teleport.dynamo.test"
+	clock := clockwork.NewFakeClock()
 	newBackend := func() (backend.Backend, error) {
-		return New(context.Background(), map[string]interface{}{
+		bk, err := New(context.Background(), map[string]interface{}{
 			"table_name":         s.tableName,
 			"poll_stream_period": 300 * time.Millisecond,
 		})
+		bk.clock = clock
+		return bk, err
 	}
+
 	bk, err := newBackend()
 	c.Assert(err, check.IsNil)
 	s.bk = bk.(*Backend)
 	s.suite.B = s.bk
 	s.suite.NewBackend = newBackend
+	s.suite.Clock = clock
 }
 
 func (s *DynamoDBSuite) TearDownSuite(c *check.C) {
@@ -102,4 +109,12 @@ func (s *DynamoDBSuite) TestWatchersClose(c *check.C) {
 
 func (s *DynamoDBSuite) TestLocking(c *check.C) {
 	s.suite.Locking(c, s.bk)
+}
+
+func (s *DynamoDBSuite) TestFetchLimit(c *check.C) {
+	s.suite.FetchLimit(c)
+}
+
+func (s *DynamoDBSuite) TestLimit(c *check.C) {
+	s.suite.Limit(c)
 }
