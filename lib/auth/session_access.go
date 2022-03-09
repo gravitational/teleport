@@ -209,6 +209,11 @@ func (e *SessionAccessEvaluator) hasPolicies() bool {
 	return false
 }
 
+// IsModerated returns true if a session requires moderation.
+func (e *SessionAccessEvaluator) IsModerated() bool {
+	return e.hasPolicies()
+}
+
 // FulfilledFor checks if a given session may run with a list of participants.
 func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContext) (bool, PolicyOptions, error) {
 	supported, err := e.supportsSessionAccessControls()

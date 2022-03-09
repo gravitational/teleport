@@ -369,7 +369,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 // to fulfill the access requirements again.
 func (s *session) waitOnAccess() {
 	s.io.Off()
-	s.io.BroadcastMessage("Session paused, Waiting for required participants...")
+	s.BroadcastMessage("Session paused, Waiting for required participants...")
 
 	s.stateUpdate.L.Lock()
 	defer s.stateUpdate.L.Unlock()
@@ -388,7 +388,7 @@ outer:
 		s.stateUpdate.Wait()
 	}
 
-	s.io.BroadcastMessage("Resuming session...")
+	s.BroadcastMessage("Resuming session...")
 	s.io.On()
 }
 
@@ -523,7 +523,7 @@ func (s *session) launch() error {
 			defer s.mu.Unlock()
 
 			if s.tty {
-				s.io.BroadcastMessage("Session expired, closing...")
+				s.BroadcastMessage("Session expired, closing...")
 			}
 
 			err := s.Close()
@@ -900,7 +900,7 @@ func (s *session) join(p *party) error {
 	s.io.AddWriter(stringID, p.Client.stdoutStream())
 
 	if s.tty {
-		s.io.BroadcastMessage(fmt.Sprintf("User %v joined the session.", p.Ctx.User.GetName()))
+		s.BroadcastMessage("User %v joined the session.", p.Ctx.User.GetName())
 	}
 
 	if p.Mode == types.SessionModeratorMode {
@@ -938,7 +938,7 @@ func (s *session) join(p *party) error {
 		} else {
 			s.stateUpdate.L.Lock()
 			if s.state == types.SessionState_SessionStatePending {
-				s.io.BroadcastMessage("Waiting for required participants...")
+				s.BroadcastMessage("Waiting for required participants...")
 			}
 			s.stateUpdate.L.Unlock()
 		}
@@ -948,7 +948,11 @@ func (s *session) join(p *party) error {
 }
 
 func (s *session) BroadcastMessage(format string, args ...interface{}) error {
-	return s.io.BroadcastMessage(fmt.Sprintf(format, args...))
+	if s.accessEvaluator.IsModerated() {
+		return s.BroadcastMessage(fmt.Sprintf(format, args...))
+	}
+
+	return nil
 }
 
 // leave removes a party from the session.
@@ -973,7 +977,7 @@ func (s *session) leave(id uuid.UUID) error {
 	s.io.DeleteWriter(stringID)
 
 	if s.tty {
-		s.io.BroadcastMessage(fmt.Sprintf("User %v left the session.", party.Ctx.User.GetName()))
+		s.BroadcastMessage("User %v left the session.", party.Ctx.User.GetName())
 	}
 
 	sessionLeaveEvent := &apievents.SessionLeave{
@@ -1091,7 +1095,7 @@ func (s *session) Close() error {
 
 	s.closeOnce.Do(func() {
 		if s.tty {
-			s.io.BroadcastMessage("Closing session...")
+			s.BroadcastMessage("Closing session...")
 		}
 
 		s.stateUpdate.L.Lock()

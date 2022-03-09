@@ -320,7 +320,7 @@ func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
 	}
 
 	sess.terminated = true
-	sess.io.BroadcastMessage("Forcefully terminating session...")
+	sess.BroadcastMessage("Forcefully terminating session...")
 	sess.term.Kill()
 	sess.doneCh <- struct{}{}
 
@@ -731,7 +731,7 @@ func (s *session) Close() error {
 			defer s.mu.Unlock()
 
 			close(s.closeC)
-			s.io.BroadcastMessage("Closing session...")
+			s.BroadcastMessage("Closing session...")
 			s.log.Infof("Closing session %v.", s.id)
 			if s.term != nil {
 				s.term.Close()
@@ -769,7 +769,7 @@ func (s *session) isLingering() bool {
 
 func (s *session) waitOnAccess() error {
 	s.io.Off()
-	err := s.io.BroadcastMessage("Session paused, Waiting for required participants...")
+	err := s.BroadcastMessage("Session paused, Waiting for required participants...")
 	if err != nil {
 		log.WithError(err).Errorf("Failed to broadcast message.")
 	}
@@ -790,13 +790,17 @@ outer:
 		s.stateUpdate.Wait()
 	}
 
-	s.io.BroadcastMessage("Resuming session...")
+	s.BroadcastMessage("Resuming session...")
 	s.io.On()
 	return nil
 }
 
 func (s *session) BroadcastMessage(format string, args ...interface{}) error {
-	return s.io.BroadcastMessage(fmt.Sprintf(format, args...))
+	if s.access.IsModerated() {
+		return s.BroadcastMessage(fmt.Sprintf(format, args...))
+	}
+
+	return nil
 }
 
 func (s *session) launch(ctx *ServerContext) error {
@@ -989,7 +993,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	s.inWriter = inWriter
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder))
-	err = s.io.BroadcastMessage(fmt.Sprintf("Creating session with ID: %v...", s.id))
+	err = s.BroadcastMessage("Creating session with ID: %v...", s.id)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1307,7 +1311,7 @@ func (s *session) removeParty(p *party) error {
 	}
 
 	s.io.DeleteWriter(string(p.id))
-	s.io.BroadcastMessage(fmt.Sprintf("User %v left the session.", p.user))
+	s.BroadcastMessage("User %v left the session.", p.user)
 	return nil
 }
 
@@ -1488,7 +1492,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	p.ctx.AddCloser(p)
 	s.term.AddParty(1)
 
-	s.io.BroadcastMessage(fmt.Sprintf("User %v joined the session.", p.user))
+	s.BroadcastMessage("User %v joined the session.", p.user)
 	s.log.Infof("New party %v joined session: %v", p.String(), s.id)
 
 	if mode == types.SessionPeerMode {
@@ -1531,7 +1535,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 				s.stateUpdate.Broadcast()
 			}
 		} else if !s.started {
-			err := s.io.BroadcastMessage("Session paused, Waiting for required participants...")
+			err := s.BroadcastMessage("Session paused, Waiting for required participants...")
 			if err != nil {
 				log.WithError(err).Errorf("Failed to broadcast message.")
 			}
