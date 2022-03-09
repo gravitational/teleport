@@ -31,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
@@ -49,7 +50,7 @@ type Databases interface {
 	DatabaseGetter
 	// CreateDatabase creates a new database resource.
 	CreateDatabase(context.Context, types.Database) error
-	// UpdateDatabse updates an existing database resource.
+	// UpdateDatabase updates an existing database resource.
 	UpdateDatabase(context.Context, types.Database) error
 	// DeleteDatabase removes the specified database resource.
 	DeleteDatabase(ctx context.Context, name string) error
@@ -290,7 +291,7 @@ func engineToProtocol(engine string) string {
 	switch engine {
 	case RDSEnginePostgres, RDSEngineAuroraPostgres:
 		return defaults.ProtocolPostgres
-	case RDSEngineMySQL, RDSEngineAurora, RDSEngineAuroraMySQL:
+	case RDSEngineMySQL, RDSEngineAurora, RDSEngineAuroraMySQL, RDSEngineMariaDB:
 		return defaults.ProtocolMySQL
 	}
 	return ""
@@ -367,6 +368,27 @@ func rdsTagsToLabels(tags []*rds.Tag) map[string]string {
 		}
 	}
 	return labels
+}
+
+// IsRDSInstanceSupported returns true if database supports IAM authentication.
+// Currently, only MariaDB is being checked.
+func IsRDSInstanceSupported(instance *rds.DBInstance) bool {
+	// TODO(jakule): Check other engines.
+	if aws.StringValue(instance.Engine) != RDSEngineMariaDB {
+		return true
+	}
+
+	// MariaDB follows semver schema: https://mariadb.org/about/
+	ver, err := semver.NewVersion(aws.StringValue(instance.EngineVersion))
+	if err != nil {
+		log.Errorf("Failed to parse RDS MariaDB version: %s", aws.StringValue(instance.EngineVersion))
+		return false
+	}
+
+	// Min supported MariaDB version that supports IAM is 10.6
+	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html
+	minIAMSupportedVer := semver.New("10.6.0")
+	return !ver.LessThan(*minIAMSupportedVer)
 }
 
 // IsRDSClusterSupported checks whether the aurora cluster is supported and logs
@@ -536,6 +558,8 @@ const (
 	RDSEngineMySQL = "mysql"
 	// RDSEnginePostgres is RDS engine name for Postgres instances.
 	RDSEnginePostgres = "postgres"
+	// RDSEngineMariaDB is RDS engine name for MariaDB instances.
+	RDSEngineMariaDB = "mariadb"
 	// RDSEngineAurora is RDS engine name for Aurora MySQL 5.6 compatible clusters.
 	RDSEngineAurora = "aurora"
 	// RDSEngineAuroraMySQL is RDS engine name for Aurora MySQL 5.7 compatible clusters.
@@ -553,9 +577,9 @@ const (
 	// RDSEndpointTypeReader is the endpoint that load-balances connections across the Aurora Replicas that are
 	// available in a RDS cluster.
 	RDSEndpointTypeReader RDSEndpointType = "reader"
-	// RDSEndpointTypeCustom is the endpoint that specifieds one of the custom endpoints associated with the RDS cluster.
+	// RDSEndpointTypeCustom is the endpoint that specifies one of the custom endpoints associated with the RDS cluster.
 	RDSEndpointTypeCustom RDSEndpointType = "custom"
-	// RDSEndpointTypeInstance is the endpoint of a RDS DB instance.
+	// RDSEndpointTypeInstance is the endpoint of an RDS DB instance.
 	RDSEndpointTypeInstance RDSEndpointType = "instance"
 )
 
