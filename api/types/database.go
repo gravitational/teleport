@@ -563,7 +563,6 @@ func DeduplicateDatabases(databases []Database) (result []Database) {
 // Databases is a list of database resources.
 type Databases []Database
 
-
 // ToMap returns these databases as a map keyed by database name.
 func (d Databases) ToMap() map[string]Database {
 	m := make(map[string]Database)
