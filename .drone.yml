@@ -4616,13 +4616,15 @@ trigger:
   event:
     include:
     - push
+    exclude:
+    - pull_request
   repo:
     include:
-    - gravitational/teleport
+    - gravitational/*
   branch:
     include:
     - master
-    - branch/v9
+    - branch/*
 workspace:
   path: /go/src/github.com/gravitational/teleport
 clone:
@@ -5132,6 +5134,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 816943c12a64ca1b37cfc46eeb105b1ef7ac667abd34ff181429662c32be3df6
+hmac: 92b572551850c6abf752486acc3e7722edfbfe266894b1681a74df080981f5fa
 
 ...
