@@ -132,7 +132,7 @@ There are two supported options when using AWS:
 - Use `cert-manager` to provision and automatically renew ACME certs (described in [Step 4a](#step-4a-install-and-configure-cert-manager-to-handle-tls)).
   - This approach is recommended if you require CLI access to web applications using client certificates via Teleport Application access.
 - Use AWS Certificate Manager to handle TLS termination with AWS-managed certificates (described in [Step 4b](#step-4b-configure-teleport-to-use-acm-to-handle-tls)).
-  - This will prevent Teleport Application access from working via CLI using client certificates. Application access will work fine via browser.
+  - This will prevent Teleport Application access from working via CLI using client certificates. Application access will still work via a browser.
 
 You must choose only one of these options.
 
@@ -236,7 +236,7 @@ $ kubectl --namespace teleport create -f aws-issuer.yaml
 
 ## Step 4b. Configure Teleport to use ACM to handle TLS
 
-<Admonition type="warning" title="PostgreSQL via Teleport Database Access does not work with ACM">
+<Admonition type="warning" title="Command-line Teleport Application access does not work with ACM">
   Using ACM will prevent Teleport from handling application access via CLI (using client certificates), as Teleport
   will not be handling its own TLS termination.
 
