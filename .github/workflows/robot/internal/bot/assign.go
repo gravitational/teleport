@@ -104,7 +104,7 @@ func (b *Bot) backportReviewers(ctx context.Context) ([]string, error) {
 		originalReviewers = append(originalReviewers, review.Author)
 	}
 
-	return originalReviewers, nil
+	return dedup(b.c.Environment.Author, originalReviewers), nil
 }
 
 func (b *Bot) findOriginal(ctx context.Context, organization string, repository string, number int) (int, error) {
@@ -155,8 +155,26 @@ func (b *Bot) findOriginal(ctx context.Context, organization string, repository 
 	return n, nil
 }
 
+func dedup(author string, reviewers []string) []string {
+	m := map[string]bool{}
+
+	for _, reviewer := range reviewers {
+		if reviewer == author {
+			continue
+		}
+		m[reviewer] = true
+	}
+
+	var filtered []string
+	for k := range m {
+		filtered = append(filtered, k)
+	}
+
+	return filtered
+}
+
 func isBackport(unsafeBase string) bool {
 	return strings.HasPrefix(unsafeBase, "branch/v")
 }
 
-var pattern = regexp.MustCompile(`#([0-9]+)`)
+var pattern = regexp.MustCompile(`(?:https:\/\/github\.com\/gravitational\/teleport\/pull\/|#)([0-9]+)`)
