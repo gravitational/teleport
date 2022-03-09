@@ -156,7 +156,7 @@ func onWatch(botConfig *config.BotConfig) error {
 
 func onStart(botConfig *config.BotConfig) error {
 	if botConfig.AuthServer == "" {
-		return trace.BadParameter("An auth server must be set via --auth-server or configuration")
+		return trace.BadParameter("An auth or proxy server must be set via --auth-server or configuration")
 	}
 
 	// First, try to make sure all destinations are usable.
@@ -170,9 +170,6 @@ func onStart(botConfig *config.BotConfig) error {
 		return trace.Wrap(err, "could not read bot storage destination from config")
 	}
 
-	var authClient auth.ClientI
-
-	// TODO: graceful shutdown via signal; see #7066
 	reloadChan := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -184,6 +181,8 @@ func onStart(botConfig *config.BotConfig) error {
 		sha := sha256.Sum256([]byte(botConfig.Onboarding.Token))
 		configTokenHashBytes = []byte(hex.EncodeToString(sha[:]))
 	}
+
+	var authClient auth.ClientI
 
 	// First, attempt to load an identity from storage.
 	ident, err := identity.LoadIdentity(dest, identity.BotKinds()...)
