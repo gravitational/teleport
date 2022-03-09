@@ -4602,7 +4602,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/buildbox.go:72
+# Generated at dronegen/buildbox.go:67
 ################################################
 
 kind: pipeline
@@ -4616,15 +4616,13 @@ trigger:
   event:
     include:
     - push
-    exclude:
-    - pull_request
   repo:
     include:
-    - gravitational/*
+    - gravitational/teleport
   branch:
     include:
     - master
-    - branch/*
+    - branch/v9
 workspace:
   path: /go/src/github.com/gravitational/teleport
 clone:
@@ -4675,38 +4673,6 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: buildbox-centos7
-  image: docker
-  commands:
-  - apk add --no-cache make
-  - chown -R $UID:$GID /go
-  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
-  - make -C build.assets buildbox-centos7
-  - docker push quay.io/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION
-  environment:
-    QUAYIO_DOCKER_PASSWORD:
-      from_secret: QUAYIO_DOCKER_PASSWORD
-    QUAYIO_DOCKER_USERNAME:
-      from_secret: QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: dockersock
-    path: /var/run
-- name: buildbox-centos7-fips
-  image: docker
-  commands:
-  - apk add --no-cache make
-  - chown -R $UID:$GID /go
-  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
-  - make -C build.assets buildbox-centos7-fips
-  - docker push quay.io/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION
-  environment:
-    QUAYIO_DOCKER_PASSWORD:
-      from_secret: QUAYIO_DOCKER_PASSWORD
-    QUAYIO_DOCKER_USERNAME:
-      from_secret: QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: dockersock
-    path: /var/run
 - name: buildbox-arm
   image: docker
   commands:
@@ -4715,22 +4681,6 @@ steps:
   - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
   - make -C build.assets buildbox-arm
   - docker push quay.io/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION
-  environment:
-    QUAYIO_DOCKER_PASSWORD:
-      from_secret: QUAYIO_DOCKER_PASSWORD
-    QUAYIO_DOCKER_USERNAME:
-      from_secret: QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: dockersock
-    path: /var/run
-- name: buildbox-arm-centos7
-  image: docker
-  commands:
-  - apk add --no-cache make
-  - chown -R $UID:$GID /go
-  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
-  - make -C build.assets buildbox-arm-centos7
-  - docker push quay.io/gravitational/teleport-buildbox-arm-centos7:$BUILDBOX_VERSION
   environment:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
@@ -5134,6 +5084,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 92b572551850c6abf752486acc3e7722edfbfe266894b1681a74df080981f5fa
+hmac: 1dd41a2efd6b7983f62a49578cdcf4eb9058d4319e333f9f958e80e7f8a91877
 
 ...
