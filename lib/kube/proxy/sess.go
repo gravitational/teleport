@@ -434,7 +434,7 @@ func (s *session) launch() error {
 	s.log.Debugf("Launching session: %v", s.id)
 
 	if s.tty {
-		s.io.BroadcastMessage("Launching session...")
+		s.BroadcastMessage("Connecting to %v over K8S", s.podName)
 	}
 
 	q := s.req.URL.Query()
@@ -945,6 +945,10 @@ func (s *session) join(p *party) error {
 	}
 
 	return nil
+}
+
+func (s *session) BroadcastMessage(format string, args ...interface{}) error {
+	return s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 }
 
 // leave removes a party from the session.

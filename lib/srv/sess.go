@@ -795,6 +795,10 @@ outer:
 	return nil
 }
 
+func (s *session) BroadcastMessage(format string, args ...interface{}) error {
+	return s.io.BroadcastMessage(fmt.Sprintf(format, args...))
+}
+
 func (s *session) launch(ctx *ServerContext) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -802,7 +806,7 @@ func (s *session) launch(ctx *ServerContext) error {
 	defer s.stateUpdate.L.Unlock()
 
 	s.log.Debugf("Launching session %v.", s.id)
-	s.io.BroadcastMessage("Launching session...")
+	s.BroadcastMessage("Connecting to %v over SSH", ctx.srv.GetInfo().GetHostname())
 	s.state = types.SessionState_SessionStateRunning
 
 	err := s.io.On()
