@@ -428,6 +428,31 @@ func TestAccessMySQLChangeUser(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestMySQLCloseConnection(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"alice"}, []string{types.Wildcard})
+
+	// Connect to the database as this user.
+	mysqlConn, err := testCtx.mysqlClient("alice", "mysql", "alice")
+	require.NoError(t, err)
+
+	_, err = mysqlConn.Execute("select 1")
+	require.NoError(t, err)
+
+	// Close connection to DB proxy
+	err = mysqlConn.Close()
+	require.NoError(t, err)
+
+	// DB proxy should close the DB connection and send COM_QUIT message.
+	require.Eventually(t, func() bool {
+		return testCtx.mysql["mysql"].db.ConnsClosed()
+	}, 2*time.Second, 100*time.Millisecond)
+}
+
 // TestAccessRedisAUTHDefaultCmd checks if empty user can log in to Redis as default.
 func TestAccessRedisAUTHDefaultCmd(t *testing.T) {
 	ctx := context.Background()
@@ -491,6 +516,9 @@ func TestAccessMySQLServerPacket(t *testing.T) {
 	// Execute "show tables" command which will make the test server to reply
 	// in a way that previously would cause our packet parsing logic to fail.
 	_, err = mysqlConn.Execute("show tables")
+	require.NoError(t, err)
+
+	err = mysqlConn.Close()
 	require.NoError(t, err)
 }
 
@@ -1936,7 +1964,9 @@ func withSelfHostedMySQL(name string) withDatabaseOption {
 		})
 		require.NoError(t, err)
 		go mysqlServer.Serve()
-		t.Cleanup(func() { mysqlServer.Close() })
+		t.Cleanup(func() {
+			require.NoError(t, mysqlServer.Close())
+		})
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
 		}, types.DatabaseSpecV3{

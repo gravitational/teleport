@@ -1457,6 +1457,12 @@ message PaginatedResource {
         types.ServerV2 Node = 3 [ (gogoproto.jsontag) = "node,omitempty" ];
         // KubeService represents a KubernetesService resource.
         types.ServerV2 KubeService = 4 [ (gogoproto.jsontag) = "kube_service,omitempty" ];
+        // WindowsDesktop represents a WindowsDesktop resource.
+        types.WindowsDesktopV3 WindowsDesktop = 5
+            [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
+        // KubeCluster represents a KubeCluster resource.
+        types.KubernetesClusterV3 KubeCluster = 6
+            [ (gogoproto.jsontag) = "kube_cluster,omitempty" ];
     }
 }
 
@@ -1485,6 +1491,9 @@ message ListResourcesRequest {
     // NeedTotalCount indicates whether or not the caller also wants the total number of resources
     // after filtering.
     bool NeedTotalCount = 9 [ (gogoproto.jsontag) = "need_total_count,omitempty" ];
+    // WindowsDesktopFilter specifies windows desktop specific filters.
+    types.WindowsDesktopFilter WindowsDesktopFilter = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "windows_desktop_filter,omitempty" ];
 }
 
 // ListResourceResponse response of ListResources.
