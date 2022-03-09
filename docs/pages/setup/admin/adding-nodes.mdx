@@ -1,6 +1,6 @@
 ---
-title: Adding Nodes to the cluster
-description: Adding Nodes to the cluster
+title: Adding Nodes to the Cluster
+description: How to add Nodes to your Teleport cluster
 ---
 
 This guide explains how to add Teleport Nodes to your cluster.
@@ -71,8 +71,6 @@ If you want to provide your own token, you can do so using the `--token` flag:
 $ tctl nodes add --ttl=5m --roles=node,proxy --token=secret-value
 # The invite token: secret-value
 ```
-
-
 
 <Details scope={["oss","enterprise"]} title="An insecure alternative: static tokens" scopeOnly={true} opened>
 <Admonition type="warning">
