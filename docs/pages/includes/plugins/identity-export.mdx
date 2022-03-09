@@ -1,4 +1,6 @@
-Teleport's plugins use the `access-plugin` role and user to approve access requests. We export the identity files to this plugin using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign).
+Teleport's plugins use the `access-plugin` user to manage access requests. In order to act as
+the user, the plugin must present the Teleport Auth server with valid identity files.
+We export the identity files for the user using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign).
 
 <Tabs>
   <TabItem label="Self-Hosted" scope={["oss","enterprise"]}>

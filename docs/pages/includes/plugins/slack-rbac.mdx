@@ -6,7 +6,7 @@ $ tctl create -f YAML_PATH.yaml
 
 (!docs/pages/includes/plugins/impersonations.mdx!)
 
-Create a non-interactive bot user and role called `access-plugin`.
+Create a non-interactive bot `access-plugin` user and role.
 
 ```yaml
 kind: user
@@ -24,7 +24,8 @@ spec:
   allow:
     rules:
       - resources: ['access_request']
-        verbs: ['list', 'read', 'update']
+        # Unlike the other plugins the Slack plugin does not need 'update' on 'access_request'.
+        verbs: ['list', 'read']
       - resources: ['access_plugin_data']
         verbs: ['update']
 ```

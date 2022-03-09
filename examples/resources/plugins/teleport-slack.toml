@@ -1,0 +1,40 @@
+# Copied from https://github.com/gravitational/teleport-plugins/blob/master/access/slack/example_config.toml
+
+# Example slack plugin configuration TOML file
+
+[teleport]
+# This section 
+
+# Teleport Auth/Proxy Server address.
+# addr = "example.com:3025"
+#
+# Should be port 3025 for Auth Server and 3080 or 443 for Proxy.
+# For Teleport Cloud, should be in the form "your-account.teleport.sh:443".
+
+# Credentials generated with `tctl auth sign`.
+#
+# When using --format=file:
+# identity = "/var/lib/teleport/plugins/slack/auth_id"    # Identity file
+#
+# When using --format=tls:
+# client_key = "/var/lib/teleport/plugins/slack/auth.key" # Teleport TLS secret key
+# client_crt = "/var/lib/teleport/plugins/slack/auth.crt" # Teleport TLS certificate
+# root_cas = "/var/lib/teleport/plugins/slack/auth.cas"   # Teleport CA certs
+
+[slack]
+# Slack Bot OAuth token
+token = "xoxb-11xx"
+
+[role_to_recipients]
+# Map roles to recipients.
+#
+# Provide slack user_email/channel recipients for access requests for specific roles. 
+# role.suggested_reviewers will automatically be treated as additional email recipients.
+# "*" must be provided to match non-specified roles.
+#
+# "dev" = "devs-slack-channel"
+# "*" = ["admin@email.com", "admin-slack-channel"]
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/slack.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
