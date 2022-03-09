@@ -39,18 +39,19 @@ This guide will help you to:
 
 ## Step 3/5. Create Redis users
 
-Each Redis user must be protected by a strong password. We recommend using the password generator built into Redis.
-To generate password connect to a Redis instance and call:
-
-```
-ACL GENPASS
-```
-
-or use OpenSSL if you have it installed on your machine
+Each Redis user must be protected by a strong password. We recommend using OpenSSL to generate them:
 
 ```shell
 openssl rand -hex 32
 ```
+
+  <Admonition type="note">
+If you have access to Redis you can also generate password by using the below command from the Redis console:
+
+```
+ACL GENPASS
+```
+  </Admonition>
 
 Create a `users.acl` file, which defines users for your Redis deployment, passwords required to log in as a given user
 , and sets of ACL rules. Redis allows you to provide passwords in plaintext or an SHA256 hash.
@@ -108,9 +109,9 @@ Create the secrets:
     (!docs/pages/includes/database-access/ttl-note.mdx!)
 
     The command will create three files:
-    * `server.cas` with Teleport's certificate authority
-    * `server.key` with generated private key
-    * `server.crt` with generated user certificate.
+    - `server.cas` with Teleport's certificate authority
+    - `server.key` with generated private key
+    - `server.crt` with generated user certificate.
     You will need these files to enable mutual TLS on your Redis server.
   </TabItem>
   <TabItem label="Cluster">
@@ -128,9 +129,9 @@ Create the secrets:
     (!docs/pages/includes/database-access/ttl-note.mdx!)
 
     The command will create three files:
-    * `server.cas` with Teleport's certificate authority
-    * `server.key` with generated private key
-    * `server.crt` with generated user certificate.
+    - `server.cas` with Teleport's certificate authority
+    - `server.key` with generated private key
+    - `server.crt` with generated user certificate.
     You will need these files to enable mutual TLS on your Redis server.
   </TabItem>
 </Tabs>
@@ -193,6 +194,12 @@ in the Redis documentation for more details.
   ```shell
   export REDISCLI_AUTH=STRONG_GENERATED_PASSWORD
   export CERTS_DIR=/path/to/certs/
+  export IP1=10.0.0.1 # update with the real node 1 IP
+  export IP2=10.0.0.2 # update with the real node 2 IP
+  export IP3=10.0.0.3 # update with the real node 3 IP
+  export IP4=10.0.0.4 # update with the real node 4 IP
+  export IP5=10.0.0.5 # update with the real node 5 IP
+  export IP6=10.0.0.6 # update with the real node 6 IP
 
   redis-cli --user alice --cluster-replicas 1 --tls --cluster-yes \
   --cluster create ${IP1}:7001 ${IP2}:7002 ${IP3}:7003 ${IP4}:7004 ${IP5}:7005 ${IP6}:7006 \
