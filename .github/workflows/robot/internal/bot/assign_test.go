@@ -47,7 +47,7 @@ func TestBackportReviewers(t *testing.T) {
 		expected  []string
 	}{
 		{
-			desc: "backport-original-approved",
+			desc: "backport-original-pr-number-approved",
 			pull: github.PullRequest{
 				Author:      "baz",
 				Repository:  "bar",
@@ -62,6 +62,43 @@ func TestBackportReviewers(t *testing.T) {
 			},
 			err:      false,
 			expected: []string{"3", "4"},
+		},
+		{
+			desc: "backport-original-url-approved",
+			pull: github.PullRequest{
+				Author:      "baz",
+				Repository:  "bar",
+				UnsafeHead:  "baz/fix",
+				UnsafeTitle: "Fixed an issue",
+				UnsafeBody:  "https://github.com/gravitational/teleport/pull/0",
+				Fork:        false,
+			},
+			reviewers: []string{"3"},
+			reviews: []github.Review{
+				{Author: "4", State: "APPROVED"},
+			},
+			err:      false,
+			expected: []string{"3", "4"},
+		},
+		{
+			desc: "backport-multiple-reviews",
+			pull: github.PullRequest{
+				Author:      "baz",
+				Repository:  "bar",
+				UnsafeHead:  "baz/fix",
+				UnsafeTitle: "Fixed feature",
+				UnsafeBody:  "",
+				Fork:        false,
+			},
+			reviewers: []string{"3"},
+			reviews: []github.Review{
+				{Author: "4", State: "COMMENTED"},
+				{Author: "4", State: "CHANGES_REQUESTED"},
+				{Author: "4", State: "APPROVED"},
+				{Author: "9", State: "APPROVED"},
+			},
+			err:      true,
+			expected: []string{},
 		},
 		{
 			desc: "backport-original-not-found",
@@ -87,6 +124,7 @@ func TestBackportReviewers(t *testing.T) {
 				c: &Config{
 					Environment: &env.Environment{
 						Organization: "foo",
+						Author:       "9",
 						Repository:   "bar",
 						Number:       0,
 						UnsafeBase:   "branch/v8",
