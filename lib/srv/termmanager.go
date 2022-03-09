@@ -156,7 +156,7 @@ func (g *TermManager) Read(p []byte) (int, error) {
 		select {
 		case on := <-c:
 			if !on {
-				wait()
+				continue
 			}
 		case g.remaining = <-g.incoming:
 			close(q)
