@@ -25,8 +25,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
 )
 
@@ -36,6 +40,10 @@ type AppsCommand struct {
 
 	// format is the output format (text, json, or yaml)
 	format string
+
+	searchKeywords string
+	predicateExpr  string
+	labels         string
 
 	// appsList implements the "tctl apps ls" subcommand.
 	appsList *kingpin.CmdClause
@@ -48,6 +56,9 @@ func (c *AppsCommand) Initialize(app *kingpin.Application, config *service.Confi
 	apps := app.Command("apps", "Operate on applications registered with the cluster.")
 	c.appsList = apps.Command("ls", "List all applications registered with the cluster.")
 	c.appsList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default("text").StringVar(&c.format)
+	c.appsList.Arg("labels", labelHelp).StringVar(&c.labels)
+	c.appsList.Flag("search", searchHelp).StringVar(&c.searchKeywords)
+	c.appsList.Flag("query", queryHelp).StringVar(&c.predicateExpr)
 }
 
 // TryRun attempts to run subcommands like "apps ls".
@@ -63,11 +74,44 @@ func (c *AppsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 
 // ListApps prints the list of applications that have recently sent heartbeats
 // to the cluster.
-func (c *AppsCommand) ListApps(client auth.ClientI) error {
-	servers, err := client.GetApplicationServers(context.TODO(), apidefaults.Namespace)
-	if err != nil {
-		return trace.Wrap(err)
+func (c *AppsCommand) ListApps(clt auth.ClientI) error {
+	ctx := context.TODO()
+
+	var labels map[string]string
+	var err error
+	if c.labels != "" {
+		labels, err = libclient.ParseLabelSpec(c.labels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
+
+	var servers []types.AppServer
+	resources, err := client.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+		ResourceType:        types.KindAppServer,
+		Labels:              labels,
+		PredicateExpression: c.predicateExpr,
+		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
+	})
+	switch {
+	// Underlying ListResources for app servers not available, use fallback.
+	// Using filter flags with older auth will silently do nothing.
+	//
+	// DELETE IN 11.0.0
+	case trace.IsNotImplemented(err):
+		servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	case err != nil:
+		return trace.Wrap(err)
+	default:
+		servers, err = types.ResourcesWithLabels(resources).AsAppServers()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	coll := &appServerCollection{servers: servers}
 
 	switch c.format {
