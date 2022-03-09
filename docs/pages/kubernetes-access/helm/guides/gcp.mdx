@@ -377,6 +377,7 @@ $ MYDNS="teleport.example.com"
 
 $ gcloud dns record-sets transaction start --zone="${MYZONE?}"
 $ gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
+$ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
 $ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
 $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
 ```

@@ -354,6 +354,18 @@ $ jq -n --arg dns "${MYDNS?}" --arg elb "${MYELB?}" --arg elbz "${MYELB_ZONE?}" 
                 "EvaluateTargetHealth": false
               }
             }
+          },
+          {
+            "Action": "CREATE",
+            "ResourceRecordSet": {
+              "Name": ("*." + $dns),
+              "Type": "A",
+              "AliasTarget": {
+                "HostedZoneId": $elbz,
+                "DNSName": ("dualstack." + $elb),
+                "EvaluateTargetHealth": false
+              }
+            }
           }
       ]
     }' > myrecords.json
