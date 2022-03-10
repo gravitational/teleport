@@ -17,8 +17,8 @@ limitations under the License.
 package auth
 
 import (
-	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
@@ -39,7 +39,7 @@ import (
 type SessionAccessEvaluator struct {
 	kind        types.SessionKind
 	policySets  []*types.SessionTrackerPolicySet
-	IsModerated bool
+	isModerated bool
 }
 
 // NewSessionAccessEvaluator creates a new session access evaluator for a given session kind
@@ -50,11 +50,10 @@ func NewSessionAccessEvaluator(policySets []*types.SessionTrackerPolicySet, kind
 		policySets: policySets,
 	}
 
-Outer:
 	for _, policySet := range policySets {
 		if len(e.extractApplicablePolicies(policySet)) != 0 {
-			e.IsModerated = true
-			break Outer
+			e.isModerated = true
+			break
 		}
 	}
 
@@ -112,6 +111,11 @@ func (ctx *SessionAccessContext) GetIdentifier(fields []string) (interface{}, er
 
 func (ctx *SessionAccessContext) GetResource() (types.Resource, error) {
 	return nil, trace.BadParameter("resource unsupported")
+}
+
+// IsModerated returns true if the session needs moderation.
+func (e *SessionAccessEvaluator) IsModerated() bool {
+	return e.isModerated
 }
 
 func (e *SessionAccessEvaluator) matchesPredicate(ctx *SessionAccessContext, require *types.SessionRequirePolicy, allow *types.SessionJoinPolicy) (bool, error) {
@@ -223,7 +227,8 @@ func (e *SessionAccessEvaluator) hasPolicies() bool {
 
 // Generate a pretty-printed string of precise requirements for session start suitable for user display.
 func (e *SessionAccessEvaluator) PrettyRequirementsList() string {
-	s := "require all:"
+	var s strings.Builder
+	s.WriteString("require all:")
 
 	for _, policySet := range e.policySets {
 		policies := e.extractApplicablePolicies(policySet)
@@ -231,14 +236,21 @@ func (e *SessionAccessEvaluator) PrettyRequirementsList() string {
 			continue
 		}
 
-		s += fmt.Sprintf("\n\t  one of (%v):", policySet.Name)
+		s.WriteString("\n\t  one of (")
+		s.WriteString(policySet.Name)
+		s.WriteString("):")
 
 		for _, require := range policies {
-			s += fmt.Sprintf("\n\t    - %vx %v with mode %v", require.Count, require.Filter, strings.Join(require.Modes, ","))
+			s.WriteString("\n\t    - ")
+			s.WriteString(strconv.Itoa((int)(require.Count)))
+			s.WriteString("x ")
+			s.WriteString(require.Filter)
+			s.WriteString(" with mode ")
+			s.WriteString(strings.Join(require.Modes, ","))
 		}
 	}
 
-	return s
+	return s.String()
 }
 
 // extractApplicablePolicies extracts all policies that match the session kind.

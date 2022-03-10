@@ -304,7 +304,7 @@ type session struct {
 	PresenceEnabled bool
 
 	// Set if we should broadcast information about participant requirements to the session.
-	participantRequirements bool
+	displayDisplayParticipantRequirements bool
 }
 
 // newSession creates a new session in pending mode.
@@ -337,35 +337,36 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	}
 
 	s := &session{
-		ctx:                     ctx,
-		forwarder:               forwarder,
-		req:                     req,
-		params:                  params,
-		id:                      id,
-		parties:                 make(map[uuid.UUID]*party),
-		partiesHistorical:       make(map[uuid.UUID]*party),
-		log:                     log,
-		io:                      io,
-		state:                   types.SessionState_SessionStatePending,
-		accessEvaluator:         accessEvaluator,
-		emitter:                 events.NewDiscardEmitter(),
-		tty:                     tty,
-		terminalSizeQueue:       newMultiResizeQueue(),
-		started:                 false,
-		sess:                    sess,
-		closeC:                  make(chan struct{}),
-		initiator:               initiator.ID,
-		expires:                 time.Now().UTC().Add(time.Hour * 24),
-		PresenceEnabled:         ctx.Identity.GetIdentity().MFAVerified != "",
-		stateUpdate:             sync.NewCond(&sync.Mutex{}),
-		participantRequirements: utils.AsBool(q.Get("participantRequirements")),
+		ctx:                                   ctx,
+		forwarder:                             forwarder,
+		req:                                   req,
+		params:                                params,
+		id:                                    id,
+		parties:                               make(map[uuid.UUID]*party),
+		partiesHistorical:                     make(map[uuid.UUID]*party),
+		log:                                   log,
+		io:                                    io,
+		state:                                 types.SessionState_SessionStatePending,
+		accessEvaluator:                       accessEvaluator,
+		emitter:                               events.NewDiscardEmitter(),
+		tty:                                   tty,
+		terminalSizeQueue:                     newMultiResizeQueue(),
+		started:                               false,
+		sess:                                  sess,
+		closeC:                                make(chan struct{}),
+		initiator:                             initiator.ID,
+		expires:                               time.Now().UTC().Add(time.Hour * 24),
+		PresenceEnabled:                       ctx.Identity.GetIdentity().MFAVerified != "",
+		stateUpdate:                           sync.NewCond(&sync.Mutex{}),
+		displayDisplayParticipantRequirements: utils.AsBool(q.Get("displayDisplayParticipantRequirements")),
 	}
 
 	go func() {
-		<-s.io.TerminateNotifier()
-		err := s.Close()
-		if err != nil {
-			s.log.Errorf("Failed to close session: %v.", err)
+		if <-s.io.TerminateNotifier() {
+			err := s.Close()
+			if err != nil {
+				s.log.Errorf("Failed to close session: %v.", err)
+			}
 		}
 	}()
 
@@ -942,7 +943,7 @@ func (s *session) join(p *party) error {
 			var additionalFormat string
 			var additionalItem string
 
-			if s.participantRequirements {
+			if s.displayDisplayParticipantRequirements {
 				additionalFormat = "\n\t%v"
 				additionalItem = s.accessEvaluator.PrettyRequirementsList()
 			}
@@ -955,7 +956,7 @@ func (s *session) join(p *party) error {
 }
 
 func (s *session) BroadcastMessage(format string, args ...interface{}) {
-	if s.accessEvaluator.IsModerated && s.tty {
+	if s.accessEvaluator.IsModerated() && s.tty {
 		err := s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 
 		if err != nil {

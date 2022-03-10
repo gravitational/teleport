@@ -290,8 +290,8 @@ type CLIConf struct {
 	// JoinMode is the participant mode someone is joining a session as.
 	JoinMode string
 
-	// ParticipantRequirements is set if verbose participant requirement information should be printed for moderated sessions.
-	ParticipantRequirements bool
+	// displayDisplayParticipantRequirements is set if verbose participant requirement information should be printed for moderated sessions.
+	displayDisplayParticipantRequirements bool
 }
 
 // Stdout returns the stdout writer.
@@ -421,7 +421,7 @@ func Run(args []string, opts ...cliOption) error {
 	ssh.Flag("x11-untrusted", "Requests untrusted (secure) X11 forwarding for this session").Short('X').BoolVar(&cf.X11ForwardingUntrusted)
 	ssh.Flag("x11-trusted", "Requests trusted (insecure) X11 forwarding for this session. This can make your local displays vulnerable to attacks, use with caution").Short('Y').BoolVar(&cf.X11ForwardingTrusted)
 	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
-	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.ParticipantRequirements)
+	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayDisplayParticipantRequirements)
 
 	// AWS.
 	aws := app.Command("aws", "Access AWS API.")
@@ -2114,7 +2114,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 
 	tc.Config.Reason = cf.Reason
 	tc.Config.Invited = cf.Invited
-	tc.Config.ParticipantRequirements = cf.ParticipantRequirements
+	tc.Config.DisplayDisplayParticipantRequirements = cf.displayDisplayParticipantRequirements
 	return tc, nil
 }
 

@@ -644,9 +644,9 @@ const (
 	// EnvSSHSessionInvited is an environment variable listning people invited to a session.
 	EnvSSHSessionInvited = "TELEPORT_SESSION_JOIN_MODE"
 
-	// EnvSSHSessionParticipantRequirements is set to true or false to indicate if participant
+	// EnvSSHSessiondisplayDisplayParticipantRequirements is set to true or false to indicate if participant
 	// requirement information should be printed.
-	EnvSSHSessionParticipantRequirements = "TELEPORT_SESSION_PARTICIPANT_REQUIREMENTS"
+	EnvSSHSessiondisplayDisplayParticipantRequirements = "TELEPORT_SESSION_PARTICIPANT_REQUIREMENTS"
 )
 
 const (

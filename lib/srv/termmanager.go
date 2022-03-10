@@ -50,7 +50,7 @@ type TermManager struct {
 	readStateUpdate   *sync.Cond
 	closed            *int32
 	lastWasBroadcast  bool
-	terminateNotifier chan struct{}
+	terminateNotifier chan bool
 }
 
 // NewTermManager creates a new TermManager.
@@ -61,7 +61,7 @@ func NewTermManager() *TermManager {
 		closed:            new(int32),
 		readStateUpdate:   sync.NewCond(&sync.Mutex{}),
 		incoming:          make(chan []byte, 100),
-		terminateNotifier: make(chan struct{}),
+		terminateNotifier: make(chan bool),
 	}
 }
 
@@ -99,7 +99,7 @@ func (g *TermManager) writeToClients(p []byte) int {
 	return len(p)
 }
 
-func (g *TermManager) TerminateNotifier() <-chan struct{} {
+func (g *TermManager) TerminateNotifier() <-chan bool {
 	return g.terminateNotifier
 }
 
@@ -228,11 +228,12 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 			}
 
 			for _, b := range buf[:n] {
+				// This is the ASCII control code for CTRL+C.
 				if b == 0x03 {
 					g.mu.Lock()
 					if !g.on {
 						select {
-						case g.terminateNotifier <- struct{}{}:
+						case g.terminateNotifier <- true:
 						default:
 						}
 					}
@@ -267,6 +268,7 @@ func (g *TermManager) CountRead() uint64 {
 }
 
 func (g *TermManager) Close() {
+	close(g.terminateNotifier)
 	atomic.StoreInt32(g.closed, 1)
 }
 

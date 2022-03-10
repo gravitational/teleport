@@ -603,7 +603,7 @@ type session struct {
 
 	cgroupID uint64
 
-	verboseRequirements bool
+	displayDisplayParticipantRequirements bool
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -672,31 +672,32 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.Component(teleport.ComponentSession, r.srv.Component()),
 		}),
-		id:                  id,
-		registry:            r,
-		parties:             make(map[rsession.ID]*party),
-		participants:        make(map[rsession.ID]*party),
-		login:               ctx.Identity.Login,
-		closeC:              make(chan bool),
-		lingerTTL:           defaults.SessionIdlePeriod,
-		startTime:           startTime,
-		serverCtx:           ctx.srv.Context(),
-		state:               types.SessionState_SessionStatePending,
-		access:              auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind),
-		scx:                 ctx,
-		presenceEnabled:     ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "",
-		io:                  NewTermManager(),
-		stateUpdate:         sync.NewCond(&sync.Mutex{}),
-		doneCh:              make(chan struct{}, 2),
-		initiator:           ctx.Identity.TeleportUser,
-		verboseRequirements: utils.AsBool(ctx.env[teleport.EnvSSHSessionParticipantRequirements]),
+		id:                                    id,
+		registry:                              r,
+		parties:                               make(map[rsession.ID]*party),
+		participants:                          make(map[rsession.ID]*party),
+		login:                                 ctx.Identity.Login,
+		closeC:                                make(chan bool),
+		lingerTTL:                             defaults.SessionIdlePeriod,
+		startTime:                             startTime,
+		serverCtx:                             ctx.srv.Context(),
+		state:                                 types.SessionState_SessionStatePending,
+		access:                                auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind),
+		scx:                                   ctx,
+		presenceEnabled:                       ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "",
+		io:                                    NewTermManager(),
+		stateUpdate:                           sync.NewCond(&sync.Mutex{}),
+		doneCh:                                make(chan struct{}, 2),
+		initiator:                             ctx.Identity.TeleportUser,
+		displayDisplayParticipantRequirements: utils.AsBool(ctx.env[teleport.EnvSSHSessiondisplayDisplayParticipantRequirements]),
 	}
 
 	go func() {
-		<-sess.io.TerminateNotifier()
-		err := sess.registry.ForceTerminate(sess.scx)
-		if err != nil {
-			sess.log.Errorf("Failed to terminate session: %v.", err)
+		if <-sess.io.TerminateNotifier() {
+			err := sess.registry.ForceTerminate(sess.scx)
+			if err != nil {
+				sess.log.Errorf("Failed to terminate session: %v.", err)
+			}
 		}
 	}()
 
@@ -804,7 +805,7 @@ outer:
 }
 
 func (s *session) BroadcastMessage(format string, args ...interface{}) {
-	if s.access.IsModerated {
+	if s.access.IsModerated() {
 		err := s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 
 		if err != nil {
@@ -1545,7 +1546,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 			var additionalFormat string
 			var additionalItem string
 
-			if s.verboseRequirements {
+			if s.displayDisplayParticipantRequirements {
 				additionalFormat = "\n\t%v"
 				additionalItem = s.access.PrettyRequirementsList()
 			}
