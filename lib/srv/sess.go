@@ -602,6 +602,8 @@ type session struct {
 	bpfContext *bpf.SessionContext
 
 	cgroupID uint64
+
+	verboseRequirements bool
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -1543,9 +1545,10 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 				s.stateUpdate.Broadcast()
 			}
 		} else if !s.started {
-			err := s.BroadcastMessage("Session paused, Waiting for required participants...")
-			if err != nil {
-				log.WithError(err).Errorf("Failed to broadcast message.")
+			s.BroadcastMessage("Session paused, Waiting for required participants...")
+
+			if s.verboseRequirements {
+				s.BroadcastMessage("%v", s.access.PrettyRequirementsList())
 			}
 		}
 	}

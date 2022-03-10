@@ -235,7 +235,7 @@ func (e *SessionAccessEvaluator) PrettyRequirementsList() string {
 
 		for _, require := range policies {
 			if !e.matchesKind(require.Kinds) {
-				s += fmt.Sprintf("\n\t    - %vx %v of type %v", require.Count, require.Filter, strings.Join(require.Modes, ","))
+				s += fmt.Sprintf("\n\t    - %vx %v with mode %v", require.Count, require.Filter, strings.Join(require.Modes, ","))
 			}
 		}
 	}

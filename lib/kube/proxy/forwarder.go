@@ -951,7 +951,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 	client := newKubeProxyClientStreams(proxy)
 	party := newParty(*ctx, types.SessionPeerMode, client)
-	session, err := newSession(*ctx, f, req, p, party, sess)
+	session, err := newSession(*ctx, f, req, p, party, sess, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
