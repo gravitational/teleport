@@ -134,7 +134,7 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 }
 
 // getResources returns proxied databases as resources.
-func (s *Server) getResources() (resources types.ResourcesWithLabelsMap) {
+func (s *Server) getResources() types.ResourcesWithLabelsMap {
 	return s.getProxiedDatabases().AsResources().ToMap()
 }
 
