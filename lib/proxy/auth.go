@@ -90,10 +90,9 @@ func checkProxyRole(authInfo credentials.AuthInfo) error {
 
 	// Ensure the proxy system role is present.
 	for _, role := range identity.Groups {
-		if types.SystemRole(role) != types.RoleProxy {
-			continue
+		if types.SystemRole(role) == types.RoleProxy {
+			return nil
 		}
-		return nil
 	}
 
 	return trace.AccessDenied("proxy system role required")
