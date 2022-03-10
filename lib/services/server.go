@@ -88,18 +88,18 @@ func compareServers(a, b types.Server) int {
 	if !cmp.Equal(a.GetCmdLabels(), b.GetCmdLabels()) {
 		return Different
 	}
-	if !a.Expiry().Equal(b.Expiry()) {
-		return OnlyTimestampsDifferent
-	}
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
-
 	if !cmp.Equal(a.GetApps(), b.GetApps()) {
 		return Different
 	}
 	if !cmp.Equal(a.GetKubernetesClusters(), b.GetKubernetesClusters()) {
 		return Different
+	}
+	// OnlyTimestampsDifferent check must be after all Different checks.
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
 	}
 	return Equal
 }
@@ -127,14 +127,15 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !cmp.Equal(a.GetDynamicLabels(), b.GetDynamicLabels()) {
 		return Different
 	}
-	if !a.Expiry().Equal(b.Expiry()) {
-		return OnlyTimestampsDifferent
-	}
 	if a.GetProtocol() != b.GetProtocol() {
 		return Different
 	}
 	if a.GetURI() != b.GetURI() {
 		return Different
+	}
+	// OnlyTimestampsDifferent check must be after all Different checks.
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
 	}
 	return Equal
 }

@@ -1,4 +1,32 @@
 ---
+kind: pipeline
+type: kubernetes
+name: update-docs-webhook
+
+trigger:
+  event:
+    include:
+      - push
+    exclude:
+      - pull_request
+  branch:
+    include:
+      - master
+      - branch/*
+  repo:
+    include:
+      - gravitational/teleport
+
+clone:
+  disable: true
+
+steps:
+  - name: Trigger docs deployment
+    image: plugins/webhook
+    settings:
+      urls:
+        from_secret: DOCS_DEPLOY_HOOK
+---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
@@ -10,7 +38,7 @@ type: kubernetes
 name: push-build-linux-amd64
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
   UID: "1000"
 trigger:
   event:
@@ -112,7 +140,7 @@ type: kubernetes
 name: push-build-linux-386
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
   UID: "1000"
 trigger:
   event:
@@ -214,7 +242,7 @@ type: kubernetes
 name: push-build-linux-amd64-fips
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
   UID: "1000"
 trigger:
   event:
@@ -320,7 +348,7 @@ type: kubernetes
 name: push-build-windows-amd64
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
   UID: "1000"
 trigger:
   event:
@@ -519,7 +547,7 @@ type: kubernetes
 name: push-build-linux-arm
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
   UID: "1000"
 trigger:
   event:
@@ -621,7 +649,7 @@ type: kubernetes
 name: push-build-linux-arm64
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
   UID: "1000"
 trigger:
   event:
@@ -977,7 +1005,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
 trigger:
   event:
     include:
@@ -1115,7 +1143,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
 trigger:
   event:
     include:
@@ -1253,7 +1281,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos6
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
 trigger:
   event:
     include:
@@ -2024,7 +2052,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-386
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
 trigger:
   event:
     include:
@@ -2880,9 +2908,9 @@ steps:
     ARCH: amd64
     BUILDBOX_PASSWORD:
       from_secret: BUILDBOX_PASSWORD
-    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
     OS: darwin
-    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
 - name: Copy Mac pkg artifacts
   commands:
@@ -2961,7 +2989,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
 trigger:
   event:
     include:
@@ -3099,7 +3127,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm64
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
 trigger:
   event:
     include:
@@ -3873,7 +3901,7 @@ kind: pipeline
 type: kubernetes
 name: build-windows-amd64
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
 trigger:
   event:
     include:
@@ -4334,7 +4362,7 @@ type: kubernetes
 name: build-buildboxes
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.16.14
   UID: "1000"
 trigger:
   event:
@@ -4345,7 +4373,7 @@ trigger:
     - gravitational/teleport
   branch:
     include:
-    - master
+    - branch/v7
 workspace:
   path: /go/src/github.com/gravitational/teleport
 clone:
@@ -4801,6 +4829,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 76d65dcd8e0a16c1ee51ca69cb617d12c25c1be1e868ab5393840df08caef410
+hmac: db4280a5e81a2c298887555356fcc8cc57c3e318e332228df77e49a44a6c00e5
 
 ...

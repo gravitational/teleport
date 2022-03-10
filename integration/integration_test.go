@@ -1199,10 +1199,6 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	require.NoError(t, teleport.Start())
 	defer teleport.StopAll()
 
-	// get a reference to site obj:
-	site := teleport.GetSiteAPI(Site)
-	require.NotNil(t, site)
-
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
@@ -1218,7 +1214,12 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 
 		openSession := func() {
 			defer cancel()
-			cl, err := teleport.NewClient(t, ClientConfig{Login: username, Cluster: Site, Host: Host, Port: teleport.GetPortSSHInt()})
+			cl, err := teleport.NewClient(t, ClientConfig{
+				Login:   username,
+				Cluster: Site,
+				Host:    Host,
+				Port:    teleport.GetPortSSHInt(),
+			})
 			require.NoError(t, err)
 			cl.Stdout = person
 			cl.Stdin = person
@@ -2738,11 +2739,15 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 			teleport := suite.newTeleportWithConfig(makeConfig())
 			defer teleport.StopAll()
 
+			// Generate certificates for the user simulating login.
+			creds, err := GenerateUserCreds(UserCredsRequest{
+				Process:  teleport.Process,
+				Username: suite.me.Username,
+			})
+			require.NoError(t, err)
+
 			// Start (and defer close) a agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := createAgent(
-				suite.me,
-				teleport.Secrets.Users[suite.me.Username].Key.Priv,
-				teleport.Secrets.Users[suite.me.Username].Key.Cert)
+			teleAgent, socketDirPath, socketPath, err := createAgent(suite.me, creds.Key.Priv, creds.Key.Cert)
 			require.NoError(t, err)
 			defer closeAgent(teleAgent, socketDirPath)
 
@@ -2830,11 +2835,15 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 		teleport := suite.newTeleportWithConfig(makeConfig())
 		defer teleport.StopAll()
 
+		// Generate certificates for the user simulating login.
+		creds, err := GenerateUserCreds(UserCredsRequest{
+			Process:  teleport.Process,
+			Username: suite.me.Username,
+		})
+		require.NoError(t, err)
+
 		// Start (and defer close) a agent that runs during this integration test.
-		teleAgent, socketDirPath, socketPath, err := createAgent(
-			suite.me,
-			teleport.Secrets.Users[suite.me.Username].Key.Priv,
-			teleport.Secrets.Users[suite.me.Username].Key.Cert)
+		teleAgent, socketDirPath, socketPath, err := createAgent(suite.me, creds.Key.Priv, creds.Key.Cert)
 		require.NoError(t, err)
 		defer closeAgent(teleAgent, socketDirPath)
 
@@ -3228,6 +3237,10 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	config, err := teleport.GenerateConfig(t, nil, tconf)
 	require.NoError(t, err)
 
+	// Enable Kubernetes service to test issue where the `KubernetesReady` event was not properly propagated
+	// and in the case where Kube service was enabled cert rotation flow was broken.
+	enableKubernetesService(t, config)
+
 	serviceC := make(chan *service.TeleportProcess, 20)
 
 	runErrCh := make(chan error, 1)
@@ -3488,10 +3501,10 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 // TestRotateTrustedClusters tests CA rotation support for trusted clusters
 func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
-	defer tr.Stop()
+	t.Cleanup(func() { tr.Stop() })
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 
 	clusterMain := "rotate-main"
 	clusterAux := "rotate-aux"
@@ -3550,7 +3563,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	require.NoError(t, err)
-	trustedClusterToken := "trusted-clsuter-token"
+	trustedClusterToken := "trusted-cluster-token"
 	err = svc.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
@@ -3566,7 +3579,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	tryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
 	waitForTunnelConnections(t, svc.GetAuthServer(), aux.Secrets.SiteName, 1)
 
-	// capture credentials before has reload started to simulate old client
+	// capture credentials before reload has started to simulate old client
 	initialCreds, err := GenerateUserCreds(UserCredsRequest{
 		Process:  svc,
 		Username: suite.me.Username,
@@ -3595,24 +3608,43 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service phase update to be broadcasted (init phase does not trigger reload)
+	// wait until service phase update to be broadcast (init phase does not trigger reload)
 	err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
 	require.NoError(t, err)
 
 	// waitForPhase waits until aux cluster detects the rotation
 	waitForPhase := func(phase string) error {
+		ctx, cancel := context.WithTimeout(context.Background(), tconf.PollingPeriod*10)
+		defer cancel()
+
+		watcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component: teleport.ComponentProxy,
+				Clock:     tconf.Clock,
+				Client:    aux.GetSiteAPI(clusterAux),
+			},
+			WatchHostCA: true,
+		})
+		if err != nil {
+			return err
+		}
+		defer watcher.Close()
+
 		var lastPhase string
 		for i := 0; i < 10; i++ {
-			ca, err := aux.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
-				Type:       types.HostCA,
-				DomainName: clusterMain,
-			}, false)
-			require.NoError(t, err)
-			if ca.GetRotation().Phase == phase {
-				return nil
+			select {
+			case <-ctx.Done():
+				return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
+			case cas := <-watcher.CertAuthorityC:
+				for _, ca := range cas {
+					if ca.GetClusterName() == clusterMain &&
+						ca.GetType() == types.HostCA &&
+						ca.GetRotation().Phase == phase {
+						return nil
+					}
+					lastPhase = ca.GetRotation().Phase
+				}
 			}
-			lastPhase = ca.GetRotation().Phase
-			time.Sleep(tconf.PollingPeriod / 2)
 		}
 		return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
 	}
@@ -3693,7 +3725,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	// shut down the service
 	cancel()
 	// close the service without waiting for the connections to drain
-	svc.Close()
+	require.NoError(t, svc.Close())
 
 	select {
 	case err := <-runErrCh:
@@ -3859,6 +3891,7 @@ func (s *integrationTestSuite) rotationConfig(disableWebService bool) *service.C
 	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.ClientTimeout = time.Second
 	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
+	tconf.MaxRetryPeriod = time.Second
 	return tconf
 }
 
@@ -4913,6 +4946,9 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	userRole, err := types.NewRole(userRoleName, types.RoleSpecV4{
 		Options: types.RoleOptions{},
 		Allow: types.RoleConditions{
+			Logins: []string{
+				suite.me.Username,
+			},
 			Request: &types.AccessRequestConditions{
 				Roles: []string{requestedRoleName},
 			},

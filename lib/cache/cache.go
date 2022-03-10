@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -42,9 +43,11 @@ func tombstoneKey() []byte {
 	return backend.Key("cache", teleport.Version, "tombstone", "ok")
 }
 
+const cacheTargetAuth string = "auth"
+
 // ForAuth sets up watch configuration for the auth server
 func ForAuth(cfg Config) Config {
-	cfg.target = "auth"
+	cfg.target = cacheTargetAuth
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindClusterName},
@@ -313,7 +316,7 @@ type Cache struct {
 	appSessionCache    services.AppSession
 	webSessionCache    types.WebSessionInterface
 	webTokenCache      types.WebTokenInterface
-	eventsFanout       *services.Fanout
+	eventsFanout       *services.FanoutSet
 
 	// closed indicates that the cache has been closed
 	closed *atomic.Bool
@@ -468,6 +471,10 @@ type Config struct {
 	// CacheInitTimeout is the maximum amount of time that cache.New
 	// will block, waiting for initialization (default=20s).
 	CacheInitTimeout time.Duration
+	// RelativeExpiryCheckInterval determines how often the cache performs special
+	// "relative expiration" checks which are used to compensate for real backends
+	// that have suffer from overly lazy ttl'ing of resources.
+	RelativeExpiryCheckInterval time.Duration
 	// EventsC is a channel for event notifications,
 	// used in tests
 	EventsC chan Event
@@ -509,6 +516,12 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.CacheInitTimeout == 0 {
 		c.CacheInitTimeout = time.Second * 20
 	}
+	if c.RelativeExpiryCheckInterval == 0 {
+		// TODO(fspmarshall): change this to 1/2 offline threshold once that becomes
+		// a configurable value. This will likely be a dynamic configuration, and
+		// therefore require lazy initialization after the cache has become healthy.
+		c.RelativeExpiryCheckInterval = apidefaults.ServerAnnounceTTL / 2
+	}
 	if c.Component == "" {
 		c.Component = teleport.ComponentCache
 	}
@@ -537,6 +550,9 @@ const (
 	// Reloading is emitted when an error occurred watching events
 	// and the cache is waiting to create a new watcher
 	Reloading = "reloading_cache"
+	// RelativeExpiry notifies that relative expiry operations have
+	// been run.
+	RelativeExpiry = "relative_expiry"
 )
 
 // New creates a new instance of Cache
@@ -572,7 +588,7 @@ func New(config Config) (*Cache, error) {
 		appSessionCache:    local.NewIdentityService(wrapper),
 		webSessionCache:    local.NewIdentityService(wrapper).WebSessions(),
 		webTokenCache:      local.NewIdentityService(wrapper).WebTokens(),
-		eventsFanout:       services.NewFanout(),
+		eventsFanout:       services.NewFanoutSet(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
@@ -838,6 +854,13 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 
 	retry.Reset()
 
+	relativeExpiryInterval := interval.New(interval.Config{
+		Duration:      c.Config.RelativeExpiryCheckInterval,
+		FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
+		Jitter:        utils.NewSeventhJitter(),
+	})
+	defer relativeExpiryInterval.Stop()
+
 	c.notify(c.ctx, Event{Type: WatcherStarted})
 
 	var lastStalenessWarning time.Time
@@ -848,6 +871,11 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
 		case <-c.ctx.Done():
 			return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
+		case <-relativeExpiryInterval.Next():
+			if err := c.performRelativeNodeExpiry(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+			c.notify(ctx, Event{Type: RelativeExpiry})
 		case event := <-watcher.Events():
 			// check for expired resources in OpPut events and log them periodically. stale OpPut events
 			// may be an indicator of poor performance, and can lead to confusing and inconsistent state
@@ -887,6 +915,113 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			c.notify(c.ctx, Event{Event: event, Type: EventProcessed})
 		}
 	}
+}
+
+// performRelativeNodeExpiry performs a special kind of active expiration where we remove nodes
+// which are clearly stale relative to their more recently heartbeated counterparts as well as
+// the current time. This strategy lets us side-step issues of clock drift or general cache
+// staleness by only removing items which are stale from within the cache's own "frame of
+// reference".
+//
+// to better understand why we use this expiry strategy, its important to understand the two
+// distinct scenarios that we're trying to accommodate:
+//
+// 1. Expiry events are being emitted very lazily by the real backend (*hours* after the time
+// at which the resource was supposed to expire).
+//
+// 2. The event stream itself is stale (i.e. all events show up late, not just expiry events).
+//
+// In the first scenario, removing items from the cache after they have passed some designated
+// threshold of staleness seems reasonable.  In the second scenario, your best option is to
+// faithfully serve the delayed, but internally consistent, view created by the event stream and
+// not expire any items.
+//
+// Relative expiry is the compromise between the two above scenarios. We calculate a staleness
+// threshold after which items would be removed, but we calculate it relative to the most recent
+// expiry *or* the current time, depending on which is earlier. The result is that nodes are
+// removed only if they are both stale from the perspective of the current clock, *and* stale
+// relative to our current view of the world.
+//
+// *note*: this function is only sane to call when the cache and event stream are healthy, and
+// cannot run concurrently with event processing. this function injects additional events into
+// the outbound event stream.
+func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
+	if c.target != cacheTargetAuth {
+		// if we are not the auth cache, we are a downstream cache and can rely upon the
+		// upstream auth cache to perform relative expiry and propagate the changes.
+		return nil
+	}
+
+	// TODO(fspmarshall): Start using dynamic value once it is implemented.
+	gracePeriod := apidefaults.ServerAnnounceTTL
+
+	// latestExp will be the value that we choose to consider the most recent "expired"
+	// timestamp.  This will either end up being the most recently seen node expiry, or
+	// the current time (whichever is earlier).
+	var latestExp time.Time
+
+	nodes, err := c.GetNodes(ctx, apidefaults.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// iterate nodes and determine the most recent expiration value.
+	for _, node := range nodes {
+		if node.Expiry().IsZero() {
+			continue
+		}
+
+		if node.Expiry().After(latestExp) || latestExp.IsZero() {
+			// this node's expiry is more recent than the previously
+			// recorded value.
+			latestExp = node.Expiry()
+		}
+	}
+
+	if latestExp.IsZero() {
+		return nil
+	}
+
+	// if the most recent expiration value is still in the future, we use the current time
+	// as the most recent expiration value instead. Unless the event stream is unhealthy, or
+	// all nodes were recently removed, this should always be true.
+	if now := c.Clock.Now(); latestExp.After(now) {
+		latestExp = now
+	}
+
+	// we subtract gracePeriod from our most recent expiry value to get the retention
+	// threshold. nodes which expired earlier than the retention threshold will be
+	// removed, as we expect well-behaved backends to have emitted an expiry event
+	// within the grace period.
+	retentionThreshold := latestExp.Add(-gracePeriod)
+
+	var removed int
+	for _, node := range nodes {
+		if node.Expiry().IsZero() || node.Expiry().After(retentionThreshold) {
+			continue
+		}
+
+		// event stream processing is paused while this function runs.  we perform the
+		// actual expiry by constructing a fake delete event for the resource which both
+		// updates this cache, and all downstream caches.
+		err = c.processEvent(ctx, types.Event{
+			Type: types.OpDelete,
+			Resource: &types.ResourceHeader{
+				Kind:     types.KindNode,
+				Metadata: node.GetMetadata(),
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		removed++
+	}
+
+	if removed > 0 {
+		c.Debugf("Removed %d nodes via relative expiry (retentionThreshold=%s).", removed, retentionThreshold)
+	}
+
+	return nil
 }
 
 func (c *Cache) watchKinds() []types.WatchKind {
@@ -1256,19 +1391,10 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 	defer rg.Release()
 
 	if !rg.IsCacheRead() {
-		ta := func(_ []types.Server) {} // compile-time type assertion
-		ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
-			ta(nodes)
-			return nodes, err
-		})
-		if err != nil || ni == nil {
+		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace, opts...)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedNodes := ni.([]types.Server)
-		ta(cachedNodes)
 		nodes := make([]types.Server, 0, len(cachedNodes))
 		for _, node := range cachedNodes {
 			nodes = append(nodes, node.DeepCopy())
@@ -1279,17 +1405,50 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 	return rg.presence.GetNodes(ctx, namespace, opts...)
 }
 
-// ListNodes is a part of auth.AccessPoint implementation
+// getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
+// must be cloned to avoid concurrent modification.
+func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+	ta := func(_ []types.Server) {} // compile-time type assertion
+	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func() (interface{}, error) {
+		// use cache's close context instead of request context in order to ensure
+		// that we don't cache a context cancellation error.
+		nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
+		ta(nodes)
+		return nodes, err
+	})
+	if err != nil || ni == nil {
+		return nil, trace.Wrap(err)
+	}
+	cachedNodes, ok := ni.([]types.Server)
+	if !ok {
+		return nil, trace.Errorf("TTL-cache returned unexpexted type %T (this is a bug!).", ni)
+	}
+	ta(cachedNodes)
+	return cachedNodes, nil
+}
+
+// ListNodes is a part of auth.Cache implementation
 func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
-	// NOTE: we "fake" the ListNodes API here in order to take advantage of TTL-based caching of
-	// the GetNodes endpoint, since performing TTL-based caching on a paginated endpoint is nightmarish.
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if rg.IsCacheRead() {
+		// cache is healthy, delegate to the standard ListNodes implementation
+		return rg.presence.ListNodes(ctx, req)
+	}
+
+	// Cache is not healthy.  We need to take advantage of TTL-based caching.  Rather than caching individual page
+	// calls (very messy), we rely on caching the result of the GetNodes endpoint, and then "faking" pagination.
 
 	limit := int(req.Limit)
 	if limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive limit value")
 	}
 
-	nodes, err := c.GetNodes(ctx, req.Namespace)
+	cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, req.Namespace)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -1297,25 +1456,25 @@ func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]ty
 	// trim nodes that precede start key
 	if req.StartKey != "" {
 		pageStart := 0
-		for i, node := range nodes {
+		for i, node := range cachedNodes {
 			if node.GetName() < req.StartKey {
 				pageStart = i + 1
 			} else {
 				break
 			}
 		}
-		nodes = nodes[pageStart:]
+		cachedNodes = cachedNodes[pageStart:]
 	}
 
 	// iterate and filter nodes, halting when we reach page limit
 	var filtered []types.Server
-	for _, node := range nodes {
+	for _, node := range cachedNodes {
 		if len(filtered) == limit {
 			break
 		}
 
 		if node.MatchAgainst(req.Labels) {
-			filtered = append(filtered, node)
+			filtered = append(filtered, node.DeepCopy())
 		}
 	}
 

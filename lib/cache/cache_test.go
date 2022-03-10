@@ -28,6 +28,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -116,16 +117,42 @@ func newTestPackWithoutCache(t *testing.T) *testPack {
 	return pack
 }
 
+type packCfg struct {
+	memoryBackend bool
+}
+
+type packOption func(cfg *packCfg)
+
+func memoryBackend(bool) packOption {
+	return func(cfg *packCfg) {
+		cfg.memoryBackend = true
+	}
+}
+
 // newPackWithoutCache returns a new test pack without creating cache
-func newPackWithoutCache(dir string) (*testPack, error) {
+func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	ctx := context.Background()
+	var cfg packCfg
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	p := &testPack{
 		dataDir: dir,
 	}
-	bk, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:             p.dataDir,
-		PollStreamPeriod: 200 * time.Millisecond,
-	})
+	var bk backend.Backend
+	var err error
+	if cfg.memoryBackend {
+		bk, err = memory.New(memory.Config{
+			Context: ctx,
+			Mirror:  true,
+		})
+	} else {
+		bk, err = lite.NewWithConfig(ctx, lite.Config{
+			Path:             p.dataDir,
+			PollStreamPeriod: 200 * time.Millisecond,
+		})
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -164,9 +191,9 @@ func newPackWithoutCache(dir string) (*testPack, error) {
 }
 
 // newPack returns a new test pack or fails the test on error
-func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
+func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) (*testPack, error) {
 	ctx := context.Background()
-	p, err := newPackWithoutCache(dir)
+	p, err := newPackWithoutCache(dir, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -247,6 +274,10 @@ func TestWatchers(t *testing.T) {
 	w, err := p.cache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
 		{
 			Kind: types.KindCertAuthority,
+			Filter: types.CertAuthorityFilter{
+				types.HostCA: "example.com",
+				types.UserCA: types.Wildcard,
+			}.IntoMap(),
 		},
 		{
 			Kind: types.KindAccessRequest,
@@ -322,6 +353,20 @@ func TestWatchers(t *testing.T) {
 		t.Fatalf("Timeout waiting for event.")
 	}
 
+	// this ca will not be matched by our filter, so the same reasoning applies
+	// as we upsert it and delete it
+	filteredCa := suite.NewTestCA(types.HostCA, "example.net")
+	require.NoError(t, p.trustS.UpsertCertAuthority(filteredCa))
+	require.NoError(t, p.trustS.DeleteCertAuthority(filteredCa.GetID()))
+
+	select {
+	case e := <-w.Events():
+		require.Equal(t, types.OpDelete, e.Type)
+		require.Equal(t, types.KindCertAuthority, e.Resource.GetKind())
+	case <-time.After(time.Second):
+		t.Fatalf("Timeout waiting for event.")
+	}
+
 	// event has arrived, now close the watchers
 	p.backend.CloseWatchers()
 
@@ -333,11 +378,130 @@ func TestWatchers(t *testing.T) {
 	}
 }
 
-func waitForRestart(t *testing.T, eventsC <-chan Event) {
-	waitForEvent(t, eventsC, WatcherStarted, Reloading, WatcherFailed)
+func TestNodeCAFiltering(t *testing.T) {
+	ctx := context.Background()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "example.com",
+	})
+	require.NoError(t, err)
+	err = p.cache.clusterConfigCache.UpsertClusterName(clusterName)
+	require.NoError(t, err)
+
+	nodeCacheBackend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeCacheBackend.Close()) })
+
+	// this mimics a cache for a node pulling events from the auth server via WatchEvents
+	nodeCacheCfg := ForNode(Config{
+		Events:        p.cache,
+		Trust:         p.cache.trustCache,
+		ClusterConfig: p.cache.clusterConfigCache,
+		Provisioner:   p.cache.provisionerCache,
+		Users:         p.cache.usersCache,
+		Access:        p.cache.accessCache,
+		DynamicAccess: p.cache.dynamicAccessCache,
+		Presence:      p.cache.presenceCache,
+		Restrictions:  p.cache.restrictionsCache,
+		AppSession:    p.cache.appSessionCache,
+		WebSession:    p.cache.webSessionCache,
+		WebToken:      p.cache.webTokenCache,
+		Backend:       nodeCacheBackend,
+	})
+	// inject the same filter that would be injected when connecting through grpc
+	nodeCacheCfg.Watches[0].Filter = auth.NodeCertAuthorityFilter("example.com").IntoMap()
+	nodeCache, err := New(nodeCacheCfg)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
+
+	cacheWatcher, err := nodeCache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{{Kind: types.KindCertAuthority}}})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, cacheWatcher.Close()) })
+
+	fetchEvent := func() types.Event {
+		var ev types.Event
+		select {
+		case ev = <-cacheWatcher.Events():
+		case <-time.After(time.Second * 5):
+			t.Fatal("watcher timeout")
+		}
+		return ev
+	}
+	require.Equal(t, types.OpInit, fetchEvent().Type)
+
+	// upsert and delete a local host CA, we expect to see a Put and a Delete event
+	localCA := suite.NewTestCA(types.HostCA, "example.com")
+	require.NoError(t, p.trustS.UpsertCertAuthority(localCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(localCA.GetID()))
+
+	ev := fetchEvent()
+	require.Equal(t, types.OpPut, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.com", ev.Resource.GetName())
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.com", ev.Resource.GetName())
+
+	// upsert and delete a nonlocal host CA, we expect to only see the Delete event
+	nonlocalCA := suite.NewTestCA(types.HostCA, "example.net")
+	require.NoError(t, p.trustS.UpsertCertAuthority(nonlocalCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(nonlocalCA.GetID()))
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.net", ev.Resource.GetName())
+
+	// whereas we expect to see the Put and Delete for a trusted *user* CA
+	trustedUserCA := suite.NewTestCA(types.UserCA, "example.net")
+	require.NoError(t, p.trustS.UpsertCertAuthority(trustedUserCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(trustedUserCA.GetID()))
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpPut, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.net", ev.Resource.GetName())
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.net", ev.Resource.GetName())
 }
 
-func waitForEvent(t *testing.T, eventsC <-chan Event, expectedEvent string, skipEvents ...string) {
+func waitForRestart(t *testing.T, eventsC <-chan Event) {
+	expectEvent(t, eventsC, WatcherStarted)
+}
+
+func drainEvents(eventsC <-chan Event) {
+	for {
+		select {
+		case <-eventsC:
+		default:
+			return
+		}
+	}
+}
+
+func expectEvent(t *testing.T, eventsC <-chan Event, expectedEvent string) {
+	timeC := time.After(5 * time.Second)
+	for {
+		select {
+		case event := <-eventsC:
+			if event.Type == expectedEvent {
+				return
+			}
+		case <-timeC:
+			t.Fatalf("Timeout waiting for expected event: %s", expectedEvent)
+		}
+	}
+}
+
+func expectNextEvent(t *testing.T, eventsC <-chan Event, expectedEvent string, skipEvents ...string) {
 	timeC := time.After(5 * time.Second)
 	for {
 		// wait for watcher to restart
@@ -525,7 +689,7 @@ func TestTombstones(t *testing.T) {
 
 	require.NoError(t, p.cache.Close())
 	// wait for TombstoneWritten, ignoring all other event types
-	waitForEvent(t, p.eventsC, TombstoneWritten, WatcherStarted, EventProcessed, WatcherFailed)
+	expectEvent(t, p.eventsC, TombstoneWritten)
 	// simulate bad connection to auth server
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 	p.eventsS.closeWatchers()
@@ -562,6 +726,105 @@ func TestTombstones(t *testing.T) {
 func TestInitStrategy(t *testing.T) {
 	for i := 0; i < utils.GetIterations(); i++ {
 		initStrategy(t)
+	}
+}
+
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/cache
+cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
+BenchmarkGetMaxNodes-16     	       1	1029199093 ns/op
+*/
+func BenchmarkGetMaxNodes(b *testing.B) {
+	benchGetNodes(b, backend.DefaultRangeLimit)
+}
+
+func benchGetNodes(b *testing.B, nodeCount int) {
+	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	require.NoError(b, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	for i := 0; i < nodeCount; i++ {
+		func() {
+			server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+			_, err := p.presenceS.UpsertNode(ctx, server)
+			require.NoError(b, err)
+			timeout := time.NewTimer(time.Millisecond * 200)
+			defer timeout.Stop()
+			select {
+			case event := <-p.eventsC:
+				require.Equal(b, EventProcessed, event.Type)
+			case <-timeout.C:
+				b.Fatalf("timeout waiting for event, iteration=%d", i)
+			}
+		}()
+	}
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(b, err)
+		require.Len(b, nodes, nodeCount)
+	}
+}
+
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/cache
+cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
+BenchmarkListMaxNodes-16    	       1	1136071399 ns/op
+*/
+func BenchmarkListMaxNodes(b *testing.B) {
+	benchListNodes(b, backend.DefaultRangeLimit, apidefaults.DefaultChunkSize)
+}
+
+func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
+	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	require.NoError(b, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	for i := 0; i < nodeCount; i++ {
+		func() {
+			server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+			_, err := p.presenceS.UpsertNode(ctx, server)
+			require.NoError(b, err)
+			timeout := time.NewTimer(time.Millisecond * 200)
+			defer timeout.Stop()
+			select {
+			case event := <-p.eventsC:
+				require.Equal(b, EventProcessed, event.Type)
+			case <-timeout.C:
+				b.Fatalf("timeout waiting for event, iteration=%d", i)
+			}
+		}()
+	}
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		var nodes []types.Server
+		req := proto.ListNodesRequest{
+			Namespace: apidefaults.Namespace,
+			Limit:     int32(pageSize),
+		}
+		for {
+			page, nextKey, err := p.cache.ListNodes(ctx, req)
+			require.NoError(b, err)
+			nodes = append(nodes, page...)
+			require.True(b, len(page) == pageSize || nextKey == "")
+			if nextKey == "" {
+				break
+			}
+			req.StartKey = nextKey
+		}
+		require.Len(b, nodes, nodeCount)
 	}
 }
 
@@ -697,7 +960,7 @@ func initStrategy(t *testing.T) {
 	// wait for the watcher to fail
 	// there could be optional event processed event,
 	// see NOTE 1 above
-	waitForEvent(t, p.eventsC, WatcherFailed, EventProcessed, Reloading)
+	expectNextEvent(t, p.eventsC, WatcherFailed, EventProcessed, Reloading)
 
 	// backend is out, but old value is available
 	out2, err := p.cache.GetCertAuthority(ca.GetID(), false)
@@ -715,7 +978,7 @@ func initStrategy(t *testing.T) {
 
 	// wait for watcher to restart successfully; ignoring any failed
 	// attempts which occurred before backend became healthy again.
-	waitForEvent(t, p.eventsC, WatcherStarted, WatcherFailed, Reloading)
+	expectEvent(t, p.eventsC, WatcherStarted)
 
 	// new value is available now
 	out, err = p.cache.GetCertAuthority(ca.GetID(), false)
@@ -1834,6 +2097,72 @@ func TestDatabaseServers(t *testing.T) {
 	out, err = p.cache.GetDatabaseServers(context.Background(), apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
+}
+
+func TestRelativeExpiry(t *testing.T) {
+	const checkInterval = time.Second
+	const nodeCount = int64(100)
+
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
+	p := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = checkInterval
+		c.Clock = clock
+		return ForAuth(c)
+	})
+	t.Cleanup(p.Close)
+
+	// add servers that expire at a range of times
+	now := clock.Now()
+	for i := int64(0); i < nodeCount; i++ {
+		exp := now.Add(time.Minute * time.Duration(i))
+		server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+		server.SetExpiry(exp)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(t, err)
+		// Check that information has been replicated to the cache.
+		expectEvent(t, p.eventsC, EventProcessed)
+	}
+
+	nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, nodes, 100)
+
+	clock.Advance(time.Minute * 25)
+	// get rid of events that were emitted before clock advanced
+	drainEvents(p.eventsC)
+	// wait for next relative expiry check to run
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// verify that roughly expected proportion of nodes was removed.
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.True(t, len(nodes) < 100 && len(nodes) > 75, "node_count=%d", len(nodes))
+
+	clock.Advance(time.Minute * 25)
+	// get rid of events that were emitted before clock advanced
+	drainEvents(p.eventsC)
+	// wait for next relative expiry check to run
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// verify that roughly expected proportion of nodes was removed.
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.True(t, len(nodes) < 75 && len(nodes) > 50, "node_count=%d", len(nodes))
+
+	// finally, we check the "sliding window" by verifying that we don't remove all nodes
+	// even if we advance well past the latest expiry time.
+	clock.Advance(time.Hour * 24)
+	// get rid of events that were emitted before clock advanced
+	drainEvents(p.eventsC)
+	// wait for next relative expiry check to run
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// verify that sliding window has preserved most recent nodes
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.True(t, len(nodes) > 0, "node_count=%d", len(nodes))
 }
 
 func TestCache_Backoff(t *testing.T) {

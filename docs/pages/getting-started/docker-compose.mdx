@@ -114,19 +114,17 @@ https://proxy.luna.teleport:443/web/invite/your-token-here
 NOTE: Make sure proxy.luna.teleport:443 points at a Teleport proxy which users can access.
 ```
 
-The Web UI will be available at the displayed URL. 
+Port `443` on the Teleport container is published to the local host, so you can access the invitation page at `https://localhost/web/invite/your-token-here`.
 
 (!docs/pages/includes/insecure-certificate.mdx!)
 
-Explore audit log, session recordings and other features of Teleport.
-
 ## Next steps
 
-- Try out one of our [Helm Guides](../kubernetes-access/helm/guides.mdx).
+- Learn about [Teleport Server Access](../server-access/introduction.mdx).
+- Learn about [Teleport Access Controls](../access-controls/getting-started.mdx).
+- Get started with [Teleport Session Recording](../server-access/guides/bpf-session-recording.mdx).
 - Try out one of our [Database Access Guides](../database-access/guides.mdx).
-- Learn about [Teleport Server Access](../server-access/introduction.mdx).
-- Learn about [Teleport Server Access](../server-access/introduction.mdx).
-- Learn about [Teleport Access Control](../access-controls/getting-started.mdx).
+- For Kubernetes environments, try out one of our [Helm Guides](../kubernetes-access/helm/guides.mdx).
 
 ## Under the hood
 

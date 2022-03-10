@@ -995,6 +995,20 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	eventIdentity := identity.GetEventIdentity()
+	eventIdentity.Expires = certRequest.NotAfter
+	if a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
+		Metadata: apievents.Metadata{
+			Type: events.CertificateCreateEvent,
+			Code: events.CertificateCreateCode,
+		},
+		CertificateType: events.CertificateTypeUser,
+		Identity:        &eventIdentity,
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit certificate create event.")
+	}
+
 	return &certs{ssh: sshCert, tls: tlsCert}, nil
 }
 
@@ -1594,12 +1608,11 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		NotAfter:  a.clock.Now().UTC().Add(defaults.CATTL),
 		DNSNames:  append([]string{}, req.AdditionalPrincipals...),
 	}
-	// HTTPS requests need to specify DNS name that should be present in the
-	// certificate as one of the DNS Names. It is not known in advance,
-	// that is why there is a default one for all certificates
-	if req.Roles.Include(types.RoleAuth) || req.Roles.Include(types.RoleAdmin) || req.Roles.Include(types.RoleProxy) || req.Roles.Include(types.RoleKube) || req.Roles.Include(types.RoleApp) {
-		certRequest.DNSNames = append(certRequest.DNSNames, "*."+constants.APIDomain, constants.APIDomain)
-	}
+
+	// API requests need to specify a DNS name, which must be present in the certificate's DNS Names.
+	// The target DNS is not always known in advance so we add a default one to all certificates.
+	certRequest.DNSNames = append(certRequest.DNSNames, DefaultDNSNamesForRole(req.Roles)...)
+
 	// Unlike additional principals, DNS Names is x509 specific and is limited
 	// to services with TLS endpoints (e.g. auth, proxies, kubernetes)
 	if req.Roles.Include(types.RoleAuth) || req.Roles.Include(types.RoleAdmin) || req.Roles.Include(types.RoleProxy) || req.Roles.Include(types.RoleKube) {
@@ -2909,5 +2922,16 @@ func isHTTPS(u string) error {
 		return trace.BadParameter("expected scheme https, got %q", earl.Scheme)
 	}
 
+	return nil
+}
+
+// DefaultDNSNamesForRole returns default DNS names for the specified role.
+func DefaultDNSNamesForRole(roles types.SystemRoles) []string {
+	if roles.Include(types.RoleAuth) || roles.Include(types.RoleAdmin) || roles.Include(types.RoleProxy) || roles.Include(types.RoleKube) || roles.Include(types.RoleApp) || roles.Include(types.RoleDatabase) {
+		return []string{
+			"*." + constants.APIDomain,
+			constants.APIDomain,
+		}
+	}
 	return nil
 }

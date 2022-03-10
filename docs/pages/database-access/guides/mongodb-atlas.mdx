@@ -19,15 +19,17 @@ In this guide you will:
 
 ## Step 1/3. Configure Teleport
 
-### Setup Teleport Auth and Proxy services
+### Set up Teleport Auth and Proxy services
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
-### Setup Teleport Database service
+### Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-Start Teleport Database service:
+<Tabs>
+<TabItem label="Self Hosted" scope={["enterprise","oss"]}>
+Start the Teleport Database Service, pointing the `--auth-server` flag at the address of your Teleport Proxy Service:
 
 ```code
 $ teleport db start \
@@ -40,19 +42,39 @@ $ teleport db start \
   --labels=env=dev
 ```
 
+</TabItem>
+<TabItem label="Teleport Cloud" scope={["cloud"]}>
+Start the Teleport Database Service, pointing the `--auth-server` flag at the address of your Teleport Cloud tenant, e.g., `mytenant.teleport.sh`.
+
+```code
+$ teleport db start \
+  --token=/tmp/token \
+  --auth-server=mytenant.teleport.sh \
+  --name=mongodb-atlas \
+  --protocol=mongodb \
+  --uri=mongodb+srv://cluster0.abcde.mongodb.net \
+  --ca-cert=/path/to/letsencrypt/isrgrootx1.pem
+  --labels=env=dev
+```
+
+</TabItem>
+</Tabs>
+
 See below for details on `--uri` and `--ca-cert` flags.
 
 <Admonition type="note">
   The `--auth-server` flag must point to the Teleport cluster's proxy endpoint
-  because database service always connects back to the cluster over a reverse
+  because the Database Service always connects back to the cluster over a reverse
   tunnel.
 </Admonition>
 
 #### Configuration file
 
-If you're starting Database agent with YAML configuration instead of CLI flags,
-the following config is equivalent to the above command:
+If you're starting the Database Agent with a YAML configuration instead of CLI flags,
+the following config is equivalent to the `teleport db start` command shown earlier:
 
+<Tabs>
+<TabItem label="Self Hosted" scope={["enterprise","oss"]}>
 ```yaml
 teleport:
   auth_token: "/tmp/token"
@@ -68,13 +90,31 @@ db_service:
     static_labels:
       env: "dev"
 ```
+</TabItem>
+<TabItem label="Teleport Cloud" scope={["cloud"]}>
+```yaml
+teleport:
+  auth_token: "/tmp/token"
+  auth_servers:
+  - "mytenant.teleport.sh"
+db_service:
+  enabled: "yes"
+  databases:
+  - name: "mongodb-atlas"
+    protocol: "mongodb"
+    uri: "mongodb+srv://cluster0.abcde.mongodb.net"
+    ca_cert_file: "/path/to/letsencrypt/isrgrootx1.pem"
+    static_labels:
+      env: "dev"
+```
+</TabItem>
+</Tabs>
 
-See full [YAML reference](../reference/configuration.mdx) for details.
+See the full [YAML reference](../reference/configuration.mdx) for details.
 
-#### Connection endpoint `--uri`
+#### Connection endpoint
 
-To find out your Atlas cluster's connection endpoint for the URI, use the
-Connect dialog on the Database Deployments overview page:
+You will need to provide your Atlas cluster's connection endpoint for the `db_service.databases[*].uri` configuration option or `--uri` CLI flag. You can find this via the Connect dialog on the Database Deployments overview page:
 
 ![Connect](../../../img/database-access/guides/atlas/atlas-connect-btn@2x.png)
 
@@ -89,17 +129,17 @@ Use only the scheme and hostname parts of the connection string in the URI:
 $ --uri=mongodb+srv://cluster0.abcde.mongodb.net
 ```
 
-#### Atlas CA certificate `--ca-cert`
+#### Atlas CA certificate
 
-MongoDB Atlas uses certificates signed by Let's Encrypt as described in
-[Which certificate authority signs MongoDB Atlas cluster TLS certificates?](https://docs.atlas.mongodb.com/reference/faq/security/#which-certificate-authority-signs-mongodb-atlas-cluster-tls-certificates-)
+MongoDB Atlas uses certificates signed by Let's Encrypt.
 
-Download Let's Encrypt [root certificate](https://letsencrypt.org/certs/isrgrootx1.pem.txt)
-and use it as a CA in the database service configuration:
+Download the Let's Encrypt root certificate and use it as a CA in the database service configuration:
 
 ```code
-$ --ca-cert=/tmp/isrgrootx1.pem
+$ curl -o /tmp/isrgrootx1.pem https://letsencrypt.org/certs/isrgrootx1.pem.txt
 ```
+
+You can then use `/tmp/isrgrootx1.pem` as the value of the `db_service.databases[*].ca_cert_file` configuration option or `--ca-cert` CLI flag.
 
 ### Create Teleport user
 
@@ -138,7 +178,7 @@ authentication method:
 
 ![Add user](../../../img/database-access/guides/atlas/atlas-add-user@2x.png)
 
-Make sure to specify the user as `CN=<user>` like shown above since MongoDB
+Make sure to specify the user as `CN=<user>` as shown above since MongoDB
 treats the entire certificate subject as a username. When connecting to a
 MongoDB cluster, say, as a user `alice`, Teleport will sign an ephemeral
 certificate with `CN=alice` subject.
@@ -152,6 +192,9 @@ certificate with `CN=alice` subject.
 
 Log into your Teleport cluster and see available databases:
 
+<Tabs>
+<TabItem scope={["enterprise", "oss"]} label="Self Hosted">
+
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
@@ -159,6 +202,18 @@ $ tsh db ls
 # ------------- ----------- --------
 # mongodb-atlas             env=dev
 ```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Cloud">
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh db ls
+# Name          Description Labels
+# ------------- ----------- --------
+# mongodb-atlas             env=dev
+```
+</TabItem>
+</Tabs>
 
 To connect to a particular database instance, first retrieve its certificate
 using `tsh db login` command:
@@ -207,3 +262,6 @@ $ tsh db logout
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+
+## Further reading
+- [Which certificate authority signs MongoDB Atlas cluster TLS certificates?](https://docs.atlas.mongodb.com/reference/faq/security/#which-certificate-authority-signs-mongodb-atlas-cluster-tls-certificates-)

@@ -27,11 +27,6 @@ var (
 		Ref:   triggerRef{Include: []string{"refs/tags/v*"}},
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
 	}
-	triggerPushMasterOnly = trigger{
-		Event:  triggerRef{Include: []string{"push"}},
-		Branch: triggerRef{Include: []string{"master"}},
-		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
-	}
 
 	volumeDocker = volume{
 		Name: "dockersock",
@@ -54,7 +49,7 @@ var (
 	// TODO(gus): Set this from `make -C build.assets print-runtime-version` or similar rather
 	// than hardcoding it. Also remove the usage of RUNTIME as a pipeline-level environment variable
 	// (as support for these varies among Drone runners) and only set it for steps that need it.
-	goRuntime = value{raw: "go1.16.2"}
+	goRuntime = value{raw: "go1.16.14"}
 )
 
 type buildType struct {
