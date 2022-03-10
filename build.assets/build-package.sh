@@ -192,11 +192,6 @@ elif [[ "${ARCH}" == "arm64" ]]; then
     TEXT_ARCH="ARMv8/ARM64"
 fi
 
-# amd64 RPMs should use CentOS 7 compatible artifacts
-if [[ "${PACKAGE_TYPE}" == "rpm" && "${ARCH}" == "x86_64" ]]; then
-    OPTIONAL_RUNTIME_SECTION+="-centos7"
-fi
-
 # set optional runtime section for filename
 if [[ "${RUNTIME}" == "fips" ]]; then
     OPTIONAL_RUNTIME_SECTION+="-fips"
