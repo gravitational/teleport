@@ -323,7 +323,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dummyUserRole, err := types.NewRole("dummy-user-role", types.RoleSpecV5{})
+	dummyUserRole, err := types.NewRoleV3("dummy-user-role", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	dummyUser, err := CreateUser(srv.Auth(), "dummy-user", dummyUserRole)
@@ -1893,7 +1893,7 @@ func TestKindClusterConfig(t *testing.T) {
 	})
 
 	t.Run("with KindClusterConfig privilege", func(t *testing.T) {
-		role, err := types.NewRole("test-role", types.RoleSpecV5{
+		role, err := types.NewRoleV3("test-role", types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{
 					types.NewRule(types.KindClusterConfig, []string{types.VerbRead}),
@@ -1917,7 +1917,7 @@ func TestNoElevatedAccessRequestDeletion(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { srv.Close() })
 
-	deleterRole, err := types.NewRole("deleter", types.RoleSpecV5{
+	deleterRole, err := types.NewRoleV3("deleter", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{{
 				Resources: []string{"access_request"},
@@ -1929,7 +1929,7 @@ func TestNoElevatedAccessRequestDeletion(t *testing.T) {
 	deleterUser, err := CreateUser(srv.AuthServer, "deletey", deleterRole)
 	require.NoError(t, err)
 
-	requesterRole, err := types.NewRole("requester", types.RoleSpecV5{
+	requesterRole, err := types.NewRoleV3("requester", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{deleterRole.GetName()},

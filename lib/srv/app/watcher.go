@@ -145,8 +145,8 @@ func FindPublicAddr(authClient auth.ReadAppsAccessPoint, appPublicAddr string, a
 	return fmt.Sprintf("%v.%v", appName, cn.GetClusterName()), nil
 }
 
-func (s *Server) getResources() (resources types.ResourcesWithLabels) {
-	return s.getApps().AsResources()
+func (s *Server) getResources() (resources types.ResourcesWithLabelsMap) {
+	return s.getApps().AsResources().ToMap()
 }
 
 func (s *Server) onCreate(ctx context.Context, resource types.ResourceWithLabels) error {

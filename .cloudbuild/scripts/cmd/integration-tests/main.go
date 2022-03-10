@@ -68,11 +68,13 @@ func innerMain() error {
 		}
 	}
 
-	unshallowCtx, unshallowCancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer unshallowCancel()
-	err = git.UnshallowRepository(unshallowCtx, args.workspace, deployKey)
-	if err != nil {
-		return trace.Wrap(err, "unshallow failed")
+	if !args.skipUnshallow {
+		unshallowCtx, unshallowCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer unshallowCancel()
+		err = git.UnshallowRepository(unshallowCtx, args.workspace, deployKey)
+		if err != nil {
+			return trace.Wrap(err, "unshallow failed")
+		}
 	}
 
 	moduleCacheDir := filepath.Join(os.TempDir(), gomodcacheDir)
