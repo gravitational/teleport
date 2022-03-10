@@ -64,7 +64,7 @@ $ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName
   --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
 ```
 
-## Step 3/4 Configure User and Roles for Access
+## Step 3/4 Configure a user and role for access
 
 The `kubernetes_groups`, `kubernetes_labels` and `kubernetes_users` determine the access from a Teleport
 role to the Kubernetes Clusters.
