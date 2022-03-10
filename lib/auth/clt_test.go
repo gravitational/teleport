@@ -95,63 +95,48 @@ func TestClient_RequestTimeout(t *testing.T) {
 	sawSlow := make(chan bool, 1)
 
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/v2/authorities/host/rotate/external" {
+		switch r.URL.Path {
+		case "/v2/authorities/host/rotate/external":
 			sawRoot <- true
 			http.Redirect(w, r, "/slow", http.StatusFound)
-			return
-		}
-
-		if r.URL.Path == "/slow" {
+		case "/slow":
 			sawSlow <- true
 			w.Write([]byte("Hello"))
 			w.(http.Flusher).Flush()
-
 			<-testDone
-			return
 		}
 	}))
-	t.Cleanup(srv.Close)
-	t.Cleanup(func() { close(testDone) }) // before srv.Close, to unblock /slow handler
+	t.Cleanup(func() {
+		close(testDone)
+		srv.Close()
+	})
+
+	srv.TLS = &tls.Config{InsecureSkipVerify: true}
 
 	cfg := apiclient.Config{
 		Addrs: []string{srv.Listener.Addr().String()},
 		Credentials: []apiclient.Credentials{
-			apiclient.LoadTLS(&tls.Config{
-				InsecureSkipVerify: true,
-			}),
+			apiclient.LoadTLS(srv.TLS),
 		},
 	}
 	clt, err := NewClient(cfg)
 	require.NoError(t, err)
 
-	require.NotEmpty(t, cfg.Credentials)
-	tlsCfg, err := cfg.Credentials[0].TLSConfig()
-	require.NoError(t, err)
-	srv.TLS = tlsCfg
-
 	srv.StartTLS()
 
 	ca := newCertAuthority(t, "test", types.HostCA)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	t.Cleanup(cancel)
 
 	err = clt.RotateExternalCertAuthority(ctx, ca)
 	require.ErrorIs(t, trace.Unwrap(err), context.DeadlineExceeded)
 
-	select {
-	case <-sawRoot:
-		// good.
-	default:
-		t.Fatal("handler never got /v2/authorities/host/rotate/external request")
-	}
+	close(sawRoot)
+	require.True(t, <-sawRoot, "handler never got /v2/authorities/host/rotate/external request")
 
-	select {
-	case <-sawSlow:
-		// good.
-	default:
-		t.Fatal("handler never got /slow request")
-	}
+	close(sawSlow)
+	require.True(t, <-sawSlow, "handler never got /slow request")
 }
 
 func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) types.CertAuthority {

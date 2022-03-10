@@ -734,8 +734,9 @@ func (p *databaseCollector) getResourcesAndUpdateCurrent(ctx context.Context) er
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
 	case p.DatabasesC <- databases:
-		return nil
 	}
+
+	return nil
 }
 
 // processEventAndUpdateCurrent is called when a watcher event is received.
@@ -862,8 +863,8 @@ func (p *appCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
 	case p.AppsC <- apps:
-		return nil
 	}
+	return nil
 }
 
 // processEventAndUpdateCurrent is called when a watcher event is received.
@@ -1018,8 +1019,8 @@ func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
 	case c.CertAuthorityC <- casToSlice(newHost, newUser):
-		return nil
 	}
+	return nil
 }
 
 // processEventAndUpdateCurrent is called when a watcher event is received.
