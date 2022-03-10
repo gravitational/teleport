@@ -1480,6 +1480,18 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if len(s.parties) == 0 {
+		canStart, _, err := s.checkIfStart()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !canStart && services.IsRecordAtProxy(p.ctx.SessionRecordingConfig.GetMode()) {
+			go s.Close()
+			return trace.AccessDenied("session requires additional moderation but is in proxy-record mode")
+		}
+	}
+
 	// Adds participant to in-memory map of party members.
 	s.parties[p.id] = p
 	s.participants[p.id] = p
@@ -1542,9 +1554,6 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 				s.state = types.SessionState_SessionStateRunning
 				s.stateUpdate.Broadcast()
 			}
-		} else if services.IsRecordAtProxy(p.ctx.SessionRecordingConfig.GetMode()) {
-			go s.Close()
-			return trace.AccessDenied("session requires additional moderation but is in proxy-record mode")
 		} else if !s.started {
 			var additionalFormat string
 			var additionalItem string
