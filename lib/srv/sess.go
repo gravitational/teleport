@@ -93,6 +93,7 @@ func NewSessionRegistry(srv Server, auth auth.ClientI) (*SessionRegistry, error)
 		}),
 		srv:      srv,
 		sessions: make(map[rsession.ID]*session),
+		auth:     auth,
 	}, nil
 }
 
@@ -1716,9 +1717,12 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 
 	reason := s.scx.env[teleport.EnvSSHSessionReason]
 	var invited []string
-	err := json.Unmarshal([]byte(s.scx.env[teleport.EnvSSHSessionInvited]), &invited)
-	if err != nil {
-		return trace.Wrap(err)
+
+	if s.scx.env[teleport.EnvSSHSessionInvited] != "" {
+		err := json.Unmarshal([]byte(s.scx.env[teleport.EnvSSHSessionInvited]), &invited)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	req := &proto.CreateSessionTrackerRequest{
@@ -1737,7 +1741,7 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 		HostPolicies: policySet,
 	}
 
-	_, err = s.registry.auth.CreateSessionTracker(s.serverCtx, req)
+	_, err := s.registry.auth.CreateSessionTracker(s.serverCtx, req)
 	return trace.Wrap(err)
 }
 
