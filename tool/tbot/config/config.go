@@ -34,6 +34,7 @@ import (
 const (
 	DefaultCertificateTTL = 60 * time.Minute
 	DefaultRenewInterval  = 20 * time.Minute
+	DefaultJoinMethod     = "token"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -71,6 +72,26 @@ type CLIConf struct {
 	// JoinMethod is the method the bot should use to exchange a token for the
 	// initial certificate
 	JoinMethod string
+
+	// InitDir specifies which destination to initialize if multiple are
+	// configured.
+	InitDir string
+
+	// BotUser is a Unix username that should be given permission to write
+	BotUser string
+
+	// ReaderUser is the Unix username that will be reading the files
+	ReaderUser string
+
+	// Owner is the user:group that will own the destination files. Due to SSH
+	// restrictions on key permissions, it cannot be the same as the reader
+	// user. If ACL support is unused or unavailable, the reader user will own
+	// files directly.
+	Owner string
+
+	// Clean is a flag that, if set, instructs `tbot init` to remove existing
+	// unexpected files.
+	Clean bool
 }
 
 // OnboardingConfig contains values only required on first connect.
@@ -93,7 +114,7 @@ type OnboardingConfig struct {
 // BotConfig is the bot's root config object.
 type BotConfig struct {
 	Onboarding   *OnboardingConfig    `yaml:"onboarding,omitempty"`
-	Storage      StorageConfig        `yaml:"storage,omitempty"`
+	Storage      *StorageConfig       `yaml:"storage,omitempty"`
 	Destinations []*DestinationConfig `yaml:"destinations,omitempty"`
 
 	Debug          bool          `yaml:"debug"`
@@ -103,6 +124,14 @@ type BotConfig struct {
 }
 
 func (conf *BotConfig) CheckAndSetDefaults() error {
+	if conf.AuthServer == "" {
+		return trace.BadParameter("an auth server address must be configured")
+	}
+
+	if conf.Storage == nil {
+		conf.Storage = &StorageConfig{}
+	}
+
 	if err := conf.Storage.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -111,10 +140,6 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		if err := dest.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	if conf.AuthServer == "" {
-		return trace.BadParameter("an auth server address must be configured")
 	}
 
 	if conf.CertificateTTL == 0 {
@@ -126,6 +151,32 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// GetDestinationByPath attempts to fetch a destination by its filesystem path.
+// Only valid for filesystem destinations; returns nil if no matching
+// destination exists.
+func (conf *BotConfig) GetDestinationByPath(path string) (*DestinationConfig, error) {
+	for _, dest := range conf.Destinations {
+		destImpl, err := dest.GetDestination()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		destDir, ok := destImpl.(*DestinationDirectory)
+		if !ok {
+			continue
+		}
+
+		// Note: this compares only paths as written in the config file. We
+		// might want to compare .Abs() if that proves to be confusing (though
+		// this may have its own problems)
+		if destDir.Path == path {
+			return dest, nil
+		}
+	}
+
+	return nil, nil
 }
 
 // NewDefaultConfig creates a new minimal bot configuration from defaults.
@@ -186,11 +237,13 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	// DataDir overrides any previously-configured storage config
 	if cf.DataDir != "" {
-		if _, err := config.Storage.GetDestination(); err != nil {
-			log.Warnf("CLI parameters are overriding storage location from %s", cf.ConfigPath)
+		if config.Storage != nil {
+			if _, err := config.Storage.GetDestination(); err != nil {
+				log.Warnf("CLI parameters are overriding storage location from %s", cf.ConfigPath)
+			}
 		}
 
-		config.Storage = StorageConfig{
+		config.Storage = &StorageConfig{
 			DestinationMixin: DestinationMixin{
 				Directory: &DestinationDirectory{
 					Path: cf.DataDir,
@@ -222,7 +275,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	// merging)
 	if cf.Token != "" || len(cf.CAPins) > 0 || cf.JoinMethod != "" {
 		onboarding := config.Onboarding
-		if onboarding != nil && (onboarding.Token != "" || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || cf.JoinMethod != "" {
+		if onboarding != nil && (onboarding.Token != "" || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || cf.JoinMethod != DefaultJoinMethod {
 			// To be safe, warn about possible confusion.
 			log.Warnf("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
 		}
