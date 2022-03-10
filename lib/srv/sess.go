@@ -804,7 +804,7 @@ outer:
 }
 
 func (s *session) BroadcastMessage(format string, args ...interface{}) error {
-	if s.access.IsModerated() {
+	if s.access.IsModerated {
 		return s.BroadcastMessage(fmt.Sprintf(format, args...))
 	}
 

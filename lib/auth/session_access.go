@@ -37,17 +37,28 @@ import (
 // that is harder to debug in the case of misconfigured policies or other error and are harder to intuitively follow.
 // In the real world, the number of roles and session are small enough that this doesn't have a meaningful impact.
 type SessionAccessEvaluator struct {
-	kind       types.SessionKind
-	policySets []*types.SessionTrackerPolicySet
+	kind        types.SessionKind
+	policySets  []*types.SessionTrackerPolicySet
+	IsModerated bool
 }
 
 // NewSessionAccessEvaluator creates a new session access evaluator for a given session kind
 // and a set of roles attached to the host user.
 func NewSessionAccessEvaluator(policySets []*types.SessionTrackerPolicySet, kind types.SessionKind) SessionAccessEvaluator {
-	return SessionAccessEvaluator{
-		kind,
-		policySets,
+	e := SessionAccessEvaluator{
+		kind:       kind,
+		policySets: policySets,
 	}
+
+Outer:
+	for _, policySet := range policySets {
+		if len(e.extractApplicablePolicies(policySet)) != 0 {
+			e.IsModerated = true
+			break Outer
+		}
+	}
+
+	return e
 }
 
 func getAllowPolicies(participant SessionAccessContext) []*types.SessionJoinPolicy {
@@ -208,11 +219,6 @@ func (e *SessionAccessEvaluator) hasPolicies() bool {
 	}
 
 	return false
-}
-
-// IsModerated returns true if a session requires moderation.
-func (e *SessionAccessEvaluator) IsModerated() bool {
-	return e.hasPolicies()
 }
 
 // Generate a pretty-printed string of precise requirements for session start suitable for user display.

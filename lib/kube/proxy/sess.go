@@ -947,7 +947,7 @@ func (s *session) join(p *party) error {
 }
 
 func (s *session) BroadcastMessage(format string, args ...interface{}) error {
-	if s.accessEvaluator.IsModerated() && s.tty {
+	if s.accessEvaluator.IsModerated && s.tty {
 		return s.BroadcastMessage(fmt.Sprintf(format, args...))
 	}
 
