@@ -41,11 +41,11 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 	// The first frame is always expected to be a dial request.
 	dial := frame.GetDialRequest()
 	if dial == nil {
-		return trace.BadParameter("invalid dial request")
+		return trace.BadParameter("invalid dial request: request must not be nil")
 	}
 
 	if dial.Source == nil || dial.Destination == nil {
-		return trace.BadParameter("invalid dial request")
+		return trace.BadParameter("invalid dial request: source and destinatation must not be nil")
 	}
 
 	log := s.log.WithFields(logrus.Fields{
@@ -80,11 +80,14 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 	}
 
 	streamConn := newStreamConn(stream, source, destination)
-	go streamConn.start()
+	go func() {
+		err := streamConn.start()
+		log.WithError(err).Debug("Stream connection exited.")
+	}()
 
-	sent, received := pipeConn(stream.Context(), streamConn, nodeConn)
+	sent, received, err := pipeConn(stream.Context(), streamConn, nodeConn)
 	log.Debugf("Closing dial request from peer. sent: %d reveived %d", sent, received)
-	return nil
+	return trace.Wrap(err)
 }
 
 // splitServerID splits a server id in to a node id and cluster name.

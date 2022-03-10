@@ -51,6 +51,7 @@ type streamConn struct {
 
 	once sync.Once
 	wg   sync.WaitGroup
+	err  error
 }
 
 // newStreamConn creates a new streamConn.
@@ -66,30 +67,32 @@ func newStreamConn(stream Stream, src net.Addr, dst net.Addr) *streamConn {
 }
 
 // start begins copying data between the grpc stream and internal pipe.
-func (c *streamConn) start() {
+func (c *streamConn) start() error {
+	var (
+		sendErr    error
+		receiveErr error
+	)
 	c.wg.Add(2)
+
 	go func() {
 		defer c.Close()
-		c.receive(c.stream)
+		receiveErr = c.receive(c.stream)
 		c.wg.Done()
 	}()
 	go func() {
 		defer c.Close()
-		c.send(c.stream)
+		sendErr = c.send(c.stream)
 		c.wg.Done()
 	}()
 
+	c.wg.Wait()
+	return trace.NewAggregate(sendErr, receiveErr)
 }
 
 // receive reveives data from the stream and copies it to the internal pipe.
 func (c *streamConn) receive(stream Stream) error {
-	var (
-		frame *proto.Frame
-		err   error
-	)
-
 	for {
-		frame, err = stream.Recv()
+		frame, err := stream.Recv()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -99,18 +102,15 @@ func (c *streamConn) receive(stream Stream) error {
 			return trace.Errorf("failed to get data from tunnel frame")
 		}
 
-		_, err := c.remote.Write(data.Bytes)
+		_, err = c.remote.Write(data.Bytes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		frame = nil
 	}
 }
 
 // send reads data from the internal pipe and sends it over the stream.
 func (c *streamConn) send(stream Stream) error {
-	var frame *proto.Frame
 	b := make([]byte, bufferSize)
 
 	for {
@@ -119,7 +119,11 @@ func (c *streamConn) send(stream Stream) error {
 			return trace.Wrap(err)
 		}
 
-		frame = &proto.Frame{Message: &proto.Frame_Data{Data: &proto.Data{Bytes: b[:n]}}}
+		if n == 0 {
+			continue
+		}
+
+		frame := &proto.Frame{Message: &proto.Frame_Data{Data: &proto.Data{Bytes: b[:n]}}}
 		err = stream.Send(frame)
 		if err != nil {
 			return trace.Wrap(err)
@@ -139,20 +143,21 @@ func (c *streamConn) Write(b []byte) (n int, err error) {
 
 // Close cleans up resources used by the connection.
 func (c *streamConn) Close() error {
-	var err error
 	c.once.Do(func() {
-		err = c.close()
+		err := c.close()
+		c.err = err
 	})
 
 	c.wg.Wait()
-	return trace.Wrap(err)
+	return trace.Wrap(c.err)
 }
 
 // close cleans up resources used by the connection.
 func (c *streamConn) close() error {
-	c.local.Close()
-	c.remote.Close()
-	return nil
+	localErr := c.local.Close()
+	remoteErr := c.remote.Close()
+
+	return trace.NewAggregate(localErr, remoteErr)
 }
 
 // LocalAddr is the original source address of the client.
@@ -178,31 +183,40 @@ func (c *streamConn) SetWriteDeadline(t time.Time) error {
 }
 
 // pipeConn copies between two ReadWriteCloser and closes them when done.
-func pipeConn(ctx context.Context, src io.ReadWriteCloser, dst io.ReadWriteCloser) (int64, int64) {
+func pipeConn(ctx context.Context, src net.Conn, dst net.Conn) (int64, int64, error) {
 	var (
 		sent, received int64
 		wg             sync.WaitGroup
 		o              sync.Once
 	)
 
-	cleanup := func() {
+	errC := make(chan error)
+	cleanup := func(err error) {
 		o.Do(func() {
 			src.Close()
 			dst.Close()
+			errC <- err
+			close(errC)
 		})
 	}
 
 	wg.Add(2)
 
 	go func() {
-		sent, _ = io.Copy(src, dst)
-		cleanup()
+		var err error
+		sent, err = io.Copy(src, dst)
+		cleanup(trace.ConnectionProblem(
+			err, "failed copy to source %s", src.RemoteAddr().String(),
+		))
 		wg.Done()
 	}()
 
 	go func() {
-		received, _ = io.Copy(dst, src)
-		cleanup()
+		var err error
+		received, err = io.Copy(dst, src)
+		cleanup(trace.ConnectionProblem(
+			err, "failed copy to destination %s", dst.RemoteAddr().String(),
+		))
 		wg.Done()
 	}()
 
@@ -214,11 +228,11 @@ func pipeConn(ctx context.Context, src io.ReadWriteCloser, dst io.ReadWriteClose
 
 	select {
 	case <-ctx.Done():
+		cleanup(nil)
 	case <-wait:
 	}
 
-	cleanup()
 	<-wait
-
-	return sent, received
+	err := <-errC
+	return sent, received, trace.Wrap(err)
 }

@@ -49,7 +49,10 @@ func (c *proxyCredentials) ServerHandshake(conn net.Conn) (net.Conn, credentials
 	}
 
 	err = checkProxyRole(authInfo)
-	return conn, authInfo, trace.Wrap(err)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return conn, authInfo, nil
 }
 
 // ServerHandshake wraps a client handshake with an additional check for the
@@ -61,7 +64,10 @@ func (c *proxyCredentials) ClientHandshake(ctx context.Context, laddr string, co
 	}
 
 	err = checkProxyRole(authInfo)
-	return conn, authInfo, trace.Wrap(err)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return conn, authInfo, nil
 }
 
 // checkProxyRole checks the authInfo for a certificate with the role types.RoleProxy.
