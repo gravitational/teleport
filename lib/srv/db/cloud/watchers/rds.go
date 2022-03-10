@@ -106,6 +106,14 @@ func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Data
 	}
 	databases := make(types.Databases, 0, len(instances))
 	for _, instance := range instances {
+		if !services.IsRDSInstanceSupported(instance) {
+			f.log.Debugf("RDS instance %q (engine mode %v, engine version %v) doesn't support IAM authentication. Skipping.",
+				aws.StringValue(instance.DBInstanceIdentifier),
+				aws.StringValue(instance.Engine),
+				aws.StringValue(instance.EngineVersion))
+			continue
+		}
+
 		if !services.IsRDSInstanceAvailable(instance) {
 			f.log.Debugf("The current status of RDS instance %q is %q. Skipping.",
 				aws.StringValue(instance.DBInstanceIdentifier),
@@ -275,7 +283,8 @@ func rdsFilters() []*rds.Filter {
 		Name: aws.String("engine"),
 		Values: aws.StringSlice([]string{
 			services.RDSEnginePostgres,
-			services.RDSEngineMySQL}),
+			services.RDSEngineMySQL,
+			services.RDSEngineMariaDB}),
 	}}
 }
 
