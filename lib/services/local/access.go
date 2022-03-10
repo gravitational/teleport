@@ -70,6 +70,11 @@ func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // CreateRole creates a role on the backend.
 func (s *AccessService) CreateRole(role types.Role) error {
+	err := services.ValidateRoleName(role)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	value, err := services.MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
@@ -90,6 +95,11 @@ func (s *AccessService) CreateRole(role types.Role) error {
 
 // UpsertRole updates parameters about role
 func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) error {
+	err := services.ValidateRoleName(role)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	value, err := services.MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)

@@ -226,6 +226,8 @@ type Presence interface {
 
 	// GetWindowsDesktopServices returns all registered Windows desktop services.
 	GetWindowsDesktopServices(context.Context) ([]types.WindowsDesktopService, error)
+	// GetWindowsDesktopService returns a Windows desktop service by name
+	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 	// UpsertWindowsDesktopService creates or updates a new Windows desktop service.
 	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
 	// DeleteWindowsDesktopService removes the specified Windows desktop service.
