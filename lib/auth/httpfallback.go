@@ -635,7 +635,7 @@ func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 		}
 	}
 
-	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), httpReq)
+	out, err := c.PostJSON(ctx, c.Endpoint("web", "password", "token"), httpReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -668,6 +668,7 @@ func (c *Client) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 
 	// HTTP fallback for auth version <7.x
 	out, err := c.PostJSON(
+		ctx,
 		c.Endpoint("u2f", "users", req.GetUserCredentials().GetUsername(), "sign"),
 		signInReq{
 			Password: string(req.GetUserCredentials().GetPassword()),
@@ -729,7 +730,7 @@ func (c *Client) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		}}, nil
 
 	case proto.DeviceType_DEVICE_TYPE_U2F:
-		out, err := c.Get(c.Endpoint("u2f", "signuptokens", req.GetTokenID()), url.Values{})
+		out, err := c.Get(ctx, c.Endpoint("u2f", "signuptokens", req.GetTokenID()), url.Values{})
 		if err != nil {
 			return nil, err
 		}

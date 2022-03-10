@@ -923,7 +923,7 @@ func (c *Client) DeleteProxy(name string) error {
 
 // GetU2FAppID returns U2F settings, like App ID and Facets
 func (c *Client) GetU2FAppID() (string, error) {
-	out, err := c.Get(c.Endpoint("u2f", "appID"), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("u2f", "appID"), url.Values{})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
