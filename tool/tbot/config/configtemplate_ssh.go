@@ -55,13 +55,13 @@ var openSSHMinVersionForRSAWorkaround = semver.New("8.5.0")
 func parseSSHVersion(versionString string) (*semver.Version, error) {
 	versionTokens := strings.Split(versionString, " ")
 	if len(versionTokens) == 0 {
-		return nil, trace.Errorf("invalid version string: %s", versionString)
+		return nil, trace.BadParameter("invalid version string: %s", versionString)
 	}
 
 	versionID := versionTokens[0]
 	matches := openSSHVersionRegex.FindStringSubmatch(versionID)
 	if matches == nil {
-		return nil, trace.Errorf("cannot parse version string: %q", versionID)
+		return nil, trace.BadParameter("cannot parse version string: %q", versionID)
 	}
 
 	major, err := strconv.Atoi(matches[1])
@@ -212,13 +212,21 @@ func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI,
 }
 
 type sshConfigParameters struct {
-	ClusterName          string
-	KnownHostsPath       string
-	IdentityFilePath     string
-	CertificateFilePath  string
-	ProxyHost            string
-	ProxyPort            string
-	SSHConfigPath        string
+	ClusterName         string
+	KnownHostsPath      string
+	IdentityFilePath    string
+	CertificateFilePath string
+	ProxyHost           string
+	ProxyPort           string
+	SSHConfigPath       string
+
+	// IncludeRSAWorkaround controls whether the RSA deprecation workaround is
+	// included in the generated configuration. Newer versions of OpenSSH
+	// deprecate RSA certificates and, due to a bug in golang's ssh package,
+	// Teleport wrongly advertises its unaffected certificates as a
+	// now-deprecated certificate type. The workaround includes a config
+	// override to re-enable RSA certs for just Teleport hosts, however it is
+	// only supported on OpenSSH 8.5 and later.
 	IncludeRSAWorkaround bool
 }
 
