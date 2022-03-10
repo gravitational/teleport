@@ -581,6 +581,10 @@
             {
               "title": "Machine ID with Ansible",
               "slug": "/machine-id/guides/ansible/"
+            },
+            {
+              "title": "Machine ID with Jenkins",
+              "slug": "/machine-id/guides/jenkins/"
             }
           ]
         }
