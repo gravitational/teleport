@@ -3754,9 +3754,6 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := bk.Migrate(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentBackend,
 		Backend:   backend.NewSanitizer(bk),
