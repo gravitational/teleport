@@ -643,6 +643,10 @@ const (
 
 	// EnvSSHSessionInvited is an environment variable listning people invited to a session.
 	EnvSSHSessionInvited = "TELEPORT_SESSION_JOIN_MODE"
+
+	// EnvSSHSessionVerboseRequirements is set to true or false to indicate if verbose participant
+	// requirement information should be printed.
+	EnvSSHSessionVerboseRequirements = "TELEPORT_SESSION_VERBOSE_REQUIREMENTS"
 )
 
 const (
