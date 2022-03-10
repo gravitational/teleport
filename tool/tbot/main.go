@@ -311,7 +311,7 @@ func checkIdentity(ident *identity.Identity) error {
 	now := time.Now().UTC()
 	if now.After(validBefore) {
 		log.Errorf(
-			"Identity appears to have expired. The renewal is likely to fail. (expires: %s, current time: %s)",
+			"Identity has expired. The renewal is likely to fail. (expires: %s, current time: %s)",
 			validBefore.Format(time.RFC3339),
 			now.Format(time.RFC3339),
 		)

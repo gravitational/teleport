@@ -56,7 +56,7 @@ const (
 	// PublicKeyKey is the ssh public key, required for successful SSH connections.
 	PublicKeyKey = "key.pub"
 
-	// TokenHashKey is the storage where a hash of the onboarding token will be stored.
+	// TokenHashKey is the key where a hash of the onboarding token will be stored.
 	TokenHashKey = "tokenhash"
 
 	// WriteTestKey is the key for a file used to check that the destination is

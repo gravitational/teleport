@@ -235,7 +235,7 @@ func Write(path string, data []byte, symlinksMode SymlinksMode) error {
 	return nil
 }
 
-// desiredBotPerms determines the desired bot permissions for an artifact at
+// desiredPerms determines the desired bot permissions for an artifact at
 // the given path. Directories require read/exec, files require read/write.
 func desiredPerms(path string) (ownerMode fs.FileMode, botAndReaderMode fs.FileMode, err error) {
 	stat, err := os.Stat(path)

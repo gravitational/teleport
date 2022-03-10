@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 )
 
+// Artifact is a component of a serialized identity.
 type Artifact struct {
 	Key       string
 	Kind      ArtifactKind
