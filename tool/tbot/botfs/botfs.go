@@ -48,7 +48,7 @@ const (
 	SymlinksTrySecure SymlinksMode = "try-secure"
 
 	// SymlinksSecure attempts to write files securely and fails with an error
-	// if the operation fails. This should be the default on systems were we
+	// if the operation fails. This should be the default on systems where we
 	// expect it to be supported.
 	SymlinksSecure SymlinksMode = "secure"
 )
@@ -92,7 +92,7 @@ type ACLOptions struct {
 func openStandard(path string) (*os.File, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, DefaultMode)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.ConvertSystemError(err)
 	}
 
 	return file, nil
@@ -103,7 +103,7 @@ func openStandard(path string) (*os.File, error) {
 func createStandard(path string, isDir bool) error {
 	if isDir {
 		if err := os.Mkdir(path, DefaultDirMode); err != nil {
-			return trace.Wrap(err)
+			return trace.ConvertSystemError(err)
 		}
 
 		return nil
