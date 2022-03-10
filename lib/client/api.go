@@ -2110,7 +2110,7 @@ func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, 
 	env := make(map[string]string)
 	env[teleport.EnvSSHJoinMode] = string(mode)
 	env[teleport.EnvSSHSessionReason] = tc.Config.Reason
-	env[teleport.EnvSSHSessionVerboseRequirements] = strconv.FormatBool(tc.Config.ParticipantRequirements)
+	env[teleport.EnvSSHSessionParticipantRequirements] = strconv.FormatBool(tc.Config.ParticipantRequirements)
 	encoded, err := json.Marshal(&tc.Config.Invited)
 	if err != nil {
 		return trace.Wrap(err)

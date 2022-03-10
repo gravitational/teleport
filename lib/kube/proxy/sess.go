@@ -303,7 +303,8 @@ type session struct {
 	// PresenceEnabled is set to true if MFA based presence is required.
 	PresenceEnabled bool
 
-	verboseRequirements bool
+	// Set if we should broadcast information about participant requirements to the session.
+	participantRequirements bool
 }
 
 // newSession creates a new session in pending mode.
@@ -336,28 +337,28 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	}
 
 	s := &session{
-		ctx:                 ctx,
-		forwarder:           forwarder,
-		req:                 req,
-		params:              params,
-		id:                  id,
-		parties:             make(map[uuid.UUID]*party),
-		partiesHistorical:   make(map[uuid.UUID]*party),
-		log:                 log,
-		io:                  io,
-		state:               types.SessionState_SessionStatePending,
-		accessEvaluator:     accessEvaluator,
-		emitter:             events.NewDiscardEmitter(),
-		tty:                 tty,
-		terminalSizeQueue:   newMultiResizeQueue(),
-		started:             false,
-		sess:                sess,
-		closeC:              make(chan struct{}),
-		initiator:           initiator.ID,
-		expires:             time.Now().UTC().Add(time.Hour * 24),
-		PresenceEnabled:     ctx.Identity.GetIdentity().MFAVerified != "",
-		stateUpdate:         sync.NewCond(&sync.Mutex{}),
-		verboseRequirements: utils.AsBool(q.Get("participantRequirements")),
+		ctx:                     ctx,
+		forwarder:               forwarder,
+		req:                     req,
+		params:                  params,
+		id:                      id,
+		parties:                 make(map[uuid.UUID]*party),
+		partiesHistorical:       make(map[uuid.UUID]*party),
+		log:                     log,
+		io:                      io,
+		state:                   types.SessionState_SessionStatePending,
+		accessEvaluator:         accessEvaluator,
+		emitter:                 events.NewDiscardEmitter(),
+		tty:                     tty,
+		terminalSizeQueue:       newMultiResizeQueue(),
+		started:                 false,
+		sess:                    sess,
+		closeC:                  make(chan struct{}),
+		initiator:               initiator.ID,
+		expires:                 time.Now().UTC().Add(time.Hour * 24),
+		PresenceEnabled:         ctx.Identity.GetIdentity().MFAVerified != "",
+		stateUpdate:             sync.NewCond(&sync.Mutex{}),
+		participantRequirements: utils.AsBool(q.Get("participantRequirements")),
 	}
 
 	go func() {
@@ -941,7 +942,7 @@ func (s *session) join(p *party) error {
 			var additionalFormat string
 			var additionalItem string
 
-			if s.verboseRequirements {
+			if s.participantRequirements {
 				additionalFormat = "\n\t%v"
 				additionalItem = s.accessEvaluator.PrettyRequirementsList()
 			}
