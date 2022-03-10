@@ -17,8 +17,8 @@ limitations under the License.
 package auth
 
 import (
+	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
@@ -227,7 +227,7 @@ func (e *SessionAccessEvaluator) hasPolicies() bool {
 
 // Generate a pretty-printed string of precise requirements for session start suitable for user display.
 func (e *SessionAccessEvaluator) PrettyRequirementsList() string {
-	var s strings.Builder
+	s := new(strings.Builder)
 	s.WriteString("require all:")
 
 	for _, policySet := range e.policySets {
@@ -236,17 +236,9 @@ func (e *SessionAccessEvaluator) PrettyRequirementsList() string {
 			continue
 		}
 
-		s.WriteString("\n\t  one of (")
-		s.WriteString(policySet.Name)
-		s.WriteString("):")
-
+		fmt.Fprintf(s, "\n\t   one of (%v):", policySet.Name)
 		for _, require := range policies {
-			s.WriteString("\n\t    - ")
-			s.WriteString(strconv.Itoa((int)(require.Count)))
-			s.WriteString("x ")
-			s.WriteString(require.Filter)
-			s.WriteString(" with mode ")
-			s.WriteString(strings.Join(require.Modes, ","))
+			fmt.Fprintf(s, "\n\t    - %vx %v with mode %v", require.Count, require.Filter, strings.Join(require.Modes, ","))
 		}
 	}
 
