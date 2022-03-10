@@ -125,3 +125,44 @@ func TestSendReceive(t *testing.T) {
 		require.Equal(t, recv, msg.GetData().Bytes, "unexpected bytes received")
 	}
 }
+
+func TestSplitServerID(t *testing.T) {
+	tests := []struct {
+		serverID          string
+		expectServerID    string
+		expectClusterName string
+		assertErr         require.ErrorAssertionFunc
+	}{
+		{
+			"id.localhost",
+			"id",
+			"localhost",
+			require.NoError,
+		},
+		{
+			"id",
+			"id",
+			"",
+			require.NoError,
+		},
+		{
+			"id.teleport.example.com",
+			"id",
+			"teleport.example.com",
+			require.NoError,
+		},
+		{
+			"",
+			"",
+			"",
+			require.Error,
+		},
+	}
+
+	for _, tc := range tests {
+		id, cluster, err := splitServerID(tc.serverID)
+		require.Equal(t, tc.expectServerID, id)
+		require.Equal(t, tc.expectClusterName, cluster)
+		tc.assertErr(t, err)
+	}
+}
