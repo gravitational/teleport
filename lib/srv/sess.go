@@ -805,7 +805,7 @@ outer:
 }
 
 func (s *session) BroadcastMessage(format string, args ...interface{}) {
-	if s.access.IsModerated() {
+	if s.access.IsModerated() && services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode()) {
 		err := s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 
 		if err != nil {
@@ -1542,6 +1542,9 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 				s.state = types.SessionState_SessionStateRunning
 				s.stateUpdate.Broadcast()
 			}
+		} else if services.IsRecordAtProxy(p.ctx.SessionRecordingConfig.GetMode()) {
+			go s.Close()
+			return trace.AccessDenied("session requires additional moderation but is in proxy-record mode")
 		} else if !s.started {
 			var additionalFormat string
 			var additionalItem string
