@@ -2208,7 +2208,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// ListNodes expect labels as a value of host
 	tc.Host = ""
-	servers, err := tc.ListNodes(ctx)
+	servers, err := tc.ListNodesWithFilters(ctx)
 	require.NoError(t, err)
 	require.Len(t, servers, 2)
 	tc.Host = Loopback
@@ -3043,7 +3043,6 @@ func waitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, 
 			return nil
 		}
 		return trace.BadParameter("did not find %v nodes", count)
-
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4644,7 +4643,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 
 			// Get list of nodes and check that the returned nodes match the
 			// expected nodes.
-			nodes, err := userClt.ListNodes(context.Background())
+			nodes, err := userClt.ListNodesWithFilters(context.Background())
 			require.NoError(t, err)
 			for _, node := range nodes {
 				ok := apiutils.SliceContainsStr(tt.outNodes, node.GetHostname())
@@ -5025,7 +5024,7 @@ func testSSHExitCode(t *testing.T, suite *integrationTestSuite) {
 	lsPath, err := exec.LookPath("ls")
 	require.NoError(t, err)
 
-	var tests = []struct {
+	tests := []struct {
 		desc           string
 		command        []string
 		input          string
