@@ -63,7 +63,8 @@ You'll need to replace these values in the policy example below:
                 "dynamodb:GetShardIterator",
                 "dynamodb:GetItem",
                 "dynamodb:UpdateTable",
-                "dynamodb:GetRecords"
+                "dynamodb:GetRecords",
+                "dynamodb:UpdateContinuousBackups"
             ],
             "Resource": [
                 "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-backend",
@@ -85,7 +86,8 @@ You'll need to replace these values in the policy example below:
                 "dynamodb:Query",
                 "dynamodb:UpdateItem",
                 "dynamodb:DescribeTimeToLive",
-                "dynamodb:UpdateTable"
+                "dynamodb:UpdateTable",
+                "dynamodb:UpdateContinuousBackups"
             ],
             "Resource": [
                 "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-events",
@@ -134,6 +136,30 @@ You'll need to replace these values in the policy example below:
 }
 ```
 
+## Step 4/7. TLS certificates for Teleport
+
+The `teleport-cluster` chart deploys a Kubernetes `LoadBalancer` to handle incoming connections to the Teleport proxy server.
+
+We now need to configure TLS certificates for Teleport to secure its communications and allow external clients to connect.
+
+There are two supported options when using AWS:
+- Use `cert-manager` to provision and automatically renew ACME certs (described in [Step 4a](#step-4a7-install-and-configure-cert-manager-to-handle-tls)).
+  - This approach is recommended if you require CLI access to web applications using client certificates via Teleport Application access.
+- Use AWS Certificate Manager to handle TLS termination with AWS-managed certificates (described in [Step 4b](#step-4b7-configure-teleport-to-use-acm-to-handle-tls)).
+  - This will prevent Teleport Application access from working via CLI using client certificates. Application access will still work via a browser.
+
+You must choose only one of these options.
+
+
+## Step 4a/7. Install and configure cert-manager to handle TLS
+
+In this example, we are using multiple pods to create a High Availability Teleport cluster. As such, we will be using
+`cert-manager` to centrally provision TLS certificates using Let's Encrypt. These certificates will be mounted into each
+Teleport pod, and automatically renewed and kept up to date by `cert-manager`.
+
+If you are planning to use `cert-manager`, you will need to add one IAM policy to your cluster to enable it
+to update Route53 records.
+
 ### Route53 IAM policy
 
 This policy allows `cert-manager` to use DNS01 Let's Encrypt challenges to provision TLS certificates for your Teleport cluster.
@@ -165,13 +191,7 @@ You'll need to replace these values in the policy example below:
 }
 ```
 
-## Step 4/7. Install and configure cert-manager
-
-Reference: [`cert-manager` docs](https://cert-manager.io/docs/)
-
-In this example, we are using multiple pods to create a High Availability Teleport cluster. As such, we will be using
-`cert-manager` to centrally provision TLS certificates using Let's Encrypt. These certificates will be mounted into each
-Teleport pod, and automatically renewed and kept up to date by `cert-manager`.
+### Installing cert-manager
 
 If you do not have `cert-manager` already configured in the Kubernetes cluster where you are installing Teleport,
 you should add the Jetstack Helm chart repository which hosts the `cert-manager` chart, and install the chart:
@@ -228,7 +248,57 @@ $ kubectl create namespace teleport
 $ kubectl --namespace teleport create -f aws-issuer.yaml
 ```
 
-## Step 5/7. Set values to configure the cluster
+## Step 4b/7. Configure Teleport to use ACM to handle TLS
+
+<Admonition type="warning" title="Command-line Teleport Application access does not work with ACM">
+  Using ACM will prevent Teleport from handling application access via CLI (using client certificates), as Teleport
+  will not be handling its own TLS termination.
+
+  If you need to use Teleport application access from the command line, you should use `cert-manager` instead (as described in
+  [Step 4a](#step-4a7-install-and-configure-cert-manager-to-handle-tls) above).
+</Admonition>
+
+To use ACM to handle TLS, add annotations to the chart specifying the ACM certificate ARN to use and the port it should be served on.
+
+Replace `arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece` with your actual ACM certificate ARN.
+
+<Tabs>
+  <TabItem label="Using values.yaml">
+  ```yaml
+  annotations:
+    service:
+      service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece"
+      service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+      service.beta.kubernetes.io/aws-load-balancer-backend-protocol: ssl
+  ```
+  </TabItem>
+
+  <TabItem label="Using --set via CLI">
+
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. This gets harder and harder with
+    nested values containing dots like AWS annotations. We recommend using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+
+  ```code
+    --set "annotations.service.service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert=arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece" \
+    --set "annotations.service.service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports=\"443\"" \
+    --set "annotations.service.service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol=ssl"
+  ```
+  </TabItem>
+</Tabs>
+
+<Admonition type="note" title="Internal load balancers">
+  To use an internal AWS network load balancer (as opposed to the default internet-facing NLB), you should add two annotations:
+
+  ```yaml
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+  ```
+</Admonition>
+
+
+## Step 5. Set values to configure the cluster
 
 There are two different ways to configure the `teleport-cluster` Helm chart to use `aws` mode - using a `values.yaml` file, or using `--set`
 on the command line.
@@ -459,3 +529,5 @@ You can follow our [Getting Started with Teleport guide](../../../setup/guides/d
 Teleport cluster.
 
 See the [high availability section of our Helm chart reference](../reference/teleport-cluster.mdx#highavailability) for more details on high availability.
+
+Reference: [`cert-manager` docs](https://cert-manager.io/docs/).
