@@ -689,7 +689,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		stateUpdate:         sync.NewCond(&sync.Mutex{}),
 		doneCh:              make(chan struct{}, 2),
 		initiator:           ctx.Identity.TeleportUser,
-		verboseRequirements: ctx.env[teleport.EnvSSHSessionVerboseRequirements] == "true",
+		verboseRequirements: utils.AsBool(ctx.env[teleport.EnvSSHSessionVerboseRequirements]),
 	}
 
 	go func() {

@@ -353,6 +353,10 @@ type Config struct {
 
 	// Invited is a list of people invited to a session.
 	Invited []string
+
+	// VerboseParticipantRequirements is set if debug information about participants requirements
+	// should be printed in moderated sessions.
+	VerboseParticipantRequirements bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -2106,7 +2110,7 @@ func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, 
 	env := make(map[string]string)
 	env[teleport.EnvSSHJoinMode] = string(mode)
 	env[teleport.EnvSSHSessionReason] = tc.Config.Reason
-
+	env[teleport.EnvSSHSessionVerboseRequirements] = strconv.FormatBool(tc.Config.VerboseParticipantRequirements)
 	encoded, err := json.Marshal(&tc.Config.Invited)
 	if err != nil {
 		return trace.Wrap(err)
