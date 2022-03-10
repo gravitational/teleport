@@ -352,7 +352,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
 	// add Node token generation
-	h.POST("/webapi/nodes/token", h.WithAuth(h.createScriptJoinTokenHandle))
+	h.POST("/webapi/nodes/token", h.WithAuth(h.createNodeTokenHandle))
+	// join scripts
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
 	// web context
