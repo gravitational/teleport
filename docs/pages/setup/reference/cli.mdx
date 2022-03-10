@@ -313,7 +313,9 @@ $ tsh play --format=json ~/play/0c0b81ed-91a9-4a2a-8d7c-7495891a6ca0.tar | jq '.
 
 ### tsh proxy app
 
-Start a local TLS proxy for Application Access connections when using Teleport in single-port mode.
+Starts a local TLS proxy for Application Access connections. 
+You can use this proxy to connect to an application repeatedly after a single login to your Teleport cluster,
+which is especially useful for interacting with an application via a CLI.
 
 ```code
 $ tsh proxy app [<flags>] <app>
