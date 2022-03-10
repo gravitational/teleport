@@ -178,6 +178,6 @@ void free_rust_string(char *s);
 
 extern void free_go_string(char *s);
 
-extern CGOError handle_bitmap(uintptr_t client_ref, struct CGOBitmap b);
+extern CGOError handle_bitmap(uintptr_t client_ref, struct CGOBitmap *b);
 
 extern CGOError handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t len);

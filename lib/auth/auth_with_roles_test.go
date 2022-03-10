@@ -2163,3 +2163,241 @@ func TestListResources_NeedTotalCountFlag(t *testing.T) {
 	require.NotEmpty(t, resp.NextKey)
 	require.Empty(t, resp.TotalCount)
 }
+
+func TestGetAndList_WindowsDesktops(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test desktops.
+	for i := 0; i < 5; i++ {
+		name := uuid.New().String()
+		desktop, err := types.NewWindowsDesktopV3(name, map[string]string{"name": name},
+			types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
+		require.NoError(t, err)
+		require.NoError(t, srv.Auth().UpsertWindowsDesktop(ctx, desktop))
+	}
+
+	// Test all has been upserted.
+	testDesktops, err := srv.Auth().GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+	require.NoError(t, err)
+	require.Len(t, testDesktops, 5)
+
+	testResources := types.WindowsDesktops(testDesktops).AsResources()
+
+	// Create user, role, and client.
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// Base request.
+	listRequest := proto.ListResourcesRequest{
+		ResourceType: types.KindWindowsDesktop,
+		Limit:        int32(len(testDesktops) + 1),
+	}
+
+	// Permit user to get the first desktop.
+	role.SetWindowsDesktopLabels(types.Allow, types.Labels{"name": {testDesktops[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	desktops, err := clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, len(desktops))
+	require.Empty(t, cmp.Diff(testDesktops[0:1], desktops))
+
+	resp, err := clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+	require.Empty(t, resp.NextKey)
+	require.Empty(t, resp.TotalCount)
+
+	// Permit user to get all desktops.
+	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	desktops, err = clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+	require.NoError(t, err)
+	require.EqualValues(t, len(testDesktops), len(desktops))
+	require.Empty(t, cmp.Diff(testDesktops, desktops))
+
+	resp, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resp.Resources))
+	require.Empty(t, resp.NextKey)
+	require.Empty(t, resp.TotalCount)
+
+	// Test sorting is supported.
+	withSort := listRequest
+	withSort.SortBy = types.SortBy{IsDesc: true, Field: types.ResourceMetadataName}
+	resp, err = clt.ListResources(ctx, withSort)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, len(testResources))
+	desktops, err = types.ResourcesWithLabels(resp.Resources).AsWindowsDesktops()
+	require.NoError(t, err)
+	names, err := types.WindowsDesktops(desktops).GetFieldVals(types.ResourceMetadataName)
+	require.NoError(t, err)
+	require.IsDecreasing(t, names)
+
+	// Filter by labels.
+	withLabels := listRequest
+	withLabels.Labels = map[string]string{"name": testDesktops[0].GetName()}
+	resp, err = clt.ListResources(ctx, withLabels)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+	require.Empty(t, resp.NextKey)
+	require.Empty(t, resp.TotalCount)
+
+	// Test search keywords match.
+	withSearchKeywords := listRequest
+	withSearchKeywords.SearchKeywords = []string{"name", testDesktops[0].GetName()}
+	resp, err = clt.ListResources(ctx, withSearchKeywords)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// Test predicate match.
+	withExpression := listRequest
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testDesktops[0].GetName())
+	resp, err = clt.ListResources(ctx, withExpression)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// Deny user to get the first desktop.
+	role.SetWindowsDesktopLabels(types.Deny, types.Labels{"name": {testDesktops[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	desktops, err = clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+	require.NoError(t, err)
+	require.EqualValues(t, len(testDesktops[1:]), len(desktops))
+	require.Empty(t, cmp.Diff(testDesktops[1:], desktops))
+
+	resp, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, len(testResources[1:]))
+	require.Empty(t, cmp.Diff(testResources[1:], resp.Resources))
+
+	// Deny user all desktops.
+	role.SetWindowsDesktopLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	desktops, err = clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+	require.NoError(t, err)
+	require.EqualValues(t, 0, len(desktops))
+	require.Empty(t, cmp.Diff([]types.WindowsDesktop{}, desktops))
+
+	resp, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 0)
+	require.Empty(t, cmp.Diff([]types.ResourceWithLabels{}, resp.Resources))
+}
+
+func TestListResources_KindKubernetesCluster(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, TestBuiltin(types.RoleProxy).I))
+	require.NoError(t, err)
+
+	s := &ServerWithRoles{
+		authServer: srv.AuthServer,
+		sessions:   srv.SessionServer,
+		alog:       srv.AuditLog,
+		context:    *authContext,
+	}
+
+	testNames := []string{"a", "b", "c", "d"}
+
+	// Add some kube services.
+	kubeService, err := types.NewServer("bar", types.KindKubeService, types.ServerSpecV2{
+		KubernetesClusters: []*types.KubernetesCluster{{Name: "d"}, {Name: "b"}, {Name: "a"}},
+	})
+	require.NoError(t, err)
+	_, err = s.UpsertKubeServiceV2(ctx, kubeService)
+	require.NoError(t, err)
+
+	// Include a duplicate cluster name to test deduplicate.
+	kubeService, err = types.NewServer("foo", types.KindKubeService, types.ServerSpecV2{
+		KubernetesClusters: []*types.KubernetesCluster{{Name: "a"}, {Name: "c"}},
+	})
+	require.NoError(t, err)
+	_, err = s.UpsertKubeServiceV2(ctx, kubeService)
+	require.NoError(t, err)
+
+	// Test upsert.
+	kubeservices, err := s.GetKubeServices(ctx)
+	require.NoError(t, err)
+	require.Len(t, kubeservices, 2)
+
+	t.Run("fetch all", func(t *testing.T) {
+		t.Parallel()
+
+		res, err := s.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindKubernetesCluster,
+			Limit:        10,
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Resources, len(testNames))
+		require.Empty(t, res.NextKey)
+		require.Empty(t, res.TotalCount)
+
+		clusters, err := types.ResourcesWithLabels(res.Resources).AsKubeClusters()
+		require.NoError(t, err)
+		names, err := types.KubeClusters(clusters).GetFieldVals(types.ResourceMetadataName)
+		require.NoError(t, err)
+		require.ElementsMatch(t, names, testNames)
+	})
+
+	t.Run("start keys", func(t *testing.T) {
+		t.Parallel()
+
+		// First fetch.
+		res, err := s.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindKubernetesCluster,
+			Limit:        1,
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Resources, 1)
+		require.Equal(t, kubeservices[0].GetKubernetesClusters()[1].Name, res.NextKey)
+
+		// Second fetch.
+		res, err = s.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindKubernetesCluster,
+			Limit:        1,
+			StartKey:     res.NextKey,
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Resources, 1)
+		require.Equal(t, kubeservices[0].GetKubernetesClusters()[2].Name, res.NextKey)
+	})
+
+	t.Run("fetch with sort and total count", func(t *testing.T) {
+		t.Parallel()
+		res, err := s.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindKubernetesCluster,
+			Limit:        10,
+			SortBy: types.SortBy{
+				IsDesc: true,
+				Field:  types.ResourceMetadataName,
+			},
+			NeedTotalCount: true,
+		})
+		require.NoError(t, err)
+		require.Empty(t, res.NextKey)
+		require.Len(t, res.Resources, len(testNames))
+		require.Equal(t, res.TotalCount, len(testNames))
+
+		clusters, err := types.ResourcesWithLabels(res.Resources).AsKubeClusters()
+		require.NoError(t, err)
+		names, err := types.KubeClusters(clusters).GetFieldVals(types.ResourceMetadataName)
+		require.NoError(t, err)
+		require.IsDecreasing(t, names)
+	})
+}
