@@ -192,6 +192,11 @@ elif [[ "${ARCH}" == "arm64" ]]; then
     TEXT_ARCH="ARMv8/ARM64"
 fi
 
+# amd64 RPMs should use CentOS 7 compatible artifacts
+if [[ "${PACKAGE_TYPE}" == "rpm" && "${ARCH}" == "x86_64" ]]; then
+    OPTINAL_TARBALL_SECTION+="-centos7"
+fi
+
 # set optional runtime section for filename
 if [[ "${RUNTIME}" == "fips" ]]; then
     OPTIONAL_RUNTIME_SECTION+="-fips"
@@ -199,7 +204,7 @@ fi
 
 # set variables appropriately depending on type of package being built
 if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
-    TARBALL_FILENAME="teleport-ent-v${TELEPORT_VERSION}-${PLATFORM}-${FILENAME_ARCH}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
+    TARBALL_FILENAME="teleport-ent-v${TELEPORT_VERSION}-${PLATFORM}-${FILENAME_ARCH}${OPTINAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
     URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport-ent"
     RPM_NAME="teleport-ent"
@@ -210,7 +215,7 @@ if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
         TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition]"
     fi
 else
-    TARBALL_FILENAME="teleport-v${TELEPORT_VERSION}-${PLATFORM}-${FILENAME_ARCH}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
+    TARBALL_FILENAME="teleport-v${TELEPORT_VERSION}-${PLATFORM}-${FILENAME_ARCH}${OPTINAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
     URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport"
     RPM_NAME="teleport"
