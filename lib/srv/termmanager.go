@@ -268,8 +268,9 @@ func (g *TermManager) CountRead() uint64 {
 }
 
 func (g *TermManager) Close() {
-	close(g.terminateNotifier)
-	atomic.StoreInt32(g.closed, 1)
+	if atomic.CompareAndSwapInt32(g.closed, 0, 1) {
+		close(g.terminateNotifier)
+	}
 }
 
 func (g *TermManager) GetRecentHistory() []byte {
