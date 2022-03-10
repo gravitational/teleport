@@ -1831,13 +1831,21 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := clt.GetNodes(r.Context(), apidefaults.Namespace)
+
+	resp, err := listResources(clt, r, types.KindNode)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resp.Resources).AsServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items: ui.MakeServers(site.GetName(), servers),
+		Items:      ui.MakeServers(site.GetName(), servers),
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
 	}, nil
 }
 
@@ -1859,8 +1867,8 @@ func (h *Handler) siteNodeConnect(
 	r *http.Request,
 	p httprouter.Params,
 	ctx *SessionContext,
-	site reversetunnel.RemoteSite) (interface{}, error) {
-
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	q := r.URL.Query()
 	params := q.Get("params")
 	if params == "" {

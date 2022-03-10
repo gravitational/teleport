@@ -536,7 +536,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 
 	err = s.server.Auth().CreateSAMLConnector(connector)
 	c.Assert(err, IsNil)
-	s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC)))
+	s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 0o5, 10, 18, 53, 0, 0, time.UTC)))
 	clt := s.clientNoRedirects()
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
@@ -772,6 +772,7 @@ func TestClusterNodesGet(t *testing.T) {
 	nodes := clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
 	require.Len(t, nodes.Items, 1)
+	require.Equal(t, nodes.TotalCount, 1)
 
 	// Get nodes using shortcut.
 	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
@@ -2035,7 +2036,8 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.NoError(t, err)
 
 	type testResponse struct {
-		Items []ui.Database `json:"items"`
+		Items      []ui.Database `json:"items"`
+		TotalCount int           `json:"totalCount"`
 	}
 
 	// No db registered.
@@ -2065,6 +2067,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	resp = testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
+	require.Equal(t, resp.TotalCount, 1)
 	require.EqualValues(t, ui.Database{
 		Name:     "test-db-name",
 		Desc:     "test-description",
@@ -2085,7 +2088,8 @@ func TestClusterKubesGet(t *testing.T) {
 	require.NoError(t, err)
 
 	type testResponse struct {
-		Items []ui.Kube `json:"items"`
+		Items      []ui.KubeCluster `json:"items"`
+		TotalCount int              `json:"totalCount"`
 	}
 
 	// No kube registered.
@@ -2120,9 +2124,70 @@ func TestClusterKubesGet(t *testing.T) {
 	resp = testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
-	require.EqualValues(t, ui.Kube{
+	require.Equal(t, resp.TotalCount, 1)
+	require.EqualValues(t, ui.KubeCluster{
 		Name:   "test-kube-name",
 		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
+	}, resp.Items[0])
+}
+
+func TestClusterAppsGet(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com")
+
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "apps")
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	type testResponse struct {
+		Items      []ui.App `json:"items"`
+		TotalCount int      `json:"totalCount"`
+	}
+
+	resource := &types.AppServerV3{
+		Metadata: types.Metadata{Name: "test-app"},
+		Kind:     types.KindAppServer,
+		Version:  types.V2,
+		Spec: types.AppServerSpecV3{
+			HostID: "hostid",
+			App: &types.AppV3{
+				Metadata: types.Metadata{
+					Name:        "name",
+					Description: "description",
+					Labels:      map[string]string{"test-field": "test-value"},
+				},
+				Spec: types.AppSpecV3{
+					URI:        "https://console.aws.amazon.com", // sets field awsConsole to true
+					PublicAddr: "publicaddrs",
+				},
+			},
+		},
+	}
+
+	// Register a app service.
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
+	require.NoError(t, err)
+
+	// Make the call.
+	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	// Test correct response.
+	resp := testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, resp.TotalCount, 1)
+	require.EqualValues(t, ui.App{
+		Name:        resource.Spec.App.GetName(),
+		Description: resource.Spec.App.GetDescription(),
+		URI:         resource.Spec.App.GetURI(),
+		PublicAddr:  resource.Spec.App.GetPublicAddr(),
+		Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
+		FQDN:        resource.Spec.App.GetPublicAddr(),
+		ClusterID:   env.server.ClusterName(),
+		AWSConsole:  true,
 	}, resp.Items[0])
 }
 
@@ -3306,8 +3371,8 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 }
 
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *auth.TestTLSServer,
-	hostSigners []ssh.Signer, clock clockwork.FakeClock) *proxy {
-
+	hostSigners []ssh.Signer, clock clockwork.FakeClock,
+) *proxy {
 	// create reverse tunnel service:
 	client, err := authServer.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
