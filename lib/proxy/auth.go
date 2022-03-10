@@ -55,7 +55,7 @@ func (c *proxyCredentials) ServerHandshake(conn net.Conn) (net.Conn, credentials
 	return conn, authInfo, nil
 }
 
-// ServerHandshake wraps a client handshake with an additional check for the
+// ClientHandshake wraps a client handshake with an additional check for the
 // proxy role.
 func (c *proxyCredentials) ClientHandshake(ctx context.Context, laddr string, conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
 	conn, authInfo, err := c.TransportCredentials.ClientHandshake(ctx, laddr, conn)
