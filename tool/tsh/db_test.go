@@ -368,15 +368,17 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 	}
 
 	tests := []struct {
-		name       string
-		dbProtocol string
-		execer     *fakeExec
-		cmd        []string
-		wantErr    bool
+		name         string
+		dbProtocol   string
+		databaseName string
+		execer       *fakeExec
+		cmd          []string
+		wantErr      bool
 	}{
 		{
-			name:       "postgres",
-			dbProtocol: defaults.ProtocolPostgres,
+			name:         "postgres",
+			dbProtocol:   defaults.ProtocolPostgres,
+			databaseName: "mydb",
 			cmd: []string{"psql",
 				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
 					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
@@ -384,8 +386,9 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:       "cockroach",
-			dbProtocol: defaults.ProtocolCockroachDB,
+			name:         "cockroach",
+			dbProtocol:   defaults.ProtocolCockroachDB,
+			databaseName: "mydb",
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"cockroach": []byte(""),
@@ -398,9 +401,10 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:       "cockroach psql fallback",
-			dbProtocol: defaults.ProtocolCockroachDB,
-			execer:     &fakeExec{},
+			name:         "cockroach psql fallback",
+			dbProtocol:   defaults.ProtocolCockroachDB,
+			databaseName: "mydb",
+			execer:       &fakeExec{},
 			cmd: []string{"psql",
 				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
 					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
@@ -408,8 +412,9 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:       "mariadb",
-			dbProtocol: defaults.ProtocolMySQL,
+			name:         "mariadb",
+			dbProtocol:   defaults.ProtocolMySQL,
+			databaseName: "mydb",
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"mariadb": []byte(""),
@@ -428,8 +433,9 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:       "mysql by mariadb",
-			dbProtocol: defaults.ProtocolMySQL,
+			name:         "mysql by mariadb",
+			dbProtocol:   defaults.ProtocolMySQL,
+			databaseName: "mydb",
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"mysql": []byte("mysql  Ver 15.1 Distrib 10.3.32-MariaDB, for debian-linux-gnu (x86_64) using readline 5.2"),
@@ -448,8 +454,9 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:       "mysql by oracle",
-			dbProtocol: defaults.ProtocolMySQL,
+			name:         "mysql by oracle",
+			dbProtocol:   defaults.ProtocolMySQL,
+			databaseName: "mydb",
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"mysql": []byte("Ver 8.0.27-0ubuntu0.20.04.1 for Linux on x86_64 ((Ubuntu))"),
@@ -465,8 +472,9 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:       "no mysql nor mariadb",
-			dbProtocol: defaults.ProtocolMySQL,
+			name:         "no mysql nor mariadb",
+			dbProtocol:   defaults.ProtocolMySQL,
+			databaseName: "mydb",
 			execer: &fakeExec{
 				execOutput: map[string][]byte{},
 			},
@@ -474,8 +482,9 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:       "mongodb (legacy)",
-			dbProtocol: defaults.ProtocolMongoDB,
+			name:         "mongodb (legacy)",
+			dbProtocol:   defaults.ProtocolMongoDB,
+			databaseName: "mydb",
 			execer: &fakeExec{
 				execOutput: map[string][]byte{},
 			},
@@ -488,8 +497,9 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:       "mongosh",
-			dbProtocol: defaults.ProtocolMongoDB,
+			name:         "mongosh",
+			dbProtocol:   defaults.ProtocolMongoDB,
+			databaseName: "mydb",
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"mongosh": []byte("1.1.6"),
@@ -501,6 +511,41 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 				"--tls",
 				"--tlsCertificateKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"mydb"},
+		},
+		{
+			name:         "sqlserver",
+			dbProtocol:   defaults.ProtocolSQLServer,
+			databaseName: "mydb",
+			cmd: []string{mssqlBin,
+				"-S", "localhost,12345",
+				"-U", "myUser",
+				"-P", fixtures.UUID,
+				"-d", "mydb",
+			},
+			wantErr: false,
+		},
+		{
+			name:       "redis-cli",
+			dbProtocol: defaults.ProtocolRedis,
+			cmd: []string{"redis-cli",
+				"--tls",
+				"-h", "localhost",
+				"-p", "12345",
+				"--key", "/tmp/keys/example.com/bob",
+				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"},
+			wantErr: false,
+		},
+		{
+			name:         "redis-cli with db",
+			dbProtocol:   defaults.ProtocolRedis,
+			databaseName: "2",
+			cmd: []string{"redis-cli",
+				"--tls",
+				"-h", "localhost",
+				"-p", "12345",
+				"--key", "/tmp/keys/example.com/bob",
+				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
+				"-n", "2"},
 			wantErr: false,
 		},
 	}
@@ -512,12 +557,13 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 
 			database := &tlsca.RouteToDatabase{
 				Protocol:    tt.dbProtocol,
-				Database:    "mydb",
+				Database:    tt.databaseName,
 				Username:    "myUser",
 				ServiceName: "mysql",
 			}
 
 			c := newCmdBuilder(tc, profile, database, "root", WithLocalProxy("localhost", 12345, ""))
+			c.uid = utils.NewFakeUID()
 			c.exe = tt.execer
 			got, err := c.getConnectCommand()
 			if tt.wantErr {

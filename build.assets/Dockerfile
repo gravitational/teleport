@@ -69,8 +69,8 @@ RUN apt-get update -y --fix-missing && \
     rm -rf /var/lib/apt/lists/*
 
 # Install gcloud SDK and Firestore emulator.
-RUN curl -sSL https://sdk.cloud.google.com | bash
-ENV PATH="$PATH:/root/google-cloud-sdk/bin"
+RUN curl -sSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts
+ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
 # beta component is required by firestore emulator: https://cloud.google.com/sdk/gcloud/reference/beta/emulators/firestore/start
 RUN gcloud components install cloud-firestore-emulator beta
 
@@ -84,8 +84,8 @@ RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9
      cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/)
 
 # Install Go.
-ARG RUNTIME
-RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNTIME.linux-${BUILDARCH}.tar.gz | tar xz && \
+ARG GOLANG_VERSION
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -105,9 +105,9 @@ ENV GOPATH="/go" \
 # Install addlicense
 RUN go install github.com/google/addlicense@v1.0.0
 
-# Install meta-linter.
-RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.38.0/golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
-     cp golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
+# Install golangci-lint.
+RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.44.0/golangci-lint-1.44.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
+     cp golangci-lint-1.44.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
      rm -r golangci-lint*)
 
 # Install helm.

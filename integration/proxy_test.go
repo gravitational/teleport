@@ -247,14 +247,14 @@ func TestALPNSNIProxyKube(t *testing.T) {
 	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvr.URL, localK8SNI))
 
 	username := mustGetCurrentUser(t).Username
-	kubeRoleSpec := types.RoleSpecV4{
+	kubeRoleSpec := types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: []string{testImpersonationGroup},
 			KubeUsers:  []string{k8User},
 		},
 	}
-	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
+	kubeRole, err := types.NewRoleV3(k8RoleName, kubeRoleSpec)
 	require.NoError(t, err)
 
 	suite := newProxySuite(t,
@@ -299,14 +299,14 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvr.URL, localK8SNI))
 
 	username := mustGetCurrentUser(t).Username
-	kubeRoleSpec := types.RoleSpecV4{
+	kubeRoleSpec := types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: []string{testImpersonationGroup},
 			KubeUsers:  []string{k8User},
 		},
 	}
-	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
+	kubeRole, err := types.NewRoleV3(k8RoleName, kubeRoleSpec)
 	require.NoError(t, err)
 
 	suite := newProxySuite(t,
@@ -545,7 +545,7 @@ func TestALPNProxyRootLeafAuthDial(t *testing.T) {
 		withTrustedCluster(),
 	)
 
-	client, err := suite.root.NewClient(t, ClientConfig{
+	client, err := suite.root.NewClient(ClientConfig{
 		Login:   username,
 		Cluster: suite.root.Hostname,
 	})
@@ -673,7 +673,7 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 	ctx := context.Background()
 	output := &bytes.Buffer{}
 	cmd := []string{"echo", "hello world"}
-	tc, err := rc.NewClient(t, cfg)
+	tc, err := rc.NewClient(cfg)
 	require.NoError(t, err)
 	tc.Stdout = output
 

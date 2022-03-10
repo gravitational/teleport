@@ -52,7 +52,8 @@ const (
 	// CurrentVersion is a current API version
 	CurrentVersion = types.V2
 
-	// MissingNamespaceError is a _very_ common error this file generatets
+	// MissingNamespaceError indicates that the client failed to
+	// provide the namespace in the request.
 	MissingNamespaceError = "missing required parameter: namespace"
 )
 
@@ -542,7 +543,7 @@ func (c *Client) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via GenerateToken.
-func (c *Client) RegisterUsingToken(req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -551,6 +552,18 @@ func (c *Client) RegisterUsingToken(req types.RegisterUsingTokenRequest) (*proto
 		return nil, trace.Wrap(err)
 	}
 
+	var certs proto.Certs
+	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If we got certs, we're done, however, we may be talking to a Teleport 9 or earlier server,
+	// which still sends back the legacy JSON format.
+	if len(certs.SSH) > 0 && len(certs.TLS) > 0 {
+		return &certs, nil
+	}
+
+	// DELETE IN 10.0.0 (zmb3)
 	return UnmarshalLegacyCerts(out.Bytes())
 }
 
@@ -908,19 +921,6 @@ func (c *Client) DeleteProxy(name string) error {
 	return nil
 }
 
-// GetU2FAppID returns U2F settings, like App ID and Facets
-func (c *Client) GetU2FAppID() (string, error) {
-	out, err := c.Get(c.Endpoint("u2f", "appID"), url.Values{})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var appid string
-	if err := json.Unmarshal(out.Bytes(), &appid); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return appid, nil
-}
-
 // UpsertPassword updates web access password for the user
 func (c *Client) UpsertPassword(user string, password []byte) error {
 	_, err := c.PostJSON(
@@ -943,6 +943,11 @@ func (c *Client) UpsertUser(user types.User) error {
 	}
 	_, err = c.PostJSON(c.Endpoint("users"), &upsertUserRawReq{User: data})
 	return trace.Wrap(err)
+}
+
+// CompareAndSwapUser not implemented: can only be called locally
+func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.User) error {
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // ChangePassword updates users password based on the old password.
@@ -1368,7 +1373,7 @@ func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, 
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (c *Client) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	return c.APIClient.StreamSessionEvents(ctx, string(sessionID), startIndex)
@@ -1543,12 +1548,17 @@ func (c *Client) DeleteAllRoles() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// ListWindowsDesktops not implemented: can only be called locally.
+func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // DeleteAllUsers not implemented: can only be called locally.
 func (c *Client) DeleteAllUsers() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+func (c *Client) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
 	validateRequestRaw, err := validateRequest.ToRaw()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1580,6 +1590,21 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 		TTL:  proto.Duration(req.TTL),
 		Type: req.Type,
 	})
+}
+
+// CreateBot creates a bot and associated resources.
+func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+	return c.APIClient.CreateBot(ctx, req)
+}
+
+// DeleteBot deletes a certificate renewal bot and associated resources.
+func (c *Client) DeleteBot(ctx context.Context, botName string) error {
+	return c.APIClient.DeleteBot(ctx, botName)
+}
+
+// GetBotUsers fetches all bot users.
+func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
+	return c.APIClient.GetBotUsers(ctx)
 }
 
 // GetAppServers gets all application servers.
@@ -1662,6 +1687,10 @@ func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
 
 // DeleteAllLocks not implemented: can only be called locally.
 func (c *Client) DeleteAllLocks(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -1751,6 +1780,10 @@ type IdentityService interface {
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user types.User) error
 
+	// CompareAndSwapUser updates an existing user in a backend, but fails if
+	// the user in the backend does not match the expected value.
+	CompareAndSwapUser(ctx context.Context, new, expected types.User) error
+
 	// DeleteUser deletes an existng user in a backend by username.
 	DeleteUser(ctx context.Context, user string) error
 
@@ -1803,6 +1836,13 @@ type IdentityService interface {
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
+	// CreateBot creates a new certificate renewal bot and associated resources.
+	CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error)
+	// DeleteBot removes a certificate renewal bot and associated resources.
+	DeleteBot(ctx context.Context, botName string) error
+	// GetBotUsers gets all bot users.
+	GetBotUsers(ctx context.Context) ([]types.User, error)
+
 	// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
 	// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
 	ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error)
@@ -1824,6 +1864,9 @@ type IdentityService interface {
 	CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
 	// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
 	CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error)
+
+	// MaintainSessionPresence establishes a channel used to continuously verify the presence for a session.
+	MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error)
 
 	// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
 	// This token is used as part of a URL that will be emailed to the user (not done in this request).
@@ -1872,7 +1915,7 @@ type ProvisioningService interface {
 
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
-	RegisterUsingToken(req types.RegisterUsingTokenRequest) (*proto.Certs, error)
+	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
 
 	// RegisterNewAuthServer is used to register new auth server with token
 	RegisterNewAuthServer(ctx context.Context, token string) error
@@ -1897,6 +1940,7 @@ type ClientI interface {
 	WebService
 	session.Service
 	services.ClusterConfiguration
+	services.SessionTrackerService
 	types.Events
 
 	types.WebSessionsGetter
@@ -1916,7 +1960,7 @@ type ClientI interface {
 	// ValidateTrustedCluster validates trusted cluster token with
 	// main cluster, in case if validation is successful, main cluster
 	// adds remote cluster
-	ValidateTrustedCluster(*ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
+	ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
 
 	// GetDomainName returns auth server cluster name
 	GetDomainName() (string, error)

@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -54,10 +55,10 @@ import (
 	"github.com/gravitational/teleport/lib/web/app"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/websocket"
 )
 
 // TestAppAccessForward tests that requests get forwarded to the target application
@@ -136,7 +137,7 @@ func TestAppAccessWebsockets(t *testing.T) {
 		{
 			desc:     "invalid application session cookie, websocket request fails to dial",
 			inCookie: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-			err:      &websocket.DialError{},
+			err:      errors.New(""),
 		},
 	}
 	for _, tt := range tests {
@@ -634,18 +635,53 @@ func TestAppAuditEvents(t *testing.T) {
 
 func TestAppServersHA(t *testing.T) {
 	testCases := map[string]struct {
-		publicAddr  func(pack *pack) string
-		makeRequest func(pack *pack, inCookie string) (status int, err error)
+		packInfo        func(pack *pack) (cluterName, publicAddr string, appServers []*service.TeleportProcess)
+		startAppServers func(pack *pack, count int) []*service.TeleportProcess
+		makeRequest     func(pack *pack, inCookie string) (status int, err error)
 	}{
-		"HTTPApp": {
-			publicAddr: func(pack *pack) string { return pack.rootAppPublicAddr },
+		"RootHTTPApp": {
+			packInfo: func(pack *pack) (string, string, []*service.TeleportProcess) {
+				return pack.rootAppClusterName, pack.rootAppPublicAddr, pack.rootAppServers
+			},
+			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
+				return pack.startRootAppServers(t, count, []service.App{})
+			},
 			makeRequest: func(pack *pack, inCookie string) (int, error) {
 				status, _, err := pack.makeRequest(inCookie, http.MethodGet, "/")
 				return status, err
 			},
 		},
-		"WebSocketApp": {
-			publicAddr: func(pack *pack) string { return pack.rootWSPublicAddr },
+		"RootWebSocketApp": {
+			packInfo: func(pack *pack) (string, string, []*service.TeleportProcess) {
+				return pack.rootAppClusterName, pack.rootWSPublicAddr, pack.rootAppServers
+			},
+			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
+				return pack.startRootAppServers(t, count, []service.App{})
+			},
+			makeRequest: func(pack *pack, inCookie string) (int, error) {
+				_, err := pack.makeWebsocketRequest(inCookie, "/")
+				return 0, err
+			},
+		},
+		"LeafHTTPApp": {
+			packInfo: func(pack *pack) (string, string, []*service.TeleportProcess) {
+				return pack.leafAppClusterName, pack.leafAppPublicAddr, pack.leafAppServers
+			},
+			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
+				return pack.startLeafAppServers(t, count, []service.App{})
+			},
+			makeRequest: func(pack *pack, inCookie string) (int, error) {
+				status, _, err := pack.makeRequest(inCookie, http.MethodGet, "/")
+				return status, err
+			},
+		},
+		"LeafWebSocketApp": {
+			packInfo: func(pack *pack) (string, string, []*service.TeleportProcess) {
+				return pack.leafAppClusterName, pack.leafWSPublicAddr, pack.leafAppServers
+			},
+			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
+				return pack.startLeafAppServers(t, count, []service.App{})
+			},
 			makeRequest: func(pack *pack, inCookie string) (int, error) {
 				_, err := pack.makeWebsocketRequest(inCookie, "/")
 				return 0, err
@@ -677,18 +713,19 @@ func TestAppServersHA(t *testing.T) {
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
 			pack := setupWithOptions(t, appTestOptions{rootAppServersCount: 3})
-			inCookie := pack.createAppSession(t, test.publicAddr(pack), pack.rootAppClusterName)
+			clusterName, publicAddr, appServers := test.packInfo(pack)
 
+			inCookie := pack.createAppSession(t, publicAddr, clusterName)
 			status, err := test.makeRequest(pack, inCookie)
 			responseWithoutError(t, status, err)
 
 			// Stop all root app servers.
-			for i, appServer := range pack.rootAppServers {
+			for i, appServer := range appServers {
 				appServer.Close()
 
 				// issue a request right after a server is gone.
 				status, err = test.makeRequest(pack, inCookie)
-				if i == len(pack.rootAppServers)-1 {
+				if i == len(appServers)-1 {
 					// fails only when the last one is closed.
 					responseWithError(t, status, err)
 				} else {
@@ -698,13 +735,13 @@ func TestAppServersHA(t *testing.T) {
 				}
 			}
 
-			servers := pack.startRootAppServers(t, 3, []service.App{})
+			servers := test.startAppServers(pack, 3)
 			status, err = test.makeRequest(pack, inCookie)
 			responseWithoutError(t, status, err)
 
 			// Start an additional app server and stop all current running
 			// ones.
-			pack.startRootAppServers(t, 1, []service.App{})
+			test.startAppServers(pack, 1)
 			for _, appServer := range servers {
 				appServer.Close()
 
@@ -812,8 +849,8 @@ type pack struct {
 	jwtAppClusterName string
 	jwtAppURI         string
 
-	leafCluster   *TeleInstance
-	leafAppServer *service.TeleportProcess
+	leafCluster    *TeleInstance
+	leafAppServers []*service.TeleportProcess
 
 	leafAppName        string
 	leafAppPublicAddr  string
@@ -850,6 +887,7 @@ type appTestOptions struct {
 	rootClusterPorts    *InstancePorts
 	leafClusterPorts    *InstancePorts
 	rootAppServersCount int
+	leafAppServersCount int
 
 	rootConfig func(config *service.Config)
 	leafConfig func(config *service.Config)
@@ -913,20 +951,33 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		flushAppClusterName: "example.com",
 	}
 
+	createHandler := func(handler func(conn *websocket.Conn)) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			upgrader := websocket.Upgrader{
+				ReadBufferSize:  1024,
+				WriteBufferSize: 1024,
+			}
+
+			conn, err := upgrader.Upgrade(w, r, nil)
+			require.NoError(t, err)
+			handler(conn)
+		}
+	}
+
 	// Start a few different HTTP server that will be acting like a proxied application.
 	rootServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, p.rootMessage)
 	}))
 	t.Cleanup(rootServer.Close)
 	// Websockets server in root cluster (ws://).
-	rootWSServer := httptest.NewServer(websocket.Handler(func(conn *websocket.Conn) {
-		conn.Write([]byte(p.rootWSMessage))
+	rootWSServer := httptest.NewServer(createHandler(func(conn *websocket.Conn) {
+		conn.WriteMessage(websocket.BinaryMessage, []byte(p.rootWSMessage))
 		conn.Close()
 	}))
 	t.Cleanup(rootWSServer.Close)
 	// Secure websockets server in root cluster (wss://).
-	rootWSSServer := httptest.NewTLSServer(websocket.Handler(func(conn *websocket.Conn) {
-		conn.Write([]byte(p.rootWSSMessage))
+	rootWSSServer := httptest.NewTLSServer(createHandler(func(conn *websocket.Conn) {
+		conn.WriteMessage(websocket.BinaryMessage, []byte(p.rootWSSMessage))
 		conn.Close()
 	}))
 	t.Cleanup(rootWSSServer.Close)
@@ -935,14 +986,14 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	}))
 	t.Cleanup(leafServer.Close)
 	// Websockets server in leaf cluster (ws://).
-	leafWSServer := httptest.NewServer(websocket.Handler(func(conn *websocket.Conn) {
-		conn.Write([]byte(p.leafWSMessage))
+	leafWSServer := httptest.NewServer(createHandler(func(conn *websocket.Conn) {
+		conn.WriteMessage(websocket.BinaryMessage, []byte(p.leafWSMessage))
 		conn.Close()
 	}))
 	t.Cleanup(leafWSServer.Close)
 	// Secure websockets server in leaf cluster (wss://).
-	leafWSSServer := httptest.NewTLSServer(websocket.Handler(func(conn *websocket.Conn) {
-		conn.Write([]byte(p.leafWSSMessage))
+	leafWSSServer := httptest.NewTLSServer(createHandler(func(conn *websocket.Conn) {
+		conn.WriteMessage(websocket.BinaryMessage, []byte(p.leafWSSMessage))
 		conn.Close()
 	}))
 	t.Cleanup(leafWSSServer.Close)
@@ -1066,42 +1117,12 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	}
 	p.rootAppServers = p.startRootAppServers(t, rootAppServersCount, opts.extraRootApps)
 
-	laConf := service.MakeDefaultConfig()
-	laConf.Console = nil
-	laConf.Log = log
-	laConf.DataDir = t.TempDir()
-	t.Cleanup(func() { os.RemoveAll(laConf.DataDir) })
-	laConf.Token = "static-token-value"
-	laConf.AuthServers = []utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        net.JoinHostPort(Loopback, p.leafCluster.GetPortWeb()),
-		},
+	// At least one leafAppServer should start during the setup
+	leafAppServersCount := 1
+	if opts.leafAppServersCount > 0 {
+		leafAppServersCount = opts.leafAppServersCount
 	}
-	laConf.Auth.Enabled = false
-	laConf.Proxy.Enabled = false
-	laConf.SSH.Enabled = false
-	laConf.Apps.Enabled = true
-	laConf.Apps.Apps = append([]service.App{
-		{
-			Name:       p.leafAppName,
-			URI:        leafServer.URL,
-			PublicAddr: p.leafAppPublicAddr,
-		},
-		{
-			Name:       p.leafWSAppName,
-			URI:        leafWSServer.URL,
-			PublicAddr: p.leafWSPublicAddr,
-		},
-		{
-			Name:       p.leafWSSAppName,
-			URI:        leafWSSServer.URL,
-			PublicAddr: p.leafWSSPublicAddr,
-		},
-	}, opts.extraLeafApps...)
-	p.leafAppServer, err = p.leafCluster.StartApp(laConf)
-	require.NoError(t, err)
-	t.Cleanup(func() { p.leafAppServer.Close() })
+	p.leafAppServers = p.startLeafAppServers(t, leafAppServersCount, opts.extraLeafApps)
 
 	// Create user for tests.
 	p.initUser(t, opts)
@@ -1397,29 +1418,28 @@ func (p *pack) makeRequestWithClientCert(tlsConfig *tls.Config, method, endpoint
 
 // makeWebsocketRequest makes a websocket request with the given session cookie.
 func (p *pack) makeWebsocketRequest(sessionCookie, endpoint string) (string, error) {
-	config, err := websocket.NewConfig(
-		fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()), endpoint),
-		"https://localhost")
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	header := http.Header{}
+	dialer := websocket.Dialer{}
+
 	if sessionCookie != "" {
-		config.Header.Set("Cookie", (&http.Cookie{
+		header.Set("Cookie", (&http.Cookie{
 			Name:  app.CookieName,
 			Value: sessionCookie,
 		}).String())
 	}
-	config.TlsConfig = &tls.Config{
+	dialer.TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	conn, err := websocket.DialConfig(config)
+	conn, resp, err := dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()), endpoint), header)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", err
 	}
 	defer conn.Close()
-	data, err := io.ReadAll(conn)
-	if err != nil {
-		return "", trace.Wrap(err)
+	defer resp.Body.Close()
+	stream := &web.WebsocketIO{Conn: conn}
+	data, err := io.ReadAll(stream)
+	if err != nil && websocket.IsUnexpectedCloseError(err, websocket.CloseAbnormalClosure) {
+		return "", err
 	}
 	return string(data), nil
 }
@@ -1546,6 +1566,55 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		}, extraApps...)
 
 		appServer, err := p.rootCluster.StartApp(raConf)
+		require.NoError(t, err)
+		t.Cleanup(func() { appServer.Close() })
+
+		servers[i] = appServer
+	}
+
+	return servers
+}
+
+func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
+	log := utils.NewLoggerForTests()
+	servers := make([]*service.TeleportProcess, count)
+
+	for i := 0; i < count; i++ {
+		laConf := service.MakeDefaultConfig()
+		laConf.Console = nil
+		laConf.Log = log
+		laConf.DataDir = t.TempDir()
+		t.Cleanup(func() { os.RemoveAll(laConf.DataDir) })
+		laConf.Token = "static-token-value"
+		laConf.AuthServers = []utils.NetAddr{
+			{
+				AddrNetwork: "tcp",
+				Addr:        net.JoinHostPort(Loopback, p.leafCluster.GetPortWeb()),
+			},
+		}
+		laConf.Auth.Enabled = false
+		laConf.Proxy.Enabled = false
+		laConf.SSH.Enabled = false
+		laConf.Apps.Enabled = true
+		laConf.Apps.Apps = append([]service.App{
+			{
+				Name:       p.leafAppName,
+				URI:        p.leafAppURI,
+				PublicAddr: p.leafAppPublicAddr,
+			},
+			{
+				Name:       p.leafWSAppName,
+				URI:        p.leafWSAppURI,
+				PublicAddr: p.leafWSPublicAddr,
+			},
+			{
+				Name:       p.leafWSSAppName,
+				URI:        p.leafWSSAppURI,
+				PublicAddr: p.leafWSSPublicAddr,
+			},
+		}, extraApps...)
+
+		appServer, err := p.leafCluster.StartApp(laConf)
 		require.NoError(t, err)
 		t.Cleanup(func() { appServer.Close() })
 

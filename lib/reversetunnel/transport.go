@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -32,7 +31,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
@@ -61,6 +59,8 @@ type TunnelAuthDialerConfig struct {
 	ClientConfig *ssh.ClientConfig
 	// Log is used for logging.
 	Log logrus.FieldLogger
+	// InsecureSkipTLSVerify is whether to skip certificate validation.
+	InsecureSkipTLSVerify bool
 }
 
 func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
@@ -79,7 +79,9 @@ type TunnelAuthDialer struct {
 // DialContext dials auth server via SSH tunnel
 func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
 	// Connect to the reverse tunnel server.
-	var opts []proxy.DialerOptionFunc
+	opts := []proxy.DialerOptionFunc{
+		proxy.WithInsecureSkipTLSVerify(t.InsecureSkipTLSVerify),
+	}
 
 	addr, err := t.Resolver()
 	if err != nil {
@@ -88,7 +90,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 	}
 
 	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
-	resp, err := webclient.Find(ctx, addr.Addr, lib.IsInsecureDevMode(), nil)
+	resp, err := webclient.Find(ctx, addr.Addr, t.InsecureSkipTLSVerify, nil)
 	if err != nil {
 		// If TLS Routing is disabled the address is the proxy reverse tunnel
 		// address thus the ping call will always fail.
@@ -372,9 +374,13 @@ func (p *transport) getConn(servers []string, r *sshutils.DialReq) (net.Conn, bo
 			return nil, false, trace.Wrap(err)
 		}
 
-		// Connections to applications should never occur over a direct dial, return right away.
-		if r.ConnType == types.AppTunnel {
-			return nil, false, trace.ConnectionProblem(err, "failed to connect to application")
+		// Connections to applications and databases should never occur over
+		// a direct dial, return right away.
+		switch r.ConnType {
+		case types.AppTunnel:
+			return nil, false, trace.ConnectionProblem(err, NoApplicationTunnel)
+		case types.DatabaseTunnel:
+			return nil, false, trace.ConnectionProblem(err, NoDatabaseTunnel)
 		}
 
 		errTun := err
@@ -434,7 +440,7 @@ func (p *transport) directDial(servers []string, serverID string) (net.Conn, err
 	for _, addr := range servers {
 		conn, err := net.Dial("tcp", addr)
 		if err == nil {
-			return newEmitConn(p.closeContext, conn, p.emitter, strings.Split(serverID, ".")[0]), nil
+			return conn, nil
 		}
 
 		errors = append(errors, err)

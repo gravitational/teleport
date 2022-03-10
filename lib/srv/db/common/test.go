@@ -114,7 +114,7 @@ type TestClientConfig struct {
 	RouteToDatabase tlsca.RouteToDatabase
 }
 
-// MakeTestClientCert returns TLS certificate suitable for configuring test
+// MakeTestClientTLSCert returns TLS certificate suitable for configuring test
 // database Postgres/MySQL clients.
 func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
 	key, err := client.NewKey()

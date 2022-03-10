@@ -230,8 +230,8 @@ clients to find the SSH agent.
 ### Automatic Setup
 
 <Admonition
-  type="warning"
-  title="Warning"
+  type="note"
+  title="Note"
 >
   Automatic OpenSSH client configuration is supported on Linux and macOS as of
   Teleport 7.0 and on Windows as of Teleport 7.2.
@@ -249,12 +249,29 @@ This will generate an OpenSSH client configuration block for the root cluster
 and all currently-known leaf clusters. Append this to your local OpenSSH config
 file (usually `~/.ssh/config`) using your text editor of choice.
 
+<Admonition
+  type="warning"
+  title="Warning"
+>
+  If using PowerShell on Windows, note that normal shell redirection may write
+  the file with the incorrect encoding. To ensure it's written properly, try the
+  following:
+
+  ```code
+  $ tsh.exe config | out-file .ssh\config -encoding utf8 -append
+  ```
+</Admonition>
+
 Once configured, log into any node in the `root.example.com` cluster as any
 principal listed in your Teleport profile:
 
 ```code
 $ ssh user@node1.root.example.com
 ```
+
+This will connect to the node `node1` on the `root.example.com` cluster. This
+name does not need to be DNS accessible as the connection will be routed through
+your Teleport proxy.
 
 If any [trusted clusters](../../setup/admin/trustedclusters.mdx) exist, they are also configured:
 ```code

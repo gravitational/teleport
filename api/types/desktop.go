@@ -17,6 +17,8 @@ limitations under the License.
 package types
 
 import (
+	"sort"
+
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
@@ -111,6 +113,8 @@ type WindowsDesktop interface {
 	LabelsString() string
 	// GetDomain returns the ActiveDirectory domain of this host.
 	GetDomain() string
+	// GetHostID returns the ID of the Windows Desktop Service reporting the desktop.
+	GetHostID() string
 }
 
 var _ WindowsDesktop = &WindowsDesktopV3{}
@@ -155,6 +159,11 @@ func (d *WindowsDesktopV3) GetAddr() string {
 	return d.Spec.Addr
 }
 
+// GetHostID returns the HostID for the associated desktop service.
+func (d *WindowsDesktopV3) GetHostID() string {
+	return d.Spec.HostID
+}
+
 // GetAllLabels returns combined static and dynamic labels.
 func (d *WindowsDesktopV3) GetAllLabels() map[string]string {
 	// TODO(zmb3): add dynamic labels when running in agent mode
@@ -186,4 +195,116 @@ func (d *WindowsDesktopV3) SetOrigin(o string) {
 func (d *WindowsDesktopV3) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(d.GetAllLabels()), d.GetName(), d.GetAddr())
 	return MatchSearch(fieldVals, values, nil)
+}
+
+// DeduplicateDesktops deduplicates desktops by name.
+func DeduplicateDesktops(desktops []WindowsDesktop) (result []WindowsDesktop) {
+	seen := make(map[string]struct{})
+	for _, desktop := range desktops {
+		if _, ok := seen[desktop.GetName()]; ok {
+			continue
+		}
+		seen[desktop.GetName()] = struct{}{}
+		result = append(result, desktop)
+	}
+	return result
+}
+
+// Match checks if a given desktop request matches this filter.
+func (f *WindowsDesktopFilter) Match(req WindowsDesktop) bool {
+	if f.HostID != "" && req.GetHostID() != f.HostID {
+		return false
+	}
+	if f.Name != "" && req.GetName() != f.Name {
+		return false
+	}
+	return true
+}
+
+// WindowsDesktops represents a list of windows desktops.
+type WindowsDesktops []WindowsDesktop
+
+// Len returns the slice length.
+func (s WindowsDesktops) Len() int { return len(s) }
+
+// Less compares desktops by name and host ID.
+func (s WindowsDesktops) Less(i, j int) bool {
+	switch {
+	case s[i].GetName() < s[j].GetName():
+		return true
+	case s[i].GetName() > s[j].GetName():
+		return false
+	default:
+		return s[i].GetHostID() < s[j].GetHostID()
+	}
+}
+
+// Swap swaps two windows desktops.
+func (s WindowsDesktops) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (s WindowsDesktops) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetName(), s[j].GetName(), isDesc)
+		})
+	case ResourceSpecAddr:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetAddr(), s[j].GetAddr(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindWindowsDesktop)
+	}
+
+	return nil
+}
+
+// AsResources returns windows desktops as type resources with labels.
+func (s WindowsDesktops) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (s WindowsDesktops) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, 0, len(s))
+	switch field {
+	case ResourceMetadataName:
+		for _, server := range s {
+			vals = append(vals, server.GetName())
+		}
+	case ResourceSpecAddr:
+		for _, server := range s {
+			vals = append(vals, server.GetAddr())
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindWindowsDesktop)
+	}
+
+	return vals, nil
+}
+
+// ListWindowsDesktopsResponse is a response type to ListWindowsDesktops.
+type ListWindowsDesktopsResponse struct {
+	Desktops []WindowsDesktop
+	NextKey  string
+}
+
+// ListWindowsDesktopsRequest is a request type to ListWindowsDesktops.
+type ListWindowsDesktopsRequest struct {
+	WindowsDesktopFilter
+	Limit                         int
+	StartKey, PredicateExpression string
+	Labels                        map[string]string
+	SearchKeywords                []string
+	SortBy                        SortBy
 }

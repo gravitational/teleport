@@ -1,0 +1,65 @@
+<Tabs>
+    <TabItem label="Debian/Ubuntu (DEB)">
+        ```code
+        # Download Teleport's PGP public key
+        $ sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
+          -o /usr/share/keyrings/teleport-archive-keyring.asc
+        # Add the Teleport APT repository
+        $ cat<<EOF>/etc/apt/sources.list.d/teleport.list
+        deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://deb.releases.teleport.dev/ stable main
+        EOF
+        $ sudo apt-get update
+        $ sudo apt-get install teleport
+        ```
+    </TabItem>
+    <TabItem label="Amazon Linux 2/RHEL (RPM)">
+        ```code
+        $ sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+        $ sudo yum install teleport
+
+        # Optional:  Using DNF on newer distributions
+        # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+        # $ sudo dnf install teleport
+        ```
+    </TabItem>
+
+    <TabItem label="Tarball">
+        ```code
+        $ curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256
+        # <checksum> <filename>
+        $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+        $ shasum -a 256 teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+        # Verify that the checksums match
+        $ tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+        $ cd teleport
+        $ sudo ./install
+        ```
+    </TabItem>
+
+    <TabItem label="ARMv7 (32-bit)">
+        ```code
+        $ curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz.sha256
+        # <checksum> <filename>
+        $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
+        $ shasum -a 256 teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
+        # Verify that the checksums match
+        $ tar -xzf teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
+        $ cd teleport
+        $ sudo ./install
+        ```
+  </TabItem>
+
+  <TabItem label="ARM64/ARMv8 (64-bit)">
+        ```code
+        $ curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz.sha256
+        # <checksum> <filename>
+        $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
+        $ shasum -a 256 teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
+        # Verify that the checksums match
+        $ tar -xzf teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
+        $ cd teleport
+        $ sudo ./install
+        ```
+  </TabItem>
+
+</Tabs>

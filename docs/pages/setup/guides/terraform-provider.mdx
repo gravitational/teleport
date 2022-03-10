@@ -64,7 +64,7 @@ spec:
     rules:
       - resources: ['user', 'role', 'token', 'trusted_cluster', 'github', 'oidc', 'saml']
         verbs: ['list','create','read','update','delete']
-version: v4
+version: v5
 ---
 kind: user
 metadata:
@@ -93,7 +93,7 @@ Create the following file with role: `terraform-impersonator.yaml`:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: terraform-impersonator
 spec:

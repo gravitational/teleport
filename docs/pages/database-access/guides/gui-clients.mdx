@@ -110,34 +110,7 @@ Optionally, click "Test Connection" to verify connectivity:
 
 Save the connection, and connect to the database.
 
-## MongoDB Compass
-
-[Compass](https://www.mongodb.com/products/compass) is the official MongoDB
-graphical client.
-
-On the "New Connection" panel, click on "Fill in connection fields individually".
-
-![MongoDB Compass new connection](../../../img/database-access/compass-new-connection@2x.png)
-
-On the "Hostname" tab, enter your Teleport proxy's hostname and port shown
-by `tsh db config`. Leave "Authentication" as None.
-
-![MongoDB Compass hostname](../../../img/database-access/compass-hostname@2x.png)
-
-On the "More Options" tab set SSL to "Client and Server Validation" and set
-CA as well as client key and certificate. Note the CA path must be provided
-and be able to validate certificate presented by your Teleport proxy's web
-endpoint. Client key and certificate locations are shown by `tsh db config`.
-
-![MongoDB Compass more options](../../../img/database-access/compass-more-options@2x.png)
-
-Click on the "Connect" button.
-
-## DBeaver
-
-DBeaver is a SQL client software application and database administration tool.
-
-### MySQL 
+## MySQL DBeaver
 
 <Admonition type="note">
   Teleport's DBeaver MySQL integration only supports MySQL server (=mysql.dbeaver_min_ver=) or older.
@@ -173,3 +146,49 @@ Navigate to the "SSL" tab, check the "Use SSL" box, uncheck the "Verify Server C
 
 Click "Ok" to finish and DBeaver should connect to the remote MySQL server automatically.
 
+## MongoDB Compass
+
+[Compass](https://www.mongodb.com/products/compass) is the official MongoDB
+graphical client.
+
+On the "New Connection" panel, click on "Fill in connection fields individually".
+
+![MongoDB Compass new connection](../../../img/database-access/compass-new-connection@2x.png)
+
+On the "Hostname" tab, enter your Teleport proxy's hostname and port shown
+by `tsh db config`. Leave "Authentication" as None.
+
+![MongoDB Compass hostname](../../../img/database-access/compass-hostname@2x.png)
+
+On the "More Options" tab set SSL to "Client and Server Validation" and set
+CA as well as client key and certificate. Note the CA path must be provided
+and be able to validate certificate presented by your Teleport proxy's web
+endpoint. Client key and certificate locations are shown by `tsh db config`.
+
+![MongoDB Compass more options](../../../img/database-access/compass-more-options@2x.png)
+
+Click on the "Connect" button.
+
+## SQL Server DBeaver
+
+(!docs/pages/includes/database-access/sql-server-local-proxy.mdx!)
+
+In DBeaver connection configuration use the local proxy's endpoint (`localhost:4242`
+in the example above) as host/port. Use SQL Server Authentication option and keep
+the Password field empty:
+
+![DBeaver connection options](../../../img/database-access/guides/sqlserver/dbeaver-connection@2x.png)
+
+Click OK to connect.
+
+## SQL Server DataGrip
+
+(!docs/pages/includes/database-access/sql-server-local-proxy.mdx!)
+
+In DataGrip connection configuration use the local proxy's endpoint (`localhost:4242`
+in the example above) as host/port. Use Use & Password authentication option and
+keep the Password field empty:
+
+![DataGrip connection options](../../../img/database-access/guides/sqlserver/datagrip-connection@2x.png)
+
+Click OK to connect.

@@ -117,7 +117,7 @@ spec:
     rules:
       - resources: ['event']
         verbs: ['list','read']
-version: v4
+version: v5
 ```
 
 Use `tctl` to create the role and the user:
@@ -151,7 +151,7 @@ Create the following file with role: `teleport-event-handler-impersonator.yaml`:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: teleport-event-handler-impersonator
 spec:

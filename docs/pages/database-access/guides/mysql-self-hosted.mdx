@@ -76,7 +76,7 @@ in MySQL or [Enabling TLS on MariaDB Server](https://mariadb.com/docs/security/e
 
 ## Setup Teleport Auth and Proxy Services
 
-Teleport Database Access for MySQL is available starting from `6.0` and MariaDB starting from `8.0` release.
+Teleport Database Access for MySQL is available starting from Teleport version `6.0` and MariaDB starting from version `9.0`.
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
@@ -90,7 +90,7 @@ database account:
 ```bash
 tctl --config=/path/to/teleport-db-role.yaml create <<EOF
 kind: role
-version: v4
+version: v5
 metadata:
   name: db
 spec:
@@ -131,48 +131,17 @@ tunnel.
 
 ### Start Database Service with Config File
 
-Below is an example of a database service configuration file that proxies
-a single self-hosted MySQL database:
+Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 
-```yaml
-teleport:
-  # The data_dir should be a different location if running on the same
-  # machine as Teleport auth and proxy.
-  data_dir: /var/lib/teleport-db
-  nodename: teleport-db-instance
-  # Teleport invitation token used to join a cluster.
-  # can also be passed on start using --token flag
-  auth_token: /tmp/token
-  # Proxy address to connect to. Note that it has to be the proxy address
-  # because database service always connects to the cluster over reverse
-  # tunnel.
-  auth_servers:
-  - teleport.example.com:3080
-db_service:
-  enabled: "yes"
-  # This section contains definitions of all databases proxied by this
-  # service, can contain multiple items.
-  databases:
-    # Name of the database proxy instance, used to reference in CLI.
-  - name: "example"
-    # Free-form description of the database proxy instance.
-    description: "Example MySQL"
-    # Database protocol.
-    protocol: "mysql"
-    # Database address, MySQL/MariaDB server endpoint in this case.
-    #
-    # Note: this URI's hostname must match the host name specified via --host
-    # flag to tctl auth sign command.
-    uri: "mysql.example.com:3306"
-    # Labels to assign to the database, used in RBAC.
-    static_labels:
-      env: dev
-auth_service:
-  enabled: "no"
-ssh_service:
-  enabled: "no"
-proxy_service:
-  enabled: "no"
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=teleport.example.com:3080 \
+   --name=test \
+   --protocol=mysql \
+   --uri=mysql.example.com:3306 \
+   --labels=env=dev
 ```
 
 <Admonition

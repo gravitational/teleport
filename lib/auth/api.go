@@ -43,7 +43,11 @@ type Announcer interface {
 
 	// UpsertKubeService registers kubernetes presence, permanently if ttl is 0
 	// or for the specified duration with second resolution if it's >= 1 second
+	// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
 	UpsertKubeService(context.Context, types.Server) error
+
+	// UpsertKubeServiceV2 registers a kubernetes kubernetes service
+	UpsertKubeServiceV2(context.Context, types.Server) (*types.KeepAlive, error)
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
@@ -259,13 +263,12 @@ type ReadProxyAccessPoint interface {
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
 
 	// GetWindowsDesktops returns windows desktop hosts.
-	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
-
-	// GetWindowsDesktop returns a named windows desktop host.
-	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
+	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 
 	// GetWindowsDesktopServices returns windows desktop hosts.
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
+	// GetWindowsDesktopService returns a windows desktop host by name.
+	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 }
 
 // ProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -617,13 +620,13 @@ type ReadWindowsDesktopAccessPoint interface {
 	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetWindowsDesktops returns windows desktop hosts.
-	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
-
-	// GetWindowsDesktop returns a named windows desktop host.
-	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
+	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 
 	// GetWindowsDesktopServices returns windows desktop hosts.
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
+
+	// GetWindowsDesktopService returns a windows desktop host by name.
+	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 }
 
 // WindowsDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -774,13 +777,13 @@ type Cache interface {
 	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
 
 	// GetWindowsDesktops returns windows desktop hosts.
-	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
-
-	// GetWindowsDesktop returns a named windows desktop host.
-	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
+	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 
 	// GetWindowsDesktopServices returns windows desktop hosts.
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
+
+	// GetWindowsDesktopService returns a windows desktop host by name.
+	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
 	GetStaticTokens() (types.StaticTokens, error)
@@ -805,7 +808,9 @@ type Cache interface {
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 
 	// ListResources returns a paginated list of resources.
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.ResourceWithLabels, nextKey string, err error)
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+	// ListWindowsDesktops returns a paginated list of windows desktops.
+	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
 }
 
 type NodeWrapper struct {

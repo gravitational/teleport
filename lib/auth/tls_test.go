@@ -2045,7 +2045,7 @@ func TestGenerateCerts(t *testing.T) {
 	t.Run("ImpersonateAllow", func(t *testing.T) {
 		// Super impersonator impersonate anyone and login as root
 		maxSessionTTL := 300 * time.Hour
-		superImpersonatorRole, err := types.NewRole("superimpersonator", types.RoleSpecV4{
+		superImpersonatorRole, err := types.NewRoleV3("superimpersonator", types.RoleSpecV5{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.Duration(maxSessionTTL),
 			},
@@ -2063,7 +2063,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		// Impersonator can generate certificates for super impersonator
-		role, err := types.NewRole("impersonate", types.RoleSpecV4{
+		role, err := types.NewRoleV3("impersonate", types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Logins: []string{superImpersonator.GetName()},
 				Impersonate: &types.ImpersonateConditions{
@@ -2804,7 +2804,6 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PrivateKey:           priv,
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPins:               []string{caPin},
@@ -2823,7 +2822,6 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PrivateKey:           priv,
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPins:               []string{"sha256:123", caPin},
@@ -2841,7 +2839,6 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PrivateKey:           priv,
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPins:               []string{"sha256:123"},
@@ -2859,7 +2856,6 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PrivateKey:           priv,
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPins:               []string{"sha256:123", "sha256:456"},
@@ -2896,7 +2892,6 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PrivateKey:           priv,
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPins:               caPins,
@@ -2936,7 +2931,6 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PrivateKey:           priv,
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		Clock:                s.clock,
@@ -2966,7 +2960,6 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PrivateKey:           priv,
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPath:               caPath,

@@ -4,10 +4,8 @@ description: How to get started with Teleport Open Source Edition using Docker C
 h1: Get started with Docker Compose
 ---
 
-This section will cover:
-
-- Getting started with a local Teleport cluster using docker compose.
-- Using Teleport with OpenSSH, ansible and Teleport's native client, `tsh`.
+This guide will help you understand how Teleport works by spinning up a demo cluster on your local machine using Docker Compose.
+It will also show you how to use Teleport with OpenSSH, Ansible, and Teleport's native client, `tsh`. 
 
 ## Prerequisites
 
@@ -170,7 +168,7 @@ Teleport's user and role for used for bot access:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: bot
 spec:

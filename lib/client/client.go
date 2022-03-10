@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"io"
@@ -70,6 +71,22 @@ type NodeClient struct {
 	Client    *ssh.Client
 	Proxy     *ProxyClient
 	TC        *TeleportClient
+	OnMFA     func()
+}
+
+// GetActiveSessions returns a list of active session trackers.
+func (proxy *ProxyClient) GetActiveSessions(ctx context.Context) ([]types.SessionTracker, error) {
+	auth, err := proxy.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer auth.Close()
+	sessions, err := auth.GetActiveSessionTrackers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sessions, nil
 }
 
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
@@ -133,12 +150,13 @@ func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]types.RemoteCl
 // ReissueParams encodes optional parameters for
 // user certificate reissue.
 type ReissueParams struct {
-	RouteToCluster    string
-	NodeName          string
-	KubernetesCluster string
-	AccessRequests    []string
-	RouteToDatabase   proto.RouteToDatabase
-	RouteToApp        proto.RouteToApp
+	RouteToCluster        string
+	NodeName              string
+	KubernetesCluster     string
+	AccessRequests        []string
+	RouteToDatabase       proto.RouteToDatabase
+	RouteToApp            proto.RouteToApp
+	RouteToWindowsDesktop proto.RouteToWindowsDesktop
 
 	// ExistingCreds is a gross hack for lib/web/terminal.go to pass in
 	// existing user credentials. The TeleportClient in lib/web/terminal.go
@@ -169,6 +187,8 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 		// App means a request for a TLS certificate for access to a specific
 		// web app, as specified by RouteToApp.
 		return proto.UserCertsRequest_App
+	case p.RouteToWindowsDesktop.WindowsDesktop != "":
+		return proto.UserCertsRequest_WindowsDesktop
 	default:
 		// All means a request for both SSH and TLS certificates for the
 		// overall user session. These certificates are not specific to any SSH
@@ -186,6 +206,8 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequire
 		req.Target = &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: p.KubernetesCluster}
 	case p.RouteToDatabase.ServiceName != "":
 		req.Target = &proto.IsMFARequiredRequest_Database{Database: &p.RouteToDatabase}
+	case p.RouteToWindowsDesktop.WindowsDesktop != "":
+		req.Target = &proto.IsMFARequiredRequest_WindowsDesktop{WindowsDesktop: &p.RouteToWindowsDesktop}
 	}
 	return req
 }
@@ -292,6 +314,8 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 			params.RouteToDatabase.Protocol, certs.TLS, key.Priv)
 	case proto.UserCertsRequest_Kubernetes:
 		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
+	case proto.UserCertsRequest_WindowsDesktop:
+		key.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = certs.TLS
 	}
 	return key, nil
 }
@@ -335,6 +359,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
+
 	requiredCheck, err := clt.IsMFARequired(ctx, params.isMFARequiredRequest(proxy.hostLogin))
 	if err != nil {
 		if trace.IsNotImplemented(err) {
@@ -437,6 +462,8 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		case proto.UserCertsRequest_Database:
 			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = makeDatabaseClientPEM(
 				params.RouteToDatabase.Protocol, crt.TLS, key.Priv)
+		case proto.UserCertsRequest_WindowsDesktop:
+			key.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = crt.TLS
 		default:
 			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", initReq.Usage)
 		}
@@ -467,17 +494,18 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 	}
 
 	return &proto.UserCertsRequest{
-		PublicKey:         key.Pub,
-		Username:          tlsCert.Subject.CommonName,
-		Expires:           tlsCert.NotAfter,
-		RouteToCluster:    params.RouteToCluster,
-		KubernetesCluster: params.KubernetesCluster,
-		AccessRequests:    params.AccessRequests,
-		RouteToDatabase:   params.RouteToDatabase,
-		RouteToApp:        params.RouteToApp,
-		NodeName:          params.NodeName,
-		Usage:             params.usage(),
-		Format:            proxy.teleportClient.CertificateFormat,
+		PublicKey:             key.Pub,
+		Username:              tlsCert.Subject.CommonName,
+		Expires:               tlsCert.NotAfter,
+		RouteToCluster:        params.RouteToCluster,
+		KubernetesCluster:     params.KubernetesCluster,
+		AccessRequests:        params.AccessRequests,
+		RouteToDatabase:       params.RouteToDatabase,
+		RouteToWindowsDesktop: params.RouteToWindowsDesktop,
+		RouteToApp:            params.RouteToApp,
+		NodeName:              params.NodeName,
+		Usage:                 params.usage(),
+		Format:                proxy.teleportClient.CertificateFormat,
 	}, nil
 }
 
@@ -485,6 +513,23 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 func (proxy *ProxyClient) RootClusterName() (string, error) {
 	tlsKey, err := proxy.localAgent().GetCoreKey()
 	if err != nil {
+		if trace.IsNotFound(err) {
+			// Fallback to TLS client certificates.
+			tls := proxy.teleportClient.TLS
+			if len(tls.Certificates) == 0 || len(tls.Certificates[0].Certificate) == 0 {
+				return "", trace.BadParameter("missing TLS.Certificates")
+			}
+			cert, err := x509.ParseCertificate(tls.Certificates[0].Certificate[0])
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			clusterName := cert.Issuer.CommonName
+			if clusterName == "" {
+				return "", trace.NotFound("failed to extract root cluster name from Teleport TLS cert")
+			}
+			return clusterName, nil
+		}
 		return "", trace.Wrap(err)
 	}
 	return tlsKey.RootClusterName()
@@ -538,11 +583,23 @@ func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	return watcher, nil
 }
 
+// isAuthBoring checks whether or not the auth server for the current cluster was compiled with BoringCrypto.
+func (proxy *ProxyClient) isAuthBoring(ctx context.Context) (bool, error) {
+	site, err := proxy.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	resp, err := site.Ping(ctx)
+	return resp.IsBoring, trace.Wrap(err)
+}
+
 // FindServersByLabels returns list of the nodes which have labels exactly matching
 // the given label set.
 //
 // A server is matched when ALL labels match.
 // If no labels are passed, ALL nodes are returned.
+//
+// DELETE IN 11.0.0 replaced by FindNodesByFilters.
 func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace string, labels map[string]string) ([]types.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(auth.MissingNamespaceError)
@@ -554,14 +611,66 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 	return auth.GetNodesWithLabels(ctx, site, namespace, labels)
 }
 
-// GetAppServers returns a list of application servers.
-func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+// FindServersByFilters returns list of the nodes which have filters matched.
+func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.Server, error) {
+	req.ResourceType = types.KindNode
+
+	site, err := proxy.CurrentClusterAccessPoint(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resources, err := client.GetResourcesWithFilters(ctx, site, req)
+	if err != nil {
+		// ListResources for nodes not availalbe, provide fallback.
+		// Fallback does not support search/predicate support, so if users
+		// provide them, it does nothing.
+		//
+		// DELETE IN 11.0.0
+		if trace.IsNotImplemented(err) {
+			servers, err := proxy.FindServersByLabels(ctx, req.Namespace, req.Labels)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return servers, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resources).AsServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return servers, nil
+}
+
+// FindAppServersByFilters returns a list of application servers which have filters matched.
+func (proxy *ProxyClient) FindAppServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.AppServer, error) {
+	req.ResourceType = types.KindAppServer
 	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := authClient.GetApplicationServers(ctx, namespace)
+	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
+	if err != nil {
+		// ListResources for app servers not availalbe, provide fallback.
+		// Fallback does not support filters, so if users
+		// provide them, it does nothing.
+		//
+		// DELETE IN 11.0.0
+		if trace.IsNotImplemented(err) {
+			servers, err := authClient.GetApplicationServers(ctx, req.Namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return servers, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resources).AsAppServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -621,13 +730,32 @@ func (proxy *ProxyClient) DeleteUserAppSessions(ctx context.Context, req *proto.
 	return nil
 }
 
-// GetDatabaseServers returns all registered database proxy servers.
-func (proxy *ProxyClient) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
+// FindDatabaseServersByFilters returns all registered database proxy servers.
+func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.DatabaseServer, error) {
+	req.ResourceType = types.KindDatabaseServer
 	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := authClient.GetDatabaseServers(ctx, namespace)
+
+	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
+	if err != nil {
+		// ListResources for db servers not availalbe, provide fallback.
+		// Fallback does not support filters, so if users
+		// provide them, it does nothing.
+		//
+		// DELETE IN 11.0.0
+		if trace.IsNotImplemented(err) {
+			servers, err := authClient.GetDatabaseServers(ctx, req.Namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return servers, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resources).AsDatabaseServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -640,7 +768,7 @@ func (proxy *ProxyClient) ListResources(ctx context.Context, namespace, resource
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	resources, nextKey, err := authClient.ListResources(ctx, proto.ListResourcesRequest{
+	resp, err := authClient.ListResources(ctx, proto.ListResourcesRequest{
 		Namespace:    namespace,
 		ResourceType: resource,
 		StartKey:     startKey,
@@ -649,7 +777,7 @@ func (proxy *ProxyClient) ListResources(ctx context.Context, namespace, resource
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	return resources, nextKey, nil
+	return resp.Resources, resp.NextKey, nil
 }
 
 // CurrentClusterAccessPoint returns cluster access point to the currently
@@ -1167,6 +1295,13 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 			}
 
 			switch r.Type {
+			case teleport.MFAPresenceRequest:
+				if c.OnMFA == nil {
+					log.Warn("Received MFA presence request, but no callback was provided.")
+					continue
+				}
+
+				c.OnMFA()
 			case teleport.SessionEvent:
 				// Parse event and create events.EventFields that can be consumed directly
 				// by caller.
@@ -1201,8 +1336,8 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 func newClientConn(ctx context.Context,
 	conn net.Conn,
 	nodeAddress string,
-	config *ssh.ClientConfig) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
-
+	config *ssh.ClientConfig,
+) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
 	type response struct {
 		conn   ssh.Conn
 		chanCh <-chan ssh.NewChannel
@@ -1518,7 +1653,7 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 			RouteToCluster: nodeAddr.Cluster,
 		},
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return PromptMFAChallenge(ctx, proxyAddr, c, "")
+			return PromptMFAChallenge(ctx, proxyAddr, c, "", false)
 		},
 	)
 	if err != nil {

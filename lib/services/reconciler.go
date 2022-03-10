@@ -30,9 +30,9 @@ type ReconcilerConfig struct {
 	// Matcher is used to match resources.
 	Matcher Matcher
 	// GetCurrentResources returns currently registered resources.
-	GetCurrentResources func() types.ResourcesWithLabels
+	GetCurrentResources func() types.ResourcesWithLabelsMap
 	// GetNewResources returns resources to compare current resources against.
-	GetNewResources func() types.ResourcesWithLabels
+	GetNewResources func() types.ResourcesWithLabelsMap
 	// OnCreate is called when a new resource is detected.
 	OnCreate func(context.Context, types.ResourceWithLabels) error
 	// OnUpdate is called when an existing resource is updated.
@@ -83,7 +83,7 @@ func NewReconciler(cfg ReconcilerConfig) (*Reconciler, error) {
 	}, nil
 }
 
-// Reconcile reconciles currently registered resources with new resources and
+// Reconciler reconciles currently registered resources with new resources and
 // creates/updates/deletes them appropriately.
 //
 // It's used in combination with watchers by agents (app, database, desktop)
@@ -123,15 +123,15 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 
 // processRegisteredResource checks the specified registered resource against the
 // new list of resources.
-func (r *Reconciler) processRegisteredResource(ctx context.Context, newResources types.ResourcesWithLabels, registered types.ResourceWithLabels) error {
+func (r *Reconciler) processRegisteredResource(ctx context.Context, newResources types.ResourcesWithLabelsMap, registered types.ResourceWithLabels) error {
 	// See if this registered resource is still present among "new" resources.
-	if new := newResources.Find(registered.GetName()); new != nil {
+	if new := newResources[registered.GetName()]; new != nil {
 		return nil
 	}
 
-	r.log.Infof("%v removed, deleting.", registered)
+	r.log.Infof("%v %v removed, deleting.", registered.GetKind(), registered.GetName())
 	if err := r.cfg.OnDelete(ctx, registered); err != nil {
-		return trace.Wrap(err, "failed to delete %v", registered)
+		return trace.Wrap(err, "failed to delete  %v %v", registered.GetKind(), registered.GetName())
 	}
 
 	return nil
@@ -139,25 +139,25 @@ func (r *Reconciler) processRegisteredResource(ctx context.Context, newResources
 
 // processNewResource checks the provided new resource agsinst currently
 // registered resources.
-func (r *Reconciler) processNewResource(ctx context.Context, currentResources types.ResourcesWithLabels, new types.ResourceWithLabels) error {
+func (r *Reconciler) processNewResource(ctx context.Context, currentResources types.ResourcesWithLabelsMap, new types.ResourceWithLabels) error {
 	// First see if the resource is already registered and if not, whether it
 	// matches the selector labels and should be registered.
-	registered := currentResources.Find(new.GetName())
+	registered := currentResources[new.GetName()]
 	if registered == nil {
 		if r.cfg.Matcher(new) {
-			r.log.Infof("%v %v matches, creating.", new.GetKind(), new.GetMetadata().Name)
+			r.log.Infof("%v %v matches, creating.", new.GetKind(), new.GetName())
 			if err := r.cfg.OnCreate(ctx, new); err != nil {
-				return trace.Wrap(err, "failed to create %v", new)
+				return trace.Wrap(err, "failed to create %v %v", new.GetKind(), new.GetName())
 			}
 			return nil
 		}
-		r.log.Debugf("%v %v doesn't match, not creating.", new.GetKind(), new.GetMetadata().Name)
+		r.log.Debugf("%v %v doesn't match, not creating.", new.GetKind(), new.GetName())
 		return nil
 	}
 
-	// Don't overwrite resource of a different origin.
+	// Don't overwrite resource of a different origin (e.g., keep static resource from config and ignore dynamic resource)
 	if registered.Origin() != new.Origin() {
-		r.log.Debugf("%v has different origin (%v vs %v), not updating.", new.GetMetadata().Name,
+		r.log.Warnf("%v has different origin (%v vs %v), not updating.", new.GetName(),
 			new.Origin(), registered.Origin())
 		return nil
 	}
@@ -166,19 +166,19 @@ func (r *Reconciler) processNewResource(ctx context.Context, currentResources ty
 	// labels still match.
 	if CompareResources(new, registered) != Equal {
 		if r.cfg.Matcher(new) {
-			r.log.Infof("%v %v updated, updating.", new.GetKind(), new.GetMetadata().Name)
+			r.log.Infof("%v %v updated, updating.", new.GetKind(), new.GetName())
 			if err := r.cfg.OnUpdate(ctx, new); err != nil {
-				return trace.Wrap(err, "failed to update %v", new)
+				return trace.Wrap(err, "failed to update %v %v", new.GetKind(), new.GetName())
 			}
 			return nil
 		}
-		r.log.Infof("%v %v updated and no longer matches, deleting.", new.GetKind(), new.GetMetadata().Name)
+		r.log.Infof("%v %v updated and no longer matches, deleting.", new.GetKind(), new.GetName())
 		if err := r.cfg.OnDelete(ctx, registered); err != nil {
-			return trace.Wrap(err, "failed to delete %v", new)
+			return trace.Wrap(err, "failed to delete %v %v", new.GetKind(), new.GetName())
 		}
 		return nil
 	}
 
-	r.log.Debugf("%v %v is already registered.", new.GetKind(), new.GetMetadata().Name)
+	r.log.Debugf("%v %v is already registered.", new.GetKind(), new.GetName())
 	return nil
 }

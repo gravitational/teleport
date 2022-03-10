@@ -28,7 +28,7 @@ func IsRecordAtProxy(mode string) bool {
 	return mode == types.RecordAtProxy || mode == types.RecordAtProxySync
 }
 
-// IsRecordSync returns true if recording is sync or async for proxy or node.
+// IsRecordSync returns true if recording is sync for proxy or node.
 func IsRecordSync(mode string) bool {
 	return mode == types.RecordAtProxySync || mode == types.RecordAtNodeSync
 }

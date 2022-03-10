@@ -90,7 +90,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authExport = auth.Command("export", "Export public cluster (CA) keys to stdout")
 	a.authExport.Flag("keys", "if set, will print private keys").BoolVar(&a.exportPrivateKeys)
 	a.authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&a.exportAuthorityFingerprint)
-	a.authExport.Flag("compat", "export cerfiticates compatible with specific version of Teleport").StringVar(&a.compatVersion)
+	a.authExport.Flag("compat", "export certificates compatible with specific version of Teleport").StringVar(&a.compatVersion)
 	a.authExport.Flag("type", "export certificate type").EnumVar(&a.authType, allowedCertificateTypes...)
 
 	a.authGenerate = auth.Command("gen", "Generate a new SSH keypair").Hidden()
@@ -100,14 +100,9 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign = auth.Command("sign", "Create an identity file(s) for a given user")
 	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
 	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
-	a.authSign.Flag("out", "identity output").Short('o').Required().StringVar(&a.output)
-	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, %q, %q, %q or %q",
-		identityfile.FormatFile,
-		identityfile.FormatOpenSSH,
-		identityfile.FormatTLS,
-		identityfile.FormatKubernetes,
-		identityfile.FormatDatabase,
-		identityfile.FormatMongo)).
+	a.authSign.Flag("out", "Identity output").Short('o').Required().StringVar(&a.output)
+	a.authSign.Flag("format", fmt.Sprintf("Identity format: %s. %s is the default.",
+		identityfile.KnownFileFormats.String(), identityfile.DefaultFormat)).
 		Default(string(identityfile.DefaultFormat)).
 		StringVar((*string)(&a.outputFormat))
 	a.authSign.Flag("ttl", "TTL (time to live) for the generated certificate").
@@ -324,7 +319,7 @@ func (a *AuthCommand) GenerateKeys() error {
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(clusterAPI auth.ClientI) error {
 	switch a.outputFormat {
-	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach:
+	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach, identityfile.FormatRedis:
 		return a.generateDatabaseKeys(clusterAPI)
 	}
 	switch {
@@ -427,7 +422,7 @@ func (a *AuthCommand) generateDatabaseKeys(clusterAPI auth.ClientI) error {
 // for database access.
 func (a *AuthCommand) generateDatabaseKeysForKey(clusterAPI auth.ClientI, key *client.Key) error {
 	principals := strings.Split(a.genHost, ",")
-	if len(principals) == 0 {
+	if len(principals) == 1 && principals[0] == "" {
 		return trace.BadParameter("at least one hostname must be specified via --host flag")
 	}
 	// For CockroachDB node certificates, CommonName must be "node":
@@ -501,6 +496,11 @@ func (a *AuthCommand) generateDatabaseKeysForKey(clusterAPI auth.ClientI, key *c
 			"files":  strings.Join(filesWritten, ", "),
 			"output": a.output,
 		})
+	case identityfile.FormatRedis:
+		redisAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+			"files":  strings.Join(filesWritten, ", "),
+			"output": a.output,
+		})
 	}
 	return nil
 }
@@ -546,6 +546,16 @@ directory using --certs-dir flag:
 cockroach start \
   --certs-dir={{.output}} \
   # other flags...
+`))
+
+	redisAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your Redis server, add the following to your redis.conf:
+
+tls-ca-cert-file /path/to/{{.output}}.cas
+tls-cert-file /path/to/{{.output}}.crt 
+tls-key-file /path/to/{{.output}}.key
+tls-protocols "TLSv1.2 TLSv1.3"
 `))
 )
 
@@ -727,7 +737,21 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 		return nil
 	}
 	if a.proxyAddr != "" {
-		return nil
+		// User set --proxy. Validate it and set its scheme to https in case it was omitted.
+		u, err := url.Parse(a.proxyAddr)
+		if err != nil {
+			return trace.WrapWithMessage(err, "specified --proxy URL is invalid")
+		}
+		switch u.Scheme {
+		case "":
+			u.Scheme = "https"
+			a.proxyAddr = u.String()
+			return nil
+		case "http", "https":
+			return nil
+		default:
+			return trace.BadParameter("expected --proxy URL with http or https scheme")
+		}
 	}
 
 	// User didn't specify --proxy for kubeconfig. Let's try to guess it.

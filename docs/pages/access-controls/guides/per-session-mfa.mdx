@@ -12,8 +12,12 @@ security feature that protects users against compromises of their on-disk
 Teleport certificates.
 
 <Admonition type="note">
-  In addition to per-session MFA, enable login MFA in your SSO provider and/or for all [local Teleport
-  users](../../setup/reference/authentication.mdx#local) to improve security.
+
+  In addition to per-session MFA, enable login MFA in your SSO provider and/or
+  for all [local Teleport
+  users](../../setup/reference/authentication.mdx#local-no-authentication-connector)
+  to improve security.
+
 </Admonition>
 
 <Details
@@ -92,7 +96,7 @@ Olga defines two Teleport roles: `access-dev` and `access-prod`:
 ```yaml
 # access-dev.yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: access-dev
 spec:
@@ -111,7 +115,7 @@ spec:
 ---
 # access-prod.yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: access-prod
 spec:

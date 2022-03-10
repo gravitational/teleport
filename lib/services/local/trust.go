@@ -16,10 +16,12 @@ package local
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/trace"
 )
@@ -73,6 +75,17 @@ func (s *CA) UpsertCertAuthority(ca types.CertAuthority) error {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// try to skip writes that would have no effect
+	if existing, err := s.GetCertAuthority(types.CertAuthID{
+		Type:       ca.GetType(),
+		DomainName: ca.GetClusterName(),
+	}, true); err == nil {
+		if services.CertAuthoritiesEquivalent(existing, ca) {
+			return nil
+		}
+	}
+
 	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
@@ -90,6 +103,8 @@ func (s *CA) UpsertCertAuthority(ca types.CertAuthority) error {
 	}
 	return nil
 }
+
+const compareAndSwapFixExample = "tctl get %s/%s/%s --with-secrets > ca.yaml && tctl create -f ca.yaml && rm ca.yaml"
 
 // CompareAndSwapCertAuthority updates the cert authority value
 // if the existing value matches existing parameter, returns nil if succeeds,
@@ -121,6 +136,10 @@ func (s *CA) CompareAndSwapCertAuthority(new, existing types.CertAuthority) erro
 	_, err = s.CompareAndSwap(context.TODO(), existingItem, newItem)
 	if err != nil {
 		if trace.IsCompareFailed(err) {
+			if len(existing.GetMetadata().Labels) >= 2 {
+				exampleCmd := fmt.Sprintf(compareAndSwapFixExample, existing.GetKind(), existing.GetSubKind(), existing.GetName())
+				log.Warnf("comparison failed on certificate authority with multiple labels; if this occurs consistently, try re-saving the resource: %s", exampleCmd)
+			}
 			return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
 		}
 		return trace.Wrap(err)

@@ -310,7 +310,10 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		RootCAs: x509.NewCertPool(),
 	}
 
-	if sessionCtx.Database.GetProtocol() != defaults.ProtocolMongoDB {
+	switch sessionCtx.Database.GetProtocol() {
+	case defaults.ProtocolMongoDB, defaults.ProtocolRedis:
+		// Mongo and Redis are using custom URI schema.
+	default:
 		// Don't set the ServerName when connecting to a MongoDB cluster - in case
 		// of replica set the driver may dial multiple servers and will set
 		// ServerName itself. For Postgres/MySQL we're always connecting to the

@@ -27,11 +27,12 @@ to define policies like:
 
 Before you get started you’ll need:
 
-- An Enterprise version of Teleport downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/).
-- A Google Workspace Super administrator account. We recommend setting up a separate super admin account with 2FA as opposed to granting your daily user super admin privileges.
-- Ability to create a Google Cloud Platform project.
-   This might require signing up to GCP, but the created project will not require using any paid services. It’s just a side effect of Google Workspace and GCP being closely related.
-- Ability to setup Google Workspace groups.
+- Either an Enterprise version of Teleport (downloaded via the [Enterprise dashboard](https://dashboard.gravitational.com/web/login)) or a Teleport Cloud account (sign up for a [free trial](https://goteleport.com/signup/)).
+- A Google Workspace super administrator account. We recommend setting up a separate super admin account with 2FA as opposed to granting your daily user super admin privileges.
+- Ability to create a Google Cloud project, which requires signing up for Google Cloud. Note that this guide will not require using any paid Google Cloud services.
+- Ability to set up Google Workspace groups.
+
+(!docs/pages/includes/enterprise/oidcauthentication.mdx!)
 
 ## Configuring Google Workspace
 
@@ -54,7 +55,6 @@ behavior is selected depending on the OAuth scopes granted to the service
 account associated with the connector.
 
 <Details title="Version Warning: Before 8.1.2" opened={false}>
-
 Teleport versions prior to 8.1.2 only support fetching groups with direct
 membership with the
 `https://www.googleapis.com/auth/admin.directory.group.readonly` scope.
@@ -64,90 +64,89 @@ on a different domain or subdomain than the user's will be ignored.
 To avoid
 unexpected changes in how access is granted to users for preexisting SSO
 connectors, this behavior will persist even after upgrading, until the `version`
-field of the [connector resource](#create-a-oidc-connector) is changed from `v2`
+field of the [connector resource](#create-an-oidc-connector) is changed from `v2`
 to `v3`.
-
 </Details>
 
 - [Create a new project](https://console.cloud.google.com/projectselector2/apis/dashboard).
   ![creation of a Google Cloud Platform project](../../../img/googleoidc/new-project.png)
+
 - [Configure the OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent):
-  - Select "Internal" as your User Type.
+
+  Select "Internal" as your User Type.
     ![configuration of the OAuth consent screen](../../../img/googleoidc/consent-screen-1.png)
-  - Configure the appearence of your connector by picking a visible name, user support email, etc.
-  - Select the `.../auth/userinfo.email` and `openid` scopes.
+
+  Configure the appearence of your connector by picking a visible name, user support email, etc.
+  
+  Select the `.../auth/userinfo.email` and `openid` scopes.
     ![select email and openid scopes](../../../img/googleoidc/consent-screen-2.png)
+
 - Enable the [Cloud Identity API](https://console.cloud.google.com/apis/library/cloudidentity.googleapis.com) or the [Admin SDK API](https://console.cloud.google.com/apis/library/admin.googleapis.com) for transitive and direct group membership, respectively. Enabling both is fine.
+
 - [Create an OAuth client ID](https://console.cloud.google.com/apis/credentials/oauthclient):
-  - Select "Web application" as the Application type, pick a name, then add `https://<address of proxy server>:3080/v1/webapi/oidc/callback` as an authorized redirect URI.
+
+  Select "Web application" as the Application type, pick a name, then add `https://<address of proxy server>:3080/v1/webapi/oidc/callback` as an authorized redirect URI.
     ![OAuth client ID creation](../../../img/googleoidc/clientid-creation.png)
-  - Copy the Client ID and Client Secret from the next screen or by clicking "Download OAuth client".
+
+  Copy the Client ID and Client Secret from the next screen or by clicking "Download OAuth client".
     ![OAuth client data](../../../img/googleoidc/clientid-data.png)
+
 - [Create a service account](https://console.cloud.google.com/iam-admin/serviceaccounts/create):
-  - Pick a name for your service account. Leave project access grants and user access grants empty.
+
+  Pick a name for your service account. Leave project access grants and user access grants empty.
     ![service account creation](../../../img/googleoidc/serviceacct-creation.png)
-  - Click the newly-created account to view its details, and copy the Unique ID for later.
+  
+  Click the newly-created account to view its details, and copy the Unique ID for later.
     ![service account unique ID](../../../img/googleoidc/serviceacct-uniqueid.png)
-  - Create a new key for the service account, select JSON as the key type, and save the resulting JSON file.
+
+  Create a new key for the service account, select JSON as the key type, and save the resulting JSON file.
     ![service account key creation](../../../img/googleoidc/serviceacct-key.png)
-    This JSON file will need to be uploaded to the Teleport Auth Server, and will be later referenced by
-    the OIDC Connector, under `google_service_account_uri` or inline with `google_service_account`.
+    Later, we will make this JSON available to the Teleport Auth Server via the OIDC Connector configuration, either by referencing a local file or pasting the JSON into the configuration YAML. If you plan to take the first approach, you will need to upload the JSON to the Auth Server.
 
 <Admonition type="note">
-  Teleport requires the service account JSON to be uploaded to all Teleport Auth Servers when setting
-  up in a High Availability config.
+  Teleport requires the service account JSON to be available to all Teleport Auth Server hosts when deploying Teleport in a High Availability configuration. Unless you paste the JSON into the OIDC Connector configuration, you will need to upload the JSON file to all Auth Server hosts.
 </Admonition>
 
 - Configure [domain-wide
   delegation](https://admin.google.com/ac/owl/domainwidedelegation) for your
   newly-created service account:
-  - Click "Add new" and add the numeric Unique ID that you've copied earlier.
+
+  Click "Add new" and add the numeric Unique ID that you've copied earlier.
     ![domain-wide delegation](../../../img/googleoidc/domainwidedelegation.png)
-  - Add either the
+
+  Add either the
     `https://www.googleapis.com/auth/cloud-identity.groups.readonly` scope or
     the `https://www.googleapis.com/auth/admin.directory.group.readonly` scope.
     The scope granted to the service account will determine if Teleport will
     fetch both direct and indirect groups or just direct groups, respectively.
 
-<Admonition
-  type="tip"
-  title="Warning"
->
-  Do not use the email of the service account. The configuration display will look the same but the service account will not have the domain-wide delegation required. The `client_id` field must be the unique ID number captured from the Google Cloud Platform UI. An indicator that this is misconfigured is if you see "invalid Google Workspace credentials for scopes [...]" in your log.
-</Admonition>
 
-<Admonition
-  type="tip"
-  title="Note"
->
-  The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your Google Workspace account. This user will generally need super admin or group admin privileges.
-</Admonition>
+## Create an OIDC connector
 
-## Create a OIDC Connector
-
-Now, create a OIDC connector [resource](../../setup/reference/resources.mdx).
-There are two options for setting the `google_service_account` value.  You can set the JSON file in the auth server and give a URI to the file.
-The second is populating the contents via inline.  Inline is required for Teleport Cloud.
-Write down this template as `gworkspace-connector.yaml`:
-
-
+Create the following OIDC connector [resource spec](../../setup/reference/resources.mdx) as `gworkspace-connector.yaml`. We will explain how to choose values for fields within the resource spec below.
 
 <Tabs>
-  <TabItem label="Google Service Account via URI">
+  <TabItem scope={["oss", "enterprise"]} label="Self Hosted">
     ```yaml
     (!examples/resources/gworkspace-connector.yaml!)
     ```
   </TabItem>
 
-  <TabItem label="Google Service Account via inline (required for Teleport Cloud)">
+  <TabItem scope={["cloud"]} label="Teleport Cloud">
     ```yaml
     (!examples/resources/gworkspace-connector-inline.yaml!)
     ```
   </TabItem>
 </Tabs>
 
+The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your Google Workspace account. This user will generally need super admin or group admin privileges.
 
-Create the connector using `tctl` tool:
+
+Do not use the email of the service account for `google_admin_email`. The configuration display will look the same, but the service account will not have the required domain-wide delegation.
+
+The `client_id` field must be the unique ID number captured from the Google Cloud Platform UI. An indicator that this is misconfigured is if you see "invalid Google Workspace credentials for scopes [...]" in your log.
+
+Create the connector using the `tctl` tool:
 
 ```code
 $ tctl create gworkspace-connector.yaml
@@ -202,22 +201,36 @@ automatically in a browser).
 
 ## Troubleshooting
 
-If you get "access denied" errors the number one place to check is the audit
-log on the Teleport auth server. It is located in `/var/lib/teleport/log` by
-default and it will contain the detailed reason why a user's login was denied.
+<Tabs>
+<TabItem label="Self Hosted" scope={["oss", "enterprise"]}>
+If you get "access denied" errors, the number one place to check is the audit
+log on the Teleport Auth Server. It is located in `/var/lib/teleport/log` by
+default and it will contain a detailed reason why a user's login was denied.
 
-Example of a user being denied due as the role `clusteradmin` wasn't setup.
+Example of a user being denied because the role `clusteradmin` wasn't set up.
 
 ```json
 {"code":"T1001W","error":"role clusteradmin is not found","event":"user.login","method":"oidc","success":false,"time":"2019-06-15T19:38:07Z","uid":"cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"}
 ```
 
-Some errors (like filesystem permissions or misconfigured network) can be
+Some errors (like filesystem permissions or a misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
 ```code
 $ sudo journalctl -fu teleport
 ```
 
-If you wish to increase the verbosity of Teleport's syslog, you can pass the
-[`--debug`](../../setup/reference/cli.mdx#teleport-start) flag to `teleport start` command.
+If you wish to increase the verbosity of Teleport's logs, you can pass the
+[`--debug`](../../setup/reference/cli.mdx#teleport-start) flag to the `teleport start` command.
+</TabItem>
+<TabItem label="Teleport Cloud" scope={["cloud"]}>
+If you get "access denied" errors, the number one place to check is the audit
+log on the Teleport Auth Server. You can find it in the **Activity** tab of the Teleport Web UI.
+
+Example of a user being denied because the role `clusteradmin` wasn't set up.
+
+```json
+{"code":"T1001W","error":"role clusteradmin is not found","event":"user.login","method":"oidc","success":false,"time":"2019-06-15T19:38:07Z","uid":"cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"}
+```
+</TabItem>
+</Tabs>
