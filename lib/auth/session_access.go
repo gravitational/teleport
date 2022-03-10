@@ -115,7 +115,7 @@ func (ctx *SessionAccessContext) GetResource() (types.Resource, error) {
 }
 
 func (e *SessionAccessEvaluator) matchesPredicate(ctx *SessionAccessContext, require *types.SessionRequirePolicy, allow *types.SessionJoinPolicy) (bool, error) {
-	if !e.matchesKind(require.Kinds) || !e.matchesKind(allow.Kinds) {
+	if !e.matchesKind(allow.Kinds) {
 		return false, nil
 	}
 
@@ -234,15 +234,14 @@ func (e *SessionAccessEvaluator) PrettyRequirementsList() string {
 		s += fmt.Sprintf("\n\t  one of (%v):", policySet.Name)
 
 		for _, require := range policies {
-			if !e.matchesKind(require.Kinds) {
-				s += fmt.Sprintf("\n\t    - %vx %v with mode %v", require.Count, require.Filter, strings.Join(require.Modes, ","))
-			}
+			s += fmt.Sprintf("\n\t    - %vx %v with mode %v", require.Count, require.Filter, strings.Join(require.Modes, ","))
 		}
 	}
 
 	return s
 }
 
+// extractApplicablePolicies extracts all policies that match the session kind.
 func (e *SessionAccessEvaluator) extractApplicablePolicies(set *types.SessionTrackerPolicySet) []*types.SessionRequirePolicy {
 	var policies []*types.SessionRequirePolicy
 

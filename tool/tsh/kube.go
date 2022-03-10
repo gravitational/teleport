@@ -293,12 +293,12 @@ type ExecOptions struct {
 	ExecutablePodFn  polymorphichelpers.AttachablePodForObjectFunc
 	restClientGetter genericclioptions.RESTClientGetter
 
-	Pod                 *corev1.Pod
-	Executor            RemoteExecutor
-	PodClient           coreclient.PodsGetter
-	GetPodTimeout       time.Duration
-	Config              *restclient.Config
-	VerboseRequirements bool
+	Pod                     *corev1.Pod
+	Executor                RemoteExecutor
+	PodClient               coreclient.PodsGetter
+	GetPodTimeout           time.Duration
+	Config                  *restclient.Config
+	ParticipantRequirements bool
 }
 
 // Run executes a validated remote execution against a pod.
@@ -368,7 +368,7 @@ func (p *ExecOptions) Run() error {
 			Name(pod.Name).
 			Namespace(pod.Namespace).
 			SubResource("exec").
-			Param("verboseRequirements", strconv.FormatBool(p.VerboseRequirements))
+			Param("participantRequirements", strconv.FormatBool(p.ParticipantRequirements))
 		req.VersionedParams(&corev1.PodExecOptions{
 			Container: containerName,
 			Command:   p.Command,
@@ -386,16 +386,16 @@ func (p *ExecOptions) Run() error {
 
 type kubeExecCommand struct {
 	*kingpin.CmdClause
-	target          string
-	container       string
-	filename        string
-	quiet           bool
-	stdin           bool
-	tty             bool
-	reason          string
-	invited         string
-	command         []string
-	participant_req bool
+	target                  string
+	container               string
+	filename                string
+	quiet                   bool
+	stdin                   bool
+	tty                     bool
+	reason                  string
+	invited                 string
+	command                 []string
+	participantRequirements bool
 }
 
 func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
@@ -410,7 +410,7 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 	c.Flag("tty", "Stdin is a TTY").Short('t').BoolVar(&c.tty)
 	c.Flag("reason", "The purpose of the session.").StringVar(&c.reason)
 	c.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringVar(&c.invited)
-	c.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&c.participant_req)
+	c.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&c.participantRequirements)
 	c.Arg("target", "Pod or deployment name").Required().StringVar(&c.target)
 	c.Arg("command", "Command to execute in the container").Required().StringsVar(&c.command)
 	return c
@@ -439,7 +439,7 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 	p.Builder = f.NewBuilder
 	p.restClientGetter = f
 	p.Executor = &DefaultRemoteExecutor{}
-	p.VerboseRequirements = c.participant_req
+	p.ParticipantRequirements = c.participantRequirements
 	p.Namespace, p.EnforceNamespace, err = f.ToRawKubeConfigLoader().Namespace()
 	if err != nil {
 		return trace.Wrap(err)

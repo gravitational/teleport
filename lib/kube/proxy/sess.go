@@ -357,7 +357,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		expires:             time.Now().UTC().Add(time.Hour * 24),
 		PresenceEnabled:     ctx.Identity.GetIdentity().MFAVerified != "",
 		stateUpdate:         sync.NewCond(&sync.Mutex{}),
-		verboseRequirements: utils.AsBool(q.Get("verboseRequirements")),
+		verboseRequirements: utils.AsBool(q.Get("participantRequirements")),
 	}
 
 	go func() {
