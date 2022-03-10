@@ -275,15 +275,16 @@ func (s *ServicesTestSuite) LoginAttempts(c *check.C) {
 }
 
 func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
+	ctx := context.Background()
 	ca := NewTestCA(types.UserCA, "example.com")
 	c.Assert(s.CAS.UpsertCertAuthority(ca), check.IsNil)
 
-	out, err := s.CAS.GetCertAuthority(ca.GetID(), true)
+	out, err := s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
 	c.Assert(err, check.IsNil)
 	ca.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, out, ca)
 
-	cas, err := s.CAS.GetCertAuthorities(types.UserCA, false)
+	cas, err := s.CAS.GetCertAuthorities(ctx, types.UserCA, false)
 	c.Assert(err, check.IsNil)
 	ca2 := ca.Clone().(*types.CertAuthorityV2)
 	ca2.Spec.ActiveKeys.SSH[0].PrivateKey = nil
@@ -294,11 +295,11 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 	ca2.Spec.JWTKeyPairs[0].PrivateKey = nil
 	fixtures.DeepCompare(c, cas[0], ca2)
 
-	cas, err = s.CAS.GetCertAuthorities(types.UserCA, true)
+	cas, err = s.CAS.GetCertAuthorities(ctx, types.UserCA, true)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, cas[0], ca)
 
-	cas, err = s.CAS.GetCertAuthorities(types.UserCA, true)
+	cas, err = s.CAS.GetCertAuthorities(ctx, types.UserCA, true)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, cas[0], ca)
 
@@ -322,7 +323,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 	err = s.CAS.CompareAndSwapCertAuthority(&newCA, ca)
 	c.Assert(err, check.IsNil)
 
-	out, err = s.CAS.GetCertAuthority(ca.GetID(), true)
+	out, err = s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
 	c.Assert(err, check.IsNil)
 	newCA.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, &newCA, out)
@@ -1348,7 +1349,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				ca := NewTestCA(types.UserCA, "example.com")
 				c.Assert(s.CAS.UpsertCertAuthority(ca), check.IsNil)
 
-				out, err := s.CAS.GetCertAuthority(*ca.ID(), true)
+				out, err := s.CAS.GetCertAuthority(ctx, *ca.ID(), true)
 				c.Assert(err, check.IsNil)
 
 				c.Assert(s.CAS.DeleteCertAuthority(*ca.ID()), check.IsNil)
@@ -1369,7 +1370,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				ca := NewTestCA(types.UserCA, "example.com")
 				c.Assert(s.CAS.UpsertCertAuthority(ca), check.IsNil)
 
-				out, err := s.CAS.GetCertAuthority(*ca.ID(), false)
+				out, err := s.CAS.GetCertAuthority(ctx, *ca.ID(), false)
 				c.Assert(err, check.IsNil)
 
 				c.Assert(s.CAS.DeleteCertAuthority(*ca.ID()), check.IsNil)
@@ -1461,7 +1462,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Kind: types.KindRole,
 			},
 			crud: func(context.Context) types.Resource {
-				role, err := types.NewRole("role1", types.RoleSpecV5{
+				role, err := types.NewRoleV3("role1", types.RoleSpecV5{
 					Options: types.RoleOptions{
 						MaxSessionTTL: types.Duration(time.Hour),
 					},
