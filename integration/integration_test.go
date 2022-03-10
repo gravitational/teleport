@@ -205,6 +205,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
+	t.Run("SSHTracker", suite.bind(testSSHTracker))
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -787,6 +788,38 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 	// attempting to run a command by uuid should succeed.
 	_, err = runCommand(t, teleportSvr, []string{"echo", "Hello there!"}, ClientConfig{Login: suite.me.Username, Cluster: Site, Host: uuid1}, 1)
 	require.NoError(t, err)
+}
+
+// testSSHTracker verifies that an SSH session creates a tracker for sessions.
+func testSSHTracker(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
+	teleport := suite.newTeleport(t, nil, true)
+	defer teleport.StopAll()
+
+	site := teleport.GetSiteAPI(Site)
+	require.NotNil(t, site)
+
+	personA := NewTerminal(250)
+	cl, err := teleport.NewClient(ClientConfig{
+		Login:   suite.me.Username,
+		Cluster: Site,
+		Host:    Host,
+	})
+	require.NoError(t, err)
+	cl.Stdout = personA
+	cl.Stdin = personA
+	personA.Type("\aecho hi\n\r")
+	go cl.SSH(ctx, []string{}, false)
+
+	condition := func() bool {
+		// verify that the tracker was created
+		trackers, err := site.GetActiveSessionTrackers(ctx)
+		require.NoError(t, err)
+		return len(trackers) == 1
+	}
+
+	// wait for the tracker to be created
+	require.Eventually(t, condition, time.Minute, time.Millisecond*100)
 }
 
 // testInteractive covers SSH into shell and joining the same session from another client
