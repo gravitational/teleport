@@ -780,10 +780,7 @@ func (s *session) isLingering() bool {
 
 func (s *session) waitOnAccess() error {
 	s.io.Off()
-	err := s.BroadcastMessage("Session paused, Waiting for required participants...")
-	if err != nil {
-		log.WithError(err).Errorf("Failed to broadcast message.")
-	}
+	s.BroadcastMessage("Session paused, Waiting for required participants...")
 
 	s.stateUpdate.L.Lock()
 	defer s.stateUpdate.L.Unlock()
@@ -806,12 +803,14 @@ outer:
 	return nil
 }
 
-func (s *session) BroadcastMessage(format string, args ...interface{}) error {
+func (s *session) BroadcastMessage(format string, args ...interface{}) {
 	if s.access.IsModerated {
-		return s.BroadcastMessage(fmt.Sprintf(format, args...))
-	}
+		err := s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 
-	return nil
+		if err != nil {
+			s.log.Debugf("Failed to broadcast message: %v", err)
+		}
+	}
 }
 
 func (s *session) launch(ctx *ServerContext) error {
@@ -1004,10 +1003,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	s.inWriter = inWriter
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder))
-	err = s.BroadcastMessage("Creating session with ID: %v...", s.id)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	s.BroadcastMessage("Creating session with ID: %v...", s.id)
 
 	if err := s.term.Run(); err != nil {
 		ctx.Errorf("Unable to run shell command: %v.", err)

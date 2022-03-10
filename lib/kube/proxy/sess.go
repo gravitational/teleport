@@ -953,12 +953,14 @@ func (s *session) join(p *party) error {
 	return nil
 }
 
-func (s *session) BroadcastMessage(format string, args ...interface{}) error {
+func (s *session) BroadcastMessage(format string, args ...interface{}) {
 	if s.accessEvaluator.IsModerated && s.tty {
-		return s.BroadcastMessage(fmt.Sprintf(format, args...))
-	}
+		err := s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 
-	return nil
+		if err != nil {
+			s.log.Debugf("Failed to broadcast message: %v", err)
+		}
+	}
 }
 
 // leave removes a party from the session.
