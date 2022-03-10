@@ -28,6 +28,8 @@ Before you get started you’ll need:
 - To register one or more users in the directory
 - To create at least two security groups in Azure AD and assign one or more users to each group
 
+(!docs/pages/includes/enterprise/samlauthentication.mdx!)
+
 ## Configure Azure AD
 
 1. Select **Azure AD -> Enterprise Applications**
@@ -167,34 +169,6 @@ $ tctl create dev.yaml
 ```
 
 ## Testing
-
-Update your Teleport configuration to make SAML the default authentication method.
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self Hosted">
-In your Teleport configuration file, include the following:
-
-```yaml
-auth_service:
-  authentication:
-    type: saml
-```
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
-Apply the following `cluster_auth_preference` resource via `tctl create`.
-
-```yaml
-    kind: cluster_auth_preference
-    version: v2
-    metadata:
-      name: cluster-auth-preference
-    spec:
-      type: "saml"
-```
-</TabItem>
-</Tabs>
-
-The Web UI will now present the option to log in via Microsoft.
 
 ![Login with Microsoft](../../../img/azuread/azure-11-loginwithmsft.png)
 
