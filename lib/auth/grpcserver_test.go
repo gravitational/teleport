@@ -2076,11 +2076,11 @@ func TestListResources(t *testing.T) {
 
 	testCases := map[string]struct {
 		resourceType   string
-		createResource func(name string) error
+		createResource func(name string, clt *Client) error
 	}{
 		"DatabaseServers": {
 			resourceType: types.KindDatabaseServer,
-			createResource: func(name string) error {
+			createResource: func(name string, clt *Client) error {
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name: name,
 				}, types.DatabaseServerSpecV3{
@@ -2099,7 +2099,7 @@ func TestListResources(t *testing.T) {
 		},
 		"ApplicationServers": {
 			resourceType: types.KindAppServer,
-			createResource: func(name string) error {
+			createResource: func(name string, clt *Client) error {
 				app, err := types.NewAppV3(types.Metadata{
 					Name: name,
 				}, types.AppSpecV3{
@@ -2126,7 +2126,7 @@ func TestListResources(t *testing.T) {
 		},
 		"KubeService": {
 			resourceType: types.KindKubeService,
-			createResource: func(name string) error {
+			createResource: func(name string, clt *Client) error {
 				server, err := types.NewServer(name, types.KindKubeService, types.ServerSpecV2{
 					KubernetesClusters: []*types.KubernetesCluster{
 						{Name: name, StaticLabels: map[string]string{"name": name}},
@@ -2141,7 +2141,7 @@ func TestListResources(t *testing.T) {
 		},
 		"Node": {
 			resourceType: types.KindNode,
-			createResource: func(name string) error {
+			createResource: func(name string, clt *Client) error {
 				server, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{})
 				if err != nil {
 					return err
@@ -2151,10 +2151,25 @@ func TestListResources(t *testing.T) {
 				return err
 			},
 		},
+		"WindowsDesktops": {
+			resourceType: types.KindWindowsDesktop,
+			createResource: func(name string, clt *Client) error {
+				desktop, err := types.NewWindowsDesktopV3(name, nil,
+					types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
+				if err != nil {
+					return err
+				}
+
+				return clt.UpsertWindowsDesktop(ctx, desktop)
+			},
+		},
 	}
 
 	for name, test := range testCases {
+		name := name
+		test := test
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 				ResourceType: test.resourceType,
 				Namespace:    apidefaults.Namespace,
@@ -2165,9 +2180,9 @@ func TestListResources(t *testing.T) {
 			require.Empty(t, resp.NextKey)
 
 			// create two resources
-			err = test.createResource("foo")
+			err = test.createResource("foo", clt)
 			require.NoError(t, err)
-			err = test.createResource("bar")
+			err = test.createResource("bar", clt)
 			require.NoError(t, err)
 
 			resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
@@ -2179,6 +2194,20 @@ func TestListResources(t *testing.T) {
 			require.Len(t, resp.Resources, 2)
 			require.Empty(t, resp.NextKey)
 			require.Empty(t, resp.TotalCount)
+
+			// Test types.KindKubernetesCluster
+			if test.resourceType == types.KindKubeService {
+				test.resourceType = types.KindKubernetesCluster
+				resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.resourceType,
+					Namespace:    apidefaults.Namespace,
+					Limit:        100,
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 2)
+				require.Empty(t, resp.NextKey)
+				require.Empty(t, resp.TotalCount)
+			}
 
 			// Test listing with NeedTotalCount flag.
 			if test.resourceType != types.KindKubeService {
