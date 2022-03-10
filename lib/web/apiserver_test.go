@@ -1960,6 +1960,25 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(nodes, HasLen, cluster.NodeCount)
 }
 
+func TestDatabaseTokenGeneration(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com")
+
+	endpoint := pack.clt.Endpoint("webapi", "databases", "token")
+	re, err := pack.clt.PostJSON(context.Background(), endpoint, nil)
+	require.NoError(t, err)
+
+	var responseToken nodeJoinToken
+	err = json.Unmarshal(re.Bytes(), &responseToken)
+	require.NoError(t, err)
+
+	generatedToken, err := proxy.auth.Auth().GetToken(context.Background(), responseToken.ID)
+	require.NoError(t, err)
+	require.Equal(t, types.SystemRoles{types.RoleDatabase}, generatedToken.GetRoles())
+}
+
 func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
