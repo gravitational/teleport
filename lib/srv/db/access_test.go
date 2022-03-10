@@ -428,6 +428,31 @@ func TestAccessMySQLChangeUser(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestMySQLCloseConnection(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"alice"}, []string{types.Wildcard})
+
+	// Connect to the database as this user.
+	mysqlConn, err := testCtx.mysqlClient("alice", "mysql", "alice")
+	require.NoError(t, err)
+
+	_, err = mysqlConn.Execute("select 1")
+	require.NoError(t, err)
+
+	// Close connection to DB proxy
+	err = mysqlConn.Close()
+	require.NoError(t, err)
+
+	// DB proxy should close the DB connection and send COM_QUIT message.
+	require.Eventually(t, func() bool {
+		return testCtx.mysql["mysql"].db.ConnsClosed()
+	}, 2*time.Second, 100*time.Millisecond)
+}
+
 // TestAccessRedisAUTHDefaultCmd checks if empty user can log in to Redis as default.
 func TestAccessRedisAUTHDefaultCmd(t *testing.T) {
 	ctx := context.Background()
@@ -491,6 +516,9 @@ func TestAccessMySQLServerPacket(t *testing.T) {
 	// Execute "show tables" command which will make the test server to reply
 	// in a way that previously would cause our packet parsing logic to fail.
 	_, err = mysqlConn.Execute("show tables")
+	require.NoError(t, err)
+
+	err = mysqlConn.Close()
 	require.NoError(t, err)
 }
 
@@ -770,12 +798,12 @@ func TestAccessMongoDB(t *testing.T) {
 					testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
 
 					// Try to connect to the database as this user.
-					client, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)
-					defer func() {
-						if client != nil {
-							client.Disconnect(ctx)
+					mongoClient, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)
+					t.Cleanup(func() {
+						if mongoClient != nil {
+							require.NoError(t, mongoClient.Disconnect(ctx))
 						}
-					}()
+					})
 					if test.connectErr != "" {
 						require.Error(t, err)
 						require.Contains(t, err.Error(), test.connectErr)
@@ -784,13 +812,14 @@ func TestAccessMongoDB(t *testing.T) {
 					require.NoError(t, err)
 
 					// Execute a "find" command. Collection name doesn't matter currently.
-					_, err = client.Database(test.dbName).Collection("test").Find(ctx, bson.M{})
+					records, err := mongoClient.Database(test.dbName).Collection("test").Find(ctx, bson.M{})
 					if test.queryErr != "" {
 						require.Error(t, err)
 						require.Contains(t, err.Error(), test.queryErr)
 						return
 					}
 					require.NoError(t, err)
+					require.NoError(t, records.Close(ctx))
 				})
 			}
 		}
@@ -920,7 +949,7 @@ func TestCompatibilityWithOldAgents(t *testing.T) {
 		},
 	})
 	go func() {
-		for conn := range testCtx.proxyConn {
+		for conn := range testCtx.fakeRemoteSite.ProxyConn() {
 			go databaseServer.HandleConnection(conn)
 		}
 	}()
@@ -1221,7 +1250,6 @@ type testContext struct {
 	mux            *multiplexer.Mux
 	mysqlListener  net.Listener
 	webListener    *multiplexer.WebListener
-	proxyConn      chan net.Conn
 	fakeRemoteSite *reversetunnel.FakeRemoteSite
 	server         *Server
 	emitter        *testEmitter
@@ -1299,7 +1327,7 @@ func (c *testContext) startHandlingConnections() {
 	// Start all proxy services.
 	c.startProxy()
 	// Start handling database client connections on the database server.
-	for conn := range c.proxyConn {
+	for conn := range c.fakeRemoteSite.ProxyConn() {
 		go c.server.HandleConnection(conn)
 	}
 }
@@ -1543,8 +1571,12 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
+
 	testCtx.tlsServer, err = authServer.NewTestTLSServer()
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testCtx.tlsServer.Close()) })
+
 	testCtx.authServer = testCtx.tlsServer.Auth()
 
 	// Create multiplexer.
@@ -1562,6 +1594,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		Listener: tls.NewListener(testCtx.mux.TLS(), testCtx.makeTLSConfig(t)),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testCtx.webListener.Close()) })
 
 	// Create MySQL proxy listener.
 	testCtx.mysqlListener, err = net.Listen("tcp", "localhost:0")
@@ -1577,12 +1610,16 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	// Auth client for database service.
 	testCtx.authClient, err = testCtx.tlsServer.NewClient(auth.TestServerID(types.RoleDatabase, testCtx.hostID))
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testCtx.authClient.Close()) })
+
 	testCtx.hostCA, err = testCtx.authClient.GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: testCtx.clusterName}, false)
 	require.NoError(t, err)
 
 	// Auth client, lock watcher and authorizer for database proxy.
 	proxyAuthClient, err := testCtx.tlsServer.NewClient(auth.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
+
 	proxyLockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
@@ -1606,12 +1643,10 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	}
 
 	// Establish fake reversetunnel b/w database proxy and database service.
-	testCtx.proxyConn = make(chan net.Conn)
-	testCtx.fakeRemoteSite = &reversetunnel.FakeRemoteSite{
-		Name:        testCtx.clusterName,
-		ConnCh:      testCtx.proxyConn,
-		AccessPoint: proxyAuthClient,
-	}
+	testCtx.fakeRemoteSite = reversetunnel.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
+	t.Cleanup(func() {
+		testCtx.fakeRemoteSite.Close()
+	})
 	tunnel := &reversetunnel.FakeServer{
 		Sites: []reversetunnel.RemoteSite{
 			testCtx.fakeRemoteSite,
@@ -1929,7 +1964,9 @@ func withSelfHostedMySQL(name string) withDatabaseOption {
 		})
 		require.NoError(t, err)
 		go mysqlServer.Serve()
-		t.Cleanup(func() { mysqlServer.Close() })
+		t.Cleanup(func() {
+			require.NoError(t, mysqlServer.Close())
+		})
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
 		}, types.DatabaseSpecV3{

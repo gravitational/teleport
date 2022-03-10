@@ -32,9 +32,9 @@ type startTestCase struct {
 }
 
 func successStartTestCase(t *testing.T) startTestCase {
-	hostRole, err := types.NewRoleV5("host", types.RoleSpecV5{})
+	hostRole, err := types.NewRole("host", types.RoleSpecV5{})
 	require.NoError(t, err)
-	participantRole, err := types.NewRoleV5("participant", types.RoleSpecV5{})
+	participantRole, err := types.NewRole("participant", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	hostRole.SetSessionRequirePolicies([]*types.SessionRequirePolicy{{
@@ -72,9 +72,9 @@ func successStartTestCase(t *testing.T) startTestCase {
 }
 
 func failCountStartTestCase(t *testing.T) startTestCase {
-	hostRole, err := types.NewRoleV5("host", types.RoleSpecV5{})
+	hostRole, err := types.NewRole("host", types.RoleSpecV5{})
 	require.NoError(t, err)
-	participantRole, err := types.NewRoleV5("participant", types.RoleSpecV5{})
+	participantRole, err := types.NewRole("participant", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	hostRole.SetSessionRequirePolicies([]*types.SessionRequirePolicy{{
@@ -111,9 +111,9 @@ func failCountStartTestCase(t *testing.T) startTestCase {
 }
 
 func failFilterStartTestCase(t *testing.T) startTestCase {
-	hostRole, err := types.NewRoleV5("host", types.RoleSpecV5{})
+	hostRole, err := types.NewRole("host", types.RoleSpecV5{})
 	require.NoError(t, err)
-	participantRole, err := types.NewRoleV5("participant", types.RoleSpecV5{})
+	participantRole, err := types.NewRole("participant", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	hostRole.SetSessionRequirePolicies([]*types.SessionRequirePolicy{{
@@ -176,9 +176,9 @@ type joinTestCase struct {
 }
 
 func successJoinTestCase(t *testing.T) joinTestCase {
-	hostRole, err := types.NewRoleV5("host", types.RoleSpecV5{})
+	hostRole, err := types.NewRole("host", types.RoleSpecV5{})
 	require.NoError(t, err)
-	participantRole, err := types.NewRoleV5("participant", types.RoleSpecV5{})
+	participantRole, err := types.NewRole("participant", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	participantRole.SetSessionJoinPolicies([]*types.SessionJoinPolicy{{
@@ -200,9 +200,9 @@ func successJoinTestCase(t *testing.T) joinTestCase {
 }
 
 func failRoleJoinTestCase(t *testing.T) joinTestCase {
-	hostRole, err := types.NewRoleV5("host", types.RoleSpecV5{})
+	hostRole, err := types.NewRole("host", types.RoleSpecV5{})
 	require.NoError(t, err)
-	participantRole, err := types.NewRoleV5("participant", types.RoleSpecV5{})
+	participantRole, err := types.NewRole("participant", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	return joinTestCase{
@@ -218,9 +218,9 @@ func failRoleJoinTestCase(t *testing.T) joinTestCase {
 }
 
 func failKindJoinTestCase(t *testing.T) joinTestCase {
-	hostRole, err := types.NewRoleV5("host", types.RoleSpecV5{})
+	hostRole, err := types.NewRole("host", types.RoleSpecV5{})
 	require.NoError(t, err)
-	participantRole, err := types.NewRoleV5("participant", types.RoleSpecV5{})
+	participantRole, err := types.NewRole("participant", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	participantRole.SetSessionJoinPolicies([]*types.SessionJoinPolicy{{
