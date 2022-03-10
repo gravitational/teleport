@@ -307,7 +307,7 @@ type session struct {
 }
 
 // newSession creates a new session in pending mode.
-func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params httprouter.Params, initiator *party, sess *clusterSession, verboseRequirements bool) (*session, error) {
+func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params httprouter.Params, initiator *party, sess *clusterSession) (*session, error) {
 	id := uuid.New()
 	log := forwarder.log.WithField("session", id.String())
 	log.Debug("Creating session")
@@ -357,7 +357,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		expires:             time.Now().UTC().Add(time.Hour * 24),
 		PresenceEnabled:     ctx.Identity.GetIdentity().MFAVerified != "",
 		stateUpdate:         sync.NewCond(&sync.Mutex{}),
-		verboseRequirements: verboseRequirements,
+		verboseRequirements: utils.AsBool(q.Get("verboseRequirements")),
 	}
 
 	go func() {
