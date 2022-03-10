@@ -237,8 +237,10 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	// DataDir overrides any previously-configured storage config
 	if cf.DataDir != "" {
-		if _, err := config.Storage.GetDestination(); err != nil {
-			log.Warnf("CLI parameters are overriding storage location from %s", cf.ConfigPath)
+		if config.Storage != nil {
+			if _, err := config.Storage.GetDestination(); err != nil {
+				log.Warnf("CLI parameters are overriding storage location from %s", cf.ConfigPath)
+			}
 		}
 
 		config.Storage = &StorageConfig{
