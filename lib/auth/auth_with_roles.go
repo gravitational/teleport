@@ -3523,7 +3523,7 @@ func (a *ServerWithRoles) DeleteUserAppSessions(ctx context.Context, req *proto.
 // WebSessions from the provided `username`.
 func (a *ServerWithRoles) canDeleteWebSession(username string) error {
 	if err := a.currentUserAction(username); err != nil {
-		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbDelete); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbDelete); err != nil {
 			return trace.Wrap(err)
 		}
 	}
