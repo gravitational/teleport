@@ -13,7 +13,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // useProxy reports whether requests to addr should use a proxy,
@@ -24,7 +24,7 @@ func useProxy(addr string) bool {
 		return true
 	}
 	var noProxy string
-	for _, env := range []string{teleport.NoProxy, strings.ToLower(teleport.NoProxy)} {
+	for _, env := range []string{constants.NoProxy, strings.ToLower(constants.NoProxy)} {
 		noProxy = os.Getenv(env)
 		if noProxy != "" {
 			break

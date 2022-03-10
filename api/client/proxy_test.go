@@ -18,17 +18,10 @@ package client
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
 )
-
-func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	os.Exit(m.Run())
-}
 
 func TestGetProxyAddress(t *testing.T) {
 	type env struct {

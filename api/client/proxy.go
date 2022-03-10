@@ -25,7 +25,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 	"github.com/siddontang/go/log"
 )
@@ -87,10 +87,10 @@ func DialProxy(ctx context.Context, proxyAddr, addr string, dialer ContextDialer
 // GetProxyAddress gets the HTTP proxy address to use for a given address, if any.
 func GetProxyAddress(addr string) string {
 	envs := []string{
-		teleport.HTTPSProxy,
-		strings.ToLower(teleport.HTTPSProxy),
-		teleport.HTTPProxy,
-		strings.ToLower(teleport.HTTPProxy),
+		constants.HTTPSProxy,
+		strings.ToLower(constants.HTTPSProxy),
+		constants.HTTPProxy,
+		strings.ToLower(constants.HTTPProxy),
 	}
 
 	for _, v := range envs {
