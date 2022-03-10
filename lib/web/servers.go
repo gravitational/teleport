@@ -19,7 +19,6 @@ package web
 import (
 	"net/http"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -35,14 +34,20 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	// Get a list of kube servers.
-	kubeServers, err := clt.GetKubeServices(r.Context())
+	resp, err := listResources(clt, r, types.KindKubernetesCluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusters, err := types.ResourcesWithLabels(resp.Resources).AsKubeClusters()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items: ui.MakeKubes(h.auth.clusterName, kubeServers),
+		Items:      ui.MakeKubeClusters(clusters),
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
 	}, nil
 }
 
@@ -53,8 +58,12 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	// Get a list of database servers.
-	servers, err := clt.GetDatabaseServers(r.Context(), apidefaults.Namespace)
+	resp, err := listResources(clt, r, types.KindDatabaseServer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resp.Resources).AsDatabaseServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -66,7 +75,9 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	return listResourcesGetResponse{
-		Items: ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)),
+		Items:      ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)),
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
 	}, nil
 }
 
@@ -77,14 +88,21 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	windowsDesktops, err := clt.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{})
+	resp, err := listResources(clt, r, types.KindWindowsDesktop)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	windowsDesktops, err := types.ResourcesWithLabels(resp.Resources).AsWindowsDesktops()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	windowsDesktops = types.DeduplicateDesktops(windowsDesktops)
 
 	return listResourcesGetResponse{
-		Items: ui.MakeDesktops(windowsDesktops),
+		Items:      ui.MakeDesktops(windowsDesktops),
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
 	}, nil
 }
 
