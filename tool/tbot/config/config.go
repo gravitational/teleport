@@ -61,9 +61,9 @@ type CLIConf struct {
 	// Token is a bot join token.
 	Token string
 
-	// RenewInterval is the interval at which certificates are renewed, as a
+	// RenewalInterval is the interval at which certificates are renewed, as a
 	// time.ParseDuration() string. It must be less than the certificate TTL.
-	RenewInterval time.Duration
+	RenewalInterval time.Duration
 
 	// CertificateTTL is the requested TTL of certificates. It should be some
 	// multiple of the renewal interval to allow for failed renewals.
@@ -72,6 +72,9 @@ type CLIConf struct {
 	// JoinMethod is the method the bot should use to exchange a token for the
 	// initial certificate
 	JoinMethod string
+
+	// Oneshot controls whether the bot quits after a single renewal.
+	Oneshot bool
 
 	// InitDir specifies which destination to initialize if multiple are
 	// configured.
@@ -117,17 +120,14 @@ type BotConfig struct {
 	Storage      *StorageConfig       `yaml:"storage,omitempty"`
 	Destinations []*DestinationConfig `yaml:"destinations,omitempty"`
 
-	Debug          bool          `yaml:"debug"`
-	AuthServer     string        `yaml:"auth_server"`
-	CertificateTTL time.Duration `yaml:"certificate_ttl"`
-	RenewInterval  time.Duration `yaml:"renew_interval"`
+	Debug           bool          `yaml:"debug"`
+	AuthServer      string        `yaml:"auth_server"`
+	CertificateTTL  time.Duration `yaml:"certificate_ttl"`
+	RenewalInterval time.Duration `yaml:"renewal_interval"`
+	Oneshot         bool          `yaml:"oneshot"`
 }
 
 func (conf *BotConfig) CheckAndSetDefaults() error {
-	if conf.AuthServer == "" {
-		return trace.BadParameter("an auth server address must be configured")
-	}
-
 	if conf.Storage == nil {
 		conf.Storage = &StorageConfig{}
 	}
@@ -146,8 +146,8 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		conf.CertificateTTL = DefaultCertificateTTL
 	}
 
-	if conf.RenewInterval == 0 {
-		conf.RenewInterval = DefaultRenewInterval
+	if conf.RenewalInterval == 0 {
+		conf.RenewalInterval = DefaultRenewInterval
 	}
 
 	return nil
@@ -214,6 +214,10 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		config.Debug = true
 	}
 
+	if cf.Oneshot {
+		config.Oneshot = true
+	}
+
 	if cf.AuthServer != "" {
 		if config.AuthServer != "" {
 			log.Warnf("CLI parameters are overriding auth server configured in %s", cf.ConfigPath)
@@ -228,11 +232,11 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		config.CertificateTTL = cf.CertificateTTL
 	}
 
-	if cf.RenewInterval != 0 {
-		if config.RenewInterval != 0 {
+	if cf.RenewalInterval != 0 {
+		if config.RenewalInterval != 0 {
 			log.Warnf("CLI parameters are overriding renewal interval configured in %s", cf.ConfigPath)
 		}
-		config.RenewInterval = cf.RenewInterval
+		config.RenewalInterval = cf.RenewalInterval
 	}
 
 	// DataDir overrides any previously-configured storage config
