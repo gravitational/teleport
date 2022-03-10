@@ -77,13 +77,9 @@ func (c *AppsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 func (c *AppsCommand) ListApps(clt auth.ClientI) error {
 	ctx := context.TODO()
 
-	var labels map[string]string
-	var err error
-	if c.labels != "" {
-		labels, err = libclient.ParseLabelSpec(c.labels)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	labels, err := libclient.ParseLabelSpec(c.labels)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	var servers []types.AppServer

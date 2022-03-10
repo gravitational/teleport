@@ -203,13 +203,9 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 func (c *NodeCommand) ListActive(clt auth.ClientI) error {
 	ctx := context.TODO()
 
-	var labels map[string]string
-	var err error
-	if c.labels != "" {
-		labels, err = libclient.ParseLabelSpec(c.labels)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	labels, err := libclient.ParseLabelSpec(c.labels)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	var nodes []types.Server
