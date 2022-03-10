@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -41,21 +40,18 @@ import (
 )
 
 // newSelfSignedCA creates a new CA for testing.
-func newSelfSignedCA() (*tlsca.CertAuthority, error) {
+func newSelfSignedCA(t *testing.T) (*tlsca.CertAuthority, error) {
 	rsaKey, err := ssh.ParseRawPrivateKey(fixtures.PEMBytes["rsa"])
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	require.NoError(t, err)
+
 	cert, err := tlsca.GenerateSelfSignedCAWithSigner(
 		rsaKey.(*rsa.PrivateKey), pkix.Name{}, nil, defaults.CATTL,
 	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	require.NoError(t, err)
+
 	ca, err := tlsca.FromCertAndSigner(cert, rsaKey.(*rsa.PrivateKey))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	require.NoError(t, err)
+
 	return ca, nil
 }
 
@@ -105,17 +101,17 @@ type mockAccessCache struct {
 // TestServerTLS ensures that only trusted certificates with the proxy role
 // are accepted by the server.
 func TestServerTLS(t *testing.T) {
-	ca1, err := newSelfSignedCA()
+	ca1, err := newSelfSignedCA(t)
 	require.NoError(t, err)
 
-	ca2, err := newSelfSignedCA()
+	ca2, err := newSelfSignedCA(t)
 	require.NoError(t, err)
 
 	tests := []struct {
 		desc      string
 		server    *tls.Config
 		client    *tls.Config
-		expectErr bool
+		assertErr require.ErrorAssertionFunc
 	}{
 		{
 			desc: "trusted certificates with proxy roles",
@@ -125,7 +121,7 @@ func TestServerTLS(t *testing.T) {
 			client: certFromIdentity(t, ca1, tlsca.Identity{
 				Groups: []string{string(types.RoleProxy)},
 			}),
-			expectErr: false,
+			assertErr: require.NoError,
 		},
 		{
 			desc: "trusted certificates with incorrect server role",
@@ -135,7 +131,7 @@ func TestServerTLS(t *testing.T) {
 			client: certFromIdentity(t, ca1, tlsca.Identity{
 				Groups: []string{string(types.RoleProxy)},
 			}),
-			expectErr: true,
+			assertErr: require.Error,
 		},
 		{
 			desc: "certificates with correct role from different CAs",
@@ -145,7 +141,7 @@ func TestServerTLS(t *testing.T) {
 			client: certFromIdentity(t, ca2, tlsca.Identity{
 				Groups: []string{string(types.RoleProxy)},
 			}),
-			expectErr: true,
+			assertErr: require.Error,
 		},
 	}
 
@@ -180,12 +176,8 @@ func TestServerTLS(t *testing.T) {
 			defer conn.Close()
 
 			client := proto.NewProxyServiceClient(conn)
-			_, err = client.DialNode(context.TODO())
-			if tc.expectErr {
-				require.Error(t, err, tc.desc)
-			} else {
-				require.NoError(t, err, tc.desc)
-			}
+			_, err = client.DialNode(context.Background())
+			tc.assertErr(t, err, tc.desc)
 		}()
 	}
 }

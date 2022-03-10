@@ -64,7 +64,7 @@ func setupService(t *testing.T) (*proxyService, proto.ProxyServiceClient) {
 
 func TestInvalidFirstFrame(t *testing.T) {
 	_, client := setupService(t)
-	stream, err := client.DialNode(context.TODO())
+	stream, err := client.DialNode(context.Background())
 	require.NoError(t, err)
 
 	err = stream.Send(&proto.Frame{
@@ -78,7 +78,7 @@ func TestInvalidFirstFrame(t *testing.T) {
 
 func TestSendReceive(t *testing.T) {
 	service, client := setupService(t)
-	stream, err := client.DialNode(context.TODO())
+	stream, err := client.DialNode(context.Background())
 	require.NoError(t, err)
 
 	dialRequest := &proto.DialRequest{
@@ -107,17 +107,21 @@ func TestSendReceive(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	err = stream.Send(&proto.Frame{Message: &proto.Frame_Data{Data: &proto.Data{
-		Bytes: send,
-	}}})
-	require.NoError(t, err)
+	for i := 0; i < 10; i++ {
+		send := append(send, byte(i))
+		err = stream.Send(&proto.Frame{Message: &proto.Frame_Data{Data: &proto.Data{
+			Bytes: send,
+		}}})
+		require.NoError(t, err)
 
-	b := make([]byte, 4)
-	local.Read(b)
-	require.Equal(t, send, b, "unexpected bytes sent")
+		b := make([]byte, len(send))
+		local.Read(b)
+		require.Equal(t, send, b, "unexpected bytes sent")
 
-	local.Write(recv)
-	msg, err := stream.Recv()
-	require.NoError(t, err)
-	require.Equal(t, recv, msg.GetData().Bytes, "unexpected bytes received")
+		recv := append(recv, byte(i))
+		local.Write(recv)
+		msg, err := stream.Recv()
+		require.NoError(t, err)
+		require.Equal(t, recv, msg.GetData().Bytes, "unexpected bytes received")
+	}
 }
