@@ -237,7 +237,7 @@ func setupPostgres(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *tes
 	})
 
 	go func() {
-		for conn := range testCtx.proxyConn {
+		for conn := range testCtx.fakeRemoteSite.ProxyConn() {
 			go server1.HandleConnection(conn)
 		}
 	}()
@@ -282,7 +282,7 @@ func setupMySQL(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testCo
 	})
 
 	go func() {
-		for conn := range testCtx.proxyConn {
+		for conn := range testCtx.fakeRemoteSite.ProxyConn() {
 			go server1.HandleConnection(conn)
 		}
 	}()
@@ -332,7 +332,7 @@ func setupMongo(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testCo
 	})
 
 	go func() {
-		for conn := range testCtx.proxyConn {
+		for conn := range testCtx.fakeRemoteSite.ProxyConn() {
 			go server1.HandleConnection(conn)
 		}
 	}()
