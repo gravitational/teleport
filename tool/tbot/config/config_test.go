@@ -165,7 +165,7 @@ func TestParseSSHVersion(t *testing.T) {
 			require.Error(t, err)
 		} else {
 			require.NoError(t, err)
-			require.True(t, version.Equal(*test.version))
+			require.True(t, version.Equal(*test.version), "got version = %v, want = %v", version, test.version)
 		}
 	}
 }

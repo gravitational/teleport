@@ -156,7 +156,7 @@ func onWatch(botConfig *config.BotConfig) error {
 
 func onStart(botConfig *config.BotConfig) error {
 	if botConfig.AuthServer == "" {
-		return trace.BadParameter("An auth or proxy server must be set via --auth-server or configuration")
+		return trace.BadParameter("an auth or proxy server must be set via --auth-server or configuration")
 	}
 
 	// First, try to make sure all destinations are usable.
@@ -343,7 +343,7 @@ func checkIdentity(ident *identity.Identity) error {
 	return nil
 }
 
-// handleSignals handles incoming Unix signals
+// handleSignals handles incoming Unix signals.
 func handleSignals(reload chan struct{}, cancel context.CancelFunc) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
