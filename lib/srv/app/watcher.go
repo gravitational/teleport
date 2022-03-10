@@ -97,8 +97,8 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher
 	return watcher, nil
 }
 
-func (s *Server) getResources() (resources types.ResourcesWithLabels) {
-	return s.getApps().AsResources()
+func (s *Server) getResources() (resources types.ResourcesWithLabelsMap) {
+	return s.getApps().AsResources().ToMap()
 }
 
 func (s *Server) onCreate(ctx context.Context, resource types.ResourceWithLabels) error {

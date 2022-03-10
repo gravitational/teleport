@@ -517,7 +517,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	err = services.ValidateSAMLConnector(connector)
 	c.Assert(err, IsNil)
 
-	role, err := types.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV5{
+	role, err := types.NewRoleV3(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV5{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
 		},
@@ -1163,7 +1163,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	require.NoError(t, err)
 
-	ca, err := authClient.GetCertAuthority(types.CertAuthID{Type: types.UserCA, DomainName: n.GetClusterName()}, false)
+	ca, err := authClient.GetCertAuthority(context.Background(), types.CertAuthID{Type: types.UserCA, DomainName: n.GetClusterName()}, false)
 	require.NoError(t, err)
 
 	for _, kp := range services.GetTLSCerts(ca) {

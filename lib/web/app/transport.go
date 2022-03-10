@@ -256,7 +256,7 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 	// Configure the pool of certificates that will be used to verify the
 	// identity of the server. This allows the client to verify the identity of
 	// the server it is connecting to.
-	ca, err := c.accessPoint.GetCertAuthority(types.CertAuthID{
+	ca, err := c.accessPoint.GetCertAuthority(context.TODO(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: c.identity.RouteToApp.ClusterName,
 	}, false)
