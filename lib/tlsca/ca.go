@@ -28,13 +28,14 @@ import (
 	"net"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/wrappers"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -701,6 +702,9 @@ func (c *CertificateRequest) CheckAndSetDefaults() error {
 	if c.KeyUsage == 0 {
 		c.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 	}
+
+	c.DNSNames = utils.Deduplicate(c.DNSNames)
+
 	return nil
 }
 
