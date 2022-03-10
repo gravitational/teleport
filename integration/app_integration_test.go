@@ -1253,7 +1253,7 @@ func (p *pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 
 	req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(payload))
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, trace.Wrap(err)
 	}
 
 	req.AddCookie(&http.Cookie{
@@ -1263,7 +1263,7 @@ func (p *pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", p.webToken))
 
 	statusCode, body, err := p.sendRequest(req, nil)
-	return statusCode, []byte(body), err
+	return statusCode, []byte(body), trace.Wrap(err)
 }
 
 func (p *pack) ensureAuditEvent(t *testing.T, eventType string, checkEvent func(event apievents.AuditEvent)) {

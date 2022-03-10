@@ -1567,7 +1567,7 @@ service AuthService {
     rpc DeleteAppSession(DeleteAppSessionRequest) returns (google.protobuf.Empty);
     // DeleteAllAppSessions removes all application web sessions.
     rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
-    // DeleteUserAppSessions delete all user’s application sessions.
+    // DeleteUserAppSessions deletes all user’s application sessions.
     rpc DeleteUserAppSessions(DeleteUserAppSessionsRequest) returns (google.protobuf.Empty);
 
     // GetWebSession gets a web session.

@@ -107,7 +107,7 @@ func (s *IdentityService) GetUserAppSessions(ctx context.Context, user string) (
 	return userSessions, nil
 }
 
-// DeleteAllAppSessions removes all application web sessions.
+// DeleteAllAppSessions removes all application web sessions for a particular user.
 func (s *IdentityService) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
 	sessions, err := s.GetUserAppSessions(ctx, req.Username)
 	if err != nil {

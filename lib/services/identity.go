@@ -267,7 +267,7 @@ type AppSession interface {
 	DeleteAppSession(context.Context, types.DeleteAppSessionRequest) error
 	// DeleteAllAppSessions removes all application web sessions.
 	DeleteAllAppSessions(context.Context) error
-	// DeleteUserAppSessions delete all user’s application sessions.
+	// DeleteUserAppSessions deletes all user’s application sessions.
 	DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error
 }
 

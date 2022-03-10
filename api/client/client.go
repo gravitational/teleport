@@ -1093,7 +1093,7 @@ func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
-// DeleteUserAppSessions delete all user’s application sessions.
+// DeleteUserAppSessions deletes all user’s application sessions.
 func (c *Client) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
 	_, err := c.grpc.DeleteUserAppSessions(ctx, req, c.callOpts...)
 	return trail.FromGRPC(err)

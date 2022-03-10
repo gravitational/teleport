@@ -3190,7 +3190,7 @@ func (a *ServerWithRoles) DeleteAllAppSessions(ctx context.Context) error {
 	return nil
 }
 
-// DeleteUserAppSessions delete all user’s application sessions.
+// DeleteUserAppSessions deletes all user’s application sessions.
 func (a *ServerWithRoles) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
 	// First, check if the current user can delete the request user sessions.
 	if err := a.canDeleteWebSession(req.Username); err != nil {
