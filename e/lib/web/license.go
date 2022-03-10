@@ -22,7 +22,7 @@ func (p *Plugin) getLicenseCheckStatusHandle(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	licenseCheckResult, err := proClient.GetLicenseCheckResult()
+	licenseCheckResult, err := proClient.GetLicenseCheckResult(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

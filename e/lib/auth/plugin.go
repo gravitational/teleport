@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"net/http"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -120,5 +119,5 @@ func (p *Plugin) getLicenseCheckResult(w http.ResponseWriter, r *http.Request, p
 	if p.enforcer == nil {
 		return types.NewHeartbeat(), nil
 	}
-	return p.enforcer.GetLicenseCheckResult(context.TODO())
+	return p.enforcer.GetLicenseCheckResult(r.Context())
 }
