@@ -44,7 +44,7 @@ func BotResourceName(botName string) string {
 
 // createBotRole creates a role from a bot template with the given parameters.
 func createBotRole(ctx context.Context, s *Server, botName string, resourceName string, roleRequests []string) (types.Role, error) {
-	role, err := types.NewRole(resourceName, types.RoleSpecV5{
+	role, err := types.NewRoleV3(resourceName, types.RoleSpecV5{
 		Options: types.RoleOptions{
 			// TODO: inherit TTLs from cert length?
 			MaxSessionTTL: types.Duration(12 * time.Hour),
