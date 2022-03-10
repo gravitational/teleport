@@ -1545,11 +1545,15 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 				s.stateUpdate.Broadcast()
 			}
 		} else if !s.started {
-			s.BroadcastMessage("Session paused, Waiting for required participants...")
+			var additionalFormat string
+			var additionalItem string
 
 			if s.verboseRequirements {
-				s.BroadcastMessage("%v", s.access.PrettyRequirementsList())
+				additionalFormat = "\n\t%v"
+				additionalItem = s.access.PrettyRequirementsList()
 			}
+
+			s.BroadcastMessage("Waiting for required participants..."+additionalFormat, additionalItem)
 		}
 	}
 

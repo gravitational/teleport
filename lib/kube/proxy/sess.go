@@ -938,11 +938,15 @@ func (s *session) join(p *party) error {
 		} else if !s.tty {
 			return trace.AccessDenied("insufficient permissions to launch non-interactive session")
 		} else if len(s.parties) == 1 {
-			s.BroadcastMessage("Waiting for required participants...")
+			var additionalFormat string
+			var additionalItem string
 
 			if s.verboseRequirements {
-				s.BroadcastMessage("%v", s.accessEvaluator.PrettyRequirementsList())
+				additionalFormat = "\n\t%v"
+				additionalItem = s.accessEvaluator.PrettyRequirementsList()
 			}
+
+			s.BroadcastMessage("Waiting for required participants..."+additionalFormat, additionalItem)
 		}
 	}
 
