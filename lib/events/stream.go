@@ -1084,6 +1084,8 @@ type MemoryUploader struct {
 	uploads map[string]*MemoryUpload
 	objects map[session.ID][]byte
 	eventsC chan UploadEvent
+
+	Clock clockwork.Clock
 }
 
 // MemoryUpload is used in tests
@@ -1123,6 +1125,9 @@ func (m *MemoryUploader) CreateUpload(ctx context.Context, sessionID session.ID)
 	upload := &StreamUpload{
 		ID:        uuid.New(),
 		SessionID: sessionID,
+	}
+	if m.Clock != nil {
+		upload.Initiated = m.Clock.Now()
 	}
 	m.uploads[upload.ID] = &MemoryUpload{
 		id:        upload.ID,

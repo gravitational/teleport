@@ -740,10 +740,52 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 		}
 		fmt.Printf("windows desktop service %q has been deleted\n", rc.ref.Name)
 	case types.KindWindowsDesktop:
-		if err = client.DeleteWindowsDesktop(ctx, rc.ref.Name); err != nil {
+		desktops, err := client.GetWindowsDesktops(ctx,
+			types.WindowsDesktopFilter{Name: rc.ref.Name})
+		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("windows desktop %q has been deleted\n", rc.ref.Name)
+		if len(desktops) == 0 {
+			return trace.NotFound("no desktops with name %q were found", rc.ref.Name)
+		}
+		deleted := 0
+		var errs []error
+		for _, desktop := range desktops {
+			if desktop.GetName() != rc.ref.Name {
+				if err = client.DeleteWindowsDesktop(ctx, desktop.GetHostID(), rc.ref.Name); err != nil {
+					errs = append(errs, err)
+					continue
+				}
+				deleted++
+			}
+		}
+		if deleted == 0 {
+			errs = append(errs,
+				trace.Errorf("failed to delete any desktops with the name %q, %d were found",
+					rc.ref.Name, len(desktops)))
+		}
+		fmts := "%d windows desktops with name %q have been deleted"
+		if err := trace.NewAggregate(errs...); err != nil {
+			fmt.Printf(fmts+" with errors while deleting\n", deleted, rc.ref.Name)
+			return err
+		}
+		fmt.Printf(fmts+"\n", deleted, rc.ref.Name)
+	case types.KindCertAuthority:
+		if rc.ref.SubKind == "" || rc.ref.Name == "" {
+			return trace.BadParameter(
+				"full %s path must be specified (e.g. '%s/%s/clustername')",
+				types.KindCertAuthority, types.KindCertAuthority, types.HostCA,
+			)
+		}
+		err := client.DeleteCertAuthority(types.CertAuthID{
+			Type:       types.CertAuthType(rc.ref.SubKind),
+			DomainName: rc.ref.Name,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, rc.ref.SubKind, rc.ref.Name)
+
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -1180,7 +1222,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		}
 		return &windowsDesktopServiceCollection{services: out}, nil
 	case types.KindWindowsDesktop:
-		desktops, err := client.GetWindowsDesktops(ctx)
+		desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

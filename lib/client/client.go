@@ -538,6 +538,16 @@ func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	return watcher, nil
 }
 
+// isAuthBoring checks whether or not the auth server for the current cluster was compiled with BoringCrypto.
+func (proxy *ProxyClient) isAuthBoring(ctx context.Context) (bool, error) {
+	site, err := proxy.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	resp, err := site.Ping(ctx)
+	return resp.IsBoring, trace.Wrap(err)
+}
+
 // FindServersByLabels returns list of the nodes which have labels exactly matching
 // the given label set.
 //
