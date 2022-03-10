@@ -28,7 +28,6 @@ export default function useQuickInput() {
   );
   const hasSuggestions =
     autocompleteResult.kind === 'autocomplete.partial-match';
-  const picker = autocompleteResult.picker;
 
   const onFocus = (e: any) => {
     if (e.relatedTarget) {
@@ -47,8 +46,14 @@ export default function useQuickInput() {
     if (!hasSuggestions) {
       return;
     }
+
+    const suggestion = autocompleteResult.suggestions[index];
+
     setActiveSuggestion(index);
-    picker.onPick(autocompleteResult.suggestions[index]);
+    serviceQuickInput.pickSuggestion(
+      autocompleteResult.targetToken,
+      suggestion
+    );
   };
 
   const onBack = () => {
@@ -62,9 +67,17 @@ export default function useQuickInput() {
     },
   });
 
+  // Reset active suggestion when the suggestion list changes.
+  // We extract just the tokens and stringify the list to avoid stringifying big objects.
+  // See https://github.com/facebook/react/issues/14476#issuecomment-471199055
   useEffect(() => {
     setActiveSuggestion(0);
-  }, [picker]);
+  }, [
+    hasSuggestions &&
+      JSON.stringify(
+        autocompleteResult.suggestions.map(suggestion => suggestion.token)
+      ),
+  ]);
 
   return {
     visible,

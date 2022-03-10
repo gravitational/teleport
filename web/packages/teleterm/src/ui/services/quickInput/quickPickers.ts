@@ -16,6 +16,7 @@ limitations under the License.
 
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
+import { QuickInputService } from 'teleterm/ui/services/quickInput';
 import { CommandLauncher } from 'teleterm/ui/commandLauncher';
 import {
   QuickInputPicker,
@@ -27,7 +28,10 @@ import {
 export class QuickCommandPicker implements QuickInputPicker {
   private pickerRegistry: Map<string, QuickInputPicker>;
 
-  constructor(private launcher: CommandLauncher) {
+  constructor(
+    private quickInputService: QuickInputService,
+    private launcher: CommandLauncher
+  ) {
     this.pickerRegistry = new Map();
   }
 
@@ -35,24 +39,28 @@ export class QuickCommandPicker implements QuickInputPicker {
     this.pickerRegistry.set(command, picker);
   }
 
+  // TODO(ravicious): Handle env vars.
+  // TODO(ravicious): Take cursor position into account.
   onPick(suggestion: SuggestionCmd) {
-    this.launcher.executeCommand(suggestion.data.name as any, null);
+    this.quickInputService.setInputValue(suggestion.token);
   }
 
-  // TODO: Add tests.
-  // `tsh ssh foo` as input should return recognized-token.
   // TODO(ravicious): Handle env vars.
-  getAutocompleteResult(input: string): AutocompleteResult {
+  getAutocompleteResult(rawInput: string): AutocompleteResult {
     const autocompleteCommands = this.launcher.getAutocompleteCommands();
-
-    // We can safely ignore any whitespace at the start.
-    input = input.trimStart();
+    // We can safely ignore any whitespace at the start. However, `startIndex` needs to account for
+    // any removed whitespace.
+    const input = rawInput.trimStart();
+    const targetToken = {
+      value: input,
+      startIndex: rawInput.indexOf(input),
+    };
 
     // Return all commands if there's no input.
     if (input === '') {
       return {
         kind: 'autocomplete.partial-match',
-        picker: this,
+        targetToken,
         suggestions:
           this.mapAutocompleteCommandsToSuggestions(autocompleteCommands),
       };
@@ -72,13 +80,13 @@ export class QuickCommandPicker implements QuickInputPicker {
       });
 
     if (matchingAutocompleteCommands.length === 0) {
-      return { kind: 'autocomplete.no-match', picker: this };
+      return { kind: 'autocomplete.no-match' };
     }
 
     if (matchingAutocompleteCommands.length > 1) {
       return {
         kind: 'autocomplete.partial-match',
-        picker: this,
+        targetToken,
         suggestions: this.mapAutocompleteCommandsToSuggestions(
           matchingAutocompleteCommands
         ),
@@ -90,16 +98,20 @@ export class QuickCommandPicker implements QuickInputPicker {
 
     // Handles a complete match, for example the input is `tsh ssh`.
     const soleMatch = matchingAutocompleteCommands[0];
-    const completeMatchRegex = new RegExp(`^${soleMatch.displayName}\\b`);
+    const commandToken = soleMatch.displayName;
+    const completeMatchRegex = new RegExp(`^${commandToken}\\b`);
     const isCompleteMatch = completeMatchRegex.test(input);
 
     if (isCompleteMatch) {
-      const valueWithoutCommandPrefix = input.replace(completeMatchRegex, '');
-      const nextQuickInputPicker = this.pickerRegistry.get(
-        soleMatch.displayName
-      );
+      const inputWithoutCommandPrefix = input.replace(completeMatchRegex, '');
+      // Add length of the command we just replaced with an empty string to startIndex,
+      // so that the next picker has the correct index for the target token.
+      const commandStartIndex = targetToken.startIndex + commandToken.length;
+      const nextQuickInputPicker = this.pickerRegistry.get(commandToken);
+
       return nextQuickInputPicker.getAutocompleteResult(
-        valueWithoutCommandPrefix
+        inputWithoutCommandPrefix,
+        commandStartIndex
       );
     }
 
@@ -107,7 +119,7 @@ export class QuickCommandPicker implements QuickInputPicker {
     // `tsh ss` (`tsh ssh` should be the only matching command then).
     return {
       kind: 'autocomplete.partial-match',
-      picker: this,
+      targetToken,
       suggestions: this.mapAutocompleteCommandsToSuggestions(
         matchingAutocompleteCommands
       ),
@@ -126,8 +138,8 @@ export class QuickCommandPicker implements QuickInputPicker {
 }
 
 export class QuickTshSshPicker implements QuickInputPicker {
-  // TODO: Make sure this regex is okay and covers valid usernames.
-  loginRegex = /^\s+([a-zA-Z0-9_-]*\b)?$/;
+  // Taken from https://unix.stackexchange.com/a/435120
+  private sshLoginRegex = /^[a-z_]([a-z0-9_-]{0,31}|[a-z0-9_-]{0,30}\$)$/;
 
   constructor(
     private launcher: CommandLauncher,
@@ -140,20 +152,41 @@ export class QuickTshSshPicker implements QuickInputPicker {
 
   onPick(suggestion: SuggestionCmd) {
     // TODO: Execute SSH.
-    // this.launcher.executeCommand(suggestion.data.name as any, null);
+    // this.launcher.executeCommand('ssh', { serverUri: suggestion.data.uri, });
   }
 
   // TODO: Support cluster arg.
-  getAutocompleteResult(input: string): AutocompleteResult {
-    const loginMatch = input.match(this.loginRegex);
+  getAutocompleteResult(
+    rawInput: string,
+    startIndex: number
+  ): AutocompleteResult {
+    // We can safely ignore any whitespace at the start. However, `startIndex` needs to account for
+    // any removed whitespace.
+    const input = rawInput.trimStart();
+    if (input === '') {
+      // input is empty, so rawInput must include only whitespace.
+      // Add length of the whitespace to startIndex.
+      startIndex += rawInput.length;
+    } else {
+      startIndex += rawInput.indexOf(input);
+    }
+
+    // Show autocomplete only after at least one space after `tsh ssh`.
+    if (rawInput !== '' && input === '') {
+      return this.sshLoginPicker.getAutocompleteResult('', startIndex);
+    }
+
+    const loginMatch = input.match(this.sshLoginRegex);
 
     if (loginMatch) {
-      return this.sshLoginPicker.getAutocompleteResult(loginMatch[1]);
+      return this.sshLoginPicker.getAutocompleteResult(
+        loginMatch[0],
+        startIndex
+      );
     }
 
     return {
       kind: 'autocomplete.no-match',
-      picker: this,
     };
   }
 }
@@ -174,13 +207,13 @@ export class QuickTshProxyDbPicker implements QuickInputPicker {
   getAutocompleteResult(input: string): AutocompleteResult {
     return {
       kind: 'autocomplete.no-match',
-      picker: this,
     };
   }
 }
 
 export class QuickSshLoginPicker implements QuickInputPicker {
   constructor(
+    private quickInputService: QuickInputService,
     private workspacesService: WorkspacesService,
     private clustersService: ClustersService
   ) {}
@@ -206,15 +239,17 @@ export class QuickSshLoginPicker implements QuickInputPicker {
     }));
   }
 
-  // TODO: Append the rest of the login to quickInputService's inputValue.
   onPick(suggestion: SuggestionCmd) {}
 
-  getAutocompleteResult(input: string): AutocompleteResult {
+  getAutocompleteResult(input: string, startIndex: number): AutocompleteResult {
     const suggestions = this.filterSshLogins(input);
     return {
       kind: 'autocomplete.partial-match',
-      picker: this,
       suggestions,
+      targetToken: {
+        startIndex,
+        value: input,
+      },
     };
   }
 }

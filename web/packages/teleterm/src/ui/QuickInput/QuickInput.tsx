@@ -28,7 +28,7 @@ export default function Container() {
 }
 
 export function QuickInput(props: State) {
-  const { visible, activeSuggestion, autocompleteResult } = props;
+  const { visible, activeSuggestion, autocompleteResult, inputValue } = props;
   const hasSuggestions =
     autocompleteResult.kind === 'autocomplete.partial-match';
   const refInput = useRef<HTMLInputElement>();
@@ -40,6 +40,14 @@ export function QuickInput(props: State) {
       props.onInputChange(refInput.current.value);
     }, 100);
   }, []);
+
+  // Update input value if it changed outside of this component. This happens when the user pick an
+  // autocomplete suggestion.
+  useEffect(() => {
+    if (refInput.current.value !== inputValue) {
+      refInput.current.value = inputValue;
+    }
+  }, [inputValue]);
 
   function handleOnFocus(e: React.SyntheticEvent) {
     // trigger a callback when focus is coming from external element
@@ -82,19 +90,10 @@ export function QuickInput(props: State) {
     const keyCode = e.which;
     switch (keyCode) {
       case KeyEnum.RETURN:
-        // TODO: even if the list is empty, it should call onPick from the given picker.
-        // Some pickers will choose from a list, some will just submit the command.
-        if (!hasSuggestions) {
-          return;
-        }
-        const { suggestions } = autocompleteResult;
-        if (suggestions.length > 0) {
-          e.stopPropagation();
-          e.preventDefault();
+        e.stopPropagation();
+        e.preventDefault();
 
-          refInput.current.value = '';
-          props.onPickSuggestion(activeSuggestion);
-        }
+        props.onPickSuggestion(activeSuggestion);
         return;
       case KeyEnum.ESC:
         props.onBack();
