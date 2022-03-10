@@ -93,7 +93,7 @@ func TestTrustedClusterCRUD(t *testing.T) {
 	// make sure it's really gone
 	_, err = presenceBackend.GetTrustedCluster(ctx, "foo")
 	require.Error(t, err)
-	require.ErrorIs(t, err, trace.NotFound("key /trustedclusters/foo is not found"))
+	require.True(t, trace.IsNotFound(err))
 }
 
 func TestDatabaseServersCRUD(t *testing.T) {
