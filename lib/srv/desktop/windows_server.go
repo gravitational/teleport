@@ -113,7 +113,7 @@ type WindowsService struct {
 	// when desktop discovery is enabled.
 	// no synchronization is necessary because this is only read/written from
 	// the reconciler goroutine.
-	lastDiscoveryResults types.ResourcesWithLabels
+	lastDiscoveryResults types.ResourcesWithLabelsMap
 
 	// Windows hosts discovered via LDAP likely won't resolve with the
 	// default DNS resolver, so we need a custom resolver that will
