@@ -104,7 +104,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI,
 		dataDir = ""
 	}
 
-	knownHosts, err := fetchKnownHosts(authClient, clusterName.GetClusterName(), proxyHost)
+	knownHosts, err := fetchKnownHosts(ctx, authClient, clusterName.GetClusterName(), proxyHost)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -166,8 +166,8 @@ Host *.{{ .ClusterName }} !{{ .ProxyHost }}
 # End generated Teleport configuration
 `))
 
-func fetchKnownHosts(client auth.ClientI, clusterName, proxyHosts string) (string, error) {
-	ca, err := client.GetCertAuthority(types.CertAuthID{
+func fetchKnownHosts(ctx context.Context, client auth.ClientI, clusterName, proxyHosts string) (string, error) {
+	ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName,
 	}, false)
