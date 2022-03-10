@@ -293,7 +293,7 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 		re.auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
-		authority, err := a.GetCertAuthority(types.CertAuthID{
+		authority, err := a.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName.GetClusterName(),
 		}, false)

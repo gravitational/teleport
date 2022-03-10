@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"time"
@@ -201,7 +202,7 @@ type rotationReq struct {
 // It is possible to switch from automatic to manual by setting the phase
 // to the rollback phase.
 //
-func (a *Server) RotateCertAuthority(req RotateRequest) error {
+func (a *Server) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
 	if err := req.CheckAndSetDefaults(a.clock); err != nil {
 		return trace.Wrap(err)
 	}
@@ -212,7 +213,7 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 
 	caTypes := req.Types()
 	for _, caType := range caTypes {
-		existing, err := a.Trust.GetCertAuthority(types.CertAuthID{
+		existing, err := a.Trust.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       caType,
 			DomainName: clusterName.GetClusterName(),
 		}, true)
@@ -250,7 +251,7 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 // RotateExternalCertAuthority rotates external certificate authority,
 // this method is called by remote trusted cluster and is used to update
 // only public keys and certificates of the certificate authority.
-func (a *Server) RotateExternalCertAuthority(ca types.CertAuthority) error {
+func (a *Server) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	if ca == nil {
 		return trace.BadParameter("missing certificate authority")
 	}
@@ -265,7 +266,7 @@ func (a *Server) RotateExternalCertAuthority(ca types.CertAuthority) error {
 		return trace.BadParameter("can not rotate local certificate authority")
 	}
 
-	existing, err := a.Trust.GetCertAuthority(types.CertAuthID{
+	existing, err := a.Trust.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       ca.GetType(),
 		DomainName: ca.GetClusterName(),
 	}, false)
@@ -309,13 +310,13 @@ func (a *Server) RotateExternalCertAuthority(ca types.CertAuthority) error {
 // autoRotateCertAuthorities automatically rotates cert authorities,
 // does nothing if no rotation parameters were set up
 // or it is too early to rotate per schedule
-func (a *Server) autoRotateCertAuthorities() error {
+func (a *Server) autoRotateCertAuthorities(ctx context.Context) error {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
-		ca, err := a.Trust.GetCertAuthority(types.CertAuthID{
+		ca, err := a.Trust.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       caType,
 			DomainName: clusterName.GetClusterName(),
 		}, true)
@@ -327,7 +328,7 @@ func (a *Server) autoRotateCertAuthorities() error {
 		}
 		// make sure there are local AdditionalKeys during init phase of rotation
 		if ca.GetRotation().Phase == types.RotationPhaseInit {
-			if err := a.ensureLocalAdditionalKeys(ca); err != nil {
+			if err := a.ensureLocalAdditionalKeys(ctx, ca); err != nil {
 				return trace.Wrap(err)
 			}
 		}
