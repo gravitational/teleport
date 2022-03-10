@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -31,10 +32,6 @@ import (
 	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
 )
-
-// DefaultACLOwner is the default owner when ACLs are in use, if no --owner CLI
-// flag is provided.
-const DefaultACLOwner = "nobody:nobody"
 
 // RootUID is the UID of the root user
 const RootUID = "0"
@@ -305,14 +302,17 @@ func parseOwnerString(owner string) (*user.User, *user.Group, error) {
 func getOwner(cliOwner, defaultOwner string) (*user.User, *user.Group, error) {
 	if cliOwner != "" {
 		// If --owner is set, always use it.
+		log.Debugf("Attempting to use explicitly requested owner: %s", cliOwner)
 		return parseOwnerString(cliOwner)
 	}
 
 	if defaultOwner != "" {
+		log.Debugf("Attempting to use default owner: %s", defaultOwner)
 		// If a default owner is specified, try it instead.
 		return parseOwnerString(defaultOwner)
 	}
 
+	log.Debugf("Will use current user as owner.")
 	// Otherwise, return the current user and group
 	currentUser, err := user.Current()
 	if err != nil {
@@ -331,11 +331,6 @@ func getOwner(cliOwner, defaultOwner string) (*user.User, *user.Group, error) {
 // options and attempts to configure a test ACL to validate them. Ownership is
 // not validated here.
 func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*user.User, *user.Group, *botfs.ACLOptions, error) {
-	ownerUser, ownerGroup, err := getOwner(cf.Owner, DefaultACLOwner)
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-
 	if cf.BotUser == "" {
 		return nil, nil, nil, trace.BadParameter("--bot-user must be set")
 	}
@@ -349,6 +344,11 @@ func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*user.User, *user
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
+	botGroup, err := user.LookupGroupId(botUser.Gid)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
 	readerUser, err := user.Lookup(cf.ReaderUser)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
@@ -357,6 +357,15 @@ func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*user.User, *user
 	opts := botfs.ACLOptions{
 		BotUser:    botUser,
 		ReaderUser: readerUser,
+	}
+
+	// Default to letting the bot own the destination, since by this point we
+	// know the bot user definitely exists and is a reasonable owner choice.
+	defaultOwner := fmt.Sprintf("%s:%s", botUser.Username, botGroup.Name)
+
+	ownerUser, ownerGroup, err := getOwner(cf.Owner, defaultOwner)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	err = testACL(destDir, ownerUser, &opts)
