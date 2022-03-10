@@ -1028,7 +1028,7 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 	// have to do it here.
 	//
 	// TODO(zmb3): support multiple CA certs per cluster (such as with HSMs).
-	ca, err := s.cfg.AccessPoint.GetCertAuthority(types.CertAuthID{
+	ca, err := s.cfg.AccessPoint.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: s.clusterName,
 	}, false)
