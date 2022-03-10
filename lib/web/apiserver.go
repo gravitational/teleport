@@ -362,6 +362,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	// Database access handlers.
 	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
 	// database token generation
+	// TODO(mcbattirola): make a single endpoint to generate tokens that receives roles as parameters
+	// instead of having one endpoint for roles app/node and one for db
 	h.POST("/webapi/databases/token", h.WithAuth(h.createDatabaseJoinTokenHandle))
 
 	// Kube access handlers.
