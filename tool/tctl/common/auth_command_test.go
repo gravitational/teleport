@@ -680,8 +680,10 @@ func TestGenerateAppCertificates(t *testing.T) {
 }
 
 func TestGenerateDatabaseUserCertificates(t *testing.T) {
+	ctx := context.Background()
 	tests := map[string]struct {
 		clusterName        string
+		db                 string
 		dbName             string
 		dbUser             string
 		expectedDbProtocol string
@@ -690,7 +692,7 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 	}{
 		"DatabaseExists": {
 			clusterName:        "example.com",
-			dbName:             "db-1",
+			db:                 "db-1",
 			expectedDbProtocol: defaults.ProtocolPostgres,
 			dbServices: []types.DatabaseServer{
 				&types.DatabaseServerV3{
@@ -710,8 +712,29 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 		},
 		"DatabaseWithUserExists": {
 			clusterName:        "example.com",
-			dbName:             "db-user-1",
+			db:                 "db-user-1",
 			dbUser:             "mongo-user",
+			expectedDbProtocol: defaults.ProtocolMongoDB,
+			dbServices: []types.DatabaseServer{
+				&types.DatabaseServerV3{
+					Metadata: types.Metadata{
+						Name: "db-user-1",
+					},
+					Spec: types.DatabaseServerSpecV3{
+						Hostname: "example.com",
+						Database: &types.DatabaseV3{
+							Spec: types.DatabaseSpecV3{
+								Protocol: defaults.ProtocolMongoDB,
+							},
+						},
+					},
+				},
+			},
+		},
+		"DatabaseWithDatabaseNameExists": {
+			clusterName:        "example.com",
+			db:                 "db-user-1",
+			dbName:             "root-database",
 			expectedDbProtocol: defaults.ProtocolMongoDB,
 			dbServices: []types.DatabaseServer{
 				&types.DatabaseServerV3{
@@ -731,7 +754,7 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 		},
 		"DatabaseNotFound": {
 			clusterName: "example.com",
-			dbName:      "db-2",
+			db:          "db-2",
 			dbServices:  []types.DatabaseServer{},
 			expectedErr: trace.NotFound(""),
 		},
@@ -755,17 +778,18 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 			}
 
 			certsDir := t.TempDir()
-			output := filepath.Join(certsDir, test.dbName)
+			output := filepath.Join(certsDir, test.db)
 			ac := AuthCommand{
 				output:        output,
 				outputFormat:  identityfile.FormatTLS,
 				signOverwrite: true,
 				genTTL:        time.Hour,
+				db:            test.db,
 				dbName:        test.dbName,
 				dbUser:        test.dbUser,
 			}
 
-			err = ac.generateUserKeys(authClient)
+			err = ac.generateUserKeys(ctx, authClient)
 			if test.expectedErr != nil {
 				require.Error(t, err)
 				require.IsType(t, test.expectedErr, err)
@@ -775,14 +799,15 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 			require.NoError(t, err)
 
 			expectedRouteToDatabase := proto.RouteToDatabase{
-				ServiceName: test.dbName,
+				ServiceName: test.db,
 				Protocol:    test.expectedDbProtocol,
+				Database:    test.dbName,
 				Username:    test.dbUser,
 			}
 			require.Equal(t, proto.UserCertsRequest_Database, authClient.userCertsReq.Usage)
 			require.Equal(t, expectedRouteToDatabase, authClient.userCertsReq.RouteToDatabase)
 
-			certBytes, err := os.ReadFile(filepath.Join(certsDir, test.dbName+".crt"))
+			certBytes, err := os.ReadFile(filepath.Join(certsDir, test.db+".crt"))
 			require.NoError(t, err)
 			require.Equal(t, authClient.userCerts.TLS, certBytes, "certificates match")
 		})
