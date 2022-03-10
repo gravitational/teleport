@@ -231,7 +231,10 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 				if b == 0x03 {
 					g.mu.Lock()
 					if !g.on {
-						close(g.terminateNotifier)
+						select {
+						case g.terminateNotifier <- struct{}{}:
+						default:
+						}
 					}
 					g.mu.Unlock()
 					return
