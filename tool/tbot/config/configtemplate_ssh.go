@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -51,18 +50,16 @@ func (c *TemplateSSHClient) CheckAndSetDefaults() error {
 func (c *TemplateSSHClient) Describe() []FileDescription {
 	return []FileDescription{
 		{
-			Name:     "ssh_config",
-			ModeHint: destination.ModeHintSecret,
+			Name: "ssh_config",
 		},
 		{
-			Name:     "known_hosts",
-			ModeHint: destination.ModeHintSecret,
+			Name: "known_hosts",
 		},
 	}
 }
 
 func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
-	if !destination.ContainsKind(KindSSH) {
+	if !destination.ContainsKind(identity.KindSSH) {
 		return trace.BadParameter("%s config template requires kind `ssh` to be enabled", TemplateSSHClientName)
 	}
 
