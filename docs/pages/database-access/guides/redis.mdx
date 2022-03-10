@@ -16,7 +16,7 @@ description: How to configure Teleport Database Access with Redis.
 This guide will help you to:
 
 - Install and configure Teleport.
-- Configure mutual TLS authentication between Teleport and your Redis.
+- Configure mutual TLS authentication between Teleport and Redis.
 - Connect to Redis through Teleport.
 
 ## Prerequisites
@@ -39,25 +39,25 @@ This guide will help you to:
 
 ## Step 3/5. Create Redis users
 
-Each Redis user must be protected by a strong password. We recommend using OpenSSL to generate them:
+Each Redis user must be protected by a strong password. We recommend using OpenSSL to generate passwords:
 
 ```shell
 openssl rand -hex 32
 ```
 
   <Admonition type="note">
-If you have access to Redis you can also generate password by using the below command from the Redis console:
+If you have access to Redis you can also generate a password by using the below command from the Redis console:
 
 ```
 ACL GENPASS
 ```
   </Admonition>
 
-Create a `users.acl` file, which defines users for your Redis deployment, passwords required to log in as a given user
-, and sets of ACL rules. Redis allows you to provide passwords in plaintext or an SHA256 hash.
-We strongly recommend using SHA256 hash instead of plaintext passwords.
+Create a `users.acl` file, which defines users for your Redis deployment, passwords required to log in as a given user,
+ and sets of ACL rules. Redis allows you to provide passwords in plaintext or an SHA256 hash.
+We strongly recommend using an SHA256 hash instead of plaintext passwords.
 
-You can use the below command to generate SHA256 hash from a password.
+You can use the command below to generate an SHA256 hash from a password.
 ```shell
 echo -n STRONG_GENERATED_PASSWORD | sha256sum
 ```
@@ -99,8 +99,8 @@ Create the secrets:
     When connecting to standalone Redis, sign the certificate for the hostname over
     which Teleport will be connecting to it.
 
-    For example, if your Redis server is accessible at `redis.example.com`
-, run:
+    For example, if your Redis server is accessible at `redis.example.com`,
+ run:
 
     ```code
     $ tctl auth sign --format=redis --host=redis.example.com --out=server --ttl=2190h
@@ -110,9 +110,10 @@ Create the secrets:
 
     The command will create three files:
     - `server.cas` with Teleport's certificate authority
-    - `server.key` with generated private key
-    - `server.crt` with generated user certificate.
-    You will need these files to enable mutual TLS on your Redis server.
+    - `server.key` with a generated private key
+    - `server.crt` with a generated user certificate
+
+You will need these files to enable mutual TLS on your Redis server.
   </TabItem>
   <TabItem label="Cluster">
     When connecting to Redis Cluster, sign certificates for each member
@@ -130,9 +131,10 @@ Create the secrets:
 
     The command will create three files:
     - `server.cas` with Teleport's certificate authority
-    - `server.key` with generated private key
-    - `server.crt` with generated user certificate.
-    You will need these files to enable mutual TLS on your Redis server.
+    - `server.key` with a generated private key
+    - `server.crt` with a generated user certificate
+
+You will need these files to enable mutual TLS on your Redis server.
   </TabItem>
 </Tabs>
 
@@ -300,7 +302,7 @@ $ tsh db logout
     <TabItem label="Standalone">
 
       Redis in standalone mode doesn't support the commands below. If one of the listed commands is called Teleport
-      returns `ERR Teleport: not supported by Teleport` error.
+      returns the `ERR Teleport: not supported by Teleport` error.
 
       - `HELLO`
       - `PUNSUBSCRIBE`
@@ -311,7 +313,7 @@ $ tsh db logout
     <TabItem label="Cluster">
 
       Redis in cluster mode doesn't support below commands. If one of the listed commands above is called Teleport
-      returns `ERR Teleport: command not supported` error.
+      returns the `ERR Teleport: command not supported` error.
 
       - `ACL`
       - `ASKING`
