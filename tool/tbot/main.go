@@ -65,6 +65,7 @@ func Run(args []string) error {
 	app := utils.InitCLIParser("tbot", "tbot: Teleport Credential Bot").Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
 	app.Flag("config", "tbot.yaml path").Short('c').StringVar(&cf.ConfigPath)
+	app.HelpFlag.Short('h')
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
 	startCmd.Flag("auth-server", "Specify the Teleport auth server host").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
