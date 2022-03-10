@@ -30,9 +30,9 @@ type ReconcilerConfig struct {
 	// Matcher is used to match resources.
 	Matcher Matcher
 	// GetCurrentResources returns currently registered resources.
-	GetCurrentResources func() types.ResourcesWithLabels
+	GetCurrentResources func() types.ResourcesWithLabelsMap
 	// GetNewResources returns resources to compare current resources against.
-	GetNewResources func() types.ResourcesWithLabels
+	GetNewResources func() types.ResourcesWithLabelsMap
 	// OnCreate is called when a new resource is detected.
 	OnCreate func(context.Context, types.ResourceWithLabels) error
 	// OnUpdate is called when an existing resource is updated.
@@ -83,7 +83,7 @@ func NewReconciler(cfg ReconcilerConfig) (*Reconciler, error) {
 	}, nil
 }
 
-// Reconcile reconciles currently registered resources with new resources and
+// Reconciler reconciles currently registered resources with new resources and
 // creates/updates/deletes them appropriately.
 //
 // It's used in combination with watchers by agents (app, database, desktop)
@@ -123,9 +123,9 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 
 // processRegisteredResource checks the specified registered resource against the
 // new list of resources.
-func (r *Reconciler) processRegisteredResource(ctx context.Context, newResources types.ResourcesWithLabels, registered types.ResourceWithLabels) error {
+func (r *Reconciler) processRegisteredResource(ctx context.Context, newResources types.ResourcesWithLabelsMap, registered types.ResourceWithLabels) error {
 	// See if this registered resource is still present among "new" resources.
-	if new := newResources.Find(registered.GetName()); new != nil {
+	if new := newResources[registered.GetName()]; new != nil {
 		return nil
 	}
 
@@ -139,10 +139,10 @@ func (r *Reconciler) processRegisteredResource(ctx context.Context, newResources
 
 // processNewResource checks the provided new resource agsinst currently
 // registered resources.
-func (r *Reconciler) processNewResource(ctx context.Context, currentResources types.ResourcesWithLabels, new types.ResourceWithLabels) error {
+func (r *Reconciler) processNewResource(ctx context.Context, currentResources types.ResourcesWithLabelsMap, new types.ResourceWithLabels) error {
 	// First see if the resource is already registered and if not, whether it
 	// matches the selector labels and should be registered.
-	registered := currentResources.Find(new.GetName())
+	registered := currentResources[new.GetName()]
 	if registered == nil {
 		if r.cfg.Matcher(new) {
 			r.log.Infof("%v %v matches, creating.", new.GetKind(), new.GetName())
