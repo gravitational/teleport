@@ -236,9 +236,9 @@ func (e *SessionAccessEvaluator) PrettyRequirementsList() string {
 			continue
 		}
 
-		fmt.Fprintf(s, "\n\t   one of (%v):", policySet.Name)
+		fmt.Fprintf(s, "\r\n   one of (%v):", policySet.Name)
 		for _, require := range policies {
-			fmt.Fprintf(s, "\n\t    - %vx %v with mode %v", require.Count, require.Filter, strings.Join(require.Modes, ","))
+			fmt.Fprintf(s, "\r\n    - %vx %v with mode %v", require.Count, require.Filter, strings.Join(require.Modes, ","))
 		}
 	}
 

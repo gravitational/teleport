@@ -805,7 +805,7 @@ outer:
 }
 
 func (s *session) BroadcastMessage(format string, args ...interface{}) {
-	if s.access.IsModerated() && services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode()) {
+	if s.access.IsModerated() && !services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode()) {
 		err := s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 
 		if err != nil {
@@ -1555,15 +1555,13 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 				s.stateUpdate.Broadcast()
 			}
 		} else if !s.started {
-			var additionalFormat string
-			var additionalItem string
+			base := "Waiting for required participants..."
 
 			if s.displayParticipantRequirements {
-				additionalFormat = "\n\t%v"
-				additionalItem = s.access.PrettyRequirementsList()
+				s.BroadcastMessage(base+"\r\n%v", s.access.PrettyRequirementsList())
+			} else {
+				s.BroadcastMessage(base)
 			}
-
-			s.BroadcastMessage("Waiting for required participants..."+additionalFormat, additionalItem)
 		}
 	}
 
