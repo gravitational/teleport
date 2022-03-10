@@ -19,7 +19,12 @@ limitations under the License.
 
 package botfs
 
-import "github.com/gravitational/trace"
+import (
+	"io"
+	"os/user"
+
+	"github.com/gravitational/trace"
+)
 
 // Create attempts to create the given file or directory without
 // evaluating symlinks. This is only supported on recent Linux kernel versions
