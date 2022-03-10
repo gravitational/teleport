@@ -870,7 +870,7 @@ auth_service:
     #     "node-sync" : sessions recording will be streamed from node -> auth -> storage
     #     "proxy-sync : sessions recording will be streamed from proxy -> auth -> storage
     #
-    : "node-sync"
+    session_recording: "node-sync"
 ```
 
 #### Improvements
