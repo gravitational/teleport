@@ -46,6 +46,9 @@ type Role interface {
 	// Resource provides common resource methods.
 	Resource
 
+	// SetMetadata sets role metadata
+	SetMetadata(meta Metadata)
+
 	// GetOptions gets role options.
 	GetOptions() RoleOptions
 	// SetOptions sets role options
@@ -156,11 +159,11 @@ type Role interface {
 	GetSessionPolicySet() SessionTrackerPolicySet
 }
 
-// NewRole constructs new standard V3 role.
-// This is mostly a legacy function and will create a role with V3 RBAC semantics.
+// NewRole constructs new standard V5 role.
+// This creates a V5 role with V4+ RBAC semantics.
 func NewRole(name string, spec RoleSpecV5) (Role, error) {
 	role := RoleV5{
-		Version: V3,
+		Version: V5,
 		Metadata: Metadata{
 			Name: name,
 		},
@@ -172,11 +175,11 @@ func NewRole(name string, spec RoleSpecV5) (Role, error) {
 	return &role, nil
 }
 
-// NewRoleV5 constructs new standard V5 role.
-// This creates a V5 role with V4+ RBAC semantics. This should be preferred over `NewRole`.
-func NewRoleV5(name string, spec RoleSpecV5) (Role, error) {
+// NewRoleV3 constructs new standard V3 role.
+// This is mostly a legacy function and will create a role with V3 RBAC semantics.
+func NewRoleV3(name string, spec RoleSpecV5) (Role, error) {
 	role := RoleV5{
-		Version: V5,
+		Version: V3,
 		Metadata: Metadata{
 			Name: name,
 		},
@@ -251,6 +254,11 @@ func (r *RoleV5) GetName() string {
 // GetMetadata returns role metadata.
 func (r *RoleV5) GetMetadata() Metadata {
 	return r.Metadata
+}
+
+// SetMetadata sets role metadata
+func (r *RoleV5) SetMetadata(meta Metadata) {
+	r.Metadata = meta
 }
 
 // GetOptions gets role options.
@@ -596,11 +604,8 @@ func (r *RoleV5) SetRules(rct RoleConditionType, in []Rule) {
 // setStaticFields sets static resource header and metadata fields.
 func (r *RoleV5) setStaticFields() {
 	r.Kind = KindRole
-	// TODO(Joerger/nklaassen) Role should default to V4
-	// but shouldn't overwrite V3. For now, this does the
-	// opposite due to an internal reliance on V3 defaults.
-	if r.Version != V4 && r.Version != V5 {
-		r.Version = V3
+	if r.Version != V3 && r.Version != V4 {
+		r.Version = V5
 	}
 }
 

@@ -238,6 +238,9 @@ message UserCertsRequest {
         // App means a request for a TLS certificate for access to a specific
         // web app, as specified by RouteToApp.
         App = 4;
+        // WindowsDesktop means a request for a TLS certificate for access to a specific
+        // windows desktop.
+        WindowsDesktop = 5;
     }
     // CertUsage limits the resulting user certificate to a single protocol.
     CertUsage Usage = 10 [ (gogoproto.jsontag) = "usage,omitempty" ];
@@ -251,6 +254,13 @@ message UserCertsRequest {
     // directly. An empty set of requests returns the user's normal set of
     // roles.
     repeated string RoleRequests = 12 [ (gogoproto.jsontag) = "role_requests,omitempty" ];
+
+    // RouteToWindowsDesktop specifies the target windows desktop name to encode into
+    // certificate so windows desktop client requests are routed appropriately.
+    RouteToWindowsDesktop RouteToWindowsDesktop = 13 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "route_to_windows_desktop,omitempty"
+    ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -263,6 +273,14 @@ message RouteToDatabase {
     string Username = 3 [ (gogoproto.jsontag) = "username,omitempty" ];
     // Database is an optional database name to embed.
     string Database = 4 [ (gogoproto.jsontag) = "database,omitempty" ];
+}
+
+// RouteToWindowsDesktop combines parameters for windows desktop routing information.
+message RouteToWindowsDesktop {
+    // WindowsDesktop is the Windows Desktop server name to embed.
+    string WindowsDesktop = 1 [ (gogoproto.jsontag) = "windows_desktop" ];
+    // Login is the Windows desktop user login to embed.
+    string Login = 2 [ (gogoproto.jsontag) = "login" ];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -349,6 +367,63 @@ message CreateResetPasswordTokenRequest {
     int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
 }
 
+// RenewableCertsRequest is a request to generate a first set of renewable
+// certificates from a bot join token.
+message RenewableCertsRequest {
+    // Token is a bot join token.
+    string Token = 1 [ (gogoproto.jsontag) = "token" ];
+
+    // PublicKey is a public key to be signed.
+    bytes PublicKey = 2 [ (gogoproto.jsontag) = "public_key" ];
+}
+
+// CreateBotRequest is used to create a bot User and associated resources.
+message CreateBotRequest {
+    // Name is the name of the bot, i.e. the unprefixed User name.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+
+    // TTL is the desired TTL for the token if one is created. If unset, a
+    // server default is used.
+    int64 TTL = 2 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
+
+    // TokenID is an optional token name of an EC2/IAM join token should be
+    // used. If unset, a new random token is created and its name returned.
+    string TokenID = 3 [ (gogoproto.jsontag) = "token_id" ];
+
+    // Roles is a list of roles the created bot should be allowed to assume
+    // via role impersonation.
+    repeated string Roles = 4 [ (gogoproto.jsontag) = "roles" ];
+}
+
+// CreateBotResponse returns details for bootstrapping a new bot.
+message CreateBotResponse {
+    // UserName is the name of the associated bot user.
+    string UserName = 1 [ (gogoproto.jsontag) = "user_name" ];
+    // RoleName is the name of the associated bot role.
+    string RoleName = 2 [ (gogoproto.jsontag) = "role_name" ];
+    // TokenID is the name of the join token for the bot.
+    string TokenID = 3 [ (gogoproto.jsontag) = "token_id" ];
+    // TokenTTL is the TTL for the token. If it differs from the requested TTL,
+    // it may have been limited by server policy.
+    int64 TokenTTL = 4 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
+    // JoinMethod is the join method the bot must use to join the cluster.
+    string JoinMethod = 5 [
+        (gogoproto.jsontag) = "join_method",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.JoinMethod"
+    ];
+}
+
+// DeleteBotRequest is a request to delete a bot user
+message DeleteBotRequest {
+    // Name is the name of the bot, i.e. the unprefixed User name.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
+// GetBotUsersRequest specifies parameters for the GetUsers method.
+message GetBotUsersRequest {
+    // GetBotUsers currently takes no parameters.
+}
+
 // PingRequest is the input value for the Ping method.
 message PingRequest {
     // Ping method currently takes no parameters
@@ -364,6 +439,8 @@ message PingResponse {
     Features ServerFeatures = 3 [ (gogoproto.jsontag) = "server_features" ];
     // ProxyPublicAddr is the server's public proxy address.
     string ProxyPublicAddr = 4 [ (gogoproto.jsontag) = "proxy_public_addr" ];
+    // IsBoring signals whether or not the server was compiled with BoringCrypto.
+    bool IsBoring = 5 [ (gogoproto.jsontag) = "is_boring" ];
 }
 
 // Features are auth server features.
@@ -733,8 +810,7 @@ enum DeviceType {
     DEVICE_TYPE_UNSPECIFIED = 0;
     // TOTP is a Time-based One-Time Password device.
     DEVICE_TYPE_TOTP = 1;
-    // U2F is a U2F/CTAP1 capable device registered via U2F APIs.
-    DEVICE_TYPE_U2F = 2;
+    reserved 2; // DEVICE_TYPE_U2F
     // Webauthn is a device compatible with the Web Authentication
     // specification, registered via Webauthn APIs.
     // Supports various kinds of devices: U2F/CTAP1, CTAP2, platform
@@ -742,12 +818,23 @@ enum DeviceType {
     DEVICE_TYPE_WEBAUTHN = 3;
 }
 
+enum DeviceUsage {
+    DEVICE_USAGE_UNSPECIFIED = 0;
+
+    // Device intended for MFA use, but not for passwordless.
+    // Allows both FIDO and FIDO2 devices.
+    // Resident keys not required.
+    DEVICE_USAGE_MFA = 1;
+
+    // Device intended for both MFA and passwordless.
+    // Requires a FIDO2 device and takes a resident key slot.
+    DEVICE_USAGE_PASSWORDLESS = 2;
+}
+
 // MFAAuthenticateChallenge is a challenge for all MFA devices registered for a
 // user.
 message MFAAuthenticateChallenge {
-    // U2F contains one U2FChallenge per U2F device registered for a
-    // user. Each challenge is unique.
-    repeated U2FChallenge U2F = 1;
+    reserved 1; // repeated U2FChallenge U2F
     // TOTP is a challenge for all TOTP devices registered for a user. When
     // this field is set, any TOTP device a user has registered can be used to
     // respond.
@@ -764,25 +851,10 @@ message MFAAuthenticateChallenge {
 // of the MFA devices registered for a user.
 message MFAAuthenticateResponse {
     oneof Response {
-        U2FResponse U2F = 1;
+        // Removed: U2FResponse U2F = 1;
         TOTPResponse TOTP = 2;
         webauthn.CredentialAssertionResponse Webauthn = 3;
     }
-}
-
-// U2FChallenge is a U2F auth challenge.
-message U2FChallenge {
-    string KeyHandle = 1;
-    string Challenge = 2;
-    string AppID = 3;
-    string Version = 4;
-}
-
-// U2FResponse is a U2F auth challenge response.
-message U2FResponse {
-    string KeyHandle = 1;
-    string ClientData = 2;
-    string Signature = 3;
 }
 
 // TOTPChallenge is a challenge for all TOTP devices registered for a user.
@@ -800,7 +872,7 @@ message TOTPResponse { string Code = 1; }
 message MFARegisterChallenge {
     // Request depends on the type of the MFA device being registered.
     oneof Request {
-        U2FRegisterChallenge U2F = 1;
+        // Removed: U2FRegisterChallenge U2F = 1;
         TOTPRegisterChallenge TOTP = 2;
         webauthn.CredentialCreation Webauthn = 3;
     }
@@ -809,23 +881,10 @@ message MFARegisterChallenge {
 // MFARegisterResponse is a response to MFARegisterChallenge.
 message MFARegisterResponse {
     oneof Response {
-        U2FRegisterResponse U2F = 1;
+        // Removed: U2FRegisterResponse U2F = 1;
         TOTPRegisterResponse TOTP = 2;
         webauthn.CredentialCreationResponse Webauthn = 3;
     }
-}
-
-// U2FRegisterChallenge is a challenge for registering a new U2F device.
-message U2FRegisterChallenge {
-    string Challenge = 1;
-    string AppID = 2;
-    string Version = 3;
-}
-
-// U2FRegisterResponse is a response to U2FRegisterChallenge.
-message U2FRegisterResponse {
-    string RegistrationData = 1;
-    string ClientData = 2;
 }
 
 // TOTPRegisterChallenge is a challenge for registering a new TOTP device.
@@ -881,18 +940,12 @@ message AddMFADeviceResponse {
 
 // AddMFADeviceRequestInit describes the new MFA device.
 message AddMFADeviceRequestInit {
-    // DELETE IN 9.x, superseded by DeviceType (codingllama).
-    // LegacyDeviceType is deprecated in favor of DeviceType.
-    enum LegacyDeviceType {
-        TOTP = 0;
-        U2F = 1;
-        Webauthn = 2;
-    }
-    // LegacyType is deprecated in favor of DeviceType.
-    LegacyDeviceType LegacyType = 2 [ deprecated = true ];
-
     string DeviceName = 1;
+    reserved 2; // LegacyDeviceType LegacyType
     DeviceType DeviceType = 3;
+    // DeviceUsage is the requested usage for the device.
+    // Defaults to DEVICE_USAGE_MFA.
+    DeviceUsage DeviceUsage = 4 [ (gogoproto.jsontag) = "device_usage,omitempty" ];
 }
 
 // AddMFADeviceResponseAck is a confirmation of successful device registration.
@@ -994,6 +1047,8 @@ message IsMFARequiredRequest {
         RouteToDatabase Database = 2;
         // Node specifies the target SSH node.
         NodeLogin Node = 3;
+        // WindowsDesktop specifies the target Windows Desktop.
+        RouteToWindowsDesktop WindowsDesktop = 4;
     }
 }
 
@@ -1135,8 +1190,20 @@ message ReplaceRemoteLocksRequest {
 
 // GetWindowsDesktopServicesResponse contains all registered Windows desktop services.
 message GetWindowsDesktopServicesResponse {
-    // Servers is a list of Windows desktop services.
+    // Services is a list of Windows desktop services.
     repeated types.WindowsDesktopServiceV3 services = 1 [ (gogoproto.jsontag) = "services" ];
+}
+
+// GetWindowsDesktopServiceRequest is a request for a specific Windows Desktop Service.
+message GetWindowsDesktopServiceRequest {
+    // Name is the name of the Windows Desktop Service to be requested.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
+// GetWindowsDesktopServiceResponse contains the requested WindowsDesktopService
+message GetWindowsDesktopServiceResponse {
+    // Service is the requested Windows Desktop Service.
+    types.WindowsDesktopServiceV3 service = 1 [ (gogoproto.jsontag) = "service" ];
 }
 
 // DeleteWindowsDesktopServiceRequest is a request to delete a Windows desktop service.
@@ -1151,16 +1218,14 @@ message GetWindowsDesktopsResponse {
     repeated types.WindowsDesktopV3 Desktops = 1 [ (gogoproto.jsontag) = "desktops" ];
 }
 
-// GetWindowsDesktopRequest is a request for a single Windows desktop host.
-message GetWindowsDesktopRequest {
-    // Name is the name of the Windows desktop host.
-    string Name = 1 [ (gogoproto.jsontag) = "name" ];
-}
-
-// DeleteWindowsDesktopRequest is a request to delete a Windows desktop host.
+// DeleteWindowsDesktopRequest is a request to delete a Windows
+// desktop host. If HostID is not specified, all Windows desktops with
+// specified Name will be deleted
 message DeleteWindowsDesktopRequest {
     // Name is the name of the Windows desktop host.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // HostID is the ID of the Windows Desktop Service reporting the desktop.
+    string HostID = 2 [ (gogoproto.jsontag) = "host_id" ];
 }
 
 // WindowsDesktopCertRequest is a request to generate a client certificate used
@@ -1326,12 +1391,17 @@ message UserCredentials {
     bytes Password = 2 [ (gogoproto.jsontag) = "password" ];
 }
 
+// ContextUser marks requests that rely in the currently authenticated user.
+message ContextUser {}
+
+// Passwordless marks requests for passwordless challenges.
+message Passwordless {}
+
 // CreateAuthenticateChallengeRequest is a request for creating MFA authentication challenges for a
 // users mfa devices.
 message CreateAuthenticateChallengeRequest {
     // Request defines how the request will be verified before creating challenges.
-    // This field can be empty, which implies the request is to create challenges for the
-    // user in context (logged in user).
+    // An empty Request is equivalent to context_user being set.
     oneof Request {
         // UserCredentials verifies request with username and password. Used with logins or
         // when the logged in user wants to change their password.
@@ -1341,6 +1411,12 @@ message CreateAuthenticateChallengeRequest {
         // VerifyAccountRecovery (step 2 of the recovery process after RPC StartAccountRecovery).
         string RecoveryStartTokenID = 2
             [ (gogoproto.jsontag) = "recovery_start_token_id,omitempty" ];
+        // ContextUser issues a challenge for the currently-authenticated user.
+        // Default option if no other is provided.
+        ContextUser ContextUser = 3 [ (gogoproto.jsontag) = "context_user,omitempty" ];
+        // Passwordless issues a passwordless challenge (authenticated user not
+        // required).
+        Passwordless Passwordless = 4 [ (gogoproto.jsontag) = "passwordless,omitempty" ];
     }
 }
 
@@ -1364,6 +1440,9 @@ message CreateRegisterChallengeRequest {
     string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
     // DeviceType is the type of MFA device to make a register challenge for.
     DeviceType DeviceType = 2 [ (gogoproto.jsontag) = "device_type" ];
+    // DeviceUsage is the requested usage for the device.
+    // Defaults to DEVICE_USAGE_MFA.
+    DeviceUsage DeviceUsage = 3 [ (gogoproto.jsontag) = "device_usage,omitempty" ];
 }
 
 // PaginatedResource represents one of the supported resources.
@@ -1378,6 +1457,12 @@ message PaginatedResource {
         types.ServerV2 Node = 3 [ (gogoproto.jsontag) = "node,omitempty" ];
         // KubeService represents a KubernetesService resource.
         types.ServerV2 KubeService = 4 [ (gogoproto.jsontag) = "kube_service,omitempty" ];
+        // WindowsDesktop represents a WindowsDesktop resource.
+        types.WindowsDesktopV3 WindowsDesktop = 5
+            [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
+        // KubeCluster represents a KubeCluster resource.
+        types.KubernetesClusterV3 KubeCluster = 6
+            [ (gogoproto.jsontag) = "kube_cluster,omitempty" ];
     }
 }
 
@@ -1403,6 +1488,12 @@ message ListResourcesRequest {
     // SortBy describes which resource field and which direction to sort by.
     types.SortBy SortBy = 8
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "sort_by,omitempty" ];
+    // NeedTotalCount indicates whether or not the caller also wants the total number of resources
+    // after filtering.
+    bool NeedTotalCount = 9 [ (gogoproto.jsontag) = "need_total_count,omitempty" ];
+    // WindowsDesktopFilter specifies windows desktop specific filters.
+    types.WindowsDesktopFilter WindowsDesktopFilter = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "windows_desktop_filter,omitempty" ];
 }
 
 // ListResourceResponse response of ListResources.
@@ -1413,6 +1504,8 @@ message ListResourcesResponse {
     // continue retrieving pages of resource. If NextKey is empty, there are no
     // more pages.
     string NextKey = 2 [ (gogoproto.jsontag) = "next_key,omitempty" ];
+    // TotalCount is the total number of resources available after filter, if any.
+    int32 TotalCount = 3 [ (gogoproto.jsontag) = "total_count,omitempty" ];
 }
 
 // CreateSessionTrackerRequest is a request to create a new session.
@@ -1612,6 +1705,13 @@ service AuthService {
     // CreateResetPasswordToken resets users current password and second factors and creates a reset
     // password token.
     rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
+
+    // CreateBot creates a new bot user.
+    rpc CreateBot(CreateBotRequest) returns (CreateBotResponse);
+    // DeleteBot deletes a bot user.
+    rpc DeleteBot(DeleteBotRequest) returns (google.protobuf.Empty);
+    // GetBotUsers gets all users with bot labels.
+    rpc GetBotUsers(GetBotUsersRequest) returns (stream types.UserV2);
 
     // GetUser gets a user resource by name.
     rpc GetUser(GetUserRequest) returns (types.UserV2);
@@ -1919,6 +2019,8 @@ service AuthService {
     // GetWindowsDesktopServices returns all registered Windows desktop services.
     rpc GetWindowsDesktopServices(google.protobuf.Empty)
         returns (GetWindowsDesktopServicesResponse);
+    rpc GetWindowsDesktopService(GetWindowsDesktopServiceRequest)
+        returns (GetWindowsDesktopServiceResponse);
     // UpsertWindowsDesktopService registers a new Windows desktop service.
     rpc UpsertWindowsDesktopService(types.WindowsDesktopServiceV3) returns (types.KeepAlive);
     // DeleteWindowsDesktopService removes the specified Windows desktop service.
@@ -1927,10 +2029,8 @@ service AuthService {
     // DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
     rpc DeleteAllWindowsDesktopServices(google.protobuf.Empty) returns (google.protobuf.Empty);
 
-    // GetWindowsDesktops returns all registered Windows desktop hosts.
-    rpc GetWindowsDesktops(google.protobuf.Empty) returns (GetWindowsDesktopsResponse);
-    // GetWindowsDesktop returns a registered Windows desktop host.
-    rpc GetWindowsDesktop(GetWindowsDesktopRequest) returns (types.WindowsDesktopV3);
+    // GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
+    rpc GetWindowsDesktops(types.WindowsDesktopFilter) returns (GetWindowsDesktopsResponse);
     // CreateWindowsDesktop registers a new Windows desktop host.
     rpc CreateWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
     // UpdateWindowsDesktop updates an existing Windows desktop host.
@@ -1938,6 +2038,8 @@ service AuthService {
     // UpsertWindowsDesktop updates a Windows desktop host, creating it if it doesn't exist.
     rpc UpsertWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
     // DeleteWindowsDesktop removes the specified Windows desktop host.
+    // Unlike GetWindowsDesktops, this call will delete at-most 1 desktop.
+    // To delete all desktops, use DeleteAllWindowsDesktops.
     rpc DeleteWindowsDesktop(DeleteWindowsDesktopRequest) returns (google.protobuf.Empty);
     // DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
     rpc DeleteAllWindowsDesktops(google.protobuf.Empty) returns (google.protobuf.Empty);

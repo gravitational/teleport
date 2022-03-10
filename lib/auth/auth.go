@@ -30,7 +30,6 @@ import (
 	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"math"
@@ -61,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -770,6 +768,15 @@ type certRequest struct {
 	// disallowReissue flags that a cert should not be allowed to issue future
 	// certificates.
 	disallowReissue bool
+	// renewable indicates that the certificate can be renewed,
+	// having its TTL increased
+	renewable bool
+	// includeHostCA indicates that host CA certs should be included in the
+	// returned certs
+	includeHostCA bool
+	// generation indicates the number of times this certificate has been
+	// renewed.
+	generation uint64
 }
 
 // check verifies the cert request is valid.
@@ -1022,21 +1029,21 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
-	ca, err := a.Trust.GetCertAuthority(types.CertAuthID{
+	userCA, err := a.Trust.GetCertAuthority(types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: clusterName,
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caSigner, err := a.keyStore.GetSSHSigner(ca)
+	caSigner, err := a.keyStore.GetSSHSigner(userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	params := services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          sshutils.GetSigningAlgName(ca),
+		CASigningAlg:          sshutils.GetSigningAlgName(userCA),
 		PublicUserKey:         req.publicKey,
 		Username:              req.user.GetName(),
 		Impersonator:          req.impersonator,
@@ -1053,6 +1060,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		MFAVerified:           req.mfaVerified,
 		ClientIP:              req.clientIP,
 		DisallowReissue:       req.disallowReissue,
+		Renewable:             req.renewable,
+		Generation:            req.generation,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1091,7 +1100,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	// generate TLS certificate
-	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1131,6 +1140,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		AWSRoleARNs:     roleARNs,
 		ActiveRequests:  req.activeRequests.AccessRequests,
 		DisallowReissue: req.disallowReissue,
+		Renewable:       req.renewable,
+		Generation:      req.generation,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -1160,12 +1171,33 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		log.WithError(err).Warn("Failed to emit certificate create event.")
 	}
 
-	return &proto.Certs{
-		SSH:        sshCert,
-		TLS:        tlsCert,
-		TLSCACerts: services.GetTLSCerts(ca),
-		SSHCACerts: services.GetSSHCheckingKeys(ca),
-	}, nil
+	// create certs struct to return to user
+	certs := &proto.Certs{
+		SSH: sshCert,
+		TLS: tlsCert,
+	}
+
+	// always include user CA TLS and SSH certs
+	cas := []types.CertAuthority{userCA}
+
+	// also include host CA certs if requested
+	if req.includeHostCA {
+		hostCA, err := a.Trust.GetCertAuthority(types.CertAuthID{
+			Type:       types.HostCA,
+			DomainName: clusterName,
+		}, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cas = append(cas, hostCA)
+	}
+
+	for _, ca := range cas {
+		certs.TLSCACerts = append(certs.TLSCACerts, services.GetTLSCerts(ca)...)
+		certs.SSHCACerts = append(certs.SSHCACerts, services.GetSSHCheckingKeys(ca)...)
+	}
+
+	return certs, nil
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication
@@ -1250,8 +1282,8 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	return retErr
 }
 
-// PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
-// already checked before issuing the second factor challenge
+// PreAuthenticatedSignIn is for MFA authentication methods where the password
+// is already checked before issuing the second factor challenge
 func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (types.WebSession, error) {
 	roles, traits, err := services.ExtractFromIdentity(a, identity)
 	if err != nil {
@@ -1272,34 +1304,10 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (t
 	return sess.WithoutSecrets(), nil
 }
 
-// MFAAuthenticateChallenge is an MFA authentication challenge sent on user
-// login / authentication ceremonies.
-//
-// TODO(kimlisa): Move this to lib/client/mfa.go, after deleting the auth HTTP endpoint
-// "/u2f/users/sign" and its friends from lib/auth/apiserver.go (replaced by grpc CreateAuthenticateChallenge).
-// After the endpoint removal, this struct is only used in the web directory.
-type MFAAuthenticateChallenge struct {
-	// Before 6.0 teleport would only send 1 U2F challenge. Embed the old
-	// challenge for compatibility with older clients. All new clients should
-	// ignore this and read Challenges instead.
-	*u2f.AuthenticateChallenge
-
-	// U2FChallenges is a list of U2F challenges, one for each registered
-	// device.
-	U2FChallenges []u2f.AuthenticateChallenge `json:"u2f_challenges"`
-	// WebauthnChallenge contains a WebAuthn credential assertion used for
-	// login/authentication ceremonies.
-	// An assertion already contains, among other information, a list of allowed
-	// credentials (one for each known U2F or Webauthn device), so there is no
-	// need to send multiple assertions.
-	WebauthnChallenge *wanlib.CredentialAssertion `json:"webauthn_challenge"`
-	// TOTPChallenge specifies whether TOTP is supported for this user.
-	TOTPChallenge bool `json:"totp_challenge"`
-}
-
 // CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
 func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	var username string
+	var passwordless bool
 
 	switch req.GetRequest().(type) {
 	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
@@ -1324,7 +1332,10 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 
 		username = token.GetUser()
 
-	default:
+	case *proto.CreateAuthenticateChallengeRequest_Passwordless:
+		passwordless = true // Allows empty username.
+
+	default: // unset or CreateAuthenticateChallengeRequest_ContextUser.
 		var err error
 		username, err = GetClientUsername(ctx)
 		if err != nil {
@@ -1332,7 +1343,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username, a.Identity /* u2f storage */)
+	challenges, err := a.mfaAuthChallenge(ctx, username, passwordless)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied("unable to create MFA challenges")
@@ -1361,30 +1372,30 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 	}
 
 	regChal, err := a.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
-		username:   token.GetUser(),
-		token:      token,
-		deviceType: req.GetDeviceType(),
+		username:    token.GetUser(),
+		token:       token,
+		deviceType:  req.GetDeviceType(),
+		deviceUsage: req.GetDeviceUsage(),
 	})
 
 	return regChal, trace.Wrap(err)
 }
 
 type newRegisterChallengeRequest struct {
-	username   string
-	deviceType proto.DeviceType
+	username    string
+	deviceType  proto.DeviceType
+	deviceUsage proto.DeviceUsage
+
 	// token is a user token resource.
 	// It is used as following:
 	//  - TOTP:
 	//    - create a UserTokenSecrets resource
 	//    - store by token's ID using Server's IdentityService.
-	//  - U2F:
-	//    - store U2F challenge by the token's ID
+	//  - MFA:
+	//    - store challenge by the token's ID
 	//    - store by token's ID using Server's IdentityService.
 	// This field can be empty to use storage overrides.
 	token types.UserToken
-	// u2fStorageOverride is an optional RegistrationStorage override to be used
-	// to store the U2F challenge.
-	u2fStorageOverride u2f.RegistrationStorage
 
 	// webIdentityOverride is an optional RegistrationIdentity override to be used
 	// to store webauthn challenge. A common override is decorating the regular
@@ -1421,44 +1432,6 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 
 		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_TOTP{TOTP: challenge}}, nil
 
-	case proto.DeviceType_DEVICE_TYPE_U2F:
-		cap, err := a.GetAuthPreference(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		u2fConfig, err := cap.GetU2F()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		storageKey := req.username
-		if req.token != nil {
-			storageKey = req.token.GetName()
-		}
-
-		storage := req.u2fStorageOverride
-		if storage == nil || req.token != nil {
-			storage = a.Identity
-		}
-
-		regChallenge, err := u2f.RegisterInit(u2f.RegisterInitParams{
-			StorageKey: storageKey,
-			AppConfig:  *u2fConfig,
-			Storage:    storage,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_U2F{
-			U2F: &proto.U2FRegisterChallenge{
-				Challenge: regChallenge.Challenge,
-				AppID:     regChallenge.AppID,
-				Version:   regChallenge.Version,
-			},
-		}}, nil
-
 	case proto.DeviceType_DEVICE_TYPE_WEBAUTHN:
 		cap, err := a.GetAuthPreference(ctx)
 		if err != nil {
@@ -1480,7 +1453,8 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 			Identity: identity,
 		}
 
-		credentialCreation, err := webRegistration.Begin(ctx, req.username)
+		passwordless := req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
+		credentialCreation, err := webRegistration.Begin(ctx, req.username, passwordless)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1560,7 +1534,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 	kindToSF := map[string]constants.SecondFactorType{
 		fmt.Sprintf("%T", &types.MFADevice_Totp{}):     constants.SecondFactorOTP,
-		fmt.Sprintf("%T", &types.MFADevice_U2F{}):      constants.SecondFactorU2F,
+		fmt.Sprintf("%T", &types.MFADevice_U2F{}):      constants.SecondFactorWebauthn,
 		fmt.Sprintf("%T", &types.MFADevice_Webauthn{}): constants.SecondFactorWebauthn,
 	}
 	sfToCount := make(map[constants.SecondFactorType]int)
@@ -1599,7 +1573,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			return trace.BadParameter(
 				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
 		}
-	case constants.SecondFactorOTP, constants.SecondFactorU2F, constants.SecondFactorWebauthn:
+	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
 		if sfToCount[sf] < minDevices {
 			return trace.BadParameter(
 				"cannot delete the last %s device for this user; add a replacement device first to avoid getting locked out", sf)
@@ -1665,18 +1639,13 @@ type newMFADeviceFields struct {
 	// It is used as following:
 	//  - TOTP:
 	//    - look up TOTP secret stored by token ID
-	//  - U2F:
-	//    - look up U2F challenge stored by token ID
-	//    - use default u2f storage which is our services.Identity
-	// This field can be empty to indicate that fields
-	// "totpSecret" and "u2fStorage" is to be used instead.
+	//  - MFA:
+	//    - look up challenge stored by token ID
+	// This field can be empty to use storage overrides.
 	tokenID string
 	// totpSecret is a secret shared by client and server to generate totp codes.
 	// Field can be empty to get secret by "tokenID".
 	totpSecret string
-	// u2fStorage is the storage used to hold the u2f challenge.
-	// Field can be empty to use default services.Identity storage.
-	u2fStorage u2f.RegistrationStorage
 
 	// webIdentityOverride is an optional RegistrationIdentity override to be used
 	// for device registration. A common override is decorating the regular
@@ -1700,11 +1669,6 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, regResp *proto.M
 	switch regResp.GetResponse().(type) {
 	case *proto.MFARegisterResponse_TOTP:
 		dev, err = a.registerTOTPDevice(ctx, regResp, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case *proto.MFARegisterResponse_U2F:
-		dev, err = a.registerU2FDevice(ctx, regResp, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1774,49 +1738,6 @@ func (a *Server) registerTOTPDevice(ctx context.Context, regResp *proto.MFARegis
 	return dev, nil
 }
 
-func (a *Server) registerU2FDevice(ctx context.Context, regResp *proto.MFARegisterResponse, req *newMFADeviceFields) (*types.MFADevice, error) {
-	cap, err := a.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !cap.IsSecondFactorU2FAllowed() {
-		return nil, trace.BadParameter("second factor U2F not allowed by cluster")
-	}
-
-	u2fConfig, err := cap.GetU2F()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var storageKey string
-	var storage u2f.RegistrationStorage
-	switch {
-	case req.tokenID != "":
-		storage = a.Identity
-		storageKey = req.tokenID
-	case req.u2fStorage != nil:
-		storage = req.u2fStorage
-		storageKey = req.username
-	default:
-		return nil, trace.BadParameter("missing U2F storage")
-	}
-
-	// u2f.RegisterVerify will upsert the new device internally.
-	dev, err := u2f.RegisterVerify(ctx, u2f.RegisterVerifyParams{
-		DevName: req.newDeviceName,
-		Resp: u2f.RegisterChallengeResponse{
-			RegistrationData: regResp.GetU2F().GetRegistrationData(),
-			ClientData:       regResp.GetU2F().GetClientData(),
-		},
-		RegistrationStorageKey: req.username,
-		ChallengeStorageKey:    storageKey,
-		Storage:                storage,
-		Clock:                  a.GetClock(),
-		AttestationCAs:         u2fConfig.DeviceAttestationCAs,
-	})
-	return dev, trace.Wrap(err)
-}
-
 func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFARegisterResponse, req *newMFADeviceFields) (*types.MFADevice, error) {
 	cap, err := a.GetAuthPreference(ctx)
 	if err != nil {
@@ -1842,20 +1763,6 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 	dev, err := webRegistration.Finish(
 		ctx, req.username, req.newDeviceName, wanlib.CredentialCreationResponseFromProto(regResp.GetWebauthn()))
 	return dev, trace.Wrap(err)
-}
-
-func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) (*types.MFADevice, error) {
-	// before trying to register a user, see U2F is actually setup on the backend
-	cap, err := a.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, err = cap.GetU2F()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.checkU2F(ctx, user, *response, a.Identity)
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous (current) session.
@@ -2245,11 +2152,11 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		NotAfter:  a.clock.Now().UTC().Add(defaults.CATTL),
 		DNSNames:  append([]string{}, req.AdditionalPrincipals...),
 	}
+
 	// API requests need to specify a DNS name, which must be present in the certificate's DNS Names.
 	// The target DNS is not always known in advance so we add a default one to all certificates.
-	if (types.SystemRoles{req.Role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleApp) {
-		certRequest.DNSNames = append(certRequest.DNSNames, "*."+constants.APIDomain, constants.APIDomain)
-	}
+	certRequest.DNSNames = append(certRequest.DNSNames, DefaultDNSNamesForRole(req.Role)...)
+
 	// Unlike additional principals, DNS Names is x509 specific and is limited
 	// to services with TLS endpoints (e.g. auth, proxies, kubernetes)
 	if (types.SystemRoles{req.Role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleWindowsDesktop) {
@@ -2270,17 +2177,17 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 // ValidateToken takes a provisioning token value and finds if it's valid. Returns
 // a list of roles this token allows its owner to assume and token labels, or an error if the token
 // cannot be found.
-func (a *Server) ValidateToken(ctx context.Context, token string) (types.SystemRoles, map[string]string, error) {
+func (a *Server) ValidateToken(ctx context.Context, token string) (types.ProvisionToken, error) {
 	tkns, err := a.GetStaticTokens()
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// First check if the token is a static token. If it is, return right away.
 	// Static tokens have no expiration.
 	for _, st := range tkns.GetStaticTokens() {
 		if subtle.ConstantTimeCompare([]byte(st.GetName()), []byte(token)) == 1 {
-			return st.GetRoles(), nil, nil
+			return st, nil
 		}
 	}
 
@@ -2288,13 +2195,13 @@ func (a *Server) ValidateToken(ctx context.Context, token string) (types.SystemR
 	// If a ephemeral token is found, make sure it's still valid.
 	tok, err := a.GetToken(ctx, token)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if !a.checkTokenTTL(tok) {
-		return nil, nil, trace.AccessDenied("token expired")
+		return nil, trace.AccessDenied("token expired")
 	}
 
-	return tok.GetRoles(), tok.GetMetadata().Labels, nil
+	return tok, nil
 }
 
 // checkTokenTTL checks if the token is still valid. If it is not, the token
@@ -2806,25 +2713,47 @@ func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesReques
 type ResourcePageFunc func(next []types.ResourceWithLabels) (stop bool, err error)
 
 // IterateResourcePages can be used to iterate over pages of resources.
-func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (string, error) {
+func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (*types.ListResourcesResponse, error) {
 	for {
-		nextPage, nextKey, err := a.ListResources(ctx, req)
-		if err != nil {
-			return "", trace.Wrap(err)
+		var resp *types.ListResourcesResponse
+		switch {
+		case req.ResourceType == types.KindWindowsDesktop:
+			wResp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+				WindowsDesktopFilter: req.WindowsDesktopFilter,
+				Limit:                int(req.Limit),
+				StartKey:             req.StartKey,
+				PredicateExpression:  req.PredicateExpression,
+				Labels:               req.Labels,
+				SearchKeywords:       req.SearchKeywords,
+				SortBy:               req.SortBy,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			resp = &types.ListResourcesResponse{
+				Resources: types.WindowsDesktops(wResp.Desktops).AsResources(),
+				NextKey:   wResp.NextKey,
+			}
+		default:
+			dResp, err := a.ListResources(ctx, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			resp = dResp
 		}
 
-		stop, err := f(nextPage)
+		stop, err := f(resp.Resources)
 		if err != nil {
-			return "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		// Iterator stopped before end of pages or
 		// there are no more pages, return nextKey
-		if stop || nextKey == "" {
-			return nextKey, nil
+		if stop || resp.NextKey == "" {
+			return resp, nil
 		}
 
-		req.StartKey = nextKey
+		req.StartKey = resp.NextKey
 	}
 }
 
@@ -3103,9 +3032,14 @@ func (a *Server) GetDatabase(ctx context.Context, name string) (types.Database, 
 	return a.GetCache().GetDatabase(ctx, name)
 }
 
-// GetDatabases returns all database resources.
-func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+// ListResources returns paginated resources depending on the resource type..
+func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	return a.GetCache().ListResources(ctx, req)
+}
+
+// ListWindowsDesktops returns paginated windows desktops.
+func (a *Server) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	return a.GetCache().ListWindowsDesktops(ctx, req)
 }
 
 // GetLock gets a lock by name from the auth server's cache.
@@ -3123,6 +3057,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if pref.GetRequireSessionMFA() {
 		// Cluster always requires MFA, regardless of roles.
 		return &proto.IsMFARequiredResponse{Required: true}, nil
@@ -3242,6 +3177,18 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			services.AccessMFAParams{},
 			dbRoleMatchers...,
 		)
+	case *proto.IsMFARequiredRequest_WindowsDesktop:
+		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(desktops) == 0 {
+			return nil, trace.NotFound("windows desktop %q not found", t.WindowsDesktop.GetWindowsDesktop())
+		}
+
+		noMFAAccessErr = checker.CheckAccess(desktops[0],
+			services.AccessMFAParams{},
+			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
 	default:
 		return nil, trace.BadParameter("unknown Target %T", req.Target)
@@ -3271,14 +3218,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u2f.AuthenticationStorage) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless bool) (*proto.MFAAuthenticateChallenge, error) {
 	// Check what kind of MFA is enabled.
 	apref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	enableTOTP := apref.IsSecondFactorTOTPAllowed()
-	enableU2F := apref.IsSecondFactorU2FAllowed()
 	enableWebauthn := apref.IsSecondFactorWebauthnAllowed()
 
 	// Fetch configurations. The IsSecondFactor*Allowed calls above already
@@ -3300,36 +3246,42 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 		webConfig = val
 	}
 
-	devs, err := a.Identity.GetMFADevices(ctx, user, true)
+	// Handle passwordless separately, it works differently from MFA.
+	if passwordless {
+		if !enableWebauthn {
+			return nil, trace.BadParameter("passwordless requires WebAuthn")
+		}
+		webLogin := &wanlib.PasswordlessFlow{
+			Webauthn: webConfig,
+			Identity: a.Identity,
+		}
+		assertion, err := webLogin.Begin(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &proto.MFAAuthenticateChallenge{
+			WebauthnChallenge: wanlib.CredentialAssertionToProto(assertion),
+		}, nil
+	}
+
+	// User required for non-passwordless.
+	if user == "" {
+		return nil, trace.BadParameter("user required")
+	}
+
+	devs, err := a.Identity.GetMFADevices(ctx, user, true /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	groupedDevs := groupByDeviceType(devs, enableU2F, enableWebauthn)
+	groupedDevs := groupByDeviceType(devs, enableWebauthn)
 	challenge := &proto.MFAAuthenticateChallenge{}
+
+	// TOTP challenge.
 	if enableTOTP && groupedDevs.TOTP {
 		challenge.TOTP = &proto.TOTPChallenge{}
 	}
 
-	if len(groupedDevs.U2F) > 0 {
-		chals, err := u2f.AuthenticateInit(ctx, u2f.AuthenticateInitParams{
-			AppConfig:  *u2fPref,
-			Devs:       groupedDevs.U2F,
-			Storage:    u2fStorage,
-			StorageKey: user,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, ch := range chals {
-			challenge.U2F = append(challenge.U2F, &proto.U2FChallenge{
-				Version:   ch.Version,
-				KeyHandle: ch.KeyHandle,
-				Challenge: ch.Challenge,
-				AppID:     ch.AppID,
-			})
-		}
-	}
+	// WebAuthn challenge.
 	if len(groupedDevs.Webauthn) > 0 {
 		webLogin := &wanlib.LoginFlow{
 			U2F:      u2fPref,
@@ -3348,20 +3300,16 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 
 type devicesByType struct {
 	TOTP     bool
-	U2F      []*types.MFADevice
 	Webauthn []*types.MFADevice
 }
 
-func groupByDeviceType(devs []*types.MFADevice, groupU2F, groupWebauthn bool) devicesByType {
+func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByType {
 	res := devicesByType{}
 	for _, dev := range devs {
 		switch dev.Device.(type) {
 		case *types.MFADevice_Totp:
 			res.TOTP = true
 		case *types.MFADevice_U2F:
-			if groupU2F {
-				res.U2F = append(res.U2F, dev)
-			}
 			if groupWebauthn {
 				res.Webauthn = append(res.Webauthn, dev)
 			}
@@ -3373,74 +3321,67 @@ func groupByDeviceType(devs []*types.MFADevice, groupU2F, groupWebauthn bool) de
 			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
 		}
 	}
-
 	return res
 }
 
-func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
+// validateMFAAuthResponse validates an MFA or passwordless challenge.
+// Returns the device used to solve the challenge (if applicable) and the
+// username.
+func (a *Server) validateMFAAuthResponse(
+	ctx context.Context,
+	resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	// Sanity check user/passwordless.
+	if user == "" && !passwordless {
+		return nil, "", trace.BadParameter("user required")
+	}
+
 	switch res := resp.Response.(type) {
-	case *proto.MFAAuthenticateResponse_TOTP:
-		return a.checkOTP(user, res.TOTP.Code)
-	case *proto.MFAAuthenticateResponse_U2F:
-		return a.checkU2F(ctx, user, u2f.AuthenticateChallengeResponse{
-			KeyHandle:     res.U2F.KeyHandle,
-			ClientData:    res.U2F.ClientData,
-			SignatureData: res.U2F.Signature,
-		}, u2fStorage)
+	// cases in order of preference
 	case *proto.MFAAuthenticateResponse_Webauthn:
+		// Read necessary configurations.
 		cap, err := a.GetAuthPreference(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
-		u2f, _ := cap.GetU2F()
+		u2f, err := cap.GetU2F()
+		switch {
+		case trace.IsNotFound(err): // OK, may happen.
+		case err != nil: // Unexpected.
+			return nil, "", trace.Wrap(err)
+		}
 		webConfig, err := cap.GetWebauthn()
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
-		webLogin := &wanlib.LoginFlow{
-			U2F:      u2f,
-			Webauthn: webConfig,
-			Identity: a.Identity,
+
+		assertionResp := wanlib.CredentialAssertionResponseFromProto(res.Webauthn)
+		var dev *types.MFADevice
+		if passwordless {
+			webLogin := &wanlib.PasswordlessFlow{
+				Webauthn: webConfig,
+				Identity: a.Identity,
+			}
+			dev, user, err = webLogin.Finish(ctx, assertionResp)
+		} else {
+			webLogin := &wanlib.LoginFlow{
+				U2F:      u2f,
+				Webauthn: webConfig,
+				Identity: a.Identity,
+			}
+			dev, err = webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
 		}
-		dev, err := webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
 		if err != nil {
-			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
+			return nil, "", trace.AccessDenied("MFA response validation failed: %v", err)
 		}
-		return dev, nil
+		return dev, user, nil
+
+	case *proto.MFAAuthenticateResponse_TOTP:
+		dev, err := a.checkOTP(user, res.TOTP.Code)
+		return dev, user, trace.Wrap(err)
+
 	default:
-		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
+		return nil, "", trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
-}
-
-func (a *Server) checkU2F(ctx context.Context, user string, res u2f.AuthenticateChallengeResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
-	devs, err := a.Identity.GetMFADevices(ctx, user, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, dev := range devs {
-		u2fDev := dev.GetU2F()
-		if u2fDev == nil {
-			continue
-		}
-
-		// U2F passes key handles around base64-encoded, without padding.
-		kh := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(u2fDev.KeyHandle)
-		if kh != res.KeyHandle {
-			continue
-		}
-		if err := u2f.AuthenticateVerify(ctx, u2f.AuthenticateVerifyParams{
-			Dev:        dev,
-			Resp:       res,
-			Storage:    u2fStorage,
-			StorageKey: user,
-			Clock:      a.clock,
-		}); err != nil {
-			// Since key handles are unique, no need to check other devices.
-			return nil, trace.AccessDenied("U2F response validation failed for device %q: %v", dev.GetName(), err)
-		}
-		return dev, nil
-	}
-	return nil, trace.AccessDenied("U2F response validation failed: no device matches the response")
 }
 
 // WithClock is a functional server option that sets the server's clock
@@ -3849,4 +3790,15 @@ func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName st
 		tlsCopy.ClientCAs = pool
 		return tlsCopy, nil
 	}
+}
+
+// DefaultDNSNamesForRole returns default DNS names for the specified role.
+func DefaultDNSNamesForRole(role types.SystemRole) []string {
+	if (types.SystemRoles{role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleApp, types.RoleDatabase, types.RoleWindowsDesktop) {
+		return []string{
+			"*." + constants.APIDomain,
+			constants.APIDomain,
+		}
+	}
+	return nil
 }

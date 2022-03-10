@@ -201,9 +201,19 @@ func ForOldRemoteProxy(cfg Config) Config {
 
 // ForNode sets up watch configuration for node
 func ForNode(cfg Config) Config {
+	var caFilter map[string]string
+	if cfg.ClusterConfig != nil {
+		clusterName, err := cfg.ClusterConfig.GetClusterName()
+		if err == nil {
+			caFilter = types.CertAuthorityFilter{
+				types.HostCA: clusterName.GetClusterName(),
+				types.UserCA: types.Wildcard,
+			}.IntoMap()
+		}
+	}
 	cfg.target = "node"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, Filter: caFilter},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -1902,31 +1912,41 @@ func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsD
 	return rg.presence.GetWindowsDesktopServices(ctx)
 }
 
-// GetWindowsDesktops returns all registered Windows desktop hosts.
-func (c *Cache) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
+// GetWindowsDesktopService returns a registered Windows desktop service by name.
+func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.windowsDesktops.GetWindowsDesktops(ctx)
+	return rg.presence.GetWindowsDesktopService(ctx, name)
 }
 
-// GetWindowsDesktop returns a registered Windows desktop host.
-func (c *Cache) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
+// GetWindowsDesktops returns all registered Windows desktop hosts.
+func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.windowsDesktops.GetWindowsDesktop(ctx, name)
+	return rg.windowsDesktops.GetWindowsDesktops(ctx, filter)
+}
+
+// ListWindowsDesktops returns all registered Windows desktop hosts.
+func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.windowsDesktops.ListWindowsDesktops(ctx, req)
 }
 
 // ListResources is a part of auth.Cache implementation
-func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.ResourceWithLabels, nextKey string, err error) {
+func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	rg, err := c.read()
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
@@ -1948,14 +1968,14 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 // sorting.
 //
 // NOTE: currently only types.KindNode supports TTL caching.
-func (c *Cache) listResourcesFromTTLCache(ctx context.Context, rg readGuard, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+func (c *Cache) listResourcesFromTTLCache(ctx context.Context, rg readGuard, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	var resources []types.ResourceWithLabels
 	switch req.ResourceType {
 	case types.KindNode:
 		// Retrieve all nodes.
 		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, req.Namespace)
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		// Nodes returned from the TTL caching layer
@@ -1967,13 +1987,13 @@ func (c *Cache) listResourcesFromTTLCache(ctx context.Context, rg readGuard, req
 
 		servers := types.Servers(clonedNodes)
 		if err := servers.SortByCustom(req.SortBy); err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		resources = servers.AsResources()
 
 	default:
-		return nil, "", trace.NotImplemented("resource type %q does not support TTL caching", req.ResourceType)
+		return nil, trace.NotImplemented("resource type %q does not support TTL caching", req.ResourceType)
 	}
 
 	return local.FakePaginate(resources, req)

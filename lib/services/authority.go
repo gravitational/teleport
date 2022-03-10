@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -210,8 +209,6 @@ type ChangePasswordReq struct {
 	NewPassword []byte `json:"new_password"`
 	// SecondFactorToken is user 2nd factor token
 	SecondFactorToken string `json:"second_factor_token"`
-	// U2FSignResponse is U2F sign response
-	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
 	// WebauthnResponse is Webauthn sign response
 	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response"`
 }
@@ -261,6 +258,10 @@ type UserCertParams struct {
 	DisallowReissue bool
 	// CertificateExtensions are user configured ssh key extensions
 	CertificateExtensions []*types.CertExtension
+	// Renewable indicates this certificate is renewable
+	Renewable bool
+	// Generation counts the number of times a certificate has been renewed.
+	Generation uint64
 }
 
 // CheckAndSetDefaults checks the user certificate parameters

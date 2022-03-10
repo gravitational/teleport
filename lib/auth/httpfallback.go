@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
@@ -549,6 +548,9 @@ type nodeClient interface {
 
 // GetNodesWithLabels is a helper for getting a list of nodes with optional label-based filtering.  This is essentially
 // a wrapper around client.GetNodesWithLabels that performs fallback on NotImplemented errors.
+//
+// DELETE IN 11.0.0, this function is only called by lib/client/client.go (*ProxyClient).FindServersByLabels
+// which is also marked for deletion (replaced by FindNodesByFilters).
 func GetNodesWithLabels(ctx context.Context, clt nodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
 	nodes, err := client.GetNodesWithLabels(ctx, clt, namespace, labels)
 	if err == nil || !trace.IsNotImplemented(err) {
@@ -605,148 +607,4 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 	}
 
 	return re, nil
-}
-
-// DELETE IN 9.0.0, to remove fallback and grpc call is already defined in api/client/client.go
-//
-// ChangeUserAuthentication changes user password with a user reset token and starts a web session.
-// Returns recovery tokens for cloud users with second factors turned on.
-func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
-	switch resp, err := c.APIClient.ChangeUserAuthentication(ctx, req); {
-	// ChangeUserAuthentication available
-	case err == nil:
-		return resp, nil
-	// ChangeUserAuthentication errored
-	case !trace.IsNotImplemented(err):
-		return nil, trace.Wrap(err)
-	}
-
-	// Convert request back to fallback compatible object.
-	httpReq := ChangePasswordWithTokenRequest{
-		SecondFactorToken: req.GetNewMFARegisterResponse().GetTOTP().GetCode(),
-		TokenID:           req.GetTokenID(),
-		Password:          req.GetNewPassword(),
-	}
-
-	if req.NewMFARegisterResponse.GetU2F() != nil {
-		httpReq.U2FRegisterResponse = &u2f.RegisterChallengeResponse{
-			RegistrationData: req.NewMFARegisterResponse.GetU2F().GetRegistrationData(),
-			ClientData:       req.NewMFARegisterResponse.GetU2F().GetClientData(),
-		}
-	}
-
-	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), httpReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	webSession, err := services.UnmarshalWebSession(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sess, ok := webSession.(*types.WebSessionV2)
-	if !ok {
-		return nil, trace.BadParameter("unexpected WebSessionV2 type %T", sess)
-	}
-
-	return &proto.ChangeUserAuthenticationResponse{
-		WebSession: sess,
-	}, nil
-}
-
-// DELETE IN 9.0.0, to remove fallback and grpc call is already defined in api/client/client.go
-//
-// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
-func (c *Client) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
-	switch resp, err := c.APIClient.CreateAuthenticateChallenge(ctx, req); {
-	case err == nil:
-		return resp, nil
-	case !trace.IsNotImplemented(err):
-		return nil, trace.Wrap(err)
-	}
-
-	// HTTP fallback for auth version <7.x
-	out, err := c.PostJSON(
-		c.Endpoint("u2f", "users", req.GetUserCredentials().GetUsername(), "sign"),
-		signInReq{
-			Password: string(req.GetUserCredentials().GetPassword()),
-		},
-	)
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var jsonChal *MFAAuthenticateChallenge
-	if err := json.Unmarshal(out.Bytes(), &jsonChal); err != nil {
-		return nil, err
-	}
-
-	// Convert JSON back to proto.
-	// Webauthn is not handled here b/c the feature
-	// does not exist for auth version <7.x
-	protoChal := &proto.MFAAuthenticateChallenge{}
-
-	if jsonChal.TOTPChallenge {
-		protoChal.TOTP = &proto.TOTPChallenge{}
-	}
-
-	for _, u2fChal := range jsonChal.U2FChallenges {
-		protoChal.U2F = append(protoChal.U2F, &proto.U2FChallenge{
-			KeyHandle: u2fChal.KeyHandle,
-			Challenge: u2fChal.Challenge,
-			AppID:     u2fChal.AppID,
-		})
-	}
-
-	return protoChal, nil
-}
-
-// DELETE IN 9.0.0, to remove fallback and grpc call is already defined in api/client/client.go
-//
-// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
-func (c *Client) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
-	switch resp, err := c.APIClient.CreateRegisterChallenge(ctx, req); {
-	case err == nil:
-		return resp, nil
-	case !trace.IsNotImplemented(err):
-		return nil, trace.Wrap(err)
-	}
-
-	// Fallback for auth version <7.x
-	// Does not handle webauthn since this feature will not exist <7.x.
-	switch req.DeviceType {
-	case proto.DeviceType_DEVICE_TYPE_TOTP:
-		resp, err := c.APIClient.RotateUserTokenSecrets(ctx, req.GetTokenID())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Only the QRCode is returned b/c that was the only value the caller was using/needed.
-		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_TOTP{
-			TOTP: &proto.TOTPRegisterChallenge{QRCode: resp.GetQRCode()},
-		}}, nil
-
-	case proto.DeviceType_DEVICE_TYPE_U2F:
-		out, err := c.Get(c.Endpoint("u2f", "signuptokens", req.GetTokenID()), url.Values{})
-		if err != nil {
-			return nil, err
-		}
-		var u2fRegReq u2f.RegisterChallenge
-		if err := json.Unmarshal(out.Bytes(), &u2fRegReq); err != nil {
-			return nil, err
-		}
-
-		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_U2F{
-			U2F: &proto.U2FRegisterChallenge{
-				Challenge: u2fRegReq.Challenge,
-				AppID:     u2fRegReq.AppID,
-				Version:   u2fRegReq.Version,
-			},
-		}}, nil
-
-	default:
-		return nil, trace.BadParameter("MFA device type %v unsupported", req.GetDeviceType().String())
-	}
 }

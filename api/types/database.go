@@ -378,7 +378,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	// In case of RDS, Aurora or Redshift, AWS information such as region or
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
-	case strings.Contains(d.Spec.URI, rdsEndpointSuffix):
+	case strings.Contains(d.Spec.URI, RDSEndpointSuffix):
 		instanceID, region, err := parseRDSEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
@@ -389,7 +389,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = region
 		}
-	case strings.Contains(d.Spec.URI, redshiftEndpointSuffix):
+	case strings.Contains(d.Spec.URI, RedshiftEndpointSuffix):
 		clusterID, region, err := parseRedshiftEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
@@ -400,7 +400,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = region
 		}
-	case strings.Contains(d.Spec.URI, azureEndpointSuffix):
+	case strings.Contains(d.Spec.URI, AzureEndpointSuffix):
 		name, err := parseAzureEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
@@ -421,7 +421,7 @@ func parseRDSEndpoint(endpoint string) (instanceID, region string, err error) {
 	// RDS/Aurora endpoint looks like this:
 	// aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com
 	parts := strings.Split(host, ".")
-	if !strings.HasSuffix(host, rdsEndpointSuffix) || len(parts) != 6 {
+	if !strings.HasSuffix(host, RDSEndpointSuffix) || len(parts) != 6 {
 		return "", "", trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
 	}
 	return parts[0], parts[2], nil
@@ -436,7 +436,7 @@ func parseRedshiftEndpoint(endpoint string) (clusterID, region string, err error
 	// Redshift endpoint looks like this:
 	// redshift-cluster-1.abcdefghijklmnop.us-east-1.rds.amazonaws.com
 	parts := strings.Split(host, ".")
-	if !strings.HasSuffix(host, redshiftEndpointSuffix) || len(parts) != 6 {
+	if !strings.HasSuffix(host, RedshiftEndpointSuffix) || len(parts) != 6 {
 		return "", "", trace.BadParameter("failed to parse %v as Redshift endpoint", endpoint)
 	}
 	return parts[0], parts[2], nil
@@ -451,7 +451,7 @@ func parseAzureEndpoint(endpoint string) (name string, err error) {
 	// Azure endpoint looks like this:
 	// name.mysql.database.azure.com
 	parts := strings.Split(host, ".")
-	if !strings.HasSuffix(host, azureEndpointSuffix) || len(parts) != 5 {
+	if !strings.HasSuffix(host, AzureEndpointSuffix) || len(parts) != 5 {
 		return "", trace.BadParameter("failed to parse %v as Azure endpoint", endpoint)
 	}
 	return parts[0], nil
@@ -563,16 +563,6 @@ func DeduplicateDatabases(databases []Database) (result []Database) {
 // Databases is a list of database resources.
 type Databases []Database
 
-// Find returns database with the specified name or nil.
-func (d Databases) Find(name string) Database {
-	for _, database := range d {
-		if database.GetName() == name {
-			return database
-		}
-	}
-	return nil
-}
-
 // ToMap returns these databases as a map keyed by database name.
 func (d Databases) ToMap() map[string]Database {
 	m := make(map[string]Database)
@@ -600,12 +590,12 @@ func (d Databases) Less(i, j int) bool { return d[i].GetName() < d[j].GetName() 
 func (d Databases) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
 
 const (
-	// rdsEndpointSuffix is the RDS/Aurora endpoint suffix.
-	rdsEndpointSuffix = ".rds.amazonaws.com"
-	// redshiftEndpointSuffix is the Redshift endpoint suffix.
-	redshiftEndpointSuffix = ".redshift.amazonaws.com"
-	// azureEndpointSuffix is the Azure database endpoint suffix.
-	azureEndpointSuffix = ".database.azure.com"
+	// RDSEndpointSuffix is the RDS/Aurora endpoint suffix.
+	RDSEndpointSuffix = ".rds.amazonaws.com"
+	// RedshiftEndpointSuffix is the Redshift endpoint suffix.
+	RedshiftEndpointSuffix = ".redshift.amazonaws.com"
+	// AzureEndpointSuffix is the Azure database endpoint suffix.
+	AzureEndpointSuffix = ".database.azure.com"
 )
 
 var (
