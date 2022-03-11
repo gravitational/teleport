@@ -230,6 +230,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		ClusterFeatures: cfg.ClusterFeatures,
 	}
 
+	// for properly handling url-encoded parameter values.
+	h.UseRawPath = true
+
 	for _, o := range opts {
 		if err := o(h); err != nil {
 			return nil, trace.Wrap(err)
@@ -383,7 +386,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.POST("/webapi/mfa/login/begin", h.withLimiter(challengeLimiter, h.mfaLoginBegin))
 	h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
 	h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
-	h.DELETE("/webapi/mfa/token/:token/devices/*devicename", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
+	h.DELETE("/webapi/mfa/token/:token/devices/:devicename", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
 	h.GET("/webapi/mfa/token/:token/devices", httplib.MakeHandler(h.getMFADevicesWithTokenHandle))
 	h.POST("/webapi/mfa/token/:token/authenticatechallenge", httplib.MakeHandler(h.createAuthenticateChallengeWithTokenHandle))
 	h.POST("/webapi/mfa/token/:token/registerchallenge", httplib.MakeHandler(h.createRegisterChallengeWithTokenHandle))

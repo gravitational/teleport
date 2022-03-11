@@ -60,7 +60,7 @@ func (h *Handler) getMFADevicesHandle(w http.ResponseWriter, r *http.Request, p 
 func (h *Handler) deleteMFADeviceWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	if err := h.GetProxyClient().DeleteMFADeviceSync(r.Context(), &proto.DeleteMFADeviceSyncRequest{
 		TokenID:    p.ByName("token"),
-		DeviceName: p.ByName("devicename")[1:],
+		DeviceName: p.ByName("devicename"),
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
