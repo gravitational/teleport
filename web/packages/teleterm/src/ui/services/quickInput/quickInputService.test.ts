@@ -96,6 +96,22 @@ test('getAutocompleteResult returns correct target token for an SSH login sugges
     CommandLauncherMock,
     onlyTshSshCommand
   );
+  jest
+    .spyOn(pickers.QuickSshLoginPicker.prototype, 'getAutocompleteResult')
+    .mockImplementation((input: string, startIndex: number) => {
+      return {
+        kind: 'autocomplete.partial-match',
+        suggestions: [
+          {
+            kind: 'suggestion.ssh-login',
+            token: 'root',
+            appendToToken: '@',
+            data: 'root',
+          },
+        ],
+        targetToken: { startIndex, value: input },
+      };
+    });
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined),
@@ -116,6 +132,22 @@ test('getAutocompleteResult returns correct target token for an SSH login sugges
     CommandLauncherMock,
     onlyTshSshCommand
   );
+  jest
+    .spyOn(pickers.QuickSshLoginPicker.prototype, 'getAutocompleteResult')
+    .mockImplementation((input: string, startIndex: number) => {
+      return {
+        kind: 'autocomplete.partial-match',
+        suggestions: [
+          {
+            kind: 'suggestion.ssh-login',
+            token: 'barfoo',
+            appendToToken: '@',
+            data: 'barfoo',
+          },
+        ],
+        targetToken: { startIndex, value: input },
+      };
+    });
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined),
@@ -165,6 +197,33 @@ test("getAutocompleteResult doesn't return any suggestions if the only suggestio
   expect(autocompleteResult.kind).toBe('autocomplete.no-match');
 });
 
+test('getAutocompleteResult returns no match if any of the pickers returns partial match with empty array', () => {
+  jest.mock('./quickPickers');
+  const QuickCommandPickerMock = pickers.QuickCommandPicker as jest.MockedClass<
+    typeof pickers.QuickCommandPicker
+  >;
+  jest
+    .spyOn(QuickCommandPickerMock.prototype, 'getAutocompleteResult')
+    .mockImplementation(() => {
+      return {
+        kind: 'autocomplete.partial-match',
+        suggestions: [],
+        targetToken: {
+          startIndex: 0,
+          value: '',
+        },
+      };
+    });
+  const quickInputService = new QuickInputService(
+    new CommandLauncherMock(undefined),
+    new ClustersServiceMock(undefined),
+    new WorkspacesServiceMock(undefined, undefined, undefined)
+  );
+
+  const autocompleteResult = quickInputService.getAutocompleteResult('');
+  expect(autocompleteResult.kind).toBe('autocomplete.no-match');
+});
+
 test("the SSH login autocomplete isn't shown if there's no space after `tsh ssh`", () => {
   mockCommandLauncherAutocompleteCommands(
     CommandLauncherMock,
@@ -185,6 +244,22 @@ test("the SSH login autocomplete is shown only if there's at least one space aft
     CommandLauncherMock,
     onlyTshSshCommand
   );
+  jest
+    .spyOn(pickers.QuickSshLoginPicker.prototype, 'getAutocompleteResult')
+    .mockImplementation((input: string, startIndex: number) => {
+      return {
+        kind: 'autocomplete.partial-match',
+        suggestions: [
+          {
+            kind: 'suggestion.ssh-login',
+            token: 'barfoo',
+            appendToToken: '@',
+            data: 'barfoo',
+          },
+        ],
+        targetToken: { startIndex, value: input },
+      };
+    });
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined),

@@ -97,13 +97,16 @@ export class QuickInputService extends Store<State> {
     const autocompleteResult =
       this.quickCommandPicker.getAutocompleteResult(input);
 
-    // Don't show suggestions if the only suggestion completely matches the target token.
+    // Automatically handle some universal edge cases so that each individual picker doesn't have to
+    // care about them.
     if (autocompleteResult.kind === 'autocomplete.partial-match') {
       const { targetToken, suggestions } = autocompleteResult;
+      const isEmpty = suggestions.length === 0;
+      // Don't show suggestions if the only suggestion completely matches the target token.
       const hasSingleCompleteMatch =
         suggestions.length === 1 && suggestions[0].token === targetToken.value;
 
-      if (hasSingleCompleteMatch) {
+      if (isEmpty || hasSingleCompleteMatch) {
         return {
           kind: 'autocomplete.no-match',
         };
