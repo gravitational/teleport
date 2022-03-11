@@ -17,6 +17,7 @@ limitations under the License.
 import React, { useState } from 'react';
 import { ButtonBorder } from 'design';
 import Table, { Cell } from 'design/DataTable';
+import { dateTimeMatcher } from 'design/utils/match';
 import { displayDateTime } from 'shared/services/loc';
 import { Event } from 'teleport/services/audit';
 import { State } from '../useAuditEvents';
@@ -32,7 +33,6 @@ export default function EventList(props: Props) {
     pageSize = 50,
   } = props;
   const [detailsToShow, setDetailsToShow] = useState<Event>();
-
   return (
     <>
       <Table
@@ -62,6 +62,8 @@ export default function EventList(props: Props) {
         ]}
         emptyText={'No Events Found'}
         isSearchable
+        searchableProps={['code', 'codeDesc', 'time', 'user', 'message', 'id']}
+        customSearchMatchers={[dateTimeMatcher(['time'])]}
         initialSort={{ key: 'time', dir: 'DESC' }}
         pagination={{ pageSize }}
         fetching={{

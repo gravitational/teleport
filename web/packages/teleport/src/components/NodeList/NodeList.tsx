@@ -53,6 +53,15 @@ function NodeList(props: Props) {
         pageSize,
       }}
       isSearchable
+      searchableProps={[
+        'addr',
+        'hostname',
+        'id',
+        'tunnel',
+        'tags',
+        'clusterId',
+      ]}
+      customSearchMatchers={[tunnelMatcher]}
     />
   );
 }
@@ -95,6 +104,18 @@ const renderLoginCell = (
 export const renderAddressCell = ({ addr, tunnel }: Node) => (
   <Cell>{tunnel ? renderTunnel() : addr}</Cell>
 );
+
+function tunnelMatcher(
+  targetValue: any,
+  searchValue: string,
+  propName: keyof Node & string
+) {
+  return (
+    propName === 'tunnel' &&
+    targetValue &&
+    propName.includes(searchValue.toLocaleLowerCase())
+  );
+}
 
 function renderTunnel() {
   return (

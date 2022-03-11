@@ -1,9 +1,16 @@
+import { MatchCallback } from 'design/utils/match';
+
 export type TableProps<T> = {
   data: T[];
   columns: TableColumn<T>[];
   emptyText: string;
   pagination?: PaginationConfig;
   isSearchable?: boolean;
+  searchableProps?: Extract<keyof T, string>[];
+  // customSearchMatchers contains custom functions to run when search matching.
+  // 'targetValue' prop will have to be uppercased for proper matching since
+  // the root matcher will uppercase the searchValue.
+  customSearchMatchers?: MatchCallback<T>[];
   initialSort?: InitialSort<T>;
   fetching?: FetchingConfig;
   showFirst?: (data: T[]) => T;

@@ -160,6 +160,7 @@ const Empty = (props: EmptyProps) => {
         <Info pr={4} mb={6} />
         <ButtonPrimary
           disabled={props.disabled}
+          title={props.disabled ? 'You do not have access to add a trusted cluster' : ''}
           onClick={props.onCreate}
           mb="2"
           mx="auto"

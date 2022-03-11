@@ -18,7 +18,7 @@ import React from 'react';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import cfg from 'teleport/config';
-import { Session } from 'teleport/services/ssh';
+import { Session, Participant } from 'teleport/services/ssh';
 import renderDescCell from './DescCell';
 
 export default function SessionList(props: Props) {
@@ -58,7 +58,20 @@ export default function SessionList(props: Props) {
       ]}
       emptyText="No Active Sessions Found"
       pagination={{ pageSize }}
+      customSearchMatchers={[participantMatcher]}
       isSearchable
+      searchableProps={[
+        'addr',
+        'sid',
+        'clusterId',
+        'serverId',
+        'hostname',
+        'parties',
+        'durationText',
+        'login',
+        'created',
+        'parties',
+      ]}
     />
   );
 }
@@ -98,3 +111,19 @@ type Props = {
   sessions: Session[];
   pageSize?: number;
 };
+
+function participantMatcher(
+  targetValue: any,
+  searchValue: string,
+  propName: keyof Session & string
+) {
+  if (propName === 'parties') {
+    return targetValue.some((participant: Participant) => {
+      if (participant.remoteAddr.toLocaleUpperCase().includes(searchValue)) {
+        return true;
+      }
+
+      return participant.user.toLocaleUpperCase().includes(searchValue);
+    });
+  }
+}

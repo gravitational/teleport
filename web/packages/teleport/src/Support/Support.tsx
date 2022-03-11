@@ -87,15 +87,7 @@ export const Support = ({
           <Box>
             <Header title="Troubleshooting" icon={<Icons.Graph />} />
             <SupportLink
-              title="Monitoring Teleport"
-              url={docs.troubleshooting}
-            />
-            <SupportLink
-              title="Collecting Debug Data"
-              url={docs.troubleshooting}
-            />
-            <SupportLink
-              title="Troubleshooting FAQ"
+              title="Monitoring & Debugging"
               url={docs.troubleshooting}
             />
           </Box>
@@ -159,7 +151,7 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
     userManual: withUTM('https://goteleport.com/teleport/docs/user-manual'),
     adminGuide: withUTM('https://goteleport.com/teleport/docs/admin-guide'),
     troubleshooting: withUTM(
-      'https://goteleport.com/teleport/docs/admin-guide',
+      'https://goteleport.com/teleport/docs/setup/admin/troubleshooting',
       '#troubleshooting'
     ),
     faq: withUTM('https://goteleport.com/teleport/docs/faq'),

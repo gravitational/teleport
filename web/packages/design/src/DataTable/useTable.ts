@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import isMatch from 'design/utils/match';
-import { displayDate } from 'shared/services/loc';
+import isMatch, { MatchCallback } from 'design/utils/match';
+import { displayDate, displayDateTime } from 'shared/services/loc';
 import paginateData from './Pager/paginateData';
 import { TableProps, TableColumn } from './types';
 
@@ -9,6 +9,8 @@ export default function useTable<T>({
   columns,
   pagination,
   showFirst,
+  searchableProps,
+  customSearchMatchers = [],
   ...props
 }: TableProps<T>) {
   const [state, setState] = useState(() => {
@@ -38,12 +40,30 @@ export default function useTable<T>({
     };
   });
 
+  function searchAndFilterCb(
+    targetValue: any,
+    searchValue: string,
+    propName: keyof T & string
+  ) {
+    for (const matcher of customSearchMatchers) {
+      const isMatched = matcher(targetValue, searchValue, propName);
+      if (isMatched) {
+        return true;
+      }
+    }
+
+    // No match found.
+    return false;
+  }
+
   const updateData = (sort: typeof state.sort, searchValue: string) => {
     const sortedAndFiltered = sortAndFilter(
       data,
       searchValue,
       sort,
-      columns.map(column => column.key),
+      searchableProps ||
+        columns.filter(column => column.key).map(column => column.key),
+      searchAndFilterCb,
       showFirst
     );
 
@@ -124,16 +144,16 @@ function sortAndFilter<T>(
   data: T[] = [],
   searchValue = '',
   sort: State<T>['state']['sort'],
-  columnKeys: (keyof T)[],
+  searchableProps: (keyof T & string)[],
+  searchAndFilterCb: MatchCallback<T>,
   showFirst?: TableProps<T>['showFirst']
 ) {
   const output = data.filter(obj =>
     isMatch(obj, searchValue, {
-      searchableProps: columnKeys,
+      searchableProps,
       cb: searchAndFilterCb,
     })
   );
-
   if (sort) {
     if (sort.onSort) {
       output.sort((a, b) => sort.onSort(a[sort.key], b[sort.key]));
@@ -165,21 +185,6 @@ function sortAndFilter<T>(
   }
 
   return output;
-}
-
-function searchAndFilterCb<T>(
-  targetValue: any,
-  searchValue: string,
-  propName: keyof T & string
-) {
-  if (propName === 'tags') {
-    return targetValue.some(item => {
-      return item.toLocaleLowerCase().includes(searchValue.toLocaleLowerCase());
-    });
-  }
-  if (propName.toLocaleLowerCase().includes('date')) {
-    return displayDate(targetValue).includes(searchValue);
-  }
 }
 
 export type State<T> = Omit<

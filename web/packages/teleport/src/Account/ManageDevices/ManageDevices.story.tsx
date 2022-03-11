@@ -24,7 +24,7 @@ export default {
 
 export const Loaded = () => <ManageDevices {...props} />;
 
-export const LoadedMfaaOff = () => (
+export const LoadedMfaOff = () => (
   <ManageDevices {...props} mfaDisabled={true} />
 );
 

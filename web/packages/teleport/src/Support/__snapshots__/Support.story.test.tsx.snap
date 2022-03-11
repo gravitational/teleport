@@ -279,24 +279,10 @@ exports[`support Enterprise 1`] = `
         </div>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_4.4.0-dev#troubleshooting"
+          href="https://goteleport.com/teleport/docs/setup/admin/troubleshooting?product=teleport&version=e_4.4.0-dev#troubleshooting"
           rel="noreferrer"
         >
-          Monitoring Teleport
-        </a>
-        <a
-          class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_4.4.0-dev#troubleshooting"
-          rel="noreferrer"
-        >
-          Collecting Debug Data
-        </a>
-        <a
-          class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_4.4.0-dev#troubleshooting"
-          rel="noreferrer"
-        >
-          Troubleshooting FAQ
+          Monitoring & Debugging
         </a>
       </div>
       <div
@@ -671,24 +657,10 @@ exports[`support OSS 1`] = `
         </div>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_4.4.0-dev#troubleshooting"
+          href="https://goteleport.com/teleport/docs/setup/admin/troubleshooting?product=teleport&version=oss_4.4.0-dev#troubleshooting"
           rel="noreferrer"
         >
-          Monitoring Teleport
-        </a>
-        <a
-          class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_4.4.0-dev#troubleshooting"
-          rel="noreferrer"
-        >
-          Collecting Debug Data
-        </a>
-        <a
-          class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_4.4.0-dev#troubleshooting"
-          rel="noreferrer"
-        >
-          Troubleshooting FAQ
+          Monitoring & Debugging
         </a>
       </div>
       <div

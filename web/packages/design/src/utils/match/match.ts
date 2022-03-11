@@ -36,13 +36,15 @@ export default function match<T>(
     searchableProps,
     cb,
   }: {
-    searchableProps: (keyof T)[];
-    cb?(targetValue: any, searchValue: string, propName: keyof T): boolean;
+    searchableProps: (keyof T & string)[];
+    cb?: MatchCallback<T>;
   }
 ) {
   searchValue = searchValue.toLocaleUpperCase();
+
   let propNames =
-    searchableProps || (Object.getOwnPropertyNames(obj) as (keyof T)[]);
+    searchableProps ||
+    (Object.getOwnPropertyNames(obj) as (keyof T & string)[]);
   for (let i = 0; i < propNames.length; i++) {
     let targetValue = obj[propNames[i]];
     if (targetValue) {
@@ -63,3 +65,9 @@ export default function match<T>(
 
   return false;
 }
+
+export type MatchCallback<T> = (
+  targetValue: any,
+  searchValue: string,
+  propName: keyof T & string
+) => boolean;
