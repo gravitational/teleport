@@ -328,6 +328,9 @@ exports[`render device list 1`] = `
             <td>
               2021-08-12
             </td>
+            <td
+              align="right"
+            />
           </tr>
           <tr>
             <td>
