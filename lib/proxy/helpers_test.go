@@ -211,11 +211,3 @@ func sendMsg(stream clientapi.ProxyService_DialNodeClient) error {
 		},
 	})
 }
-
-func sendMsgS(stream clientapi.ProxyService_DialNodeClient, m string) error {
-	return stream.Send(&clientapi.Frame{
-		Message: &clientapi.Frame_Data{
-			&clientapi.Data{Bytes: []byte(m)},
-		},
-	})
-}

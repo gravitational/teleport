@@ -3254,11 +3254,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if alpnRouter != nil {
 		grpcServer = grpc.NewServer(
 			grpc.ChainUnaryInterceptor(
-				utils.ErrorConvertUnaryInterceptor,
+				utils.GRPCServerUnaryErrorInterceptor ,
 				proxyLimiter.UnaryServerInterceptor(),
 			),
 			grpc.ChainStreamInterceptor(
-				utils.ErrorConvertStreamInterceptor,
+				utils.GRPCServerStreamErrorInterceptor ,
 				proxyLimiter.StreamServerInterceptor,
 			),
 		)
