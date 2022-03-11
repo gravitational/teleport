@@ -205,7 +205,7 @@ var signingNameToHostname = map[string]string{
 	"mq":                                    "mq.us-east-1.amazonaws.com",
 	"mturk-requester":                       "mturk-requester.us-east-1.amazonaws.com",
 	"network-firewall":                      "network-firewall.us-east-1.amazonaws.com",
-	"networkmanager":                        "networkmanager.us-west-2.amazonaws.com", // Maps to us-west-1.
+	"networkmanager":                        "networkmanager.us-west-2.amazonaws.com", // Maps to us-west-2.
 	"nimble":                                "nimble.us-east-1.amazonaws.com",
 	"opsworks":                              "opsworks.us-east-1.amazonaws.com",
 	"opsworks-cm":                           "opsworks-cm.us-east-1.amazonaws.com",
