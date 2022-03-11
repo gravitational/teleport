@@ -438,7 +438,7 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 	}
 
 	// Return the host CA for this cluster only.
-	authority, err := s.GetCertAuthority(types.CertAuthID{
+	authority, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, false)

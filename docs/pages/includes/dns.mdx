@@ -4,20 +4,7 @@ for web apps using application access.
 <Details title="DNS instructions for cloud providers" opened={false}>
 
 <Tabs>
-  <TabItem label="GCP Cloud DNS">
-    ```code
-    $ MYZONE="myzone"
-    $ MYDNS="tele.example.com"
-
-    $ gcloud dns record-sets transaction start --zone="${MYZONE?}"
-    $ gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
-    $ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
-    $ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
-    $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
-    ```
-  </TabItem>
-
-  <TabItem label="AWS Route 53">
+    <TabItem label="AWS Route 53">
     ```code
     # Tip for finding AWS zone id by the domain name.
     $ MYZONE_DNS="example.com"
@@ -38,6 +25,20 @@ for web apps using application access.
     # "INSYNC"
     ```
   </TabItem>
+  <TabItem label="GCP Cloud DNS">
+    ```code
+    $ MYZONE="myzone"
+    $ MYDNS="tele.example.com"
+
+    $ gcloud dns record-sets transaction start --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
+    ```
+  </TabItem>
+
+
 </Tabs>
 
 </Details>
