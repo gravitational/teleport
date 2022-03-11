@@ -1254,7 +1254,7 @@ func (p *pack) ensureAuditEvent(t *testing.T, eventType string, checkEvent func(
 // initCertPool initializes root cluster CA pool.
 func (p *pack) initCertPool(t *testing.T) {
 	authClient := p.rootCluster.GetSiteAPI(p.rootCluster.Secrets.SiteName)
-	ca, err := authClient.GetCertAuthority(types.CertAuthID{
+	ca, err := authClient.GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: p.rootCluster.Secrets.SiteName,
 	}, false)

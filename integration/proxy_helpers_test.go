@@ -277,7 +277,7 @@ func withLeafClusterPorts(ports *InstancePorts) proxySuiteOptionsFunc {
 }
 
 func newRole(t *testing.T, roleName string, username string) types.Role {
-	role, err := types.NewRole(roleName, types.RoleSpecV5{
+	role, err := types.NewRoleV3(roleName, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -338,7 +338,7 @@ func withStandardRoleMapping() proxySuiteOptionsFunc {
 			rc := suite.root
 			lc := suite.leaf
 			role := suite.root.Secrets.Users[mustGetCurrentUser(t).Username].Roles[0]
-			ca, err := lc.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
+			ca, err := lc.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
 				Type:       types.UserCA,
 				DomainName: rc.Secrets.SiteName,
 			}, false)
@@ -509,7 +509,7 @@ func mustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string)
 	key.Cert = sshCert
 	key.TLSCert = tlsCert
 
-	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(types.HostCA, false)
+	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
 	require.NoError(t, err)
 	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
 
