@@ -236,7 +236,9 @@ export class QuickSshLoginPicker implements QuickInputPicker {
     return matchingLogins.map(login => ({
       kind: 'suggestion.ssh-login' as const,
       token: login,
-      data: null,
+      // This allows the user to immediately begin typing the hostname.
+      appendToToken: '@',
+      data: login,
     }));
   }
 

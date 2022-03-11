@@ -72,7 +72,7 @@ function CmdItem(props: { item: types.SuggestionCmd }) {
 function SshLoginItem(props: { item: types.SuggestionSshLogin }) {
   return (
     <Flex alignItems="center">
-      <Box mr={2}>{props.item.token}</Box>
+      <Box mr={2}>{props.item.data}</Box>
     </Flex>
   );
 }

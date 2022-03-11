@@ -120,9 +120,10 @@ export class QuickInputService extends Store<State> {
   // support cursor index. So `tsh ssh roo --cluster=bar` becomes `tsh ssh root --cluster=bar`.
   pickSuggestion(targetToken: AutocompleteToken, suggestion: Suggestion) {
     const { inputValue } = this.state;
+    const insertedToken = suggestion.token + (suggestion.appendToToken || '');
     const newInputValue =
       inputValue.substring(0, targetToken.startIndex) +
-      suggestion.token +
+      insertedToken +
       inputValue.substring(targetToken.startIndex + targetToken.value.length);
 
     this.setState({

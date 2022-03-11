@@ -1,6 +1,7 @@
 type SuggestionBase<T, R> = {
   kind: T;
   token: string;
+  appendToToken?: string;
   data: R;
 };
 
@@ -9,7 +10,10 @@ export type SuggestionCmd = SuggestionBase<
   { name: string; displayName: string; description: string }
 >;
 
-export type SuggestionSshLogin = SuggestionBase<'suggestion.ssh-login', null>;
+export type SuggestionSshLogin = SuggestionBase<
+  'suggestion.ssh-login',
+  string
+> & { appendToToken: string };
 
 export type QuickInputPicker = {
   onPick(suggestion: Suggestion): void;

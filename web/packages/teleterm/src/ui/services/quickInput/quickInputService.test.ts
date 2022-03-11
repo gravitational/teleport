@@ -142,7 +142,12 @@ test("getAutocompleteResult doesn't return any suggestions if the only suggestio
       return {
         kind: 'autocomplete.partial-match',
         suggestions: [
-          { kind: 'suggestion.ssh-login', token: 'foobar', data: null },
+          {
+            kind: 'suggestion.ssh-login',
+            token: 'foobar',
+            appendToToken: '@',
+            data: 'foobar',
+          },
         ],
         targetToken: {
           startIndex: 0,
@@ -262,9 +267,33 @@ test('picking an SSH login suggestion replaces target token in input value', () 
   const sshLogin: SuggestionSshLogin = {
     kind: 'suggestion.ssh-login',
     token: 'root',
-    data: null,
+    appendToToken: '@',
+    data: 'root',
   };
   quickInputService.pickSuggestion(targetToken, sshLogin);
 
-  expect(quickInputService.getInputValue()).toBe('tsh ssh root --foo');
+  expect(quickInputService.getInputValue()).toBe('tsh ssh root@ --foo');
+});
+
+test('pickSuggestion appends the appendToToken field to the token', () => {
+  const quickInputService = new QuickInputService(
+    new CommandLauncherMock(undefined),
+    new ClustersServiceMock(undefined),
+    new WorkspacesServiceMock(undefined, undefined, undefined)
+  );
+  quickInputService.setState({ inputValue: 'tsh ssh foo' });
+
+  const targetToken = {
+    value: 'foo',
+    startIndex: 8,
+  };
+  const sshLogin: SuggestionSshLogin = {
+    kind: 'suggestion.ssh-login',
+    token: 'foobar',
+    appendToToken: '@barbaz',
+    data: 'foobar',
+  };
+  quickInputService.pickSuggestion(targetToken, sshLogin);
+
+  expect(quickInputService.getInputValue()).toBe('tsh ssh foobar@barbaz');
 });
