@@ -459,9 +459,12 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &e, nil
-		e = &events.CertificateCreate{}
 	case UnknownEvent:
-		e = &events.Unknown{}
+		var e events.CertificateCreate
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", eventType)
 		unknown := &events.Unknown{}
