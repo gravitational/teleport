@@ -69,9 +69,9 @@ export class QuickCommandPicker implements QuickInputPicker {
     const matchingAutocompleteCommands = this.launcher
       .getAutocompleteCommands()
       .filter(cmd => {
-        const completeMatchRegex = new RegExp(`^${cmd.displayName}\\b`);
+        const completeMatchRegex = new RegExp(`^${cmd.displayName}\\b`, 'i');
         return (
-          cmd.displayName.startsWith(input) ||
+          cmd.displayName.startsWith(input.toLowerCase()) ||
           // `completeMatchRegex` handles situations where the `input` akin to "tsh ssh foo".
           // In that case, "tsh ssh" is the matching command, even though
           // `cmd.displayName` ("tsh ssh") doesn't start with `input` ("tsh ssh foo").
@@ -99,7 +99,7 @@ export class QuickCommandPicker implements QuickInputPicker {
     // Handles a complete match, for example the input is `tsh ssh`.
     const soleMatch = matchingAutocompleteCommands[0];
     const commandToken = soleMatch.displayName;
-    const completeMatchRegex = new RegExp(`^${commandToken}\\b`);
+    const completeMatchRegex = new RegExp(`^${commandToken}\\b`, 'i');
     const isCompleteMatch = completeMatchRegex.test(input);
 
     if (isCompleteMatch) {
@@ -213,12 +213,11 @@ export class QuickTshProxyDbPicker implements QuickInputPicker {
 
 export class QuickSshLoginPicker implements QuickInputPicker {
   constructor(
-    private quickInputService: QuickInputService,
     private workspacesService: WorkspacesService,
     private clustersService: ClustersService
   ) {}
 
-  filterSshLogins(input: string): SuggestionSshLogin[] {
+  private filterSshLogins(input: string): SuggestionSshLogin[] {
     // TODO(ravicious): Use local cluster URI.
     // TODO(ravicious): Handle the `--cluster` tsh ssh flag.
     const rootClusterUri = this.workspacesService.getRootClusterUri();
@@ -229,7 +228,9 @@ export class QuickSshLoginPicker implements QuickInputPicker {
     if (!input) {
       matchingLogins = allLogins;
     } else {
-      matchingLogins = allLogins.filter(login => login.startsWith(input));
+      matchingLogins = allLogins.filter(login =>
+        login.startsWith(input.toLowerCase())
+      );
     }
 
     return matchingLogins.map(login => ({
