@@ -31,10 +31,12 @@ import (
 )
 
 // DialProxy creates a connection to a server via an HTTP Proxy.
-func DialProxy(ctx context.Context, proxyAddr, addr string, dialer ContextDialer) (net.Conn, error) {
-	if dialer == nil {
-		dialer = &net.Dialer{}
-	}
+func DialProxy(ctx context.Context, proxyAddr, addr string) (net.Conn, error) {
+	return DialProxyWithDialer(ctx, proxyAddr, addr, &net.Dialer{})
+}
+
+// DialProxyWithDialer creates a connection to a server via an HTTP Proxy using a specified dialer.
+func DialProxyWithDialer(ctx context.Context, proxyAddr, addr string, dialer ContextDialer) (net.Conn, error) {
 	conn, err := dialer.DialContext(ctx, "tcp", proxyAddr)
 	if err != nil {
 		log.Warnf("Unable to dial to proxy: %v: %v.", proxyAddr, err)
