@@ -58,7 +58,7 @@ const (
 
 // GetState reads rotation state from disk.
 func (p *ProcessStorage) GetState(role types.SystemRole) (*StateV2, error) {
-	item, err := p.Get(context.TODO(), backend.Key(statesPrefix, strings.ToLower(role.String()), stateName))
+	item, err := p.Get(context.TODO(), backend.Key(statesPrefix, backend.NewSafeString(strings.ToLower(role.String())), stateName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -82,7 +82,7 @@ func (p *ProcessStorage) CreateState(role types.SystemRole, state StateV2) error
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:   backend.Key(statesPrefix, strings.ToLower(role.String()), stateName),
+		Key:   backend.Key(statesPrefix, backend.NewSafeString(strings.ToLower(role.String())), stateName),
 		Value: value,
 	}
 	_, err = p.Create(context.TODO(), item)
@@ -102,7 +102,7 @@ func (p *ProcessStorage) WriteState(role types.SystemRole, state StateV2) error 
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:   backend.Key(statesPrefix, strings.ToLower(role.String()), stateName),
+		Key:   backend.Key(statesPrefix, backend.NewSafeString(strings.ToLower(role.String())), stateName),
 		Value: value,
 	}
 	_, err = p.Put(context.TODO(), item)
@@ -117,7 +117,7 @@ func (p *ProcessStorage) ReadIdentity(name string, role types.SystemRole) (*Iden
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
-	item, err := p.Get(context.TODO(), backend.Key(idsPrefix, strings.ToLower(role.String()), name))
+	item, err := p.Get(context.TODO(), backend.Key(idsPrefix, backend.NewSafeString(strings.ToLower(role.String())), backend.NewSafeString(name)))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -162,7 +162,7 @@ func (p *ProcessStorage) WriteIdentity(name string, id Identity) error {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:   backend.Key(idsPrefix, strings.ToLower(id.ID.Role.String()), name),
+		Key:   backend.Key(idsPrefix, backend.NewSafeString(strings.ToLower(id.ID.Role.String())), backend.NewSafeString(name)),
 		Value: value,
 	}
 	_, err = p.Put(context.TODO(), item)

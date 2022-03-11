@@ -41,7 +41,7 @@ func NewCAService(b backend.Backend) *CA {
 
 // DeleteAllCertAuthorities deletes all certificate authorities of a certain type
 func (s *CA) DeleteAllCertAuthorities(caType types.CertAuthType) error {
-	startKey := backend.Key(authoritiesPrefix, string(caType))
+	startKey := backend.Key(authoritiesPrefix, backend.NewSafeString(string(caType)))
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
@@ -55,7 +55,7 @@ func (s *CA) CreateCertAuthority(ca types.CertAuthority) error {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
+		Key:     backend.Key(authoritiesPrefix, backend.NewSafeString(string(ca.GetType())), backend.NewSafeString(ca.GetName())),
 		Value:   value,
 		Expires: ca.Expiry(),
 	}
@@ -91,7 +91,7 @@ func (s *CA) UpsertCertAuthority(ca types.CertAuthority) error {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
+		Key:     backend.Key(authoritiesPrefix, backend.NewSafeString(string(ca.GetType())), backend.NewSafeString(ca.GetName())),
 		Value:   value,
 		Expires: ca.Expiry(),
 		ID:      ca.GetResourceID(),
@@ -118,7 +118,7 @@ func (s *CA) CompareAndSwapCertAuthority(new, existing types.CertAuthority) erro
 		return trace.Wrap(err)
 	}
 	newItem := backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(new.GetType()), new.GetName()),
+		Key:     backend.Key(authoritiesPrefix, backend.NewSafeString(string(new.GetType())), backend.NewSafeString(new.GetName())),
 		Value:   newValue,
 		Expires: new.Expiry(),
 	}
@@ -128,7 +128,7 @@ func (s *CA) CompareAndSwapCertAuthority(new, existing types.CertAuthority) erro
 		return trace.Wrap(err)
 	}
 	existingItem := backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(existing.GetType()), existing.GetName()),
+		Key:     backend.Key(authoritiesPrefix, backend.NewSafeString(string(existing.GetType())), backend.NewSafeString(existing.GetName())),
 		Value:   existingValue,
 		Expires: existing.Expiry(),
 	}
@@ -154,13 +154,13 @@ func (s *CA) DeleteCertAuthority(id types.CertAuthID) error {
 	}
 	// when removing a types.CertAuthority also remove any deactivated
 	// types.CertAuthority as well if they exist.
-	err := s.Delete(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
+	err := s.Delete(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, backend.NewSafeString(string(id.Type)), backend.NewSafeString(id.DomainName)))
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 	}
-	err = s.Delete(context.TODO(), backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
+	err = s.Delete(context.TODO(), backend.Key(authoritiesPrefix, backend.NewSafeString(string(id.Type)), backend.NewSafeString(id.DomainName)))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -170,7 +170,7 @@ func (s *CA) DeleteCertAuthority(id types.CertAuthID) error {
 // ActivateCertAuthority moves a CertAuthority from the deactivated list to
 // the normal list.
 func (s *CA) ActivateCertAuthority(id types.CertAuthID) error {
-	item, err := s.Get(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
+	item, err := s.Get(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, backend.NewSafeString(string(id.Type)), backend.NewSafeString(id.DomainName)))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.BadParameter("can not activate cert authority %q which has not been deactivated", id.DomainName)
@@ -189,7 +189,7 @@ func (s *CA) ActivateCertAuthority(id types.CertAuthID) error {
 		return trace.Wrap(err)
 	}
 
-	err = s.Delete(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
+	err = s.Delete(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, backend.NewSafeString(string(id.Type)), backend.NewSafeString(id.DomainName)))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -218,7 +218,7 @@ func (s *CA) DeactivateCertAuthority(id types.CertAuthID) error {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName),
+		Key:     backend.Key(authoritiesPrefix, deactivatedPrefix, backend.NewSafeString(string(id.Type)), backend.NewSafeString(id.DomainName)),
 		Value:   value,
 		Expires: certAuthority.Expiry(),
 		ID:      certAuthority.GetResourceID(),
@@ -238,7 +238,7 @@ func (s *CA) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSign
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item, err := s.Get(ctx, backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
+	item, err := s.Get(ctx, backend.Key(authoritiesPrefix, backend.NewSafeString(string(id.Type)), backend.NewSafeString(id.DomainName)))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -269,7 +269,7 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 	}
 
 	// Get all items in the bucket.
-	startKey := backend.Key(authoritiesPrefix, string(caType))
+	startKey := backend.Key(authoritiesPrefix, backend.NewSafeString(string(caType)))
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)

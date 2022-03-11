@@ -44,7 +44,7 @@ func NewSessionTrackerService(bk backend.Backend) (services.SessionTrackerServic
 }
 
 func (s *sessionTracker) loadSession(ctx context.Context, sessionID string) (types.SessionTracker, error) {
-	sessionJSON, err := s.bk.Get(ctx, backend.Key(sessionPrefix, sessionID))
+	sessionJSON, err := s.bk.Get(ctx, backend.Key(sessionPrefix, backend.NewSafeString(sessionID)))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -60,7 +60,7 @@ func (s *sessionTracker) loadSession(ctx context.Context, sessionID string) (typ
 // UpdatePresence updates the presence status of a user in a session.
 func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	for i := 0; i < casRetryLimit; i++ {
-		sessionItem, err := s.bk.Get(ctx, backend.Key(sessionPrefix, sessionID))
+		sessionItem, err := s.bk.Get(ctx, backend.Key(sessionPrefix, backend.NewSafeString(sessionID)))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -80,7 +80,7 @@ func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user str
 			return trace.Wrap(err)
 		}
 
-		item := backend.Item{Key: backend.Key(sessionPrefix, sessionID), Value: sessionJSON}
+		item := backend.Item{Key: backend.Key(sessionPrefix, backend.NewSafeString(sessionID)), Value: sessionJSON}
 		_, err = s.bk.CompareAndSwap(ctx, *sessionItem, item)
 		if trace.IsCompareFailed(err) {
 			select {
@@ -159,7 +159,7 @@ func (s *sessionTracker) CreateSessionTracker(ctx context.Context, req *proto.Cr
 		return nil, trace.Wrap(err)
 	}
 
-	item := backend.Item{Key: backend.Key(sessionPrefix, session.GetSessionID()), Value: json}
+	item := backend.Item{Key: backend.Key(sessionPrefix, backend.NewSafeString(session.GetSessionID())), Value: json}
 	_, err = s.bk.Put(ctx, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -171,7 +171,7 @@ func (s *sessionTracker) CreateSessionTracker(ctx context.Context, req *proto.Cr
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
 	for i := 0; i < casRetryLimit; i++ {
-		sessionItem, err := s.bk.Get(ctx, backend.Key(sessionPrefix, req.SessionID))
+		sessionItem, err := s.bk.Get(ctx, backend.Key(sessionPrefix, backend.NewSafeString(req.SessionID)))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -200,7 +200,7 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 			return trace.Wrap(err)
 		}
 
-		item := backend.Item{Key: backend.Key(sessionPrefix, req.SessionID), Value: sessionJSON}
+		item := backend.Item{Key: backend.Key(sessionPrefix, backend.NewSafeString(req.SessionID)), Value: sessionJSON}
 		_, err = s.bk.CompareAndSwap(ctx, *sessionItem, item)
 		if trace.IsCompareFailed(err) {
 			select {
@@ -219,7 +219,7 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (s *sessionTracker) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	return trace.Wrap(s.bk.Delete(ctx, backend.Key(sessionPrefix, sessionID)))
+	return trace.Wrap(s.bk.Delete(ctx, backend.Key(sessionPrefix, backend.NewSafeString(sessionID))))
 }
 
 // unmarshalSession unmarshals the Session resource from JSON.

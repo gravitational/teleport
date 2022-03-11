@@ -33,7 +33,7 @@ func (s *IdentityService) GetAppSession(ctx context.Context, req types.GetAppSes
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := s.Get(ctx, backend.Key(appsPrefix, sessionsPrefix, req.SessionID))
+	item, err := s.Get(ctx, backend.Key(appsPrefix, sessionsPrefix, backend.NewSafeString(req.SessionID)))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -70,7 +70,7 @@ func (s *IdentityService) UpsertAppSession(ctx context.Context, session types.We
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(appsPrefix, sessionsPrefix, session.GetName()),
+		Key:     backend.Key(appsPrefix, sessionsPrefix, backend.NewSafeString(session.GetName())),
 		Value:   value,
 		Expires: session.GetExpiryTime(),
 	}
@@ -83,7 +83,7 @@ func (s *IdentityService) UpsertAppSession(ctx context.Context, session types.We
 
 // DeleteAppSession removes an application web session.
 func (s *IdentityService) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
-	if err := s.Delete(ctx, backend.Key(appsPrefix, sessionsPrefix, req.SessionID)); err != nil {
+	if err := s.Delete(ctx, backend.Key(appsPrefix, sessionsPrefix, backend.NewSafeString(req.SessionID))); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -310,13 +310,13 @@ func getLegacyWebSession(ctx context.Context, backend backend.Backend, user, ses
 }
 
 func webSessionKey(sessionID string) (key []byte) {
-	return backend.Key(webPrefix, sessionsPrefix, sessionID)
+	return backend.Key(webPrefix, sessionsPrefix, backend.NewSafeString(sessionID))
 }
 
 func webTokenKey(token string) (key []byte) {
-	return backend.Key(webPrefix, tokensPrefix, token)
+	return backend.Key(webPrefix, tokensPrefix, backend.NewSafeString(token))
 }
 
 func legacyWebSessionKey(user, sessionID string) (key []byte) {
-	return backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sessionID)
+	return backend.Key(webPrefix, usersPrefix, backend.NewSafeString(user), sessionsPrefix, backend.NewSafeString(sessionID))
 }

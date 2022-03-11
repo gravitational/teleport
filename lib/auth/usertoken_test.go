@@ -304,7 +304,7 @@ func TestBackwardsCompForUserTokenWithLegacyPrefix(t *testing.T) {
 
 	// Insert the token in backend using legacy prefix.
 	_, err = srv.AuthServer.Backend.Create(ctx, backend.Item{
-		Key:   backend.Key(local.LegacyPasswordTokensPrefix, legacyToken.GetName(), "params"),
+		Key:   backend.Key(local.LegacyPasswordTokensPrefix, backend.NewSafeString(legacyToken.GetName()), "params"),
 		Value: marshalledToken,
 	})
 	require.NoError(t, err)
@@ -324,7 +324,7 @@ func TestBackwardsCompForUserTokenWithLegacyPrefix(t *testing.T) {
 
 	// Insert the secret in backend using legacy prefix.
 	_, err = srv.AuthServer.Backend.Create(ctx, backend.Item{
-		Key:   backend.Key(local.LegacyPasswordTokensPrefix, legacySecrets.GetName(), "secrets"),
+		Key:   backend.Key(local.LegacyPasswordTokensPrefix, backend.NewSafeString(legacySecrets.GetName()), "secrets"),
 		Value: marshalledSecrets,
 	})
 	require.NoError(t, err)

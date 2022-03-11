@@ -548,7 +548,7 @@ func (p *clusterNameParser) parse(event backend.Event) (types.Resource, error) {
 func newNamespaceParser(name string) *namespaceParser {
 	prefix := backend.Key(namespacesPrefix)
 	if name != "" {
-		prefix = backend.Key(namespacesPrefix, name, paramsPrefix)
+		prefix = backend.Key(namespacesPrefix, backend.NewSafeString(name), paramsPrefix)
 	}
 	return &namespaceParser{
 		baseParser: newBaseParser(prefix),

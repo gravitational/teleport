@@ -186,7 +186,7 @@ func itemFromUser(user types.User) (*backend.Item, error) {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Key:     backend.Key(webPrefix, usersPrefix, backend.NewSafeString(user.GetName()), paramsPrefix),
 		Value:   value,
 		Expires: user.Expiry(),
 		ID:      user.GetResourceID(),
@@ -222,7 +222,7 @@ func itemFromCertAuthority(ca types.CertAuthority) (*backend.Item, error) {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
+		Key:     backend.Key(authoritiesPrefix, backend.NewSafeString(string(ca.GetType())), backend.NewSafeString(ca.GetName())),
 		Value:   value,
 		Expires: ca.Expiry(),
 		ID:      ca.GetResourceID(),
@@ -258,7 +258,7 @@ func itemFromTrustedCluster(tc types.TrustedCluster) (*backend.Item, error) {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(trustedClustersPrefix, tc.GetName()),
+		Key:     backend.Key(trustedClustersPrefix, backend.NewSafeString(tc.GetName())),
 		Value:   value,
 		Expires: tc.Expiry(),
 		ID:      tc.GetResourceID(),
@@ -291,7 +291,7 @@ func itemFromGithubConnector(gc types.GithubConnector) (*backend.Item, error) {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, gc.GetName()),
+		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, backend.NewSafeString(gc.GetName())),
 		Value:   value,
 		Expires: gc.Expiry(),
 		ID:      gc.GetResourceID(),
@@ -321,7 +321,7 @@ func itemFromRole(role types.Role) (*backend.Item, error) {
 	}
 
 	item := &backend.Item{
-		Key:     backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Key:     backend.Key(rolesPrefix, backend.NewSafeString(role.GetName()), paramsPrefix),
 		Value:   value,
 		Expires: role.Expiry(),
 		ID:      role.GetResourceID(),
@@ -351,7 +351,7 @@ func itemFromOIDCConnector(connector types.OIDCConnector) (*backend.Item, error)
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
+		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, backend.NewSafeString(connector.GetName())),
 		Value:   value,
 		Expires: connector.Expiry(),
 		ID:      connector.GetResourceID(),
@@ -384,7 +384,7 @@ func itemFromSAMLConnector(connector types.SAMLConnector) (*backend.Item, error)
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
+		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, backend.NewSafeString(connector.GetName())),
 		Value:   value,
 		Expires: connector.Expiry(),
 		ID:      connector.GetResourceID(),
@@ -467,7 +467,7 @@ func itemsFromLocalAuthSecrets(user string, auth types.LocalAuthSecrets) ([]back
 	}
 	if len(auth.PasswordHash) > 0 {
 		item := backend.Item{
-			Key:   backend.Key(webPrefix, usersPrefix, user, pwdPrefix),
+			Key:   backend.Key(webPrefix, usersPrefix, backend.NewSafeString(user), pwdPrefix),
 			Value: auth.PasswordHash,
 		}
 		items = append(items, item)
@@ -478,7 +478,7 @@ func itemsFromLocalAuthSecrets(user string, auth types.LocalAuthSecrets) ([]back
 			return nil, trace.Wrap(err)
 		}
 		items = append(items, backend.Item{
-			Key:   backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix, mfa.Id),
+			Key:   backend.Key(webPrefix, usersPrefix, backend.NewSafeString(user), mfaDevicePrefix, backend.NewSafeString(mfa.Id)),
 			Value: value,
 		})
 	}

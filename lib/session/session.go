@@ -275,11 +275,11 @@ func New(bk backend.Backend) (Service, error) {
 }
 
 func activePrefix(namespace string) []byte {
-	return backend.Key("namespaces", namespace, "sessions", "active")
+	return backend.Key("namespaces", backend.NewSafeString(namespace), "sessions", "active")
 }
 
 func activeKey(namespace string, key string) []byte {
-	return backend.Key("namespaces", namespace, "sessions", "active", key)
+	return backend.Key("namespaces", backend.NewSafeString(namespace), "sessions", "active", backend.NewSafeString(key))
 }
 
 // GetSessions returns a list of active sessions.

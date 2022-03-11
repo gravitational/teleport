@@ -21,13 +21,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math/big"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 )
 
@@ -368,10 +368,48 @@ func (p earliest) Swap(i, j int) {
 // Separator is used as a separator between key parts
 const Separator = '/'
 
-// Key joins parts into path separated by Separator,
-// makes sure path always starts with Separator ("/")
-func Key(parts ...string) []byte {
-	return internalKey("", parts...)
+// SafeString is a string which is safe to be used as a key part. In particular, it handles: unicode characters and /.
+type SafeString string
+
+func (ss SafeString) ToString() string {
+	// TODO: find a different encoding that cannot fail on unescape.
+	//val, err := url.QueryUnescape(string(ss))
+	val, err := parseBase62(string(ss))
+	if err != nil {
+		panic(err)
+	}
+	return string(val)
+}
+
+func NewSafeString(unsafe string) SafeString {
+	//return SafeString(url.QueryEscape(unsafe))
+	return SafeString(toBase62([]byte(unsafe)))
+}
+
+func toBase62(bytes []byte) string {
+	var i big.Int
+	i.SetBytes(bytes[:])
+	return i.Text(62)
+}
+
+func parseBase62(s string) ([]byte, error) {
+	var i big.Int
+	_, ok := i.SetString(s, 62)
+	if !ok {
+		return nil, fmt.Errorf("cannot parse base62: %q", s)
+	}
+
+	return i.Bytes(), nil
+}
+
+func Key(parts ...SafeString) []byte {
+	partsRaw := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		partsRaw = append(partsRaw, string(part))
+	}
+
+	return internalKey("", partsRaw...)
 }
 
 func internalKey(internalPrefix string, parts ...string) []byte {

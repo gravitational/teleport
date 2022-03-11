@@ -489,11 +489,11 @@ func itemToPluginData(item backend.Item) (types.PluginData, error) {
 }
 
 func accessRequestKey(name string) []byte {
-	return backend.Key(accessRequestsPrefix, name, paramsPrefix)
+	return backend.Key(accessRequestsPrefix, backend.NewSafeString(name), paramsPrefix)
 }
 
 func pluginDataKey(kind string, name string) []byte {
-	return backend.Key(pluginDataPrefix, kind, name, paramsPrefix)
+	return backend.Key(pluginDataPrefix, backend.NewSafeString(kind), backend.NewSafeString(name), paramsPrefix)
 }
 
 const (

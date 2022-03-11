@@ -623,7 +623,7 @@ func TestMigrateCertAuthorities(t *testing.T) {
 			require.NoError(t, err)
 
 			_, err = as.bk.Put(ctx, backend.Item{
-				Key:   backend.Key("authorities", string(ca.GetType()), ca.GetName()),
+				Key:   backend.Key("authorities", backend.NewSafeString(string(ca.GetType())), backend.NewSafeString(ca.GetName())),
 				Value: enc,
 			})
 			require.NoError(t, err)

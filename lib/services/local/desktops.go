@@ -74,7 +74,7 @@ func (s *WindowsDesktopService) CreateWindowsDesktop(ctx context.Context, deskto
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
+		Key:     backend.Key(windowsDesktopsPrefix, backend.NewSafeString(desktop.GetHostID()), backend.NewSafeString(desktop.GetName())),
 		Value:   value,
 		Expires: desktop.Expiry(),
 		ID:      desktop.GetResourceID(),
@@ -96,7 +96,7 @@ func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, deskto
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
+		Key:     backend.Key(windowsDesktopsPrefix, backend.NewSafeString(desktop.GetHostID()), backend.NewSafeString(desktop.GetName())),
 		Value:   value,
 		Expires: desktop.Expiry(),
 		ID:      desktop.GetResourceID(),
@@ -118,7 +118,7 @@ func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, deskto
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
+		Key:     backend.Key(windowsDesktopsPrefix, backend.NewSafeString(desktop.GetHostID()), backend.NewSafeString(desktop.GetName())),
 		Value:   value,
 		Expires: desktop.Expiry(),
 		ID:      desktop.GetResourceID(),
@@ -136,11 +136,11 @@ func (s *WindowsDesktopService) DeleteWindowsDesktop(ctx context.Context, hostID
 		return trace.Errorf("name must not be empty")
 	}
 
-	key := backend.Key(windowsDesktopsPrefix, hostID, name)
+	key := backend.Key(windowsDesktopsPrefix, backend.NewSafeString(hostID), backend.NewSafeString(name))
 	// legacy behavior, we didn't have host IDs
 	// DELETE IN 10.0 (zmb3, lxea)
 	if hostID == "" {
-		key = backend.Key(windowsDesktopsPrefix, name)
+		key = backend.Key(windowsDesktopsPrefix, backend.NewSafeString(name))
 	}
 
 	err := s.Delete(ctx, key)
@@ -170,8 +170,8 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 		return nil, trace.BadParameter("nonpositive parameter limit")
 	}
 
-	keyPrefix := []string{windowsDesktopsPrefix}
-	rangeStart := backend.Key(append(keyPrefix, req.StartKey)...)
+	keyPrefix := []backend.SafeString{windowsDesktopsPrefix}
+	rangeStart := backend.Key(append(keyPrefix, backend.NewSafeString(req.StartKey))...)
 	rangeEnd := backend.RangeEnd(backend.Key(keyPrefix...))
 	filter := services.MatchResourceFilter{
 		ResourceKind:        types.KindWindowsDesktop,
