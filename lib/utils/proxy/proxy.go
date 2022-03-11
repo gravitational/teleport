@@ -52,7 +52,7 @@ func dialWithDeadline(network string, addr string, config *ssh.ClientConfig) (*s
 // dialALPNWithDeadline allows connecting to Teleport in single-port mode. SSH protocol is wrapped into
 // TLS connection where TLS ALPN protocol is set to ProtocolReverseTunnel allowing ALPN Proxy to route the
 // incoming connection to ReverseTunnel proxy service.
-func dialALPNWithDeadline(network string, addr string, config *ssh.ClientConfig, insecure bool, tlsConfig *tls.Config) (*ssh.Client, error) {
+func (d directDial) dialALPNWithDeadline(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	dialer := &net.Dialer{
 		Timeout: config.Timeout,
 	}
@@ -60,14 +60,14 @@ func dialALPNWithDeadline(network string, addr string, config *ssh.ClientConfig,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	conf := tlsConfig.Clone()
+	conf := d.tlsConfig.Clone()
 	if conf == nil {
 		conf = &tls.Config{
 			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
 		}
 	}
 	conf.ServerName = address.Host()
-	conf.InsecureSkipVerify = insecure
+	conf.InsecureSkipVerify = d.insecure
 	tlsConn, err := tls.DialWithDialer(dialer, network, addr, conf)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -96,7 +96,7 @@ type directDial struct {
 // Dial calls ssh.Dial directly.
 func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	if d.tlsRoutingEnabled {
-		client, err := dialALPNWithDeadline(network, addr, config, d.insecure, d.tlsConfig)
+		client, err := d.dialALPNWithDeadline(network, addr, config)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
