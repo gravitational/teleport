@@ -8,6 +8,30 @@ tests:
           count: 1
       - isKind:
           of: Deployment
+  - it: uses the OSS image
+    set:
+      license.enabled: false
+      image.tag: tag
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: quay.io/gravitational/teleport:tag
+  - it: configures teleport enterprise
+    release:
+      name: my-release
+    set:
+      license.enabled: true
+      image.tag: tag
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: quay.io/gravitational/teleport-ent:tag
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/license
+            name: my-release-teleport-license
+            readOnly: true
   - it: configures high availability
     set:
       fullnameOverride: name-override
