@@ -586,11 +586,12 @@ func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.Cer
 		return nil, trace.BadParameter("at least one CA type is required")
 	}
 
+	ctx := context.TODO()
 	pool := x509.NewCertPool()
 	var authorities []types.CertAuthority
 	if clusterName == "" {
 		for _, caType := range caTypes {
-			cas, err := client.GetCertAuthorities(caType, false)
+			cas, err := client.GetCertAuthorities(ctx, caType, false)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -599,6 +600,7 @@ func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.Cer
 	} else {
 		for _, caType := range caTypes {
 			ca, err := client.GetCertAuthority(
+				ctx,
 				types.CertAuthID{Type: caType, DomainName: clusterName},
 				false)
 			if err != nil {

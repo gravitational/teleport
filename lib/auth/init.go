@@ -203,7 +203,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// if resources are supplied, use them to bootstrap backend state
 	// on initial startup.
 	if len(cfg.Resources) > 0 {
-		firstStart, err := isFirstStart(asrv, cfg)
+		firstStart, err := isFirstStart(ctx, asrv, cfg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -317,14 +317,14 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 
 	// Migrate Host CA as Database CA before certificates generation. Otherwise, the Database CA will be
 	// generated which we don't want for existing installations.
-	if err := migrateDBAuthority(asrv); err != nil {
+	if err := migrateDBAuthority(ctx, asrv); err != nil {
 		return nil, trace.Wrap(err, "failed to migrate database CA")
 	}
 
 	// generate certificate authorities if they don't exist
 	for _, caType := range types.CertAuthTypes {
 		caID := types.CertAuthID{Type: caType, DomainName: cfg.ClusterName.GetClusterName()}
-		ca, err := asrv.GetCertAuthority(caID, true)
+		ca, err := asrv.GetCertAuthority(ctx, caID, true)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
@@ -349,11 +349,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 					// without any active keys. These keys will not be used for
 					// any signing operations until a CA rotation. Only the Host
 					// CA is necessary to issue the Admin identity.
-					if err := asrv.ensureLocalAdditionalKeys(ca); err != nil {
+					if err := asrv.ensureLocalAdditionalKeys(ctx, ca); err != nil {
 						return nil, trace.Wrap(err)
 					}
 					// reload updated CA for below checks
-					if ca, err = asrv.GetCertAuthority(caID, true); err != nil {
+					if ca, err = asrv.GetCertAuthority(ctx, caID, true); err != nil {
 						return nil, trace.Wrap(err)
 					}
 				}
@@ -373,7 +373,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 
 	// Delete any unused keys from the keyStore. This is to avoid exhausting
 	// (or wasting) HSM resources.
-	if err := asrv.deleteUnusedKeys(); err != nil {
+	if err := asrv.deleteUnusedKeys(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -521,9 +521,10 @@ func createPresets(asrv *Server) error {
 
 // isFirstStart returns 'true' if the auth server is starting for the 1st time
 // on this server.
-func isFirstStart(authServer *Server, cfg InitConfig) (bool, error) {
+func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool, error) {
 	// check if the CA exists?
 	_, err := authServer.GetCertAuthority(
+		ctx,
 		types.CertAuthID{
 			DomainName: cfg.ClusterName.GetClusterName(),
 			Type:       types.HostCA,
@@ -956,7 +957,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	certAuthorities, err := asrv.GetCertAuthorities(types.HostCA, false)
+	certAuthorities, err := asrv.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1007,7 +1008,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 	var errors []error
 	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
-		cas, err := asrv.GetCertAuthorities(caType, true)
+		cas, err := asrv.GetCertAuthorities(ctx, caType, true)
 		if err != nil {
 			errors = append(errors, trace.Wrap(err, "fetching %v CAs", caType))
 			continue
@@ -1037,14 +1038,14 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 // https://github.com/gravitational/teleport/issues/5029
 //
 // DELETE IN 10.0
-func migrateDBAuthority(asrv *Server) error {
+func migrateDBAuthority(ctx context.Context, asrv *Server) error {
 	clusterName, err := asrv.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	dbCaID := types.CertAuthID{Type: types.DatabaseCA, DomainName: clusterName.GetClusterName()}
-	_, err = asrv.GetCertAuthority(dbCaID, false)
+	_, err = asrv.GetCertAuthority(ctx, dbCaID, false)
 	if err == nil {
 		return nil // no migration needed. DB cert already exists.
 	}
@@ -1053,7 +1054,7 @@ func migrateDBAuthority(asrv *Server) error {
 	}
 	// Database CA doesn't exist, check for Host.
 	hostCaID := types.CertAuthID{Type: types.HostCA, DomainName: clusterName.GetClusterName()}
-	hostCA, err := asrv.GetCertAuthority(hostCaID, true)
+	hostCA, err := asrv.GetCertAuthority(ctx, hostCaID, true)
 	if trace.IsNotFound(err) {
 		// DB CA and Host CA are missing. Looks like the first start. No migration needed.
 		return nil

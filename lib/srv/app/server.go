@@ -203,10 +203,10 @@ func (m *monitoredApps) setResources(apps types.Apps) {
 	m.resources = apps
 }
 
-func (m *monitoredApps) get() types.ResourcesWithLabels {
+func (m *monitoredApps) get() types.ResourcesWithLabelsMap {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return append(m.static, m.resources...).AsResources()
+	return append(m.static, m.resources...).AsResources().ToMap()
 }
 
 // New returns a new application server.

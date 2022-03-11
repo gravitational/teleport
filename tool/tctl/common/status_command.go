@@ -49,7 +49,7 @@ func (c *StatusCommand) Initialize(app *kingpin.Application, config *service.Con
 func (c *StatusCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.status.FullCommand():
-		err = c.Status(client)
+		err = c.Status(context.Background(), client)
 	default:
 		return false, nil
 	}
@@ -57,18 +57,18 @@ func (c *StatusCommand) TryRun(cmd string, client auth.ClientI) (match bool, err
 }
 
 // Status is called to execute "status" CLI command.
-func (c *StatusCommand) Status(client auth.ClientI) error {
-	pingRsp, err := client.Ping(context.TODO())
+func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
+	pingRsp, err := client.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	serverVersion := pingRsp.ServerVersion
 	clusterName := pingRsp.ClusterName
 
-	authorities := []types.CertAuthority{}
+	var authorities []types.CertAuthority
 
 	for _, caType := range types.CertAuthTypes {
-		ca, err := client.GetCertAuthorities(caType, false)
+		ca, err := client.GetCertAuthorities(ctx, caType, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}

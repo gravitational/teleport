@@ -448,13 +448,14 @@ func TestClusterName(t *testing.T) {
 }
 
 func TestCASigningAlg(t *testing.T) {
+	ctx := context.Background()
 	verifyCAs := func(auth *Server, alg string) {
-		hostCAs, err := auth.GetCertAuthorities(types.HostCA, false)
+		hostCAs, err := auth.GetCertAuthorities(ctx, types.HostCA, false)
 		require.NoError(t, err)
 		for _, ca := range hostCAs {
 			require.Equal(t, sshutils.GetSigningAlgName(ca), alg)
 		}
-		userCAs, err := auth.GetCertAuthorities(types.UserCA, false)
+		userCAs, err := auth.GetCertAuthorities(ctx, types.UserCA, false)
 		require.NoError(t, err)
 		for _, ca := range userCAs {
 			require.Equal(t, sshutils.GetSigningAlgName(ca), alg)
@@ -637,7 +638,7 @@ func TestMigrateCertAuthorities(t *testing.T) {
 	var caSpecs []types.CertAuthoritySpecV2
 	for _, typ := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
 		t.Run(fmt.Sprintf("verify %v CA", typ), func(t *testing.T) {
-			cas, err := as.GetCertAuthorities(typ, true)
+			cas, err := as.GetCertAuthorities(ctx, typ, true)
 			require.NoError(t, err)
 			require.Len(t, cas, 1)
 			caSpecs = append(caSpecs, cas[0].(*types.CertAuthorityV2).Spec)
@@ -884,7 +885,7 @@ func TestIdentityChecker(t *testing.T) {
 	clusterName, err := authServer.GetDomainName()
 	require.NoError(t, err)
 
-	ca, err := authServer.GetCertAuthority(types.CertAuthID{
+	ca, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName,
 	}, true)
@@ -967,8 +968,9 @@ func TestInitCreatesCertsIfMissing(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	ctx := context.Background()
 	for _, caType := range types.CertAuthTypes {
-		cert, err := auth.GetCertAuthorities(caType, false)
+		cert, err := auth.GetCertAuthorities(ctx, caType, false)
 		require.NoError(t, err)
 		require.Len(t, cert, 1)
 	}
@@ -989,7 +991,7 @@ func TestMigrateDatabaseCA(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	dbCAs, err := auth.GetCertAuthorities(types.DatabaseCA, true)
+	dbCAs, err := auth.GetCertAuthorities(context.Background(), types.DatabaseCA, true)
 	require.NoError(t, err)
 	require.Len(t, dbCAs, 1)
 	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Cert, dbCAs[0].GetActiveKeys().TLS[0].Cert)
@@ -1024,9 +1026,10 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 	rotationPhases := []string{types.RotationPhaseInit, types.RotationPhaseUpdateClients,
 		types.RotationPhaseUpdateServers, types.RotationPhaseStandby}
 
+	ctx := context.Background()
 	// Rotate CAs.
 	for _, phase := range rotationPhases {
-		err = auth.RotateCertAuthority(RotateRequest{
+		err = auth.RotateCertAuthority(ctx, RotateRequest{
 			Mode:        types.RotationModeManual,
 			TargetPhase: phase,
 			Type:        types.HostCA,
@@ -1034,7 +1037,7 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	newUserCA, err := auth.GetCertAuthority(types.CertAuthID{
+	newUserCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: "me.localhost",
 	}, true)
@@ -1043,7 +1046,7 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 	require.Equal(t, userCA.Spec.ActiveKeys.TLS, newUserCA.GetActiveKeys().TLS)
 	require.Equal(t, userCA.Spec.ActiveKeys.SSH, newUserCA.GetActiveKeys().SSH)
 
-	newHostCA, err := auth.GetCertAuthority(types.CertAuthID{
+	newHostCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: "me.localhost",
 	}, true)
@@ -1052,7 +1055,7 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 	require.NotEqual(t, hostCA.Spec.ActiveKeys.TLS, newHostCA.GetActiveKeys().TLS)
 	require.NotEqual(t, hostCA.Spec.ActiveKeys.SSH, newHostCA.GetActiveKeys().SSH)
 
-	newDatabaseCA, err := auth.GetCertAuthority(types.CertAuthID{
+	newDatabaseCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
 		DomainName: "me.localhost",
 	}, true)

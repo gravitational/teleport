@@ -474,8 +474,8 @@ func (a *TestAuthServer) Clock() clockwork.Clock {
 }
 
 // Trust adds other server host certificate authority as trusted
-func (a *TestAuthServer) Trust(remote *TestAuthServer, roleMap types.RoleMap) error {
-	remoteCA, err := remote.AuthServer.GetCertAuthority(types.CertAuthID{
+func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, roleMap types.RoleMap) error {
+	remoteCA, err := remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: remote.ClusterName,
 	}, false)
@@ -486,7 +486,7 @@ func (a *TestAuthServer) Trust(remote *TestAuthServer, roleMap types.RoleMap) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	remoteCA, err = remote.AuthServer.GetCertAuthority(types.CertAuthID{
+	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
 		DomainName: remote.ClusterName,
 	}, false)
@@ -497,7 +497,7 @@ func (a *TestAuthServer) Trust(remote *TestAuthServer, roleMap types.RoleMap) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	remoteCA, err = remote.AuthServer.GetCertAuthority(types.CertAuthID{
+	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: remote.ClusterName,
 	}, false)
@@ -922,7 +922,7 @@ type clt interface {
 
 // CreateRole creates a role without assigning any users. Used in tests.
 func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV5) (types.Role, error) {
-	role, err := types.NewRole(name, spec)
+	role, err := types.NewRoleV3(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

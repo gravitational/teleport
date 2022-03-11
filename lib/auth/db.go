@@ -34,7 +34,7 @@ import (
 
 // GenerateDatabaseCert generates client certificate used by a database
 // service to authenticate with the database instance.
-func (s *Server) GenerateDatabaseCert(_ context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -43,7 +43,7 @@ func (s *Server) GenerateDatabaseCert(_ context.Context, req *proto.DatabaseCert
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	databaseCA, err := s.GetCertAuthority(types.CertAuthID{
+	databaseCA, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
@@ -51,7 +51,7 @@ func (s *Server) GenerateDatabaseCert(_ context.Context, req *proto.DatabaseCert
 		if trace.IsNotFound(err) {
 			// Database CA doesn't exist. Fallback to Host CA.
 			// https://github.com/gravitational/teleport/issues/5029
-			databaseCA, err = s.GetCertAuthority(types.CertAuthID{
+			databaseCA, err = s.GetCertAuthority(ctx, types.CertAuthID{
 				Type:       types.HostCA,
 				DomainName: clusterName.GetClusterName(),
 			}, true)
@@ -99,7 +99,7 @@ func getServerNames(req *proto.DatabaseCertRequest) []string {
 
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
-func (s *Server) SignDatabaseCSR(_ context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
+func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
 	if !modules.GetModules().Features().DB {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
@@ -112,7 +112,7 @@ func (s *Server) SignDatabaseCSR(_ context.Context, req *proto.DatabaseCSRReques
 		return nil, trace.Wrap(err)
 	}
 
-	hostCA, err := s.GetCertAuthority(types.CertAuthID{
+	hostCA, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: req.ClusterName,
 	}, false)
@@ -162,7 +162,7 @@ func (s *Server) SignDatabaseCSR(_ context.Context, req *proto.DatabaseCSRReques
 	}
 
 	// Generate the TLS certificate.
-	ca, err := s.Trust.GetCertAuthority(types.CertAuthID{
+	ca, err := s.Trust.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       caType,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
