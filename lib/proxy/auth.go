@@ -106,7 +106,7 @@ func getConfigForClient(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.F
 		pool, err := getCertPool(ap)
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve client CA pool.")
-			return nil, nil
+			return tlsConfig, nil
 		}
 
 		tlsCopy := tlsConfig.Clone()

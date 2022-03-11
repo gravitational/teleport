@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -112,7 +114,8 @@ func NewServer(config ServerConfig) (*Server, error) {
 	transportCreds := newProxyCredentials(credentials.NewTLS(config.TLSConfig))
 	server := grpc.NewServer(
 		grpc.Creds(transportCreds),
-		grpc.ChainStreamInterceptor(metadata.StreamServerInterceptor, streamServerInterceptor(metrics)),
+		grpc.StatsHandler(newStatsHandler(metrics)),
+		grpc.ChainStreamInterceptor(metadata.StreamServerInterceptor, utils.GRPCServerStreamErrorInterceptor),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			Time:    peerKeepAlive,
 			Timeout: peerTimeout,

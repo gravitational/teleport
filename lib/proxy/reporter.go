@@ -15,97 +15,69 @@
 package proxy
 
 import (
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/grpc/status"
 )
 
-type reporter interface {
-	getRequestCounter() *prometheus.CounterVec
-	getHandledCounter() *prometheus.CounterVec
-	getStreamMsgReceivedCounter() *prometheus.CounterVec
-	getStreamMsgSentCounter() *prometheus.CounterVec
-	getHandledHistogram() *prometheus.HistogramVec
-	getStreamReceivedHistogram() *prometheus.HistogramVec
-	getStreamSentHistogram() *prometheus.HistogramVec
+type metrics interface {
+	getConnectionGauge() *prometheus.GaugeVec
+	getRPCGauge() *prometheus.GaugeVec
+	getRPCCounter() *prometheus.CounterVec
+	getRPCDuration() *prometheus.HistogramVec
+	getMessageSent() *prometheus.HistogramVec
+	getMessageReceived() *prometheus.HistogramVec
 }
 
-// request stores grpc request fields
-type request struct {
-	service string
-	method  string
+// reporter is grpc request specific metrics reporter.
+type reporter struct {
+	metrics
 }
 
-// splitSericeMethod splits a grpc request path into service and method strings
-// request format /%s/%s
-func splitServiceMethod(req string) request {
-	splitter := func(c rune) bool {
-		return c == '/'
+// newReporter returns a new reporter object that is used to
+// report metrics relative to proxy peer client or server.
+func newReporter(m metrics) *reporter {
+	return &reporter{
+		metrics: m,
 	}
-
-	res := strings.FieldsFunc(req, splitter)
-	if len(res) == 2 {
-		return request{
-			service: res[0],
-			method:  res[1],
-		}
-	}
-
-	return request{}
 }
 
-// statusCode tries to extract a grpc request status code out of an error
-func statusCode(err error) string {
-	status, _ := status.FromError(err)
-	return status.Code().String()
+// incConnection increases the current number of connections.
+func (r *reporter) incConnection(localAddr, remoteAddr string) {
+	r.getConnectionGauge().WithLabelValues(localAddr, remoteAddr).Inc()
 }
 
-// requestReporter is grpc request specific metrics reporter.
-type requestReporter struct {
-	reporter
-	req          request
-	startTime    time.Time
-	sendTimer    *prometheus.Timer
-	receiveTimer *prometheus.Timer
+// decConnection decreases the current number of connections.
+func (r *reporter) decConnection(localAddr, remoteAddr string) {
+	r.getConnectionGauge().WithLabelValues(localAddr, remoteAddr).Dec()
 }
 
-// newRequestReporter returns a new requestReporter object. it also starts and reports
-// connectivity metrics
-func newRequestReporter(rep reporter, req string) *requestReporter {
-	rr := &requestReporter{
-		reporter:  rep,
-		req:       splitServiceMethod(req),
-		startTime: time.Now(),
-	}
-
-	sendHist := rr.getStreamSentHistogram().WithLabelValues(rr.req.service, rr.req.method)
-	rr.sendTimer = prometheus.NewTimer(sendHist)
-
-	receiveHist := rr.getStreamReceivedHistogram().WithLabelValues(rr.req.service, rr.req.method)
-	rr.receiveTimer = prometheus.NewTimer(receiveHist)
-
-	rr.getRequestCounter().WithLabelValues(rr.req.service, rr.req.method).Inc()
-
-	return rr
+// incRPC increases the current number of rpcs.
+func (r *reporter) incRPC(service, method string) {
+	r.getRPCGauge().WithLabelValues(service, method).Inc()
 }
 
-// reportCall reports request specific metrics
-func (r *requestReporter) reportCall(err error) {
-	r.getHandledCounter().WithLabelValues(r.req.service, r.req.method, statusCode(err)).Inc()
-	r.getHandledHistogram().WithLabelValues(r.req.service, r.req.method).Observe(time.Since(r.startTime).Seconds())
+// decRPC decreases the current number of rpcs.
+func (r *reporter) decRPC(service, method string) {
+	r.getRPCGauge().WithLabelValues(service, method).Dec()
 }
 
-// reportMsgSent reports message sent specific metrics
-func (r *requestReporter) reportMsgSent(err error, size int) {
-	r.getStreamMsgSentCounter().WithLabelValues(r.req.service, r.req.method, statusCode(err), strconv.Itoa(size)).Inc()
-	r.sendTimer.ObserveDuration()
+// countRPC reports the total number of handled rpcs.
+func (r *reporter) countRPC(service, method, code string) {
+	r.getRPCCounter().WithLabelValues(service, method, code).Inc()
 }
 
-// reportMsgReceived reports message received specific metrics
-func (r *requestReporter) reportMsgReceived(err error, size int) {
-	r.getStreamMsgReceivedCounter().WithLabelValues(r.req.service, r.req.method, statusCode(err), strconv.Itoa(size)).Inc()
-	r.receiveTimer.ObserveDuration()
+// timeRPC reports the duration of handled rpcs.
+func (r *reporter) timeRPC(service, method, code string, duration time.Duration) {
+	r.getRPCDuration().WithLabelValues(service, method, code).Observe(duration.Seconds())
+}
+
+// measureMessageSent reports the size of sent messages.
+func (r *reporter) measureMessageSent(service, method string, size float64) {
+	r.getMessageSent().WithLabelValues(service, method).Observe(size)
+}
+
+// measureMessageReceived reports the size of received messages.
+func (r *reporter) measureMessageReceived(service, method string, size float64) {
+	r.getMessageReceived().WithLabelValues(service, method).Observe(size)
 }

@@ -87,19 +87,19 @@ func TestClientUpdate(t *testing.T) {
 	s1, _, err := client.dial([]string{"s1"})
 	require.NoError(t, err)
 	require.NotNil(t, s1)
-	require.NoError(t, sendMsgS(s1, "s1-1"))
+	require.NoError(t, sendMsg(s1))
 	s2, _, err := client.dial([]string{"s2"})
 	require.NoError(t, err)
 	require.NotNil(t, s2)
-	require.NoError(t, sendMsgS(s2, "s2-1"))
+	require.NoError(t, sendMsg(s2))
 
 	// watcher finds one of the two servers
 	err = client.updateConnections([]types.Server{def1})
 	require.NoError(t, err)
 	require.Len(t, client.conns, 1)
 	require.Contains(t, client.conns, "s1")
-	require.NoError(t, sendMsgS(s1, "s1-2")) // stream is not broken across updates
-	require.Error(t, sendMsgS(s2, "s2-2"))   // stream fails because connection got closed
+	require.NoError(t, sendMsg(s1)) // stream is not broken across updates
+	require.Error(t, sendMsg(s2))   // stream fails because connection got closed
 
 	// watcher finds two servers with one broken connection
 	server2.Shutdown()
@@ -107,7 +107,7 @@ func TestClientUpdate(t *testing.T) {
 	require.NoError(t, err) // server2 is in a transient failure state but not reported as an error
 	require.Len(t, client.conns, 2)
 	require.Contains(t, client.conns, "s1")
-	require.NoError(t, sendMsgS(s1, "s1-3")) // stream is still going strong
+	require.NoError(t, sendMsg(s1)) // stream is still going strong
 	_, _, err = client.dial([]string{"s2"})
 	require.Error(t, err) // can't dial server2, obviously
 
@@ -117,11 +117,11 @@ func TestClientUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, client.conns, 1)
 	require.Contains(t, client.conns, "s1")
-	require.Error(t, sendMsgS(s1, "s1-2")) // original stream is closed
+	require.Error(t, sendMsg(s1)) // original stream is closed
 	s3, _, err := client.dial([]string{"s1"})
 	require.NoError(t, err)
 	require.NotNil(t, s3)
-	require.NoError(t, sendMsgS(s3, "s1-1")) // new stream is working
+	require.NoError(t, sendMsg(s3)) // new stream is working
 }
 
 func TestCAChange(t *testing.T) {
@@ -213,5 +213,5 @@ func TestCAChange(t *testing.T) {
 	require.NoError(t, sendMsg(stream))
 
 	// and one final time, original stream should still be working
-	require.NoError(t, sendMsgS(ogStream, "heheh"))
+	require.NoError(t, sendMsg(ogStream))
 }
