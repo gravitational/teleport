@@ -44,6 +44,20 @@ Teleport certificates.
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
   SSH from the Teleport Web UI)
 
+<Admonition type="note" title="Per-session MFA with FIPS">
+Teleport FIPS builds disable local users. To configure WebAuthn in order to use
+per-session MFA with FIPS builds, provide the following in your `teleport.yaml`:
+
+```yaml
+teleport:
+  auth_service:
+    local_auth: false
+    second_factor: optional
+    webauthn:
+      rp_id: teleport.example.com
+```
+</Admonition>
+
 ## Configuration
 
 Per-session MFA can be enforced cluster-wide or only for some specific roles.
