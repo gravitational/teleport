@@ -574,6 +574,8 @@ func GetNodesWithLabels(ctx context.Context, clt nodeClient, namespace string, l
 }
 
 // GetNodes returns the list of servers registered in the cluster.
+//
+// DELETE IN 11.0.0, replaced by GetResourcesWithFilters
 func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	if resp, err := c.APIClient.GetNodes(ctx, namespace); err != nil {
 		if !trace.IsNotImplemented(err) {
