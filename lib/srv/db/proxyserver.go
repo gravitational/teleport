@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -626,12 +627,15 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 		return nil, trace.Wrap(err)
 	}
 
+	teleportVer, err := semver.NewVersion(server.GetTeleportVersion())
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "failed to parse Teleport version")
+	}
+
 	response, err := s.cfg.AuthClient.SignDatabaseCSR(ctx, &proto.DatabaseCSRRequest{
-		CSR:         csr,
-		ClusterName: identity.RouteToCluster,
-		// Field SignWithDatabaseCA was introduced in v9.1. Old clients don't send it
-		// which will resolve as false on the other side.
-		SignWithDatabaseCA: true,
+		CSR:                csr,
+		ClusterName:        identity.RouteToCluster,
+		SignWithDatabaseCA: teleportVer.LessThan(*semver.New("9.1.0")),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
