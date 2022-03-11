@@ -1,0 +1,50 @@
+suite: test deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: creates a deployment
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+  - it: configures high availability
+    set:
+      fullnameOverride: name-override
+      config.highAvailability: true
+      replicaCount: 2
+      config.proxyCount: 3
+    release:
+      name: my-release
+    asserts:
+      # for high availability, we expect a second
+      # deployment for teleport auth
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: Deployment
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: name-override
+        documentIndex: 0
+      - equal:
+          path: spec.replicas
+          value: 3
+        documentIndex: 0
+      - equal:
+          path: spec.selector.matchLabels.auth
+          value: noauth
+        documentIndex: 0
+      - equal:
+          path: spec.template.metadata.labels.auth
+          value: noauth
+        documentIndex: 0
+
+      - isKind:
+          of: Deployment
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: name-overrideauth
+        documentIndex: 1

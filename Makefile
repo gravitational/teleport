@@ -462,7 +462,7 @@ $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-sh test-ci test-api test-go test-rust
+test: test-sh test-ci test-api test-go test-rust test-helm
 
 # Runs bot Go tests.
 #
@@ -474,6 +474,10 @@ test-bot:
 
 $(TEST_LOG_DIR):
 	mkdir $(TEST_LOG_DIR)
+
+.PHONY: test-helm
+test-helm:
+	helm unittest examples/chart/teleport
 
 #
 # Runs all Go tests except integration, called by CI/CD.
