@@ -57,9 +57,10 @@ func init() {
 
 // processState tracks the state of the Teleport process.
 type processState struct {
-	process *TeleportProcess
-	mu      sync.Mutex
-	states  map[string]*componentState
+	process         *TeleportProcess
+	mu              sync.Mutex
+	states          map[string]*componentState
+	componentsCount int
 }
 
 type componentState struct {
@@ -75,8 +76,9 @@ func newProcessState(process *TeleportProcess) (*processState, error) {
 	}
 
 	return &processState{
-		process: process,
-		states:  make(map[string]*componentState),
+		process:         process,
+		states:          make(map[string]*componentState),
+		componentsCount: 1, // FIXME
 	}, nil
 }
 
@@ -88,7 +90,7 @@ func (f *processState) update(event Event) {
 
 	component, ok := event.Payload.(string)
 	if !ok {
-		f.process.log.Errorf("TeleportDegradedEvent broadcasted without component name, this is a bug!")
+		f.process.log.Errorf("event broadcasted without component name, this is a bug!")
 		return
 	}
 	s, ok := f.states[component]
@@ -127,7 +129,7 @@ func (f *processState) update(event Event) {
 }
 
 // getStateLocked returns the overall process state based on the state of
-// individual components. If no components sent updates yet, returns
+// individual components. If not all components have sent updates yet, returns
 // stateStarting.
 //
 // Order of importance:
@@ -138,8 +140,13 @@ func (f *processState) update(event Event) {
 //
 // Note: f.mu must be locked by the caller!
 func (f *processState) getStateLocked() componentStateEnum {
+	// Return stateStarting if not all components have sent updates yet.
+	if len(f.states) < f.componentsCount {
+		return stateStarting
+	}
+
 	state := stateStarting
-	numNotOK := len(f.states)
+	numOK := 0
 	for _, s := range f.states {
 		switch s.state {
 		case stateDegraded:
@@ -147,12 +154,14 @@ func (f *processState) getStateLocked() componentStateEnum {
 		case stateRecovering:
 			state = stateRecovering
 		case stateOK:
-			numNotOK--
+			numOK++
 		}
 	}
 	// Only return stateOK if *all* components are in stateOK.
-	if numNotOK == 0 && len(f.states) > 0 {
+	if numOK == f.componentsCount {
 		state = stateOK
+	} else if numOK > f.componentsCount {
+		f.process.log.Errorf("incorrect count of components, this is a bug!")
 	}
 	return state
 }
