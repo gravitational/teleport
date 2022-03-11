@@ -209,9 +209,10 @@ func (c *SessionContext) tryRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 // ClientTLSConfig returns client TLS authentication associated
 // with the web session context
 func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, error) {
+	ctx := context.TODO()
 	var certPool *x509.CertPool
 	if len(clusterName) == 0 {
-		certAuthorities, err := c.parent.proxyClient.GetCertAuthorities(types.HostCA, false)
+		certAuthorities, err := c.parent.proxyClient.GetCertAuthorities(ctx, types.HostCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -220,7 +221,7 @@ func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, er
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		certAuthority, err := c.parent.proxyClient.GetCertAuthority(types.CertAuthID{
+		certAuthority, err := c.parent.proxyClient.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName[0],
 		}, false)
@@ -305,7 +306,8 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 }
 
 func (c *SessionContext) getCheckers() ([]ssh.PublicKey, error) {
-	cas, err := c.unsafeCachedAuthClient.GetCertAuthorities(types.HostCA, false)
+	ctx := context.TODO()
+	cas, err := c.unsafeCachedAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -836,7 +838,8 @@ func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*
 }
 
 func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
-	ca, err := s.proxyClient.GetCertAuthority(types.CertAuthID{
+	ctx := context.TODO()
+	ca, err := s.proxyClient.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: s.clusterName,
 	}, false)

@@ -243,12 +243,12 @@ that are more appropriately scoped.
 
 ### Role versions
 
-There are currently two supported role versions: `v3` and `v5`. `v5` roles are
+There are currently three supported role versions: `v3`, `v4` and `v5`. `v4` and `v5` roles are
 completely backwards-compatible with `v3`, the only difference lies in the
 default allow labels which will be applied to the role if they are not
-explicitly set.
+explicitly set. Additionally, `v5` is required to use [Moderated Sessions](./guides/moderated-sessions.mdx).
 
-Label              | `v3` Default   | `v5` Default
+Label              | `v3` Default   | `v4` and `v5` Default
 ------------------ | -------------- | ---------------
 `node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
 `app_labels`        | `[{"*": "*"}]` | `[]`

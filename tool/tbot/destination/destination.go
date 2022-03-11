@@ -16,23 +16,20 @@ limitations under the License.
 
 package destination
 
-// ModeHint is a backend-agnostic file mode hint.
-type ModeHint int64
-
-const (
-	// ModeHintUnspecified hints that files should be created with default
-	// (possibly insecure) permissions.
-	ModeHintUnspecified ModeHint = iota
-
-	// ModeHintSecret hints that files should be created with restricted
-	// permissions, appropriate for secret data.
-	ModeHintSecret
-)
-
 // Destination can persist renewable certificates.
 type Destination interface {
+	// Init attempts to initialize this destination for writing. Init should be
+	// idempotent and may write informational log messages if resources are
+	// created.
+	Init() error
+
+	// Verify is run before renewals to check for any potential problems with
+	// the destination. These errors may be informational (logged warnings) or
+	// return an error that may potentially terminate the process.
+	Verify(keys []string) error
+
 	// Write stores data to the destination with the given name.
-	Write(name string, data []byte, modeHint ModeHint) error
+	Write(name string, data []byte) error
 
 	// Read fetches data from the destination with a given name.
 	Read(name string) ([]byte, error)

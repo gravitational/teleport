@@ -348,6 +348,10 @@ type Config struct {
 
 	// Invited is a list of people invited to a session.
 	Invited []string
+
+	// DisplayParticipantRequirements is set if debug information about participants requirements
+	// should be printed in moderated sessions.
+	DisplayParticipantRequirements bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -2063,7 +2067,7 @@ func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, 
 	env := make(map[string]string)
 	env[teleport.EnvSSHJoinMode] = string(mode)
 	env[teleport.EnvSSHSessionReason] = tc.Config.Reason
-
+	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(tc.Config.DisplayParticipantRequirements)
 	encoded, err := json.Marshal(&tc.Config.Invited)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2557,7 +2561,7 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	// If version checking was requested and the server advertises a minimum version.
 	if tc.CheckVersions && pr.MinClientVersion != "" {
 		if err := utils.CheckVersion(teleport.Version, pr.MinClientVersion); err != nil && trace.IsBadParameter(err) {
-			fmt.Printf(`
+			fmt.Fprintf(tc.Config.Stderr, `
 			WARNING
 			Detected potentially incompatible client and server versions.
 			Minimum client version supported by the server is %v but you are using %v.
@@ -2590,7 +2594,7 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 	}
 
 	if motd.Text != "" {
-		fmt.Printf("%s\nPress [ENTER] to continue.\n", motd.Text)
+		fmt.Fprintf(tc.Config.Stderr, "%s\nPress [ENTER] to continue.\n", motd.Text)
 		// We're re-using the password reader for user acknowledgment for
 		// aesthetic purposes, because we want to hide any garbage the
 		// use might enter at the prompt. Whatever the user enters will
@@ -2625,7 +2629,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	}
 
 	// Get the list of host certificates that this cluster knows about.
-	return clt.GetCertAuthorities(types.HostCA, false)
+	return clt.GetCertAuthorities(ctx, types.HostCA, false)
 }
 
 // UpdateTrustedCA connects to the Auth Server and fetches all host certificates
@@ -3044,7 +3048,7 @@ func Username() (string, error) {
 
 // AskOTP prompts the user to enter the OTP token.
 func (tc *TeleportClient) AskOTP() (token string, err error) {
-	fmt.Printf("Enter your OTP token:\n")
+	fmt.Fprintf(tc.Config.Stderr, "Enter your OTP token:\n")
 	token, err = lineFromConsole()
 	if err != nil {
 		fmt.Fprintln(tc.Stderr, err)
@@ -3055,7 +3059,7 @@ func (tc *TeleportClient) AskOTP() (token string, err error) {
 
 // AskPassword prompts the user to enter the password
 func (tc *TeleportClient) AskPassword() (pwd string, err error) {
-	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
+	fmt.Fprintf(tc.Config.Stderr, "Enter password for Teleport user %v:\n", tc.Config.Username)
 	pwd, err = passwordFromConsoleFn()
 	if err != nil {
 		fmt.Fprintln(tc.Stderr, err)
