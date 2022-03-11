@@ -531,6 +531,20 @@
       ]
     },
     {
+      "icon": "wand",
+      "title": "Machine ID",
+      "entries": [
+        {
+          "title": "Introduction",
+          "slug": "/machine-id/introduction/"
+        },
+        {
+          "title": "Getting Started",
+          "slug": "/machine-id/getting-started/"
+        }
+      ]
+    },
+    {
       "icon": "lock",
       "title": "Access Controls",
       "entries": [

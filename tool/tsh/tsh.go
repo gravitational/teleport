@@ -208,6 +208,12 @@ type CLIConf struct {
 	// Format is used to change the format of output
 	Format string
 
+	// SearchKeywords is a list of search keywords to match against resource field values.
+	SearchKeywords string
+
+	// PredicateExpression defines boolean conditions that will be matched against the resource.
+	PredicateExpression string
+
 	// NoRemoteExec will not execute a remote command after connecting to a host,
 	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
 	NoRemoteExec bool
@@ -283,6 +289,9 @@ type CLIConf struct {
 
 	// JoinMode is the participant mode someone is joining a session as.
 	JoinMode string
+
+	// displayParticipantRequirements is set if verbose participant requirement information should be printed for moderated sessions.
+	displayParticipantRequirements bool
 }
 
 // Stdout returns the stdout writer.
@@ -329,7 +338,9 @@ const (
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
-
+	searchHelp  = `List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")`
+	queryHelp   = `Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and || (e.g. --query='labels.key1 == "value1" && labels.key2 != "value2"')`
+	labelHelp   = "List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)"
 	// proxyDefaultResolutionTimeout is how long to wait for an unknown proxy
 	// port to be resolved.
 	//
@@ -410,6 +421,7 @@ func Run(args []string, opts ...cliOption) error {
 	ssh.Flag("x11-untrusted", "Requests untrusted (secure) X11 forwarding for this session").Short('X').BoolVar(&cf.X11ForwardingUntrusted)
 	ssh.Flag("x11-trusted", "Requests trusted (insecure) X11 forwarding for this session. This can make your local displays vulnerable to attacks, use with caution").Short('Y').BoolVar(&cf.X11ForwardingTrusted)
 	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
+	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 
 	// AWS.
 	aws := app.Command("aws", "Access AWS API.")
@@ -421,6 +433,9 @@ func Run(args []string, opts ...cliOption) error {
 	lsApps := apps.Command("ls", "List available applications.")
 	lsApps.Flag("verbose", "Show extra application fields.").Short('v').BoolVar(&cf.Verbose)
 	lsApps.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
+	lsApps.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
+	lsApps.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	lsApps.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
@@ -450,6 +465,9 @@ func Run(args []string, opts ...cliOption) error {
 	db.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	dbList := db.Command("ls", "List all available databases.")
 	dbList.Flag("verbose", "Show extra database fields.").Short('v').BoolVar(&cf.Verbose)
+	dbList.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
+	dbList.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	dbList.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	dbLogin := db.Command("login", "Retrieve credentials for a database.")
 	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").Required().StringVar(&cf.DatabaseService)
 	dbLogin.Flag("db-user", "Optional database user to configure as default.").StringVar(&cf.DatabaseUser)
@@ -494,9 +512,11 @@ func Run(args []string, opts ...cliOption) error {
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
-	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
 	ls.Flag("verbose", "One-line output (for text format), including node UUIDs").Short('v').BoolVar(&cf.Verbose)
 	ls.Flag("format", "Format output (text, json, names)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
+	ls.Arg("labels", labelHelp).StringVar(&cf.UserHost)
+	ls.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
+	ls.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
@@ -1245,7 +1265,7 @@ func onListNodes(cf *CLIConf) error {
 	// Get list of all nodes in backend and sort by "Node Name".
 	var nodes []types.Server
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		nodes, err = tc.ListNodes(cf.Context)
+		nodes, err = tc.ListNodesWithFilters(cf.Context)
 		return err
 	})
 	if err != nil {
@@ -1739,7 +1759,8 @@ func onBenchmark(cf *CLIConf) error {
 	fmt.Printf("\nHistogram\n\n")
 	t := asciitable.MakeTable([]string{"Percentile", "Response Duration"})
 	for _, quantile := range []float64{25, 50, 75, 90, 95, 99, 100} {
-		t.AddRow([]string{fmt.Sprintf("%v", quantile),
+		t.AddRow([]string{
+			fmt.Sprintf("%v", quantile),
 			fmt.Sprintf("%v ms", result.Histogram.ValueAtQuantile(quantile)),
 		})
 	}
@@ -1992,6 +2013,11 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	c.Labels = labels
 	c.KeyTTL = time.Minute * time.Duration(cf.MinsToLive)
 	c.InsecureSkipVerify = cf.InsecureSkipVerify
+	c.PredicateExpression = cf.PredicateExpression
+
+	if cf.SearchKeywords != "" {
+		c.SearchKeywords = client.ParseSearchKeywords(cf.SearchKeywords, ',')
+	}
 
 	// If a TTY was requested, make sure to allocate it. Note this applies to
 	// "exec" command because a shell always has a TTY allocated.
@@ -2088,6 +2114,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 
 	tc.Config.Reason = cf.Reason
 	tc.Config.Invited = cf.Invited
+	tc.Config.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	return tc, nil
 }
 
@@ -2185,7 +2212,6 @@ func refuseArgs(command string, args []string) error {
 		} else {
 			return trace.BadParameter("unexpected argument: %s", arg)
 		}
-
 	}
 	return nil
 }
@@ -2453,7 +2479,7 @@ func onApps(cf *CLIConf) error {
 	// Get a list of all applications.
 	var apps []types.Application
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		apps, err = tc.ListApps(cf.Context)
+		apps, err = tc.ListApps(cf.Context, nil /* custom filter */)
 		return err
 	})
 	if err != nil {
