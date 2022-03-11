@@ -394,7 +394,7 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 // metadata.
 func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
 	return utils.ChainUnaryServerInterceptors(
-		utils.ErrorConvertUnaryInterceptor,
+		utils.GRPCServerUnaryErrorInterceptor ,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor)
 }
@@ -404,7 +404,7 @@ func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
 // metadata.
 func (a *Middleware) StreamInterceptor() grpc.StreamServerInterceptor {
 	return utils.ChainStreamServerInterceptors(
-		utils.ErrorConvertStreamInterceptor,
+		utils.GRPCServerStreamErrorInterceptor ,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor)
 }
